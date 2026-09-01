@@ -6,7 +6,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -64,7 +64,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
@@ -577,22 +577,15 @@ export default function ScoresTable({
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ScoresTableRow>({
       accessorKey: "id",
-      id: "id",
       enableColumnFilter: false,
       header: "Score ID",
       size: 100,
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
-    },
+    }),
     createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -673,10 +666,11 @@ export default function ScoresTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
+        if (isBetaEnabled && !scoreMetrics.data) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags &&

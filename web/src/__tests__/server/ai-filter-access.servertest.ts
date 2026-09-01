@@ -187,7 +187,44 @@ describe("Ask AI filter generation access", () => {
           prompt: "traces from today",
         }),
       ).resolves.toMatchObject({ filters: [] });
-      expect(llmMocks.generateLLMText).toHaveBeenCalledOnce();
+
+      await prisma.dataset.create({
+        data: {
+          id: "ai-filter-dataset",
+          projectId: project.id,
+          name: "Filter QA Dataset",
+        },
+      });
+      llmMocks.generateLLMText.mockResolvedValue({
+        text: JSON.stringify([
+          {
+            type: "stringOptions",
+            column: "datasetName",
+            operator: "any of",
+            value: ["Filter QA Dataset"],
+          },
+        ]),
+      });
+
+      for (const registryId of ["evaluatorSamples", "ruleSamples"] as const) {
+        await expect(
+          caller.searchBar.generateFilter({
+            projectId: project.id,
+            prompt: "only the Filter QA Dataset",
+            registryId,
+          }),
+        ).resolves.toMatchObject({
+          filters: [
+            {
+              type: "stringOptions",
+              column: "experimentDatasetId",
+              operator: "any of",
+              value: ["ai-filter-dataset"],
+            },
+          ],
+        });
+      }
+      expect(llmMocks.generateLLMText).toHaveBeenCalledTimes(3);
     } finally {
       (
         env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }

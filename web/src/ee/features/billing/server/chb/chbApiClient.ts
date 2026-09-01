@@ -76,7 +76,7 @@ const ChbBundleSchema = z.object({
 export type ChbBundle = z.infer<typeof ChbBundleSchema>;
 
 const ChbCheckoutSessionSchema = z.object({
-  url: z.string(),
+  checkoutUrl: z.url(),
   // ClickHouse Organization ID — persisted on the Langfuse org right away so a
   // checkout retry recovers the same CH org instead of orphaning one.
   organizationId: z.uuid(),

@@ -86,10 +86,14 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   ),
   V4MigrationDeadlineNote: () => (
     <p>
-      After November 16, 2026 some features may stop working without a v4
-      upgrade.
+      After November 16, 2026 some features may stop working if you don&apos;t
+      update integrations.
     </p>
   ),
+  useV4MigrationTitle: () =>
+    mocks.hasDeadline
+      ? "Ensure compatibility after November 16"
+      : "Ensure compatibility",
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -232,7 +236,9 @@ describe("V4MigrationStatusPage", () => {
   it("opens the summary card with a link to the v4 docs", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ensure compatibility after November 16"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",

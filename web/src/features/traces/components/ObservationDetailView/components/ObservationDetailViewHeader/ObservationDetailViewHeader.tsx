@@ -14,13 +14,15 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -33,12 +35,19 @@ import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
-} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "./ModelBadge";
-import { ModelParametersBadges } from "./ModelParametersBadges";
+import {
+  SessionBadge,
+  UserIdBadge,
+} from "@/src/features/traces/components/TraceMetadataBadges";
+import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
+import {
+  CostBadge,
+  UsageBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
+import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -59,6 +68,7 @@ import {
   MessageSquare,
   MessageSquareOff,
   MoreHorizontal,
+  PlusIcon,
   SquarePen,
   Terminal,
 } from "lucide-react";
@@ -77,6 +87,9 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
+import { api } from "@/src/utils/api";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -134,12 +147,45 @@ export const ObservationDetailViewHeader = memo(
       projectId,
       scope: "scores:CUD",
     });
+    const {
+      existingDatasetItems,
+      hasAccess: hasDatasetAccess,
+      captureNewDatasetItemFormOpen,
+    } = useDatasetItemFromTraceOrObservation({
+      projectId,
+      traceId,
+      observationId: observation.id,
+      enabled: Boolean(observationWithIO),
+    });
+    const datasetCount = existingDatasetItems.length;
+    const hasExistingDatasetItems = datasetCount > 0;
 
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+    const evaluatorId = resolveEvaluatorIdMetadata(
+      observationWithIO?.metadata ?? observation.metadata,
+    );
+    const isEvaluatorExecution =
+      observation.environment === LangfuseInternalTraceEnvironment.LLMJudge ||
+      observation.environment === LangfuseInternalTraceEnvironment.CodeEval;
+    const evaluator = api.evalsV2.get.useQuery(
+      { projectId, evaluatorId: evaluatorId ?? "" },
+      {
+        enabled: Boolean(
+          evaluatorId &&
+          isEvaluatorExecution &&
+          !evaluatorId.startsWith("managed:"),
+        ),
+      },
+    );
+
+    const preparedDate = buildLocalIsoDatePresentation({
+      date: observation.startTime,
+      accuracy: "millisecond",
+    });
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -208,15 +254,63 @@ export const ObservationDetailViewHeader = memo(
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
                   {observationWithIO && (
-                    <NewDatasetItemFromExistingObject
+                    <NewDatasetItemFromExistingObjectDialogController
                       traceId={traceId}
                       observationId={observation.id}
                       projectId={projectId}
                       input={observationWithIO.input}
                       output={observationWithIO.output}
                       metadata={observationWithIO.metadata}
-                      layout="menu"
-                    />
+                    >
+                      {({ openDialog }) => (
+                        <ExistingDatasetItemsDropdownMenuController
+                          projectId={projectId}
+                          datasetItems={existingDatasetItems}
+                          disabled={!hasDatasetAccess}
+                          onOpenDialog={openDialog}
+                        >
+                          {({ Anchor, openDropdown }) => (
+                            <Anchor>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!hasDatasetAccess}
+                                className="w-full justify-start gap-2 font-normal"
+                                onClick={() => {
+                                  if (hasExistingDatasetItems) {
+                                    openDropdown();
+                                    return;
+                                  }
+
+                                  captureNewDatasetItemFormOpen();
+                                  openDialog();
+                                }}
+                              >
+                                {hasExistingDatasetItems || hasDatasetAccess ? (
+                                  <PlusIcon
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ) : null}
+                                <span className="text-sm">
+                                  {hasExistingDatasetItems
+                                    ? `In ${datasetCount} dataset(s)`
+                                    : "Add to datasets"}
+                                </span>
+                                {hasExistingDatasetItems ? (
+                                  <ChevronDown className="ml-auto h-3 w-3" />
+                                ) : !hasDatasetAccess ? (
+                                  <LockIcon
+                                    className="ml-auto h-3 w-3"
+                                    aria-hidden="true"
+                                  />
+                                ) : null}
+                              </Button>
+                            </Anchor>
+                          )}
+                        </ExistingDatasetItemsDropdownMenuController>
+                      )}
+                    </NewDatasetItemFromExistingObjectDialogController>
                   )}
                   {!isAnnotationMode && (
                     <>
@@ -376,7 +470,7 @@ export const ObservationDetailViewHeader = memo(
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
-                <NewDatasetItemFromExistingObject
+                <NewDatasetItemFromExistingObjectDialogController
                   traceId={traceId}
                   observationId={observation.id}
                   projectId={projectId}
@@ -384,8 +478,53 @@ export const ObservationDetailViewHeader = memo(
                   output={observationWithIO.output}
                   metadata={observationWithIO.metadata}
                   key={observation.id}
-                  size="sm"
-                />
+                >
+                  {({ openDialog }) => (
+                    <ExistingDatasetItemsDropdownMenuController
+                      projectId={projectId}
+                      datasetItems={existingDatasetItems}
+                      disabled={!hasDatasetAccess}
+                      onOpenDialog={openDialog}
+                    >
+                      {({ Anchor, openDropdown }) => (
+                        <Anchor>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={!hasDatasetAccess}
+                            onClick={() => {
+                              if (hasExistingDatasetItems) {
+                                openDropdown();
+                                return;
+                              }
+
+                              captureNewDatasetItemFormOpen();
+                              openDialog();
+                            }}
+                          >
+                            {!hasExistingDatasetItems && hasDatasetAccess ? (
+                              <PlusIcon
+                                className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            {hasExistingDatasetItems
+                              ? `In ${datasetCount} dataset(s)`
+                              : "Add to datasets"}
+                            {hasExistingDatasetItems ? (
+                              <ChevronDown className="ml-2 h-3 w-3" />
+                            ) : !hasDatasetAccess ? (
+                              <LockIcon
+                                className="ml-1.5 h-3 w-3"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                          </Button>
+                        </Anchor>
+                      )}
+                    </ExistingDatasetItemsDropdownMenuController>
+                  )}
+                </NewDatasetItemFromExistingObjectDialogController>
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
@@ -546,9 +685,11 @@ export const ObservationDetailViewHeader = memo(
 
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
-          </div>
+          {preparedDate ? (
+            <div className="flex flex-wrap items-center gap-1 text-sm">
+              <span title={preparedDate.title}>{preparedDate.display}</span>
+            </div>
+          ) : null}
 
           {/* Other badges */}
           {!isAnnotationMode && (
@@ -563,6 +704,12 @@ export const ObservationDetailViewHeader = memo(
               />
               <UserIdBadge
                 userId={observation.userId ?? null}
+                projectId={projectId}
+              />
+              <EvaluatorBadge
+                evaluatorId={evaluatorId}
+                evaluatorName={evaluator.data?.name}
+                environment={observation.environment}
                 projectId={projectId}
               />
               <EnvironmentBadge environment={observation.environment} />

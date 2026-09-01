@@ -2,8 +2,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import { EVENTS_FIELD_REGISTRY } from "./fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+  withFieldOptions,
+} from "./fields";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  EVALUATOR_FIELD_REGISTRY,
+  RULE_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
@@ -99,6 +107,59 @@ const evaluationRulesView: RegistryUnderTest = {
   freeTextValues: [],
 };
 
+const withInvariantDatasetOptions = (
+  registry: FieldRegistry,
+  values: string[],
+) =>
+  withFieldOptions(
+    registry,
+    "datasetName",
+    values.map((displayValue, index) => ({
+      value: `dataset-${index}`,
+      displayValue,
+    })),
+  );
+
+const sampleFilterViews: RegistryUnderTest[] = [
+  {
+    ...eventsView,
+    name: "evaluator sample filters",
+    registry: withInvariantDatasetOptions(
+      EVALUATOR_FIELD_REGISTRY,
+      eventsView.fieldValues,
+    ),
+  },
+  {
+    ...evaluationRulesView,
+    name: "rule sample filters",
+    registry: withInvariantDatasetOptions(
+      RULE_SAMPLE_FIELD_REGISTRY,
+      evaluationRulesView.fieldValues,
+    ),
+  },
+];
+
+describe.each(sampleFilterViews)(
+  "search bar invariants — $name registry",
+  (view) => {
+    it("holds parity, round-trip, and serialization invariants", () => {
+      const failures = runSearchBarInvariants(view);
+      expect(
+        failures,
+        failures.length === 0
+          ? "ok"
+          : `\n${failures
+              .slice(0, 25)
+              .map(
+                (failure) =>
+                  `  [${failure.invariant}] ${failure.case} — ${failure.detail}`,
+              )
+              .join("\n")}`,
+      ).toEqual([]);
+    });
+  },
+);
+
 describe("search bar invariants — events v4 registry", () => {
   it("generates a broad field × operator × value matrix", () => {
     // Sanity: the matrix actually exercises the registry (guards against a
@@ -153,6 +214,69 @@ describe("search bar invariants — events v4 registry", () => {
           type: "stringOptions",
           operator: "any of",
           value: ["dataset-id"],
+        },
+      ],
+    });
+  });
+
+  it("filters cached tokens and attributed cached cost", () => {
+    expect(
+      planCommit(
+        "cachedTokens:0 cachedCost:<=0",
+        undefined,
+        EVENTS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "cachedInputTokens",
+          type: "number",
+          operator: "=",
+          value: 0,
+        },
+        {
+          column: "cachedInputCost",
+          type: "number",
+          operator: "<=",
+          value: 0,
+        },
+      ],
+    });
+  });
+
+  it("supports presence filters for cached metrics", () => {
+    const query =
+      "has:cachedTokens -has:cachedTokens has:cachedCost -has:cachedCost";
+    expect(
+      validateQuery(query, undefined, EVENTS_FIELD_REGISTRY).diagnostics,
+    ).toEqual([]);
+    expect(planCommit(query, undefined, EVENTS_FIELD_REGISTRY)).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "cachedInputTokens",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "cachedInputTokens",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is null",
+          value: "",
         },
       ],
     });

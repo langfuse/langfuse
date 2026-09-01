@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 
 const { copyTextToClipboard } = vi.hoisted(() => ({
@@ -119,10 +119,23 @@ describe("ChatMessage content modes", () => {
 
 // getByRole ignores elements hidden via display:none, so queries only see the
 // active render path (markdown vs json), even though ChatMessage mounts both.
-const expandButton = () =>
-  screen.queryByRole("button", { name: /expand system prompt/i });
-const collapseButton = () =>
-  screen.queryByRole("button", { name: /collapse system prompt/i });
+// Header + inline controls share the same accessible name, so look them up
+// as a set rather than assuming a single toggle.
+const expandButtons = () =>
+  screen.queryAllByRole("button", { name: /expand system prompt/i });
+const collapseButtons = () =>
+  screen.queryAllByRole("button", { name: /collapse system prompt/i });
+const expandButton = () => expandButtons()[0] ?? null;
+const collapseButton = () => collapseButtons()[0] ?? null;
+
+const systemMessageHeader = () => {
+  const headers = screen
+    .getAllByText("system")
+    .map((node) => node.closest(".io-message-header"))
+    .filter((node): node is HTMLElement => node instanceof HTMLElement);
+  expect(headers.length).toBeGreaterThan(0);
+  return headers[0];
+};
 
 describe("ChatMessage system prompt collapse", () => {
   beforeEach(() => {
@@ -136,7 +149,17 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    expect(expandButton()).toBeInTheDocument();
+    expect(expandButtons().length).toBeGreaterThan(0);
+    expect(
+      within(systemMessageHeader()).getAllByRole("button", {
+        name: /expand system prompt/i,
+      }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(systemMessageHeader()).getByRole("button", {
+        name: /system, expand system prompt/i,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("collapses a long system message that carries a name", () => {
@@ -181,8 +204,44 @@ describe("ChatMessage system prompt collapse", () => {
     } as ChatMlMessage);
 
     // rendered expanded, with the option to collapse still offered
-    expect(expandButton()).not.toBeInTheDocument();
-    expect(collapseButton()).toBeInTheDocument();
+    expect(expandButtons()).toHaveLength(0);
+    expect(collapseButtons().length).toBeGreaterThan(0);
+  });
+
+  it("puts a collapse control on the system message header so it is reachable without scrolling", () => {
+    // The inline "Collapse system prompt" control lives after the prompt body,
+    // so an expanded long prompt hid it below the fold. The header must offer
+    // the same action.
+    localStorage.setItem("collapseSystemPrompt", "false");
+
+    renderChatMessage({
+      role: "system",
+      content: longSystemPrompt,
+    } as ChatMlMessage);
+
+    expect(
+      within(systemMessageHeader()).getAllByRole("button", {
+        name: /collapse system prompt/i,
+      }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("collapses from the system message header", () => {
+    localStorage.setItem("collapseSystemPrompt", "false");
+
+    renderChatMessage({
+      role: "system",
+      content: longSystemPrompt,
+    } as ChatMlMessage);
+
+    fireEvent.click(
+      within(systemMessageHeader()).getAllByRole("button", {
+        name: /collapse system prompt/i,
+      })[0],
+    );
+
+    expect(expandButtons().length).toBeGreaterThan(0);
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
   });
 
   it("migrates the legacy expanded preference key and writes it through", () => {
@@ -357,6 +416,26 @@ describe("ChatMessage media content parts", () => {
     } as unknown as ChatMlMessage);
 
     expect(screen.getByText("here is the thermostat")).toBeInTheDocument();
+    expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
+      "data-media-ref",
+      referenceString,
+    );
+  });
+
+  it("renders an AI SDK file part carrying a langfuse media reference", () => {
+    renderChatMessage({
+      role: "user",
+      content: [
+        { type: "text", text: "attached report" },
+        {
+          type: "file",
+          data: referenceString,
+          mediaType: "image/png",
+        },
+      ],
+    } as unknown as ChatMlMessage);
+
+    expect(screen.getByText("attached report")).toBeInTheDocument();
     expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
       "data-media-ref",
       referenceString,

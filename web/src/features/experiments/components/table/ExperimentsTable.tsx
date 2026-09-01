@@ -39,7 +39,7 @@ import { TableActionMenu } from "@/src/features/table/components/TableActionMenu
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { useStore } from "zustand";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -131,7 +131,7 @@ function ExperimentsMultiSelectActionMenu({
 
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   // Build query with experiment context filter for batch actions
@@ -225,7 +225,7 @@ function ExperimentsMultiSelectActionMenu({
             icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
             customDialog: true,
             accessCheck: {
-              scope: "evalJob:CUD",
+              scope: "evaluationRule:CUD",
             },
           } as TableAction,
         ]
@@ -465,17 +465,12 @@ export default function ExperimentsTable({
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ExperimentsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getExperimentsColumnName("name"),
       size: 200,
       isPinnedLeft: true,
-      cell: ({ row }) => {
-        const value: string = row.getValue("name");
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
-    },
+    }),
     createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
       header: getExperimentsColumnName("description"),

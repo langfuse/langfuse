@@ -30,7 +30,7 @@ import {
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import {
   type CreateEvaluatorInput,
-  type EvaluatorDefinition,
+  type NormalizedEvaluatorDefinition,
   EvaluatorVersionsSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
@@ -100,14 +100,14 @@ let otherProjectId = "";
 const llmInput = (
   name: string,
 ): CreateEvaluatorInput & {
-  definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
+  definition: Extract<NormalizedEvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 } => ({
   projectId,
   name,
   description: "Initial description",
   definition: {
     type: "LLM_AS_JUDGE",
-    prompt: "Judge {{output}}",
+    promptMessages: [{ role: "user", content: "Judge {{output}}" }],
     provider: null,
     model: null,
     modelParams: null,
@@ -233,20 +233,67 @@ describe("EvaluatorService", () => {
   it("creates an evaluator with version one and rejects cross-project reads", async () => {
     const service = createService();
     const evaluatorId = crypto.randomUUID();
-    const created = await service.create(
-      { ...llmInput("Create evaluator"), evaluatorId },
-      null,
-    );
+    const input = llmInput("Create evaluator");
+    input.definition.promptMessages = [
+      { role: "system", content: "Judge carefully" },
+      { role: "user", content: "Judge {{output}}" },
+    ];
+    const created = await service.create({ ...input, evaluatorId }, null);
 
+    expect(created.versions[0]).not.toHaveProperty("prompt");
     expect(created).toMatchObject({
       id: evaluatorId,
       projectId,
       name: "Create evaluator",
-      versions: [expect.objectContaining({ version: 1 })],
+      versions: [
+        expect.objectContaining({
+          version: 1,
+          promptMessages: input.definition.promptMessages,
+        }),
+      ],
+    });
+    const fetched = await service.get(projectId, created.id);
+    expect(fetched.versions[0]).not.toHaveProperty("prompt");
+    expect(fetched).toMatchObject({
+      id: created.id,
+      versions: [
+        expect.objectContaining({
+          promptMessages: input.definition.promptMessages,
+        }),
+      ],
+    });
+
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: created.id },
+      data: { promptMessages: Prisma.DbNull },
     });
     await expect(service.get(projectId, created.id)).resolves.toMatchObject({
-      id: created.id,
+      versions: [
+        expect.objectContaining({
+          promptMessages: [
+            {
+              role: "user",
+              content: input.definition.promptMessages
+                .map(({ content }) => content)
+                .join("\n\n"),
+            },
+          ],
+        }),
+      ],
     });
+
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: created.id },
+      data: { prompt: "   ", promptMessages: Prisma.DbNull },
+    });
+    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
+      versions: [
+        expect.objectContaining({
+          promptMessages: [{ role: "user", content: "No prompt provided" }],
+        }),
+      ],
+    });
+
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
     );
@@ -531,7 +578,9 @@ describe("EvaluatorService", () => {
         evaluatorId: evaluator.id,
         definition: {
           ...llmInput("Invalid model").definition,
-          prompt: "Updated prompt: {{output}}",
+          promptMessages: [
+            { role: "user", content: "Updated prompt: {{output}}" },
+          ],
           provider: "openai",
           model: "available-model",
         },
@@ -558,7 +607,9 @@ describe("EvaluatorService", () => {
         evaluatorId: evaluator.id,
         definition: {
           ...llmInput("Invalid model").definition,
-          prompt: "Another updated prompt: {{output}}",
+          promptMessages: [
+            { role: "user", content: "Another updated prompt: {{output}}" },
+          ],
           provider: "openai",
           model: "available-model",
         },
@@ -646,7 +697,12 @@ describe("EvaluatorService", () => {
         description: "Changed only metadata",
         definition: {
           ...input.definition,
-          prompt: "Judge {{output}} strictly",
+          promptMessages: [
+            {
+              role: "user" as const,
+              content: "Judge {{output}} strictly",
+            },
+          ],
         },
       },
       null,
@@ -727,7 +783,12 @@ describe("EvaluatorService", () => {
           evaluatorId: created.id,
           definition: {
             ...input.definition,
-            prompt: "Judge {{input}} and {{output}}",
+            promptMessages: [
+              {
+                role: "user",
+                content: "Judge {{input}} and {{output}}",
+              },
+            ],
             vars: ["input", "output"],
             variableMapping: [
               { templateVariable: "input", selectedColumnId: "input" },
@@ -759,14 +820,20 @@ describe("EvaluatorService", () => {
           tx,
           evaluatorId: created.id,
           version: 2,
-          definition: input.definition,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+          },
           createdByUserId: null,
         });
         await evaluatorRepository.appendEvaluatorVersion({
           tx,
           evaluatorId: created.id,
           version: 2,
-          definition: input.definition,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+          },
           createdByUserId: null,
         });
       }),
@@ -812,11 +879,21 @@ describe("EvaluatorService", () => {
       }),
     ).resolves.toEqual({ score: 1 });
 
-    expect(mocks.testEvaluator).toHaveBeenCalledTimes(2);
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
+        definition: llmInput("Test evaluator").definition,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    expect(mocks.testEvaluator).toHaveBeenCalledTimes(3);
     expect(mocks.testEvaluator).toHaveBeenCalledWith(
       expect.objectContaining({
         orgId,
         evaluatorId: newEvaluatorId,
+        includeEvaluatorLink: false,
         ...observation,
       }),
     );
@@ -824,6 +901,16 @@ describe("EvaluatorService", () => {
       expect.objectContaining({
         orgId,
         evaluatorId: evaluator.id,
+        includeEvaluatorLink: true,
+        ...observation,
+      }),
+    );
+    expect(mocks.testEvaluator).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        orgId,
+        evaluatorId: expect.any(String),
+        includeEvaluatorLink: false,
         ...observation,
       }),
     );
@@ -842,6 +929,51 @@ describe("EvaluatorService", () => {
     ).rejects.toThrow("Evaluator not found");
   });
 
+  it("tests the latest version of a saved evaluator", async () => {
+    mocks.testEvaluator.mockResolvedValue({ score: 1 });
+    const service = createService();
+    const evaluator = await service.create(llmInput("Saved evaluator"), null);
+    const latestDefinition = {
+      ...llmInput("Saved evaluator").definition,
+      promptMessages: [
+        { role: "user" as const, content: "Judge the latest {{output}}" },
+      ],
+    };
+    await service.update(
+      {
+        ...llmInput("Saved evaluator"),
+        evaluatorId: evaluator.id,
+        definition: latestDefinition,
+      },
+      null,
+    );
+
+    const observation = {
+      observationId: "test-observation-id",
+      traceId: "test-trace-id",
+      startTime: new Date("2026-08-11T00:00:00.000Z"),
+      shouldReadFromObservationsTable: false,
+    };
+
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
+        evaluatorId: evaluator.id,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    expect(mocks.testEvaluator).toHaveBeenCalledWith({
+      orgId,
+      projectId,
+      evaluatorId: evaluator.id,
+      definition: latestDefinition,
+      includeEvaluatorLink: true,
+      ...observation,
+    });
+  });
+
   it("suggests a safe name and silently returns null when unavailable", async () => {
     mocks.generateLangfuseAIText
       .mockResolvedValueOnce('  "Concise quality judge"  ')
@@ -852,7 +984,7 @@ describe("EvaluatorService", () => {
     const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge quality",
+      promptMessages: [{ role: "user" as const, content: "Judge quality" }],
     };
 
     await expect(
@@ -919,7 +1051,7 @@ describe("EvaluatorService", () => {
     const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge quality",
+      promptMessages: [{ role: "user" as const, content: "Judge quality" }],
     };
 
     await expect(

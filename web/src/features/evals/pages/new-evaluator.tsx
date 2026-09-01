@@ -51,10 +51,15 @@ export default function NewEvaluatorPage() {
   const hasDefaultModel =
     !!defaultModelQuery.data || defaultModelConfiguredInFlow;
 
-  const hasAccess = useHasProjectAccess({
+  const hasEvaluatorReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:read",
   });
+  const hasEvaluationRuleWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
+  const hasAccess = hasEvaluatorReadAccess && hasEvaluationRuleWriteAccess;
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     {

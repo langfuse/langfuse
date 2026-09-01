@@ -28,7 +28,10 @@
   recording/diff harness that captures the current SQL at the
   `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
   `clickhouse format` for snapshot comparison. Every migrated call site is
-  proven against its baseline here.
+  proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
+  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
+  typed selection, virtual views, catalog parity) lives under
+  `src/server/query-ast/kysely/`.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
@@ -170,6 +173,10 @@ the same PR.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
+- Adding vocabulary here — a field on a shared schema, an option on a shared
+  signature, an enum member, a branch for one caller — is owned by `web`,
+  `worker`, and `ee` at once. Apply
+  `.agents/skills/backend-dev-guidelines/references/new-concepts.md` first.
 - Changes to domain constants consumed by blob storage exports (e.g.
   `LISTABLE_SCORE_TYPES` in `src/domain/scores.ts`, score data type enums)
   should be reviewed against the blob storage export field reference docs for

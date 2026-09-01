@@ -16,7 +16,11 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
-import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  type ColumnDefinition,
+  type SingleValueOption,
+} from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
@@ -25,7 +29,8 @@ type FieldKind = "text" | "number" | "datetime" | "boolean";
 type SyncMode = "exactOption" | "arrayOption" | "textSearch";
 
 export type FieldDef = {
-  /** Canonical field id; also the filter `column` sent to the API. */
+  /** Canonical query field id; defaults to the FilterState column unless
+   * `filterColumn` maps a display-oriented field to canonical storage. */
   id: string;
   /** Lowercase aliases accepted by the grammar (canonical id always works too). */
   aliases: string[];
@@ -52,12 +57,23 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Canonical FilterState column emitted for this display-oriented field. */
+  filterColumn?: string;
+  /** Display/query value → canonical FilterState value for labeled options. */
+  filterValueByDisplayValue?: ReadonlyMap<string, string>;
+  /** Canonical FilterState value → display/query value for labeled options. */
+  displayValueByFilterValue?: ReadonlyMap<string, string>;
   /** Nullable-only columns participate in `has:` but are not direct filters. */
   directFilter?: boolean;
 };
 
 export type FieldRegistry = {
-  id: "events" | "evaluationRules" | "sessions";
+  id:
+    | "events"
+    | "evaluationRules"
+    | "evaluatorSamples"
+    | "ruleSamples"
+    | "sessions";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
@@ -163,6 +179,9 @@ export function fieldRegistryFromColumns(
         nullable: column.nullable,
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
+        filterColumn: fieldOverlay?.filterColumn,
+        filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
+        displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
         negatedLabel: fieldOverlay?.negatedLabel,
       };
@@ -181,6 +200,73 @@ export function fieldRegistryFromColumns(
     recentSearches: overlay.recentSearches ?? false,
     aiFilterPrompt: overlay.aiFilterPrompt ?? false,
     aiContextFields: overlay.aiContextFields ?? [],
+  });
+}
+
+export function extendFieldRegistryWithColumns(
+  registry: FieldRegistry,
+  columns: readonly ColumnDefinition[],
+  fieldOverlays?: Readonly<Record<string, FieldOverlay>>,
+): FieldRegistry {
+  const addedFields = fieldRegistryFromColumns(columns, {
+    id: registry.id,
+    fields: fieldOverlays,
+  }).fields;
+
+  return createFieldRegistry({
+    id: registry.id,
+    fields: [...registry.fields, ...addedFields],
+    columns: [...registry.columns, ...columns],
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
+export function withFieldOptions(
+  registry: FieldRegistry,
+  fieldId: string,
+  options: readonly SingleValueOption[],
+): FieldRegistry {
+  const filterValueByDisplayValue = new Map(
+    options.map((option) => [
+      option.displayValue ?? option.value,
+      option.value,
+    ]),
+  );
+  const displayValueByFilterValue = new Map(
+    options.map((option) => [
+      option.value,
+      option.displayValue ?? option.value,
+    ]),
+  );
+  return createFieldRegistry({
+    id: registry.id,
+    fields: registry.fields.map((field) =>
+      field.id === fieldId
+        ? {
+            ...field,
+            filterValueByDisplayValue,
+            displayValueByFilterValue,
+          }
+        : field,
+    ),
+    columns: registry.columns,
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
   });
 }
 
@@ -210,9 +296,11 @@ export const FIELDS: FieldDef[] = [
   { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", label: "Time to first token", description: "Time to first token in seconds", unit: "s", nullable: true },
   { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", label: "Tokens per second", description: "Output tokens per second", unit: "tok/s", nullable: true },
   { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", label: "Input token count", description: "Input token count", nullable: true },
+  { id: "cachedInputTokens", aliases: ["cachedinputtokens", "cached_input_tokens", "cachedtokens", "cached_tokens"], kind: "number", syncMode: "textSearch", label: "Cached input token count", description: "Cache-read input token count", nullable: true },
   { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", label: "Output token count", description: "Output token count", nullable: true },
   { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", label: "Total token count", description: "Total token count", nullable: true },
   { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", label: "Input cost", description: "Input cost in USD", unit: "$", nullable: true },
+  { id: "cachedInputCost", aliases: ["cachedinputcost", "cached_input_cost", "cachedcost", "cached_cost"], kind: "number", syncMode: "textSearch", label: "Cached input cost", description: "Cache-read input cost in USD", unit: "$", nullable: true },
   { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", label: "Output cost", description: "Output cost in USD", unit: "$", nullable: true },
   { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", label: "Total cost", description: "Total cost in USD", unit: "$", nullable: true },
   { id: "version", aliases: [], kind: "text", syncMode: "exactOption", label: "Version", description: "Version tag", nullable: true },
@@ -316,6 +404,11 @@ function createFieldRegistry({
     columnIds.set(column.name.toLowerCase(), column.id);
     for (const alias of column.aliases ?? []) {
       columnIds.set(alias.toLowerCase(), column.id);
+    }
+  }
+  for (const field of fields) {
+    if (field.filterColumn) {
+      columnIds.set(field.filterColumn.toLowerCase(), field.id);
     }
   }
 
@@ -528,6 +621,9 @@ export function operatorIssue(
       const f = ref.field;
       if (f.directFilter === false) {
         return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
+      }
+      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+        return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
       }
       if (f.kind === "number") {
         if (op === "~" || op === "^" || op === "$") {

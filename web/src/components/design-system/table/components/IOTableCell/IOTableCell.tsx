@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies */
 import {
   JsonSkeleton,
   stringifyJsonNode,
