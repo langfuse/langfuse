@@ -428,13 +428,19 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
-    useExperimentsTableData({
-      projectId,
-      filterState,
-      orderByState,
-      paginationState,
-    });
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentLimit,
+  } = useExperimentsTableData({
+    projectId,
+    filterState,
+    orderByState,
+    paginationState,
+  });
 
   // A score column that is empty for every experiment in view is noise, so only
   // create columns for the keys the metrics query actually returned. Undefined
@@ -914,6 +920,7 @@ export default function ExperimentsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              mergeSettingsIntoPopover
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               actionButtons={[
