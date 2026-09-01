@@ -4,7 +4,6 @@ import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
   logger,
-  quoteDateTime64InsertRecords,
   queryClickhouse,
   sleep,
   TupleParam,
@@ -419,12 +418,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       // plainEventTsFromSource: plain (leftover) spans keep their source
       // event_ts so an enriched copy of the same span from another batch always
       // wins; enriched spans still use now().
-      values: quoteDateTime64InsertRecords(
-        "events_full",
-        convertEnrichedSpansToEventRecords(spans, {
-          plainEventTsFromSource: true,
-        }),
-      ),
+      values: convertEnrichedSpansToEventRecords(spans, {
+        plainEventTsFromSource: true,
+      }),
       clickhouse_settings: {
         log_comment: buildClickHouseLogComment({
           surface: "worker",

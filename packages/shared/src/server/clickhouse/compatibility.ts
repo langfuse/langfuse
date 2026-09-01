@@ -25,8 +25,7 @@ export type ClickHouseVersionBand = {
 
 type ClickHouseCompatibilityEnvKey =
   | "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION"
-  | "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN"
-  | "CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE";
+  | "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN";
 
 type ClickHouseCompatibilityEnvValue = "auto" | "true" | "false";
 
@@ -87,15 +86,6 @@ const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
       { minInclusive: "26.7.2.0", maxExclusive: "26.7.2.11" },
     ],
     overrideEnvKey: "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN",
-  },
-  {
-    id: "read-datetime-number-as-raw-value",
-    setting: "input_format_read_datetime_number_as_raw_value",
-    value: 1,
-    reason:
-      "ClickHouse 26.8+ reads an unquoted JSON DateTime64 number as Unix seconds and scales it by the column precision. Langfuse still inserts millisecond/microsecond ticks on some paths; restore the pre-26.8 raw-tick parse for any remaining unquoted numbers.",
-    versionBands: [{ minInclusive: "26.8.0.0" }],
-    overrideEnvKey: "CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE",
   },
 ];
 

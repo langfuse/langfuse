@@ -40,6 +40,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { IngestionService } from "../../IngestionService";
 import { logger, type ScoreEventType } from "@langfuse/shared/src/server";
+import * as sharedServer from "@langfuse/shared/src/server";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { TableName } from "../../ClickhouseWriter";
 
@@ -198,10 +199,7 @@ describe("score validation drop metric", () => {
 
   it("does not emit for unexpected errors — those reject the batch instead of dropping it", async () => {
     const { ingestionService, addToQueue } = createService();
-    vi.spyOn(
-      ingestionService as any,
-      "getMillisecondTimestamp",
-    ).mockImplementation(() => {
+    vi.spyOn(sharedServer, "toClickhouseDateTime").mockImplementation(() => {
       throw new Error("unexpected timestamp failure");
     });
 

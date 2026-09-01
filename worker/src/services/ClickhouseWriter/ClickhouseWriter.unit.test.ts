@@ -409,40 +409,6 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
-  it("quotes DateTime64 tick fields as ClickHouse datetime strings", async () => {
-    const mockInsert = vi
-      .spyOn(clickhouseClientMock, "insert")
-      .mockResolvedValue();
-    const ticks = Date.UTC(2024, 10, 6, 20, 37, 0, 123);
-    const quoted = "2024-11-06 20:37:00.123";
-
-    writer.addToQueue(TableName.Traces, {
-      id: "trace-1",
-      timestamp: ticks,
-      created_at: ticks,
-      updated_at: ticks,
-      event_ts: ticks,
-      is_deleted: 0,
-    } as any);
-
-    await vi.advanceTimersByTimeAsync(writer.writeInterval);
-
-    expect(mockInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        values: [
-          expect.objectContaining({
-            id: "trace-1",
-            is_deleted: 0,
-            timestamp: quoted,
-            created_at: quoted,
-            updated_at: quoted,
-            event_ts: quoted,
-          }),
-        ],
-      }),
-    );
-  });
-
   it("should continue functioning after encountering an error", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")

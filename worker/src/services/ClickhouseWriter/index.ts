@@ -15,7 +15,6 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   buildClickHouseLogComment,
-  quoteDateTime64InsertRecords,
 } from "@langfuse/shared/src/server";
 
 import { Decimal } from "decimal.js";
@@ -604,7 +603,7 @@ export class ClickhouseWriter {
       .insert({
         table: params.table,
         format: "JSONEachRow",
-        values: quoteDateTime64InsertRecords(params.table, params.records),
+        values: params.records,
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
             surface: "worker",

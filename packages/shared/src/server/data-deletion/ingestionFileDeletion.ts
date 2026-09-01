@@ -8,8 +8,7 @@ import {
 import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
 import { logger } from "../logger";
 import { env } from "../../env";
-import { clickhouseClient } from "../clickhouse/client";
-import { quoteDateTime64InsertRecords } from "../clickhouse/datetime";
+import { clickhouseClient, toClickhouseDateTime } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { getS3EventStorageClient, S3_DELETE_OBJECTS_CHUNK_SIZE } from "../s3";
 
@@ -223,15 +222,12 @@ async function softDeleteInClickhouse(
 
   await clickhouseClient().insert({
     table: "blob_storage_file_log",
-    values: quoteDateTime64InsertRecords(
-      "blob_storage_file_log",
-      blobStorageRefs.map((e) => ({
-        ...e,
-        is_deleted: "1",
-        event_ts: new Date().getTime(),
-        updated_at: new Date().getTime(),
-      })),
-    ),
+    values: blobStorageRefs.map((e) => ({
+      ...e,
+      is_deleted: "1",
+      event_ts: toClickhouseDateTime(),
+      updated_at: toClickhouseDateTime(),
+    })),
     format: "JSONEachRow",
     clickhouse_settings: {
       log_comment: buildClickHouseLogComment({

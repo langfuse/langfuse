@@ -18,6 +18,7 @@ import {
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
+import * as sharedServer from "@langfuse/shared/src/server";
 import { TableName } from "../../ClickhouseWriter";
 
 describe("IngestionService unit tests", () => {
@@ -524,10 +525,7 @@ describe("IngestionService unit tests", () => {
     vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
       null,
     );
-    vi.spyOn(
-      ingestionService as any,
-      "getMillisecondTimestamp",
-    ).mockImplementation(() => {
+    vi.spyOn(sharedServer, "toClickhouseDateTime").mockImplementation(() => {
       throw new Error("unexpected timestamp failure");
     });
 
@@ -582,10 +580,7 @@ describe("IngestionService unit tests", () => {
         timestamp: new Date(timestamp).getTime(),
       }),
     );
-    vi.spyOn(
-      ingestionService as any,
-      "getMillisecondTimestamp",
-    ).mockImplementation(() => {
+    vi.spyOn(sharedServer, "toClickhouseDateTime").mockImplementation(() => {
       throw new Error("unexpected timestamp failure");
     });
 

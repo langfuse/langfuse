@@ -6,7 +6,6 @@ import {
   PreferredClickhouseService,
   EXCEPTION_TAG_HEADER_NAME,
 } from "../clickhouse/client";
-import { quoteDateTime64InsertRecords } from "../clickhouse/datetime";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
@@ -187,7 +186,7 @@ export async function upsertClickhouse<
             // and are not worried that much about latency.
             await clickhouseClient().insert({
               table: "blob_storage_file_log",
-              values: quoteDateTime64InsertRecords("blob_storage_file_log", [
+              values: [
                 {
                   id: randomUUID(),
                   project_id: record.project_id,
@@ -199,7 +198,7 @@ export async function upsertClickhouse<
                   event_ts: convertDateToClickhouseDateTime(new Date()),
                   is_deleted: 0,
                 },
-              ]),
+              ],
               format: "JSONEachRow",
               clickhouse_settings: {
                 log_comment: buildClickHouseLogComment(opts.tags),
@@ -222,13 +221,10 @@ export async function upsertClickhouse<
 
       const res = await clickhouseClient().insert({
         table: opts.table,
-        values: quoteDateTime64InsertRecords(
-          opts.table,
-          opts.records.map((record) => ({
-            ...record,
-            event_ts: convertDateToClickhouseDateTime(new Date()),
-          })),
-        ),
+        values: opts.records.map((record) => ({
+          ...record,
+          event_ts: convertDateToClickhouseDateTime(new Date()),
+        })),
         format: "JSONEachRow",
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment(opts.tags),

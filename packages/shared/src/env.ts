@@ -154,9 +154,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
     .enum(["auto", "true", "false"])
     .default("auto"),
-  CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE: z
-    .enum(["auto", "true", "false"])
-    .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
     .number()
     .default(32_000_000_000), // ~32GB
