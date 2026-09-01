@@ -28,6 +28,24 @@ describe("S3StorageService region normalization", () => {
 
     await expect(client.config.region()).resolves.toBe("us-west-2");
   });
+
+  it("rejects malformed persisted regions before creating an AWS client", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow("Region must be a valid hostname label");
+  });
 });
 
 describe("resolveMediaStorageEndpoints", () => {

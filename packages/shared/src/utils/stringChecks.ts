@@ -17,6 +17,17 @@ export const MULTILINE_VARIABLE_REGEX = /{{[^{}\n]*\n[^{}]*}}/g;
 // Regex to find unclosed variables
 export const UNCLOSED_VARIABLE_REGEX = /{{(?!{)(?![^{]*}})/g;
 
+// Mirrors the hostname-label validation used by the AWS SDK for S3 regions.
+export const BLOB_STORAGE_REGION_REGEX = /^(?!.*-$)(?!-)[a-zA-Z0-9-]{1,63}$/;
+
+export function normalizeBlobStorageRegion(region: string): string {
+  const normalizedRegion = region.trim();
+  if (!BLOB_STORAGE_REGION_REGEX.test(normalizedRegion)) {
+    throw new Error("Region must be a valid hostname label");
+  }
+  return normalizedRegion;
+}
+
 export function isValidVariableName(variable: string): boolean {
   return VARIABLE_REGEX.test(variable);
 }

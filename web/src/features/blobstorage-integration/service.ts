@@ -6,6 +6,7 @@ import {
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
+  normalizeBlobStorageRegion,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -70,10 +71,11 @@ export async function upsertBlobStorageIntegration(params: {
 
   const accessKeyId = data.accessKeyId?.trim() || null;
   const secretAccessKey = data.secretAccessKey?.trim() || null;
-  const region = data.region.trim();
-
-  if (!region) {
-    throw new InvalidRequestError("Region is required");
+  let region: string;
+  try {
+    region = normalizeBlobStorageRegion(data.region);
+  } catch {
+    throw new InvalidRequestError("Region must be a valid hostname label");
   }
 
   if (data.endpoint) {

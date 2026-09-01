@@ -20,6 +20,20 @@ describe("blob storage region normalization", () => {
       CreateBlobStorageIntegrationRequest.shape.region.parse(" us-west-2"),
     ).toBe("us-west-2");
   });
+
+  it.each(["us west-2", "-us-west-2", "us-west-2-", "a".repeat(64)])(
+    "rejects a region that the AWS SDK cannot use as a hostname label: %s",
+    (region) => {
+      expect(
+        blobStorageIntegrationFormSchemaBase.shape.region.safeParse(region)
+          .success,
+      ).toBe(false);
+      expect(
+        CreateBlobStorageIntegrationRequest.shape.region.safeParse(region)
+          .success,
+      ).toBe(false);
+    },
+  );
 });
 
 describe("AZURE_CONTAINER_NAME_REGEX", () => {

@@ -5,6 +5,7 @@ import {
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
   OBSERVATION_FIELD_GROUPS_FULL,
+  BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
@@ -21,6 +22,9 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .string()
     .trim()
     .min(1, { message: "Region is required" })
+    .regex(BLOB_STORAGE_REGION_REGEX, {
+      message: "Region must be a valid hostname label",
+    })
     .default("auto"),
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
