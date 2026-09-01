@@ -18,6 +18,11 @@ export type EvalExecutionTerminalOutcome =
   | "customer_error"
   | "cancelled";
 
+const LLM_EVAL_CUSTOMER_OUTPUT_ERROR_NAMES: ReadonlySet<string> = new Set([
+  "AI_NoObjectGeneratedError",
+  "AI_NoOutputGeneratedError",
+]);
+
 const CODE_EVAL_CUSTOMER_ERROR_CODES: ReadonlySet<string> = new Set([
   CodeEvalDispatcherErrorCodes.INVALID_RESULT,
   CodeEvalDispatcherErrorCodes.INVALID_SOURCE,
@@ -64,7 +69,9 @@ export function getLlmEvalTerminalErrorOutcome(
   if (
     classification.blockReason !== null ||
     classification.kind === "evaluator-policy" ||
-    classification.kind === "validation"
+    classification.kind === "validation" ||
+    (classification.kind === "ai-sdk" &&
+      isLlmEvalCustomerOutputError(classification.error))
   ) {
     return "customer_error";
   }
@@ -93,6 +100,36 @@ export function getCodeEvalTerminalErrorOutcome(
   return CODE_EVAL_CUSTOMER_ERROR_CODES.has(error.code)
     ? "customer_error"
     : "platform_error";
+}
+
+function isLlmEvalCustomerOutputError(error: unknown): boolean {
+  const visited = new Set<unknown>();
+  const pending = [error];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (
+      current === null ||
+      current === undefined ||
+      typeof current !== "object" ||
+      visited.has(current)
+    ) {
+      continue;
+    }
+
+    visited.add(current);
+    const value = current as Record<string, unknown>;
+    if (
+      typeof value.name === "string" &&
+      LLM_EVAL_CUSTOMER_OUTPUT_ERROR_NAMES.has(value.name)
+    ) {
+      return true;
+    }
+
+    pending.push(value.cause, value.lastError);
+  }
+
+  return false;
 }
 
 function getEvaluatorTypeTag(
