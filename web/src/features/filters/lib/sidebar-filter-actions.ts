@@ -308,25 +308,27 @@ export function applySelection(
     if (finalOperator === "none of" && finalValues.length === 0) {
       return other;
     }
+  }
 
-    // Managed environment: a none-of that does not exclude every hidden env
-    // means the user enabled at least one hidden environment. Store that as
-    // a positive any-of of the checked set so it cannot be confused with
-    // "default plus extra exclusions" (`none of [hidden ∪ extras]`).
-    const hiddenEnvironments = ctx.hiddenEnvironments ?? [];
-    if (
-      isManagedEnvironmentColumn &&
-      finalOperator === "none of" &&
-      hiddenEnvironments.length > 0
-    ) {
-      const { excludesAllHidden } = partitionNoneOfEnvironmentValues({
-        values: finalValues,
-        hiddenEnvironments: [...hiddenEnvironments],
-      });
-      if (!excludesAllHidden) {
-        finalOperator = "any of";
-        finalValues = values;
-      }
+  // Managed environment: a none-of that does not exclude every hidden env
+  // means the user enabled at least one hidden environment. Store that as
+  // a positive any-of of the checked set so it cannot be confused with
+  // "default plus extra exclusions" (`none of [hidden ∪ extras]`). Shared
+  // by checkbox writes and the explicit-operator path (Only / operator
+  // toggle) so the sidebar never persists extras-only none-of.
+  const hiddenEnvironments = ctx.hiddenEnvironments ?? [];
+  if (
+    isManagedEnvironmentColumn &&
+    finalOperator === "none of" &&
+    hiddenEnvironments.length > 0
+  ) {
+    const { excludesAllHidden } = partitionNoneOfEnvironmentValues({
+      values: finalValues,
+      hiddenEnvironments,
+    });
+    if (!excludesAllHidden) {
+      finalOperator = "any of";
+      finalValues = values;
     }
   }
 

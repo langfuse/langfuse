@@ -38,7 +38,7 @@ import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
-  stripImplicitEnvironmentFilterFromExplicitState,
+  canonicalizeExplicitEnvironmentFilters,
   toSearchBarEnvironmentFilters,
 } from "./lib/managedEnvironmentPolicy";
 import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
@@ -1272,8 +1272,8 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     managedEnvironmentColumn: "environment",
     hiddenEnvironments,
   });
-  const strip = (explicitFilters: FilterState) =>
-    stripImplicitEnvironmentFilterFromExplicitState({
+  const canonicalize = (explicitFilters: FilterState) =>
+    canonicalizeExplicitEnvironmentFilters({
       explicitFilters,
       config: managedEnvironmentConfig,
     });
@@ -1336,7 +1336,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitWithExactDefault)).toEqual([
+    expect(canonicalize(explicitWithExactDefault)).toEqual([
       {
         column: "name",
         type: "stringOptions",
@@ -1357,7 +1357,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
         value: ["production", "staging"],
       },
     ];
-    expect(strip(userAuthoredDefaultSet)).toEqual(userAuthoredDefaultSet);
+    expect(canonicalize(userAuthoredDefaultSet)).toEqual(
+      userAuthoredDefaultSet,
+    );
   });
 
   it("keeps explicit overrides that enable hidden environments", () => {
@@ -1376,7 +1378,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitWithHiddenEnabled)).toEqual(explicitWithHiddenEnabled);
+    expect(canonicalize(explicitWithHiddenEnabled)).toEqual(
+      explicitWithHiddenEnabled,
+    );
 
     const explicitAll: FilterState = [
       {
@@ -1387,12 +1391,12 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitAll)).toEqual(explicitAll);
+    expect(canonicalize(explicitAll)).toEqual(explicitAll);
   });
 
   it("keeps hidden-only explicit selection as explicit override", () => {
     expect(
-      strip([
+      canonicalize([
         {
           column: "environment",
           type: "stringOptions",
@@ -1453,13 +1457,13 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(fullExclusion)).toEqual(fullExclusion);
+    expect(canonicalize(fullExclusion)).toEqual(fullExclusion);
   });
 
   it("expands extras-only none-of to the full exclusion set on persist", () => {
     // A search-bar commit of the displayed chip (`-environment:production`)
     // lowers to extras-only none-of. Treat that as default-plus-extra-exclusion.
-    const stripped = strip([
+    const stripped = canonicalize([
       {
         column: "environment",
         type: "stringOptions",
@@ -1554,7 +1558,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     );
 
     expect(
-      strip([
+      canonicalize([
         {
           column: "environment",
           type: "stringOptions",

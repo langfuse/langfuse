@@ -31,7 +31,7 @@ import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import {
   buildEffectiveEnvironmentFilter,
   buildManagedEnvironmentPolicyConfig,
-  stripImplicitEnvironmentFilterFromExplicitState,
+  canonicalizeExplicitEnvironmentFilters,
   toSearchBarEnvironmentFilters,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
@@ -708,7 +708,7 @@ export function useSidebarFilterStateCore(
       );
     })();
 
-    return stripImplicitEnvironmentFilterFromExplicitState({
+    return canonicalizeExplicitEnvironmentFilters({
       explicitFilters: merged,
       config: managedEnvironmentPolicyConfig,
     });
@@ -813,13 +813,18 @@ export function useSidebarFilterStateCore(
   // Display projection for the search bar: persist the full
   // `none of [hidden ∪ extras]` exclusion, but show only extras
   // (`-environment:production`) so implicit hidden envs stay off the chip.
-  const searchBarFilterState: FilterState = useMemo(
-    () =>
+  const projectFiltersForSearchBar = useCallback(
+    (filters: FilterState) =>
       toSearchBarEnvironmentFilters({
-        explicitFilters: explicitFilterState,
+        explicitFilters: filters,
         config: managedEnvironmentPolicyConfig,
       }),
-    [explicitFilterState, managedEnvironmentPolicyConfig],
+    [managedEnvironmentPolicyConfig],
+  );
+
+  const searchBarFilterState: FilterState = useMemo(
+    () => projectFiltersForSearchBar(explicitFilterState),
+    [explicitFilterState, projectFiltersForSearchBar],
   );
 
   // `options.updateType` controls the history semantics of the URL write:
@@ -836,7 +841,7 @@ export function useSidebarFilterStateCore(
       },
     ) => {
       const explicitFilters = stripOmittedColumns(
-        stripImplicitEnvironmentFilterFromExplicitState({
+        canonicalizeExplicitEnvironmentFilters({
           explicitFilters: newFilters,
           config: managedEnvironmentPolicyConfig,
         }),
@@ -1002,6 +1007,7 @@ export function useSidebarFilterStateCore(
     filterState,
     explicitFilterState,
     searchBarFilterState,
+    projectFiltersForSearchBar,
     setFilterState,
     expandedState,
     onExpandedChange,
@@ -1036,6 +1042,7 @@ export function useSidebarFilterPresentation(
     filterState,
     explicitFilterState,
     searchBarFilterState,
+    projectFiltersForSearchBar,
     setFilterState,
     expandedState,
     onExpandedChange,
@@ -2011,6 +2018,7 @@ export function useSidebarFilterPresentation(
     effectiveFilterState: filterState,
     explicitFilterState,
     searchBarFilterState,
+    projectFiltersForSearchBar,
     setFilterState,
     updateFilter,
     updateFilterOnly,

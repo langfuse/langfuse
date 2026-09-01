@@ -187,6 +187,55 @@ describe("applySelection", () => {
     ]);
   });
 
+  it("promotes extras-only none-of from the explicit-operator path to any-of", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+
+    expect(
+      applySelection(managedCtx, [], "env", ["production"], "none of"),
+    ).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
+  });
+
+  it("keeps an explicit none-of that already excludes every hidden env", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+    const exclusions = ["production", ...hidden];
+
+    expect(
+      applySelection(managedCtx, [], "env", exclusions, "none of"),
+    ).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: exclusions,
+      },
+    ]);
+  });
+
   it("treats an explicit empty none-of as a no-op reset", () => {
     const current: FilterState = [
       {

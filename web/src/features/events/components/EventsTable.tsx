@@ -50,10 +50,6 @@ import { createTagsTableColumn } from "@/src/components/design-system/table/colu
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import {
-  buildManagedEnvironmentPolicyConfig,
-  toSearchBarEnvironmentFilters,
-} from "@/src/features/filters/lib/managedEnvironmentPolicy";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
 import {
@@ -675,6 +671,7 @@ export default function ObservationsEventsTable({
       isV4: true,
     },
   );
+  const projectFiltersForSearchBar = queryFilter.projectFiltersForSearchBar;
 
   // Lazy filter-options: load a facet's values when its sidebar section is
   // expanded (also covers active filters, which auto-expand on mount). The
@@ -766,20 +763,14 @@ export default function ObservationsEventsTable({
       const { actions } = searchBarStore.getState();
       if (state) {
         actions.setPreview(
-          filterStateToQueryText(
-            toSearchBarEnvironmentFilters({
-              explicitFilters: state.filters,
-              config: buildManagedEnvironmentPolicyConfig(
-                DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-              ),
-            }),
-          ).text,
+          filterStateToQueryText(projectFiltersForSearchBar(state.filters))
+            .text,
         );
       } else {
         actions.clearPreview();
       }
     },
-    [searchBarMode, searchBarStore],
+    [searchBarMode, searchBarStore, projectFiltersForSearchBar],
   );
 
   // Disabled for now because perhaps confusing

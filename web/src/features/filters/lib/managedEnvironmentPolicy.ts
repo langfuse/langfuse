@@ -25,8 +25,8 @@ export function buildManagedEnvironmentPolicyConfig(
 }
 
 export function partitionNoneOfEnvironmentValues(params: {
-  values: string[];
-  hiddenEnvironments: string[];
+  values: readonly string[];
+  hiddenEnvironments: readonly string[];
 }): {
   extras: string[];
   hiddenInValues: string[];
@@ -99,7 +99,7 @@ function canonicalizeNoneOfEnvironmentFilter(params: {
   return envFilter;
 }
 
-export function stripImplicitEnvironmentFilterFromExplicitState(params: {
+export function canonicalizeExplicitEnvironmentFilters(params: {
   explicitFilters: FilterState;
   config: ManagedEnvironmentPolicyConfig;
 }): FilterState {
