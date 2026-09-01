@@ -1,7 +1,10 @@
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
 import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type AnnotationScore } from "@/src/features/scores/types";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  composeAggregateScoreKey,
+  toBooleanScoreValue,
+} from "@/src/features/scores/lib/aggregateScores";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**
@@ -94,12 +97,16 @@ export function mergeAggregatesWithCache(
         id: cached.id,
       };
     } else {
+      const value =
+        cached.dataType === "BOOLEAN"
+          ? toBooleanScoreValue(cached)
+          : (cached.stringValue as string);
       merged[key] = {
         type: "CATEGORICAL",
-        values: [cached.stringValue as string],
+        values: [value],
         valueCounts: [
           {
-            value: cached.stringValue as string,
+            value,
             count: 1,
           },
         ],
