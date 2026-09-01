@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 
+import { InAppAgentHeaderPortal } from "./InAppAgentDockLayout";
 import { InAppAgentWindowHost } from "./InAppAgentWindowHost";
 import type { InAppAgentDock } from "@/src/features/in-app-agent/presentation";
 
@@ -121,6 +122,9 @@ function stubHandheld() {
 function renderHost() {
   return render(
     <InAppAgentWindowHost>
+      <InAppAgentHeaderPortal>
+        <div data-testid="page-header">header</div>
+      </InAppAgentHeaderPortal>
       <div data-testid="page">page</div>
     </InAppAgentWindowHost>,
   );
@@ -178,6 +182,12 @@ describe("InAppAgentWindowHost", () => {
       "data-ignore-outside-interaction",
     );
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
+    expect(screen.getByTestId("in-app-agent-header-slot")).toContainElement(
+      screen.getByTestId("page-header"),
+    );
+    expect(screen.getByTestId("in-app-agent-sidebar")).not.toContainElement(
+      screen.getByTestId("page-header"),
+    );
   });
 
   it("keeps the composer draft when detaching or expanding from the sidebar", () => {

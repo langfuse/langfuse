@@ -289,9 +289,10 @@ export function AuthenticatedLayout({
                     sizes the inset to that space. */}
                 <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
                   {/* Assistant host wraps page content so the docked sidebar
-                      can push it aside. Detached/fullscreen still overlay.
-                      Lives here (not in PageHeader) so the open window
-                      survives route changes. */}
+                      can compress the page body. Page headers portal above
+                      that split. Detached/fullscreen still overlay. Lives
+                      here (not in PageHeader) so the open window survives
+                      route changes. */}
                   <InAppAgentWindowHost>
                     <AppContentWithRightDrawer>
                       {children}

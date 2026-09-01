@@ -5,6 +5,7 @@ import { MobileTopBar } from "@/src/components/layouts/mobile-top-bar";
 import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { InAppAgentHeaderPortal } from "@/src/features/in-app-agent/components/InAppAgentDockLayout";
 
 type SettingsContainerProps = {
   children: React.ReactNode;
@@ -22,16 +23,18 @@ const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
 
   return (
     <div className="min-h-screen-with-banner relative flex flex-1 flex-col">
-      <header className="sticky top-0 z-50 w-full">
-        {isMobile ? (
-          <MobileTopBar
-            showSidebarTrigger={headerProps.showSidebarTrigger}
-            leadingControl={headerProps.leadingControl}
-          />
-        ) : (
-          <PageHeader {...headerProps} container />
-        )}
-      </header>
+      <InAppAgentHeaderPortal>
+        <header className="sticky top-0 z-50 w-full">
+          {isMobile ? (
+            <MobileTopBar
+              showSidebarTrigger={headerProps.showSidebarTrigger}
+              leadingControl={headerProps.leadingControl}
+            />
+          ) : (
+            <PageHeader {...headerProps} container />
+          )}
+        </header>
+      </InAppAgentHeaderPortal>
       {isMobile && <MobilePageTitle headerProps={headerProps} />}
       <main
         className={cn(
