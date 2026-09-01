@@ -239,6 +239,51 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
+  describe("invalid persisted region", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("persists the error before any S3 upload starts", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: "us west-2",
+          endpoint: endpoint ?? null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow("Region must be a valid hostname label");
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toBe("Region must be a valid hostname label");
+      expect(row.lastErrorAt).not.toBeNull();
+      expect(row.enabled).toBe(true);
+    });
+  });
+
   // A classified customer fault disables the integration on its first
   // occurrence and resolves the job; everything else keeps retrying as before.
   describe("customer-fault disable", () => {
