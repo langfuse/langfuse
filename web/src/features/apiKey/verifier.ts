@@ -5,10 +5,7 @@ import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
 import { createShaHash } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import {
-  parseAuthorizationHeader,
-  type Credential,
-} from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import {
   type ErrorResult,
   type Success,
@@ -26,18 +23,6 @@ export class Verifier {
     private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
     private readonly isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
   ) {}
-
-  /** cacheKey derives the context-cache hash for a credential — `sha(secret+salt)` for Basic, `sha(token+salt)` for Bearer — or null when uncacheable. */
-  cacheKey(authHeader: string | undefined): string | null {
-    const credential = parseAuthorizationHeader(authHeader);
-    if (credential.kind === "basic") {
-      return createShaHash(credential.secretKey, this.salt);
-    }
-    if (credential.kind === "bearer") {
-      return createShaHash(credential.token, this.salt);
-    }
-    return null;
-  }
 
   /** verify resolves a parsed credential to a presentation, or a typed failure. */
   async verify(credential: Credential): Promise<VerifyResult> {

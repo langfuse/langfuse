@@ -2,17 +2,15 @@ import { type Redis } from "ioredis";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
-import { UnauthorizedError } from "@langfuse/shared";
+import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
 import {
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   API_KEY_CACHE_KEY_PREFIX,
   createShaHash,
 } from "@langfuse/shared/src/server";
 
-import {
-  Authenticator,
-  redisContextCache,
-} from "@/src/features/apiKey/authenticator";
+import { Authenticator } from "@/src/features/apiKey/authenticator";
+import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import {
   OrganizationRepository,
   type OrganizationWithProjects,
@@ -112,7 +110,7 @@ describe("Authenticator consolidated context cache", () => {
     const auth = new Authenticator(
       verifier,
       resolver,
-      redisContextCache(redis),
+      new AuthenticatorCache(redis, SALT),
     );
 
     const first = await auth.auth(bearer(KNOWN_SECRET));
@@ -135,7 +133,7 @@ describe("Authenticator consolidated context cache", () => {
     const auth = new Authenticator(
       verifier,
       resolver,
-      redisContextCache(redis),
+      new AuthenticatorCache(redis, SALT),
     );
     await auth.auth(bearer(KNOWN_SECRET));
     const key = [...redis.map.keys()][0];
@@ -148,7 +146,7 @@ describe("Authenticator consolidated context cache", () => {
     const auth = new Authenticator(
       verifier,
       resolver,
-      redisContextCache(redis),
+      new AuthenticatorCache(redis, SALT),
     );
 
     const first = await auth.auth(bearer(UNKNOWN_SECRET));
@@ -177,7 +175,7 @@ describe("Authenticator consolidated context cache", () => {
     const auth = new Authenticator(
       verifier,
       resolver,
-      redisContextCache(redis),
+      new AuthenticatorCache(redis, SALT),
     );
     const result = await auth.auth(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
@@ -192,7 +190,7 @@ describe("Authenticator consolidated context cache", () => {
     const auth = new Authenticator(
       verifier,
       resolver,
-      redisContextCache(redis),
+      new AuthenticatorCache(redis, SALT),
     );
     const result = await auth.auth(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
@@ -205,7 +203,7 @@ describe("Authenticator consolidated context cache", () => {
     const auth = new Authenticator(
       agentVerifier,
       resolver,
-      redisContextCache(redis),
+      new AuthenticatorCache(redis, SALT),
     );
 
     const result = await auth.auth({
@@ -220,9 +218,72 @@ describe("Authenticator consolidated context cache", () => {
     const nullCacheAuth = new Authenticator(
       verifier,
       resolver,
-      redisContextCache(null),
+      new AuthenticatorCache(null, SALT),
     );
     const result = await nullCacheAuth.auth(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
+  });
+
+  it("does not negatively cache a 500: a later call re-runs verify", async () => {
+    const failing: ApiKeyRepository = {
+      findByFastHash: async () => ({
+        success: false,
+        error: new InternalServerError("db down"),
+      }),
+      findByPublicKey: async () => ({ success: true, apiKey: null }),
+      verifySlow: async () => ({ success: true, valid: false }),
+      backfillFastHash: async () => {},
+    };
+    const failingVerifier = new Verifier(failing, SALT);
+    const redis = fakeRedis();
+    const auth = new Authenticator(
+      failingVerifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
+
+    const first = await auth.auth(bearer(KNOWN_SECRET));
+    expect(first.success).toBe(false);
+    if (!first.success) expect(first.error).toBeInstanceOf(InternalServerError);
+    expect(redis.map.size).toBe(0);
+
+    const verifySpy = vi.spyOn(failingVerifier, "verify");
+    const second = await auth.auth(bearer(KNOWN_SECRET));
+    expect(verifySpy).toHaveBeenCalledTimes(1);
+    expect(second.success).toBe(false);
+  });
+
+  it("does not refresh the TTL on a read: a cache hit never writes", async () => {
+    const redis = fakeRedis();
+    const setSpy = vi.spyOn(redis, "set");
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
+
+    await auth.auth(bearer(KNOWN_SECRET));
+    expect(setSpy).toHaveBeenCalledTimes(1);
+
+    await auth.auth(bearer(KNOWN_SECRET));
+    expect(setSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("get returns null on a miss, distinct from a replayed 401", async () => {
+    const redis = fakeRedis();
+    const cache = new AuthenticatorCache(redis, SALT);
+    const credential = { kind: "bearer", token: UNKNOWN_SECRET } as const;
+
+    expect(await cache.get(credential)).toBeNull();
+
+    await cache.set(credential, {
+      success: false,
+      error: new UnauthorizedError("nope"),
+    });
+    const hit = await cache.get(credential);
+    expect(hit?.success).toBe(false);
+    if (hit && !hit.success) {
+      expect(hit.error).toBeInstanceOf(UnauthorizedError);
+    }
   });
 });
