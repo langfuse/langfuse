@@ -1,4 +1,7 @@
-import { observationEvalVariableColumns } from "@langfuse/shared";
+import {
+  LangfuseInternalTraceEnvironment,
+  observationEvalVariableColumns,
+} from "@langfuse/shared";
 
 /**
  * Constant for observation-based evaluators (event/experiment).
@@ -26,14 +29,39 @@ export const OUTPUT_MAPPING = [
   "completion",
 ];
 
-export const DEFAULT_TRACE_FILTER = [];
+const INTERNAL_ENVIRONMENTS = [
+  LangfuseInternalTraceEnvironment.LLMJudge,
+  LangfuseInternalTraceEnvironment.CodeEval,
+  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
+  "langfuse-prompt-experiment",
+  "langfuse-evaluation",
+  "sdk-experiment",
+] as const;
 
-// Observation evaluators default to generations to avoid targeting every span.
+// Default filter for new trace evaluators - excludes internal Langfuse environments
+// to prevent evaluators from running on their own traces
+export const DEFAULT_TRACE_FILTER = [
+  {
+    column: "environment",
+    operator: "none of" as const,
+    value: [...INTERNAL_ENVIRONMENTS],
+    type: "stringOptions" as const,
+  },
+];
+
+// Default filter for new observation evaluators - restricts to GENERATION type
+// to prevent evaluators from running on every observation by default
 export const DEFAULT_OBSERVATION_FILTER = [
   {
     column: "type",
     operator: "any of" as const,
     value: ["GENERATION"],
+    type: "stringOptions" as const,
+  },
+  {
+    column: "environment",
+    operator: "none of" as const,
+    value: [...INTERNAL_ENVIRONMENTS],
     type: "stringOptions" as const,
   },
 ];

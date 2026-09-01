@@ -1,6 +1,9 @@
 // @vitest-environment node
 
-import { EvalTargetObject } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  LangfuseInternalTraceEnvironment,
+} from "@langfuse/shared";
 import { resolveCheckboxOperator } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import {
@@ -43,8 +46,22 @@ describe("eval config target behavior", () => {
     });
   });
 
-  it("does not expose internal environment exclusions as evaluator defaults", () => {
-    expect(DEFAULT_TRACE_FILTER).toEqual([]);
+  it("keeps internal environment exclusions in legacy evaluator defaults", () => {
+    const environmentFilter = {
+      column: "environment",
+      operator: "none of",
+      value: [
+        LangfuseInternalTraceEnvironment.LLMJudge,
+        LangfuseInternalTraceEnvironment.CodeEval,
+        LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
+        "langfuse-prompt-experiment",
+        "langfuse-evaluation",
+        "sdk-experiment",
+      ],
+      type: "stringOptions",
+    };
+
+    expect(DEFAULT_TRACE_FILTER).toEqual([environmentFilter]);
     expect(DEFAULT_OBSERVATION_FILTER).toEqual([
       {
         column: "type",
@@ -52,6 +69,7 @@ describe("eval config target behavior", () => {
         value: ["GENERATION"],
         type: "stringOptions",
       },
+      environmentFilter,
     ]);
   });
 
