@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -46,4 +47,4 @@ function Badge({ className, variant, size, ...props }: BadgeProps) {
   );
 }
 
-export { Badge, badgeVariants };
+export { Badge };

@@ -1,39 +1,27 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
-import { type RouterOutputs } from "@/src/utils/api";
+import { type RouterOutputs, api } from "@/src/utils/api";
 import Link from "next/link";
 import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
-import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
-import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
-import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
-import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
+import {
+  getVisibleSessionObservations,
+  SESSION_CARD_OBSERVATIONS_NOTICE_COUNT,
+} from "@/src/components/session/sessionVisibleObservations";
 import {
   hasRenderableConversationMessages,
+  type IOPreviewContentMode,
   isOnlyJsonMessage,
-} from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
+  useChatMLParser,
+} from "@/src/features/traces";
 
 export type TraceEventsSurface = "card" | "modern";
-
-// Display copy for the per-card observation cap; the authoritative limit is
-// SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
-const SESSION_CARD_OBSERVATIONS_NOTICE_COUNT = 50;
-
-const hasContent = (value: unknown): boolean =>
-  value !== null &&
-  value !== undefined &&
-  !(typeof value === "string" && value.trim() === "");
-
-const observationHasIO = (observation: {
-  input?: unknown;
-  output?: unknown;
-}): boolean => hasContent(observation.input) || hasContent(observation.output);
 
 type SessionObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -96,6 +84,7 @@ const ModernSessionObservation = ({
 
   return (
     <div
+      data-session-observation-id={observation.id}
       className={
         isConversation
           ? "flex flex-col gap-2"
@@ -212,7 +201,6 @@ type LazyTraceEventsRowProps = {
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  isActive?: boolean;
 };
 
 const areLazyTraceEventsRowPropsEqual = (
@@ -231,8 +219,7 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.hideTracePanel === next.hideTracePanel &&
   previous.surface === next.surface &&
   previous.contentMode === next.contentMode &&
-  previous.showSystemPrompt === next.showSystemPrompt &&
-  previous.isActive === next.isActive;
+  previous.showSystemPrompt === next.showSystemPrompt;
 
 export const TraceEventsRow = React.memo(
   ({
@@ -248,7 +235,6 @@ export const TraceEventsRow = React.memo(
     surface = "card",
     contentMode = "all",
     showSystemPrompt,
-    isActive = false,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -262,7 +248,6 @@ export const TraceEventsRow = React.memo(
     surface?: TraceEventsSurface;
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
-    isActive?: boolean;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -305,10 +290,6 @@ export const TraceEventsRow = React.memo(
       | ObservationsResponse
       | { observations?: ObservationsResponse }
       | undefined;
-    const observations = Array.isArray(observationsData)
-      ? observationsData
-      : (observationsData?.observations ?? undefined);
-
     // Opens the trace peek AT the observation (the session page's peek config
     // mirrors row.observationId into the ?observation= param; the annotation
     // queue's openPeek opens the trace page in a new tab instead).
@@ -318,62 +299,12 @@ export const TraceEventsRow = React.memo(
       },
       [openPeek, trace],
     );
-    const { visibleObservations, hasMoreObservations } = React.useMemo(() => {
-      const all = observations;
-      if (!all)
-        return {
-          visibleObservations: undefined,
-          hasMoreObservations: false,
-        };
-      const syntheticTraceRowId = `t-${trace.id}`;
-      // The server returns up to SESSION_CARD_OBSERVATIONS_NOTICE_COUNT + 1
-      // real observations; the extra (+1) row is the "more exist" sentinel.
-      // Show only the first NOTICE_COUNT real observations, keeping the
-      // synthetic trace-level row wherever it sits (it never consumes a slot).
-      let realCount = 0;
-      let realShown = 0;
-      const page: typeof all = [];
-      for (const observation of all) {
-        if (observation.id === syntheticTraceRowId) {
-          page.push(observation);
-          continue;
-        }
-        realCount++;
-        if (realShown >= SESSION_CARD_OBSERVATIONS_NOTICE_COUNT) continue;
-        page.push(observation);
-        realShown++;
-      }
-      const hasMoreObservations =
-        realCount > SESSION_CARD_OBSERVATIONS_NOTICE_COUNT;
-
-      const syntheticRow = page.find(
-        (observation) => observation.id === syntheticTraceRowId,
-      );
-      const realObservations = page.filter(
-        (observation) => observation.id !== syntheticTraceRowId,
-      );
-      // I/O can be server-truncated to a preview head (LFE-10958), so equal
-      // heads alone don't prove equal payloads — the true lengths must match
-      // too (equal head + equal full length ≈ identical content).
-      const syntheticRowIsRedundant =
-        !syntheticRow ||
-        !observationHasIO(syntheticRow) ||
-        realObservations.some(
-          (observation) =>
-            (hasContent(syntheticRow.input) &&
-              isEqual(observation.input, syntheticRow.input) &&
-              observation.inputLength === syntheticRow.inputLength) ||
-            (hasContent(syntheticRow.output) &&
-              isEqual(observation.output, syntheticRow.output) &&
-              observation.outputLength === syntheticRow.outputLength),
-        );
-      const visibleObservations = !syntheticRowIsRedundant
-        ? page
-        : realObservations.length > 0
-          ? realObservations
-          : page;
-      return { visibleObservations, hasMoreObservations };
-    }, [observations, trace.id]);
+    const visibleObservationState = React.useMemo(
+      () => getVisibleSessionObservations(observationsData, trace.id),
+      [observationsData, trace.id],
+    );
+    const { visibleObservations, hasMoreObservations } =
+      visibleObservationState;
 
     const Frame = surface === "card" ? Card : "div";
     const showTracePanel = surface === "card" && !hideTracePanel;
@@ -381,13 +312,8 @@ export const TraceEventsRow = React.memo(
     return (
       <Frame
         className={
-          surface === "card"
-            ? "border-border shadow-none"
-            : isActive
-              ? "bg-background border-l-primary border-l-2"
-              : "bg-background border-l-2 border-l-transparent"
+          surface === "card" ? "border-border shadow-none" : "bg-background"
         }
-        data-modern-session-active={surface === "modern" && isActive}
       >
         <div
           className={
@@ -496,8 +422,7 @@ export const TraceEventsRow = React.memo(
                   </p>
                 )}
               </div>
-            ) : observations &&
-              observations.length === 0 &&
+            ) : visibleObservations?.length === 0 &&
               filterState.length === 0 ? (
               // No filter and the trace genuinely has no observations.
               <div className="text-muted-foreground p-2 text-xs">

@@ -8,15 +8,13 @@ import {
   recordGauge,
   recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
-  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.media_retention_cleaner";
 
-export const MEDIA_RETENTION_CLEANER_LOCK_KEY =
-  "langfuse:media-retention-cleaner";
+const MEDIA_RETENTION_CLEANER_LOCK_KEY = "langfuse:media-retention-cleaner";
 
 /**
  * MediaRetentionCleaner handles periodic deletion of media files and blob storage
@@ -37,6 +35,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: "MediaRetentionCleaner",
+      metricName: "media_retention_cleaner",
       lockKey: MEDIA_RETENTION_CLEANER_LOCK_KEY,
       lockTtlSeconds,
       onUnavailable: "fail",
@@ -73,7 +72,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
           logger.error(`${this.name}: Failed to query project workload`, {
             error,
           });
-          traceException(error);
           recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
           throw error;
         }
@@ -110,17 +108,19 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
   }
 
   private async processProject(workload: MediaRetentionProject): Promise<void> {
-    // Delete media files (S3 + PostgreSQL)
-    if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-      await this.deleteExpiredMedia(workload);
-    }
-
     // Delete blob storage entries (S3 + ClickHouse soft delete)
     if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
+      await this.extendLockOnProgress();
       await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
         workload.projectId,
         workload.cutoffDate,
+        { onProgress: () => this.extendLockOnProgress() },
       );
+    }
+
+    // Delete media files (S3 + PostgreSQL)
+    if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+      await this.deleteExpiredMedia(workload);
     }
 
     logger.info(`${this.name}: Project processed`, {

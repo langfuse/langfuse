@@ -1,12 +1,99 @@
 import { type ColumnDefinition } from "./tableDefinitions";
+import { EvalExecutionMetadataKey } from "./features/evals/evalExecutionMetadata";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
+  const prefix = alias ? `${alias}.` : "";
+  return `(${prefix}parent_span_id = '' OR ${prefix}is_app_root = true)`;
+};
 export const eventsTableIsRootObservationSql =
-  "(e.parent_span_id = '' OR e.is_app_root = true)";
+  eventsTableIsRootObservationSqlForAlias("e");
+export const eventsTableTraceNameSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
+export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+// Row-projection variant. The fallback above is Nullable(String), but
+// events_core.trace_name is a non-null String. Projecting the nullable
+// expression under the column's own name while a filter reads the physical
+// column puts two `trace_name` headers of different types into one pipeline,
+// and ClickHouse 25.x rejects that with AMBIGUOUS_COLUMN_NAME (code 352) as
+// soon as the query also sorts (LFE-14924). Matching the stored String type
+// keeps the alias — an export/stream wire name — stable. "no trace name" is
+// therefore '' on the wire; JS consumers map it back to null.
+export const eventsTableTraceNameSelectSqlForAlias = (alias: string) =>
+  `ifNull(${eventsTableTraceNameSqlForAlias(alias)}, '')`;
+export const eventsTableTraceNameSelectSql =
+  eventsTableTraceNameSelectSqlForAlias("e");
+/**
+ * Maps the wire form of `eventsTableTraceNameSelectSql` ('' == no trace name)
+ * back to the null every JS-facing surface uses - tRPC/UI, the public API, the
+ * eval stream, analytics integrations, and batch export.
+ *
+ * Blob storage export deliberately does NOT use this: its published contract
+ * types `trace_name` as a plain string
+ * (https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields),
+ * and its raw JSONL / Parquet paths never pass through JS, so normalizing only
+ * the enriched path would make the three export formats disagree.
+ */
+export const normalizeEventsTraceName = (
+  traceName: string | null | undefined,
+): string | null => traceName || null;
+export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+export const eventsTableTraceNameAggregationSql =
+  eventsTableTraceNameAggregationSqlForAlias("e");
+
+export const isRootObservation = ({
+  parentObservationId,
+  isAppRoot,
+}: {
+  parentObservationId: string | null | undefined;
+  isAppRoot: boolean | null | undefined;
+}): boolean => !parentObservationId || isAppRoot === true;
 // True when the observation carries input / output. NULL/'' both count as
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
+
+const isCachedInputMetric = (key: string): boolean => {
+  const normalizedKey = key.toLowerCase();
+  return (
+    normalizedKey.includes("cached") || normalizedKey.includes("cache_read")
+  );
+};
+
+const findCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => {
+  const values = Object.entries(details ?? {})
+    .filter(([key]) => isCachedInputMetric(key))
+    .map(([, value]) => Number(value));
+
+  return values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0)
+    : undefined;
+};
+
+export const getCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+export const getCachedInputCost = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+const cachedInputMetricSql = (detailsColumn: string): string => {
+  const keyPredicate = (key: string) =>
+    `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+  const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
+  const sum = `arraySum(mapValues(${filteredDetails}))`;
+
+  return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
+};
+
+export const eventsTableCachedInputTokensSql =
+  cachedInputMetricSql("e.usage_details");
+export const eventsTableCachedInputCostSql =
+  cachedInputMetricSql("e.cost_details");
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
@@ -67,10 +154,45 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "API Key",
+    id: "ingestionApiKey",
+    type: "stringOptions",
+    internal: "e.ingestion_api_key",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Name",
+    id: "ingestionSdkName",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_name",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Version",
+    id: "ingestionSdkVersion",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_version",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "Ingestion Source",
+    id: "ingestionSource",
+    type: "stringOptions",
+    internal: "e.source",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
     internal: "e.version",
+    nullable: true,
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "e.release",
     nullable: true,
   },
   {
@@ -91,16 +213,17 @@ const eventsTableColsDefinition = [
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
-    internal: "e.trace_name",
+    internal: eventsTableTraceNameSql,
     options: [], // to be added at runtime
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "e.level",
     options: [],
+    aliases: ["Level"],
   },
   {
     name: "Status Message",
@@ -157,6 +280,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Cached Input Tokens",
+    id: "cachedInputTokens",
+    type: "number",
+    internal: eventsTableCachedInputTokensSql,
+    nullable: true,
+  },
+  {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
@@ -178,6 +308,13 @@ const eventsTableColsDefinition = [
     type: "number",
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
+    nullable: true,
+  },
+  {
+    name: "Cached Input Cost ($)",
+    id: "cachedInputCost",
+    type: "number",
+    internal: eventsTableCachedInputCostSql,
     nullable: true,
   },
   {
@@ -230,6 +367,20 @@ const eventsTableColsDefinition = [
     id: "metadata",
     type: "stringObject",
     internal: "e.metadata",
+  },
+  {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_ID}'))`,
+    options: [],
+  },
+  {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal: `if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}')))`,
+    options: [],
   },
   {
     name: "Trace Tags",
@@ -430,6 +581,7 @@ const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "output",
   "metadata",
   "traceTags",
+  "isRootObservation",
   "hasParentObservation",
 ] as const satisfies readonly EventsTableColumnId[];
 

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -59,6 +60,7 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
+  loadingText?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -69,6 +71,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       loading = false,
+      loadingText,
       disabled,
       onClick,
       children,
@@ -79,14 +82,24 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          loading && loadingText && "gap-2",
+        )}
         ref={ref}
         disabled={disabled || loading}
         onClick={loading || disabled ? undefined : onClick}
         {...props}
         type={props.type || "button"}
       >
-        {loading ? <Spinner /> : children}
+        {loading ? (
+          <>
+            <Spinner />
+            {loadingText}
+          </>
+        ) : (
+          children
+        )}
       </Comp>
     );
   },

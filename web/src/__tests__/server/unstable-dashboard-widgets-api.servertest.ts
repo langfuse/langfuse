@@ -8,9 +8,8 @@ import {
   PatchUnstableDashboardWidgetResponse,
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { DashboardWidgetViews } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   DashboardService,
@@ -36,18 +35,17 @@ const legacyTracesWidgetInput = {
   filters: [],
   chartType: "NUMBER" as const,
   chartConfig: { type: "NUMBER" as const },
-  minVersion: 1,
 };
 
 const expectUnstableError = (
   response: Awaited<ReturnType<typeof makeAPICall>>,
   params: {
     status: number;
-    code: z.infer<typeof UnstablePublicApiErrorResponse>["code"];
+    code: z.infer<typeof StructuredPublicApiErrorResponse>["code"];
   },
 ) => {
   expect(response.status).toBe(params.status);
-  const body = UnstablePublicApiErrorResponse.parse(response.body);
+  const body = StructuredPublicApiErrorResponse.parse(response.body);
   expect(body.code).toBe(params.code);
   return body;
 };
@@ -82,8 +80,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       projectId,
       name: "API widget",
       view: "OBSERVATIONS",
-      // widgets created via the public API are always v2 internally
-      minVersion: 2,
+      // The submitted shape is fully expressible in v1.
+      minVersion: 1,
     });
 
     await expect(
@@ -209,6 +207,12 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       name: "Legacy v1 observations widget",
       view: DashboardWidgetViews.OBSERVATIONS,
     });
+    await prisma.dashboardWidget.update({
+      where: { id: v1Widget.id },
+      // `id` is valid in v1 but uiHidden in v2, making a validation/persistence
+      // version mismatch observable on the following name-only PATCH.
+      data: { minVersion: 1, dimensions: [{ field: "id" }] },
+    });
 
     await makeZodVerifiedAPICall(
       PatchUnstableDashboardWidgetResponse,
@@ -221,19 +225,6 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       where: { id: v1Widget.id, projectId },
     });
     expect(afterRename.minVersion).toBe(1);
-
-    const patchViewResponse = await makeZodVerifiedAPICall(
-      PatchUnstableDashboardWidgetResponse,
-      "PATCH",
-      `/api/public/unstable/dashboard-widgets/${v1Widget.id}`,
-      { view: "scores-numeric" },
-      auth,
-    );
-    expect(patchViewResponse.body.view).toBe("scores-numeric");
-    const afterViewChange = await prisma.dashboardWidget.findUniqueOrThrow({
-      where: { id: v1Widget.id, projectId },
-    });
-    expect(afterViewChange.minVersion).toBe(2);
   });
 
   it("rejects patching a widget into the legacy traces view", async () => {

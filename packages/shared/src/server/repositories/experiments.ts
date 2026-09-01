@@ -3,7 +3,6 @@ import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   FilterList,
   StringOptionsFilter,
@@ -53,6 +52,54 @@ export type ExperimentMetricsReturnType = {
   experiment_id: string;
   total_cost: number | null;
   latency_avg: number | null;
+};
+
+type DatasetExperimentMetricsReturnType = {
+  experiment_dataset_id: string;
+  count_dataset_runs: string;
+  last_run_at: string;
+};
+
+export const getDatasetExperimentMetricsFromEvents = async (props: {
+  projectId: string;
+  datasetIds: string[];
+}) => {
+  if (props.datasetIds.length === 0) {
+    return [];
+  }
+
+  const experimentsQuery = eventsExperimentsAggregation({
+    projectId: props.projectId,
+    fieldSet: "count",
+  })
+    .selectRaw(
+      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
+      "min(e.start_time) AS start_time",
+    )
+    .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
+      datasetIds: props.datasetIds,
+    })
+    .buildWithParams();
+
+  const rows = await queryClickhouse<DatasetExperimentMetricsReturnType>({
+    query: `
+      SELECT
+        experiment_dataset_id,
+        count() AS count_dataset_runs,
+        max(start_time) AS last_run_at
+      FROM (${experimentsQuery.query}) experiments
+      GROUP BY experiment_dataset_id
+    `,
+    params: experimentsQuery.params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    datasetId: row.experiment_dataset_id,
+    countDatasetRuns: Number(row.count_dataset_runs),
+    lastRunAt: parseClickhouseUTCDateTimeFormat(row.last_run_at),
+  }));
 };
 
 const experimentScoreCTE = (params: {
@@ -189,21 +236,11 @@ export const getExperimentMetricsFromEvents = async (props: {
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const res = await measureAndReturn({
-    operationName: "getExperimentMetricsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: { projectId: props.projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<ExperimentMetricsReturnType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const res = await queryClickhouse<ExperimentMetricsReturnType>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res.map((row) => ({
@@ -361,21 +398,11 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   const finalParams = built.params;
 
-  return measureAndReturn({
-    operationName: "getExperimentsFromEventsGeneric",
-    projectId,
-    input: {
-      params: finalParams,
-      tags: { ...(props.tags ?? {}), projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query: finalQuery,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  return queryClickhouse<T>({
+    query: finalQuery,
+    params: finalParams,
+    tags: { ...(props.tags ?? {}), projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -903,7 +930,7 @@ const buildQualificationPlan = (
 
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
-    ...(isBaselineEnforced ? filteredCompExperimentIds : compExperimentIds),
+    ...compExperimentIds,
   ];
 
   const compiledFiltersByExperiment = allExperimentIds.map((experimentId) =>
@@ -1303,9 +1330,9 @@ export const getExperimentNamesFromEvents = async (props: {
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
-    groupByColumn: "e.experiment_name",
+    groupByColumn: "e.experiment_id",
     selectExpression:
-      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId",
+      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
     .limit(1000, 0);
@@ -1315,6 +1342,7 @@ export const getExperimentNamesFromEvents = async (props: {
   const res = await queryClickhouse<{
     experimentName: string;
     experimentId: string;
+    datasetId: string | null;
   }>({
     query,
     params,

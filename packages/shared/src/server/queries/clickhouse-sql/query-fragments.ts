@@ -15,20 +15,22 @@ import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
 } from "../../repositories/constants";
+import type { ClickhouseFilter } from "./clickhouse-filter";
+import { eventsTableTraceNameSql } from "../../../eventsTable";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
- * Picks a row with non-empty trace_name via LIMIT 1 BY trace_id.
+ * Picks one row with a resolved trace name via LIMIT 1 BY trace_id.
  */
 export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
   new EventsQueryBuilder({ projectId })
     .selectRaw(
       "e.trace_id AS id",
-      "e.trace_name AS name",
+      `${eventsTableTraceNameSql} AS name`,
       "e.user_id AS user_id",
       "e.tags AS tags",
     )
-    .whereRaw("e.trace_name <> ''")
+    .whereRaw(`${eventsTableTraceNameSql} IS NOT NULL`)
     .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
 
@@ -148,6 +150,8 @@ interface BaseScoresParams {
 interface BaseScoresAggregationParams extends BaseScoresParams {
   hasScoreAggregationFilters?: boolean;
   startTimeLookbackIntervals: readonly string[];
+  /** Optional predicate applied to raw score rows before aggregation. */
+  scoreRowsFilter?: ClickhouseFilter;
   /**
    * When true, adds an extra `score_categories_tuples` column with
    * `tuple(name, string_value, data_type)` encoding alongside the default concat-encoded
@@ -175,11 +179,12 @@ const scoreTimestampLowerBound = (
  * Observation level: Aggregates scores by (trace_id, observation_id), always uses nested structure
  * Trace level: Aggregates scores by (project_id, trace_id), filters observation_id IS NULL
  */
-export const buildScoresAggregationCTE = (
+const buildScoresAggregationCTE = (
   params: BaseScoresAggregationParams,
 ): { query: string; params: Record<string, any> } => {
   const queryParams: Record<string, any> = {
     projectId: params.projectId,
+    ...params.scoreRowsFilter?.params,
   };
 
   if (params.startTimeFrom) {
@@ -219,6 +224,7 @@ export const buildScoresAggregationCTE = (
         FROM scores FINAL
         WHERE project_id = {projectId: String}
           ${observationFilter}
+          ${params.scoreRowsFilter ? `AND ${params.scoreRowsFilter.query}` : ""}
           ${scoreTimestampLowerBound(params.startTimeFrom, params.startTimeLookbackIntervals)}
         GROUP BY
           ${primaryKey},
@@ -239,6 +245,7 @@ interface EventsScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
   includeTupleEncoding?: boolean;
+  scoreRowsFilter?: ClickhouseFilter;
 }
 
 /**
@@ -264,6 +271,7 @@ interface EventsTracesScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
   hasScoreAggregationFilters?: boolean;
+  scoreRowsFilter?: ClickhouseFilter;
   /**
    * Adds the `score_categories_tuples` column for programmatic parsing (see
    * BaseScoresAggregationParams). Only meaningful together with
@@ -297,6 +305,7 @@ const buildEventsTracesScoresAggregation = (
 
   const queryParams: Record<string, any> = {
     projectId: params.projectId,
+    ...params.scoreRowsFilter?.params,
   };
 
   if (params.startTimeFrom) {
@@ -312,6 +321,7 @@ const buildEventsTracesScoresAggregation = (
     FROM scores
     WHERE project_id = {projectId: String}
       AND observation_id IS NULL
+      ${params.scoreRowsFilter ? `AND ${params.scoreRowsFilter.query}` : ""}
       ${scoreTimestampLowerBound(params.startTimeFrom, startTimeLookbackIntervals)}
     GROUP BY
       trace_id,

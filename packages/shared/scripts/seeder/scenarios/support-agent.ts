@@ -36,8 +36,8 @@ import { countRows, sessionLink, traceLink } from "./verify";
  */
 
 const MODEL_PRICES: Record<string, { input: number; output: number }> = {
-  "gpt-4o": { input: 2.5e-6, output: 1e-5 },
-  "gpt-4o-mini": { input: 1.5e-7, output: 6e-7 },
+  "gpt-5.4": { input: 1.25e-6, output: 1e-5 },
+  "gpt-5.4-mini": { input: 2.5e-7, output: 2e-6 },
 };
 
 type DemoObs = {
@@ -118,7 +118,7 @@ const PLAN: DemoObs[] = [
     name: "classify-intent",
     start: 205,
     end: 818,
-    model: "gpt-4o-mini",
+    model: "gpt-5.4-mini",
     usage: [412, 31],
     ttft: 158,
     modelParameters: { temperature: 0, max_tokens: 128 },
@@ -223,7 +223,7 @@ const PLAN: DemoObs[] = [
     name: "llm.chat",
     start: 1561,
     end: 3389,
-    model: "gpt-4o",
+    model: "gpt-5.4",
     usage: [1846, 94],
     ttft: 243,
     modelParameters: {
@@ -296,7 +296,7 @@ const PLAN: DemoObs[] = [
     name: "llm.chat",
     start: 4172,
     end: 5924,
-    model: "gpt-4o",
+    model: "gpt-5.4",
     usage: [2413, 72],
     ttft: 212,
     modelParameters: {
@@ -360,7 +360,7 @@ const PLAN: DemoObs[] = [
     name: "llm.chat",
     start: 6947,
     end: 8731,
-    model: "gpt-4o",
+    model: "gpt-5.4",
     usage: [2987, 141],
     ttft: 264,
     modelParameters: {
@@ -394,7 +394,7 @@ const PLAN: DemoObs[] = [
     name: "draft-response",
     start: 8790,
     end: 10377,
-    model: "gpt-4o",
+    model: "gpt-5.4",
     usage: [1312, 187],
     ttft: 231,
     modelParameters: { temperature: 0.7, max_tokens: 512 },

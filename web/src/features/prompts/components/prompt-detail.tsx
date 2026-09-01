@@ -7,7 +7,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { ChatMessageList } from "@/src/components/trace/components/IOPreview/components/ChatMessageList";
+import { ChatMessageList } from "@/src/features/traces";
 import {
   TabsBar,
   TabsBarList,
@@ -21,6 +21,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
+import { cn } from "@/src/utils/tailwind";
 import {
   extractVariables,
   PRODUCTION_LABEL,
@@ -31,14 +32,23 @@ import {
   PROMPT_TABS,
 } from "@/src/features/navigation/utils/prompt-tabs";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import LegacyGenerations from "@/src/components/table/use-cases/observations";
 import EventsTable from "@/src/features/events/components/EventsTable";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { FlaskConical, MoreVertical, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  FlaskConical,
+  MessageSquare,
+  MessageSquareOff,
+  MoreVertical,
+  Plus,
+  Terminal,
+} from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
@@ -59,7 +69,7 @@ import {
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
@@ -400,15 +410,34 @@ export const PromptDetail = ({
                 <div className="min-h-1 flex-1" />
               </div>
               <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
-                <JumpToPlaygroundButton
+                <JumpToPlaygroundDropdownMenuController
                   source="prompt"
                   prompt={{
                     ...prompt,
                     resolvedPrompt: promptGraph.data?.resolvedPrompt,
                   }}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
-                  variant="outline"
-                />
+                >
+                  {({ Trigger, disabled, title }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="outline"
+                        disabled={disabled}
+                        title={title}
+                        className={cn(
+                          "flex items-center gap-1",
+                          disabled
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer",
+                        )}
+                      >
+                        <Terminal className="h-4 w-4" />
+                        <span className="hidden md:inline">Playground</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </Trigger>
+                  )}
+                </JumpToPlaygroundDropdownMenuController>
                 {hasAccess && (
                   <Dialog
                     open={isCreateExperimentDialogOpen}
@@ -443,16 +472,41 @@ export const PromptDetail = ({
                     </DialogContent>
                   </Dialog>
                 )}
-                <CommentDrawerButton
+                <CommentDrawerController
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
                   count={getNumberFromMap(commentCounts, prompt.id)}
-                  variant="outline"
                   onCommentChange={() =>
                     utils.prompts.allVersions.invalidate(promptHistoryInput)
                   }
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                      className="gap-1"
+                    >
+                      {disabled ? (
+                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      ) : (
+                        <>
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Add comment</span>
+                          {getNumberFromMap(commentCounts, prompt.id) ? (
+                            <ActionButtonCountBadge
+                              count={
+                                getNumberFromMap(commentCounts, prompt.id) ?? 0
+                              }
+                            />
+                          ) : null}
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </CommentDrawerController>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">

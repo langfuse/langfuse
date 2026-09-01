@@ -8,13 +8,9 @@ import { env } from "@/src/env.mjs";
 
 export function RequestResetPasswordEmailButton({
   email,
-  className,
-  variant = "default",
   callbackUrl,
 }: {
   email: string;
-  className?: string;
-  variant?: "default" | "secondary";
   callbackUrl?: string;
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
@@ -56,7 +52,7 @@ export function RequestResetPasswordEmailButton({
     }
   };
 
-  const handleVerify = async (_e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleVerify = async () => {
     if (!code) return;
     setIsLoading(true);
     setErrorMessage(null);
@@ -68,6 +64,8 @@ export function RequestResetPasswordEmailButton({
         : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
       const callback = encodeURIComponent(targetCb);
       const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
+      // Existing hard navigation is accepted during the Next.js 16.3 migration.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = url;
     } catch (error) {
       console.error("Error verifying code:", error);
@@ -90,16 +88,15 @@ export function RequestResetPasswordEmailButton({
             minLength={6}
             maxLength={6}
             value={code}
-            onChange={(e) => setCode(e.target.value.trim())}
+            onChange={(event) => setCode(event.target.value.trim())}
             placeholder="One time passcode"
             className="mb-8 w-full"
           />
           <Button
             onClick={handleVerify}
-            className={className}
             loading={isLoading}
             disabled={!code || code.length !== 6}
-            variant={variant}
+            className="w-full"
           >
             Verify code
           </Button>
@@ -107,10 +104,9 @@ export function RequestResetPasswordEmailButton({
       ) : (
         <Button
           onClick={handleResetPassword}
-          className={className}
           loading={isLoading}
           disabled={!isValidEmail}
-          variant={variant}
+          className="w-full"
         >
           {session.status === "authenticated"
             ? "Verify email to change password"

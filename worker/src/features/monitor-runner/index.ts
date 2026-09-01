@@ -1,4 +1,9 @@
-import { logger, MonitorQueue, QueueJobs } from "@langfuse/shared/src/server";
+import {
+  getCurrentSpan,
+  logger,
+  MonitorQueue,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
 import { MonitorScheduler } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -21,8 +26,11 @@ export class MonitorRunner extends PeriodicExclusiveRunner {
   constructor(schedulerId: number, totalSchedulers: number) {
     super({
       name: `MonitorRunner(${schedulerId + 1}/${totalSchedulers})`,
+      metricName: "monitor_runner",
+      metricScope: String(schedulerId + 1),
       lockKey: `langfuse:monitor:${schedulerId}`,
       lockTtlSeconds,
+      onUnavailable: "fail",
     });
     this.schedulerId = schedulerId;
     this.totalSchedulers = totalSchedulers;
@@ -59,7 +67,8 @@ export class MonitorRunner extends PeriodicExclusiveRunner {
   protected async execute(): Promise<void> {
     await this.withLock(async () => {
       const count = await this.scheduler.schedule(new Date());
-      logger.debug(`${this.instanceName}: published ${count} events`);
+      getCurrentSpan()?.setAttribute("monitor.published_count", count);
+      logger.info(`${this.instanceName}: published ${count} events`);
     });
   }
 }

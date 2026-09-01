@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createOpenAI } from "@ai-sdk/openai";
@@ -6,12 +6,16 @@ import { APICallError, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { encrypt } from "../../encryption";
+import { env } from "../../env";
 import { LLMValidationError } from "./errors";
 import {
+  createEvaluatorMediaUrlPolicy,
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   mapLegacyLLMCompletionParams,
+  providerSupportedMediaUrlPolicy,
   streamLLMText,
 } from "./llmText";
 import {
@@ -55,6 +59,26 @@ function openAIOptions() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("getClientInitiatedNonStreamingLlmTimeoutMs", () => {
+  const configuredTimeout = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+
+  afterEach(() => {
+    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS = configuredTimeout;
+  });
+
+  it.each([
+    { configured: 120_000, expected: 95_000 },
+    { configured: 60_000, expected: 60_000 },
+  ])(
+    "returns $expected for a configured $configured ms timeout",
+    ({ configured, expected }) => {
+      env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS = configured;
+
+      expect(getClientInitiatedNonStreamingLlmTimeoutMs()).toBe(expected);
+    },
+  );
 });
 
 describe("generateLLMText", () => {
@@ -232,7 +256,7 @@ describe("generateLLMText", () => {
     ).rejects.toMatchObject({
       name: "LLMValidationError",
       message:
-        "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
+        "The interpolated prompt contains media with type image/png, but the selected model does not support this media type. To continue, narrow the variable mapping so it does not include this media, or select a model that supports image/png.",
       code: "invalid-request",
       statusCode: 400,
     });
@@ -241,7 +265,7 @@ describe("generateLLMText", () => {
     expect(model.doGenerateCalls).toHaveLength(0);
   });
 
-  it("rejects model-supported media URLs when AI SDK would download them", async () => {
+  it("passes model-supported media URLs through without downloading", async () => {
     const model = new MockLanguageModelV4({
       supportedUrls: { "image/*": [/^https:\/\/cdn\.example\.com\//] },
       doGenerate: {
@@ -270,16 +294,10 @@ describe("generateLLMText", () => {
           },
         ],
       }),
-    ).rejects.toMatchObject({
-      name: "LLMValidationError",
-      message:
-        "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
-      code: "invalid-request",
-      statusCode: 400,
-    });
+    ).resolves.toMatchObject({ text: "should not run" });
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(model.doGenerateCalls).toHaveLength(1);
   });
 });
 
@@ -356,6 +374,67 @@ describe("streamLLMText", () => {
       error: timeoutError,
     });
     expect(onError).toHaveBeenCalledWith({ error: timeoutError });
+  });
+});
+
+describe("providerSupportedMediaUrlPolicy", () => {
+  it("gates URL pass-through with the evaluator media transport", async () => {
+    const configuredTransport = env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT;
+    const cloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const url = new URL("https://signed.example/media?secret=value");
+    const messagesWithRemoteMedia = [
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "file" as const,
+            data: url,
+            mediaType: "image/png",
+          },
+        ],
+      },
+    ];
+
+    try {
+      env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT = "inline";
+      await expect(
+        createEvaluatorMediaUrlPolicy(messagesWithRemoteMedia)([
+          { url, isUrlSupportedByModel: true },
+        ]),
+      ).rejects.toSatisfy(LLMValidationError.isInstance);
+
+      env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT = "url";
+      await expect(
+        createEvaluatorMediaUrlPolicy(messagesWithRemoteMedia)([
+          { url, isUrlSupportedByModel: true },
+        ]),
+      ).resolves.toEqual([null]);
+    } finally {
+      env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT = configuredTransport;
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+    }
+  });
+
+  it("passes provider-supported URLs through without downloading", async () => {
+    await expect(
+      providerSupportedMediaUrlPolicy([
+        {
+          url: new URL("https://signed.example/media?secret=value"),
+          isUrlSupportedByModel: true,
+        },
+      ]),
+    ).resolves.toEqual([null]);
+  });
+
+  it("fails locally when the adapter would require a server download", async () => {
+    await expect(
+      providerSupportedMediaUrlPolicy([
+        {
+          url: new URL("https://signed.example/media?secret=value"),
+          isUrlSupportedByModel: false,
+        },
+      ]),
+    ).rejects.toSatisfy(LLMValidationError.isInstance);
   });
 });
 
@@ -546,14 +625,37 @@ describe("legacy compatibility boundary", () => {
 
     await expect(
       generateLLMText({
-        ...openAIOptions(),
+        model: { adapter: LLMAdapter.GoogleAIStudio, id: "gemini-2.5-flash" },
+        connection: encryptedConnection,
+        messages: [...messages],
         credentialSource: "langfuse",
       }),
     ).rejects.toMatchObject({
       name: "LLMValidationError",
-      message: "Langfuse credentials are only supported for Amazon Bedrock",
+      message:
+        "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, and OpenAI",
       statusCode: 400,
       code: "invalid-connection",
     });
+  });
+
+  it("allows Langfuse credentials for OpenAI", async () => {
+    useModel(
+      new MockLanguageModelV4({
+        doGenerate: {
+          content: [{ type: "text", text: "ok" }],
+          finishReason,
+          usage,
+          warnings: [],
+        },
+      }),
+    );
+
+    const result = await generateLLMText({
+      ...openAIOptions(),
+      credentialSource: "langfuse",
+    });
+
+    expect(result.text).toBe("ok");
   });
 });

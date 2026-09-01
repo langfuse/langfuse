@@ -1,12 +1,7 @@
 import { type RowData, type ColumnDef } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
-
-export type TableRowOptions = {
-  columnId: string;
-  options: { label: string; value: number; icon?: LucideIcon }[];
-};
 
 export type DataTableCellPadding = "compact" | "comfortable" | "none";
+export type DataTableCellBackground = "gray" | "green";
 
 declare module "@tanstack/react-table" {
   // extends tanstack ColumnDef to include additional properties
@@ -22,6 +17,7 @@ declare module "@tanstack/react-table" {
     isFlexWidth?: boolean; // if true, column absorbs leftover space (one per table)
     loadingCell?: React.ReactNode | (() => React.ReactNode);
     cellPadding?: DataTableCellPadding;
+    cellBackground?: DataTableCellBackground;
   }
 }
 

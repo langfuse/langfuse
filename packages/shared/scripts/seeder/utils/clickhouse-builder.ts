@@ -231,11 +231,23 @@ export class ClickHouseQueryBuilder {
           when type = 'GENERATION' then concat('generation-', toString(number % 10))
           when type = 'SPAN' then concat('span-', toString(number % 10))
           else concat('event-', toString(number % 10))
-        end AS name,
-        ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
-        multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
-        NULL AS status_message,
-        NULL AS version,
+          end AS name,
+          ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
+          multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
+          multiIf(
+            level = 'ERROR' AND h2 % 2 = 0,
+              '{"error":{"code":"upstream_timeout","message":"The upstream model did not respond in time.","retryable":true},"requestId":"seed-request-42"}',
+            level = 'ERROR',
+              'Upstream model request timed out after 30 seconds.',
+            level = 'WARNING',
+              'The response completed after one automatic retry.',
+            level = 'DEBUG',
+              'Prompt cache lookup completed without a matching entry.',
+            level = 'DEFAULT' AND h2 % 10 = 0,
+              'The response completed with additional status details.',
+            NULL
+          ) AS status_message,
+          NULL AS version,
         if(type = 'GENERATION',
           if(h2 % 10 < 4, '${escapedHeavyMarkdown}', '${escapedChatMl}'),
           NULL) AS input,
@@ -245,7 +257,7 @@ export class ClickHouseQueryBuilder {
         -- Spread generations across a realistic model pool (keyed on the stable
         -- per-row hash h4) so model-usage / cost / latency-by-model dashboards
         -- show multiple series instead of a single hardcoded model.
-        if(type = 'GENERATION', arrayElement(['gpt-4o-mini','gpt-3.5-turbo','claude-3-haiku-20240307','gpt-4o','claude-3-5-sonnet-20241022'], 1 + (h4 % 5)), NULL) AS provided_model_name,
+        if(type = 'GENERATION', arrayElement(['gpt-5.4-mini','gpt-5.4-nano','claude-haiku-4-5','gpt-5.4','claude-sonnet-4-5'], 1 + (h4 % 5)), NULL) AS provided_model_name,
         NULL AS internal_model_id,
         if(type = 'GENERATION', '{"temperature": 0.7}', '{}') AS model_parameters,
         if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS provided_usage_details,

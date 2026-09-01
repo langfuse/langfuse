@@ -15,7 +15,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
  * Matched by URL path SUFFIX so an optional `NEXT_PUBLIC_BASE_PATH` prefix
  * (e.g. `/self-hosted/api/auth/session`) still matches.
  */
-export const HTTP_CLIENT_NOISE_PATHS = [
+const HTTP_CLIENT_NOISE_PATHS = [
   "/api/auth/session", // NextAuth session poll (5-min interval + on window focus)
   // The two probes below are defensive/inert: they are only fetched by infra
   // liveness/readiness checks, never by the browser, so they cannot actually
@@ -91,6 +91,38 @@ const TRANSPORT_FAILURE_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Browser-extension URL protocols already listed in `denyUrls`
+ * (`web/instrumentation-client.ts`). `denyUrls` matches stack-frame filenames;
+ * keep this list in sync so the message-level fallback covers the same origins.
+ */
+const BROWSER_EXTENSION_MODULE_URL_RE =
+  /^(?:chrome-extension|moz-extension|safari-extension|safari-web-extension|ms-browser-extension):\/\//i;
+
+/**
+ * Chrome's exact wording when a dynamic `import()` fails to load. Combined
+ * with {@link BROWSER_EXTENSION_MODULE_URL_RE} so a first-party chunk-load
+ * failure (`https://…/_next/static/chunks/…`) is NOT dropped.
+ */
+const DYNAMIC_IMPORT_FAILURE_MARKER =
+  "Failed to fetch dynamically imported module:";
+
+/**
+ * True when Chrome reported a failed dynamic `import()` whose MODULE URL
+ * (the text immediately after {@link DYNAMIC_IMPORT_FAILURE_MARKER}) uses a
+ * browser-extension protocol. Anchored to that URL so a first-party chunk
+ * failure that merely mentions `chrome-extension://` in a query, fragment, or
+ * trailing console text is KEPT.
+ */
+function isBrowserExtensionDynamicImportFailure(text: string): boolean {
+  const markerIndex = text.indexOf(DYNAMIC_IMPORT_FAILURE_MARKER);
+  if (markerIndex === -1) return false;
+  const failedModule = text
+    .slice(markerIndex + DYNAMIC_IMPORT_FAILURE_MARKER.length)
+    .trimStart();
+  return BROWSER_EXTENSION_MODULE_URL_RE.test(failedModule);
+}
+
+/**
  * Message prefixes emitted by non-Langfuse code (framework / vendor). These are
  * unambiguous, vendor-namespaced strings that our own code cannot produce, so
  * matching them by prefix cannot swallow a real app error.
@@ -114,6 +146,53 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   // `(null)`, ...). It is a framework artifact with no real error attached.
   "_error.js called with falsy error",
 ];
+
+/**
+ * The Sentry SDK synthesizes this exact prefix (global `onunhandledrejection`
+ * handler) when a promise rejects with a non-`Error` value. These events carry
+ * NO stack, so Sentry groups them by the stringified value — every new value
+ * mints a new fingerprint.
+ */
+const NON_ERROR_REJECTION_PREFIX =
+  "Non-Error promise rejection captured with value: ";
+
+/**
+ * Known-benign non-Error rejection values, each traced to a non-app source
+ * from real events. ONLY these exact values (plus the prefixes below) are
+ * dropped — an unknown value could be a real rejection from our code or a
+ * bundled dependency and is KEPT, as is the object-shaped
+ * `Object captured as promise rejection with keys: …` variant, which has
+ * carried real failures (e.g. `code, message, stack` payloads).
+ */
+const BENIGN_NON_ERROR_REJECTION_VALUES: readonly string[] = [
+  // Browser-extension shim (wallet/provider extensions no-op on unsupported
+  // platforms and reject with this bare string). Observed with no stack and no
+  // app frames (LANGFUSE-5T9).
+  "Not implemented on this platform",
+  // `Promise.reject()` / `reject(undefined)`: zero diagnostic content — no
+  // stack, no message, no value. Nobody can act on it (LANGFUSE-5TA).
+  "undefined",
+];
+
+/**
+ * Prefix-matched benign rejection values whose tail varies per occurrence
+ * (which is exactly what shatters grouping).
+ */
+const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
+  // Microsoft Outlook SafeLinks / email-scanner artifact: the crawler injects
+  // scripts that reject with `Object Not Found Matching Id:<n>, MethodName:…`.
+  // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
+  "Object Not Found Matching Id:",
+];
+
+/**
+ * Chromium Android WebView wording when a host-app `@JavascriptInterface`
+ * method fails. The method name is a Java identifier; the suffix is fixed.
+ * Observed: LANGFUSE-60G (`Error invoking batch: Java bridge method
+ * invocation error`).
+ */
+const ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE =
+  /^Error invoking [A-Za-z_][\w$]*: Java bridge method invocation error$/;
 
 /**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
@@ -204,10 +283,15 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    occurred` — it aggregates real exceptions with no stack; hard-dropping it
  *    could blind us if the underlying exceptions are not captured separately.
  *  - `OAuthCallback` sign-in errors — could be a genuine auth-config break.
- *  - auth/permission (`UNAUTHORIZED`, not-a-member), query-timeout,
- *    chunk-load / stale-deploy `SyntaxError`, and Sentry perf detectors /
- *    third-party scripts — handled as UX or in Sentry project settings, not by a
- *    blind client-side drop.
+ *  - auth/permission (`UNAUTHORIZED`, not-a-member), query-timeout, and Sentry
+ *    perf detectors / third-party scripts — handled as UX or in Sentry project
+ *    settings, not by a blind client-side drop.
+ *  - the chunk-load / stale-deploy `SyntaxError` family — GROUPED (not dropped)
+ *    via {@link isStaleChunkParseErrorEvent} so a genuinely broken deploy still
+ *    surfaces as a spike on one issue.
+ *  - first-party `Failed to fetch dynamically imported module` of a
+ *    `/_next/static/chunks/` URL — same Chrome wording as the extension
+ *    family, but our chunks (stale tab / CDN); kept.
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -229,6 +313,19 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // NextAuth, PostHog, non-JSON Response.json(), and the Next.js `_error.js`
     // falsy-error artifact). Anchored with startsWith, never a loose includes. ---
     if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
+      return true;
+    }
+
+    // --- A. Browser-extension dynamic import() failure (LANGFUSE-5ZS). ---
+    // Chrome logs `Failed to fetch dynamically imported module: <url>` when
+    // an extension's own `import()` fails. `denyUrls` already lists these
+    // protocols, but this family has no stack frames, so denyUrls never
+    // matches and captureConsoleIntegration mints a new issue per
+    // extension-id + hashed asset. The protocol is required on the FAILED
+    // module URL (not anywhere in the event text); a first-party
+    // `/_next/static/chunks/` URL is a real stale-chunk / CDN failure and
+    // is KEPT.
+    if (isBrowserExtensionDynamicImportFailure(messageText)) {
       return true;
     }
 
@@ -268,7 +365,193 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     ) {
       return true;
     }
+
+    // Known-benign non-Error promise rejections. The `UnhandledRejection`
+    // exception type is SDK-synthesized (a real `Error` rejection keeps its own
+    // type, e.g. `TypeError`), and the value denylist is exact/prefix-anchored:
+    // an unknown rejection value still flows to Sentry. See
+    // BENIGN_NON_ERROR_REJECTION_VALUES for per-value provenance.
+    if (
+      exceptionType === "UnhandledRejection" &&
+      exceptionValue.startsWith(NON_ERROR_REJECTION_PREFIX)
+    ) {
+      const rejectionValue = exceptionValue.slice(
+        NON_ERROR_REJECTION_PREFIX.length,
+      );
+      if (
+        BENIGN_NON_ERROR_REJECTION_VALUES.includes(rejectionValue) ||
+        BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES.some((prefix) =>
+          rejectionValue.startsWith(prefix),
+        )
+      ) {
+        return true;
+      }
+    }
+
+    // Environmental storage-access denial: browsers throw a `SecurityError`
+    // DOMException on the `window.localStorage` property GETTER itself when
+    // storage is blocked (third-party iframe, privacy mode). The message is
+    // browser-generated — app logic cannot produce it. Stacks point at
+    // per-deploy hashed chunks, so each occurrence minted a new fingerprint
+    // (LANGFUSE-5TC/5TD/5TE/5TF).
+    //
+    // Guarded to the `capture_console` mechanism: only instances our own code
+    // already CAUGHT and logged (e.g. the useLocalStorage / useSessionStorage
+    // fallback paths) are dropped. An UNCAUGHT storage SecurityError — e.g. a
+    // bare storage read during render crashing the page — arrives via the
+    // global `onerror` handler and is KEPT, as are other `SecurityError`s
+    // (e.g. cross-origin frame access).
+    if (
+      exceptionType === "SecurityError" &&
+      exception?.mechanism?.type === "auto.core.capture_console" &&
+      /^Failed to read the '(localStorage|sessionStorage)' property from 'Window':/.test(
+        exceptionValue,
+      )
+    ) {
+      return true;
+    }
+
+    // Android WebView `@JavascriptInterface` methods only accept primitives.
+    // Chromium throws `Error invoking <method>: Java bridge method invocation
+    // error` when an injected host-app bridge fails — typically on `unload`,
+    // after the Java side is already torn down. Sentry's addEventListener wrap
+    // then captures the HOST APP's listener, not Langfuse code. We have no
+    // Java bridge (LANGFUSE-60G: Chrome Mobile WebView, anonymous `batch`
+    // frames only).
+    //
+    // Anchored to Chromium's exact wording (Java identifier method name) AND
+    // a Sentry browser-API / global-handler mechanism so an app-captured
+    // exception that merely quotes this phrase is KEPT. A first-party
+    // TypeError from our own listener is also KEPT (different message).
+    const mechanismType = exception?.mechanism?.type;
+    if (
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)
+    ) {
+      return true;
+    }
   }
 
   return false;
+}
+
+/**
+ * Fingerprint used to collapse all stale-chunk parse errors into ONE Sentry
+ * issue (see {@link isStaleChunkParseErrorEvent}).
+ */
+export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
+
+/**
+ * True for a browser-level parse failure of a Next.js chunk: the global
+ * `onerror` handler caught a `SyntaxError` whose entire stack is ONE anonymous
+ * frame at a `/_next/static/chunks/…` script — the shape a browser produces
+ * when a script's CONTENT fails to parse (truncated download, or a stale
+ * client fetching a chunk that no longer exists and receiving garbage after a
+ * deploy). Chunk filenames are content-hashed, so Sentry minted a new
+ * fingerprint per chunk per deploy (LANGFUSE-5WH/5WG/5WD/5S7 and the 1-event
+ * long tail). The reload banner (#15279) is the mitigation for the cause.
+ *
+ * These events are GROUPED under {@link STALE_CHUNK_PARSE_FINGERPRINT} in
+ * `beforeSend`, NOT dropped: if a deploy ever ships a genuinely unparsable
+ * chunk to everyone, the single grouped issue spikes and stays visible.
+ *
+ * Cannot catch a user-authored or app-code `SyntaxError`:
+ *  - the evals code editor reports user-code syntax errors via
+ *    `console.error` (mechanism `auto.core.capture_console`) with app frames
+ *    (`web/src/features/evals/…`) — different mechanism, multi-frame stack;
+ *  - a runtime `SyntaxError` thrown by app code (e.g. `JSON.parse`) carries
+ *    its throwing function and callers — more than one frame / a named
+ *    function.
+ */
+export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
+  const exception = event.exception?.values?.[0];
+  if (exception?.type !== "SyntaxError") return false;
+  if (exception.mechanism?.type !== "auto.browser.global_handlers.onerror") {
+    return false;
+  }
+
+  const frames = exception.stacktrace?.frames;
+  if (!frames || frames.length !== 1) return false;
+
+  const frame = frames[0];
+  // Parse errors carry no function name — the SDK synthesizes the frame with
+  // its UNKNOWN_FUNCTION placeholder `"?"` on the wire (`beforeSend` runs
+  // BEFORE server-side normalization turns that into `null`). A real function
+  // name means runtime code threw.
+  if (frame?.function && frame.function !== "?") return false;
+
+  return (
+    typeof frame?.filename === "string" &&
+    frame.filename.includes("/_next/static/chunks/")
+  );
+}
+
+/**
+ * PostHog's lazily-loaded session-replay recorder script (served as
+ * `/static/posthog-recorder.js?v=<posthog-js version>`).
+ */
+const POSTHOG_RECORDER_SCRIPT_SUFFIX = "/static/posthog-recorder.js";
+
+/**
+ * Frames that carry no attribution: browser-native/eval frames, and the Sentry
+ * SDK's own wrapper frames (its `wrap()` helper sits at the outer edge of
+ * every instrumented listener stack). The `@sentry` path shape only occurs in
+ * dev / source-mapped stacks — in a prod bundle the wrapper lives in an app
+ * chunk, which this predicate deliberately does NOT allow (see the coverage
+ * gap note on {@link isPosthogRecorderInternalEvent}).
+ */
+function isOpaqueOrSdkFrame(filename: string): boolean {
+  return (
+    filename === "<anonymous>" ||
+    filename === "[native code]" ||
+    (filename.includes("node_modules") && filename.includes("@sentry"))
+  );
+}
+
+/**
+ * True for errors thrown wholly INSIDE PostHog's session-replay recorder:
+ * every attributable stack frame lives in the recorder script (plus at most
+ * browser-native and Sentry-SDK wrapper frames). rrweb's DOM serialization
+ * throws on exotic page content (observed: `SyntaxError: Invalid or unexpected
+ * token` from `processMutations` / `onRRwebEmit`, LANGFUSE-5VY/5VX), and each
+ * throw site mints a new fingerprint per recorder version.
+ *
+ * Safe to drop: an error thrown by OUR code always carries at least one app
+ * chunk frame (the throwing frame), which fails this check. Errors with no
+ * app frame are the vendor recorder failing internally — not a Langfuse app
+ * bug, and not actionable in Sentry (session replay is best-effort telemetry;
+ * a broken recorder shows up as missing recordings in PostHog, not here).
+ * Same posture as the browser-extension `denyUrls` entries, expressed as a
+ * testable predicate because the crash frame is often `<anonymous>`, which
+ * `denyUrls` skips inconsistently.
+ *
+ * Known coverage gap (deliberate): the `addEventListener`-wrapped variant
+ * (LANGFUSE-5VY) carries the Sentry SDK's `wrap()` frame, which in a prod
+ * bundle is an app-chunk filename indistinguishable from app code — those
+ * events are KEPT. Allowing chunk frames here would risk masking real app
+ * listener errors, so only the all-recorder shape (LANGFUSE-5VX) is dropped.
+ */
+export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawRecorderFrame = false;
+  for (const frame of frames) {
+    const filename = frame?.filename;
+    // A frame with no filename has no attribution — treat like <anonymous>.
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    // The recorder loads with a version query (`?v=<posthog-js version>`) that
+    // survives into wire-format frame filenames — strip query/fragment before
+    // matching the path suffix.
+    const path = filename.split(/[?#]/)[0];
+    if (path.endsWith(POSTHOG_RECORDER_SCRIPT_SUFFIX)) {
+      sawRecorderFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    // Any other frame (app chunk, other vendor) → not recorder-internal.
+    return false;
+  }
+  return sawRecorderFrame;
 }

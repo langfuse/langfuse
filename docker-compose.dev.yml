@@ -1,8 +1,8 @@
 services:
   clickhouse:
-    # Upgrade from 24.3 to check behaviour on new events table.
-    # The CI matrix spans ClickHouse versions: -azure pins the 24.3 baseline,
-    # this config runs 25.12, and -redis-cluster exercises the newest release.
+    # ClickHouse 25.12 is the Langfuse v4 minimum (events tables require the
+    # >=25.x text indexes / enable_full_text_index). This config and -azure pin
+    # the minimum; -redis-cluster exercises the newest ClickHouse release.
     image: docker.io/clickhouse/clickhouse-server:25.12
     user: "101:101"
     container_name: ${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}

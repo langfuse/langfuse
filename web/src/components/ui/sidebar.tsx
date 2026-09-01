@@ -1,6 +1,8 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/router";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
 import { Menu, PanelLeft } from "lucide-react";
@@ -67,6 +69,7 @@ const SidebarProvider = React.forwardRef<
     ref,
   ) => {
     const isMobile = useIsMobile();
+    const router = useRouter();
     const [openMobile, setOpenMobile] = React.useState(false);
 
     // Use local storage to persist sidebar state
@@ -113,6 +116,18 @@ const SidebarProvider = React.forwardRef<
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [toggleSidebar]);
+
+    // Close the mobile drawer as soon as a navigation starts. The drawer is a
+    // full-screen overlay Sheet on mobile; without this it stays open on top of
+    // the destination after tapping a nav link or switching project/org (the
+    // Next.js router does shallow client transitions, so the component never
+    // unmounts to reset `openMobile`). Subscribing to router events is a genuine
+    // external-system effect. No-op on desktop, where `openMobile` is unused.
+    React.useEffect(() => {
+      const closeDrawer = () => setOpenMobile(false);
+      router.events.on("routeChangeStart", closeDrawer);
+      return () => router.events.off("routeChangeStart", closeDrawer);
+    }, [router.events]);
 
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.
@@ -301,7 +316,7 @@ const SidebarTrigger = React.forwardRef<
       {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
           desktop (toggles the docked sidebar). */}
       <Menu className="size-5 md:hidden" />
-      <PanelLeft className="hidden md:block" />
+      <PanelLeft className="hidden size-5 md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
@@ -377,7 +392,7 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex min-h-11 flex-col pt-2 md:h-fit", className)}
+      className={cn("flex flex-col", className)}
       {...props}
     />
   );
@@ -778,24 +793,15 @@ export {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarInset,
   SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 };

@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.224.0",
+  "version": "4.27.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -8,7 +8,7 @@
     "node": "24"
   },
   "scripts": {
-    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check",
+    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
     "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
     "postinstall": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); if (!fs.existsSync('scripts/postinstall.sh')) { console.log('Skipping repo postinstall helper: scripts/postinstall.sh is not present in this install context.'); process.exit(0); } cp.execSync('bash scripts/postinstall.sh', { stdio: 'inherit' });\"",
     "preinstall": "npx only-allow pnpm",
@@ -38,6 +38,8 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
+    "openapi:export": "npx fern-api export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && npx fern-api export --api client web/public/generated/api-client/openapi.yml && npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml",
+    "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
     "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
@@ -54,7 +56,8 @@
     "knip": "^6.22.0",
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
-    "turbo": "2.9.18"
+    "ts7": "npm:typescript@^7.0.2",
+    "turbo": "2.10.5"
   },
   "release-it": {
     "git": {
@@ -103,5 +106,5 @@
       }
     }
   },
-  "packageManager": "pnpm@11.10.0"
+  "packageManager": "pnpm@11.22.0"
 }

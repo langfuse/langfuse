@@ -69,9 +69,11 @@ async function convertOtelSpanToIngestionEvent(
   resourceSpan: any,
   seenTraces: Set<string>,
   publicKey?: string,
+  config: Partial<OtelIngestionProcessorConfig> = {},
 ): Promise<TestIngestionEvent[]> {
   const processor = createTestOtelProcessor({
     publicKey: publicKey ?? "",
+    ...config,
   });
 
   // For tests, we bypass Redis initialization and directly set the seen traces
@@ -1270,6 +1272,112 @@ describe("OTel Resource Span Mapping", () => {
         unsigned: true,
       },
     };
+
+    const createOpenRouterBroadcastSpan = ({
+      serviceName = "openrouter",
+      source = "openrouter",
+      completion = null,
+      rawRequestEnvironment = "langfuse-llm-as-a-judge",
+      explicitEnvironment,
+    }: {
+      serviceName?: string;
+      source?: string;
+      completion?: unknown;
+      rawRequestEnvironment?: string;
+      explicitEnvironment?: string;
+    } = {}) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: serviceName },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: { name: "openrouter" },
+          spans: [
+            {
+              ...defaultSpanProps,
+              attributes: [
+                {
+                  key: "openrouter.source",
+                  value: { stringValue: source },
+                },
+                ...(explicitEnvironment
+                  ? [
+                      {
+                        key: "langfuse.environment",
+                        value: { stringValue: explicitEnvironment },
+                      },
+                    ]
+                  : []),
+                {
+                  key: "gen_ai.completion",
+                  value: {
+                    stringValue: JSON.stringify({
+                      completion,
+                      rawRequest: {
+                        trace: { environment: rawRequestEnvironment },
+                      },
+                    }),
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    it("recovers the internal evaluator environment from failed OpenRouter Broadcast requests", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan(),
+        new Set(),
+        undefined,
+        { isLangfuseInternal: true },
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "llm-as-a-judge",
+        "llm-as-a-judge",
+      ]);
+    });
+
+    it("prefers an explicit environment over the OpenRouter failed-request fallback", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "customer-production",
+        }),
+        new Set(),
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "customer-production",
+        "customer-production",
+      ]);
+    });
+
+    it.each([
+      ["a non-OpenRouter service", { serviceName: "application" }],
+      ["a non-OpenRouter source", { source: "application" }],
+      ["a successful completion", { completion: {} }],
+      ["a customer environment", { rawRequestEnvironment: "production" }],
+    ])(
+      "does not recover evaluator provenance from %s",
+      async (_name, options) => {
+        const events = await convertOtelSpanToIngestionEvent(
+          createOpenRouterBroadcastSpan(options),
+          new Set(),
+        );
+
+        expect(events.map((event) => event.body.environment)).toEqual([
+          "default",
+          "default",
+        ]);
+      },
+    );
 
     it.each([
       ["missing attribute", undefined, false],
@@ -3928,6 +4036,100 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("normalizes environment on the direct events write path (LFE-14403)", () => {
+      const buildSpan = (environment: string) =>
+        ({
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.environment",
+                      value: { stringValue: environment },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }) as unknown as ResourceSpan;
+
+      // Public processors apply the public ingestion-schema rules; previously
+      // the raw attribute was written to events_full ("PROD" in events_core
+      // vs "prod" in the legacy tables).
+      expect(
+        createTestOtelProcessor().processToEvent([buildSpan("PROD")])[0]
+          .environment,
+      ).toBe("prod");
+
+      // The reserved namespace cannot be entered via repeated "langfuse"
+      // prefixes surviving a single-pass strip.
+      expect(
+        createTestOtelProcessor().processToEvent([
+          buildSpan("langfuselangfuse-prompt-experiment"),
+        ])[0].environment,
+      ).toBe("prompt-experiment");
+
+      // Internal processors keep the "langfuse-*" namespace so internal
+      // traces stay excluded from user views and the eval-recursion guard.
+      expect(
+        createTestOtelProcessor({ isLangfuseInternal: true }).processToEvent([
+          buildSpan("langfuse-prompt-experiment"),
+        ])[0].environment,
+      ).toBe("langfuse-prompt-experiment");
+    });
+
+    it("normalizes foreign observation-level vocabularies at the OTel seam (LFE-14547)", async () => {
+      const buildSpan = (level: string, status: Record<string, any> = {}) =>
+        ({
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.observation.level",
+                      value: { stringValue: level },
+                    },
+                  ],
+                  status,
+                },
+              ],
+            },
+          ],
+        }) as unknown as ResourceSpan;
+
+      const eventLevel = (level: string, status?: Record<string, any>) =>
+        createTestOtelProcessor().processToEvent([buildSpan(level, status)])[0]
+          .level;
+
+      // OTel severity names, python logging, and loguru vocabularies map onto
+      // the Langfuse enum instead of landing raw in events_full.
+      expect(eventLevel("warning")).toBe("WARNING");
+      expect(eventLevel("INFO")).toBe("DEFAULT");
+      expect(eventLevel("FATAL")).toBe("ERROR");
+
+      // Unknown values defer to the status-derived fallback rather than
+      // masking it with DEFAULT.
+      expect(eventLevel("[REDACTED]", { code: 2 })).toBe("ERROR");
+      expect(eventLevel("[REDACTED]")).toBe("DEFAULT");
+
+      // The legacy observation body gets the same canonical value, so the
+      // ingestion-schema enum parse passes and the observation is no longer
+      // dropped from the legacy tables.
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        buildSpan("warning"),
+        new Set(),
+      );
+      const observation = ingestionEvents.find(
+        (e) => e.type !== "trace-create",
+      );
+      expect(observation?.body.level).toBe("WARNING");
+    });
+
     describe("prompt linking gated to GENERATION observations", () => {
       const buildResourceSpan = (attributes: Record<string, any>[]) =>
         ({
@@ -4005,6 +4207,38 @@ describe("OTel Resource Span Mapping", () => {
         expect(eventInputs).toHaveLength(1);
         expect(eventInputs[0].promptName).toBe("my-prompt");
         expect(eventInputs[0].promptVersion).toBe(1);
+      });
+
+      it("should map string-encoded prompt version on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          {
+            key: "langfuse.observation.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.observation.prompt.version",
+            value: { stringValue: "3" },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(3);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(3);
       });
 
       it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
@@ -4631,6 +4865,136 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
         "should_be_preserved",
       );
+    });
+
+    // TraceLoop flattens prompt arrays into gen_ai.prompt.<index>.* attributes.
+    // An unsafe message must not prevent a valid sibling from being ingested.
+    it("should ignore out-of-range OTEL message indices without dropping valid messages", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "valid message" },
+                  },
+                  {
+                    key: "gen_ai.prompt.10001.content",
+                    value: { stringValue: "unsafe message" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toEqual([{ content: "valid message" }]);
+    });
+
+    // OpenInference may place array indices deeper in llm.input_messages paths,
+    // so every numeric segment must be checked, not only the first one.
+    it("should ignore out-of-range nested OTEL indices", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.message.10001.content",
+                    value: { stringValue: "unsafe content" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        message: Record<string, unknown>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(Array.isArray(input[0].message)).toBe(false);
+      expect(input[0].message).toEqual({ role: "user" });
+    });
+
+    it("should cap total array-slot expansion across nested OTEL paths", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.safe",
+                    value: { stringValue: "preserved sibling" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.9999.content",
+                    value: { stringValue: "accepted content" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.9999.content",
+                    value: { stringValue: "over budget content" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        safe?: string;
+        message?: Array<{ content: string }>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(input[0].safe).toBe("preserved sibling");
+      expect(input[0].message).toHaveLength(10_000);
+      expect(input[0].message?.[9_999]).toEqual({
+        content: "accepted content",
+      });
     });
 
     // GenAI semantic conventions v1.37+ record prompts/completions on a
@@ -7422,6 +7786,781 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
       expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
     });
+
+    it("should extract OpenInference llm.token_count.completion_details.reasoning/audio into output detail buckets without double counting", async () => {
+      // OpenInference emits reasoning/audio completion details under
+      // llm.token_count.completion_details.*. The completion count includes
+      // these details (mirroring OpenAI's completion_tokens_details), so they
+      // must be subtracted from output — otherwise the UI, which sums all
+      // output* buckets, double-counts them
+      // (github.com/langfuse/langfuse/issues/12057).
+      const traceId = "abcdef1234567890abcdef1234567894";
+
+      const openinferenceCompletionDetailsSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.openai",
+              version: "0.1.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde3", "hex"),
+                name: "openinference-completion-details",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.prompt",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion",
+                    value: { intValue: { low: 50, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.reasoning",
+                    value: { intValue: { low: 30, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.audio",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openinferenceCompletionDetailsSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.input).toBe(100);
+      // output must be the remainder: 50 - 30 - 5 = 15
+      expect(usageDetails.output).toBe(15);
+      expect(usageDetails.output_reasoning_tokens).toBe(30);
+      expect(usageDetails.output_audio_tokens).toBe(5);
+      // No double count: the sum of all output* buckets must equal the
+      // reported completion token count.
+      const outputSum = Object.entries(usageDetails)
+        .filter(([key]) => key.startsWith("output"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(outputSum).toBe(50);
+      // The raw OpenInference keys must NOT be passed through
+      expect(usageDetails["completion_details.reasoning"]).toBeUndefined();
+      expect(usageDetails["completion_details.audio"]).toBeUndefined();
+    });
+
+    it("should subtract gen_ai.usage.reasoning.output_tokens from inclusive output tokens (Google ADK)", async () => {
+      // Google ADK reports gen_ai.usage.output_tokens as candidates + thoughts,
+      // i.e. inclusive of reasoning. The reasoning share arrives separately as
+      // gen_ai.usage.reasoning.output_tokens and must be subtracted from
+      // output, otherwise the UI (summing all output* buckets) shows more
+      // output tokens than the model produced.
+      const traceId = "abcdef1234567890abcdef1234567895";
+
+      const adkReasoningSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gcp.vertex.agent",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde4", "hex"),
+                name: "adk-reasoning-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 60, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.total_tokens",
+                    value: { intValue: { low: 160, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.reasoning.output_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        adkReasoningSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.input).toBe(100);
+      // output must be the non-reasoning remainder: 60 - 25 = 35
+      expect(usageDetails.output).toBe(35);
+      expect(usageDetails.output_reasoning_tokens).toBe(25);
+      expect(usageDetails.total).toBe(160);
+      // No double count: the sum of all output* buckets must equal the
+      // reported (inclusive) output token count.
+      const outputSum = Object.entries(usageDetails)
+        .filter(([key]) => key.startsWith("output"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(outputSum).toBe(60);
+      // The raw ADK key must NOT be passed through
+      expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
+    });
+
+    it("should clamp output at 0 when reasoning details exceed the emitted output count", async () => {
+      // Reasoning > output must floor output at 0 (negatives are dropped downstream); breaks the output-sum invariant by design.
+      const traceId = "abcdef1234567890abcdef1234567896";
+
+      const clampSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.openai",
+              version: "0.1.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde5", "hex"),
+                name: "openinference-reasoning-exceeds-output",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.completion",
+                    value: { intValue: { low: 50, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.reasoning",
+                    value: { intValue: { low: 60, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        clampSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      // 50 - 60 must clamp to 0, never go negative
+      expect(usageDetails.output).toBe(0);
+      expect(usageDetails.output_reasoning_tokens).toBe(60);
+      expect(usageDetails["completion_details.reasoning"]).toBeUndefined();
+    });
+
+    it("should keep output absent when only a reasoning detail is emitted", async () => {
+      // A lone reasoning detail must not synthesize an output bucket: output stays absent (not 0).
+      const traceId = "abcdef1234567890abcdef1234567897";
+
+      const reasoningOnlySpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gcp.vertex.agent",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde6", "hex"),
+                name: "adk-reasoning-only",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.reasoning.output_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        reasoningOnlySpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.output).toBeUndefined();
+      expect(usageDetails.output_reasoning_tokens).toBe(25);
+      expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
+    });
+    it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
+      // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
+      const traceId = "abcdef1234567890abcdef1234567893";
+
+      const litellmAnthropicSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "litellm",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "anthropic-raw-cache-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation_input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        litellmAnthropicSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: 100 - 20 - 10 = 70
+      expect(observationEvent?.body.usageDetails.input).toBe(70);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(20);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      // sum of all input* buckets must equal the reported (inclusive) input count
+      const inputSum = Object.entries(
+        observationEvent?.body.usageDetails as Record<string, number>,
+      )
+        .filter(([key]) => key.startsWith("input"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(inputSum).toBe(100);
+      // The raw Anthropic keys must NOT be passed through after normalization
+      expect(
+        observationEvent?.body.usageDetails["cache_read_input_tokens"],
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails["cache_creation_input_tokens"],
+      ).toBeUndefined();
+    });
+
+    it("should subtract cache tokens only once when dotted and flat Anthropic spellings arrive together", async () => {
+      // dotted and flat spellings for the same value must subtract exactly once
+      const traceId = "abcdef1234567890abcdef1234567896";
+
+      const bothSpellingsSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "litellm",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde5", "hex"),
+                name: "anthropic-both-cache-spellings",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation_input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        bothSpellingsSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      // single subtraction only: 100 - 20 - 10 = 70, not 100 - 2*20 - 2*10 = 40
+      expect(usageDetails.input).toBe(70);
+      expect(usageDetails.input_cached_tokens).toBe(20);
+      expect(usageDetails.input_cache_creation).toBe(10);
+      // neither raw spelling may be passed through as its own bucket
+      expect(usageDetails["cache_read.input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_read_input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_creation.input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_creation_input_tokens"]).toBeUndefined();
+    });
+
+    it("should let a dotted cache value of 0 shadow the flat spelling (?? alias chain)", async () => {
+      // pins pre-existing ??-chain behavior: a dotted 0 shadows the flat spelling
+      const traceId = "abcdef1234567890abcdef1234567897";
+
+      const dottedZeroSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "litellm",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde6", "hex"),
+                name: "anthropic-dotted-zero-cache",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 0, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        dottedZeroSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      // input stays 100: the dotted 0 wins the ?? chain, the flat 20 is never subtracted
+      expect(usageDetails.input).toBe(100);
+      // the winning dotted 0 materializes as a zero-valued cache bucket
+      expect(usageDetails.input_cached_tokens).toBe(0);
+      // neither raw spelling is passed through as its own bucket
+      expect(usageDetails["cache_read.input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_read_input_tokens"]).toBeUndefined();
+    });
+  });
+
+  describe("Google ADK blob-derived cache usage", () => {
+    const createAdkSpan = ({
+      scopeName = "gcp.vertex.agent",
+      inputTokens = 1000,
+      llmResponse,
+      extraAttributes = [],
+    }: {
+      scopeName?: string;
+      inputTokens?: number;
+      llmResponse: string;
+      extraAttributes?: { key: string; value: Record<string, unknown> }[];
+    }) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: scopeName,
+            version: "1.0.0",
+          },
+          spans: [
+            {
+              traceId: Buffer.from("abcdef1234567890abcdef1234567893", "hex"),
+              spanId: Buffer.from("1234567890abcde2", "hex"),
+              name: "call_llm",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              endTimeUnixNano: {
+                low: 2000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              attributes: [
+                {
+                  key: "gen_ai.usage.input_tokens",
+                  value: {
+                    intValue: { low: inputTokens, high: 0, unsigned: false },
+                  },
+                },
+                {
+                  key: "gen_ai.usage.output_tokens",
+                  value: { intValue: { low: 200, high: 0, unsigned: false } },
+                },
+                {
+                  key: "gcp.vertex.agent.llm_response",
+                  value: { stringValue: llmResponse },
+                },
+                ...extraAttributes,
+              ],
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    const adkLlmResponseBlob = JSON.stringify({
+      model_version: "gemini-2.5-flash",
+      content: {
+        parts: [{ text: "Hello! How can I help you today?" }],
+        role: "model",
+      },
+      partial: false,
+      finish_reason: "STOP",
+      usage_metadata: {
+        cached_content_token_count: 800,
+        candidates_token_count: 200,
+        prompt_token_count: 1000,
+        total_token_count: 1200,
+      },
+    });
+
+    it("should derive input_cached_tokens from the llm_response blob and subtract from input (ADK v1.x)", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: adkLlmResponseBlob });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+
+      const inputBucketSum = Object.entries(
+        observationEvent?.body.usageDetails ?? {},
+      )
+        .filter(([key]) => key.startsWith("input"))
+        .reduce((sum, [, value]) => sum + (value ?? 0), 0);
+      expect(inputBucketSum).toBe(1000);
+
+      expect(
+        observationEvent?.body.usageDetails.cached_content_token_count,
+      ).toBeUndefined();
+    });
+
+    it("should not subtract twice when gen_ai.usage.cache_read.input_tokens is also present (ADK >= 2.3)", async () => {
+      const adkSpan = createAdkSpan({
+        llmResponse: adkLlmResponseBlob,
+        extraAttributes: [
+          {
+            key: "gen_ai.usage.cache_read.input_tokens",
+            value: { intValue: { low: 800, high: 0, unsigned: false } },
+          },
+        ],
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(200);
+      expect(observationEvent?.body.usageDetails.input).not.toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+    });
+
+    it("should keep generic usage untouched when content capture is off and the blob is '{}'", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: "{}" });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should keep generic usage untouched when the blob is malformed JSON", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: "not-json{{{" });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should ignore the blob for spans from other instrumentation scopes", async () => {
+      const adkSpan = createAdkSpan({
+        scopeName: "some.other.scope",
+        llmResponse: adkLlmResponseBlob,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should clamp input to zero when the blob cache count exceeds input tokens", async () => {
+      const adkSpan = createAdkSpan({
+        inputTokens: 500,
+        llmResponse: adkLlmResponseBlob,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+    });
   });
 
   describe("Vercel AI SDK Usage details", () => {
@@ -8504,6 +9643,360 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Prototype pollution protection", () => {
     const publicKey = "pk-lf-1234567890";
+    const traceId = "abcdef1234567890abcdef1234567890";
+    const spanId = "abcdef1234567890";
+
+    const createResourceSpan = (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+    ): ResourceSpan => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: "langfuse-sdk",
+            version: "2.0.0",
+            attributes: [
+              {
+                key: "public_key",
+                value: { stringValue: publicKey },
+              },
+            ],
+          },
+          spans: [
+            {
+              traceId: Buffer.from(traceId, "hex"),
+              spanId: Buffer.from(spanId, "hex"),
+              name: "prototype-protection-test",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000000,
+                high: 0,
+              },
+              endTimeUnixNano: {
+                low: 2000000000,
+                high: 0,
+              },
+              attributes,
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    const convertAndObserveHasOwnPropertyCall = async (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+    ) => {
+      const hasOwnPropertyFunction = Object.prototype.hasOwnProperty;
+      const originalCall = hasOwnPropertyFunction.call;
+      const originalCallDescriptor = Object.getOwnPropertyDescriptor(
+        hasOwnPropertyFunction,
+        "call",
+      );
+
+      try {
+        const events = await convertOtelSpanToIngestionEvent(
+          createResourceSpan(attributes),
+          new Set([traceId]),
+          publicKey,
+        );
+        return {
+          events,
+          observedCall: hasOwnPropertyFunction.call,
+          originalCall,
+        };
+      } finally {
+        if (originalCallDescriptor) {
+          Object.defineProperty(
+            hasOwnPropertyFunction,
+            "call",
+            originalCallDescriptor,
+          );
+        } else {
+          delete (hasOwnPropertyFunction as { call?: unknown }).call;
+        }
+      }
+    };
+
+    it.each([
+      [
+        "flat object",
+        [
+          ["role", "user"],
+          ["content", "hello"],
+        ],
+        { role: "user", content: "hello" },
+      ],
+      [
+        "root array with shared prefixes",
+        [
+          ["1.content", "world"],
+          ["0.role", "user"],
+          ["0.content", "hello"],
+          ["1.role", "assistant"],
+        ],
+        [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "world" },
+        ],
+      ],
+      [
+        "nested objects and scalar arrays",
+        [
+          ["request.model", "test-model"],
+          ["request.parts.1", "second"],
+          ["request.parts.0", "first"],
+          ["request.options.temperature", "0.5"],
+        ],
+        {
+          request: {
+            model: "test-model",
+            parts: ["first", "second"],
+            options: { temperature: "0.5" },
+          },
+        },
+      ],
+    ] as const)(
+      "should preserve legacy reconstruction for %s",
+      (_name, attributes, expected) => {
+        const events = createTestOtelProcessor({ publicKey }).processToEvent([
+          createResourceSpan(
+            attributes.map(([path, stringValue]) => ({
+              key: `gen_ai.prompt.${path}`,
+              value: { stringValue },
+            })),
+          ),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].input).toEqual(expected);
+      },
+    );
+
+    it("should not traverse inherited properties in nested gen_ai.prompt attributes", async () => {
+      const { events, observedCall, originalCall } =
+        await convertAndObserveHasOwnPropertyCall([
+          {
+            key: "gen_ai.prompt.a.safe",
+            value: { stringValue: "still-here" },
+          },
+          {
+            key: "gen_ai.prompt.a.hasOwnProperty.call",
+            value: { stringValue: "pwned" },
+          },
+        ]);
+
+      expect(observedCall).toBe(originalCall);
+      expect(
+        events.find((event) => event.type === "span-create")?.body.input,
+      ).toMatchObject({
+        a: {
+          safe: "still-here",
+          hasOwnProperty: { call: "pwned" },
+        },
+      });
+    });
+
+    it("should not traverse inherited properties through an array branch", async () => {
+      const { events, observedCall, originalCall } =
+        await convertAndObserveHasOwnPropertyCall([
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "seed" },
+          },
+          {
+            key: "gen_ai.prompt.a.hasOwnProperty.call",
+            value: { stringValue: "pwned" },
+          },
+        ]);
+
+      expect(observedCall).toBe(originalCall);
+      const input = events.find((event) => event.type === "span-create")?.body
+        .input as { a?: unknown[] } | undefined;
+      expect(input?.a?.[0]).toBe("seed");
+      expect(Object.hasOwn(input?.a ?? [], "hasOwnProperty")).toBe(false);
+      expect(Reflect.get(input?.a ?? [], "hasOwnProperty")).toBe(
+        Object.prototype.hasOwnProperty,
+      );
+    });
+
+    it("should preserve a scalar leaf and ignore a conflicting nested attribute", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.a",
+            value: { stringValue: "leaf" },
+          },
+          {
+            key: "gen_ai.prompt.a.b",
+            value: { stringValue: "nested" },
+          },
+          {
+            key: "gen_ai.prompt.safe",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toMatchObject({
+        a: "leaf",
+        safe: "still-here",
+      });
+    });
+
+    it("should preserve a reconstructed container and ignore a conflicting leaf", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.content",
+            value: { stringValue: "nested" },
+          },
+          {
+            key: "gen_ai.prompt.0",
+            value: { stringValue: "leaf" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual([{ content: "nested" }]);
+    });
+
+    it.each([
+      {
+        name: "array first",
+        attributes: [
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "first" },
+          },
+          {
+            key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+        ],
+        expected: ["first"],
+      },
+      {
+        name: "object first",
+        attributes: [
+          {
+            key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "first" },
+          },
+        ],
+        expected: { 0: "first", length: "pwned" },
+      },
+    ])(
+      "should safely preserve the first reconstructed container kind ($name)",
+      ({ attributes, expected }) => {
+        const events = createTestOtelProcessor({ publicKey }).processToEvent([
+          createResourceSpan([
+            ...attributes,
+            {
+              key: "gen_ai.prompt.safe",
+              value: { stringValue: "still-here" },
+            },
+          ]),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].input).toMatchObject({
+          a: expected,
+          safe: "still-here",
+        });
+      },
+    );
+
+    it("should not interpret noncanonical numeric syntax as an array index", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.content",
+            value: { stringValue: "safe" },
+          },
+          {
+            key: "gen_ai.prompt.1e6.content",
+            value: { stringValue: "pwned" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      const input = events[0].input as Array<{ content: string }>;
+      expect(input).toHaveLength(1);
+      expect(input[0]).toEqual({ content: "safe" });
+    });
+
+    it("should drop paths that exceed the reconstruction depth limit", () => {
+      const deepPath = Array.from({ length: 65 }, () => "nested").join(".");
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: `gen_ai.prompt.${deepPath}`,
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.safe",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual({ safe: "still-here" });
+    });
+
+    it("should not let a rejected path consume the array-slot budget", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.message.__proto__.9999.content",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.1.content",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      const input = events[0].input as Array<{ content?: string }>;
+      expect(input).toHaveLength(2);
+      expect(input[0]).toBeUndefined();
+      expect(input[1]).toEqual({ content: "still-here" });
+    });
+
+    it("should not let an over-budget array path change the root container type", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.5000.notes.5000.content",
+            value: { stringValue: "dropped" },
+          },
+          {
+            key: "gen_ai.prompt.name",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual({ name: "still-here" });
+    });
 
     it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";

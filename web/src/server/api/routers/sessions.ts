@@ -1,29 +1,8 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
-  createTRPCRouter,
-  protectedGetSessionProcedure,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import {
-  filterAndValidateDbScoreList,
-  type FilterState,
-  type OrderByState,
-  normalizeOrderByForTable,
-  orderBy,
-  paginationZod,
-  type PrismaClient,
-  singleFilter,
-  timeFilter,
-  type SessionOptions,
-  type ScoreDomain,
-  LISTABLE_SCORE_TYPES,
-} from "@langfuse/shared";
-import { TRPCError } from "@trpc/server";
-import Decimal from "decimal.js";
-import {
+  applyCommentFilters,
   traceException,
   getSessionsTable,
   getSessionsTableCount,
@@ -51,9 +30,33 @@ import {
   hasAnySessionFromEventsTable,
   parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
+import {
+  createTRPCRouter,
+  protectedGetSessionProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import {
+  filterAndValidateDbScoreList,
+  type FilterState,
+  type OrderByState,
+  normalizeOrderByForTable,
+  orderBy,
+  paginationZod,
+  type PrismaClient,
+  singleFilter,
+  timeFilter,
+  type SessionOptions,
+  type ScoreDomain,
+  LISTABLE_SCORE_TYPES,
+} from "@langfuse/shared";
+import { TRPCError } from "@trpc/server";
+import Decimal from "decimal.js";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  toDomainArrayWithStringifiedMetadata,
+  toDomainWithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -423,8 +426,6 @@ export const sessionRouter = createTRPCRouter({
       const scores = await getScoresForSessions({
         projectId: ctx.session.projectId,
         sessionIds: sessions.map((s) => s.session_id),
-        limit: 1000,
-        offset: 0,
       });
 
       const validatedScores = filterAndValidateDbScoreList({
@@ -492,8 +493,6 @@ export const sessionRouter = createTRPCRouter({
       const scores = await getScoresForSessions({
         projectId: ctx.session.projectId,
         sessionIds: sessions.map((s) => s.session_id),
-        limit: 1000,
-        offset: 0,
       });
 
       const validatedScores = filterAndValidateDbScoreList({
@@ -759,6 +758,9 @@ export const sessionRouter = createTRPCRouter({
         totalCost: sessionMetrics
           ? Number(sessionMetrics.session_total_cost)
           : 0,
+        inputUsage: Number(sessionMetrics.session_input_usage),
+        outputUsage: Number(sessionMetrics.session_output_usage),
+        totalTokens: Number(sessionMetrics.session_total_usage),
         minTimestamp: parseClickhouseUTCDateTimeFormat(
           sessionMetrics.min_timestamp,
         ),
@@ -966,7 +968,7 @@ export const sessionRouter = createTRPCRouter({
         };
       });
 
-      return observations;
+      return toDomainArrayWithStringifiedMetadata(observations);
     }),
   /**
    * Full raw I/O for one observation, for the session card's download
@@ -1001,7 +1003,7 @@ export const sessionRouter = createTRPCRouter({
         });
       }
 
-      return observation;
+      return toDomainWithStringifiedMetadata(observation);
     }),
   bookmark: protectedProjectProcedure
     .input(

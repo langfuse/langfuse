@@ -9,6 +9,7 @@ import {
 import {
   CODE_EVAL_SOURCE_MAX_BYTES,
   DefaultEvalModelService,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   testModelCall,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -24,10 +25,12 @@ const CreateEvalTemplateIntentSchema = z.discriminatedUnion("intent", [
     intent: z.literal("new-version"),
     sourceTemplateId: z.string(),
   }),
+  // Cloning no longer offers to retarget running evaluators: they reference an
+  // evaluator of their own, never the Langfuse-managed catalog entry, so there
+  // is nothing to move — and repointing them would rename their scores.
   z.object({
     intent: z.literal("clone"),
     cloneSourceId: z.string(),
-    retargetUsingJobConfigs: z.boolean(),
   }),
 ]);
 
@@ -126,6 +129,7 @@ async function validateLlmAsJudgeTemplateModel(
       structuredOutputSchema: compilePersistedEvalOutputDefinition(
         input.outputDefinition,
       ).outputResultSchema,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -64,4 +65,4 @@ const RainbowButton = React.forwardRef<HTMLButtonElement, RainbowButtonProps>(
 
 RainbowButton.displayName = "RainbowButton";
 
-export { RainbowButton, rainbowButtonVariants, type RainbowButtonProps };
+export { RainbowButton };

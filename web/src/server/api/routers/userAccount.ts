@@ -5,11 +5,13 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
-import { Role, Prisma } from "@langfuse/shared/src/db";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -101,9 +103,7 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        // `modernSession` is the active preview. `searchBar` is retired — the
-        // bar is now GA on v4 events tables — but remains as rollback plumbing.
-        flag: z.enum(["modernSession", "searchBar"]),
+        flag: z.enum(featurePreviewFlags),
         enabled: z.boolean(),
       }),
     )
@@ -117,37 +117,18 @@ export const userAccountRouter = createTRPCRouter({
       if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Feature previews require Fast (Preview) on self-hosted deployments.",
+          message: `Feature previews require ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
         });
       }
 
-      // Serializable transaction: the read-modify-write of the featureFlags
-      // array is not atomic on its own, so two parallel toggles of DIFFERENT
-      // flags from one tab (the modal only disables the in-flight row) would
-      // last-write-wins and silently drop one. Mirrors the `delete` mutation.
-      await ctx.prisma.$transaction(
-        async (tx) => {
-          const currentUser = await tx.user.findUnique({
-            where: { id: userId },
-            select: { featureFlags: true },
-          });
-          if (!currentUser) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "User not found",
-            });
-          }
-          const nextFeatureFlags = input.enabled
-            ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
-            : currentUser.featureFlags.filter((flag) => flag !== input.flag);
-          await tx.user.update({
-            where: { id: userId },
-            data: { featureFlags: { set: nextFeatureFlags } },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+      // The helper serializes and retries the read-modify-write so parallel
+      // toggles of different flags cannot silently drop one another.
+      await setUserFeaturePreview({
+        prisma: ctx.prisma,
+        userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
 
       return {
         success: true,

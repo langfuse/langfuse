@@ -6,6 +6,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -18,7 +19,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the Modern Session preview, leaving other flags intact", async () => {
+  it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
@@ -41,7 +42,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
-  it("disables a preview flag without touching the others", async () => {
+  it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
     });
@@ -61,7 +62,10 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag"]);
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("modernSession"),
+    ]);
   });
 
   it("rejects enabling in self-hosted deployments", async () => {
@@ -82,11 +86,15 @@ async function createCaller({
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
+  emailDomain = "example.com",
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
   includeProjectInSession?: boolean;
+  // Domain only — the local part is always unique so reruns against the same
+  // database do not trip the users.email unique constraint.
+  emailDomain?: string;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -110,7 +118,7 @@ async function createCaller({
   const user = await prisma.user.create({
     data: {
       id: userId,
-      email: `${userId}@example.com`,
+      email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
     },

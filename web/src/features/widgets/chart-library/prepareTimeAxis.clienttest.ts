@@ -182,20 +182,32 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip(runs[1])).toBe(runs[1]);
   });
 
-  it("short categorical labels are not truncated and time ticks stay flat + numeric (dashboards unchanged)", () => {
+  it("short categorical labels are not truncated and time ticks stay flat + numeric", () => {
     const shortCategories = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
     expect(shortCategories.formatTick("run-a")).toBe("run-a");
     expect(shortCategories.tickProps.angle).toBeLessThan(0);
 
-    // Time-mode ticks are unchanged: flat tickProps AND a numeric index step, so
-    // dashboards render pixel-identically (no width-aware equidistant thinning).
+    // Time-mode ticks stay flat with a numeric index step (no width-aware
+    // equidistant thinning). They also pad the right edge so the last date
+    // has a small gutter past the end-anchored label.
     const start = Date.UTC(2026, 5, 28, 0);
     const timeVals = Array.from({ length: 24 }, (_, h) =>
       iso(start + h * HOUR),
     );
     const timeAxis = prepareTimeAxis(timeVals, 6);
-    expect(timeAxis.tickProps).toEqual({});
+    expect(timeAxis.tickProps.angle).toBeUndefined();
+    expect(timeAxis.tickProps.padding?.right).toBeGreaterThanOrEqual(16);
     expect(typeof timeAxis.interval).toBe("number");
+  });
+
+  it("date-mode axes also pad the right edge so the last date is not clipped", () => {
+    const values = Array.from({ length: 14 }, (_, d) =>
+      iso(Date.UTC(2026, 7, 1) + d * DAY),
+    );
+    const axis = prepareTimeAxis(values, 6);
+    expect(axis.mode).toBe("date");
+    expect(axis.tickProps.padding?.right).toBeGreaterThanOrEqual(16);
+    expect(axis.tickProps.angle).toBeUndefined();
   });
 
   it("hideCategoryTickLabels blanks the entity axis but keeps the full name in the tooltip", () => {
@@ -244,5 +256,53 @@ describe("prepareTimeAxis", () => {
       Date.UTC(2026, 5, 28, 23, 0, 0),
     );
     expect(parseChartTimestamp("not a date")).toBeNull();
+  });
+
+  describe("UTC calendar labels when the browser is west of UTC", () => {
+    const previousTz = process.env.TZ;
+
+    beforeEach(() => {
+      process.env.TZ = "America/Los_Angeles";
+    });
+
+    afterEach(() => {
+      if (previousTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTz;
+      }
+    });
+
+    it("date ticks and tooltips use the UTC calendar day, not the local previous evening", () => {
+      // UTC midnight Jun 28 is still Jun 27 evening in PT. Formatting in local
+      // time made the axis read one day early.
+      const values = Array.from({ length: 14 }, (_, d) =>
+        iso(Date.UTC(2026, 5, 28) + d * DAY),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("date");
+      expect(axis.formatTick(values[0])).toBe("Jun 28");
+      expect(axis.formatTooltip(values[0])).toBe("Jun 28, 2026");
+      expect(axis.formatTick("2026-06-28")).toBe("Jun 28");
+    });
+
+    it("month ticks use the UTC month (UTC midnight Jun 1 is still May locally)", () => {
+      const values = Array.from({ length: 200 }, (_, d) =>
+        iso(Date.UTC(2026, 5, 1) + d * DAY),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("month");
+      expect(axis.formatTick(values[0])).toBe("Jun 2026");
+    });
+
+    it("intraday time ticks stay in local time", () => {
+      const start = Date.UTC(2026, 5, 28, 18); // 11 AM PT
+      const values = Array.from({ length: 12 }, (_, h) =>
+        iso(start + h * HOUR),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("time");
+      expect(axis.formatTick(values[0])).toMatch(/11\s?AM/i);
+    });
   });
 });

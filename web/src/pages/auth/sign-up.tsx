@@ -21,11 +21,12 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import {
+  FALLBACK_AUTH_PROVIDERS,
   SSOButtons,
   useHuggingFaceRedirect,
   type PageProps,
 } from "@/src/pages/auth/sign-in";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
@@ -52,7 +53,7 @@ const signupVerifyFormSchema = z.object({
 type SignupPhase = "form" | "otp";
 
 export default function SignUp({
-  authProviders,
+  authProviders = FALLBACK_AUTH_PROVIDERS,
   runningOnHuggingFaceSpaces,
   emailVerificationRequired,
 }: PageProps) {
@@ -396,6 +397,8 @@ function VerifiedSignupFlow({
     const callback = encodeURIComponent(
       `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
     );
+    // Existing hard navigation is accepted during the Next.js 16.3 migration.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
   }
 

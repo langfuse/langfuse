@@ -3,7 +3,6 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { renderLevelIcon } from "@/src/components/level-colors";
 
@@ -16,18 +15,10 @@ export const getEventsColumnName = (id: string): string => {
   return column.name;
 };
 
-/**
- * Maps frontend column IDs to backend-expected column IDs for events table
- * Events table uses different naming conventions than observations table
- */
-export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  // No mapping needed currently - events table column names align with UI
-};
-
 const isBooleanEqualityOperator = (operator: string): operator is "=" | "<>" =>
   operator === "=" || operator === "<>";
 
-export const migrateLegacyRootObservationFilters = (
+const migrateLegacyRootObservationFilters = (
   filters: FilterState,
 ): FilterState => {
   const hasRootObservationFilter = filters.some(
@@ -90,11 +81,20 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   migrateFilterState: migrateLegacyRootObservationFilters,
 
+  // Observation-table facet order follows real sidebar usage (PostHog
+  // `filters:applied`): the most-applied columns sit at the top.
   facets: [
     {
+      type: "boolean" as const,
+      column: "isRootObservation",
+      label: "Is Root Observation",
+      tooltip:
+        "A root observation is top-level in a trace or marked as an app root by the SDK. Filter to 'True' to see root-level observations.",
+    },
+    {
       type: "categorical" as const,
-      column: "environment",
-      label: getEventsColumnName("environment"),
+      column: "name",
+      label: getEventsColumnName("name"),
     },
     {
       type: "categorical" as const,
@@ -108,11 +108,9 @@ export const observationEventsFilterConfig: FilterConfig = {
       renderIcon: renderFilterIcon,
     },
     {
-      type: "boolean" as const,
-      column: "isRootObservation",
-      label: "Is Root Observation",
-      tooltip:
-        "A root observation is top-level in a trace or marked as an app root by the SDK. Filter to 'True' to see root-level observations.",
+      type: "categorical" as const,
+      column: "environment",
+      label: getEventsColumnName("environment"),
     },
     {
       type: "categorical" as const,
@@ -120,9 +118,9 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("traceName"),
     },
     {
-      type: "categorical" as const,
-      column: "name",
-      label: getEventsColumnName("name"),
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: getEventsColumnName("metadata"),
     },
     {
       // Tags are a primary, user-defined filter — keep them near the identity
@@ -130,49 +128,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "traceTags",
       label: getEventsColumnName("traceTags"),
-    },
-    {
-      // Display relabel to "Status" (see traces-config); column id stays
-      // `level` until the cross-surface rename lands.
-      type: "categorical" as const,
-      column: "level",
-      label: "Status",
-      renderIcon: renderLevelIcon,
-    },
-    {
-      type: "categorical" as const,
-      column: "providedModelName",
-      label: getEventsColumnName("providedModelName"),
-    },
-    {
-      type: "categorical" as const,
-      column: "modelId",
-      label: getEventsColumnName("modelId"),
-    },
-    {
-      type: "categorical" as const,
-      column: "promptName",
-      label: getEventsColumnName("promptName"),
-    },
-    {
-      type: "stringKeyValue" as const,
-      column: "metadata",
-      label: getEventsColumnName("metadata"),
-    },
-    {
-      type: "categorical" as const,
-      column: "version",
-      label: getEventsColumnName("version"),
-    },
-    {
-      type: "string" as const,
-      column: "statusMessage",
-      label: getEventsColumnName("statusMessage"),
-    },
-    {
-      type: "string" as const,
-      column: "traceId",
-      label: getEventsColumnName("traceId"),
     },
     {
       type: "categorical" as const,
@@ -183,6 +138,82 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
+    },
+    {
+      type: "string" as const,
+      column: "traceId",
+      label: getEventsColumnName("traceId"),
+    },
+    {
+      // Display name comes from eventsTableCols so the sidebar and table
+      // column stay aligned. Column id stays `level`.
+      type: "categorical" as const,
+      column: "level",
+      label: getEventsColumnName("level"),
+      renderIcon: renderLevelIcon,
+    },
+    {
+      type: "categorical" as const,
+      column: "providedModelName",
+      label: getEventsColumnName("providedModelName"),
+    },
+    {
+      type: "categorical" as const,
+      column: "promptName",
+      label: getEventsColumnName("promptName"),
+    },
+    {
+      type: "numeric" as const,
+      column: "latency",
+      label: getEventsColumnName("latency"),
+      min: 0,
+      max: 60,
+      unit: "s",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
+    },
+    {
+      type: "categorical" as const,
+      column: "modelId",
+      label: getEventsColumnName("modelId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "version",
+      label: getEventsColumnName("version"),
+    },
+    {
+      type: "categorical" as const,
+      column: "release",
+      label: getEventsColumnName("release"),
+    },
+    {
+      type: "string" as const,
+      column: "statusMessage",
+      label: getEventsColumnName("statusMessage"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionApiKey",
+      label: getEventsColumnName("ingestionApiKey"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSdkName",
+      label: getEventsColumnName("ingestionSdkName"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSdkVersion",
+      label: getEventsColumnName("ingestionSdkVersion"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSource",
+      label: getEventsColumnName("ingestionSource"),
     },
     {
       type: "categorical" as const,
@@ -201,14 +232,6 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "numeric" as const,
-      column: "latency",
-      label: getEventsColumnName("latency"),
-      min: 0,
-      max: 60,
-      unit: "s",
-    },
-    {
-      type: "numeric" as const,
       column: "timeToFirstToken",
       label: getEventsColumnName("timeToFirstToken"),
       min: 0,
@@ -219,6 +242,13 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numeric" as const,
       column: "inputTokens",
       label: getEventsColumnName("inputTokens"),
+      min: 0,
+      max: 1000000,
+    },
+    {
+      type: "numeric" as const,
+      column: "cachedInputTokens",
+      label: getEventsColumnName("cachedInputTokens"),
       min: 0,
       max: 1000000,
     },
@@ -240,6 +270,14 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numeric" as const,
       column: "inputCost",
       label: getEventsColumnName("inputCost"),
+      min: 0,
+      max: 100,
+      unit: "$",
+    },
+    {
+      type: "numeric" as const,
+      column: "cachedInputCost",
+      label: getEventsColumnName("cachedInputCost"),
       min: 0,
       max: 100,
       unit: "$",
@@ -284,21 +322,10 @@ export const observationEventsFilterConfig: FilterConfig = {
       min: 0,
       max: 25,
     },
-    // The "Scores" facets are level-agnostic: their filter matches a score at
-    // observation OR trace level (LFE-10596), and their options list all score
-    // names. The trace-only `trace_scores_avg` / `trace_score_categories` /
-    // `trace_score_booleans` columns stay valid (search bar `traceScores.` +
-    // existing saved views) but are no longer offered as separate sidebar
-    // facets — one "Scores" group.
     {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
     },
     {
       type: "booleanKeyValue" as const,

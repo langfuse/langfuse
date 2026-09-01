@@ -11,8 +11,9 @@
 
 import { type PropsWithChildren, useEffect } from "react";
 import { useRouter } from "next/router";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
+import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ErrorPage } from "@/src/components/error-page";
 
@@ -23,7 +24,6 @@ import { MinimalLayout } from "./variants/MinimalLayout";
 import { AuthenticatedLayout } from "./variants/AuthenticatedLayout";
 
 // Custom hooks
-import { useAuthSession } from "./hooks/useAuthSession";
 import { useLayoutConfiguration } from "./hooks/useLayoutConfiguration";
 import { useAuthGuard } from "./hooks/useAuthGuard";
 import { useProjectAccess } from "./hooks/useProjectAccess";
@@ -40,23 +40,29 @@ import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
  */
 export function AppLayout(props: PropsWithChildren) {
   const router = useRouter();
-  const session = useAuthSession();
+  const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
 
+  // `session.update()` reports `loading` with the previous session still in
+  // hand. Rendering the loading layout for that replaces `children` and throws
+  // away everything unsaved in them, so keep the shell that is already on
+  // screen; only a cold load has no session to keep showing.
+  const sessionData = session.data ?? null;
+  const isRecheckingSession = session.status === "loading" && !!sessionData;
+
   // Determine layout configuration
-  const { variant, hideNavigation, isPublishable } = useLayoutConfiguration(
-    session.data ?? null,
-  );
+  const { variant, hideNavigation, isPublishable } =
+    useLayoutConfiguration(sessionData);
 
   // Check authentication and redirects
   const authGuard = useAuthGuard(session, hideNavigation);
 
   // Check project access
-  const projectAccess = useProjectAccess(session.data ?? null);
+  const projectAccess = useProjectAccess(sessionData);
 
   // IMPORTANT: Call all hooks before any conditional returns
   // Load navigation and metadata (even if not used in all render paths)
-  const navigation = useFilteredNavigation(session.data ?? null, organization);
+  const navigation = useFilteredNavigation(sessionData, organization);
   const activePathName = navigation.navigation.find(
     (item) => item.isActive,
   )?.title;
@@ -67,25 +73,32 @@ export function AppLayout(props: PropsWithChildren) {
     if (authGuard.action === "redirect") {
       router.replace(authGuard.url);
     } else if (authGuard.action === "sign-out") {
+      // Invalid JWT user: stay on this page (redirect: false) but still drop
+      // the pageload v4 cache so a later hard load is not tagged as the
+      // previous user.
+      clearV4BetaEnabledSentryTag();
       signOut({ redirect: false });
     }
   }, [authGuard, router]);
 
-  // Loading or redirecting state
+  // Loading or redirecting state. Loading only applies to a cold load: once a
+  // shell has rendered, a re-check keeps it instead of unmounting it.
   if (
-    authGuard.action === "loading" ||
+    (authGuard.action === "loading" && !isRecheckingSession) ||
     authGuard.action === "redirect" ||
     authGuard.action === "sign-out"
   ) {
     return <LoadingLayout message={authGuard.message} />;
   }
 
-  // Project access denied - handle based on path type
+  // Project access denied - handle based on path type. Only a settled session
+  // can rule a project out: while one is in flight the URL can legitimately
+  // point at a project the previous session did not have yet (just created).
   if (session.status === "authenticated" && !projectAccess.hasAccess) {
     // For publishable paths (shared traces/sessions), render minimal layout without sidebar
     // This allows authenticated users to view shared content without seeing project navigation
     if (isPublishable) {
-      return <MinimalLayout>{props.children}</MinimalLayout>;
+      return <MinimalLayout fullBleed>{props.children}</MinimalLayout>;
     }
 
     // For non-publishable paths, show error page. This is an EXPECTED state (an
@@ -114,7 +127,7 @@ export function AppLayout(props: PropsWithChildren) {
   // Publishable paths (traces, sessions) when unauthenticated
   // Render minimal layout without navigation/sidebar
   if (isPublishable && session.status === "unauthenticated") {
-    return <MinimalLayout>{props.children}</MinimalLayout>;
+    return <MinimalLayout fullBleed>{props.children}</MinimalLayout>;
   }
 
   // Render minimal layout (onboarding, public routes)
@@ -125,14 +138,14 @@ export function AppLayout(props: PropsWithChildren) {
   // Authenticated layout
   // At this point, all auth guards have passed and session.data is guaranteed to exist
   // The authGuard hook ensures we don't reach here without a valid session
-  if (!session.data) {
+  if (!sessionData) {
     // This should never happen due to guards above, but TypeScript needs this
     return <LoadingLayout message="Loading" />;
   }
 
   return (
     <AuthenticatedLayout
-      session={session.data}
+      session={sessionData}
       navigation={navigation}
       metadata={metadata}
       onSignOut={signOutCleanly}

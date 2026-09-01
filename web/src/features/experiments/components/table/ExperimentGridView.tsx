@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -10,7 +10,7 @@ import {
   type ExperimentItemsTableRow,
   getExperimentColorStyles,
 } from "./types";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
   type OnChangeFn,
@@ -20,7 +20,6 @@ import {
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
-import { type ReactNode } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
@@ -32,14 +31,17 @@ const GRID_VIEW_ROW_HEIGHTS = {
 
 type ExperimentGridViewProps = {
   projectId: string;
-  baselineExperimentId: string;
+  baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Render I/O cells as single-line text (true) or JSON tree (false). */
+  singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
+  showScoreLevelLabels: boolean;
   columnVisibility: VisibilityState;
   pagination: {
     totalCount: number | null;
@@ -64,11 +66,13 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  singleLine,
   rows,
   isLoading,
   rowHeight,
   observationScoreOrder,
   traceScoreOrder,
+  showScoreLevelLabels,
   columnVisibility,
   pagination,
   noResultsMessage,
@@ -78,9 +82,13 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
-  // Build all experiment IDs (baseline first)
+  // Keep the explicit baseline separate from the comparison list. A baseline
+  // is optional, so c-only URLs render every selected experiment here.
   const allExperimentIds = useMemo(
-    () => [baselineExperimentId, ...comparisonExperimentIds],
+    () => [
+      ...(baselineExperimentId ? [baselineExperimentId] : []),
+      ...comparisonExperimentIds,
+    ],
     [baselineExperimentId, comparisonExperimentIds],
   );
 
@@ -89,7 +97,8 @@ export const ExperimentGridView = ({
   // Build dynamic columns for each experiment
   const experimentColumns = useMemo(() => {
     return allExperimentIds.map((expId, index) => {
-      const isBaseline = index === 0;
+      const isBaseline =
+        Boolean(baselineExperimentId) && expId === baselineExperimentId;
       const expInfo = experimentNames.find((e) => e.experimentId === expId);
       const expName = expInfo?.experimentName ?? expId.slice(0, 8);
       const colorStyles = useExperimentColors
@@ -98,7 +107,10 @@ export const ExperimentGridView = ({
 
       return {
         accessorKey: `exp_${index}`, // Avoid nested path syntax that confuses TanStack
-        id: expId,
+        // Keep the table column id stable by position. Experiment ids are UUIDs
+        // and were causing the shared table header to fall back to 150px while
+        // the body used the configured column size.
+        id: `experiment_${index}`,
         header: () => (
           <div className="flex items-center gap-2">
             <span
@@ -119,14 +131,15 @@ export const ExperimentGridView = ({
           </div>
         ),
         size: 400,
+        minSize: 280,
         cell: ({ row }) => {
           // Find this experiment's data
           const expData = row.original.experiments.find(
             (e) => e.experimentId === expId,
           );
-          const output = row.original.outputs?.find(
+          const outputData = row.original.outputs?.find(
             (o) => o.experimentId === expId,
-          )?.output;
+          );
 
           if (!expData) {
             return <ExperimentGridCellEmpty />;
@@ -144,17 +157,21 @@ export const ExperimentGridView = ({
             <ExperimentGridCell
               projectId={projectId}
               itemId={row.original.itemId}
-              output={output}
+              output={outputData?.output}
               level={expData.level}
               startTime={expData.startTime}
               totalCost={expData.totalCost}
               latencyMs={expData.latencyMs}
+              baselineTotalCost={baselineData?.totalCost}
+              baselineLatencyMs={baselineData?.latencyMs}
               observationId={expData.observationId}
               traceId={expData.traceId}
+              singleLine={singleLine}
               scores={expData.observationScores ?? {}}
               traceScores={expData.traceScores ?? {}}
               observationScoreOrder={observationScoreOrder}
               traceScoreOrder={traceScoreOrder}
+              showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
@@ -172,8 +189,10 @@ export const ExperimentGridView = ({
     projectId,
     observationScoreOrder,
     traceScoreOrder,
+    showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    singleLine,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
@@ -181,38 +200,24 @@ export const ExperimentGridView = ({
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={false}
-            enableExpandOnHover
-          />
-        ),
-      },
-      {
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+      }),
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "expectedOutput",
-        id: "expectedOutput",
         header: "Expected Output",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={false}
-            className="bg-accent-light-green"
-            enableExpandOnHover
-          />
-        ),
-      },
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+        variant: "output",
+      }),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn],
+    [experimentColumns, isLoading, selectActionColumn, singleLine],
   );
 
   return (

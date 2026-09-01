@@ -16,6 +16,7 @@ import {
   SHARDED_QUEUE_BASE_NAMES,
   resolveQueueInstance,
 } from "../../queues/shardedQueueRegistry";
+import { emitV4LegacyApiUsageFreshnessMetrics } from "../v4/v4LegacyApiUsageMetrics";
 
 type DepthType = "waiting" | "failed" | "active";
 
@@ -51,6 +52,10 @@ function emitDepth(
 }
 
 export class QueueMetricsRunner extends PeriodicRunner {
+  constructor() {
+    super("queue_metrics_runner");
+  }
+
   protected get name(): string {
     return "queue-metrics-runner";
   }
@@ -71,12 +76,30 @@ export class QueueMetricsRunner extends PeriodicRunner {
       updateActiveIngestFailureProjectsMetric()
         .then(() => undefined)
         .catch((err) => {
+          this.markRunFailed(err);
           logger.error(
             "Queue metrics: failed to record active ingestion failure projects",
             err,
           );
         }),
     );
+
+    // Heartbeat/cursor freshness for the v4 legacy API usage pipeline. Only
+    // when this worker consumes that queue so self-hosted deployments without
+    // the job do not emit a permanent "not fresh" signal.
+    if (registeredNames.has(QueueName.V4LegacyApiUsageQueue)) {
+      promises.push(
+        emitV4LegacyApiUsageFreshnessMetrics()
+          .then(() => undefined)
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              "Queue metrics: failed to record v4 legacy API usage freshness",
+              err,
+            );
+          }),
+      );
+    }
 
     // Non-sharded queues: only poll queues with registered workers
     for (const queueName of Object.values(QueueName)) {
@@ -99,6 +122,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             );
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect dlq oldest age for ${queueName}`,
               err,
@@ -111,22 +135,10 @@ export class QueueMetricsRunner extends PeriodicRunner {
           .then((depths) => {
             if (depths) {
               emitDepth(metricBase, depths);
-              // Old-style metrics for backward compatibility.
-              // These duplicate what workerManager.metricWrapper emits on job
-              // completion. Both sources coexist during migration — once dashboards
-              // switch to the new .depth metrics, remove all but .depth
-              recordGauge(metricBase + ".length", depths.waiting, {
-                unit: "records",
-              });
-              recordGauge(metricBase + ".dlq_length", depths.failed, {
-                unit: "records",
-              });
-              recordGauge(metricBase + ".active", depths.active, {
-                unit: "records",
-              });
             }
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect depth for ${queueName}`,
               err,
@@ -159,6 +171,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             return age;
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect dlq oldest age for ${shardName}`,
               err,
@@ -200,6 +213,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             return depths;
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect depth for ${shardName}`,
               err,

@@ -1,14 +1,14 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import {
   BatchExportFileFormat,
+  BatchExportStatus,
   BatchTableNames,
   type Plan,
 } from "@langfuse/shared";
-import type { Role } from "@langfuse/shared/src/db";
 
 const __orgIds: string[] = [];
 
@@ -164,6 +164,232 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
       expect(job?.query).toMatchObject({ tableName: "audit_logs" });
     },
   );
+});
+
+const seedCompletedExport = (opts: {
+  projectId: string;
+  name: string;
+  tableName: BatchTableNames;
+}) =>
+  prisma.batchExport.create({
+    data: {
+      projectId: opts.projectId,
+      userId: "user-test",
+      status: BatchExportStatus.COMPLETED,
+      name: opts.name,
+      format: BatchExportFileFormat.CSV,
+      // Non-URL so downloadUrl cannot parse an object key and must fall back
+      // to the stored value instead of signing against the test bucket.
+      url: "not-a-valid-url",
+      finishedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      query: {
+        tableName: opts.tableName,
+        filter: null,
+        orderBy: null,
+      },
+    },
+  });
+
+describe("batchExport tRPC – audit_logs download and list authorization", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: { id: { in: __orgIds } },
+    });
+  });
+
+  it("blocks a MEMBER from downloadUrl of an OWNER-created audit_logs export", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const exportJob = await seedCompletedExport({
+      projectId: project.id,
+      name: "owner audit export",
+      tableName: BatchTableNames.AuditLogs,
+    });
+
+    const memberCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      memberCaller.batchExport.downloadUrl({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("blocks an OWNER on cloud:hobby from downloadUrl of an audit_logs export", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const exportJob = await seedCompletedExport({
+      projectId: project.id,
+      name: "hobby audit export",
+      tableName: BatchTableNames.AuditLogs,
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:hobby",
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.downloadUrl({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("allows an OWNER with audit-logs entitlement to downloadUrl an audit_logs export", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const exportJob = await seedCompletedExport({
+      projectId: project.id,
+      name: "entitled audit export",
+      tableName: BatchTableNames.AuditLogs,
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.downloadUrl({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).resolves.toEqual({ url: "not-a-valid-url" });
+  });
+
+  it("still allows a MEMBER to downloadUrl a traces export", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const exportJob = await seedCompletedExport({
+      projectId: project.id,
+      name: "traces export",
+      tableName: BatchTableNames.Traces,
+    });
+
+    const memberCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      memberCaller.batchExport.downloadUrl({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).resolves.toEqual({ url: "not-a-valid-url" });
+  });
+
+  it("hides audit_logs exports from all for a MEMBER without auditLogs:read", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "audit export hidden",
+      tableName: BatchTableNames.AuditLogs,
+    });
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "traces export visible",
+      tableName: BatchTableNames.Traces,
+    });
+
+    const memberCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await memberCaller.batchExport.all({
+      projectId: project.id,
+      page: 0,
+      limit: 50,
+    });
+
+    expect(result.exports.map((e) => e.name)).toEqual([
+      "traces export visible",
+    ]);
+    expect(result.totalCount).toBe(1);
+  });
+
+  it("includes audit_logs exports in all for an OWNER with entitlement", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "audit export listed",
+      tableName: BatchTableNames.AuditLogs,
+    });
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "traces export listed",
+      tableName: BatchTableNames.Traces,
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await caller.batchExport.all({
+      projectId: project.id,
+      page: 0,
+      limit: 50,
+    });
+
+    expect(result.exports.map((e) => e.name).sort()).toEqual([
+      "audit export listed",
+      "traces export listed",
+    ]);
+    expect(result.totalCount).toBe(2);
+  });
 });
 
 describe("batchExport tRPC – useEventsTable snapshot", () => {

@@ -23,7 +23,7 @@ describe("buildPermalink", () => {
   it("returns an absolute URL when NEXTAUTH_URL is set", () => {
     envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
     expect(buildPermalink("proj_01", "mon_01")).toBe(
-      "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+      "https://cloud.langfuse.com/project/proj_01/alerts/mon_01",
     );
   });
 });

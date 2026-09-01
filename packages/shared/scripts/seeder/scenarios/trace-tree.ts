@@ -51,7 +51,7 @@ const NAME_BY_KIND: Record<string, string[]> = {
   RETRIEVER: ["docs-retriever", "kb-retriever"],
   EMBEDDING: ["query-embedding", "chunk-embedding"],
   TOOL: ["search-products", "fetch-invoice", "issue-refund", "http-request"],
-  GENERATION: ["gpt-4o-completion", "claude-completion", "draft-answer"],
+  GENERATION: ["gpt-5.4-completion", "claude-haiku-completion", "draft-answer"],
   EVALUATOR: ["relevance-evaluator", "toxicity-evaluator"],
   GUARDRAIL: ["pii-guardrail", "jailbreak-guardrail"],
   SPAN: ["preprocess", "postprocess", "parse-response"],
@@ -149,6 +149,7 @@ const run = async (
   // validator below enforces the >= 2 lower bound on the requested value)
   const depth = Math.min(requestedDepth, observationCount);
   const payloadBytes = params["payload-bytes"] as number;
+  const strideMs = params["stride-ms"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
@@ -160,6 +161,12 @@ const run = async (
   // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
   // rows — many distinct score names wrap into several badge lines per node.
   const scoresPerNode = params["scores-per-node"] as number;
+  // Extra trace tags on top of the scenario's own. Default "" keeps the
+  // historic tag list, so unflagged output stays byte-identical.
+  const extraTags = (params["tags"] as string)
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -189,6 +196,12 @@ const run = async (
     throw new SeedError(
       `--payload-bytes must be between 0 and 50000000 (50 MB), got ${payloadBytes}`,
       "larger payloads exceed V8 string limits during generation",
+    );
+  }
+  if (strideMs < 0 || strideMs > 60_000) {
+    throw new SeedError(
+      `--stride-ms must be between 0 and 60000, got ${strideMs}`,
+      "pass e.g. --stride-ms 10 to spread starts one per 10ms",
     );
   }
   if (scoresPerNode < 0 || scoresPerNode > 100) {
@@ -257,7 +270,7 @@ const run = async (
     session_id: null,
     release: "seed-1.0.0",
     version: "seed-v2",
-    tags: ["seed", "trace-tree", payloadStyle],
+    tags: ["seed", "trace-tree", payloadStyle, ...extraTags],
     public: false,
     bookmarked: false,
     metadata: {
@@ -288,6 +301,18 @@ const run = async (
           10 +
           jitter(ctx.seed, node.index, 80);
   }
+  // --stride-ms: flat strictly-increasing starts (start = index × stride) instead
+  // of the nested timing. Default nesting puts thousands of rows on the same
+  // millisecond, so which of them fall past a startTime-ordered row cap
+  // (MAX_OBSERVATIONS_PER_TRACE) is arbitrary; a stride makes chronological order
+  // equal index order, so the boundary is exact and reproducible.
+  // parentIndex < index keeps "child starts after its parent" intact.
+  if (strideMs > 0) {
+    for (const node of shape) {
+      startOffsets[node.index] = node.index * strideMs;
+    }
+  }
+
   const endOffsets = new Array<number>(shape.length).fill(0);
   for (let i = shape.length - 1; i >= 0; i--) {
     const node = shape[i];
@@ -428,7 +453,7 @@ const run = async (
           "flue.tool.call_id": `call_${node.index}`,
         }),
       },
-      provided_model_name: isGeneration ? "gpt-4o" : null,
+      provided_model_name: isGeneration ? "gpt-5.4" : null,
       internal_model_id: null,
       model_parameters: isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
@@ -699,6 +724,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       description: "approx bytes for the root input payload (max 50 MB)",
     },
     {
+      flag: "stride-ms",
+      type: "number",
+      default: 0,
+      description:
+        "start each observation index × N ms after the trace start (unique, strictly increasing start times — makes a startTime-ordered observation cap boundary exact); 0 keeps the nested timing",
+    },
+    {
       flag: "payload-style",
       type: "string",
       default: "json",
@@ -730,6 +762,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: 0,
       description:
         "attach N distinct scores to every observation (the LFE-10591 'lots of scores' shape; try 12), 0-100",
+    },
+    {
+      flag: "tags",
+      type: "string",
+      default: "",
+      description:
+        'comma-separated extra trace tags, e.g. "Zebra,apple,Ärger" — mixed case/accents exercise alphabetical tag filter ordering (LFE-14382)',
     },
   ],
   run,

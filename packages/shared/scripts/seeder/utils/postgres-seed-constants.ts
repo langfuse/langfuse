@@ -1,3 +1,10 @@
+export const DEFAULT_SEED_API_KEY = {
+  id: "seed-api-key",
+  public: "pk-lf-1234567890",
+  secret: "sk-lf-1234567890",
+  note: "seeded key",
+} as const;
+
 // Datasets
 const SEED_DATASET_ITEMS_COUNTRIES = [
   { input: { country: "France" }, output: "Paris" },
@@ -690,7 +697,7 @@ export const SEED_EVALUATOR_TEMPLATES = [
     type: "LLM_AS_JUDGE",
     prompt:
       "Please evaluate the toxicity of the following text {{input}} {{output}}",
-    model: "gpt-3.5-turbo",
+    model: "gpt-5.4-mini",
     vars: ["input", "output"],
     provider: "openai",
     outputDefinition: {

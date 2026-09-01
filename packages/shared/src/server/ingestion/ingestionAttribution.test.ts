@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthHeaderValidVerificationResult } from "../auth/types";
 import {
+  classifyIngestionSdkAttribution,
   classifyIngestionSdkVersion,
   createIngestionAttribution,
   createUnknownSdkIngestionAttribution,
+  extractPublicApiCallerAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
 } from "./ingestionAttribution";
 
@@ -18,6 +20,47 @@ const authCheck = {
 } as AuthHeaderValidVerificationResult;
 
 describe("ingestion attribution", () => {
+  it("reuses ingestion SDK normalization for public API caller attribution", () => {
+    expect(
+      extractPublicApiCallerAttribution({
+        x_langfuse_sdk_name: "langfuse-python",
+        x_langfuse_sdk_version: "4.8.1rc1",
+        "user-agent": "Codex CLI/1.2.3\nignored",
+      }),
+    ).toEqual({
+      sdkName: "python",
+      sdkVersion: "4.8.1rc1",
+      userAgent: "Codex CLI/1.2.3ignored",
+    });
+  });
+
+  it("bounds caller-controlled attribution and drops invalid SDK metadata", () => {
+    expect(
+      extractPublicApiCallerAttribution({
+        "x-langfuse-sdk-name": "ruby",
+        "x-langfuse-sdk-version": "1.0.0",
+        "user-agent": `curl/${"x".repeat(300)}`,
+      }),
+    ).toEqual({
+      userAgent: `curl/${"x".repeat(251)}`,
+    });
+
+    expect(
+      extractPublicApiCallerAttribution({
+        "x-langfuse-sdk-name": "python",
+        "x-langfuse-sdk-version": "not-a-version",
+      }),
+    ).toEqual({ sdkName: "python" });
+  });
+
+  it("does not split a Unicode code point at the attribution length bound", () => {
+    expect(
+      extractPublicApiCallerAttribution({
+        "user-agent": `${"x".repeat(255)}😀truncated`,
+      }),
+    ).toEqual({ userAgent: `${"x".repeat(255)}😀` });
+  });
+
   it("reads SDK attribution from Langfuse request headers", () => {
     expect(
       createIngestionAttribution({
@@ -31,6 +74,22 @@ describe("ingestion attribution", () => {
       ingestionApiKey: "pk-lf-public",
       ingestionSdkName: "python",
       ingestionSdkVersion: "3.4.0",
+    });
+  });
+
+  it("matches Langfuse request header names case-insensitively", () => {
+    expect(
+      createIngestionAttribution({
+        headers: {
+          "X-Langfuse-Sdk-Name": "python",
+          "X-Langfuse-Sdk-Version": "4.8.1",
+        },
+        authCheck,
+      }),
+    ).toEqual({
+      ingestionApiKey: "pk-lf-public",
+      ingestionSdkName: "python",
+      ingestionSdkVersion: "4.8.1",
     });
   });
 
@@ -141,6 +200,21 @@ describe("ingestion attribution", () => {
     "classifies $sdkName@$sdkVersion SDK upgrade status",
     ({ sdkName, sdkVersion, expected }) => {
       expect(classifyIngestionSdkVersion({ sdkName, sdkVersion })).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it.each([
+    ["python", "4.7.0", "attributed"],
+    ["unknown", "4.7.0", "missing_name"],
+    ["python", "unknown", "missing_version"],
+    ["unknown", "unknown", "missing_name_and_version"],
+    ["", "", "missing_name_and_version"],
+  ] as const)(
+    "classifies %s@%s attribution as %s",
+    (sdkName, sdkVersion, expected) => {
+      expect(classifyIngestionSdkAttribution({ sdkName, sdkVersion })).toBe(
         expected,
       );
     },

@@ -1,12 +1,88 @@
 import {
-  EvalTemplateSourceCodeLanguage,
-  EvalTemplateType,
+  type EvalTemplateSourceCodeLanguage,
+  type EvalTemplateType,
   type EvalTemplate,
 } from "@prisma/client";
 import z from "zod";
 
+/**
+ * Client-safe mirrors of the Prisma enums. The barrel only reaches the Prisma
+ * values through `export * from "@prisma/client"`, which bundlers that resolve
+ * this package from source (Vite/Storybook) cannot turn into named ESM exports,
+ * so browser code must use these instead of importing the Prisma values. The
+ * `satisfies` keeps them exhaustive: a new schema member fails the build here.
+ */
+export const EvalTemplateTypeEnum = {
+  LLM_AS_JUDGE: "LLM_AS_JUDGE",
+  CODE: "CODE",
+} as const satisfies Record<EvalTemplateType, EvalTemplateType>;
+
+export const EvalTemplateSourceCodeLanguageEnum = {
+  PYTHON: "PYTHON",
+  TYPESCRIPT: "TYPESCRIPT",
+} as const satisfies Record<
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateSourceCodeLanguage
+>;
+
+export const EvaluatorPromptMessageRoleSchema = z.enum([
+  "system",
+  "user",
+  "assistant",
+]);
+
+export const EvaluatorPromptMessageSchema = z
+  .object({
+    role: EvaluatorPromptMessageRoleSchema,
+    content: z.string().refine((content) => content.trim().length > 0, {
+      message: "Prompt messages cannot be empty",
+    }),
+  })
+  .strict();
+export type EvaluatorPromptMessage = z.infer<
+  typeof EvaluatorPromptMessageSchema
+>;
+
+export const EvaluatorPromptMessagesSchema = z
+  .array(EvaluatorPromptMessageSchema)
+  .min(1)
+  .refine(
+    (messages) =>
+      !messages.some(
+        (message, index) => index > 0 && message.role === "system",
+      ),
+    {
+      message: "System messages are only allowed as the first prompt message",
+    },
+  );
+export type EvaluatorPromptMessages = z.infer<
+  typeof EvaluatorPromptMessagesSchema
+>;
+
+/** Compatibility alias for messages persisted with the legacy prompt. */
+export type PersistedEvaluatorPromptMessages = EvaluatorPromptMessages;
+
+const LEGACY_EMPTY_PROMPT_PLACEHOLDER = "No prompt provided";
+
+export function getEvaluatorPromptMessages(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}): PersistedEvaluatorPromptMessages {
+  const parsed = EvaluatorPromptMessagesSchema.safeParse(params.promptMessages);
+  if (parsed.success) return parsed.data;
+
+  // Historical evaluator rows may contain blank prompts that do not satisfy
+  // the current message schema. Keep those rows readable with valid content.
+  const legacyPrompt = params.prompt?.trim()
+    ? params.prompt
+    : LEGACY_EMPTY_PROMPT_PLACEHOLDER;
+  return [{ role: "user", content: legacyPrompt }];
+}
+
 export type EvalTemplateLlmAsAJudge = EvalTemplate & {
   type: typeof EvalTemplateType.LLM_AS_JUDGE;
+  /** Present when an evaluator-v2 version is adapted to the legacy runtime. */
+  promptMessages?: unknown;
   prompt: string;
   outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
   sourceCode: null;

@@ -3,6 +3,7 @@ import {
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
@@ -25,7 +26,7 @@ export interface Filter {
   operator: ClickhouseOperator;
   field: string;
 }
-type ClickhouseFilter = {
+export type ClickhouseFilter = {
   query: string;
   params: { [x: string]: any } | {};
 };
@@ -172,6 +173,11 @@ export class NumberFilter implements Filter {
   }
 }
 
+export const bindUtcDateTimeParam = (name: string, value: Date) => ({
+  placeholder: `{${name}: DateTime64(3, 'UTC')}`,
+  value: convertDateToClickhouseDateTime(value),
+});
+
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -196,9 +202,17 @@ export class DateTimeFilter implements Filter {
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `dateTimeFilter${uid}`;
+    const dateTimeParam = bindUtcDateTimeParam(varName, new Date(this.value));
+    // Use ClickHouse DateTime string encoding rather than epoch millis.
+    // ClickHouse rejects query parameter value 0 for DateTime64(3), which is
+    // exactly what Date#getTime() returns for 1970-01-01T00:00:00.000Z. The
+    // converter emits UTC calendar time, so declare UTC explicitly rather than
+    // relying on the ClickHouse server or session timezone.
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
-      params: { [varName]: new Date(this.value).getTime() },
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} ${dateTimeParam.placeholder}`,
+      params: {
+        [varName]: dateTimeParam.value,
+      },
     };
   }
 }
@@ -427,22 +441,29 @@ export class StringObjectFilter implements Filter {
     } else {
       // For observations/traces tables, use Map access: metadata[key]
       const column = `${prefix}${this.field}`;
+      const valueAccessor = `${column}[{${varKeyName}: String}]`;
+      // A missing key resolves the Map access to the empty-string default,
+      // which would otherwise make `contains ""` (and every other operator's
+      // empty-value comparison) incorrectly match rows that never had the
+      // key. Require the key to exist first, mirroring the events-table fix
+      // in PR #13369.
+      const hasKey = `mapContains(${column}, {${varKeyName}: String})`;
 
       switch (this.operator) {
         case "=":
-          query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
           break;
         case "contains":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
           break;
         case "does not contain":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
           break;
         case "starts with":
-          query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         case "ends with":
-          query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);

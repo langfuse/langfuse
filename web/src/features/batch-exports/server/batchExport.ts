@@ -1,7 +1,17 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { env } from "@/src/env.mjs";
+import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
+import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
 import {
+  hasEntitlement,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  type AuthedSession,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
@@ -9,8 +19,11 @@ import {
   BatchExportStatus,
   BatchExportTableName,
   CreateBatchExportSchema,
+  InvalidRequestError,
+  LangfuseNotFoundError,
   paginationZod,
 } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   logger,
@@ -19,6 +32,53 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+
+// Fallback for legacy rows that predate the worker stamping expiresAt;
+// matches the worker's BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS default.
+const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// The fresh URL only needs to cover the click-through: object stores check
+// signature expiry when the request starts, not while the download streams.
+const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
+
+// A persisted export's query is a Json column, so its table name is only
+// known at runtime. On create the query is still the validated input, where
+// `tableName` is typed and compared directly.
+const isAuditLogExport = (query: Prisma.JsonValue): boolean =>
+  typeof query === "object" &&
+  query !== null &&
+  !Array.isArray(query) &&
+  query.tableName === BatchExportTableName.AuditLogs;
+
+const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
+  hasEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  }) && hasProjectAccess({ session, projectId, scope: "auditLogs:read" });
+
+// An audit-log export holds actor identifiers and admin actions, so reading
+// one needs the audit-log gates too, not just the batch-export ones.
+const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
+  throwIfNoEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  });
+  throwIfNoProjectAccess({ session, projectId, scope: "auditLogs:read" });
+};
+
+const isDownloadWindowExpired = (batchExport: {
+  finishedAt: Date | null;
+  expiresAt: Date | null;
+}): boolean => {
+  const expiresAt =
+    batchExport.expiresAt ??
+    (batchExport.finishedAt
+      ? new Date(batchExport.finishedAt.getTime() + LEGACY_DOWNLOAD_WINDOW_MS)
+      : null);
+  return expiresAt !== null && expiresAt < new Date();
+};
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -43,16 +103,7 @@ export const batchExportRouter = createTRPCRouter({
         };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
-          throwIfNoEntitlement({
-            entitlement: "audit-logs",
-            sessionUser: ctx.session.user,
-            projectId,
-          });
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId,
-            scope: "auditLogs:read",
-          });
+          assertCanReadAuditLogs(ctx.session, projectId);
         }
 
         assertLegacyTracingIoSearchCanCreateBatchJob({
@@ -126,6 +177,80 @@ export const batchExportRouter = createTRPCRouter({
         data: { status: BatchExportStatus.CANCELLED },
       });
     }),
+  downloadUrl: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        batchExportId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "batchExports:read",
+      });
+
+      const batchExport = await ctx.prisma.batchExport.findFirst({
+        where: { id: input.batchExportId, projectId: input.projectId },
+      });
+      if (!batchExport) {
+        throw new LangfuseNotFoundError("Batch export not found");
+      }
+
+      if (isAuditLogExport(batchExport.query)) {
+        assertCanReadAuditLogs(ctx.session, input.projectId);
+      }
+
+      if (
+        batchExport.status !== BatchExportStatus.COMPLETED ||
+        !batchExport.url
+      ) {
+        throw new InvalidRequestError("Batch export is not ready for download");
+      }
+      if (isDownloadWindowExpired(batchExport)) {
+        throw new InvalidRequestError(
+          "The download window for this batch export has expired",
+        );
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "batchExport",
+        resourceId: batchExport.id,
+        projectId: input.projectId,
+        action: "download",
+      });
+
+      // The URL stored at export completion is signed with the worker's
+      // credentials; when those are temporary (e.g. IAM role sessions) the
+      // stored URL dies with the session, long before expiresAt. Re-sign a
+      // fresh short-lived URL from the object key instead.
+      const bucketName = env.LANGFUSE_S3_BATCH_EXPORT_BUCKET;
+      if (bucketName) {
+        const fileKey = parseBatchExportFileKeyFromUrl(
+          batchExport.url,
+          bucketName,
+        );
+        if (fileKey) {
+          // asAttachment must be explicit: S3 defaults it to true, but GCS
+          // and Azure don't — and the client navigates to this URL in the
+          // same tab, so without a Content-Disposition header the browser
+          // would render the export instead of downloading it.
+          const url = await getBatchExportStorageServiceClient(
+            bucketName,
+          ).getSignedUrl(fileKey, FRESH_DOWNLOAD_URL_TTL_SECONDS, true);
+          return { url };
+        }
+        logger.warn(
+          `[BATCH EXPORT] Could not parse file key from stored URL for batch export ${batchExport.id}, falling back to stored URL`,
+        );
+      }
+
+      // Fallback when the web container has no batch export bucket configured:
+      // the stored URL, valid for as long as its signing credentials allow.
+      return { url: batchExport.url };
+    }),
   all: protectedProjectProcedure
     .input(
       z.object({
@@ -140,11 +265,23 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:read",
       });
 
+      const where = {
+        projectId: input.projectId,
+        ...(canReadAuditLogs(ctx.session, input.projectId)
+          ? {}
+          : {
+              NOT: {
+                query: {
+                  path: ["tableName"],
+                  equals: BatchExportTableName.AuditLogs,
+                },
+              },
+            }),
+      };
+
       const [exports, totalCount] = await Promise.all([
         ctx.prisma.batchExport.findMany({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
           take: input.limit,
           skip: input.page * input.limit,
           orderBy: {
@@ -152,9 +289,7 @@ export const batchExportRouter = createTRPCRouter({
           },
         }),
         ctx.prisma.batchExport.count({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
         }),
       ]);
 
@@ -187,20 +322,15 @@ export const batchExportRouter = createTRPCRouter({
       const userMap = new Map(users.map((u) => [u.id, u]));
 
       const exportsWithExpiration = exports.map((e) => {
-        const { finishedAt, url, ...rest } = e;
-
-        let isExpired = false;
-        if (finishedAt) {
-          const finishTime = new Date(finishedAt).getTime();
-          const now = new Date().getTime();
-          const oneHourInMs = 60 * 60 * 1000;
-          isExpired = now - finishTime > oneHourInMs;
-        }
+        const { url, ...rest } = e;
 
         return {
           ...rest,
-          finishedAt,
-          url: isExpired ? "expired" : url,
+          isExpired: isDownloadWindowExpired(e),
+          isDownloadable:
+            e.status === BatchExportStatus.COMPLETED &&
+            Boolean(url) &&
+            !isDownloadWindowExpired(e),
           user: userMap.get(e.userId) ?? null,
         };
       });

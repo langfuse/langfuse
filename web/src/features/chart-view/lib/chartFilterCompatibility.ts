@@ -26,7 +26,7 @@ import { resolveField } from "@/src/features/search-bar/lib/fields";
  * `traceTags` is the one whose query dimension name differs (`tags`) — see
  * {@link CHART_FILTER_COLUMN_RENAME}.
  */
-export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
+const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "environment",
   "type",
   "name",
@@ -36,6 +36,7 @@ export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "userId",
   "sessionId",
   "version",
+  "release",
   "promptName",
   // NOTE: promptVersion is intentionally NOT forwardable. The search-bar
   // grammar registers it as a numeric field, so `promptVersion:>2` lowers to a
@@ -48,6 +49,7 @@ export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "experimentName",
   "experimentDatasetId",
   "experimentId",
+  "isRootObservation",
 ]);
 
 /**
@@ -66,9 +68,11 @@ const MEASURE_COLUMNS = new Set([
   "latency",
   "timeToFirstToken",
   "inputTokens",
+  "cachedInputTokens",
   "outputTokens",
   "totalTokens",
   "inputCost",
+  "cachedInputCost",
   "outputCost",
   "totalCost",
 ]);

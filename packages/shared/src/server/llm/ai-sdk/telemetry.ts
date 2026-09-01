@@ -23,7 +23,10 @@ import type { TelemetryOptions } from "ai";
 import { stringifyValue } from "../../../utils/stringChecks";
 import { traceException } from "../../instrumentation";
 import { logger } from "../../logger";
-import { LangfuseOtelSpanAttributes } from "../../otel/attributes";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  LangfuseOtelSpanAttributes,
+} from "../../otel/attributes";
 import { publishInternalOtelSpans } from "../../otel/internalTraceOtelWriter";
 import type { InternalTraceExperimentContext } from "../internalTraceEvents";
 import type { TraceSinkParams } from "../types";
@@ -79,20 +82,31 @@ export type AiSdkTelemetryCapture = {
  * experiment observation evals.
  *
  * Returns `undefined` (no tracing) when the environment is not
- * langfuse-prefixed (the eval-loop safeguard) or when the trace ID is not a
+ * langfuse-prefixed (the eval-loop safeguard) unless this is an AI-feature
+ * product trace (`aiFeatureOtelIngestion`), or when the trace ID is not a
  * valid W3C trace ID.
  */
 export function createAiSdkTelemetryCapture(params: {
   traceSinkParams: TraceSinkParams;
   /** Recorded as the root span's (and trace's) input. */
   rootInput?: unknown;
+  /** Trace-visible generation input. Pass media-reference messages instead of the exact provider egress payload when needed. */
+  generationInput?: unknown;
 }): AiSdkTelemetryCapture | undefined {
-  const { traceSinkParams, rootInput } = params;
+  const { traceSinkParams, rootInput, generationInput } = params;
+  const isAiFeatureProductTrace = Boolean(
+    traceSinkParams.aiFeatureOtelIngestion,
+  );
 
   // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
   // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
   // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
-  if (!traceSinkParams.environment?.startsWith("langfuse")) {
+  // AI-feature product traces are the exception: they use environment
+  // `production` so observation evals can match them.
+  if (
+    !isAiFeatureProductTrace &&
+    !traceSinkParams.environment?.startsWith("langfuse")
+  ) {
     logger.warn(
       "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
       {
@@ -185,8 +199,17 @@ export function createAiSdkTelemetryCapture(params: {
       }
     : undefined;
 
+  const childSpanMetadata = traceSinkParams.metadata
+    ? Object.fromEntries(
+        Object.entries(traceSinkParams.metadata).filter(
+          ([key]) => key !== "structured_output_schema",
+        ),
+      )
+    : undefined;
+
   const otelIntegration = createGenerationSpanTelemetry({
     tracer,
+    recordedInput: generationInput,
     attributes: {
       // Experiment linkage goes on every span so every materialized event
       // remains associated with the run item root.
@@ -197,6 +220,14 @@ export function createAiSdkTelemetryCapture(params: {
       ...(traceSinkParams.userId
         ? {
             [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
+          }
+        : {}),
+      // Keep useful trace context on child spans, but leave the potentially
+      // large output schema on the root trace only.
+      ...(childSpanMetadata
+        ? {
+            [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]:
+              JSON.stringify(childSpanMetadata),
           }
         : {}),
     },
@@ -254,7 +285,10 @@ export function createAiSdkTelemetryCapture(params: {
       await publishInternalOtelSpans({
         spans: matchingSpans,
         projectId: traceSinkParams.targetProjectId,
-        sdkName: INTERNAL_SDK_NAME,
+        sdkName: isAiFeatureProductTrace
+          ? AI_FEATURE_OTEL_SDK_NAME
+          : INTERNAL_SDK_NAME,
+        isLangfuseInternal: !isAiFeatureProductTrace,
       });
     } catch (e) {
       traceException(e);
@@ -280,15 +314,20 @@ export function createAiSdkTelemetryCapture(params: {
 /**
  * Minimal AI SDK telemetry integration for Langfuse-internal LLM completions.
  */
-export function createGenerationSpanTelemetry(params: {
+function createGenerationSpanTelemetry(params: {
   tracer: Tracer;
   /**
    * Extra attributes for every generation span (Langfuse prompt link,
    * experiment linkage).
    */
   attributes?: Attributes;
+  /**
+   * Safe input to record instead of the provider-bound messages. The latter
+   * may contain short-lived signed media URLs that must not enter traces.
+   */
+  recordedInput?: unknown;
 }): Telemetry {
-  const { tracer, attributes } = params;
+  const { tracer, attributes, recordedInput } = params;
   const openSpans = new Map<string, Span>();
 
   const endAllOpenSpans = (error?: unknown): void => {
@@ -326,8 +365,12 @@ export function createGenerationSpanTelemetry(params: {
               "gen_ai.request.temperature": event.temperature,
               "gen_ai.request.top_p": event.topP,
             }),
-            ...(event.messages !== undefined
-              ? { "gen_ai.input.messages": safeJsonStringify(event.messages) }
+            ...(recordedInput !== undefined || event.messages !== undefined
+              ? {
+                  "gen_ai.input.messages": safeJsonStringify(
+                    recordedInput ?? event.messages,
+                  ),
+                }
               : {}),
             ...(event.tools && event.tools.length > 0
               ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }

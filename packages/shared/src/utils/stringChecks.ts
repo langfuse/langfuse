@@ -12,7 +12,7 @@ export const VARIABLE_REGEX = /^\p{L}[\p{L}\p{N}_]*$/u;
 export const MUSTACHE_REGEX = /{{([^{}]*)}}/g;
 
 // Regex to find multiline variables
-export const MULTILINE_VARIABLE_REGEX = /{{[^{}]*\n[^{}]*}}/g;
+export const MULTILINE_VARIABLE_REGEX = /{{[^{}\n]*\n[^{}]*}}/g;
 
 // Regex to find unclosed variables
 export const UNCLOSED_VARIABLE_REGEX = /{{(?!{)(?![^{]*}})/g;
@@ -40,4 +40,20 @@ export function stringifyValue(value: unknown) {
     default:
       return JSON.stringify(value);
   }
+}
+
+export function truncate(str: string, n = 16) {
+  // '...' suffix if the string is longer than n.
+  // Iterate by code point (Array.from) rather than UTF-16 code unit
+  // (String.prototype.substring) so that characters outside the Basic
+  // Multilingual Plane - emoji, CJK extension-B ideographs, mathematical
+  // alphanumerics, etc. - are never split mid-surrogate-pair. Cutting a
+  // surrogate pair in half leaves a lone surrogate that renders as the
+  // Unicode replacement character (U+FFFD). See issue #16172.
+  // Note: `n` counts code points, not UTF-16 code units.
+  const codePoints = Array.from(str);
+  if (codePoints.length > n) {
+    return codePoints.slice(0, n).join("") + "...";
+  }
+  return str;
 }

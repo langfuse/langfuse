@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,8 +13,10 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ChevronDownIcon, Slash } from "lucide-react";
 import { env } from "@/src/env.mjs";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useRouter } from "next/router";
+import {
+  useOrgProjectSwitchPaths,
+  useQueryProjectOrOrganization,
+} from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
@@ -29,9 +32,9 @@ const BreadcrumbComponent = ({
   items?: { name: string; href?: string }[];
   className?: string;
 }) => {
-  const router = useRouter();
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
+  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
   const organizations = session.data?.user?.organizations;
 
@@ -41,45 +44,12 @@ const BreadcrumbComponent = ({
     scope: "projects:create",
   });
 
-  /**
-   * Truncate the path before the first dynamic segment that is not allowlisted.
-   * e.g. /project/[projectId]/traces/[traceId] -> /project/[projectId]/traces
-   */
-  const truncatePathBeforeDynamicSegments = (path: string) => {
-    const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
-    const segments = router.route.split("/");
-    const idSegments = segments.filter(
-      (segment) => segment.startsWith("[") && segment.endsWith("]"),
-    );
-    const stopSegment = idSegments.filter((id) => !allowlistedIds.includes(id));
-    if (stopSegment.length === 0) return path;
-    const stopIndex = segments.indexOf(stopSegment[0]);
-    const truncatedPath = path.split("/").slice(0, stopIndex).join("/");
-    return truncatedPath;
-  };
-
-  const getProjectPath = (projectId: string) =>
-    router.query.projectId
-      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
-          router.query.projectId as string,
-          projectId,
-        )
-      : `/project/${projectId}`;
-
-  const getOrgPath = (orgId: string) =>
-    router.query.organizationId
-      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
-          router.query.organizationId as string,
-          orgId,
-        )
-      : `/organization/${orgId}`;
-
   return (
     <Breadcrumb className={className}>
       <BreadcrumbList>
         {organization && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="text-primary flex items-center gap-1 text-sm">
+            <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none">
               {organization?.name ?? "Organization"}
               {isCloudPlan(organization?.plan) &&
                 organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
@@ -107,7 +77,7 @@ const BreadcrumbComponent = ({
               <Slash />
             </BreadcrumbSeparator>
             <DropdownMenu>
-              <DropdownMenuTrigger className="text-primary flex items-center gap-1">
+              <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
                 {project?.name ?? "Project"}
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>

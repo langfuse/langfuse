@@ -1,10 +1,11 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -57,22 +58,17 @@ export const scoreLevelFromScore = (score: {
           : "trace";
 
 // The global score-level color coding: one hue per level, used identically on
-// every surface (do not restate these colors at call sites). Hue pairs live in
-// globals.css (light + dark themes): observation=blue, trace=violet,
-// session=teal, experiment=yellow.
-const scoreTagVariants = cva(
-  "inline-flex shrink-0 items-center rounded-sm px-1 py-0 text-xs",
-  {
-    variants: {
-      level: {
-        observation: "bg-light-blue text-dark-blue",
-        trace: "bg-light-violet text-dark-violet",
-        session: "bg-light-teal text-dark-teal",
-        experiment: "bg-light-yellow text-dark-yellow",
-      },
-    },
-  },
-);
+// every surface. Hue pairs live in the design-system Badge and globals.css:
+// observation=blue, trace=violet, session=teal, experiment=yellow.
+const scoreTagColors: Record<
+  ScoreLevel,
+  "blue" | "violet" | "teal" | "yellow"
+> = {
+  observation: "blue",
+  trace: "violet",
+  session: "teal",
+  experiment: "yellow",
+};
 
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   variants: {
@@ -85,14 +81,13 @@ const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   },
 });
 
-export interface ScoreTagProps extends VariantProps<typeof scoreTagVariants> {
+export interface ScoreTagProps {
   level: ScoreLevel;
   /**
    * Dense-view variant (trace tree / timeline rows): a color dot carrying the
    * level name via tooltip + aria-label instead of a visible word.
    */
   compact?: boolean;
-  className?: string;
 }
 
 /**
@@ -100,11 +95,7 @@ export interface ScoreTagProps extends VariantProps<typeof scoreTagVariants> {
  * color coding. Never color-alone: the full variant shows the level word, the
  * compact dot carries it via tooltip and aria-label.
  */
-export const ScoreTag = ({
-  level,
-  compact = false,
-  className,
-}: ScoreTagProps) => {
+export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
   if (compact) {
     return (
       <Tooltip>
@@ -112,7 +103,7 @@ export const ScoreTag = ({
           <span
             role="img"
             aria-label={SCORE_LEVEL_DESCRIPTIONS[level]}
-            className={cn(scoreDotVariants({ level }), className)}
+            className={cn(scoreDotVariants({ level }))}
           />
         </TooltipTrigger>
         <TooltipContent className="text-xs">
@@ -125,9 +116,11 @@ export const ScoreTag = ({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn(scoreTagVariants({ level }), className)}>
-          {SCORE_LEVEL_LABELS[level]}
-        </span>
+        <Badge
+          color={scoreTagColors[level]}
+          size="sm"
+          text={SCORE_LEVEL_LABELS[level]}
+        />
       </TooltipTrigger>
       <TooltipContent className="text-xs">
         {SCORE_LEVEL_DESCRIPTIONS[level]}

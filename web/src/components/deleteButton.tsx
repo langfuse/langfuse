@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -10,7 +11,7 @@ import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Input } from "@/src/components/ui/input";
@@ -360,14 +361,14 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "monitors:CUD",
+    scope = "alerts:CUD",
     invalidateFunc = () => utils.monitors.invalidate(),
   } = props;
   const monitorMutation = api.monitors.delete.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Monitor deleted",
-        description: "The monitor has been deleted successfully",
+        title: "Alert deleted",
+        description: "The alert has been deleted successfully",
       });
       utils.monitors.invalidate();
     },
@@ -397,8 +398,8 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
           source: isTableAction ? "table-single-row" : "monitor",
         })
       }
-      entityToDeleteName="monitor"
-      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes the monitor's alert history."
+      entityToDeleteName="alert"
+      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes its alert history."
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={monitorMutation.isPending}
     />
@@ -410,7 +411,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "evalJob:CUD",
+    scope = "evaluationRule:CUD",
     invalidateFunc = () => utils.evals.invalidate(),
   } = props;
 

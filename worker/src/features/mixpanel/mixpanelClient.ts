@@ -1,14 +1,33 @@
-import { logger } from "@langfuse/shared/src/server";
+import { logger, fetchWithSecureRedirects } from "@langfuse/shared/src/server";
 import { gzipSync } from "zlib";
+import { env } from "../../env";
+import {
+  buildAnalyticsRedirectOptions,
+  rethrowIfOutboundValidationFailure,
+  validateAnalyticsIntegrationUrl,
+} from "../analyticsIntegrationEgress";
 import type { MixpanelEvent } from "./transformers";
 
 type MixpanelClientConfig = {
   projectToken: string;
   /**
-   * Mixpanel region subdomain (e.g., "api", "api-eu", "api-in")
-   * Validated at API layer via MIXPANEL_REGIONS in web/src/features/mixpanel-integration/types.ts
+   * Mixpanel region subdomain (e.g., "api", "api-eu", "api-in").
+   *
+   * The save-time dropdown (`MIXPANEL_REGIONS`) is the only thing that
+   * currently keeps this from being a free-form host. The worker treats it
+   * as a plain string and interpolates it into `https://<region>.mixpanel.com`.
+   * If that dropdown is ever widened (custom host, raw IP, free-form region),
+   * `validateAnalyticsIntegrationUrl` is the use-time check that still
+   * refuses IP literals, embedded credentials, and non-HTTP schemes — the
+   * connect-time DNS hook never fires for a literal, so it cannot cover those.
    */
   region: string;
+  /**
+   * Overrides the Mixpanel API origin. Test-only seam, so the send can be
+   * pointed at a local server; production leaves it unset and derives the
+   * origin from `region`.
+   */
+  baseUrl?: string;
 };
 
 export class MixpanelClient {
@@ -62,7 +81,9 @@ export class MixpanelClient {
    * Send a batch of events to Mixpanel Import API
    */
   private async sendBatch(events: MixpanelEvent[]): Promise<void> {
-    const url = `https://${this.config.region}.mixpanel.com/import?strict=1`;
+    const origin =
+      this.config.baseUrl ?? `https://${this.config.region}.mixpanel.com`;
+    const url = `${origin}/import?strict=1`;
     const body = JSON.stringify(events);
 
     // Compress the body with gzip
@@ -73,16 +94,37 @@ export class MixpanelClient {
     // Create Basic Auth header (token as username, empty password)
     const authHeader = `Basic ${Buffer.from(`${this.config.projectToken}:`).toString("base64")}`;
 
+    // Bound the request so an unresponsive endpoint cannot hold the flush
+    // (and the worker job behind it) indefinitely.
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, env.LANGFUSE_MIXPANEL_TIMEOUT_MS);
+
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Encoding": "gzip",
-          Authorization: authHeader,
+      // Covers what the connect-time lookup cannot see (IP literals, embedded
+      // credentials, non-HTTP schemes). Named hosts are left to connect-time
+      // pinning, which is strictly stronger than a DNS pre-check.
+      validateAnalyticsIntegrationUrl(url);
+
+      // Re-resolve and re-validate the destination IP at socket connect time: a
+      // host that validated as public can rebind to a private/loopback address
+      // before the socket opens (TOCTOU). Redirect targets are re-validated
+      // with the same URL validator.
+      const { response } = await fetchWithSecureRedirects(
+        url,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Encoding": "gzip",
+            Authorization: authHeader,
+          },
+          body: compressedBody as unknown as BodyInit,
+          signal: abortController.signal,
         },
-        body: compressedBody as unknown as BodyInit,
-      });
+        buildAnalyticsRedirectOptions("Mixpanel integration"),
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -118,8 +160,11 @@ export class MixpanelClient {
           `Failed to send events to Mixpanel: ${response.status} ${response.statusText}`,
           { body: errorText },
         );
-        throw new Error(
-          `Mixpanel API error: ${response.status} ${response.statusText}`,
+        throw Object.assign(
+          new Error(
+            `Mixpanel API error: ${response.status} ${response.statusText}`,
+          ),
+          { statusCode: response.status },
         );
       }
 
@@ -129,8 +174,24 @@ export class MixpanelClient {
         result,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        const timeoutError = new Error(
+          `Mixpanel request timed out after ${env.LANGFUSE_MIXPANEL_TIMEOUT_MS}ms`,
+        );
+        logger.error("Error sending batch to Mixpanel", timeoutError);
+        throw timeoutError;
+      }
+      // A connect-time SSRF block is a permanent misconfiguration, not a
+      // transient failure, so skip the remaining BullMQ attempts for this job
+      // rather than re-running the same hopeless send.
+      rethrowIfOutboundValidationFailure(error, {
+        logSubject: "Mixpanel outbound send",
+        jobSubject: "Mixpanel export",
+      });
       logger.error("Error sending batch to Mixpanel", error);
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

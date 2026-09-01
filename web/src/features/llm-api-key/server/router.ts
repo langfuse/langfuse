@@ -25,21 +25,23 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  getEvaluatorBlockMetadata,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
+
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   LLMAdapter,
   logger,
   mapLegacyLLMCompletionParams,
   decryptAndParseExtraHeaders,
-  blockEvaluatorConfigsInTx,
+  blockEvaluatorsUsingDefaultModel,
+  blockEvaluatorsUsingProvider,
+  EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
-  finalizeBlockedEvaluatorConfigBlocks,
+  finalizeEvaluatorBlocks,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -57,7 +59,7 @@ export function getDisplaySecretKey(secretKey: string) {
     : "..." + secretKey.slice(-4);
 }
 
-export function validateBedrockSecretKey(secretKey: string) {
+function validateBedrockSecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return;
   }
@@ -162,6 +164,7 @@ async function testLLMConnection(
         messages: testMessages,
       }),
       maxRetries: 1,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
 
     return { success: true };
@@ -324,63 +327,21 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
         });
 
-        const providerBlockedJobConfigIds = new Set<string>();
-        const defaultModelBlockedJobConfigIds = new Set<string>();
-
-        if (llmApiKey?.provider) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId: input.projectId }, { projectId: null }],
+        const providerBlock = llmApiKey?.provider
+          ? await blockEvaluatorsUsingProvider({
+              tx,
+              projectId: input.projectId,
               provider: llmApiKey.provider,
-            },
-            select: {
-              id: true,
-            },
-          });
+            })
+          : EMPTY_EVALUATOR_BLOCK;
 
-          const providerBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId: input.projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
-              },
-            },
-            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            ).message,
-          });
-
-          for (const configId of providerBlockResult.blockedJobConfigIds) {
-            providerBlockedJobConfigIds.add(configId);
-          }
-        }
-
-        if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
-            tx,
-            projectId: input.projectId,
-          });
-
-          const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId: input.projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplateIds,
-              },
-            },
-            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            ).message,
-          });
-
-          for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
-            defaultModelBlockedJobConfigIds.add(configId);
-          }
-        }
+        const defaultModelBlock =
+          !!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id
+            ? await blockEvaluatorsUsingDefaultModel({
+                tx,
+                projectId: input.projectId,
+              })
+            : EMPTY_EVALUATOR_BLOCK;
 
         await tx.llmApiKeys.delete({
           where: {
@@ -397,22 +358,17 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "delete",
         });
 
-        return {
-          providerBlockedJobConfigIds: Array.from(providerBlockedJobConfigIds),
-          defaultModelBlockedJobConfigIds: Array.from(
-            defaultModelBlockedJobConfigIds,
-          ),
-        };
+        return { providerBlock, defaultModelBlock };
       });
 
-      await finalizeBlockedEvaluatorConfigBlocks({
+      await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        blockedByReason: {
+        evaluatorIdsByReason: {
           [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
-            result.providerBlockedJobConfigIds,
+            result.providerBlock.blockedEvaluatorIds,
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.defaultModelBlockedJobConfigIds,
+            result.defaultModelBlock.blockedEvaluatorIds,
         },
       });
 
@@ -631,6 +587,13 @@ export const llmApiKeyRouter = createTRPCRouter({
             ? input.baseURL !== existingKey.baseURL
             : false;
 
+        if (isBaseURLChanged && !input.secretKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Secret key is required when changing the base URL",
+          });
+        }
+
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({
             baseURL: input.baseURL,
@@ -678,7 +641,9 @@ export const llmApiKeyRouter = createTRPCRouter({
         const decryptedHeaders = existingKey.extraHeaders
           ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
           : null;
-        const existingHeaders: Record<string, string> = decryptedHeaders ?? {};
+        const existingHeaders: Record<string, string> = isBaseURLChanged
+          ? {}
+          : (decryptedHeaders ?? {});
 
         // Ensure we only update the extraHeaders where the value is not null
         let extraHeaders: Record<string, string> | undefined;
@@ -720,10 +685,14 @@ export const llmApiKeyRouter = createTRPCRouter({
             ...(input.secretKey ? { secretKey: encrypt(input.secretKey) } : {}),
             extraHeaders: extraHeaders
               ? encrypt(JSON.stringify(extraHeaders))
-              : undefined,
+              : isBaseURLChanged
+                ? null
+                : undefined,
             extraHeaderKeys: extraHeaders
               ? Object.keys(extraHeaders)
-              : undefined,
+              : isBaseURLChanged
+                ? []
+                : undefined,
             displaySecretKey: input.secretKey
               ? getDisplaySecretKey(input.secretKey)
               : undefined,

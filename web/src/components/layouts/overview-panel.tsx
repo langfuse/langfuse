@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -210,13 +211,4 @@ const OverviewPanelSection = React.forwardRef<
 ));
 OverviewPanelSection.displayName = "OverviewPanelSection";
 
-export {
-  OverviewPanelToggle,
-  OverviewPanelLayout,
-  OverviewPanel,
-  OverviewPanelHeader,
-  OverviewPanelContent,
-  OverviewPanelFooter,
-  OverviewPanelField,
-  OverviewPanelSection,
-};
+export { OverviewPanelToggle, OverviewPanelLayout };

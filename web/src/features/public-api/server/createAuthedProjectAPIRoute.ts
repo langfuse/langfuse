@@ -9,23 +9,28 @@ import {
   type ApiAccessLevel,
   traceException,
   logger,
+  contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
-import { PayloadTooLargeError, type RateLimitResource } from "@langfuse/shared";
+import {
+  PayloadTooLargeError,
+  type RateLimitResource,
+  type ApiDeprecationInfo,
+} from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
-import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
-  createUnstablePublicApiAuthError,
-  createUnstablePublicApiRequestValidationError,
-  sendUnstablePublicApiErrorResponse,
-  unstablePublicEvalsErrorContract,
+  createStructuredPublicApiAuthError,
+  createStructuredPublicApiRequestValidationError,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -81,6 +86,8 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /** Stamps a top-level `_deprecation` object onto responses. */
+  deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -305,6 +312,11 @@ export const createAuthedProjectAPIRoute = <
   routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
+    // Cloud-only: the sunset date binds Cloud, not self-hosted deployments.
+    const deprecation = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? routeConfig.deprecation
+      : undefined;
+
     // Short-circuit routes that read from legacy traces/observations tables
     // when the deployment is in events_only mode — those tables are no longer
     // populated, so the response would be stale or empty. Returning 404 keeps
@@ -313,10 +325,15 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json({
-        message:
-          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-      });
+      res.status(404).json(
+        attachDeprecation(
+          {
+            message:
+              "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+          },
+          deprecation,
+        ),
+      );
       return;
     }
 
@@ -336,10 +353,10 @@ export const createAuthedProjectAPIRoute = <
       if (isPrismaException(error)) {
         traceException(error);
 
-        if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
-          return sendUnstablePublicApiErrorResponse(
+        if (routeConfig.errorContract === structuredPublicApiErrorContract) {
+          return sendStructuredPublicApiErrorResponse(
             res,
-            createUnstablePublicApiAuthError({
+            createStructuredPublicApiAuthError({
               statusCode: 503,
               message: "Service Unavailable",
             }),
@@ -353,10 +370,10 @@ export const createAuthedProjectAPIRoute = <
       const statusCode = error.status ?? 401;
       const message = error.message ?? "Authentication failed";
 
-      if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
-        return sendUnstablePublicApiErrorResponse(
+      if (routeConfig.errorContract === structuredPublicApiErrorContract) {
+        return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiAuthError({ statusCode, message }),
+          createStructuredPublicApiAuthError({ statusCode, message }),
         );
       }
 
@@ -380,10 +397,6 @@ export const createAuthedProjectAPIRoute = <
 
     logger.debug(
       `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
-      {
-        query: req.query,
-        body: req.body,
-      },
     );
 
     let query: z.infer<TQuery>;
@@ -393,12 +406,12 @@ export const createAuthedProjectAPIRoute = <
         : ({} as z.infer<TQuery>);
     } catch (error) {
       if (
-        routeConfig.errorContract === unstablePublicEvalsErrorContract &&
+        routeConfig.errorContract === structuredPublicApiErrorContract &&
         isZodError(error)
       ) {
-        return sendUnstablePublicApiErrorResponse(
+        return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiRequestValidationError({
+          createStructuredPublicApiRequestValidationError({
             error,
             requestPart: "query",
           }),
@@ -415,12 +428,12 @@ export const createAuthedProjectAPIRoute = <
         : ({} as z.infer<TBody>);
     } catch (error) {
       if (
-        routeConfig.errorContract === unstablePublicEvalsErrorContract &&
+        routeConfig.errorContract === structuredPublicApiErrorContract &&
         isZodError(error)
       ) {
-        return sendUnstablePublicApiErrorResponse(
+        return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiRequestValidationError({
+          createStructuredPublicApiRequestValidationError({
             error,
             requestPart: "body",
           }),
@@ -466,7 +479,7 @@ export const createAuthedProjectAPIRoute = <
       );
 
       try {
-        res.json(response || { message: "OK" });
+        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
       } catch (error) {
         if (isJsonStringTooLargeError(error)) {
           throw new PayloadTooLargeError();

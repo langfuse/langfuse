@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
+  resolveWidgetEditorVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -24,7 +25,6 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-
 const dashboardWidgetChartTypeSchema = z.enum(DashboardWidgetChartType);
 const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
@@ -39,7 +39,7 @@ const widgetMetricSchema = MetricSchema.extend({
  */
 export const WIDGET_FILE_FORMAT_VERSION = 1;
 
-export const widgetImportBaseSchema = z
+const widgetImportBaseSchema = z
   .object({
     $langfuseWidget: z.literal(true).optional(),
     version: z.number().int().positive().optional(),
@@ -55,27 +55,25 @@ export const widgetImportBaseSchema = z
   })
   .loose();
 
-export const widgetImportSchema = widgetImportBaseSchema.superRefine(
-  (widget, ctx) => {
-    if (widget.chartConfig.type !== widget.chartType) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["chartConfig", "type"],
-        message: "chartConfig.type must match chartType",
-      });
-    }
-    if (
-      widget.$langfuseWidget === true &&
-      (widget.version ?? 1) > WIDGET_FILE_FORMAT_VERSION
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["version"],
-        message: `Unsupported widget format version ${widget.version}`,
-      });
-    }
-  },
-);
+const widgetImportSchema = widgetImportBaseSchema.superRefine((widget, ctx) => {
+  if (widget.chartConfig.type !== widget.chartType) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["chartConfig", "type"],
+      message: "chartConfig.type must match chartType",
+    });
+  }
+  if (
+    widget.$langfuseWidget === true &&
+    (widget.version ?? 1) > WIDGET_FILE_FORMAT_VERSION
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["version"],
+      message: `Unsupported widget format version ${widget.version}`,
+    });
+  }
+});
 
 export type WidgetImport = z.infer<typeof widgetImportSchema>;
 
@@ -85,7 +83,7 @@ export type WidgetImport = z.infer<typeof widgetImportSchema>;
  * (silently ignore) from "claims to be a widget but is malformed" (surface an
  * error).
  */
-export function isLangfuseWidgetPayload(parsed: unknown): boolean {
+function isLangfuseWidgetPayload(parsed: unknown): boolean {
   return (
     typeof parsed === "object" &&
     parsed !== null &&
@@ -233,7 +231,7 @@ export function downloadWidgetJson(widget: WidgetExportSource) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
-export function buildWidgetJsonFileName(widgetName: string) {
+function buildWidgetJsonFileName(widgetName: string) {
   const fileSafeName = widgetName
     .trim()
     .toLowerCase()
@@ -243,7 +241,7 @@ export function buildWidgetJsonFileName(widgetName: string) {
   return `${fileSafeName || "widget"}.json`;
 }
 
-export function normalizeImportedFilters(params: {
+function normalizeImportedFilters(params: {
   filters: FilterState;
   view: z.infer<typeof views>;
   allowedValuesByColumn: Map<string, Set<string>>;
@@ -307,7 +305,7 @@ export function normalizeImportedFilters(params: {
   return { filters, removedValues, removedFilters };
 }
 
-export function normalizeImportedWidget(params: {
+function normalizeImportedWidget(params: {
   widget: WidgetImport;
   allowedValuesByColumn: Map<string, Set<string>>;
 }): {
@@ -348,7 +346,7 @@ export function parseAndNormalizeImportedWidget(params: {
   return normalized;
 }
 
-export function validateImportedWidget(params: {
+function validateImportedWidget(params: {
   widget: WidgetImport;
   importedViewVersion: ViewVersion;
 }): void {
@@ -391,7 +389,7 @@ export function validateImportedWidget(params: {
   }
 }
 
-export function toImportedWidgetFormSnapshot(
+function toImportedWidgetFormSnapshot(
   widget: WidgetImport,
 ): ImportedWidgetFormSnapshot {
   const importedMetrics =
@@ -448,6 +446,9 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
     return widget;
   }
 
+  // v2 is a deployment/read-path choice for traces, not a v2-only widget
+  // shape. Keep the persisted hint at the actual minimum while allowing v4
+  // imports to validate against the events-backed trace declaration.
   return {
     ...widget,
     minVersion: 1,
@@ -458,7 +459,9 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
  * Full import pipeline for one parsed widget JSON payload: schema parse,
  * filter normalization (value-level pruning only when option sets are
  * provided — clipboard/drop flows skip the option queries and pass none),
- * traces-view version normalization, and view-declaration validation.
+ * traces-view version normalization, and view-declaration validation. The
+ * imported minVersion is a preview hint only; the write API derives the
+ * persisted version from the submitted shape.
  * Throws on any payload that cannot become a valid widget.
  */
 export function parseImportedWidgetJson(params: {
@@ -480,12 +483,18 @@ export function parseImportedWidgetJson(params: {
   });
 
   const normalizedWidget = normalizeImportedWidgetVersion(importedWidget);
-  const importedMinVersion = normalizedWidget.minVersion ?? 1;
-  const importedViewVersion: ViewVersion =
-    (params.isBetaEnabled && normalizedWidget.view !== "traces") ||
-    importedMinVersion >= 2
-      ? "v2"
-      : "v1";
+  const importedViewVersion: ViewVersion = resolveWidgetEditorVersion({
+    shape: {
+      view: normalizedWidget.view,
+      dimensions: normalizedWidget.dimensions,
+      measures: normalizedWidget.metrics.map((metric) => ({
+        measure: metric.measure,
+      })),
+      filters: normalizedWidget.filters,
+    },
+    baseMinVersion: normalizedWidget.minVersion ?? 1,
+    activeVersion: params.isBetaEnabled ? "v2" : "v1",
+  });
 
   validateImportedWidget({
     widget: normalizedWidget,
@@ -582,6 +591,5 @@ export function toWidgetCreateFields(widget: WidgetExportSource) {
     filters: widget.filters,
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
-    minVersion: widget.minVersion,
   };
 }

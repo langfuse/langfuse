@@ -1,6 +1,7 @@
 import {
   BatchExportFileFormat,
   FilterCondition,
+  matchesUiColumnMapping,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
@@ -29,6 +30,7 @@ import {
   eventsTracesScoresAggregation,
   toLevelAgnosticScoreFilter,
   scoreBooleansAggregation,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -53,6 +55,7 @@ type ObservationStreamProps = {
   // BatchExportQuerySchema). When true, read from the ClickHouse events table
   // instead of the legacy observations/traces tables.
   useEventsTable?: boolean;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 export const getObservationStream = async (
@@ -91,8 +94,8 @@ export const getObservationStream = async (
   // Filter out trace-level filters since we don't join the traces table for filtering
   // This prevents batch export failures when trace-level filters are present
   const observationOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = observationsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    const columnDef = observationsTableUiColumnDefinitions.find((col) =>
+      matchesUiColumnMapping(col, f.column),
     );
     // Keep the filter if it's not a trace-level filter
     return columnDef?.clickhouseTableName !== "traces";
@@ -106,6 +109,7 @@ export const getObservationStream = async (
       return filter.column === "Start Time" && filter.type === "datetime";
     },
     clickhouseConfigs,
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   const scoresFilter = new FilterList([
@@ -280,6 +284,7 @@ export const getObservationStream = async (
     },
     clickhouseConfigs,
     tags: { projectId },
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   // Helper function to process a single observation row
@@ -461,8 +466,8 @@ const getObservationStreamFromEvents = async (
   // this export path) and comment filters (comments live in Postgres and are
   // resolved before the stream via applyCommentFilters).
   const exportableFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    const columnDef = eventsTableUiColumnDefinitions.find((col) =>
+      matchesUiColumnMapping(col, f.column),
     );
     if (columnDef?.clickhouseTableName === "comments") return false;
     if (columnDef?.clickhouseTableName === "scores") {
@@ -482,6 +487,8 @@ const getObservationStreamFromEvents = async (
     ): filterItem is TimeFilter =>
       filterItem.column === "Start Time" && filterItem.type === "datetime",
     clickhouseConfigs,
+    // Same service as the values read below: a missing name is silently dropped.
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
@@ -21,7 +22,11 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement> &
   VariantProps<typeof skeletonVariants>) {
   return (
-    <div className={cn(skeletonVariants({ variant }), className)} {...props} />
+    <div
+      data-slot="skeleton"
+      className={cn(skeletonVariants({ variant }), className)}
+      {...props}
+    />
   );
 }
 

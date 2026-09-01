@@ -3,21 +3,13 @@ import { EvalTemplateForm } from "@/src/features/evals/components/template-form"
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   SidePanel,
   SidePanelContent,
@@ -39,7 +31,7 @@ export const EvalTemplateDetail = () => {
   const capture = usePostHogClientCapture();
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   // get the current template by id
@@ -207,11 +199,7 @@ export const EvalTemplateDetail = () => {
                             # {template.version}
                           </Badge>
                           {index === 0 && (
-                            <StatusBadge
-                              type="active"
-                              key="active"
-                              className="break-all sm:break-normal"
-                            />
+                            <StatusBadge type="active" key="active" />
                           )}
                         </div>
                         <span className="text-muted-foreground text-xs">
@@ -230,46 +218,7 @@ export const EvalTemplateDetail = () => {
   );
 };
 
-export function EvalVersionDropdown(props: {
-  disabled: boolean;
-  options?: EvalTemplate[];
-  defaultOption?: EvalTemplate;
-  onSelect?: (template: EvalTemplate) => void;
-}) {
-  const capture = usePostHogClientCapture();
-  const handleSelect = (value: string) => {
-    const selectedTemplate = props.options?.find(
-      (template) => template.id === value,
-    );
-    if (selectedTemplate && props.onSelect) {
-      props.onSelect(selectedTemplate);
-      capture("eval_templates:view_version");
-    }
-  };
-
-  return (
-    <Select
-      disabled={props.disabled}
-      onValueChange={handleSelect}
-      defaultValue={props.defaultOption ? props.defaultOption.id : undefined}
-    >
-      <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Version" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {props.options?.map((template) => (
-            <SelectItem key={template.id} value={template.id}>
-              v{template.version} - {template.createdAt.toLocaleDateString()}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  );
-}
-
-export function UpdateTemplate({
+function UpdateTemplate({
   projectId,
   isEditing,
   setIsEditing,
@@ -282,7 +231,7 @@ export function UpdateTemplate({
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const capture = usePostHogClientCapture();
 

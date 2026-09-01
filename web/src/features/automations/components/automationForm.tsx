@@ -43,7 +43,7 @@ import {
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -68,6 +68,7 @@ const githubDispatchSchema = z.object({
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),
+  originalUrl: z.string().optional(),
 });
 
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
@@ -247,7 +248,7 @@ const EventSourceField = ({
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
-                  Monitor
+                  Alert
                 </SelectItem>
               )}
               <SelectItem disabled={true} value="planned">
@@ -341,14 +342,14 @@ const PromptTriggerFields = ({
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
   <Alert>
     <Info className="h-4 w-4" />
-    <AlertTitle>How Monitors Connect</AlertTitle>
+    <AlertTitle>How Alerts Connect</AlertTitle>
     <AlertDescription>
-      Add this automation to a monitor from the{" "}
+      Add this automation to an alert from the{" "}
       <Link
-        href={`/project/${projectId}/monitors/new`}
+        href={`/project/${projectId}/alerts/new`}
         className="text-primary underline underline-offset-2"
       >
-        create monitors page
+        create alerts page
       </Link>
       .
     </AlertDescription>
@@ -464,19 +465,13 @@ export const AutomationForm = ({
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const webhookDefaults = handler.getDefaultValues(
-        automation,
-        resolvedEventSource,
-      );
+      const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
-          apiVersion: webhookDefaults.webhook.apiVersion || {
-            prompt: "v1" as const,
-          },
         },
       };
     } else if (actionType === "SLACK") {
@@ -505,6 +500,7 @@ export const AutomationForm = ({
           githubToken: githubDefaults.githubDispatch.githubToken || "",
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
+          originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
       };
     }
@@ -539,7 +535,10 @@ export const AutomationForm = ({
       return;
     }
 
-    const actionConfig = handler.buildActionConfig(data);
+    const actionConfig = handler.buildActionConfig(
+      data,
+      data.eventSource as TriggerEventSource,
+    );
 
     // Project-notification names are auto-generated from the destination (the
     // name field is hidden for this source; regenerated on every save so the
@@ -605,10 +604,7 @@ export const AutomationForm = ({
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const defaultValues = handler.getDefaultValues(
-        undefined,
-        form.getValues("eventSource") as TriggerEventSource,
-      );
+      const defaultValues = handler.getDefaultValues();
       form.setValue("webhook", defaultValues.webhook);
     } else if (value === "SLACK") {
       const handler = ActionHandlerRegistry.getHandler("SLACK");
@@ -650,6 +646,13 @@ export const AutomationForm = ({
   // (no trigger card), auto-generated name, no status toggle.
   const isProjectNotification =
     watchedEventSource === TriggerEventSource.ProjectNotification;
+
+  // A monitor-sourced trigger has nothing to configure, so with the source
+  // locked (e.g. created from the monitor form) the card is pure noise.
+  const hideTriggerCard =
+    isProjectNotification ||
+    (Boolean(lockedEventSource) &&
+      watchedEventSource === TriggerEventSource.Monitor);
 
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
@@ -710,8 +713,7 @@ export const AutomationForm = ({
           </div>
         )}
 
-        {/* Project-notification triggers are match-all, so there is nothing to configure. */}
-        {!isProjectNotification && (
+        {!hideTriggerCard && (
           <Card>
             <CardHeader>
               <CardTitle>Trigger</CardTitle>
@@ -811,15 +813,25 @@ export const AutomationForm = ({
               automation?.trigger.id &&
               automation?.action.id && (
                 <div>
-                  <DeleteAutomationButton
+                  <DeleteAutomationDialogController
                     projectId={projectId}
                     automationId={automation.id}
-                    variant="button"
                     onSuccess={() => {
-                      utils.automations.invalidate();
                       router.push(`/project/${projectId}/settings/automations`);
                     }}
-                  />
+                  >
+                    {({ disabled, openDialog }) => (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-light-red flex items-center"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        <span className="text-dark-red">Delete</span>
+                      </Button>
+                    )}
+                  </DeleteAutomationDialogController>
                 </div>
               )}
             <div className="grow"></div>

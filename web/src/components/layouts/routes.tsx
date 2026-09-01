@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
   Database,
@@ -26,10 +26,11 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
+import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
@@ -55,6 +56,7 @@ export type Route = {
   organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon; // ignored for nested routes
   pathname: string; // link
+  legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
   newTab?: boolean; // open in new tab
@@ -67,6 +69,7 @@ export type Route = {
     projectId: string | undefined;
     isLangfuseCloud: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
+    v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -130,10 +133,10 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Monitors",
-    pathname: "/project/[projectId]/monitors",
+    title: "Alerts",
+    pathname: "/project/[projectId]/alerts",
     icon: BellRing,
-    projectRbacScopes: ["monitors:read"],
+    projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -166,10 +169,11 @@ export const ROUTES: Route[] = [
     title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
-    projectRbacScopes: ["evalJob:read"],
+    projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
+    legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
     title: "Human Annotation",
@@ -197,22 +201,14 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
+    // Keep Action required first in the secondary nav so it is not sandwiched
+    // between regular items like Upgrade Plan and Settings.
+    title: "Update",
+    pathname: "",
     section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ projectId, v4UpgradeUiAvailable }) =>
+      v4UpgradeUiAvailable && projectId !== undefined,
+    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "Cloud Status",
@@ -221,11 +217,29 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Preview (fast)",
+    title: "V4 Preview",
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
     menuNode: <V4SidebarToggle />,
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/project/[projectId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/organization/[organizationId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Settings",
@@ -270,10 +284,9 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <KeyboardShortcut
-        className="ml-auto"
-        keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "K"]}
-      />
+      <span className="ml-auto hidden md:inline-flex">
+        <KeyboardShortcut keys={["Mod", "K"]} />
+      </span>
     </SidebarMenuButton>
   );
 }

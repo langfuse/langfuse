@@ -1,16 +1,8 @@
 ---
 name: sentry-instrumentation
 description: |
-  Capture errors in Langfuse with Sentry deliberately, and decide whether a new
-  error path should report at all. Use when (1) adding or touching any
-  `captureException`, `console.error`, error boundary, `catch` block, Worker
-  `onerror`, or tRPC/REST error handler in `web/**` — pause and decide capture
-  before finishing; (2) adding or reviewing a Sentry `beforeSend` filter,
-  denylist rule, `ignoreErrors`, `denyUrls`, or any noise-suppression change
-  (MANDATORY here — the review question is "does this rule hide a real
-  error?"); (3) asked to reduce Sentry noise, triage a Sentry issue, or answer
-  "why is X / isn't X in Sentry"; (4) rendering user-supplied content (URLs,
-  hrefs) through a framework primitive that may reject it and log an error.
+  Decide whether and how errors report to Sentry. Use when touching capture or
+  error-handling paths in `web/**`, triaging Sentry noise, or changing Sentry settings.
 ---
 
 # Sentry Instrumentation
@@ -28,11 +20,11 @@ should reach Sentry — do not `captureException` (or `console.error`) reflexive
 Run the decision tree, then say in one line what you chose and why (in the plan
 or PR description). The three outcomes:
 
-| The failure is… | Do | Never |
-|---|---|---|
-| an **expected user-facing state** — a missing/forbidden resource, expired session, invalid user input, a malformed URL in user content | render the UX (error page / toast / plain text) | capture — it is the product working as designed |
-| a **transport / offline / infra** failure — fetch failed, a 5xx on a poll, an LB blip | let the UI degrade; the server owns this signal | capture client-side — it is an amplified, lower-fidelity copy of a server truth |
-| **our code failed** — an invariant broke, a parse threw, a worker failed to load | `captureException` a **real `Error`** with an `area` tag via the shared helpers | pass a raw string/object/`Event` |
+| The failure is…                                                                                                                        | Do                                                                              | Never                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| an **expected user-facing state** — a missing/forbidden resource, expired session, invalid user input, a malformed URL in user content | render the UX (error page / toast / plain text)                                 | capture — it is the product working as designed                                 |
+| a **transport / offline / infra** failure — fetch failed, a 5xx on a poll, an LB blip                                                  | let the UI degrade; the server owns this signal                                 | capture client-side — it is an amplified, lower-fidelity copy of a server truth |
+| **our code failed** — an invariant broke, a parse threw, a worker failed to load                                                       | `captureException` a **real `Error`** with an `area` tag via the shared helpers | pass a raw string/object/`Event`                                                |
 
 **`console.error` is a capture API here.** `instrumentation-client.ts` enables
 `captureConsoleIntegration({ levels: ["error"] })`, so **every `console.error`
@@ -49,9 +41,12 @@ properly (below).
     — turns any caught value into a legible `Error` (real `Error`s pass through
     with their stack; everything else is synthesized), tags `area`, and logs via
     `console.warn` so the console integration does not double-capture.
-  - [`reportParserWorkerError(hook, event)`](../../../web/src/hooks/parserWorkerError.ts)
-    — extracts the real fields from a Worker `ErrorEvent` (message/filename/lineno)
-    instead of stringifying it to `[object ErrorEvent]`.
+  - [`reportWorkerLoadError({area, source, event, extra?})`](../../../web/src/utils/reportWorkerLoadError.ts)
+    — extracts the real fields from a Worker `ErrorEvent`
+    (message/filename/lineno/colno) instead of stringifying it to
+    `[object ErrorEvent]`. Every worker's `onerror` reports through this one;
+    [`reportParserWorkerError(hook, event)`](../../../web/src/hooks/parserWorkerError.ts)
+    is the JSON-parser worker's thin wrapper over it.
 - **Filter predicates belong in
   [`web/src/utils/sentryFilters.ts`](../../../web/src/utils/sentryFilters.ts)**
   (documented, unit-tested), called from `beforeSend` in
@@ -67,7 +62,7 @@ properly (below).
   chokepoint every query/mutation error flows through — the place to drop
   expected codes and tag the rest (the seam-classification lever, PR #15243).
 - **Tag `area`, keep the message static.** `captureException(err, { tags: { area },
-  extra })`. Fingerprints group on the message, so put variable IDs in `extra`,
+extra })`. Fingerprints group on the message, so put variable IDs in `extra`,
   never in the message string.
 
 ## The rules (each earned the hard way — cited to workstream PRs)
@@ -85,7 +80,7 @@ properly (below).
 
 2. **Capture a REAL `Error`, never a string / object / `SyntheticEvent` /
    `ErrorEvent`.** Those collapse to opaque `[object Object]` / `[object
-   ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
+ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
    captures, PR #15175) and the parse-worker `[object ErrorEvent]` family (PR
    #15173) were exactly this. Route unknowns through `captureUnknownError` /
    `reportParserWorkerError`.
@@ -122,19 +117,32 @@ properly (below).
    that only reads the exception value silently never fires on them (the reason
    the original invalid-href filter never worked).
 
-7. **PII — never put user content in a message, `extra`, or tag.** No prompt
-   text, trace content, tokens, share-link secrets, user/session ids. Respect
-   the replay masking already configured for HIPAA/regions in
-   `instrumentation-client.ts`. A message that interpolates user data both leaks
-   and shatters grouping (Rule 5).
+7. **PII / HIPAA — never put user content in a message, `extra`, breadcrumb,
+   or tag.** No prompt text, trace content, tokens, share-link secrets,
+   user/session ids. This is not hygiene — it is the compliance boundary: ALL
+   cloud regions, **including HIPAA**, report to the **same US Sentry org**,
+   and error events are **never masked**, so this discipline is the only thing
+   keeping user content out of them. Session Replay is the masked channel:
+   [`instrumentation-client.ts`](../../../web/instrumentation-client.ts) sets
+   `maskAllText`, `maskAllInputs`, and `blockAllMedia` so every replay is fully
+   masked in every deployment. **Never remove or weaken that mask** — the
+   `replayIntegration` options must be covered by a CI regression test
+   asserting every region against the real module (the mask-guard
+   `instrumentation-client-replay-mask.clienttest.ts`; landing with #15802).
+   Reject any diff that touches Replay masking without that guard passing, and run
+   every diff touching `instrumentation-client.ts` or replay config through
+   the reviewer checklist in the
+   [reference](references/sentry-capture-contract.md#pii-and-the-hipaa-compliance-boundary).
+   A message that interpolates user data both leaks and shatters grouping
+   (Rule 5).
 
 8. **VERIFY in the environment that actually fires the error.** Router/console
    validations run only in the **real client runtime, not jsdom** — a green unit
    test does NOT prove the console error is gone. Reproduce it in a browser
    against the running app (Playwright), do an A/B, and confirm the event
    disappears. ⚠ PR #15245 was verified this way — its native `<a>` fired 0
-   where the prior `<Link>` fired the error ×12. Unit tests lock the *contract*; the
-   browser proves the *noise removal*.
+   where the prior `<Link>` fired the error ×12. Unit tests lock the _contract_; the
+   browser proves the _noise removal_.
 
 ## Workflow
 
@@ -162,6 +170,8 @@ properly (below).
   that reads the wrong event field (Rule 6).
 - Interpolating ids/user data into the message → PII + grouping explosion
   (Rules 5, 7).
+- Removing/weakening the unconditional replay mask, or "fixing" the mask-guard
+  test instead of the diff that tripped it (Rule 7).
 - Trusting a green jsdom test as proof the noise is gone (Rule 8).
 - An ad-hoc inline `beforeSend` check instead of a named, tested predicate in
   `sentryFilters.ts`.
@@ -169,8 +179,10 @@ properly (below).
 ## References
 
 - [references/sentry-capture-contract.md](references/sentry-capture-contract.md)
-  — the capture contract in depth: the shared-helper APIs, the beforeSend /
+  — the capture contract in depth: the shared-helper APIs, the PII/HIPAA
+  compliance boundary (replay mask + reviewer checklist), the beforeSend /
   denylist authoring protocol (field-reading, negative fixtures), fingerprinting
   and `area` tagging, the known noise families, and the shipped-PR case studies
   (#15145 / #15173 / #15174 / #15175 / #15238 / #15243 / #15245). Read when
-  authoring a suppression rule, hardening a capture path, or triaging a family.
+  authoring a suppression rule, hardening a capture path, touching replay/region
+  config, or triaging a family.

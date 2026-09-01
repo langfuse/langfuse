@@ -1,7 +1,10 @@
+const mockFinalizeEvaluatorBlocks = vi.hoisted(() => vi.fn());
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    finalizeEvaluatorBlocks: mockFinalizeEvaluatorBlocks,
     generateLLMText: vi.fn(),
   };
 });
@@ -9,13 +12,19 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
+import { randomUUID } from "crypto";
+import {
+  EvalTemplateType,
+  EvaluatorBlockReason,
+  prisma,
+} from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
 import {
   createOrgProjectAndApiKey,
+  EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
 
@@ -62,6 +71,7 @@ describe("llmApiKey.all RPC", () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
     orgId = setup.orgId;
+    mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
     session = {
@@ -511,6 +521,9 @@ describe("llmApiKey.all RPC", () => {
 
     expect(result).toEqual({ success: true });
     expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
+    expect(mockGenerateLLMText).toHaveBeenCalledWith(
+      expect.objectContaining({ timeout: 95_000 }),
+    );
   });
 
   it("should allow testUpdate without a new secret key when the base URL is unchanged", async () => {
@@ -595,6 +608,143 @@ describe("llmApiKey.all RPC", () => {
     expect(connection.baseURL).toBe("https://example.net/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-rotated");
     expect(connection.extraHeaders).toBeUndefined();
+  });
+
+  it("should reject updating the base URL without a new secret key", async () => {
+    const existingExtraHeaders = {
+      Authorization: "Bearer stored-token",
+    };
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: existingExtraHeaders,
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        baseURL: "https://example.net/v1",
+      }),
+    ).rejects.toThrow("Secret key is required when changing the base URL");
+
+    const unchangedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: {
+        id: existingKey.id,
+        projectId,
+      },
+    });
+
+    expect(unchangedKey.baseURL).toBe("https://api.openai.com/v1");
+    expect(decrypt(unchangedKey.secretKey)).toBe("sk-original");
+    expect(JSON.parse(decrypt(unchangedKey.extraHeaders as string))).toEqual(
+      existingExtraHeaders,
+    );
+  });
+
+  it("should not reuse stored extra headers when updating the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: {
+        Authorization: "Bearer stored-token",
+        "X-Custom-Header": "stored-value",
+      },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: {
+        Authorization: "",
+        "X-Custom-Header": "",
+      },
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: {
+        id: existingKey.id,
+        projectId,
+      },
+    });
+
+    expect(updatedKey.baseURL).toBe("https://example.net/v1");
+    expect(decrypt(updatedKey.secretKey)).toBe("sk-rotated");
+    expect(updatedKey.extraHeaders).toBeNull();
+    expect(updatedKey.extraHeaderKeys).toEqual([]);
+  });
+
+  it("should allow new extra headers when updating the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: {
+        Authorization: "Bearer stored-token",
+        "X-Old-Header": "stored-value",
+      },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: {
+        Authorization: "Bearer rotated-token",
+        "X-Old-Header": "",
+      },
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: {
+        id: existingKey.id,
+        projectId,
+      },
+    });
+
+    expect(JSON.parse(decrypt(updatedKey.extraHeaders as string))).toEqual({
+      Authorization: "Bearer rotated-token",
+    });
+    expect(updatedKey.extraHeaderKeys).toEqual(["Authorization"]);
   });
 
   it("should create and update an llm api key", async () => {
@@ -1250,5 +1400,111 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("Authorization");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-Another-Header");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
+  });
+
+  describe("deleting a connection pauses the evaluators that ran on it", () => {
+    const PROVIDER = "openai";
+
+    /** Versions are given oldest-first; the last one is the evaluator's head. */
+    const createV2Evaluator = async (
+      versions: Array<{ provider: string | null; model: string | null }>,
+    ) => {
+      const evaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: `evaluator-${randomUUID()}`,
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          versions: {
+            create: versions.map((version, index) => ({
+              version: index + 1,
+              prompt: "Evaluate {{output}}",
+              vars: ["output"],
+              ...version,
+            })),
+          },
+        },
+      });
+      return evaluator.id;
+    };
+
+    it("blocks evaluators by their current model and leaves the rest running", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+
+      const [
+        v2OnProvider,
+        v2OnDefaultModel,
+        v2MovedOffProvider,
+        v2OnOtherProvider,
+      ] = await Promise.all([
+        createV2Evaluator([{ provider: PROVIDER, model: "gpt-4o" }]),
+        createV2Evaluator([{ provider: null, model: null }]),
+        // Upgraded off the deleted provider: only the head version counts.
+        createV2Evaluator([
+          { provider: PROVIDER, model: "gpt-4o" },
+          { provider: "anthropic", model: "claude" },
+        ]),
+        createV2Evaluator([{ provider: "anthropic", model: "claude" }]),
+      ]);
+
+      // Point the project's default eval model at the connection too, so both
+      // block reasons fire from one deletion.
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: connection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledOnce();
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledWith({
+        projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]: [v2OnProvider],
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: [v2OnDefaultModel],
+        },
+      });
+
+      const evaluators = await prisma.evaluator.findMany({
+        where: { projectId },
+      });
+      const blockStateById = new Map(
+        evaluators.map((row) => [
+          row.id,
+          { blocked: row.blockedAt !== null, reason: row.blockReason },
+        ]),
+      );
+
+      expect(blockStateById.get(v2OnProvider)).toEqual({
+        blocked: true,
+        reason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+      });
+      expect(blockStateById.get(v2OnDefaultModel)).toEqual({
+        blocked: true,
+        reason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      });
+
+      for (const untouched of [v2MovedOffProvider, v2OnOtherProvider]) {
+        expect(blockStateById.get(untouched)).toEqual({
+          blocked: false,
+          reason: null,
+        });
+      }
+    });
   });
 });

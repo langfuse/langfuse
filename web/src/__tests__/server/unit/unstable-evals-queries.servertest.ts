@@ -2,223 +2,129 @@ import type * as PrismaClientModule from "@prisma/client";
 import type { Mock } from "vitest";
 
 vi.mock("@langfuse/shared/src/db", async () => {
-  const { EvalTemplateType } =
+  const { EvalTemplateType, JobConfigState } =
     await vi.importActual<typeof PrismaClientModule>("@prisma/client");
-
   return {
     EvalTemplateType,
-    Prisma: {
-      sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
-        strings,
-        values,
-      }),
-    },
+    JobConfigState,
     prisma: {
-      $queryRaw: vi.fn(),
-      evalTemplate: {
-        findMany: vi.fn(),
-        findFirst: vi.fn(),
-      },
-      jobConfiguration: {
+      evaluationRule: {
         count: vi.fn(),
-        groupBy: vi.fn(),
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
       },
+      evaluator: { findFirst: vi.fn() },
     },
   };
 });
 
-import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
+import { countActiveEvaluationRules } from "@/src/features/evals/v2/server/rules/ruleErrors";
 import {
-  countActiveEvaluationRules,
-  countEvaluationRulesForEvaluatorIds,
-  loadEvaluatorForEvaluationRule,
-  listPublicEvaluatorTemplates,
+  findPublicV2EvaluatorById,
+  findPublicV2EvaluatorInFamily,
+  findPublicV2EvaluationRule,
+  listPublicEvaluationRulePage,
 } from "@/src/features/evals/server/unstable-public-api/queries";
 
-const mockQueryRaw = prisma.$queryRaw as Mock;
-const mockEvalTemplateFindMany = prisma.evalTemplate.findMany as Mock;
-const mockEvalTemplateFindFirst = prisma.evalTemplate.findFirst as Mock;
-const mockJobConfigurationCount = prisma.jobConfiguration.count as Mock;
-const mockJobConfigurationGroupBy = prisma.jobConfiguration.groupBy as Mock;
-
 describe("unstable public eval queries", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("paginates latest evaluator versions per family before loading exact templates", async () => {
-    mockQueryRaw
-      .mockResolvedValueOnce([
-        { id: "tmpl_project_v2" },
-        { id: "tmpl_managed_v7" },
-      ])
-      .mockResolvedValueOnce([{ count: 3n }]);
-    mockEvalTemplateFindMany.mockResolvedValueOnce([
-      {
-        id: "tmpl_managed_v7",
-        projectId: null,
-        name: "Answer correctness",
-        version: 7,
-      },
-      {
-        id: "tmpl_project_v2",
-        projectId: "project_123",
-        name: "Answer correctness",
-        version: 2,
-      },
+  it("lists rules exclusively from evaluation_rules", async () => {
+    (prisma.evaluationRule.findMany as Mock).mockResolvedValue([
+      { id: "rule" },
     ]);
+    (prisma.evaluationRule.count as Mock).mockResolvedValue(1);
 
-    const result = await listPublicEvaluatorTemplates({
-      projectId: "project_123",
-      page: 2,
-      limit: 2,
-    });
+    await expect(
+      listPublicEvaluationRulePage({
+        projectId: "project",
+        page: 1,
+        limit: 20,
+      }),
+    ).resolves.toEqual({ records: [{ id: "rule" }], totalItems: 1 });
 
-    expect(mockQueryRaw).toHaveBeenCalledTimes(2);
-    expect(mockEvalTemplateFindMany).toHaveBeenCalledWith({
-      where: {
-        id: {
-          in: ["tmpl_project_v2", "tmpl_managed_v7"],
-        },
-      },
-    });
-    expect(result.totalItems).toBe(3);
-    expect(result.templates.map((template) => template.id)).toEqual([
-      "tmpl_project_v2",
-      "tmpl_managed_v7",
-    ]);
-  });
-
-  it("skips the groupBy lookup when no evaluator ids are requested", async () => {
-    const result = await countEvaluationRulesForEvaluatorIds({
-      projectId: "project_123",
-      evaluatorIds: [],
-    });
-
-    expect(result).toEqual({});
-    expect(mockJobConfigurationGroupBy).not.toHaveBeenCalled();
-  });
-
-  it("counts evaluation rules by exact evaluator template id", async () => {
-    mockJobConfigurationGroupBy.mockResolvedValueOnce([
-      {
-        evalTemplateId: "tmpl_project_v2",
-        _count: { _all: 2 },
-      },
-      {
-        evalTemplateId: "tmpl_managed_v7",
-        _count: { _all: 1 },
-      },
-    ]);
-
-    const result = await countEvaluationRulesForEvaluatorIds({
-      projectId: "project_123",
-      evaluatorIds: ["tmpl_project_v2", "tmpl_managed_v7"],
-    });
-
-    expect(mockJobConfigurationGroupBy).toHaveBeenCalledWith({
-      by: ["evalTemplateId"],
-      where: {
-        projectId: "project_123",
-        targetObject: {
-          in: ["event", "experiment"],
-        },
-        evalTemplateId: {
-          in: ["tmpl_project_v2", "tmpl_managed_v7"],
-        },
-      },
-      _count: {
-        _all: true,
-      },
-    });
-    expect(result).toEqual({
-      tmpl_project_v2: 2,
-      tmpl_managed_v7: 1,
-    });
-  });
-
-  it("counts all active evaluation rules in the project", async () => {
-    mockJobConfigurationCount.mockResolvedValueOnce(17);
-
-    const result = await countActiveEvaluationRules({
-      projectId: "project_123",
-    });
-
-    expect(mockJobConfigurationCount).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        jobType: "EVAL",
-        targetObject: {
-          in: ["event", "experiment"],
-        },
-        status: "ACTIVE",
-        blockedAt: null,
-        evalTemplate: {
-          is: {
-            OR: [{ projectId: "project_123" }, { projectId: null }],
+    expect(prisma.evaluationRule.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          projectId: "project",
+          targetObject: {
+            in: ["event", "experiment", "trace", "dataset"],
           },
+        }),
+      }),
+    );
+  });
+
+  it("counts active rules exclusively from evaluation_rules", async () => {
+    (prisma.evaluationRule.count as Mock).mockResolvedValue(4);
+
+    await expect(
+      countActiveEvaluationRules({ prisma, projectId: "project" }),
+    ).resolves.toBe(4);
+    expect(prisma.evaluationRule.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        targetObject: { in: ["event", "experiment"] },
+      }),
+    });
+  });
+
+  it("loads rules and assignments within the project", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue({ id: "rule" });
+
+    await expect(
+      findPublicV2EvaluationRule({
+        projectId: "project",
+        evaluationRuleId: "rule",
+      }),
+    ).resolves.toEqual({ id: "rule" });
+    expect(prisma.evaluationRule.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "rule", projectId: "project" } }),
+    );
+  });
+
+  it("resolves project evaluators from the evaluators table", async () => {
+    (prisma.evaluator.findFirst as Mock).mockResolvedValue({
+      id: "evaluator",
+      versions: [{ version: 2 }],
+    });
+
+    await expect(
+      findPublicV2EvaluatorInFamily({
+        projectId: "project",
+        evaluator: {
+          name: "Quality",
+          type: "llm_as_judge",
         },
-      },
-    });
-    expect(result).toBe(17);
+      }),
+    ).resolves.toMatchObject({ id: "evaluator" });
+    await expect(
+      findPublicV2EvaluatorById({
+        projectId: "project",
+        evaluatorId: "evaluator",
+      }),
+    ).resolves.toMatchObject({ id: "evaluator" });
   });
 
-  it("resolves project evaluator families to the latest version by name and scope", async () => {
-    mockEvalTemplateFindFirst.mockResolvedValueOnce({
-      id: "tmpl_project_v3",
-      projectId: "project_123",
-      name: "Answer correctness",
-      version: 3,
-    });
+  it("resolves a family within the project by name and type", async () => {
+    (prisma.evaluator.findFirst as Mock).mockResolvedValue(null);
 
-    const result = await loadEvaluatorForEvaluationRule({
-      projectId: "project_123",
-      evaluator: {
-        name: "Answer correctness",
-        scope: "project",
-        type: "llm_as_judge",
-      },
-    });
-    expect(mockEvalTemplateFindFirst).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        name: "Answer correctness",
-        type: EvalTemplateType.LLM_AS_JUDGE,
-      },
-      orderBy: {
-        version: "desc",
-      },
-    });
-    expect(result.template.id).toBe("tmpl_project_v3");
-  });
-
-  it("resolves managed evaluator families by name and scope", async () => {
-    mockEvalTemplateFindFirst.mockResolvedValueOnce({
-      id: "tmpl_managed_v7",
-      projectId: null,
-      name: "Answer correctness",
-      version: 7,
-    });
-
-    const result = await loadEvaluatorForEvaluationRule({
-      projectId: "project_123",
-      evaluator: {
-        name: "Answer correctness",
-        scope: "managed",
-        type: "llm_as_judge",
-      },
-    });
-
-    expect(mockEvalTemplateFindFirst).toHaveBeenCalledWith({
-      where: {
-        projectId: null,
-        name: "Answer correctness",
-        type: EvalTemplateType.LLM_AS_JUDGE,
-      },
-      orderBy: {
-        version: "desc",
-      },
-    });
-    expect(result.template.id).toBe("tmpl_managed_v7");
+    await expect(
+      findPublicV2EvaluatorInFamily({
+        projectId: "project",
+        evaluator: {
+          name: "Missing",
+          type: "llm_as_judge",
+        },
+      }),
+    ).resolves.toBeNull();
+    expect(prisma.evaluator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          projectId: "project",
+          name: "Missing",
+        }),
+      }),
+    );
   });
 });

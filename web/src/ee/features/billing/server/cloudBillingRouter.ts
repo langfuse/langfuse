@@ -10,8 +10,27 @@ import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
-import { createBillingServiceFromContext } from "./stripeBillingService";
+import { type BillingProvider } from "@langfuse/shared";
+import { resolveBillingService } from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBilling";
+
+const PROVIDER_LABEL: Record<BillingProvider, string> = {
+  stripe: "Stripe",
+  clickhouse: "ClickHouse Billing",
+};
+
+/**
+ * Names the provider that actually failed. Both procedures below can dispatch
+ * to either provider, so a hardcoded "Stripe error:" would point on-call at
+ * the wrong system for a CHB REST failure.
+ */
+const billingErrorMessage = (
+  billingProvider: BillingProvider,
+  error: unknown,
+) => {
+  const label = PROVIDER_LABEL[billingProvider];
+  return `${label} error: ${error instanceof Error ? error.message : `Unknown ${label} error`}`;
+};
 
 export const cloudBillingRouter = createTRPCRouter({
   getSubscriptionInfo: protectedOrganizationProcedure
@@ -44,13 +63,16 @@ export const cloudBillingRouter = createTRPCRouter({
           scheduledChange: null,
           billingPeriod: null,
           hasValidPaymentMethod: false,
+          billingProvider: "stripe" as const,
         };
       }
 
-      const res = await createBillingServiceFromContext(
+      const { billingProvider, service } = await resolveBillingService(
         ctx,
-      ).getSubscriptionInfo(input.orgId);
-      return res;
+        input.orgId,
+      );
+      const res = await service.getSubscriptionInfo(input.orgId);
+      return { ...res, billingProvider };
     }),
   createStripeCheckoutSession: protectedOrganizationProcedure
     .input(
@@ -80,10 +102,16 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
-      const url = await stripeBillingService.createCheckoutSession(
+      const { service } = await resolveBillingService(ctx, input.orgId);
+
+      // opId is forwarded: the CHB path keys its checkout request on it, so
+      // dropping it would send a concurrent retry to CHB with no idempotency
+      // key and orphan a CH organization. Stripe stays byte-identical because
+      // its createCheckoutSession ignores the argument.
+      const url = await service.createCheckoutSession(
         input.orgId,
         input.stripeProductId,
+        input.opId,
       );
 
       auditLog({
@@ -124,9 +152,11 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.changePlan(input.orgId, input.stripeProductId);
+      // opId is intentionally not forwarded: the Stripe path never received
+      // it here, and §4.2 keeps Stripe behavior byte-identical.
+      await service.changePlan(input.orgId, input.stripeProductId);
     }),
   cancelStripeSubscription: protectedOrganizationProcedure
     .input(
@@ -155,9 +185,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.cancel(input.orgId, input.opId);
+      await service.cancel(input.orgId, input.opId);
 
       return { ok: true } as const;
     }),
@@ -188,9 +218,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.reactivate(input.orgId, input.opId);
+      await service.reactivate(input.orgId, input.opId);
 
       return { ok: true } as const;
     }),
@@ -216,12 +246,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.clearPlanSwitchSchedule(
-        input.orgId,
-        input.opId,
-      );
+      await service.clearPlanSwitchSchedule(input.orgId, input.opId);
 
       return { ok: true } as const;
     }),
@@ -252,13 +279,18 @@ export const cloudBillingRouter = createTRPCRouter({
         return null;
       }
 
+      // Resolved outside the try so the catch can label the failure with the
+      // provider that actually failed. `ChbApiError` extends `Error`, not
+      // `TRPCError`, so a CHB REST failure reaches the wrapper below.
+      let billingProvider: BillingProvider = "stripe";
       try {
-        return await createBillingServiceFromContext(ctx).getCustomerPortalUrl(
-          input.orgId,
-        );
+        const resolved = await resolveBillingService(ctx, input.orgId);
+        billingProvider = resolved.billingProvider;
+        return await resolved.service.getCustomerPortalUrl(input.orgId);
       } catch (error) {
         logger.error("cloudBilling.getStripeCustomerPortalUrl:error", {
           orgId: input.orgId,
+          billingProvider,
           error,
         });
         if (error instanceof TRPCError) {
@@ -266,7 +298,7 @@ export const cloudBillingRouter = createTRPCRouter({
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Stripe error: ${error instanceof Error ? error.message : "Unknown Stripe error"}`,
+          message: billingErrorMessage(billingProvider, error),
           cause: error as Error,
         });
       }
@@ -300,18 +332,19 @@ export const cloudBillingRouter = createTRPCRouter({
         return { invoices: [], hasMore: false, cursors: {} };
       }
 
+      let billingProvider: BillingProvider = "stripe";
       try {
-        return await createBillingServiceFromContext(ctx).getInvoices(
-          input.orgId,
-          {
-            limit: input.limit,
-            startingAfter: input.startingAfter,
-            endingBefore: input.endingBefore,
-          },
-        );
+        const resolved = await resolveBillingService(ctx, input.orgId);
+        billingProvider = resolved.billingProvider;
+        return await resolved.service.getInvoices(input.orgId, {
+          limit: input.limit,
+          startingAfter: input.startingAfter,
+          endingBefore: input.endingBefore,
+        });
       } catch (error) {
         logger.error("cloudBilling.getInvoices:error", {
           orgId: input.orgId,
+          billingProvider,
           error,
         });
         if (error instanceof TRPCError) {
@@ -319,7 +352,7 @@ export const cloudBillingRouter = createTRPCRouter({
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Stripe error: ${error instanceof Error ? error.message : "Unknown Stripe error"}`,
+          message: billingErrorMessage(billingProvider, error),
           cause: error as Error,
         });
       }
@@ -352,9 +385,9 @@ export const cloudBillingRouter = createTRPCRouter({
         return null;
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      return await stripeBillingService.getUsage(input.orgId);
+      return await service.getUsage(input.orgId);
     }),
   applyPromotionCode: protectedOrganizationProcedure
     .input(
@@ -384,9 +417,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      const result = await stripeBillingService.applyPromotionCode(
+      const result = await service.applyPromotionCode(
         input.orgId,
         input.code,
         input.opId,

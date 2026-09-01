@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import {
   InvalidRequestError,
+  LangfuseConflictError,
   parsePromptDependencyTags,
   jsonSchema,
   type PromptDependency,
@@ -10,7 +11,7 @@ import {
   PromptType,
   extractVariables,
 } from "@langfuse/shared";
-import { type PrismaClient } from "@langfuse/shared/src/db";
+import { type PrismaClient, Prisma } from "@langfuse/shared/src/db";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
 import {
@@ -18,6 +19,7 @@ import {
   PromptService,
   escapeSqlLikePattern,
   redis,
+  logger,
   extractPlaceholderNames,
   type PromptResult,
 } from "@langfuse/shared/src/server";
@@ -48,6 +50,22 @@ type DuplicateFolderParams = {
   createdBy: string;
   prisma: PrismaClient;
   user?: { id: string; name: string | null; email: string | null };
+};
+
+const isPromptVersionConflict = (error: unknown): boolean => {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+
+  const target = error.meta?.target;
+
+  return (
+    Array.isArray(target) &&
+    ["project_id", "name", "version"].every((column) => target.includes(column))
+  );
 };
 
 const extractChatVariableAndPlaceholderNames = (
@@ -201,35 +219,72 @@ export const createPrompt = async ({
   }
 
   // Create prompt and update previous prompt versions
-  const [createdPrompt] = (await prisma.$transaction(create)) as [
-    Prompt,
-    ...PromptDependency[],
-  ];
+  let transactionResult: [Prompt, ...PromptDependency[]];
+  try {
+    transactionResult = (await prisma.$transaction(create)) as [
+      Prompt,
+      ...PromptDependency[],
+    ];
+  } catch (error) {
+    if (isPromptVersionConflict(error)) {
+      throw new LangfuseConflictError(
+        "A prompt version was created concurrently. Please retry.",
+      );
+    }
 
-  // Rotate cache epoch only after successful commit.
-  await promptService.invalidateCache({ projectId });
+    throw error;
+  }
+  const [createdPrompt] = transactionResult;
 
-  const updatedPrompts = await prisma.prompt.findMany({
-    where: {
-      id: { in: touchedPromptIds },
-      projectId,
-    },
-  });
+  // Once the transaction commits, side-effect failures must not report the
+  // persisted prompt as failed and cause callers to create another version.
+  try {
+    await promptService.invalidateCache({ projectId });
+  } catch (error) {
+    logger.error(
+      `Failed to invalidate prompt cache after creating prompt ${createdPrompt.id} in project ${projectId}`,
+      error,
+    );
+  }
 
-  await Promise.all([
-    ...updatedPrompts.map(async (prompt) =>
+  try {
+    const updatedPrompts = await prisma.prompt.findMany({
+      where: {
+        id: { in: touchedPromptIds },
+        projectId,
+      },
+    });
+    const eventPromises = updatedPrompts.map(async (prompt) =>
       promptChangeEventSourcing(
         await promptService.resolvePrompt(prompt),
         "updated",
         user,
       ),
-    ),
-    promptChangeEventSourcing(
-      await promptService.resolvePrompt(createdPrompt),
-      "created",
-      user,
-    ),
-  ]);
+    );
+    eventPromises.push(
+      (async () =>
+        promptChangeEventSourcing(
+          await promptService.resolvePrompt(createdPrompt),
+          "created",
+          user,
+        ))(),
+    );
+
+    const eventResults = await Promise.allSettled(eventPromises);
+    for (const result of eventResults) {
+      if (result.status === "rejected") {
+        logger.error(
+          `Failed to publish prompt change event after creating prompt ${createdPrompt.id} in project ${projectId}`,
+          result.reason,
+        );
+      }
+    }
+  } catch (error) {
+    logger.error(
+      `Failed to prepare prompt change events after creating prompt ${createdPrompt.id} in project ${projectId}`,
+      error,
+    );
+  }
 
   return createdPrompt;
 };

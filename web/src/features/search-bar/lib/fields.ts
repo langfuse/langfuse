@@ -16,19 +16,35 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
+import {
+  eventsTableCols,
+  type ColumnDefinition,
+  type SingleValueOption,
+} from "@langfuse/shared";
+
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
 
-export type FieldKind = "text" | "number" | "datetime" | "boolean";
-export type SyncMode = "exactOption" | "arrayOption" | "textSearch";
+type FieldKind = "text" | "number" | "datetime" | "boolean";
+type SyncMode = "exactOption" | "arrayOption" | "textSearch";
 
 export type FieldDef = {
-  /** Canonical field id; also the filter `column` sent to the API. */
+  /** Canonical query field id; defaults to the FilterState column unless
+   * `filterColumn` maps a display-oriented field to canonical storage. */
   id: string;
   /** Lowercase aliases accepted by the grammar (canonical id always works too). */
   aliases: string[];
   kind: FieldKind;
   syncMode: SyncMode;
+  /** Human name, used as the subject of a token's explanation ("Total cost is
+   *  above $0.5") — the canonical id is camelCase and does not read as prose.
+   *  On a `boolean` field this is the whole affirmative phrase instead ("Is
+   *  root observation"), since such a token is a yes/no statement, not a
+   *  subject with a value. */
+  label: string;
+  /** Boolean fields only: the phrase for the false case ("Is not root
+   *  observation") — English negates these irregularly (is not / has no). */
+  negatedLabel?: string;
   description: string;
   /** Display unit for numeric suggestion labels (filter-config units). */
   unit?: string;
@@ -41,61 +57,274 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Canonical FilterState column emitted for this display-oriented field. */
+  filterColumn?: string;
+  /** Display/query value → canonical FilterState value for labeled options. */
+  filterValueByDisplayValue?: ReadonlyMap<string, string>;
+  /** Canonical FilterState value → display/query value for labeled options. */
+  displayValueByFilterValue?: ReadonlyMap<string, string>;
+  /** Nullable-only columns participate in `has:` but are not direct filters. */
+  directFilter?: boolean;
 };
+
+export type FieldRegistry = {
+  id:
+    | "events"
+    | "evaluationRules"
+    | "evaluatorSamples"
+    | "ruleSamples"
+    | "sessions";
+  fields: readonly FieldDef[];
+  columns: readonly ColumnDefinition[];
+  allowFreeText: boolean;
+  metadata: boolean;
+  scores: boolean;
+  /** Trace-level `traceScores.<name>` paths. Views whose backend has no
+   *  trace-score columns (sessions) keep observation scores without them. */
+  traceScores: boolean;
+  /** Field a bare word searches on a view with no full-text lane. Sessions has
+   *  no searchQuery, but `id contains` is its most-applied filter by far, so a
+   *  bare word means that instead of being rejected. Null = reject. */
+  defaultTextField: string | null;
+  /** Placeholder examples. Written per view, never derived from field ids: the
+   *  events examples advertise `latency:`/`level:` on a view that has neither. */
+  searchExamples: readonly string[];
+  /**
+   * Offer the project's recent searches on the empty bar. Off by default: the
+   * store is per PROJECT, not per view, so a view opts in and only the recents
+   * that are valid against its own registry are offered.
+   */
+  recentSearches: boolean;
+  /**
+   * Whether this view has its OWN branch in `buildFilterSystemPrompt`. False
+   * hides Ask AI: the fallback prompt is the events one — events prose, events
+   * worked examples — so a view without its own branch would be handed a
+   * correct field catalog wrapped in instructions steering the model at columns
+   * it does not have. Write the branch, then flip this.
+   */
+  aiFilterPrompt: boolean;
+  aiContextFields: readonly AIContextField[];
+  resolveField: (name: string) => FieldRef | null;
+  nullableFields: () => readonly FieldDef[];
+  /** Ids of `nullableFields`, precomputed for per-keystroke validation. */
+  nullableFieldIds: ReadonlySet<string>;
+  isDanglingDotPrefix: (value: string) => boolean;
+  columnIdOf: (column: string) => string | null;
+};
+
+export type AIContextField = {
+  /** Key in the observed filter-options payload. */
+  observedOptionsKey: string;
+  /** Human-readable field description rendered into the AI prompt context. */
+  promptLabel: string;
+};
+
+export type FieldOverlay = Partial<
+  Omit<FieldDef, "id" | "kind" | "syncMode" | "label" | "description">
+> & {
+  label?: string;
+  description?: string;
+};
+
+export function fieldRegistryFromColumns(
+  columns: readonly ColumnDefinition[],
+  overlay: {
+    id: FieldRegistry["id"];
+    fields?: Readonly<Record<string, FieldOverlay>>;
+    metadata?: boolean;
+    scores?: boolean;
+    /** Defaults to `scores`. */
+    traceScores?: boolean;
+    allowFreeText?: boolean;
+    defaultTextField?: string;
+    searchExamples?: readonly string[];
+    recentSearches?: boolean;
+    aiFilterPrompt?: boolean;
+    aiContextFields?: readonly AIContextField[];
+  },
+): FieldRegistry {
+  const scores = overlay.scores ?? false;
+  const fields = columns
+    // `*Object` columns and the categorical score column are keyed dot-paths
+    // (`metadata.<key>`, `scores.<name>`), never plain fields — a derived
+    // `score_categories` field would lower to a keyless categoryOptions filter
+    // the backend cannot answer. They stay in `columns` so the reverse adapter
+    // still resolves them.
+    .filter(
+      (column) =>
+        !column.type.endsWith("Object") &&
+        !(scores && isKeyedScoreColumn(column.id)),
+    )
+    .map((column): FieldDef => {
+      const fieldOverlay = overlay.fields?.[column.id];
+      const kind: FieldKind =
+        column.type === "number" ||
+        column.type === "datetime" ||
+        column.type === "boolean"
+          ? column.type
+          : "text";
+      const syncMode: SyncMode =
+        column.type === "stringOptions" || column.type === "categoryOptions"
+          ? "exactOption"
+          : column.type === "arrayOptions"
+            ? "arrayOption"
+            : "textSearch";
+      return {
+        id: column.id,
+        aliases: fieldOverlay?.aliases ?? column.aliases ?? [],
+        kind,
+        syncMode,
+        label: fieldOverlay?.label ?? column.name,
+        description: fieldOverlay?.description ?? column.name,
+        nullable: column.nullable,
+        directFilter: column.type !== "null",
+        suggestObservedValues: fieldOverlay?.suggestObservedValues,
+        filterColumn: fieldOverlay?.filterColumn,
+        filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
+        displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
+        unit: fieldOverlay?.unit,
+        negatedLabel: fieldOverlay?.negatedLabel,
+      };
+    });
+
+  return createFieldRegistry({
+    id: overlay.id,
+    fields,
+    columns,
+    metadata: overlay.metadata ?? false,
+    scores,
+    traceScores: overlay.traceScores ?? scores,
+    allowFreeText: overlay.allowFreeText ?? true,
+    defaultTextField: overlay.defaultTextField ?? null,
+    searchExamples: overlay.searchExamples ?? [],
+    recentSearches: overlay.recentSearches ?? false,
+    aiFilterPrompt: overlay.aiFilterPrompt ?? false,
+    aiContextFields: overlay.aiContextFields ?? [],
+  });
+}
+
+export function extendFieldRegistryWithColumns(
+  registry: FieldRegistry,
+  columns: readonly ColumnDefinition[],
+  fieldOverlays?: Readonly<Record<string, FieldOverlay>>,
+): FieldRegistry {
+  const addedFields = fieldRegistryFromColumns(columns, {
+    id: registry.id,
+    fields: fieldOverlays,
+  }).fields;
+
+  return createFieldRegistry({
+    id: registry.id,
+    fields: [...registry.fields, ...addedFields],
+    columns: [...registry.columns, ...columns],
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
+export function withFieldOptions(
+  registry: FieldRegistry,
+  fieldId: string,
+  options: readonly SingleValueOption[],
+): FieldRegistry {
+  const filterValueByDisplayValue = new Map(
+    options.map((option) => [
+      option.displayValue ?? option.value,
+      option.value,
+    ]),
+  );
+  const displayValueByFilterValue = new Map(
+    options.map((option) => [
+      option.value,
+      option.displayValue ?? option.value,
+    ]),
+  );
+  return createFieldRegistry({
+    id: registry.id,
+    fields: registry.fields.map((field) =>
+      field.id === fieldId
+        ? {
+            ...field,
+            filterValueByDisplayValue,
+            displayValueByFilterValue,
+          }
+        : field,
+    ),
+    columns: registry.columns,
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
 
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
-  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation/span identifier" },
-  { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", description: "Trace identifier" },
-  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation name", nullable: true },
-  { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", description: "Trace name", nullable: true },
-  { id: "type", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation type" },
-  { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", description: "Environment", nullable: true },
-  { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", description: "Trace user id", nullable: true },
-  { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", description: "Trace session id", nullable: true },
-  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation level" },
-  { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", description: "Status message", nullable: true },
-  { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", description: "Internal model id", nullable: true },
-  { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", description: "Provided model name", nullable: true },
-  { id: "promptName", aliases: ["promptname", "prompt_name", "prompt"], kind: "text", syncMode: "exactOption", description: "Prompt name", nullable: true },
-  { id: "promptVersion", aliases: ["promptversion", "prompt_version"], kind: "number", syncMode: "textSearch", description: "Prompt version", nullable: true },
-  { id: "startTime", aliases: ["starttime", "start_time"], kind: "datetime", syncMode: "textSearch", description: "Observation start time" },
-  { id: "endTime", aliases: ["endtime", "end_time"], kind: "datetime", syncMode: "textSearch", description: "Observation end time", nullable: true },
-  { id: "latency", aliases: [], kind: "number", syncMode: "textSearch", description: "Observation latency in seconds", unit: "s", nullable: true },
-  { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", description: "Time to first token in seconds", unit: "s", nullable: true },
-  { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", description: "Output tokens per second", unit: "tok/s", nullable: true },
-  { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", description: "Input token count", nullable: true },
-  { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", description: "Output token count", nullable: true },
-  { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", description: "Total token count", nullable: true },
-  { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", description: "Input cost in USD", unit: "$", nullable: true },
-  { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", description: "Output cost in USD", unit: "$", nullable: true },
-  { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", description: "Total cost in USD", unit: "$", nullable: true },
-  { id: "version", aliases: [], kind: "text", syncMode: "exactOption", description: "Version tag", nullable: true },
-  { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", description: "Trace tags" },
-  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation is a trace root" },
-  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has a parent (inverse of root)" },
-  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has input" },
-  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has output" },
-  { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", description: "Available tool names", nullable: true },
-  { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", description: "Called tool names", nullable: true },
-  { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", description: "Available tool count", nullable: true },
-  { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", description: "Tool call count", nullable: true },
-  { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", description: "Comment count" },
-  { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", description: "Comment text", nullable: true },
-  { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", description: "Experiment dataset identifier", nullable: true },
-  { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", description: "Experiment identifier", nullable: true },
-  { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", description: "Experiment name", nullable: true },
-  { id: "input", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation input", nullable: true },
-  { id: "output", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation output", nullable: true },
+  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },
+  { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
+  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Name", description: "Observation name", nullable: true },
+  { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
+  { id: "type", aliases: [], kind: "text", syncMode: "exactOption", label: "Type", description: "Observation type" },
+  { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
+  { id: "ingestionApiKey", aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], kind: "text", syncMode: "exactOption", label: "Ingestion API key", description: "Public ingestion API key" },
+  { id: "ingestionSdkName", aliases: ["ingestionsdkname", "ingestion_sdk_name", "sdkname", "sdk_name"], kind: "text", syncMode: "exactOption", label: "Ingestion SDK name", description: "Ingestion SDK name" },
+  { id: "ingestionSdkVersion", aliases: ["ingestionsdkversion", "ingestion_sdk_version", "sdkversion", "sdk_version"], kind: "text", syncMode: "exactOption", label: "Ingestion SDK version", description: "Ingestion SDK version" },
+  { id: "ingestionSource", aliases: ["ingestionsource", "ingestion_source", "source"], kind: "text", syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
+  { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
+  { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
+  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Status", description: "Observation status" },
+  { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
+  { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
+  { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
+  { id: "promptName", aliases: ["promptname", "prompt_name", "prompt"], kind: "text", syncMode: "exactOption", label: "Prompt name", description: "Prompt name", nullable: true },
+  { id: "promptVersion", aliases: ["promptversion", "prompt_version"], kind: "number", syncMode: "textSearch", label: "Prompt version", description: "Prompt version", nullable: true },
+  { id: "startTime", aliases: ["starttime", "start_time"], kind: "datetime", syncMode: "textSearch", label: "Start time", description: "Observation start time" },
+  { id: "endTime", aliases: ["endtime", "end_time"], kind: "datetime", syncMode: "textSearch", label: "End time", description: "Observation end time", nullable: true },
+  { id: "latency", aliases: [], kind: "number", syncMode: "textSearch", label: "Latency", description: "Observation latency in seconds", unit: "s", nullable: true },
+  { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", label: "Time to first token", description: "Time to first token in seconds", unit: "s", nullable: true },
+  { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", label: "Tokens per second", description: "Output tokens per second", unit: "tok/s", nullable: true },
+  { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", label: "Input token count", description: "Input token count", nullable: true },
+  { id: "cachedInputTokens", aliases: ["cachedinputtokens", "cached_input_tokens", "cachedtokens", "cached_tokens"], kind: "number", syncMode: "textSearch", label: "Cached input token count", description: "Cache-read input token count", nullable: true },
+  { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", label: "Output token count", description: "Output token count", nullable: true },
+  { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", label: "Total token count", description: "Total token count", nullable: true },
+  { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", label: "Input cost", description: "Input cost in USD", unit: "$", nullable: true },
+  { id: "cachedInputCost", aliases: ["cachedinputcost", "cached_input_cost", "cachedcost", "cached_cost"], kind: "number", syncMode: "textSearch", label: "Cached input cost", description: "Cache-read input cost in USD", unit: "$", nullable: true },
+  { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", label: "Output cost", description: "Output cost in USD", unit: "$", nullable: true },
+  { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", label: "Total cost", description: "Total cost in USD", unit: "$", nullable: true },
+  { id: "version", aliases: [], kind: "text", syncMode: "exactOption", label: "Version", description: "Version tag", nullable: true },
+  { id: "release", aliases: [], kind: "text", syncMode: "exactOption", label: "Release", description: "Release tag", nullable: true },
+  { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", label: "Trace tags", description: "Trace tags" },
+  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", label: "Is root observation", negatedLabel: "Is not root observation", description: "Whether the observation is a trace root" },
+  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", label: "Has a parent observation", negatedLabel: "Has no parent observation", description: "Whether the observation has a parent (inverse of root)" },
+  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", label: "Has input", negatedLabel: "Has no input", description: "Whether the observation has input" },
+  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", label: "Has output", negatedLabel: "Has no output", description: "Whether the observation has output" },
+  { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", label: "Available tools", description: "Available tool names", nullable: true },
+  { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", label: "Called tools", description: "Called tool names", nullable: true },
+  { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", label: "Available tool count", description: "Available tool count", nullable: true },
+  { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", label: "Tool call count", description: "Tool call count", nullable: true },
+  { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", label: "Comment count", description: "Comment count" },
+  { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", label: "Comment text", description: "Comment text", nullable: true },
+  { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", label: "Experiment dataset ID", description: "Experiment dataset identifier", nullable: true },
+  { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", label: "Experiment ID", description: "Experiment identifier", nullable: true },
+  { id: "isExperimentItemRootSpan", aliases: ["isexperimentitemrootspan", "is_experiment_item_root_span", "experimentroot"], kind: "boolean", syncMode: "textSearch", label: "Is experiment item root span", negatedLabel: "Is not experiment item root span", description: "Whether the observation is the root span for an experiment item" },
+  { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", label: "Experiment name", description: "Experiment name", nullable: true },
+  { id: "input", aliases: [], kind: "text", syncMode: "textSearch", label: "Input", description: "Observation input", nullable: true },
+  { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
 ];
 
-const byName = new Map<string, FieldDef>();
-for (const f of FIELDS) {
-  byName.set(f.id.toLowerCase(), f);
-  for (const a of f.aliases) byName.set(a, f);
-}
-
-export const METADATA_PREFIX = "metadata.";
+const METADATA_PREFIX = "metadata.";
 
 // Score dot-paths. Lowercased prefixes accepted by the grammar; the
 // canonical spellings are `scores.<name>` and `traceScores.<name>`.
@@ -105,7 +334,7 @@ const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 // Pseudo-fields: not columns — `has:<field>` lowers to a null filter. (The
 // former `content:` pseudo-field has been removed: a bare query now searches
 // input + output by default, and `input:`/`output:` narrow to one column.)
-export const HAS_KEY = "has";
+const HAS_KEY = "has";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
@@ -121,38 +350,179 @@ export const SCORE_COLUMNS = {
   },
 } as const;
 
+const KEYED_SCORE_COLUMNS: ReadonlySet<string> = new Set([
+  ...Object.values(SCORE_COLUMNS.observation),
+  ...Object.values(SCORE_COLUMNS.trace),
+]);
+
+function isKeyedScoreColumn(column: string): boolean {
+  return KEYED_SCORE_COLUMNS.has(column);
+}
+
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "metadata"; key: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "pseudo"; id: typeof HAS_KEY };
 
-/**
- * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
- * metadata/score dot path (the key keeps its case), or a pseudo-field.
- * Null = unknown key.
- */
-export function resolveField(name: string): FieldRef | null {
+function createFieldRegistry({
+  id,
+  fields,
+  columns,
+  metadata,
+  scores,
+  traceScores,
+  allowFreeText,
+  defaultTextField,
+  searchExamples,
+  recentSearches,
+  aiFilterPrompt,
+  aiContextFields,
+}: {
+  id: FieldRegistry["id"];
+  fields: readonly FieldDef[];
+  columns: readonly ColumnDefinition[];
+  metadata: boolean;
+  scores: boolean;
+  traceScores: boolean;
+  allowFreeText: boolean;
+  defaultTextField: string | null;
+  searchExamples: readonly string[];
+  recentSearches: boolean;
+  aiFilterPrompt: boolean;
+  aiContextFields: readonly AIContextField[];
+}): FieldRegistry {
+  const byName = new Map<string, FieldDef>();
+  for (const field of fields) {
+    byName.set(field.id.toLowerCase(), field);
+    for (const alias of field.aliases) byName.set(alias.toLowerCase(), field);
+  }
+  const nullable = fields.filter((field) => field.nullable === true);
+  const columnIds = new Map<string, string>();
+  for (const column of columns) {
+    columnIds.set(column.id.toLowerCase(), column.id);
+    columnIds.set(column.name.toLowerCase(), column.id);
+    for (const alias of column.aliases ?? []) {
+      columnIds.set(alias.toLowerCase(), column.id);
+    }
+  }
+  for (const field of fields) {
+    if (field.filterColumn) {
+      columnIds.set(field.filterColumn.toLowerCase(), field.id);
+    }
+  }
+
+  const registry: FieldRegistry = {
+    id,
+    fields,
+    columns,
+    allowFreeText,
+    metadata,
+    scores,
+    traceScores,
+    defaultTextField,
+    searchExamples,
+    recentSearches,
+    aiFilterPrompt,
+    aiContextFields,
+    resolveField: (name) => resolveFromRegistry(name, registry, byName),
+    nullableFields: () => nullable,
+    nullableFieldIds: new Set(nullable.map((field) => field.id)),
+    isDanglingDotPrefix: (value) => {
+      const lower = value.toLowerCase();
+      return (
+        (metadata && lower === METADATA_PREFIX) ||
+        (scores && SCORE_PREFIXES.includes(lower)) ||
+        (traceScores && TRACE_SCORE_PREFIXES.includes(lower))
+      );
+    },
+    columnIdOf: (column) => columnIds.get(column.toLowerCase()) ?? null,
+  };
+  return registry;
+}
+
+export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
+  id: "events",
+  fields: FIELDS,
+  columns: eventsTableCols,
+  metadata: true,
+  scores: true,
+  traceScores: true,
+  allowFreeText: true,
+  defaultTextField: null,
+  searchExamples: [
+    "level:ERROR",
+    "-env:dev",
+    "latency:>2",
+    "scores.accuracy:>0.8",
+  ],
+  recentSearches: true,
+  aiFilterPrompt: true,
+  aiContextFields: [
+    { observedOptionsKey: "type", promptLabel: "type" },
+    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "environment", promptLabel: "environment" },
+    { observedOptionsKey: "traceName", promptLabel: "traceName" },
+    { observedOptionsKey: "name", promptLabel: "name" },
+    { observedOptionsKey: "traceTags", promptLabel: "traceTags (tags)" },
+    {
+      observedOptionsKey: "providedModelName",
+      promptLabel: "providedModelName (model)",
+    },
+    { observedOptionsKey: "promptName", promptLabel: "promptName" },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.numeric,
+      promptLabel: "scores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.categorical,
+      promptLabel: "scores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.boolean,
+      promptLabel: "scores.<name> (boolean)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.numeric,
+      promptLabel: "traceScores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.categorical,
+      promptLabel: "traceScores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.boolean,
+      promptLabel: "traceScores.<name> (boolean)",
+    },
+  ],
+});
+
+function resolveFromRegistry(
+  name: string,
+  registry: FieldRegistry,
+  byName: ReadonlyMap<string, FieldDef>,
+): FieldRef | null {
   const lower = name.toLowerCase();
-  // The segment after a dot-path prefix may be quoted to carry spaces/grammar
-  // chars (`scores."Rouge Score"`, `metadata."my key"`); unquote it to the real
-  // key. refName re-quotes it on the way back out.
-  if (lower.startsWith(METADATA_PREFIX)) {
+  if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
   }
-  for (const prefix of TRACE_SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
+  if (registry.traceScores) {
+    for (const prefix of TRACE_SCORE_PREFIXES) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
+      }
     }
   }
-  for (const prefix of SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0
-        ? { type: "scores", key, level: "observation" }
-        : null;
+  if (registry.scores) {
+    for (const prefix of SCORE_PREFIXES) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0
+          ? { type: "scores", key, level: "observation" }
+          : null;
+      }
     }
   }
   if (lower === HAS_KEY) return { type: "pseudo", id: lower };
@@ -161,23 +531,28 @@ export function resolveField(name: string): FieldRef | null {
 }
 
 /**
+ * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
+ * metadata/score dot path (the key keeps its case), or a pseudo-field.
+ * Null = unknown key.
+ */
+export function resolveField(
+  name: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): FieldRef | null {
+  return registry.resolveField(name);
+}
+
+/**
  * A dot-path prefix typed/picked with no key after the dot (`metadata.`,
  * `scores.`, `traceScores.` and accepted aliases). These parse as free text
  * (no colon), so without this guard committing one would silently set the
  * full-text searchQuery to the bare prefix.
  */
-export function isDanglingDotPrefix(value: string): boolean {
-  const lower = value.toLowerCase();
-  return (
-    lower === METADATA_PREFIX ||
-    SCORE_PREFIXES.includes(lower) ||
-    TRACE_SCORE_PREFIXES.includes(lower)
-  );
-}
-
-/** Fields that can be unset — the value domain of `has:` / `-has:`. */
-export function nullableFields(): FieldDef[] {
-  return FIELDS.filter((f) => f.nullable === true);
+export function isDanglingDotPrefix(
+  value: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): boolean {
+  return registry.isDanglingDotPrefix(value);
 }
 
 // ---- operator validity ----
@@ -244,6 +619,12 @@ export function operatorIssue(
       return null;
     case "field": {
       const f = ref.field;
+      if (f.directFilter === false) {
+        return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
+      }
+      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+        return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
+      }
       if (f.kind === "number") {
         if (op === "~" || op === "^" || op === "$") {
           return `"${f.id}" is a number field and does not support ${label(op)}`;
@@ -323,7 +704,7 @@ export function negationIssue(
   return null;
 }
 
-export function refName(ref: FieldRef): string {
+function refName(ref: FieldRef): string {
   switch (ref.type) {
     case "field":
       return ref.field.id;

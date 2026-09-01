@@ -80,6 +80,9 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
+  evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
+  evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
 
   @@map("users")
 }
@@ -106,6 +109,7 @@ model Organization {
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
   aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
+  featureFlagOrgDefaults           String[]                 @default([]) @map("feature_flag_org_defaults")
   // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
   // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
   // between the stored value and a subsequently returned ID indicates an SFDC
@@ -123,69 +127,69 @@ model Organization {
 }
 
 model Project {
-  id                        String                      @id @default(cuid())
-  orgId                     String                      @map("org_id")
-  createdAt                 DateTime                    @default(now()) @map("created_at")
-  updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
-  deletedAt                 DateTime?                   @map("deleted_at")
-  name                      String
-  retentionDays             Int?                        @map("retention_days")
-  hasTraces                 Boolean                     @default(false) @map("has_traces")
-  metadata                  Json?
+  id                                String                              @id @default(cuid())
+  orgId                             String                              @map("org_id")
+  createdAt                         DateTime                            @default(now()) @map("created_at")
+  updatedAt                         DateTime                            @default(now()) @updatedAt @map("updated_at")
+  deletedAt                         DateTime?                           @map("deleted_at")
+  name                              String
+  retentionDays                     Int?                                @map("retention_days")
+  hasTraces                         Boolean                             @default(false) @map("has_traces")
+  metadata                          Json?
   // Which dashboard renders on the project home page; null = the
   // Langfuse-curated default (LANGFUSE_HOME_DASHBOARD_ID).
-  homeDashboardId           String?                     @map("home_dashboard_id")
-  homeDashboard             Dashboard?                  @relation("ProjectHomeDashboard", fields: [homeDashboardId], references: [id], onDelete: SetNull)
-  projectMembers            ProjectMembership[]
-  organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  apiKeys                   ApiKey[]
-  dataset                   Dataset[]
-  invitations               MembershipInvitation[]
-  sessions                  TraceSession[]
-  Prompt                    Prompt[]
-  Model                     Model[]
-  EvalTemplate              EvalTemplate[]
-  JobConfiguration          JobConfiguration[]
-  JobExecution              JobExecution[]
-  LlmApiKeys                LlmApiKeys[]
-  PosthogIntegration        PosthogIntegration[]
-  MixpanelIntegration       MixpanelIntegration[]
-  BlobStorageIntegration    BlobStorageIntegration[]
-  webCalloutEndpoints       WebCalloutEndpoint[]
-  scoreConfig               ScoreConfig[]
-  BatchExport               BatchExport[]
-  BatchAction               BatchAction[]
-  comment                   Comment[]
-  commentReactions          CommentReaction[]
-  annotationQueue           AnnotationQueue[]
-  annotationQueueItem       AnnotationQueueItem[]
-  Media                     Media[]
-  LegacyTrace               LegacyPrismaTrace[]
-  LegacyObservation         LegacyPrismaObservation[]
-  LegacyScore               LegacyPrismaScore[]
-  PromptDependency          PromptDependency[]
-  LlmSchema                 LlmSchema[]
-  LlmTool                   LlmTool[]
-  PromptProtectedLabels     PromptProtectedLabels[]
-  Dashboard                 Dashboard[]
-  DashboardWidget           DashboardWidget[]
-  TableViewPreset           TableViewPreset[]
-  actions                   Action[]
-  triggers                  Trigger[]
-  automationExecutions      AutomationExecution[]
-  Automation                Automation[]
-  monitors                  Monitor[]
-  DefaultLlmModel           DefaultLlmModel[]
-  Price                     Price[]
-  SlackIntegration          SlackIntegration?
-  PendingDeletion           PendingDeletion[]
-  AnnotationQueueAssignment AnnotationQueueAssignment[]
-  NotificationPreference    NotificationPreference[]
-  DefaultView               DefaultView[]
-  InAppAgentConversation    InAppAgentConversation[]
-  InAppAgentEvent           InAppAgentEvent[]
-  InAppAgentRun             InAppAgentRun[]
-  InAppAgentPendingToolApproval InAppAgentPendingToolApproval[]
+  homeDashboardId                   String?                             @map("home_dashboard_id")
+  homeDashboard                     Dashboard?                          @relation("ProjectHomeDashboard", fields: [homeDashboardId], references: [id], onDelete: SetNull)
+  projectMembers                    ProjectMembership[]
+  organization                      Organization                        @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  apiKeys                           ApiKey[]
+  dataset                           Dataset[]
+  invitations                       MembershipInvitation[]
+  sessions                          TraceSession[]
+  Prompt                            Prompt[]
+  Model                             Model[]
+  EvalTemplate                      EvalTemplate[]
+  JobConfiguration                  JobConfiguration[]
+  JobExecution                      JobExecution[]
+  Evaluator                         Evaluator[]
+  EvaluationRule                    EvaluationRule[]
+  EvaluationRuleEvaluatorAssignment EvaluationRuleEvaluatorAssignment[]
+  LlmApiKeys                        LlmApiKeys[]
+  PosthogIntegration                PosthogIntegration[]
+  MixpanelIntegration               MixpanelIntegration[]
+  BlobStorageIntegration            BlobStorageIntegration[]
+  webCalloutEndpoints               WebCalloutEndpoint[]
+  scoreConfig                       ScoreConfig[]
+  BatchExport                       BatchExport[]
+  BatchAction                       BatchAction[]
+  comment                           Comment[]
+  commentReactions                  CommentReaction[]
+  annotationQueue                   AnnotationQueue[]
+  annotationQueueItem               AnnotationQueueItem[]
+  Media                             Media[]
+  PromptDependency                  PromptDependency[]
+  LlmSchema                         LlmSchema[]
+  LlmTool                           LlmTool[]
+  PromptProtectedLabels             PromptProtectedLabels[]
+  Dashboard                         Dashboard[]
+  DashboardWidget                   DashboardWidget[]
+  TableViewPreset                   TableViewPreset[]
+  actions                           Action[]
+  triggers                          Trigger[]
+  automationExecutions              AutomationExecution[]
+  Automation                        Automation[]
+  monitors                          Monitor[]
+  DefaultLlmModel                   DefaultLlmModel[]
+  Price                             Price[]
+  SlackIntegration                  SlackIntegration?
+  PendingDeletion                   PendingDeletion[]
+  AnnotationQueueAssignment         AnnotationQueueAssignment[]
+  NotificationPreference            NotificationPreference[]
+  DefaultView                       DefaultView[]
+  InAppAgentConversation            InAppAgentConversation[]
+  InAppAgentEvent                   InAppAgentEvent[]
+  InAppAgentRun                     InAppAgentRun[]
+  InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
 
   @@index([orgId])
   @@map("projects")
@@ -242,12 +246,14 @@ model InAppAgentConversation {
   renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
+  // Prefixed tool grants are revalidated against the registry and owner's role each run.
+  alwaysAllowedTools String[]                             @default([]) @map("always_allowed_tools")
   deletedAt         DateTime?                             @map("deleted_at")
   createdAt         DateTime                              @default(now()) @map("created_at")
   updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
 
-  events InAppAgentEvent[]
-  runs   InAppAgentRun[]
+  events               InAppAgentEvent[]
+  runs                 InAppAgentRun[]
   pendingToolApprovals InAppAgentPendingToolApproval[]
 
   @@id([id, projectId])
@@ -285,17 +291,31 @@ model InAppAgentRun {
   errorCode         String?                @map("error_code")
   errorMessage      String?                @map("error_message")
   finishedAt        DateTime?              @map("finished_at")
+  // Nullable until the first status reader ships (see RFC-background-execution
+  // PR 4), whose migration backfills NULLs and sets DEFAULT/NOT NULL.
+  // NULL means "row written by code that predates the status column".
+  status            String?
+  request           Json?
+  claimedAt         DateTime?              @map("claimed_at")
+  heartbeatAt       DateTime?              @map("heartbeat_at")
+  cancelRequestedAt DateTime?              @map("cancel_requested_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
 
   events InAppAgentEvent[]
 
+  // A conversation can have at most one unfinished run, enforced via the
+  // partial unique index in_app_agent_runs_active_conversation_key on
+  // (project_id, conversation_id) WHERE finished_at IS NULL, added in the
+  // migration since Prisma cannot express partial uniqueness in the schema DSL.
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@map("in_app_agent_runs")
 }
 
 model InAppAgentPendingToolApproval {
+  // Background execution never reads or writes this table. Retain it
+  // temporarily so existing rows and relations remain valid.
   projectId           String                 @map("project_id")
   project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   conversationId      String                 @map("conversation_id")
@@ -429,154 +449,6 @@ model TraceSession {
   @@map("trace_sessions")
 }
 
-model LegacyPrismaTrace {
-  id         String   @id @default(cuid())
-  externalId String?  @map("external_id")
-  timestamp  DateTime @default(now())
-  name       String?
-  userId     String?  @map("user_id")
-  metadata   Json?
-  release    String?
-  version    String?
-  projectId  String   @map("project_id")
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  public     Boolean  @default(false)
-  bookmarked Boolean  @default(false)
-  tags       String[] @default([])
-  input      Json?
-  output     Json?
-  sessionId  String?  @map("session_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
-
-  @@index([projectId, timestamp])
-  @@index([sessionId])
-  @@index([name])
-  @@index([userId])
-  @@index([id, userId])
-  @@index(timestamp)
-  @@index(createdAt)
-  @@index([tags(ops: ArrayOps)], type: Gin)
-  @@map("traces")
-}
-
-model LegacyPrismaObservation {
-  id                   String                       @id @default(cuid())
-  traceId              String?                      @map("trace_id")
-  projectId            String                       @map("project_id")
-  project              Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type                 LegacyPrismaObservationType
-  startTime            DateTime                     @default(now()) @map("start_time")
-  endTime              DateTime?                    @map("end_time")
-  name                 String?
-  metadata             Json?
-  parentObservationId  String?                      @map("parent_observation_id")
-  level                LegacyPrismaObservationLevel @default(DEFAULT)
-  statusMessage        String?                      @map("status_message")
-  version              String?
-  createdAt            DateTime                     @default(now()) @map("created_at")
-  updatedAt            DateTime                     @default(now()) @updatedAt @map("updated_at")
-  model                String? // user-provided model attribute
-  internalModel        String?                      @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
-  internalModelId      String?                      @map("internal_model_id") // matched model.id that is matched at ingestion time
-  modelParameters      Json?
-  input                Json?
-  output               Json?
-  promptTokens         Int                          @default(0) @map("prompt_tokens")
-  completionTokens     Int                          @default(0) @map("completion_tokens")
-  totalTokens          Int                          @default(0) @map("total_tokens")
-  unit                 String?
-  // User provided cost at ingestion
-  inputCost            Decimal?                     @map("input_cost")
-  outputCost           Decimal?                     @map("output_cost")
-  totalCost            Decimal?                     @map("total_cost")
-  // Calculated cost
-  calculatedInputCost  Decimal?                     @map("calculated_input_cost")
-  calculatedOutputCost Decimal?                     @map("calculated_output_cost")
-  calculatedTotalCost  Decimal?                     @map("calculated_total_cost")
-  completionStartTime  DateTime?                    @map("completion_start_time")
-  promptId             String?                      @map("prompt_id") // no fk constraint, prompt can be deleted
-
-  @@unique([id, projectId])
-  @@index([projectId, internalModel, startTime, unit])
-  @@index([traceId, projectId, type, startTime])
-  @@index([traceId, projectId, startTime])
-  @@index([type])
-  @@index(startTime)
-  @@index(createdAt)
-  @@index(model)
-  @@index(internalModel)
-  @@index([projectId, promptId])
-  @@index(promptId)
-  @@index([projectId, startTime, type])
-  @@map("observations")
-}
-
-enum LegacyPrismaObservationType {
-  SPAN
-  EVENT
-  GENERATION
-  AGENT
-  TOOL
-  CHAIN
-  RETRIEVER
-  EVALUATOR
-  EMBEDDING
-  GUARDRAIL
-
-  @@map("ObservationType")
-}
-
-enum LegacyPrismaObservationLevel {
-  DEBUG
-  DEFAULT
-  WARNING
-  ERROR
-
-  @@map("ObservationLevel")
-}
-
-model LegacyPrismaScore {
-  id            String                  @id @default(cuid())
-  timestamp     DateTime                @default(now())
-  projectId     String                  @map("project_id")
-  project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name          String
-  value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
-  source        LegacyPrismaScoreSource
-  authorUserId  String?                 @map("author_user_id")
-  comment       String?
-  traceId       String                  @map("trace_id")
-  observationId String?                 @map("observation_id")
-  configId      String?                 @map("config_id")
-  stringValue   String?                 @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
-  queueId       String?                 @map("queue_id")
-  createdAt     DateTime                @default(now()) @map("created_at")
-  updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at")
-  dataType      ScoreConfigDataType     @default(NUMERIC) @map("data_type")
-  scoreConfig   ScoreConfig?            @relation(fields: [configId], references: [id], onDelete: SetNull)
-
-  @@unique([id, projectId]) // used for upserts via prisma
-  @@index(timestamp)
-  @@index([value])
-  @@index([projectId, name])
-  @@index([authorUserId])
-  @@index([configId])
-  @@index([traceId], type: Hash)
-  @@index([observationId], type: Hash)
-  @@index([source])
-  @@index([createdAt])
-  @@map("scores")
-}
-
-enum LegacyPrismaScoreSource {
-  ANNOTATION
-  API
-  EVAL
-
-  @@map("ScoreSource")
-}
-
 model ScoreConfig {
   id          String              @id @default(cuid())
   createdAt   DateTime            @default(now()) @map("created_at")
@@ -590,7 +462,6 @@ model ScoreConfig {
   maxValue    Float?              @map("max_value")
   categories  Json?               @map("categories")
   description String?
-  legacyScore LegacyPrismaScore[]
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index([dataType])
@@ -689,21 +560,29 @@ model CronJobs {
 }
 
 model Dataset {
-  id                      String        @default(cuid())
-  projectId               String        @map("project_id")
-  name                    String
-  description             String?
-  metadata                Json?
-  remoteExperimentUrl     String?       @map("remote_experiment_url")
-  remoteExperimentPayload Json?         @map("remote_experiment_payload")
-  remoteExperimentEnabled Boolean       @default(true) @map("remote_experiment_enabled")
-  inputSchema             Json?         @map("input_schema") @db.Json
-  expectedOutputSchema    Json?         @map("expected_output_schema") @db.Json
-  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt               DateTime      @default(now()) @map("created_at")
-  updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
-  datasetItems            DatasetItem[]
-  datasetRuns             DatasetRuns[]
+  id                               String        @default(cuid())
+  projectId                        String        @map("project_id")
+  name                             String
+  description                      String?
+  metadata                         Json?
+  remoteExperimentUrl              String?       @map("remote_experiment_url")
+  remoteExperimentPayload          Json?         @map("remote_experiment_payload")
+  remoteExperimentEnabled          Boolean       @default(true) @map("remote_experiment_enabled")
+  // Signing secret and custom request headers for the remote experiment trigger.
+  // SecretKey and secret header values are encrypted at rest; the client omits
+  // remoteExperimentSecretKey and remoteExperimentRequestHeaders globally
+  // (see db.ts) so only the delivery path can select them explicitly.
+  remoteExperimentSecretKey        String?       @map("remote_experiment_secret_key")
+  remoteExperimentDisplaySecretKey String?       @map("remote_experiment_display_secret_key")
+  remoteExperimentRequestHeaders   Json?         @map("remote_experiment_request_headers")
+  remoteExperimentDisplayHeaders   Json?         @map("remote_experiment_display_headers")
+  inputSchema                      Json?         @map("input_schema") @db.Json
+  expectedOutputSchema             Json?         @map("expected_output_schema") @db.Json
+  project                          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt                        DateTime      @default(now()) @map("created_at")
+  updatedAt                        DateTime      @default(now()) @updatedAt @map("updated_at")
+  datasetItems                     DatasetItem[]
+  datasetRuns                      DatasetRuns[]
 
   @@id([id, projectId])
   @@unique([projectId, name])
@@ -747,16 +626,15 @@ enum DatasetStatus {
 }
 
 model DatasetRuns {
-  id              String            @default(cuid())
-  projectId       String            @map("project_id")
-  name            String
-  description     String?
-  metadata        Json?
-  datasetId       String            @map("dataset_id")
-  dataset         Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
-  datasetRunItems DatasetRunItems[]
+  id          String   @default(cuid())
+  projectId   String   @map("project_id")
+  name        String
+  description String?
+  metadata    Json?
+  datasetId   String   @map("dataset_id")
+  dataset     Dataset  @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@id([id, projectId])
   @@unique([datasetId, projectId, name])
@@ -764,27 +642,6 @@ model DatasetRuns {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_runs")
-}
-
-model DatasetRunItems {
-  id            String      @default(cuid())
-  projectId     String      @map("project_id")
-  datasetRunId  String      @map("dataset_run_id")
-  datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
-  datasetItemId String      @map("dataset_item_id")
-  traceId       String      @map("trace_id")
-  observationId String?     @map("observation_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
-
-  @@id([id, projectId])
-  @@index([datasetRunId], type: Hash)
-  @@index([datasetItemId], type: Hash)
-  @@index([observationId], type: Hash)
-  @@index([traceId])
-  @@index([createdAt])
-  @@index([updatedAt])
-  @@map("dataset_run_items")
 }
 
 model Comment {
@@ -1048,12 +905,68 @@ model EvalTemplate {
   @@map("eval_templates")
 }
 
+model Evaluator {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name            String
+  type            EvalTemplateType
+  description     String?
+  createdByUserId String?               @map("created_by_user_id")
+  createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  blockedAt       DateTime?             @map("blocked_at")
+  blockReason     EvaluatorBlockReason? @map("block_reason")
+  blockMessage    String?               @map("block_message")
+
+  versions    EvaluatorVersion[]
+  assignments EvaluationRuleEvaluatorAssignment[]
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("evaluators")
+}
+
+model EvaluatorVersion {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  evaluatorId String    @map("evaluator_id")
+  evaluator   Evaluator @relation(fields: [evaluatorId], references: [id], onDelete: Cascade)
+  version     Int
+
+  createdByUserId String? @map("created_by_user_id")
+  createdByUser   User?   @relation("EvaluatorVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  prompt             String?
+  promptMessages     Json?                        @map("prompt_messages")
+  partner            String?
+  model              String?
+  provider           String?
+  modelParams        Json?                        @map("model_params")
+  vars               String[]                     @default([])
+  variableMapping    Json?                        @map("variable_mapping")
+  outputDefinition   Json?                        @map("output_definition")
+  sourceCode         String?                      @map("source_code") @db.VarChar(262144)
+  sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
+
+  @@unique([evaluatorId, version(sort: Desc)])
+  @@map("evaluator_versions")
+}
+
 enum EvalTemplateType {
   LLM_AS_JUDGE
   CODE
 }
 
 enum EvalTemplateSourceCodeLanguage {
+  PYTHON
+  TYPESCRIPT
+}
+
+enum EvaluatorSourceCodeLanguage {
   PYTHON
   TYPESCRIPT
 }
@@ -1096,17 +1009,60 @@ model JobConfiguration {
   evalTemplateId String?               @map("eval_template_id")
   evalTemplate   EvalTemplate?         @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 
-  scoreName       String         @map("score_name")
+  scoreName       String   @map("score_name")
   filter          Json
-  targetObject    String         @map("target_object")
-  variableMapping Json           @map("variable_mapping")
+  targetObject    String   @map("target_object")
+  variableMapping Json     @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
-  JobExecution    JobExecution[]
 
   @@index([projectId, id])
   @@map("job_configurations")
+}
+
+model EvaluationRule {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdByUserId String?        @map("created_by_user_id")
+  createdByUser   User?          @relation("EvaluationRuleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  name            String
+  status          JobConfigState @default(ACTIVE)
+  targetObject    String         @map("target_object")
+  filter          Json
+  sampling        Decimal
+  delay           Int
+  timeScope       String[]       @default(["NEW"]) @map("time_scope")
+
+  assignments EvaluationRuleEvaluatorAssignment[]
+
+  @@index([projectId, updatedAt(sort: Desc)])
+  @@map("evaluation_rules")
+}
+
+model EvaluationRuleEvaluatorAssignment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  evaluationRuleId String         @map("evaluation_rule_id")
+  evaluationRule   EvaluationRule @relation(fields: [evaluationRuleId], references: [id], onDelete: Cascade)
+  evaluatorId      String         @map("evaluator_id")
+  evaluator        Evaluator      @relation(fields: [evaluatorId], references: [id], onDelete: Cascade)
+  variableMapping  Json?          @map("variable_mapping")
+
+  @@unique([evaluationRuleId, evaluatorId], map: "evaluation_rule_assignments_rule_evaluator_key")
+  @@index([projectId], map: "evaluation_rule_assignments_project_id_idx") // for efficient project deletes
+  @@index([evaluatorId], map: "evaluation_rule_assignments_evaluator_id_idx")
+  @@map("evaluation_rule_evaluator_assignments")
 }
 
 enum JobExecutionStatus {
@@ -1125,10 +1081,9 @@ model JobExecution {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  jobConfigurationId String           @map("job_configuration_id")
-  jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
+  jobConfigurationId String @map("job_configuration_id") // no fk constraint - deletion handled in application code (deleteJobConfigurationWithExecutions) and via project cascade
 
-  jobTemplateId String?       @map("job_template_id")
+  jobTemplateId String? @map("job_template_id")
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
@@ -1221,6 +1176,12 @@ model PosthogIntegration {
   enabled                Boolean
   createdAt              DateTime                         @default(now()) @map("created_at")
   exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+
+  // Last deterministic customer-config fault (bad hostname) that disabled the
+  // integration. Written by the worker, surfaced in the integration settings
+  // status section, and cleared on a successful run.
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
 
   @@map("posthog_integrations")
 }
@@ -1393,18 +1354,18 @@ model BatchAction {
 
 model Media {
   id               String
-  sha256Hash       String             @map("sha_256_hash") @db.Char(44)
-  projectId        String             @map("project_id")
-  project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at")
-  uploadedAt       DateTime?          @map("uploaded_at")
-  uploadHttpStatus Int?               @map("upload_http_status")
-  uploadHttpError  String?            @map("upload_http_error")
-  bucketPath       String             @map("bucket_path")
-  bucketName       String             @map("bucket_name")
-  contentType      String             @map("content_type")
-  contentLength    BigInt             @map("content_length")
+  sha256Hash       String    @map("sha_256_hash") @db.Char(44)
+  projectId        String    @map("project_id")
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
+  uploadedAt       DateTime? @map("uploaded_at")
+  uploadHttpStatus Int?      @map("upload_http_status")
+  uploadHttpError  String?   @map("upload_http_error")
+  bucketPath       String    @map("bucket_path")
+  bucketName       String    @map("bucket_name")
+  contentType      String    @map("content_type")
+  contentLength    BigInt    @map("content_length")
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
@@ -1412,14 +1373,22 @@ model Media {
   @@map("media")
 }
 
+enum MediaAssociationOrigin {
+  UNKNOWN
+  CLIENT_UPLOAD
+  INGESTION_MEDIA_EXTRACTION
+  INGESTION_FIELD_OVERFLOW
+}
+
 model TraceMedia {
-  id        String   @id @default(cuid())
-  projectId String   @map("project_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-  mediaId   String   @map("media_id")
-  traceId   String   @map("trace_id")
-  field     String   @map("field")
+  id        String                 @id @default(cuid())
+  projectId String                 @map("project_id")
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at")
+  mediaId   String                 @map("media_id")
+  traceId   String                 @map("trace_id")
+  field     String                 @map("field")
+  origin    MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, mediaId, field])
   @@index([projectId, mediaId])
@@ -1427,14 +1396,15 @@ model TraceMedia {
 }
 
 model ObservationMedia {
-  id            String   @id @default(cuid())
-  projectId     String   @map("project_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
-  mediaId       String   @map("media_id")
-  traceId       String   @map("trace_id")
-  observationId String   @map("observation_id")
-  field         String   @map("field")
+  id            String                 @id @default(cuid())
+  projectId     String                 @map("project_id")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
+  mediaId       String                 @map("media_id")
+  traceId       String                 @map("trace_id")
+  observationId String                 @map("observation_id")
+  field         String                 @map("field")
+  origin        MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, mediaId])
@@ -1442,26 +1412,26 @@ model ObservationMedia {
 }
 
 model DatasetItemMedia {
-  id                   String   @id @default(cuid())
-  projectId            String   @map("project_id")
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
-  mediaId              String   @map("media_id")
+  id                   String    @id @default(cuid())
+  projectId            String    @map("project_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+  mediaId              String    @map("media_id")
   // dataset items cascade on dataset deletion, but these rows have no FK;
   // datasetId lets the dataset-delete worker clean them up directly
-  datasetId            String   @map("dataset_id")
-  datasetItemId        String   @map("dataset_item_id")
+  datasetId            String    @map("dataset_id")
+  datasetItemId        String    @map("dataset_item_id")
   // null while pending: the row is declared at media upload and stamped with
   // the item version's validFrom when the item is written.
   datasetItemValidFrom DateTime? @map("dataset_item_valid_from")
   // dataset item field containing the reference: input | expectedOutput | metadata
-  field                String   @map("field")
+  field                String    @map("field")
   // null while pending; the dataset service fills it from the item JSON on claim.
   // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
-  jsonPath             String?  @map("json_path")
+  jsonPath             String?   @map("json_path")
   // null while pending; the original @@@langfuseMedia:...@@@ string, filled on
   // claim so reads need no JSON parsing
-  referenceString      String?  @map("reference_string")
+  referenceString      String?   @map("reference_string")
 
   @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
   @@index([projectId, mediaId])
@@ -1826,10 +1796,10 @@ model Monitor {
   lastCompletedAt  DateTime?     @map("last_completed_at")
 
   // === Alerts ===
-  name      String
+  name       String
   tags       String[]  @default([])
   triggerIds String[]  @default([]) @map("trigger_ids")
-  alertedAt DateTime? @map("alerted_at")
+  alertedAt  DateTime? @map("alerted_at")
 
   @@index([projectId])
   @@index([schedulerBatchId])

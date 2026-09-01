@@ -6,13 +6,74 @@ import { fileURLToPath } from "url";
 import {
   flatStoryTitlesPlugin,
   flattenStoryIndexTitles,
+  type StoryTitleGroup,
 } from "./storybook-flat-story-titles";
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Avatar/Avatar",
+  "Badge/Badge",
+  "Callout/Callout",
+  "Checkbox/Checkbox",
+  "Codeblock/Codeblock",
+  "Dropzone/Dropzone",
+  "KeyboardShortcut/KeyboardShortcut",
   "LangfuseIcon/LangfuseIcon",
+  "LangfuseLogo/LangfuseLogo",
+  "PasswordInput/PasswordInput",
+  "Progress/Progress",
+  "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "TextLink/TextLink",
+  "Toggle/Toggle",
+  "table/components/IOTableCell/IOTableCell",
+  "table/columns/createBadgeTableColumn",
+  "table/columns/createDateTableColumn",
+  "table/columns/createDropdownTableColumn",
+  "table/columns/createDurationTableColumn",
+  "table/columns/createIdTableColumn",
+  "table/columns/createItemBadgeTableColumn",
+  "table/columns/createNumberTableColumn",
+  "table/columns/createStatusTableColumn",
+  "table/columns/createTagsTableColumn",
+  "table/columns/createTextTableColumn",
+  "table/columns/createTokenUsageTableColumn",
+] as const;
+// Design-system reference pages that sit directly under Design (not
+// Design/Components): the token reference, one single-leaf page per element.
+// Directories that get their own sidebar section instead of the flat
+// Playground default. This is not a `stories` entry with a `titlePrefix`
+// because story titles are injected into each meta — see StoryTitleGroup.
+// Only stories inside a configured directory can appear under its feature;
+// explicit story titles are rejected by the title plugin.
+const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
+  {
+    directory: "src/components/design-system/table/columns",
+    titlePrefix: "Design/Components/Table/Columns",
+  },
+  {
+    directory: "src/components/design-system/table/components",
+    titlePrefix: "Design/Components/Table/Cells",
+  },
+  {
+    directory: "src/features/evals/v2/components",
+    titlePrefix: "Features/Evaluations",
+  },
+  {
+    directory: "src/features/in-app-agent/components",
+    titlePrefix: "Features/In-App Agent",
+  },
+  {
+    directory: "src/features/traces/components",
+    titlePrefix: "Features/Traces",
+  },
+];
+const DESIGN_REFERENCE_STORIES = [
+  "ThemeTokens/Color",
+  "ThemeTokens/Typography",
+  "ThemeTokens/Layout",
+  "ThemeTokens/Charts",
 ] as const;
 
 /**
@@ -27,7 +88,7 @@ const config: StorybookConfig = {
   stories: [
     // Curated design-system documentation shown under Design.
     {
-      directory: "../storybook/docs",
+      directory: "./docs",
       files: "**/*.mdx",
       titlePrefix: "Design",
     },
@@ -43,23 +104,63 @@ const config: StorybookConfig = {
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
     })),
+    // Design-system reference pages shown directly under Design.
+    ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
+      directory: "./docs",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design",
+    })),
     // All other component stories belong to the flat Playground by default.
+    // Outside components/design-system the exclusion is by path, so a generic
+    // basename like Charts.stories.tsx elsewhere still reaches the Playground;
+    // inside design-system the curated names are negated by basename, which is
+    // safe there because those files are exactly the curated ones. Disjoint
+    // globs because !(...) matches a single path segment — which also means
+    // `!(dir)/**` requires at least one leading segment, so files sitting
+    // directly in the entry's directory need their own `*.stories` entry
+    // (hence the depth-one entries below). Caveat: picomatch
+    // treats !(Name) as a prefix negation here, so a design-system story whose
+    // basename merely starts with a curated name (e.g. ColorPicker) would be
+    // skipped too; give such a story a non-colliding basename or its own entry.
     {
       directory: "../src",
-      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
-        basename(storyPath),
-      ).join("|")}).stories.${STORY_EXTENSIONS}`,
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src",
+      files: `!(components)/**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components",
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components",
+      files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components/design-system",
+      files: `**/!(${[...DESIGN_COMPONENT_STORIES, ...DESIGN_REFERENCE_STORIES]
+        .map((storyPath) => basename(storyPath))
+        .join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
   ],
-  experimental_indexers: flattenStoryIndexTitles,
+  experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
+  features: {
+    changeDetection: true,
+  },
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),
     getAbsolutePath("@storybook/addon-vitest"),
   ],
   framework: getAbsolutePath("@storybook/nextjs-vite"),
-  staticDirs: ["../public"],
+  staticDirs: ["../public", "./public"],
   // Resolve `@langfuse/shared` to its TypeScript source, mirroring the app's
   // own alias (next.config.mjs: webpack alias + turbopack.resolveAlias both map
   // "@langfuse/shared" -> "./packages/shared/src"). The package's published
@@ -72,7 +173,10 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
-    viteConfig.plugins = [flatStoryTitlesPlugin, ...(viteConfig.plugins ?? [])];
+    viteConfig.plugins = [
+      flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
+      ...(viteConfig.plugins ?? []),
+    ];
 
     const sharedSrc = resolve(
       dirname(fileURLToPath(import.meta.url)),
@@ -110,6 +214,14 @@ const config: StorybookConfig = {
       {
         find: /^@langfuse\/shared\/query$/,
         replacement: `${sharedSrc}/features/query`,
+      },
+      // Client-safe entry of the in-app-agent module (imported by the agent
+      // window components and their stories). Deliberately no rule for the
+      // `/server` subpaths: a story that pulls server code should fail the
+      // build, not silently resolve.
+      {
+        find: /^@langfuse\/shared\/in-app-agent$/,
+        replacement: `${sharedSrc}/in-app-agent`,
       },
       {
         find: /^\.prisma\/client\/index-browser$/,

@@ -2,7 +2,33 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
+import {
+  applyCommentFilters,
+  traceException,
+  getTracesTable,
+  getTracesTableCount,
+  getScoresForTraces,
+  getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
+  getTracesGroupedByName,
+  getTracesGroupedByTags,
+  getObservationsForTrace,
+  getTraceById,
+  logger,
+  upsertTrace,
+  convertTraceDomainToClickhouse,
+  hasAnyTracingData,
+  traceDeletionProcessor,
+  getTracesTableMetrics,
+  getCategoricalScoresGroupedByName,
+  convertDateToClickhouseDateTime,
+  getAgentGraphData,
+  tracesTableUiColumnDefinitions,
+  getTracesGroupedByUsers,
+  getTracesGroupedBySessionId,
+  updateEvents,
+  getScoresAndCorrectionsForTraces,
+} from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
@@ -29,32 +55,6 @@ import {
   ScoreDataTypeEnum,
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
-import {
-  traceException,
-  getTracesTable,
-  getTracesTableCount,
-  getScoresForTraces,
-  getNumericScoresGroupedByName,
-  getBooleanScoresGroupedByName,
-  getTracesGroupedByName,
-  getTracesGroupedByTags,
-  getObservationsForTrace,
-  getTraceById,
-  logger,
-  upsertTrace,
-  convertTraceDomainToClickhouse,
-  hasAnyTracingData,
-  traceDeletionProcessor,
-  getTracesTableMetrics,
-  getCategoricalScoresGroupedByName,
-  convertDateToClickhouseDateTime,
-  getAgentGraphData,
-  tracesTableUiColumnDefinitions,
-  getTracesGroupedByUsers,
-  getTracesGroupedBySessionId,
-  updateEvents,
-  getScoresAndCorrectionsForTraces,
-} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -99,6 +99,7 @@ export type ObservationReturnTypeWithMetadata = Omit<
   // optional, because in v4 an observation can have those properties
   userId?: string | null;
   sessionId?: string | null;
+  release?: string | null;
 };
 
 export type ObservationReturnType = Omit<
@@ -263,8 +264,6 @@ export const traceRouter = createTRPCRouter({
       const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
-        limit: 1000,
-        offset: 0,
         excludeMetadata: true,
         includeHasMetadata: true,
       });
@@ -461,12 +460,24 @@ export const traceRouter = createTRPCRouter({
     }),
   deleteMany: protectedProjectProcedure
     .input(
-      z.object({
-        traceIds: z.array(z.string()).min(1, "Minimum 1 traceId is required."),
-        projectId: z.string(),
-        query: BatchActionQuerySchema.optional(),
-        isBatchAction: z.boolean().default(false),
-      }),
+      z
+        .object({
+          traceIds: z.array(z.string()),
+          projectId: z.string(),
+          query: BatchActionQuerySchema.optional(),
+          isBatchAction: z.boolean().default(false),
+        })
+        // Batch actions delete by query and ignore traceIds, so an empty list
+        // is valid there (paging/refetch can drain the visible selection while
+        // select-all is armed); only id-based deletes need at least one id.
+        .refine((input) => input.isBatchAction || input.traceIds.length > 0, {
+          message: "Minimum 1 traceId is required.",
+          path: ["traceIds"],
+        })
+        .refine((input) => !input.isBatchAction || input.query !== undefined, {
+          message: "Batch actions require a query.",
+          path: ["query"],
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -667,8 +678,8 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceId: z.string(),
-        minStartTime: z.string(),
-        maxStartTime: z.string(),
+        minStartTime: z.iso.datetime({ offset: true }),
+        maxStartTime: z.iso.datetime({ offset: true }),
         // Optional fields for enforceTraceAccess middleware (supports public traces)
         timestamp: z.date().nullish(),
         fromTimestamp: z.date().nullish(),

@@ -1,9 +1,10 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -24,7 +25,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
@@ -32,6 +34,7 @@ import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -152,9 +155,9 @@ function DeleteAccountButton() {
         description: "Your account has been successfully deleted.",
       });
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      await signOut();
+      await signOutCleanly();
     } catch (error) {
-      console.error(error);
+      reportNonTrpcError(error, "account");
       showErrorToast(
         "Failed to Delete Account",
         error instanceof Error ? error.message : "An unexpected error occurred",
@@ -240,18 +243,25 @@ function DeleteAccountButton() {
 type AccountSettingsPage = {
   title: string;
   slug: string;
-  content: React.ReactNode;
+  show?: boolean | (() => boolean);
   cmdKKeywords?: string[];
-};
+} & ({ content: React.ReactNode } | { href: string });
 
 export function useAccountSettingsPages(): AccountSettingsPage[] {
   const { data: session } = useSession();
   const userEmail = session?.user?.email ?? "";
+  const showV4Migration = useV4UpgradeUiFlag();
 
-  return getAccountSettingsPages(userEmail);
+  return getAccountSettingsPages({ userEmail, showV4Migration });
 }
 
-const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
+const getAccountSettingsPages = ({
+  userEmail,
+  showV4Migration,
+}: {
+  userEmail: string;
+  showV4Migration: boolean;
+}): AccountSettingsPage[] => [
   {
     title: "General",
     slug: "index",
@@ -303,14 +313,17 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
       </div>
     ),
   },
+  {
+    title: "v4 Migration",
+    slug: "v4-migration",
+    href: "/v4-migration",
+    show: showV4Migration,
+  },
 ];
 
 export default function AccountSettingsPage() {
-  const { data: session } = useSession();
   const router = useRouter();
-  const userEmail = session?.user?.email ?? "";
-
-  const pages = getAccountSettingsPages(userEmail);
+  const pages = useAccountSettingsPages();
 
   return (
     <ContainerPage

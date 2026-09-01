@@ -2,13 +2,17 @@ import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
   isNoisyHttpClientPollEvent,
+  isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
+  isStaleChunkParseErrorEvent,
+  STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
+import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
-const isEuOrUsRegionNonHipaa =
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
-    ? ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    : false;
+// Isolation-scope tags are copied onto the pageload transaction at start.
+// Session hydrate (and the v4 flag) arrives after that, so apply the last-known
+// cache before init. Missing cache leaves the tag unset rather than guessing false.
+applyCachedV4BetaEnabledSentryTag();
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -45,14 +49,32 @@ Sentry.init({
       return null;
     }
 
+    // Drop errors thrown wholly inside PostHog's session-replay recorder
+    // script (rrweb DOM serialization failing on exotic page content). No app
+    // frame is ever present in these stacks; anything touching our code is
+    // kept. See isPosthogRecorderInternalEvent for the rationale.
+    if (isPosthogRecorderInternalEvent(event)) {
+      return null;
+    }
+
+    // Stale-deploy / truncated chunk parse errors: collapse into ONE issue
+    // instead of one per content-hashed chunk filename. Deliberately grouped,
+    // NOT dropped — a deploy that ships a genuinely unparsable chunk still
+    // surfaces as a spike on the single grouped issue. See
+    // isStaleChunkParseErrorEvent for the rationale.
+    if (isStaleChunkParseErrorEvent(event)) {
+      event.fingerprint = [STALE_CHUNK_PARSE_FINGERPRINT];
+    }
+
     return event;
   },
 
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration({
-      maskAllText: !isEuOrUsRegionNonHipaa,
-      blockAllMedia: !isEuOrUsRegionNonHipaa,
+      maskAllText: true,
+      maskAllInputs: true,
+      blockAllMedia: true,
     }),
     Sentry.browserTracingIntegration(),
     Sentry.httpClientIntegration(),
@@ -87,6 +109,9 @@ Sentry.init({
 
   // Filter out browser extension errors
   // see: https://docs.sentry.io/platforms/javascript/configuration/filtering/#using-allowurls-and-denyurls
+  // Stackless console captures of the same origins (Chrome `import()` of an
+  // extension module) are dropped by isDenylistedNoiseEvent instead — denyUrls
+  // only matches stack-frame filenames.
   denyUrls: [
     // Chrome extensions
     /chrome-extension:\/\//i,

@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encrypt } from "../../../encryption";
+import { env } from "../../../env";
 import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
   LLMAdapter,
   type ModelParams,
+  type TraceSinkParams,
 } from "../types";
+import { generateLangfuseAIText } from "../langfuseAiCompletion";
 import {
   createLLMOutput,
   generateLLMText,
@@ -18,6 +21,12 @@ import {
 // the separately tested secure transport with a capture fetch.
 vi.mock("../secureLlmFetch", () => ({
   createSecureLlmFetch: () => globalThis.fetch,
+}));
+
+// Request-shape tests only need the trace context as an input to provider
+// request construction. Internal telemetry publishing is covered separately.
+vi.mock("./telemetry", () => ({
+  createAiSdkTelemetryCapture: () => undefined,
 }));
 
 // The Vertex provider exchanges service-account credentials for an OAuth
@@ -54,17 +63,22 @@ type CapturedRequest = {
  * provider response, so the assertion target is the exact wire format the AI
  * SDK provider constructs (URL, auth header, JSON body).
  */
-function createCaptureFetch(response: unknown) {
+function createCaptureFetch(
+  response: unknown | ((request: CapturedRequest) => unknown),
+) {
   const calls: CapturedRequest[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
-    calls.push({
+    const capturedRequest = {
       url: request.url,
       method: request.method,
       headers: request.headers,
       body: JSON.parse(await request.text()) as Record<string, unknown>,
-    });
-    return new Response(JSON.stringify(response), {
+    };
+    calls.push(capturedRequest);
+    const responseBody =
+      typeof response === "function" ? response(capturedRequest) : response;
+    return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -166,6 +180,7 @@ async function runCompletion(params: {
   llmConnectionConfig?: Record<string, string | boolean>;
   output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
+  trace?: TraceSinkParams;
 }) {
   const { calls, fetch } = createCaptureFetch(params.response);
   vi.stubGlobal("fetch", fetch);
@@ -184,6 +199,7 @@ async function runCompletion(params: {
     }),
     timeout: 10_000,
     output: params.output,
+    trace: params.trace,
   });
 
   expect(calls).toHaveLength(1);
@@ -196,6 +212,13 @@ afterEach(() => {
 });
 
 describe("AI SDK request shapes", () => {
+  const internalTrace: TraceSinkParams = {
+    targetProjectId: "project-1",
+    traceId: "1".repeat(32),
+    traceName: "Execute evaluator: helpfulness",
+    environment: "langfuse-llm-as-a-judge",
+  };
+
   it("OpenAI chat completions: default URL, bearer auth, translated body params", async () => {
     const { result, request } = await runCompletion({
       modelParams: {
@@ -240,6 +263,43 @@ describe("AI SDK request shapes", () => {
     expect(request.body.model).toBe("gpt-4o");
   });
 
+  it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
+    const original = {
+      LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
+      LANGFUSE_AI_MODEL: env.LANGFUSE_AI_MODEL,
+      LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
+      LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
+      LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
+      LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
+    };
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "openai",
+      LANGFUSE_AI_MODEL: "gpt-5.6-sol",
+      LANGFUSE_AI_SMALL_MODEL: "gpt-5.6-luna",
+      LANGFUSE_AI_API_KEY: "sk-test",
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+    });
+
+    try {
+      const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+      vi.stubGlobal("fetch", fetch);
+
+      const text = await generateLangfuseAIText({
+        messages,
+        timeout: 10_000,
+      });
+
+      expect(text).toBe("ok");
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe("https://api.openai.com/v1/responses");
+      expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
+      expect(calls[0]?.body.model).toBe("gpt-5.6-sol");
+    } finally {
+      Object.assign(env, original);
+    }
+  });
+
   it("OpenAI-compatible chat completions: preserves custom provider options on the wire", async () => {
     const { result, request } = await runCompletion({
       modelParams: {
@@ -277,6 +337,75 @@ describe("AI SDK request shapes", () => {
     expect(request.body.logitBias).toBeUndefined();
     expect(request.body.thinkingBudget).toBe(1024);
     expect(request.body.thinkingLevel).toBe("high");
+  });
+
+  it.each([
+    {
+      baseURL: "https://openrouter.ai/api/v1",
+      providerOptions: undefined,
+      expectedTrace: { environment: "langfuse-llm-as-a-judge" },
+    },
+    {
+      baseURL: "https://openrouter.ai./api/v1",
+      providerOptions: undefined,
+      expectedTrace: { environment: "langfuse-llm-as-a-judge" },
+    },
+    {
+      baseURL: "https://eu.openrouter.ai/api/v1",
+      providerOptions: {
+        trace: {
+          environment: "customer-environment",
+          feature: "support-agent",
+        },
+      },
+      expectedTrace: {
+        environment: "langfuse-llm-as-a-judge",
+        feature: "support-agent",
+      },
+    },
+  ])(
+    "OpenRouter: propagates system-owned internal provenance and preserves trace metadata for $baseURL",
+    async ({ baseURL, providerOptions, expectedTrace }) => {
+      const { request } = await runCompletion({
+        modelParams: {
+          provider: "openrouter",
+          adapter: LLMAdapter.OpenAI,
+          model: "openai/gpt-4o-mini",
+          providerOptions,
+        },
+        apiKey: "openrouter-key",
+        baseURL,
+        trace: internalTrace,
+        response: OPENAI_CHAT_RESPONSE,
+      });
+
+      expect(request.body.trace).toEqual(expectedTrace);
+    },
+  );
+
+  it("other OpenAI-compatible endpoints keep customer trace metadata unchanged", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "custom",
+        adapter: LLMAdapter.OpenAI,
+        model: "custom-model",
+        providerOptions: {
+          trace: {
+            environment: "customer-environment",
+            feature: "support-agent",
+          },
+        },
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openrouter.ai.example.com/v1",
+      trace: internalTrace,
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.trace).toEqual({
+      environment: "customer-environment",
+      feature: "support-agent",
+    });
   });
 
   it("OpenAI-compatible chat completions: preserves JSON schema response_format", async () => {
@@ -536,17 +665,23 @@ describe("AI SDK request shapes", () => {
 
   // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
   // so capture at the global fetch the AI SDK falls back to.
-  async function runBedrockCompletion() {
+  async function runBedrockCompletion(params?: {
+    model?: string;
+    output?: ReturnType<typeof createLLMOutput>;
+    response?: unknown | ((request: CapturedRequest) => unknown);
+  }) {
     const modelParams: ModelParams = {
       provider: "bedrock",
       adapter: LLMAdapter.Bedrock,
-      model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      model: params?.model ?? "anthropic.claude-3-5-sonnet-20241022-v2:0",
       max_tokens: 64,
       providerOptions: { top_k: 10 },
     };
     const llmConnectionConfig = { region: "us-east-1" };
 
-    const { calls, fetch } = createCaptureFetch(BEDROCK_RESPONSE);
+    const { calls, fetch } = createCaptureFetch(
+      params?.response ?? BEDROCK_RESPONSE,
+    );
     vi.stubGlobal("fetch", fetch);
 
     const result = await generateLLMText({
@@ -564,15 +699,18 @@ describe("AI SDK request shapes", () => {
         },
       }),
       timeout: 10_000,
+      output: params?.output,
     });
 
-    expect(result.text).toBe("ok");
+    if (!params?.output) {
+      expect(result.text).toBe("ok");
+    }
     expect(calls).toHaveLength(1);
-    return calls[0];
+    return { result, request: calls[0] };
   }
 
   it("Bedrock: converse URL from validated region, SigV4 auth, verbatim additional fields", async () => {
-    const request = await runBedrockCompletion();
+    const { request } = await runBedrockCompletion();
 
     expect(decodeURIComponent(request.url)).toBe(
       "https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-5-sonnet-20241022-v2:0/converse",
@@ -580,6 +718,74 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256/);
     expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
     expect(request.body.inferenceConfig).toMatchObject({ maxTokens: 64 });
+  });
+
+  it("Bedrock: application inference profile ARN stays in one URL segment", async () => {
+    const model =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const { request } = await runBedrockCompletion({ model });
+
+    expect(request.url).toBe(
+      `https://bedrock-runtime.us-east-1.amazonaws.com/model/${encodeURIComponent(model)}/converse`,
+    );
+  });
+
+  it("Bedrock: Sonnet 5 structured output falls back to the JSON tool", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model: "us.anthropic.claude-sonnet-5",
+      output: createLLMOutput(schema),
+      response: (capturedRequest: CapturedRequest) =>
+        capturedRequest.body.toolConfig
+          ? {
+              output: {
+                message: {
+                  role: "assistant",
+                  content: [
+                    {
+                      toolUse: {
+                        toolUseId: "tool-1",
+                        name: "json",
+                        input: { answer: "ok" },
+                      },
+                    },
+                  ],
+                },
+              },
+              stopReason: "tool_use",
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+              metrics: { latencyMs: 1 },
+            }
+          : {
+              ...BEDROCK_RESPONSE,
+              output: {
+                message: {
+                  role: "assistant",
+                  content: [{ text: '{"answer":"ok"}' }],
+                },
+              },
+            },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
+    expect(request.body.toolConfig).toEqual({
+      tools: [
+        {
+          toolSpec: {
+            name: "json",
+            description: "Respond with a JSON object.",
+            inputSchema: { json: schema },
+          },
+        },
+      ],
+      toolChoice: { any: {} },
+    });
   });
 
   it("Bedrock: tenant credentials suppress server-level env auth fallbacks", async () => {
@@ -590,7 +796,7 @@ describe("AI SDK request shapes", () => {
     vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "server-bearer-token");
     vi.stubEnv("AWS_SESSION_TOKEN", "server-session-token");
 
-    const request = await runBedrockCompletion();
+    const { request } = await runBedrockCompletion();
 
     // SigV4 with the tenant keys — not `Bearer server-bearer-token`.
     expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256/);

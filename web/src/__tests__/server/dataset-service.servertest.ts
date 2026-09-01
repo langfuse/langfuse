@@ -12,14 +12,12 @@ import {
   getDatasetItemIdsWithRunData,
   createDatasetItem,
   createManyDatasetItems,
-} from "@langfuse/shared/src/server";
-import { v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
-import {
   createObservation,
   createTraceScore,
   createTrace,
 } from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   enrichAndMapToDatasetItemId,
   getRunItemsByRunIdOrItemId,
@@ -311,6 +309,8 @@ describe("Fetch datasets for UI presentation", () => {
         comment: "some other comment for non run related score",
         hasMetadata: true,
         timestamp: expect.any(Date),
+        // single-value aggregate carries the score's executionTraceId (null for API scores)
+        executionTraceId: null,
       },
     };
 
@@ -474,6 +474,7 @@ describe("Fetch datasets for UI presentation", () => {
         // createScore adds metadata to the score
         hasMetadata: true,
         timestamp: expect.any(Date),
+        executionTraceId: null,
       },
     };
 
@@ -1478,6 +1479,7 @@ describe("Fetch datasets for UI presentation", () => {
         timestamp: expect.any(Date),
         // createScore adds metadata to the score
         hasMetadata: true,
+        executionTraceId: null,
       },
     };
 

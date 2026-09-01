@@ -15,7 +15,7 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
-import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
+import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 
 export type EvalPreviewPointer = {
   traceId?: string;
@@ -118,7 +118,7 @@ export function buildEvalPreviewNavigationPath({
   return `${basePath}${basePath.includes("?") ? "&" : "?"}${params.toString()}`;
 }
 
-export function useFirstEvalPreviewNavigationEntry({
+function useFirstEvalPreviewNavigationEntry({
   target,
   useEventsTable,
 }: {

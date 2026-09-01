@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
@@ -7,13 +8,12 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { costFormatter } from "@/src/utils/numbers";
+import { costFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   ModelSelectorPopover,

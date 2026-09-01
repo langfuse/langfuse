@@ -164,7 +164,7 @@ export function createMediaDropPasteExtension({
  * Attach button for a dataset item field. Shows a spinner while its upload is
  * in flight; failures surface via toast from the upload hook.
  */
-export function DatasetItemMediaUploadButton({
+function DatasetItemMediaUploadButton({
   onSelectFile,
   disabled,
 }: {
@@ -301,7 +301,7 @@ function DatasetItemAttachments({
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-bold">Attachments</span>
-      <div className="flex flex-wrap gap-2">
+      <div className="ph-no-capture flex flex-wrap gap-2">
         {referenceStrings.map((referenceString) => (
           <LangfuseMediaView
             key={referenceString}

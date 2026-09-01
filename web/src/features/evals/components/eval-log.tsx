@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -10,21 +10,30 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type Prisma } from "@langfuse/shared";
+import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+
+const jobExecutionStatusToStatus = {
+  [JobExecutionStatus.COMPLETED]: "completed",
+  [JobExecutionStatus.ERROR]: "error",
+  [JobExecutionStatus.PENDING]: "pending",
+  [JobExecutionStatus.CANCELLED]: "cancelled",
+  [JobExecutionStatus.DELAYED]: "delayed",
+} satisfies Record<JobExecutionStatus, Status>;
 
 export type JobExecutionRow = {
-  status: string;
+  status: JobExecutionStatus;
   scoreName?: string;
   scoreValue?: number | string;
   scoreComment?: string;
@@ -78,18 +87,11 @@ export default function EvalLogTable({
 
   const columnHelper = createColumnHelper<JobExecutionRow>();
   const columns = [
-    columnHelper.accessor("status", {
+    createStatusTableColumn<JobExecutionRow, JobExecutionStatus>({
+      accessorKey: "status",
       header: "Status",
-      id: "status",
-      cell: (row) => {
-        const status = row.getValue();
-        return (
-          <StatusBadge
-            className="w-fit self-start"
-            type={status.toLowerCase()}
-          />
-        );
-      },
+      getStatus: (status) =>
+        status ? jobExecutionStatusToStatus[status] : undefined,
     }),
     columnHelper.accessor("startTime", {
       id: "startTime",
@@ -121,113 +123,93 @@ export default function EvalLogTable({
         return value;
       },
     }),
-    columnHelper.accessor("scoreComment", {
+    createIOTableColumn<JobExecutionRow>({
+      accessorKey: "scoreComment",
       header: "Score Comment",
-      id: "scoreComment",
       enableHiding: true,
       cellPadding: "none",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          padding="compact"
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: (row) => {
-        const value = row.getValue();
-        return (
-          value !== undefined && (
-            <IOTableCell
-              data={value}
-              padding="compact"
-              singleLine={rowHeight === "s"}
-            />
-          )
-        );
-      },
+      compact: true,
+      singleLine: rowHeight === "s",
     }),
-    columnHelper.accessor("error", {
-      id: "error",
+    createIOTableColumn<JobExecutionRow>({
+      accessorKey: "error",
       header: "Error",
       enableHiding: true,
       cellPadding: "none",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          padding="compact"
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: (row) => {
-        const value = row.getValue();
-        return (
-          value !== undefined && (
-            <IOTableCell
-              data={value}
-              padding="compact"
-              singleLine={rowHeight === "s"}
-            />
-          )
-        );
-      },
+      compact: true,
+      singleLine: rowHeight === "s",
     }),
-    columnHelper.accessor("traceId", {
-      id: "traceId",
+    createLinkTableColumn<JobExecutionRow>({
+      accessorKey: "traceId",
       header: "Target Trace",
-      cell: (row) => {
-        const traceId = row.getValue();
-        return traceId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
-            value={traceId}
-          />
-        ) : undefined;
+      getCell: (traceId) => {
+        if (traceId) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(traceId)}`,
+              value: traceId,
+            },
+          };
+        }
+
+        return undefined;
       },
     }),
-    columnHelper.accessor("executionTraceId", {
-      id: "executionTraceId",
+    createLinkTableColumn<JobExecutionRow>({
+      accessorKey: "executionTraceId",
       header: "Execution Trace",
       enableHiding: true,
-      cell: (row) => {
-        const traceId = row.getValue();
-        return traceId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
-            value={traceId}
-          />
-        ) : undefined;
+      getCell: (traceId) => {
+        if (traceId) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(traceId)}`,
+              value: traceId,
+            },
+          };
+        }
+
+        return undefined;
       },
     }),
-    columnHelper.accessor("templateId", {
-      id: "templateId",
+    createLinkTableColumn<JobExecutionRow>({
+      accessorKey: "templateId",
       header: "Template",
-      cell: (row) => {
-        const templateId = row.getValue();
-        return templateId ? (
-          <TableLink
-            path={`/project/${projectId}/evals/templates/${encodeURIComponent(templateId)}`}
-            value={templateId}
-          />
-        ) : undefined;
+      getCell: (templateId) => {
+        if (templateId) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/evals/templates/${encodeURIComponent(templateId)}`,
+              value: templateId,
+            },
+          };
+        }
+
+        return undefined;
       },
     }),
   ] as LangfuseColumnDef<JobExecutionRow>[];
 
   if (!jobConfigurationId) {
     columns.push(
-      columnHelper.accessor("evaluatorId", {
-        id: "evaluatorId",
+      createLinkTableColumn<JobExecutionRow>({
+        accessorKey: "evaluatorId",
         header: "Evaluator",
-        cell: (row) => {
-          const evaluatorId = row.getValue();
-          return evaluatorId ? (
-            <TableLink
-              path={`/project/${projectId}/evals/${encodeURIComponent(evaluatorId)}`}
-              value={evaluatorId}
-            />
-          ) : undefined;
+        getCell: (evaluatorId) => {
+          if (evaluatorId) {
+            return {
+              type: "link",
+              props: {
+                path: `/project/${projectId}/evals/legacy/${encodeURIComponent(evaluatorId)}`,
+                value: evaluatorId,
+              },
+            };
+          }
+
+          return undefined;
         },
       }) as LangfuseColumnDef<JobExecutionRow>,
     );

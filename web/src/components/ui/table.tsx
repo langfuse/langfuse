@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -173,10 +174,8 @@ export {
   Table,
   TableHeader,
   TableBody,
-  TableFooter,
   TableHead,
   TableRow,
   TableCell,
   TableCellWithCopyButton,
-  TableCaption,
 };

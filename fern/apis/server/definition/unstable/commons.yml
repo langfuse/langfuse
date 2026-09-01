@@ -2,7 +2,7 @@
 types:
   EvaluatorType:
     docs: |
-      The evaluator engine type.
+      The evaluator type.
 
       The unstable public API supports LLM-as-a-judge and code evaluators.
     enum:
@@ -14,16 +14,6 @@ types:
     enum:
       - PYTHON
       - TYPESCRIPT
-
-  EvaluatorScope:
-    docs: |
-      Where an evaluator comes from.
-
-      - `project`: created in your project
-      - `managed`: provided by Langfuse
-    enum:
-      - project
-      - managed
 
   EvaluationRuleTarget:
     docs: |
@@ -51,7 +41,7 @@ types:
       - inactive
       - paused
 
-  EvaluationRuleMappingSource:
+  PromptVariableMappingSource:
     docs: |
       Source field used to populate a prompt variable.
 
@@ -130,6 +120,7 @@ types:
       - `dataType` is required.
       - Do not send `version`; that is an internal storage detail and is not part of the public request contract.
       - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and `score.description`.
+      - For `NUMERIC`, `score.minValue` and `score.maxValue` optionally define inclusive bounds. If both are set, `minValue` must not exceed `maxValue`.
       - For `CATEGORICAL`, also provide `score.categories` and `score.shouldAllowMultipleMatches`.
     discriminant: dataType
     union:
@@ -147,6 +138,8 @@ types:
             description: Explain why the answer is correct or incorrect.
           score:
             description: Return a score between 0 and 1.
+            minValue: 0
+            maxValue: 1
       - name: Boolean
         value:
           dataType: BOOLEAN
@@ -167,6 +160,17 @@ types:
               - incorrect
             shouldAllowMultipleMatches: false
 
+  PublicNumericEvaluatorOutputScoreDefinition:
+    properties:
+      description:
+        type: string
+      minValue:
+        type: optional<double>
+        docs: Inclusive minimum value for numeric evaluator scores.
+      maxValue:
+        type: optional<double>
+        docs: Inclusive maximum value for numeric evaluator scores.
+
   PublicNumericEvaluatorOutputDefinition:
     properties:
       dataType:
@@ -175,7 +179,7 @@ types:
       reasoning:
         type: EvaluatorOutputFieldDefinition
       score:
-        type: EvaluatorOutputFieldDefinition
+        type: PublicNumericEvaluatorOutputScoreDefinition
 
   PublicBooleanEvaluatorOutputDefinition:
     properties:
@@ -233,6 +237,8 @@ types:
             description: Explain why the answer is correct or incorrect.
           score:
             description: Return a score between 0 and 1.
+            minValue: 0
+            maxValue: 1
       - name: PublicCategorical
         value:
           dataType: CATEGORICAL
@@ -416,9 +422,9 @@ types:
         type: optional<string>
         docs: Ignored placeholder value. Clients may omit it or send an empty string.
 
-  EvaluationRuleMapping:
+  PromptVariableMappingInput:
     docs: |
-      Maps one evaluator variable to one source field from the target object.
+      Connects one prompt variable to the available evaluation data.
 
       Manual mappings are used for `llm_as_judge` evaluators. `code` evaluators use a fixed runtime mapping managed by Langfuse.
 
@@ -433,8 +439,8 @@ types:
 
       Recovery guidance:
       - `invalid_variable_mapping`: the variable name is unknown for this evaluator, or the selected `source` is not valid for the chosen `target`
-      - `missing_variable_mapping`: one or more LLM-as-judge evaluator variables are not mapped yet
-      - `duplicate_variable_mapping`: the same evaluator variable appears more than once
+      - `missing_variable_mapping`: one or more LLM-as-judge prompt variables are not mapped yet
+      - `duplicate_variable_mapping`: the same prompt variable appears more than once
       - `invalid_json_path`: the JSONPath expression is malformed. Remove it or correct it.
     properties:
       variable:
@@ -444,7 +450,7 @@ types:
 
           Example: for the prompt `Judge {{input}} against {{output}}`, use `input` and `output`.
       source:
-        type: EvaluationRuleMappingSource
+        type: PromptVariableMappingSource
         docs: |
           Source field that should populate the prompt variable.
 
@@ -475,6 +481,31 @@ types:
           variable: expected_output
           source: expected_output
 
+  PromptVariableMappingRead:
+    docs: |
+      Connects one prompt variable to data from a target.
+
+      `source` is `null` when the mapping is incomplete.
+    properties:
+      variable:
+        type: string
+        docs: Prompt variable name without braces.
+      source:
+        type: nullable<PromptVariableMappingSource>
+        docs: Source field populating the variable, or `null` when the mapping is incomplete.
+      jsonPath:
+        type: optional<string>
+        docs: Optional JSONPath selector applied to the selected source.
+    examples:
+      - name: ConfiguredReadMapping
+        value:
+          variable: input
+          source: input
+      - name: IncompleteReadMapping
+        value:
+          variable: input
+          source: null
+
   EvaluationRuleFilter:
     docs: |
       One filter condition used to decide whether a live-ingested target should be evaluated.
@@ -494,6 +525,7 @@ types:
       - `stringOptions`: `any of`, `none of`
       - `arrayOptions`: `any of`, `none of`, `all of`
       - `stringObject`: same operators as `string`
+      - `boolean`: `"="`, `"<>"`
       - `null`: `is null`, `is not null`
 
       Supported columns by target:
@@ -508,6 +540,7 @@ types:
         - `sessionId`: `string`
         - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
         - `metadata`: `stringObject` with `key`
+        - `isRootObservation`: `boolean`, operators `=` / `<>`; true when the observation has no parent or is explicitly marked as an application root
         - `parentObservationId`: `null`, operators `is null` / `is not null`
         - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
         - `toolCalls`: `number`
@@ -561,6 +594,12 @@ types:
           type: "null"
           column: parentObservationId
           operator: is null
+      - name: ObservationLogicalRootFilter
+        value:
+          type: boolean
+          column: isRootObservation
+          operator: "="
+          value: true
       - name: ObservationTagsFilter
         value:
           type: arrayOptions

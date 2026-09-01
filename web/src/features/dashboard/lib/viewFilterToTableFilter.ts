@@ -26,6 +26,9 @@ type ViewName = z.infer<typeof views>;
 
 /** The data table a widget view opens into. */
 export type TableTarget = "traces" | "observations";
+export type TableVersion = "v3" | "v4";
+
+type TableColumnMap = Readonly<Record<string, string | null>>;
 
 export interface ClassifiedViewFilters {
   /**
@@ -51,15 +54,21 @@ export function tableTargetForView(view: ViewName): TableTarget {
 
 /**
  * Per-view map from a canonical view dimension to the target data-table column
- * **id**. Only dimensions the target table can genuinely express are listed;
- * every other dimension is reported as not-applicable. Column ids are the real
- * ids from `tracesTableCols` / `observationsTableCols` (cross-checked by the
- * unit tests, which fail if an id is invented or drifts).
+ * **id**. Only dimensions the target data table can genuinely express are
+ * listed; every other dimension is reported as not-applicable. The
+ * observations map is versioned because v3 and v4 expose different table
+ * column ids and semantics.
  */
-const VIEW_DIMENSION_TO_TABLE_COL: Record<
-  ViewName,
-  Readonly<Record<string, string>>
-> = {
+const V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL: TableColumnMap = {
+  traceName: "traceName",
+  tags: "traceTags",
+  userId: "userId",
+  sessionId: "sessionId",
+  traceRelease: "release",
+  traceVersion: "version",
+};
+
+const VIEW_DIMENSION_TO_TABLE_COL_V3: Record<ViewName, TableColumnMap> = {
   // traces view -> traces table
   traces: {
     name: "traceName",
@@ -94,42 +103,60 @@ const VIEW_DIMENSION_TO_TABLE_COL: Record<
     traceId: "traceId",
     parentObservationId: "parentObservationId",
   },
-  // scores-numeric view -> traces table. Only the dimensions that resolve from
-  // the parent TRACE (traces.* in the scores view) map to a real traces column;
-  // score-specific dimensions (name/source/value/dataType/...) have no trace
-  // column and are dropped.
-  "scores-numeric": {
-    traceName: "traceName",
-    tags: "traceTags",
-    userId: "userId",
-    sessionId: "sessionId",
-    traceRelease: "release",
-    traceVersion: "version",
+  // Score views land on the traces table and can only preserve trace-derived
+  // dimensions; score-owned dimensions are dropped.
+  "scores-numeric": V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+  "scores-boolean": V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+  "scores-categorical": V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+};
+
+const V4_SCORE_VIEW_DIMENSION_TO_TABLE_COL: TableColumnMap = {
+  ...V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+  traceRelease: null,
+};
+
+// V4 routes are backed by EventsTable. Define only their differences from the
+// legacy table mappings so compatibility decisions remain explicit.
+const VIEW_DIMENSION_TO_TABLE_COL_V4: Record<ViewName, TableColumnMap> = {
+  traces: {
+    ...VIEW_DIMENSION_TO_TABLE_COL_V3.traces,
+    id: "traceId",
+    metadata: null,
+    release: null,
   },
-  // scores-boolean view -> traces table (same trace-derived dimensions).
-  "scores-boolean": {
-    traceName: "traceName",
-    tags: "traceTags",
-    userId: "userId",
+  observations: {
+    ...VIEW_DIMENSION_TO_TABLE_COL_V3.observations,
     sessionId: "sessionId",
-    traceRelease: "release",
-    traceVersion: "version",
-  },
-  // scores-categorical view -> traces table (same trace-derived dimensions).
-  "scores-categorical": {
-    traceName: "traceName",
     tags: "traceTags",
-    userId: "userId",
-    sessionId: "sessionId",
-    traceRelease: "release",
+    providedModelName: "providedModelName",
     traceVersion: "version",
+    promptVersion: null,
+    parentObservationId: null,
+    isRootObservation: "isRootObservation",
+    experimentName: "experimentName",
+    experimentDatasetId: "experimentDatasetId",
+    experimentId: "experimentId",
   },
+  "scores-numeric": V4_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+  "scores-boolean": V4_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+  "scores-categorical": V4_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
 };
 
 /**
  * Specific, human reasons for notable dropped dimensions. Any dimension not
  * covered here falls back to `defaultReason`.
  */
+const SCORE_DROPPED_REASONS = {
+  name: "Score name has no equivalent column on the traces table.",
+  source: "Score source has no equivalent column on the traces table.",
+  dataType: "Score data type has no equivalent column on the traces table.",
+  metadata: "Score metadata does not map to trace metadata.",
+  environment:
+    "Score environment does not map to the trace environment column.",
+  observationName:
+    "Observation name has no equivalent column on the traces table.",
+} as const;
+
 const DROPPED_REASONS: Partial<
   Record<ViewName, Readonly<Record<string, string>>>
 > = {
@@ -153,48 +180,50 @@ const DROPPED_REASONS: Partial<
       "Experiment filters are not available on the observations table.",
     experimentDatasetId:
       "Experiment filters are not available on the observations table.",
+    isRootObservation:
+      "Semantic root status is only available on the v4 observations table.",
+    promptVersion:
+      "Prompt version uses a numeric events-table field and is not safely forwarded.",
   },
   "scores-numeric": {
-    name: "Score name has no equivalent column on the traces table.",
-    source: "Score source has no equivalent column on the traces table.",
+    ...SCORE_DROPPED_REASONS,
     value: "Score value has no equivalent column on the traces table.",
-    dataType: "Score data type has no equivalent column on the traces table.",
-    metadata: "Score metadata does not map to trace metadata.",
-    environment:
-      "Score environment does not map to the trace environment column.",
-    observationName:
-      "Observation name has no equivalent column on the traces table.",
   },
   "scores-boolean": {
-    name: "Score name has no equivalent column on the traces table.",
-    source: "Score source has no equivalent column on the traces table.",
+    ...SCORE_DROPPED_REASONS,
     booleanValue: "Score value has no equivalent column on the traces table.",
-    dataType: "Score data type has no equivalent column on the traces table.",
-    metadata: "Score metadata does not map to trace metadata.",
-    environment:
-      "Score environment does not map to the trace environment column.",
-    observationName:
-      "Observation name has no equivalent column on the traces table.",
   },
   "scores-categorical": {
-    name: "Score name has no equivalent column on the traces table.",
-    source: "Score source has no equivalent column on the traces table.",
+    ...SCORE_DROPPED_REASONS,
     stringValue: "Score value has no equivalent column on the traces table.",
-    dataType: "Score data type has no equivalent column on the traces table.",
-    metadata: "Score metadata does not map to trace metadata.",
-    environment:
-      "Score environment does not map to the trace environment column.",
-    observationName:
-      "Observation name has no equivalent column on the traces table.",
   },
 };
 
-function reasonFor(view: ViewName, column: string): string {
+const V4_SCORE_DROPPED_REASONS = {
+  traceRelease: "Trace release is not available on the v4 events table.",
+} as const;
+
+const V4_DROPPED_REASONS: Partial<
+  Record<ViewName, Readonly<Record<string, string>>>
+> = {
+  "scores-numeric": V4_SCORE_DROPPED_REASONS,
+  "scores-boolean": V4_SCORE_DROPPED_REASONS,
+  "scores-categorical": V4_SCORE_DROPPED_REASONS,
+};
+
+function reasonFor(
+  view: ViewName,
+  column: string,
+  tableVersion: TableVersion,
+): string {
   return (
+    (tableVersion === "v4" ? V4_DROPPED_REASONS[view]?.[column] : undefined) ??
     DROPPED_REASONS[view]?.[column] ??
-    `The "${column}" filter is not available on the ${tableTargetForView(
-      view,
-    )} table.`
+    `The "${column}" filter is not available on ${
+      tableVersion === "v4"
+        ? "the v4 events"
+        : `the ${tableTargetForView(view)}`
+    } table.`
   );
 }
 
@@ -207,8 +236,12 @@ function reasonFor(view: ViewName, column: string): string {
 export function classifyViewFiltersForTable(
   view: ViewName,
   filters: FilterState,
+  tableVersion: TableVersion = "v3",
 ): ClassifiedViewFilters {
-  const columnMap = VIEW_DIMENSION_TO_TABLE_COL[view] ?? {};
+  const columnMap =
+    (tableVersion === "v4"
+      ? VIEW_DIMENSION_TO_TABLE_COL_V4
+      : VIEW_DIMENSION_TO_TABLE_COL_V3)[view] ?? {};
   const applicable: FilterState = [];
   const notApplicable = new Map<string, string>();
 
@@ -217,7 +250,10 @@ export function classifyViewFiltersForTable(
     if (tableColId) {
       applicable.push({ ...filter, column: tableColId });
     } else if (!notApplicable.has(filter.column)) {
-      notApplicable.set(filter.column, reasonFor(view, filter.column));
+      notApplicable.set(
+        filter.column,
+        reasonFor(view, filter.column, tableVersion),
+      );
     }
   }
 

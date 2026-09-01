@@ -24,6 +24,10 @@ import {
 } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
   type ObservedOptions,
   scoreTypeContextFromObserved,
 } from "@/src/features/search-bar/lib/observed-options";
@@ -35,7 +39,12 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
-export type SearchCommitTrigger = "enter" | "blur" | "pick";
+type SearchCommitTrigger = "enter" | "blur" | "pick";
+type SearchCommitOptions = { replaceHidden?: boolean };
+export type SearchCommit = (
+  trigger?: SearchCommitTrigger,
+  options?: SearchCommitOptions,
+) => string | null;
 
 /** Order-independent scope-set equality (scopes are unique). */
 function sameScopes(a: TracingSearchType[], b: TracingSearchType[]): boolean {
@@ -75,6 +84,7 @@ export function useEventsSearchBar({
   setFilterState,
   setSearchQuery,
   setSearchType,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   projectId: string;
   /** Table this bar filters — the `tableName` analytics dimension. */
@@ -89,9 +99,10 @@ export function useEventsSearchBar({
   setFilterState: (filters: FilterState) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
+  registry?: FieldRegistry;
 }): {
   store: SearchBarStore;
-  commit: (trigger?: SearchCommitTrigger) => string | null;
+  commit: SearchCommit;
   applyFilters: (filters: FilterState) => void;
 } {
   const capture = usePostHogClientCapture();
@@ -100,10 +111,13 @@ export function useEventsSearchBar({
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
   observedRef.current = observed;
+  const registryRef = useRef(registry);
+  registryRef.current = registry;
 
   const [store] = useState(() =>
-    createSearchBarStore(() =>
-      scoreTypeContextFromObserved(observedRef.current),
+    createSearchBarStore(
+      () => scoreTypeContextFromObserved(observedRef.current),
+      () => registryRef.current,
     ),
   );
 
@@ -111,8 +125,13 @@ export function useEventsSearchBar({
   // are filters that have no grammar form — the bar can't show them, so they
   // must be preserved across a commit instead of being silently wiped.
   const derived = useMemo(
-    () => filterStateToQueryText(filterState, { searchQuery, searchType }),
-    [filterState, searchQuery, searchType],
+    () =>
+      filterStateToQueryText(
+        filterState,
+        { searchQuery, searchType },
+        registry,
+      ),
+    [filterState, registry, searchQuery, searchType],
   );
   const committedText = restingDraft(derived.text);
   const skippedFiltersRef = useRef(derived.skippedFilters);
@@ -127,17 +146,14 @@ export function useEventsSearchBar({
     store.getState().actions.resetTo(committedText);
   }, [enabled, committedText, store]);
 
-  // Re-validate when observed options load: a draft typed before score types
-  // were known has a stale draftValid (the editor's red-border gate reads it),
-  // so without this a `scores.<numeric>:<non-number>` typed during the load
-  // window would commit-reject with no visible error. `observed` identity is
-  // NOT stable across refetches (a relative range + auto-refresh rebuilds it
-  // every tick), so this can fire on ticks where the score types are unchanged
-  // — revalidate() bails on a set-equal context, keeping that path a no-op.
+  // Re-validate when observed options or the registry load: a draft typed
+  // before score types or dynamic allowed values were known has stale
+  // draftValid. Their identities can rotate across refetches, so revalidate()
+  // bails when both effective contexts are unchanged.
   useEffect(() => {
     if (!enabled) return;
     store.getState().actions.revalidate();
-  }, [enabled, observed, store]);
+  }, [enabled, observed, registry, store]);
 
   // Latest applied-state setters, read inside commit without rebuilding it.
   const applyRef = useRef({ setFilterState, setSearchQuery, setSearchType });
@@ -192,11 +208,15 @@ export function useEventsSearchBar({
   const lastErrorTextRef = useRef<string | null>(null);
 
   const commit = useCallback(
-    (trigger: SearchCommitTrigger = "enter"): string | null => {
+    (
+      trigger: SearchCommitTrigger = "enter",
+      options: SearchCommitOptions = {},
+    ): string | null => {
       const draftText = store.getState().draft;
       const result = planCommit(
         draftText,
         scoreTypeContextFromObserved(observedRef.current),
+        registry,
       );
       if (result.status === "invalid") {
         store.getState().actions.revealInvalid();
@@ -232,9 +252,12 @@ export function useEventsSearchBar({
       lastErrorTextRef.current = null;
       const { setFilterState, setSearchQuery, setSearchType } =
         applyRef.current;
-      // Re-attach the filters the grammar can't represent so the commit never
-      // drops them (no-silent-drop contract; shared with the AI apply path).
-      const committedFilters = mergeWithSkipped(result.filters);
+      // Ordinary grammar edits preserve filters the grammar cannot represent.
+      // Complete-query replacements can explicitly clear those hidden filters
+      // instead of silently carrying old scope.
+      const committedFilters = options.replaceHidden
+        ? result.filters
+        : mergeWithSkipped(result.filters);
       setFilterState(committedFilters);
       setSearchQuery(result.searchQuery);
       // Only write searchType when it actually changed. planCommit coerces a
@@ -254,10 +277,14 @@ export function useEventsSearchBar({
       // so the echo string-compares equal and the space survives even when the
       // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
       const committed = restingDraft(
-        filterStateToQueryText(committedFilters, {
-          searchQuery: result.searchQuery,
-          searchType: result.searchType,
-        }).text,
+        filterStateToQueryText(
+          committedFilters,
+          {
+            searchQuery: result.searchQuery,
+            searchType: result.searchType,
+          },
+          registry,
+        ).text,
       );
 
       // Analytics (LFE-10781). METADATA ONLY — `queryLength` is a CHAR COUNT, we
@@ -279,7 +306,7 @@ export function useEventsSearchBar({
 
       return committed;
     },
-    [store, projectId, tableName, mergeWithSkipped, capture],
+    [store, projectId, tableName, mergeWithSkipped, capture, registry],
   );
 
   return { store, commit, applyFilters };
