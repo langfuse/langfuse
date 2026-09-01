@@ -99,6 +99,8 @@ vi.mock("../env", () => ({
 
 // Import after mocks are registered.
 import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
+import { logger, validateWebhookURL } from "@langfuse/shared/src/server";
+import { hostnameForLog } from "../features/analyticsIntegrationEgress";
 import { env } from "../env";
 
 function makeJob() {
@@ -213,5 +215,56 @@ describe("handlePostHogIntegrationProjectJob legacy-mode enriched guard (LFE-110
 
     expect(h.getEvents).toHaveBeenCalledTimes(1);
     expect(h.posthogIntegrationUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A configured PostHog host can carry credentials, and the rejection log line
+// fires exactly when that URL was refused — including when it was refused for
+// carrying them. Only the hostname may reach the log sink.
+describe("handlePostHogIntegrationProjectJob invalid-hostname logging", () => {
+  const PASSWORD = "hunter2";
+  const CREDENTIALED_HOST = `http://exporter:${PASSWORD}@10.0.0.1/`;
+
+  beforeEach(() => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      posthogHostName: CREDENTIALED_HOST,
+    };
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    vi.mocked(logger.error).mockClear();
+  });
+
+  it("logs the hostname only, never the configured password", async () => {
+    vi.mocked(validateWebhookURL).mockRejectedValueOnce(
+      new Error(
+        "URL credentials are not allowed. Use authentication headers instead.",
+      ),
+    );
+
+    await expect(handlePostHogIntegrationProjectJob(makeJob())).rejects.toThrow(
+      /Invalid PostHog hostname/,
+    );
+
+    const logged = vi
+      .mocked(logger.error)
+      .mock.calls.flat()
+      .map((arg) => String(arg))
+      .join("\n");
+
+    expect(vi.mocked(logger.error)).toHaveBeenCalledTimes(1);
+    expect(logged).toContain("10.0.0.1");
+    expect(logged).not.toContain(PASSWORD);
+  });
+});
+
+describe("hostnameForLog", () => {
+  it("returns only the hostname from a credentialed URL", () => {
+    expect(
+      hostnameForLog("http://admin:hunter2@posthog.example.com/batch"),
+    ).toBe("posthog.example.com");
+  });
+
+  it("marks an unparsable value instead of throwing", () => {
+    expect(hostnameForLog("not a url")).toBe("<unparsable>");
   });
 });
