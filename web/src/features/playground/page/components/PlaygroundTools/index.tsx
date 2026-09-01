@@ -252,16 +252,8 @@ export const PlaygroundTools = ({ onOpenToolDialog }: ToolDialogProps) => {
           {tools.map((tool) => (
             <div
               key={tool.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`Edit tool ${tool.name}`}
               className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200"
               onClick={() => onOpenToolDialog(toolDialogTarget(tool))}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                onOpenToolDialog(toolDialogTarget(tool));
-              }}
             >
               <Button
                 variant="ghost"
