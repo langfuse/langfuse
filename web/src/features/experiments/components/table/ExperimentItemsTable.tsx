@@ -517,6 +517,15 @@ export default function ExperimentItemsTable({
       itemVisibility,
     });
 
+  // Running items without an expected output is common, so don't spend a column
+  // on it when nothing in view has one. Kept while IO loads so it doesn't flash.
+  const showExpectedOutput = useMemo(
+    () =>
+      ioLoading ||
+      (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    [ioLoading, items.rows],
+  );
+
   useEffect(() => {
     if (items.status === "success") {
       // Store all experiment targets for peek navigation
@@ -728,6 +737,17 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.observationScoreColumns.length > 0 &&
     scoreColumnDefs.traceScoreColumns.length > 0;
 
+  const expectedOutputColumn = createIOTableColumn<ExperimentItemsTableRow>({
+    accessorKey: "expectedOutput",
+    header: "Expected Output",
+    size: 300,
+    enableHiding: true,
+    // An empty expected output used to render as two literal quote characters.
+    getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    singleLine: ioSingleLine,
+    variant: "output",
+  }) as LangfuseColumnDef<ExperimentItemsTableRow>;
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     createIdTableColumn<ExperimentItemsTableRow>({
@@ -897,15 +917,7 @@ export default function ExperimentItemsTable({
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
       singleLine: ioSingleLine,
     }),
-    createIOTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "expectedOutput",
-      header: "Expected Output",
-      size: 300,
-      enableHiding: true,
-      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? "")),
-      singleLine: ioSingleLine,
-      variant: "output",
-    }),
+    ...(showExpectedOutput ? [expectedOutputColumn] : []),
     {
       accessorKey: "output",
       id: "output",
@@ -1257,6 +1269,7 @@ export default function ExperimentItemsTable({
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   rowHeight={rowHeight}
+                  showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
                   traceScoreOrder={traceScoreOrder}
