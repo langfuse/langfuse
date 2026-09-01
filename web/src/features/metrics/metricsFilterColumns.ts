@@ -173,7 +173,7 @@ const getMetricsFilterColumnSpecs = ({
       },
       {
         column: {
-          name: "Evaluator ID",
+          name: "Evaluator",
           id: "evaluatorId",
           type: "string",
           internal: "internalValue",
@@ -211,7 +211,7 @@ const getMetricsFilterColumnSpecs = ({
       },
       {
         column: {
-          name: "Evaluator ID",
+          name: "Evaluator",
           id: "evaluatorId",
           type: "string",
           internal: "internalValue",

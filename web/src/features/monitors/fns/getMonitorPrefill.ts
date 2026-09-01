@@ -68,6 +68,7 @@ export function getMonitorPrefill(
         view: "scores-numeric",
         filters,
         metric: { measure: "value", aggregation: "avg" },
+        window: "1d",
         tags: specificEvaluatorAlertTags(evaluatorId),
       };
     case "BOOLEAN":
@@ -75,6 +76,7 @@ export function getMonitorPrefill(
         view: "scores-boolean",
         filters,
         metric: { measure: "value", aggregation: "avg" },
+        window: "1d",
         tags: specificEvaluatorAlertTags(evaluatorId),
       };
     case "CATEGORICAL":
@@ -82,6 +84,7 @@ export function getMonitorPrefill(
         view: "scores-categorical",
         filters,
         metric: { measure: "count", aggregation: "count" },
+        window: "1d",
         tags: specificEvaluatorAlertTags(evaluatorId),
       };
     default:

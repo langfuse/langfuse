@@ -55,7 +55,7 @@ describe("editorFiltersToViewFilters", () => {
     ).toEqual(filters);
   });
 
-  it("canonicalizes evaluator display labels", () => {
+  it("canonicalizes current and legacy evaluator display labels", () => {
     const canonical: FilterState = [
       {
         column: "evaluatorId",
@@ -64,16 +64,16 @@ describe("editorFiltersToViewFilters", () => {
         value: "evaluator-1",
       },
     ];
-    const editor: FilterState = [
-      {
-        ...canonical[0],
-        column: "Evaluator ID",
-      },
-    ];
-
-    expect(editorFiltersToViewFilters("observations", editor)).toEqual(
-      canonical,
-    );
+    for (const column of ["Evaluator", "Evaluator ID"]) {
+      expect(
+        editorFiltersToViewFilters("observations", [
+          {
+            ...canonical[0],
+            column,
+          },
+        ]),
+      ).toEqual(canonical);
+    }
     expect(
       editorFiltersToViewFilters("observations", [
         {
@@ -284,6 +284,7 @@ describe("buildV2FilterColumnsParams", () => {
       (candidate) => candidate.id === "evaluatorId",
     );
 
+    expect(column?.name).toBe("Evaluator");
     expect(column?.type).toBe("string");
     expect(column && "options" in column ? column.options : []).toEqual([
       { value: "evaluator-1", displayValue: "Answer quality" },

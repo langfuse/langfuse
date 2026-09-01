@@ -59,7 +59,10 @@ const defineField = (
 const evaluatorFilterDefinitions = [
   defineField(
     "evaluatorId",
-    sourceSpec("Evaluator ID", { uiTableId: "evaluatorId" }),
+    sourceSpec("Evaluator", {
+      uiTableId: "evaluatorId",
+      aliases: ["Evaluator ID"],
+    }),
   ),
   defineField(
     "isEvaluatorTest",

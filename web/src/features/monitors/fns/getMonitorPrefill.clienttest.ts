@@ -32,6 +32,7 @@ describe("getMonitorPrefill", () => {
     ).toMatchObject({
       view,
       filters: evaluatorFilters,
+      window: "1d",
       tags: ["evaluators", "evaluator:evaluator-1"],
       metric:
         scoreDataType === "CATEGORICAL"

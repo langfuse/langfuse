@@ -96,7 +96,7 @@ import {
 const createDefaults = (
   projectId: string,
   prefill?: Partial<
-    Pick<CreateMonitor, "view" | "filters" | "metric" | "tags">
+    Pick<CreateMonitor, "view" | "filters" | "metric" | "window" | "tags">
   >,
   initialTriggerIds: string[] = [],
 ): Partial<CreateMonitor> => ({
@@ -104,7 +104,7 @@ const createDefaults = (
   view: prefill?.view ?? "observations",
   filters: prefill?.filters ?? [],
   metric: prefill?.metric ?? { measure: "count", aggregation: "count" },
-  window: "5m",
+  window: prefill?.window ?? "5m",
   thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   warningThreshold: null,
   noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
@@ -157,6 +157,17 @@ type MonitorAnalyticsSource =
   | "evaluator_cost"
   | "all_evaluator_cost";
 
+const monitorCreateAnalyticsProperties = (
+  source: MonitorAnalyticsSource,
+  monitor: Pick<CreateMonitor, "view" | "metric" | "window">,
+) => ({
+  source,
+  view: monitor.view,
+  measure: monitor.metric.measure,
+  aggregation: monitor.metric.aggregation,
+  window: monitor.window,
+});
+
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
   projectId,
@@ -169,7 +180,7 @@ export const MonitorForm = ({
   projectId: string;
   monitor?: Monitor;
   prefill?: Partial<
-    Pick<CreateMonitor, "view" | "filters" | "metric" | "tags">
+    Pick<CreateMonitor, "view" | "filters" | "metric" | "window" | "tags">
   >;
   analyticsSource?: MonitorAnalyticsSource;
   initialTriggerIds?: string[];
@@ -252,12 +263,10 @@ export const MonitorForm = ({
   const createMutation = api.monitors.create.useMutation({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
-      capture("monitors:create", {
-        source: analyticsSource,
-        view: variables.view,
-        measure: variables.metric.measure,
-        aggregation: variables.metric.aggregation,
-      });
+      capture(
+        "monitors:create",
+        monitorCreateAnalyticsProperties(analyticsSource, variables),
+      );
       showSuccessToast({
         title: "Alert created",
         description: `"${variables.name}" is now active.`,
@@ -1112,4 +1121,5 @@ export const __test = {
   monitorToDefaults,
   nameOrPlaceholder,
   resolveViewChangePatch,
+  monitorCreateAnalyticsProperties,
 };
