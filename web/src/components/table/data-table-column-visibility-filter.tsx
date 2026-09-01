@@ -333,21 +333,21 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       // calculate target state outside of setState to make it idempotent
       const currentValue = columnVisibility[columnId];
       const targetValue = !currentValue;
-      setColumnVisibility((old: any) => {
-        const newColumnVisibility = {
-          ...old,
-          [columnId]: targetValue,
-        };
-        const selectedColumns = Object.keys(newColumnVisibility).filter(
-          (key) => newColumnVisibility[key],
-        );
-        capture("table:column_visibility_changed", {
-          selectedColumns: selectedColumns,
-          tableName,
-          isV4,
-        });
-        return newColumnVisibility;
+      // The event belongs to the click, not to the state updater: an updater
+      // must be pure, and React invokes it twice under StrictMode — which
+      // double-counted every toggle. Same payload, emitted once. (LFE-15720)
+      const nextVisibility = { ...columnVisibility, [columnId]: targetValue };
+      capture("table:column_visibility_changed", {
+        selectedColumns: Object.keys(nextVisibility).filter(
+          (key) => nextVisibility[key],
+        ),
+        tableName,
+        isV4,
       });
+      setColumnVisibility((old: any) => ({
+        ...old,
+        [columnId]: targetValue,
+      }));
     },
     // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
