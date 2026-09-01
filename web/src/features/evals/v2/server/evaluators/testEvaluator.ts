@@ -20,6 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
+import { assertCompleteEvaluatorVariableMapping } from "./evaluatorValidation";
 
 export async function testEvaluator(params: {
   orgId: string;
@@ -40,10 +41,17 @@ export async function testEvaluator(params: {
     startTime: params.startTime,
     shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
   });
-  const variableMapping =
-    params.definition.type === "CODE"
-      ? getCodeEvalVariableMapping()
-      : observationVariableMappingList.parse(params.definition.variableMapping);
+  let variableMapping;
+  if (params.definition.type === "CODE") {
+    variableMapping = getCodeEvalVariableMapping();
+  } else {
+    const llmVariableMapping = params.definition.variableMapping ?? [];
+    assertCompleteEvaluatorVariableMapping({
+      prompt: params.definition.prompt,
+      variableMapping: llmVariableMapping,
+    });
+    variableMapping = observationVariableMappingList.parse(llmVariableMapping);
+  }
   const variables = extractObservationVariables({
     observation,
     variableMapping,
