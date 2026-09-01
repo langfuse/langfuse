@@ -277,6 +277,11 @@ const ScoreItem = ({
                 <span className="text-muted-foreground">Type:</span>
                 <span className="capitalize">{dataType.toLowerCase()}</span>
               </div>
+              {/* The side-by-side layout has no score column headers, so the
+                  type is explained here instead. (LFE-15711 / R5) */}
+              <p className="text-muted-foreground max-w-[260px]">
+                {getScoreDataTypeExplanation(dataType)}
+              </p>
             </div>
           </HoverCardContent>
         </HoverCard>
