@@ -281,7 +281,7 @@ export function EventsOutlierStrip({
           ? prev
           : undefined;
       },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );

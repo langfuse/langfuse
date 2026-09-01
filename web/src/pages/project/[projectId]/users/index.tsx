@@ -15,7 +15,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -45,13 +45,13 @@ type RowData = {
 export default function UsersPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Check if the user has any users
   const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
     { projectId },
     {
-      enabled: !!projectId && !isBetaEnabled,
+      enabled: !!projectId && !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -65,7 +65,7 @@ export default function UsersPage() {
     api.users.hasAnyFromEvents.useQuery(
       { projectId },
       {
-        enabled: !!projectId && isBetaEnabled,
+        enabled: !!projectId && isV4,
         trpc: {
           context: {
             skipBatch: true,
@@ -75,8 +75,8 @@ export default function UsersPage() {
       },
     );
 
-  const hasUsers = isBetaEnabled ? hasAnyUserFromEvents : hasAnyUser;
-  const isLoadingUsers = isBetaEnabled ? isLoadingFromEvents : isLoading;
+  const hasUsers = isV4 ? hasAnyUserFromEvents : hasAnyUser;
+  const isLoadingUsers = isV4 ? isLoadingFromEvents : isLoading;
   const showOnboarding = !isLoadingUsers && !hasUsers;
 
   return (
@@ -109,17 +109,17 @@ export default function UsersPage() {
       {showOnboarding ? (
         <UsersOnboarding />
       ) : (
-        <UsersTable isBetaEnabled={isBetaEnabled} showControlsInPageHeader />
+        <UsersTable isV4={isV4} showControlsInPageHeader />
       )}
     </Page>
   );
 }
 
 const UsersTable = ({
-  isBetaEnabled,
+  isV4,
   showControlsInPageHeader = false,
 }: {
-  isBetaEnabled: boolean;
+  isV4: boolean;
   showControlsInPageHeader?: boolean;
 }) => {
   const router = useRouter();
@@ -208,7 +208,7 @@ const UsersTable = ({
       projectId,
       searchQuery: searchQuery ?? undefined,
     },
-    { enabled: !isBetaEnabled },
+    { enabled: !isV4 },
   );
 
   const userMetricsV3 = api.users.metrics.useQuery(
@@ -218,7 +218,7 @@ const UsersTable = ({
       filter: filterState,
     },
     {
-      enabled: usersV3.isSuccess && !isBetaEnabled,
+      enabled: usersV3.isSuccess && !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -235,7 +235,7 @@ const UsersTable = ({
       projectId,
       searchQuery: searchQuery ?? undefined,
     },
-    { enabled: isBetaEnabled },
+    { enabled: isV4 },
   );
 
   const userMetricsV4 = api.users.metricsFromEvents.useQuery(
@@ -245,7 +245,7 @@ const UsersTable = ({
       filter: filterState,
     },
     {
-      enabled: usersV4.isSuccess && isBetaEnabled,
+      enabled: usersV4.isSuccess && isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -255,8 +255,8 @@ const UsersTable = ({
   );
 
   // Select the active query based on beta state
-  const users = isBetaEnabled ? usersV4 : usersV3;
-  const userMetrics = isBetaEnabled ? userMetricsV4 : userMetricsV3;
+  const users = isV4 ? usersV4 : usersV3;
+  const userMetrics = isV4 ? userMetricsV4 : userMetricsV3;
 
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
@@ -429,7 +429,7 @@ const UsersTable = ({
                       lastEvent:
                         t.lastTrace?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
-                        isBetaEnabled
+                        isV4
                           ? Number(t.totalObservations ?? 0)
                           : Number(t.totalTraces ?? 0) +
                               Number(t.totalObservations ?? 0),

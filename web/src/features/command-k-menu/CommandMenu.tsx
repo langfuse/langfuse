@@ -20,7 +20,7 @@ import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -338,13 +338,9 @@ function CommandMenuComponent({
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const { project } = useQueryProjectOrOrganization();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
-  const idNavigationItem = getIdNavigationItem(
-    search,
-    project?.id,
-    isBetaEnabled,
-  );
+  const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
 
   const debouncedSearchChange = useDebounce(
     (value: string) => {

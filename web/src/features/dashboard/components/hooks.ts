@@ -20,7 +20,7 @@ export const useAllModels = (
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
-  metricsVersion?: ViewVersion,
+  metricsVersion: ViewVersion,
   options?: UseAllModelsOptions,
 ) => {
   const allModels = useScheduledDashboardExecuteQuery(
