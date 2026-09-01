@@ -315,11 +315,14 @@ const markdownComponents: NonNullable<Options["components"]> = {
   ul({ children }) {
     if (isChecklist(children)) return <ul className="list-none">{children}</ul>;
 
-    return <ul className="list-inside list-disc">{children}</ul>;
+    // list-outside keeps the marker beside the first line even when the
+    // item also contains a nested list (a block sibling). list-inside
+    // puts that marker on its own line above the label.
+    return <ul className="list-outside list-disc pl-6">{children}</ul>;
   },
   ol({ children, start }) {
     return (
-      <ol start={start} className="list-inside list-decimal">
+      <ol start={start} className="list-outside list-decimal pl-6">
         {children}
       </ol>
     );

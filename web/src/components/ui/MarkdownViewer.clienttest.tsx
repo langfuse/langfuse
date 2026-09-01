@@ -61,11 +61,91 @@ describe("MarkdownView link rendering", () => {
   });
 });
 
+const NESTED_BULLET_MARKDOWN = `Langfuse is an open-source observability and analytics tool for LLM applications.
+
+In practical terms, it helps you:
+
+- **Track and debug LLM calls**
+  - Log prompts, model responses, latency, errors, and metadata
+- **Evaluate quality**
+  - Run evaluations on outputs (automatic metrics or human feedback)
+- **Monitor in production**
+  - Dashboards for usage, cost, latency, and failure rates`;
+
+const NESTED_ORDERED_MARKDOWN = `Steps:
+
+1. **Prepare the dataset**
+   1. Collect traces
+   2. Label outcomes
+2. **Run the eval**
+   1. Score outputs`;
+
+const directChildren = (parent: Element, tagName: string) =>
+  Array.from(parent.children).filter(
+    (child) => child.tagName === tagName.toUpperCase(),
+  );
+
 describe("MarkdownView ordered lists", () => {
   it("preserves an explicit ordered-list start number", () => {
     const { container } = renderMarkdown("2.");
 
     expect(container.querySelector("ol")?.getAttribute("start")).toBe("2");
+  });
+});
+
+describe("MarkdownView list item layout", () => {
+  // A list item that also contains a nested list has a block sibling
+  // (`ul`/`ol`) after the label. `list-inside` then paints the marker on its
+  // own line above the bold header. `list-outside` keeps the marker beside
+  // the first line of the item.
+  it("places nested bullet markers outside the item content box", () => {
+    const { container } = renderMarkdown(NESTED_BULLET_MARKDOWN);
+
+    const topList = container.querySelector("ul");
+    expect(topList).not.toBeNull();
+    expect(topList?.className).toContain("list-outside");
+    expect(topList?.className).not.toContain("list-inside");
+    expect(topList?.className).toContain("pl-6");
+
+    const topItems = directChildren(topList!, "li");
+    expect(topItems).toHaveLength(3);
+    expect(
+      topItems.map((item) => item.querySelector("strong")?.textContent),
+    ).toEqual([
+      "Track and debug LLM calls",
+      "Evaluate quality",
+      "Monitor in production",
+    ]);
+
+    for (const item of topItems) {
+      expect(item.querySelector(":scope > ul")).not.toBeNull();
+    }
+  });
+
+  it("places nested numbered-list markers outside the item content box", () => {
+    const { container } = renderMarkdown(NESTED_ORDERED_MARKDOWN);
+
+    const topList = container.querySelector("ol");
+    expect(topList).not.toBeNull();
+    expect(topList?.className).toContain("list-outside");
+    expect(topList?.className).not.toContain("list-inside");
+    expect(topList?.className).toContain("pl-6");
+
+    const topItems = directChildren(topList!, "li");
+    expect(topItems).toHaveLength(2);
+
+    for (const item of topItems) {
+      expect(item.querySelector(":scope > ol")).not.toBeNull();
+    }
+  });
+
+  it("does not emit an empty trailing list item for a nested bullet list", () => {
+    const { container } = renderMarkdown(NESTED_BULLET_MARKDOWN);
+    const topItems = directChildren(container.querySelector("ul")!, "li");
+
+    expect(
+      topItems.every((item) => (item.textContent ?? "").trim().length > 0),
+    ).toBe(true);
   });
 });
 
