@@ -115,7 +115,7 @@ types:
         docs: Custom endpoint URL (required for S3_COMPATIBLE type)
       region:
         type: string
-        docs: Storage region
+        docs: Storage region. Leading and trailing whitespace is removed; the remaining value must be a valid hostname label (1-63 letters, numbers, or hyphens, and cannot start or end with a hyphen).
       accessKeyId:
         type: optional<string>
         docs: Access key ID for authentication

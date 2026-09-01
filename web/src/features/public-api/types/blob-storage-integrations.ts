@@ -100,7 +100,9 @@ export const CreateBlobStorageIntegrationRequest = z
     type: BlobStorageIntegrationType,
     bucketName: z.string().min(1),
     endpoint: z.string().nullable().optional(),
-    region: z.string().trim().min(1).regex(BLOB_STORAGE_REGION_REGEX),
+    region: z.string().trim().min(1).regex(BLOB_STORAGE_REGION_REGEX, {
+      message: "Region must be a valid hostname label",
+    }),
     accessKeyId: z.string().nullable().optional(),
     secretAccessKey: z.string().nullable().optional(),
     prefix: z
