@@ -64,6 +64,8 @@ export type ColumnDefinition =
       step?: number;
       /** Minimum value for number inputs. */
       min?: number;
+      /** Optional suggestions whose values are persisted while displayValue is rendered. */
+      options?: Array<SingleValueOption>;
     }
   | {
       name: string;

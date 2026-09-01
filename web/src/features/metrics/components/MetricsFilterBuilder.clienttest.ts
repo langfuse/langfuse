@@ -224,6 +224,26 @@ describe("buildV2FilterColumnsParams", () => {
     expect(getMetricsColumnsWithCustomSelect(params)).toContain("experimentId");
   });
 
+  it("labels evaluator ID suggestions by name while retaining ID values", () => {
+    const params = buildV2FilterColumnsParams({
+      view: "observations",
+      filterOptions: undefined,
+      datasets: undefined,
+      evaluatorOptions: [
+        { value: "evaluator-1", displayValue: "Answer quality" },
+      ],
+    });
+    const column = getMetricsFilterColumns(params).find(
+      (candidate) => candidate.id === "evaluatorId",
+    );
+
+    expect(column?.type).toBe("string");
+    expect(column && "options" in column ? column.options : []).toEqual([
+      { value: "evaluator-1", displayValue: "Answer quality" },
+    ]);
+    expect(getMetricsColumnsWithCustomSelect(params)).toContain("evaluatorId");
+  });
+
   it("wires metadata key suggestions into the Metadata column", () => {
     const params = buildV2FilterColumnsParams({
       view: "observations",

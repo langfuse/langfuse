@@ -27,6 +27,7 @@ export type GetMetricsFilterColumnsParams = {
   releaseOptions: SingleValueOption[];
   scoreNameOptions: SingleValueOption[];
   experimentIdOptions: SingleValueOption[];
+  evaluatorOptions: SingleValueOption[];
   metadataKeyOptions: string[];
 };
 
@@ -55,6 +56,7 @@ const getMetricsFilterColumnSpecs = ({
   releaseOptions,
   scoreNameOptions,
   experimentIdOptions,
+  evaluatorOptions,
   metadataKeyOptions,
 }: GetMetricsFilterColumnsParams): MetricsFilterColumnSpec[] => {
   // Value suggestions come from the v2 events filter-options; v1 keeps manual
@@ -171,11 +173,13 @@ const getMetricsFilterColumnSpecs = ({
       },
       {
         column: {
-          name: "Evaluator ID",
+          name: "Evaluator",
           id: "evaluatorId",
           type: "string",
           internal: "internalValue",
+          options: evaluatorOptions,
         },
+        customSelect: true,
       },
       {
         column: {
@@ -207,11 +211,13 @@ const getMetricsFilterColumnSpecs = ({
       },
       {
         column: {
-          name: "Evaluator ID",
+          name: "Evaluator",
           id: "evaluatorId",
           type: "string",
           internal: "internalValue",
+          options: evaluatorOptions,
         },
+        customSelect: true,
       },
       {
         column: {

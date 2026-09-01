@@ -667,6 +667,10 @@ function FilterBuilderForm({
     const stringObjectSuggest =
       column?.type === "stringObject" &&
       columnsWithCustomSelect.includes(column.id);
+    const stringSuggest =
+      column?.type === "string" &&
+      columnsWithCustomSelect.includes(column.id) &&
+      column.options !== undefined;
     const columnLabel = column ? column.name : "Column";
     const columnsForPicker = getColumnOptionsForFilterRow(
       columns,
@@ -930,6 +934,16 @@ function FilterBuilderForm({
         title="Value"
         className="min-w-[100px]"
         options={(filter.key ? stringObjectValueOptions[filter.key] : []) ?? []}
+        value={filter.value ?? undefined}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        disabled={disabled}
+        isCustomSelectEnabled
+      />
+    ) : stringSuggest && filter.type === "string" ? (
+      <SingleSelect
+        title="Value"
+        className="min-w-[100px]"
+        options={column?.type === "string" ? (column.options ?? []) : []}
         value={filter.value ?? undefined}
         onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
         disabled={disabled}
