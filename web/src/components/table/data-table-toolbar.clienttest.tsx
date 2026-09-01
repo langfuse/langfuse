@@ -180,3 +180,36 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
   });
 });
+
+describe("DataTableToolbar merged table settings", () => {
+  const settingsProps = {
+    columns: [],
+    tableName: "test-table",
+    columnVisibility: {},
+    setColumnVisibility: vi.fn(),
+    rowHeight: "s" as const,
+    setRowHeight: vi.fn(),
+  };
+
+  it("renders Columns and row height as separate controls by default", () => {
+    render(<DataTableToolbar {...settingsProps} />);
+
+    expect(
+      screen.getByRole("button", { name: /^Columns/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Table settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("collapses both into one popover when opted in", () => {
+    render(<DataTableToolbar {...settingsProps} mergeSettingsIntoPopover />);
+
+    expect(
+      screen.getByRole("button", { name: "Table settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Columns/ }),
+    ).not.toBeInTheDocument();
+  });
+});

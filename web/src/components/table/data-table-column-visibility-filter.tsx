@@ -62,6 +62,9 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  /** Defaults to "Columns"; overridden where the surrounding surface already
+   *  says "Columns" (the merged table-settings popover). */
+  triggerLabel?: string;
   tableName?: string;
   isV4?: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
@@ -315,6 +318,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  triggerLabel = "Columns",
   tableName = "unknown",
   isV4 = false,
   onColumnGroupToggle,
@@ -424,7 +428,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             size={triggerSize}
             title="Show/hide columns"
           >
-            <span>Columns</span>
+            <span>{triggerLabel}</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>

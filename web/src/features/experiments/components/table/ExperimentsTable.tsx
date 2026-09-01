@@ -927,6 +927,13 @@ export default function ExperimentsTable({
             />
           </div>
 
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentLimit} most recent runs instead.
+            </div>
+          )}
+
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
             <DataTableControls
