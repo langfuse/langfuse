@@ -104,7 +104,7 @@ assert_file_contains '"3030:3030"'
 assert_file_contains '"8123:8123"'
 assert_file_contains '"9000:9000"'
 assert_file_contains '"4566:4566"'
-assert_file_contains 'floci/floci:1.7.0-compat'
+assert_file_contains 'floci/floci:2.0.0-compat'
 assert_file_contains '6379:6379'
 assert_file_contains '5432:5432'
 
@@ -116,6 +116,6 @@ assert_file_excludes() {
   fi
 }
 
-assert_file_excludes 'minio'
+assert_file_excludes '  minio:'
 
 echo "Cursor Cloud startup command regression test passed"

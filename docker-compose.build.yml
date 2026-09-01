@@ -135,7 +135,7 @@ services:
       start_period: 1s
 
   floci:
-    image: docker.io/floci/floci:1.7.0-compat
+    image: docker.io/floci/floci:2.0.0-compat
     environment:
       AWS_ACCESS_KEY_ID: ${FLOCI_ACCESS_KEY_ID:-minio}
       AWS_SECRET_ACCESS_KEY: ${FLOCI_SECRET_ACCESS_KEY:-miniosecret}

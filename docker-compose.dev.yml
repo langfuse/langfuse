@@ -28,7 +28,7 @@ services:
       - default
 
   floci:
-    image: docker.io/floci/floci:1.7.0-compat
+    image: docker.io/floci/floci:2.0.0-compat
     container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
     environment:
       AWS_ACCESS_KEY_ID: ${FLOCI_ACCESS_KEY_ID:-minio}
