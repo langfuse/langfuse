@@ -1775,6 +1775,56 @@ describe("Clickhouse Experiment Repository Test", () => {
       });
     });
 
+    it("should return trace-level score options", async () => {
+      const experimentId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: "exp-" + randomUUID(),
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: randomUUID(),
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: new Date().getTime() * 1000,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "trace_groundedness",
+          value: 0.42,
+          source: "API",
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const result = await getExperimentScoreOptions({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(result.trace_scores_avg).toContain("trace_groundedness");
+      expect(result.trace_score_columns).toContainEqual({
+        name: "trace_groundedness",
+        dataType: "NUMERIC",
+        source: "API",
+      });
+    });
+
     it("should return experiment-run score filter options", async () => {
       const experimentId = randomUUID();
 

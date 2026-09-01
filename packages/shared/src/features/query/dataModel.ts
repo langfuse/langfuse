@@ -835,6 +835,29 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     highCardinality: true,
     uiHidden: true,
   },
+  // The same two fields for trace-attached scores. A trace-level score has no
+  // `observation_id`, so the `events_observations` join above never matches and
+  // the dimensions next to it read null — which is where an LLM-as-judge on a
+  // dataset run writes. These read the experiment off the trace's root event
+  // instead.
+  traceExperimentName: {
+    sql: "nullIf(events_traces.experiment_name, '')",
+    alias: "traceExperimentName",
+    type: "string",
+    relationTable: "events_traces",
+    description: "Name of the experiment the scored trace belongs to.",
+    highCardinality: true,
+    uiHidden: true,
+  },
+  traceExperimentId: {
+    sql: "nullIf(events_traces.experiment_id, '')",
+    alias: "traceExperimentId",
+    type: "string",
+    relationTable: "events_traces",
+    description: "ID of the experiment the scored trace belongs to.",
+    highCardinality: true,
+    uiHidden: true,
+  },
 };
 
 // Factory for shared score-specific dimensions (both numeric and categorical)
