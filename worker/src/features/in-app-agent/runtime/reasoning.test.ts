@@ -158,6 +158,60 @@ describe("OpenAI Responses request shape", () => {
     expect(calls[0]?.body.include).toEqual(["reasoning.encrypted_content"]);
   });
 
+  it("posts prompt_cache_breakpoint on Responses input for Claude ids", async () => {
+    Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "claude-opus-5",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-gateway.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    const prompt = [
+      { role: "system" as const, content: "You are the Langfuse assistant." },
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "hello" }],
+      },
+    ];
+    await model.doGenerate(
+      applyPromptCacheToCall({
+        provider: String(model.provider),
+        modelId: model.modelId,
+        options: { prompt },
+      }),
+    );
+
+    expect(calls[0]?.url).toBe("https://llm-gateway.internal/v1/responses");
+    expect(calls[0]?.body.input).toEqual([
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: "You are the Langfuse assistant.",
+            prompt_cache_breakpoint: { mode: "explicit" },
+          },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "hello",
+            prompt_cache_breakpoint: { mode: "explicit" },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("posts to /v1/responses when a custom URL opts into Responses", async () => {
     Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
 
@@ -179,6 +233,69 @@ describe("OpenAI Responses request shape", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe("https://llm-exec.internal/v1/responses");
+  });
+
+  it("requests summarized reasoning for Claude ids behind a Responses gateway", async () => {
+    // @ai-sdk/openai emits `reasoning` only for model ids on its own
+    // reasoning-model allowlist. Without `forceReasoning` a Claude id gets no
+    // `reasoning`, so a translating gateway leaves thinking at the model
+    // default (omitted display: no summary deltas, blank reasoning UI), and
+    // the request does not ask for encrypted reasoning to replay on the next
+    // tool step.
+    Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "claude-opus-5",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-gateway.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: [
+        { role: "system" as const, content: "You are the Langfuse assistant." },
+        ...userPrompt(),
+      ],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.body.reasoning).toEqual({ summary: "auto" });
+    expect(calls[0]?.body.store).toBe(false);
+    expect(calls[0]?.body.include).toEqual(["reasoning.encrypted_content"]);
+    // `systemMessageMode: "system"` keeps the system role.
+    expect(calls[0]?.body.input).toEqual([
+      { role: "system", content: "You are the Langfuse assistant." },
+      { role: "user", content: [{ type: "input_text", text: "hi" }] },
+    ]);
+  });
+
+  it("does not force reasoning for non-Claude custom model ids", async () => {
+    Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "custom-chat-model",
+      titleModelId: "custom-chat-model",
+      apiKey: "sk-test",
+      baseURL: "https://llm-gateway.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.body).not.toHaveProperty("reasoning");
+    expect(calls[0]?.body.store).toBe(false);
   });
 });
 
