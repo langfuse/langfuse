@@ -288,5 +288,8 @@ export const SelectsCategory = meta.story({
     await expect(
       canvas.queryByRole("button", { name: "Show all 7 templates" }),
     ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Show fewer" }),
+    ).not.toBeInTheDocument();
   },
 });

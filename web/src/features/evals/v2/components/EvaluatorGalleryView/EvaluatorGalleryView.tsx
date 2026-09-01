@@ -187,16 +187,21 @@ export function EvaluatorGalleryView({
                       expanded={
                         isSingleSection || expandedSections.has(section.key)
                       }
-                      onExpandedChange={(expanded) => {
-                        if (
-                          expanded &&
-                          section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY
-                        ) {
-                          selectSection(section.key);
-                          return;
-                        }
-                        onExpandedChange(section.key, expanded);
-                      }}
+                      onExpandedChange={
+                        isSingleSection
+                          ? undefined
+                          : (expanded) => {
+                              if (
+                                expanded &&
+                                section.key ===
+                                  EVALUATOR_GALLERY_PROJECT_SECTION_KEY
+                              ) {
+                                selectSection(section.key);
+                                return;
+                              }
+                              onExpandedChange(section.key, expanded);
+                            }
+                      }
                       onSelectTemplate={onSelectTemplate}
                     />
                   ))
