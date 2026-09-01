@@ -5,6 +5,7 @@ import {
   ChevronDown,
   DollarSign,
   Gauge,
+  LoaderCircle,
   Plus,
 } from "lucide-react";
 
@@ -311,17 +312,18 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
             }
             className="w-auto max-w-full justify-start"
           >
-            {alertCount > 0 ? (
+            {isLoading ? (
+              <LoaderCircle
+                className="mr-1 h-4 w-4 shrink-0 animate-spin"
+                aria-hidden="true"
+              />
+            ) : alertCount > 0 ? (
               <Bell className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
             ) : (
               <Plus className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
             )}
             <span className="flex-1 text-left">
-              {isLoading
-                ? "Loading alerts…"
-                : alertCount > 0
-                  ? "Alerts"
-                  : "Add alert"}
+              {alertCount > 0 ? "Alerts" : "Add alert"}
             </span>
             {!isLoading && alertCount > 0 ? (
               <Badge variant="secondary" size="sm" className="ml-1 shrink-0">

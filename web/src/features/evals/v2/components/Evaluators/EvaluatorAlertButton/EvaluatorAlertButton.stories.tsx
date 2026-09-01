@@ -61,7 +61,7 @@ export const CodeEvaluator = meta.story({
   },
 });
 
-export const Loading = meta.story({
+export const LoadingSpinner = meta.story({
   args: { ...defaultArgs, isLoading: true },
 });
 

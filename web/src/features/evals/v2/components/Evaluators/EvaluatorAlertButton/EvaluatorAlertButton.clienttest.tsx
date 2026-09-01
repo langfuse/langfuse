@@ -50,6 +50,27 @@ describe("EvaluatorAlertButton", () => {
     expect(container.querySelector(".lucide-bell")).not.toBeInTheDocument();
   });
 
+  it("keeps the alert label and shows a spinner while loading", () => {
+    const { container } = render(
+      <EvaluatorAlertButton
+        scope="allEvaluators"
+        projectId="project-1"
+        connectedAlerts={[]}
+        isLoading
+        canRead
+        canCreate
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Loading evaluator alerts" }),
+    ).toHaveTextContent("Add alert");
+    expect(container.querySelector(".lucide-loader-circle")).toHaveClass(
+      "animate-spin",
+    );
+    expect(container.querySelector(".lucide-plus")).not.toBeInTheDocument();
+  });
+
   it("uses the evaluator score style for code evaluators", () => {
     render(
       <EvaluatorAlertButton
