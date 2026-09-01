@@ -47,7 +47,7 @@ const assets = new Map([
 ]);
 
 const apiReferenceConfiguration = {
-  url: "../generated/api/openapi.yml",
+  url: "openapi.yaml",
   agent: { disabled: true },
   mcp: {
     name: "Langfuse API",

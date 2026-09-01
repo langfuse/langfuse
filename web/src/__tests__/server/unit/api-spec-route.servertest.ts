@@ -1,4 +1,5 @@
 import handler from "@/src/pages/api/docs";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -25,7 +26,7 @@ describe("/api/docs", () => {
     expect(res.getHeader("Content-Type")).toBe("text/html; charset=utf-8");
     expect(body).toContain("<title>Langfuse API Reference</title>");
     expect(body).toMatch(/src="\?asset=scalar-api-reference-[a-f0-9]{12}\.js"/);
-    expect(body).toContain('"url":"../generated/api/openapi.yml"');
+    expect(body).toContain('"url":"openapi.yaml"');
     expect(body).toContain('"agent":{"disabled":true}');
     expect(body).toContain('"mcp":{"name":"Langfuse API"');
     expect(body).toContain('"telemetry":false');
@@ -70,13 +71,38 @@ describe("/api/docs", () => {
     const body = callHandler("GET")._getData() as string;
     const relativeSpecUrl = body.match(/"url":"([^"]+)"/)?.[1];
 
-    expect(relativeSpecUrl).toBe("../generated/api/openapi.yml");
+    expect(relativeSpecUrl).toBe("openapi.yaml");
     expect(
       new URL(
         relativeSpecUrl!,
         "https://langfuse.example.com/langfuse/api/docs",
       ).pathname,
-    ).toBe("/langfuse/generated/api/openapi.yml");
+    ).toBe("/langfuse/api/openapi.yaml");
+  });
+
+  it("aliases the standard OpenAPI path to the existing generated spec", () => {
+    const rewrites = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "--eval",
+          `
+            const config = (await import("./next.config.mjs")).default;
+            console.log(JSON.stringify(await config.rewrites()));
+          `,
+        ],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+        },
+      ),
+    ) as Array<{ source: string; destination: string }>;
+
+    expect(rewrites).toContainEqual({
+      source: "/api/openapi.yaml",
+      destination: "/generated/api/openapi.yml",
+    });
   });
 
   it.each(["unknown.js", "constructor", "toString", "__proto__"])(

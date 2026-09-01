@@ -192,6 +192,10 @@ const nextConfig = {
         source: "/.well-known/mcp.json",
         destination: "/api/well-known/mcp.json",
       },
+      {
+        source: "/api/openapi.yaml",
+        destination: "/generated/api/openapi.yml",
+      },
     ];
   },
 
@@ -281,6 +285,19 @@ const nextConfig = {
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
         source: "/generated/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET",
+          },
+        ],
+      },
+      {
+        source: "/api/openapi.yaml",
         headers: [
           {
             key: "Access-Control-Allow-Origin",
