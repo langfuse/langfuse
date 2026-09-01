@@ -63,7 +63,10 @@ const evaluatorFilterDefinitions = [
   ),
   defineField(
     "isEvaluatorTest",
-    sourceSpec("Evaluator test run", { uiTableId: "isEvaluatorTest" }),
+    sourceSpec("Evaluator test run", {
+      uiTableId: "isEvaluatorTest",
+      aliases: ["Evaluator execution"],
+    }),
   ),
 ] as const;
 

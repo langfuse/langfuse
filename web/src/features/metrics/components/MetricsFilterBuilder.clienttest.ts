@@ -55,7 +55,7 @@ describe("editorFiltersToViewFilters", () => {
     ).toEqual(filters);
   });
 
-  it("canonicalizes the evaluator display label to evaluatorId", () => {
+  it("canonicalizes evaluator display labels", () => {
     const canonical: FilterState = [
       {
         column: "evaluatorId",
@@ -74,6 +74,23 @@ describe("editorFiltersToViewFilters", () => {
     expect(editorFiltersToViewFilters("observations", editor)).toEqual(
       canonical,
     );
+    expect(
+      editorFiltersToViewFilters("observations", [
+        {
+          column: "Evaluator execution",
+          type: "boolean",
+          operator: "=",
+          value: false,
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "isEvaluatorTest",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ]);
   });
 });
 
