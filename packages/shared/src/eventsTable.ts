@@ -81,19 +81,22 @@ export const getCachedInputCost = (
   details?: Record<string, number> | null,
 ): number | undefined => findCachedInputMetric(details);
 
-const cachedInputMetricSql = (detailsColumn: string): string => {
-  const keyPredicate = (key: string) =>
-    `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
-  const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
+export const eventsTableCachedInputMetricKeySql = (key: string): string =>
+  `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+
+export const eventsTableCachedInputMetricSqlForColumn = (
+  detailsColumn: string,
+): string => {
+  const filteredDetails = `mapFilter(x -> ${eventsTableCachedInputMetricKeySql("x.1")}, ${detailsColumn})`;
   const sum = `arraySum(mapValues(${filteredDetails}))`;
 
-  return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
+  return `if(mapExists((k, v) -> ${eventsTableCachedInputMetricKeySql("k")}, ${detailsColumn}), ${sum}, NULL)`;
 };
 
 export const eventsTableCachedInputTokensSql =
-  cachedInputMetricSql("e.usage_details");
+  eventsTableCachedInputMetricSqlForColumn("e.usage_details");
 export const eventsTableCachedInputCostSql =
-  cachedInputMetricSql("e.cost_details");
+  eventsTableCachedInputMetricSqlForColumn("e.cost_details");
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]

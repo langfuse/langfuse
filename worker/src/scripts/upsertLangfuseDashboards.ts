@@ -120,6 +120,7 @@ async function upsertWidgets(widgets: ParsedWidgets, force: boolean) {
       filters: widget.filters,
       chartType: widget.chartType,
       chartConfig: widget.chartConfig,
+      minVersion: widget.minVersion,
       updatedAt: widget.updatedAt,
     };
 

@@ -475,6 +475,45 @@
       "chartType": "BAR_TIME_SERIES",
       "chartConfig": {"type": "BAR_TIME_SERIES"},
       "owner": "LANGFUSE"
+    },
+    {
+      "id": "l0liih2p6mb79934helasxiy",
+      "createdAt": "2026-09-01T10:00:00.000Z",
+      "updatedAt": "2026-09-01T10:00:00.000Z",
+      "createdBy": null,
+      "updatedBy": null,
+      "projectId": null,
+      "name": "Prompt cache utilization",
+      "description": "Input tokens over time split into cached input, other input, and generations without cache reporting.",
+      "view": "OBSERVATIONS",
+      "dimensions": [{"field": "inputCacheStatus"}],
+      "metrics": [{"agg": "sum", "measure": "inputTokensByCacheStatus"}],
+      "filters": [{"column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions"}],
+      "chartType": "BAR_TIME_SERIES",
+      "chartConfig": {"type": "BAR_TIME_SERIES"},
+      "minVersion": 2,
+      "owner": "LANGFUSE"
+    },
+    {
+      "id": "oqhqp4ikycjg5b69lwslv7hg",
+      "createdAt": "2026-09-01T10:00:00.000Z",
+      "updatedAt": "2026-09-01T10:00:00.000Z",
+      "createdBy": null,
+      "updatedBy": null,
+      "projectId": null,
+      "name": "Input spend without cache reads",
+      "description": "Input cost by use case for generations explicitly reporting zero cached input tokens. Missing cache telemetry is excluded.",
+      "view": "OBSERVATIONS",
+      "dimensions": [{"field": "name"}],
+      "metrics": [{"agg": "sum", "measure": "inputCost"}],
+      "filters": [
+        {"column": "type", "operator": "any of", "value": ["GENERATION"], "type": "stringOptions"},
+        {"column": "cachedInputTokens", "operator": "<=", "value": 0, "type": "number"}
+      ],
+      "chartType": "HORIZONTAL_BAR",
+      "chartConfig": {"type": "HORIZONTAL_BAR", "row_limit": 20},
+      "minVersion": 2,
+      "owner": "LANGFUSE"
     }
   ],
   "dashboards": [
@@ -503,7 +542,7 @@
     {
       "id": "cmawln8k700xqad07000k1q8b",
       "createdAt": "2025-05-20T14:18:27.223Z",
-      "updatedAt": "2025-05-20T15:56:46.000Z",
+      "updatedAt": "2026-09-01T10:00:00.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
@@ -521,14 +560,15 @@
           {"x": 6, "y": 3, "id": "bca6fb2d-94c6-4c32-9861-88828313eb3b", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawltpsx00yaad07f51yvkwg"},
           {"x": 9, "y": 3, "id": "67e0de43-032e-4ae2-99e0-264fcb4a47a9", "type": "widget", "x_size": 3, "y_size": 5, "widgetId": "cmawlu5bs00zsad07maibk7ef"},
           {"x": 0, "y": 8, "id": "4ce5a8f2-aee2-418e-85a1-edee9e2b2915", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlw4s700zvad07qq4qi0gp"},
-          {"x": 6, "y": 8, "id": "b24681fc-0664-45a6-985f-6022e7c6eab7", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlxdo00106ad07crpey1if"}
+          {"x": 6, "y": 8, "id": "b24681fc-0664-45a6-985f-6022e7c6eab7", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmawlxdo00106ad07crpey1if"},
+          {"x": 0, "y": 13, "id": "jmhkaiw0jwzy6vdltmpuiqkl", "type": "widget", "x_size": 12, "y_size": 5, "widgetId": "l0liih2p6mb79934helasxiy"}
         ]
       }
     },
     {
       "id": "cmawoi7yd00aqad07f3why08w",
       "createdAt": "2025-05-20T15:38:32.005Z",
-      "updatedAt": "2025-05-20T16:09:56.618Z",
+      "updatedAt": "2026-09-01T10:00:00.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
@@ -547,7 +587,8 @@
           {"x": 4, "y": 11, "id": "4754f821-7099-450c-89bc-db5e6ab2189e", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawlkgt300vsad06g69vqqej"},
           {"x": 0, "y": 0, "id": "e91465b7-63fd-4e77-babc-8e64abdb5672", "type": "widget", "x_size": 2, "y_size": 2, "widgetId": "cmawlaqoa004kad07e2q0za6k"},
           {"x": 2, "y": 0, "id": "2ad4931e-b91d-4ca1-9178-5ac8c3edd0a8", "type": "widget", "x_size": 2, "y_size": 2, "widgetId": "cmawlbdu2004nad07lks0j8lw"},
-          {"x": 4, "y": 0, "id": "f7d74d8d-09a5-4a5e-a8de-f48dc6ba6a4b", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawk5sik00igad07kjetg17j"}
+          {"x": 4, "y": 0, "id": "f7d74d8d-09a5-4a5e-a8de-f48dc6ba6a4b", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmawk5sik00igad07kjetg17j"},
+          {"x": 0, "y": 16, "id": "zex5qrqv7dhnjd87tachxdu1", "type": "widget", "x_size": 12, "y_size": 6, "widgetId": "oqhqp4ikycjg5b69lwslv7hg"}
         ]
       }
     }

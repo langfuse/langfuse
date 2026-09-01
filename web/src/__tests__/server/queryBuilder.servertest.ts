@@ -4177,6 +4177,106 @@ describe("queryBuilder", () => {
     );
 
     maybeItWithEventsTable(
+      "should support cache utilization and no-cache input spend",
+      async () => {
+        const projectId = randomUUID();
+        const start_time = Date.now() * 1000;
+        const queryWindow = {
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        };
+
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            name: "cache-hit",
+            usage_details: { input: 20, input_cached_tokens: 80 },
+            cost_details: { input: 200 },
+            start_time,
+          }),
+          createEvent({
+            project_id: projectId,
+            name: "no-cache",
+            usage_details: { input: 50, input_cached_tokens: 0 },
+            cost_details: { input: 4 },
+            start_time,
+          }),
+          createEvent({
+            project_id: projectId,
+            name: "unreported",
+            usage_details: { input: 40 },
+            cost_details: { input: 100 },
+            start_time,
+          }),
+          createEvent({
+            project_id: projectId,
+            name: "alias-hit",
+            usage_details: { input: 30, cached_tokens: 10 },
+            cost_details: { input: 200 },
+            start_time,
+          }),
+        ]);
+
+        const utilization = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "inputCacheStatus" }],
+            metrics: [
+              {
+                measure: "inputTokensByCacheStatus",
+                aggregation: "sum",
+              },
+            ],
+            filters: [],
+            timeDimension: null,
+            ...queryWindow,
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+        const buckets = Object.fromEntries(
+          utilization.map((row) => [
+            row.inputCacheStatus,
+            Number(row.sum_inputTokensByCacheStatus),
+          ]),
+        );
+        expect(buckets).toEqual({
+          "Cached input": 90,
+          "Other input": 100,
+          "Cache reporting unavailable": 40,
+        });
+
+        const spend = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "inputCost", aggregation: "sum" }],
+            filters: [
+              {
+                column: "cachedInputTokens",
+                operator: "<=",
+                value: 0,
+                type: "number",
+              },
+            ],
+            timeDimension: null,
+            ...queryWindow,
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+
+        expect(spend).toHaveLength(1);
+        expect(spend[0]?.name).toBe("no-cache");
+        expect(Number(spend[0]?.sum_inputCost)).toBe(4);
+      },
+    );
+
+    maybeItWithEventsTable(
       "should produce timeseries with costType dimension and WITH FILL",
       async () => {
         const projectId = randomUUID();

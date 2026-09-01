@@ -8,12 +8,39 @@ import {
 } from "./types";
 import { InvalidRequestError } from "../../errors";
 import {
+  eventsTableCachedInputMetricKeySql,
+  eventsTableCachedInputMetricSqlForColumn,
   eventsTableIsRootObservationSqlForAlias,
   eventsTableTraceNameAggregationSqlForAlias,
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
+
+const eventsObservationInputTokensSql = (detailsColumn: string) =>
+  `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, ${detailsColumn})))`;
+const eventsObservationOtherInputTokensSql = (detailsColumn: string) =>
+  `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 AND NOT ${eventsTableCachedInputMetricKeySql("x.1")}, ${detailsColumn})))`;
+
+const cachedInputTokensSql = eventsTableCachedInputMetricSqlForColumn(
+  "events_observations.usage_details",
+);
+const inputTokensSql = eventsObservationInputTokensSql(
+  "events_observations.usage_details",
+);
+const otherInputTokensSql = eventsObservationOtherInputTokensSql(
+  "events_observations.usage_details",
+);
+const inputTokensByCacheStatusSql = `arrayFlatten(arrayMap(
+  (cachedInput, otherInput, allInput) -> [
+    if(isNotNull(cachedInput), cachedInput, NULL),
+    if(isNotNull(cachedInput), otherInput, NULL),
+    if(isNull(cachedInput), allInput, NULL)
+  ],
+  [${cachedInputTokensSql}],
+  [${otherInputTokensSql}],
+  [${inputTokensSql}]
+))`;
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1353,6 +1380,25 @@ export const eventsObservationsView: ViewDeclarationType = {
         valueAlias: "usage_value",
       },
     },
+    cachedInputTokens: {
+      sql: cachedInputTokensSql,
+      alias: "cachedInputTokens",
+      type: "number",
+      description:
+        "Cache-read input tokens reported by the observation. Missing telemetry remains null.",
+      uiHidden: true,
+    },
+    inputCacheStatus: {
+      sql: "['Cached input', 'Other input', 'Cache reporting unavailable']",
+      alias: "inputCacheStatus",
+      type: "string",
+      description:
+        "Cache-read reporting status for input tokens. Missing cache telemetry is kept separate from explicit zero usage.",
+      pairExpand: {
+        valuesSql: inputTokensByCacheStatusSql,
+        valueAlias: "input_tokens_by_cache_status_value",
+      },
+    },
     // Experiment dimensions (v2 only - experiment data only exists in events table)
     experimentName: {
       sql: "nullIf(events_observations.experiment_name, '')",
@@ -1438,6 +1484,17 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Sum of input tokens consumed by the observation.",
       unit: "tokens",
     },
+    cachedInputTokens: {
+      sql: eventsTableCachedInputMetricSqlForColumn(
+        "@@AGG1@@(events_observations.usage_details)",
+      ),
+      aggs: { agg1: "any" },
+      alias: "cachedInputTokens",
+      type: "integer",
+      description:
+        "Sum of cache-read input tokens reported by the observation.",
+      unit: "tokens",
+    },
     outputTokens: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
       aggs: { agg1: "any" },
@@ -1478,6 +1535,16 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "inputCost",
       type: "decimal",
       description: "Sum of input cost incurred by the observation.",
+      unit: "USD",
+    },
+    cachedInputCost: {
+      sql: eventsTableCachedInputMetricSqlForColumn(
+        "@@AGG1@@(events_observations.cost_details)",
+      ),
+      aggs: { agg1: "any" },
+      alias: "cachedInputCost",
+      type: "decimal",
+      description: "Sum of cache-read input cost reported by the observation.",
       unit: "USD",
     },
     outputCost: {
@@ -1555,6 +1622,15 @@ export const eventsObservationsView: ViewDeclarationType = {
       requiresDimension: "usageType",
       description:
         "Sum of token usage per category. The usageType dimension is auto-included to emit the ARRAY JOIN that brings usage_value into scope.",
+    },
+    inputTokensByCacheStatus: {
+      sql: "input_tokens_by_cache_status_value",
+      alias: "inputTokensByCacheStatus",
+      type: "integer",
+      unit: "tokens",
+      requiresDimension: "inputCacheStatus",
+      description:
+        "Input tokens split into cached, other input, and cache reporting unavailable buckets.",
     },
   },
   tableRelations: {
