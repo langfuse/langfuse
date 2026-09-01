@@ -363,9 +363,12 @@ export const eventsTracesView: ViewDeclarationType = {
 const createEvaluatorDimensions = (
   tableAlias: string,
 ): DimensionsDeclarationType => {
+  const metadataValue = (key: EvalExecutionMetadataKey) =>
+    `arrayElement(${tableAlias}.metadata_values, indexOf(${tableAlias}.metadata_names, '${key}'))`;
+
   return {
     evaluatorId: {
-      sql: `coalesce(nullIf(${tableAlias}.evaluator_id, ''), ${tableAlias}.evaluation_rule_id)`,
+      sql: `coalesce(nullIf(${metadataValue(EvalExecutionMetadataKey.EVALUATOR_ID)}, ''), ${metadataValue(EvalExecutionMetadataKey.EVALUATION_RULE_ID)})`,
       alias: "evaluatorId",
       type: "string",
       description:
@@ -374,7 +377,7 @@ const createEvaluatorDimensions = (
       uiHidden: true,
     },
     isEvaluatorTest: {
-      sql: `${tableAlias}.evaluator_execution_is_test`,
+      sql: `toBool(${metadataValue(EvalExecutionMetadataKey.EVALUATOR_TEST)} = 'true')`,
       alias: "isEvaluatorTest",
       type: "boolean",
       description: "Whether this row belongs to an evaluator test run.",

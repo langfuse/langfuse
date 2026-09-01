@@ -252,12 +252,18 @@ describe("queryBuilder filter type validation", () => {
     );
 
     expect(evaluatorIdQuery.query).toContain(
-      "events_observations.evaluator_id",
+      "arrayElement(events_observations.metadata_values, indexOf(events_observations.metadata_names, 'evaluator_id'))",
     );
     expect(evaluatorIdQuery.query).toContain(
-      "events_observations.evaluation_rule_id",
+      "arrayElement(events_observations.metadata_values, indexOf(events_observations.metadata_names, 'evaluation_rule_id'))",
     );
     expect(evaluatorTestQuery.query).toContain(
+      "arrayElement(events_observations.metadata_values, indexOf(events_observations.metadata_names, 'evaluator_test')) = 'true'",
+    );
+    expect(evaluatorIdQuery.query).not.toContain(
+      "events_observations.evaluator_id",
+    );
+    expect(evaluatorTestQuery.query).not.toContain(
       "events_observations.evaluator_execution_is_test",
     );
     expect(evaluatorIdQuery.query).toContain("NOT IN ({stringOptionsFilter");
