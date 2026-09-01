@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:24.20.0-alpine
 
 RUN apk add --no-cache jq python3
 # The entire runtime runs as a single unprivileged user. Lambda MicroVMs set

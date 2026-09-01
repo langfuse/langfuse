@@ -13,6 +13,7 @@ RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
 FROM ubuntu:24.04
 
 ARG DOCKER_VERSION=5:28.5.2-1~ubuntu.24.04~noble
+ARG NODE_VERSION=24.20.0
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -32,14 +33,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fuse-overlayfs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 24 from NodeSource and activate the repository's pinned pnpm.
+# Install Node.js 24.20.0 from NodeSource and activate the repository's pinned pnpm.
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl --retry 3 --retry-delay 5 -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
       | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get install -y --no-install-recommends "nodejs=${NODE_VERSION}-1nodesource1" \
+    && test "$(node --version)" = "v${NODE_VERSION}" \
     && npm install --global corepack@0.34.0 \
     && corepack enable \
     && corepack prepare pnpm@11.22.0 --activate \

@@ -29,7 +29,7 @@ concurrency:
 
 env:
   # Keep in sync with NODE_VERSION in pipeline.yml.
-  NODE_VERSION: 24
+  NODE_VERSION: 24.20.0
 
 jobs:
   warm:

@@ -226,7 +226,7 @@ file for a supported tool. Keep the shared config minimal and neutral.
 ## Cursor Cloud
 
 Cursor Cloud uses the committed environment file to build an Ubuntu 24.04
-machine with Node.js 24 and nested Docker support. Builds run
+machine with Node.js 24.20.0 and nested Docker support. Builds run
 `scripts/agents/setup-cursor-cloud.sh`, which delegates to the shared,
 idempotent setup and then installs Cursor's Playwright system dependencies.
 Each agent run starts the six-service source stack with
