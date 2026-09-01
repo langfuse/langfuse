@@ -25,7 +25,7 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -62,7 +62,7 @@ type InitialEvaluator = {
   name: string;
   description: string | null;
   type: EvalTemplateType;
-  definition: EvaluatorDefinition;
+  definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
@@ -86,7 +86,7 @@ export function applyEvaluatorSuggestion(
 
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
-): EvaluatorDefinition {
+): NormalizedEvaluatorDefinition {
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -96,13 +96,13 @@ export function getEvaluatorVersionDefinition(
   }
 
   type LlmEvaluatorDefinition = Extract<
-    EvaluatorDefinition,
+    NormalizedEvaluatorDefinition,
     { type: "LLM_AS_JUDGE" }
   >;
 
   return {
     type: version.type,
-    prompt: version.prompt ?? "",
+    promptMessages: version.promptMessages!,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams,
@@ -266,7 +266,8 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-    prompt: version.prompt,
+    promptMessages:
+      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],
@@ -333,7 +334,7 @@ export function EvaluatorSetupPage(
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
     return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, prompt: state.prompt }
+      ? { type: state.type, promptMessages: state.promptMessages }
       : { type: state.type, sourceCode: state.sourceCode };
   };
 

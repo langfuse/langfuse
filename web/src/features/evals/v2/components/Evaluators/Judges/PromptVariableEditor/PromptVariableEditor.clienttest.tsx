@@ -23,11 +23,17 @@ describe("PromptVariableEditor", () => {
     expect(preview).toHaveClass(
       "ph-no-capture",
       "bg-muted/50",
+      "absolute",
+      "inset-0",
+      "overflow-y-auto",
       "px-3",
       "py-2",
-      "min-h-[140px]",
-      "max-h-[50dvh]",
+      "leading-5",
     );
+    expect(container.querySelector('[aria-hidden="true"]')).toHaveClass(
+      "invisible",
+    );
+    expect(container.querySelector(".cm-editor")).toBeInTheDocument();
 
     const interpolatedValue = container.querySelector('[title="{{input}}"]');
     expect(interpolatedValue).toHaveClass(

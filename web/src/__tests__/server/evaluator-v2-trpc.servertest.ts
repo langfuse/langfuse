@@ -33,7 +33,7 @@ let session: Session & { user: NonNullable<Session["user"]> };
 
 const definition = {
   type: "LLM_AS_JUDGE" as const,
-  prompt: "Judge {{output}}",
+  promptMessages: [{ role: "user" as const, content: "Judge {{output}}" }],
   modelConfig: null,
   variableMapping: [{ templateVariable: "output", selectedColumnId: "output" }],
   outputDefinition: {
@@ -125,7 +125,12 @@ describe("evalsV2 tRPC", () => {
       evaluatorId: created.id,
       name: "Renamed transport evaluator",
       description: "Updated through tRPC",
-      definition: { ...definition, prompt: "Judge this carefully: {{output}}" },
+      definition: {
+        ...definition,
+        promptMessages: [
+          { role: "user", content: "Judge this carefully: {{output}}" },
+        ],
+      },
     });
 
     const [listed, versions] = await Promise.all([

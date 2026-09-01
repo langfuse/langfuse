@@ -13475,14 +13475,21 @@ components:
       required:
         - provider
         - model
+    EvaluatorChatMessageRole:
+      title: EvaluatorChatMessageRole
+      type: string
+      enum:
+        - system
+        - user
+        - assistant
+      description: Role of an evaluator prompt message.
     EvaluatorChatMessage:
       title: EvaluatorChatMessage
       type: object
-      description: One user chat message in an evaluator prompt.
+      description: One chat message in an evaluator prompt.
       properties:
         role:
-          type: string
-          const: user
+          $ref: '#/components/schemas/EvaluatorChatMessageRole'
         content:
           type: string
           description: Message content. Evaluator variables use `{{variable}}` syntax.
@@ -13494,15 +13501,16 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/EvaluatorChatMessage'
-      description: A list containing exactly one user chat message.
+      description: >-
+        An ordered list of chat messages. A system message is only allowed as
+        the first message.
     EvaluatorChatPromptInput:
       title: EvaluatorChatPromptInput
       oneOf:
         - type: string
           title: String
         - $ref: '#/components/schemas/EvaluatorChatPrompt'
-      description: >-
-        A user prompt string, or a list containing exactly one user chat message.
+      description: A user prompt string shortcut, or an ordered list of chat messages.
     EvaluatorVersionBase:
       title: EvaluatorVersionBase
       type: object
@@ -13538,7 +13546,7 @@ components:
           description: Evaluator type.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPrompt'
-          description: The single user chat message used during evaluation.
+          description: Ordered chat messages used during evaluation.
         variables:
           type: array
           items:
@@ -13745,7 +13753,7 @@ components:
           description: Evaluator type.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPrompt'
-          description: The single user chat message used by the latest evaluator version.
+          description: Ordered chat messages used by the latest evaluator version.
         variables:
           type: array
           items:
@@ -13865,9 +13873,7 @@ components:
           description: Evaluator type.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPromptInput'
-          description: >-
-            User prompt string shortcut or a list containing exactly one user
-            chat message.
+          description: User prompt string shortcut or an ordered list of chat messages.
         modelConfig:
           $ref: '#/components/schemas/EvaluatorModelConfig'
           nullable: true
@@ -13982,8 +13988,8 @@ components:
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPromptInput'
           description: >-
-            Complete replacement user prompt string or a list containing exactly
-            one user chat message.
+            Complete replacement user prompt string or an ordered list of chat
+            messages.
         modelConfig:
           $ref: '#/components/schemas/EvaluatorModelConfig'
           nullable: true
