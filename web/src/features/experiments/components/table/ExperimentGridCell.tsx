@@ -1,3 +1,6 @@
+/* The experiment marker's colour is data — which run this is, out of the N
+   selected (`getExperimentColorStyles`) — so it arrives as a class rather than
+   as a variant, the same way `DiffLabel` takes one. */
 /* eslint-disable @repo/no-style-props */
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
@@ -44,6 +47,7 @@ import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
+import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -64,8 +68,12 @@ type ExperimentGridCellProps = {
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   isBaseline: boolean;
+  /** Whether this cell carries deltas against the baseline (the diff mode). */
+  showDiff?: boolean;
   baselineScores?: ScoreAggregate;
   baselineTraceScores?: ScoreAggregate;
+  /** Named in every diff chip's hover sentence, so the arrow has a direction. */
+  baselineExperimentName?: string;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
   markerClassName?: string;
@@ -91,6 +99,11 @@ type GridCellData = {
   traceScores: ScoreAggregate;
   scoreDiffs?: Record<string, BaselineDiff>;
   traceScoreDiffs?: Record<string, BaselineDiff>;
+  baselineScores?: ScoreAggregate;
+  baselineTraceScores?: ScoreAggregate;
+  baselineTotalCost?: number | null;
+  baselineLatencyMs?: number | null;
+  baselineExperimentName?: string;
   isLoading: boolean;
 };
 
@@ -127,7 +140,12 @@ const ScoreCommentPeek = ({
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
-        <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
+        {/* Name what the icon opened: a bare block of text next to a score
+            does not say it is the score's comment. */}
+        <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+          <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+            Score comment
+          </span>
           <Button
             onClick={handleCopy}
             variant="ghost"
@@ -212,12 +230,31 @@ const ScoreMetadataPeek = ({
 };
 
 /**
+ * How one score reads in a cell: a categorical score's modal value, a numeric
+ * score's average. Shared with the hover sentence beside it, which has to
+ * quote the same value the cell shows.
+ */
+const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
+  if (!aggregate) return "-";
+  if (aggregate.type === "CATEGORICAL") {
+    if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
+      return [...aggregate.valueCounts].sort((a, b) => b.count - a.count)[0]
+        .value;
+    }
+    return aggregate.values?.[0] ?? "-";
+  }
+  return aggregate.average !== undefined ? aggregate.average.toFixed(2) : "-";
+};
+
+/**
  * Simple score display component for grid cells.
  * Shows only the score name, with source and type on hover.
  */
 const ScoreItem = ({
   scoreKey,
   aggregate,
+  baselineAggregate,
+  baselineExperimentName,
   diff,
   projectId,
   level,
@@ -225,6 +262,8 @@ const ScoreItem = ({
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
+  baselineAggregate?: AggregatedScoreData | null;
+  baselineExperimentName?: string;
   diff?: BaselineDiff | null;
   projectId: string;
   level: Extract<ScoreLevel, "observation" | "trace">;
@@ -233,25 +272,26 @@ const ScoreItem = ({
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
 
-  let displayValue = "-";
-  if (aggregate) {
-    if (aggregate.type === "CATEGORICAL") {
-      if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
-        const sorted = [...aggregate.valueCounts].sort(
-          (a, b) => b.count - a.count,
-        );
-        displayValue = sorted[0].value;
-      } else if (aggregate.values && aggregate.values.length > 0) {
-        displayValue = aggregate.values[0];
-      }
-    } else {
-      displayValue =
-        aggregate.average !== undefined ? aggregate.average.toFixed(2) : "-";
-    }
-  }
+  const displayValue = scoreValueOf(aggregate);
 
   const hasComment = aggregate?.comment;
   const hasMetadata = aggregate?.hasMetadata && aggregate?.id;
+
+  // `true → false` and `+0.07` do not say which side is the baseline.
+  const diffTitle = diff
+    ? describeRunComparison({
+        baselineName: baselineExperimentName,
+        ...(diff.type === "CATEGORICAL"
+          ? {
+              baselineText: diff.from ?? "several values",
+              currentText: diff.to ?? "several values",
+            }
+          : {
+              baselineText: scoreValueOf(baselineAggregate),
+              currentText: scoreValueOf(aggregate),
+            }),
+      })
+    : undefined;
 
   return (
     <div className="flex items-center justify-between gap-1 text-xs">
@@ -286,25 +326,39 @@ const ScoreItem = ({
           </HoverCardContent>
         </HoverCard>
       </div>
-      <div className="flex items-center gap-1">
-        {displayValue === "-" ? (
-          <span className="text-muted-foreground text-xs">-</span>
-        ) : (
-          <Badge variant="secondary" className="text-xs">
-            {displayValue}
-          </Badge>
-        )}
-        {hasComment && (
-          <ScoreCommentPeek
-            comment={aggregate.comment!}
-            executionTraceId={aggregate.executionTraceId}
-            projectId={projectId}
+      {/* The value never gives up width for the move chip beside it: a
+          clipped value reads as data, so the move wraps under it instead. */}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-1 gap-y-0.5">
+        <span className="flex max-w-full shrink-0 items-center gap-1">
+          {displayValue === "-" ? (
+            <span className="text-muted-foreground text-xs">-</span>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="min-w-0 truncate text-xs"
+              title={displayValue}
+            >
+              {displayValue}
+            </Badge>
+          )}
+          {hasComment && (
+            <ScoreCommentPeek
+              comment={aggregate.comment!}
+              executionTraceId={aggregate.executionTraceId}
+              projectId={projectId}
+            />
+          )}
+          {hasMetadata && (
+            <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
+          )}
+        </span>
+        {diff && (
+          <DiffLabel
+            diff={diff}
+            formatValue={(v) => v.toFixed(2)}
+            title={diffTitle}
           />
         )}
-        {hasMetadata && (
-          <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
-        )}
-        {diff && <DiffLabel diff={diff} formatValue={(v) => v.toFixed(2)} />}
       </div>
     </div>
   );
@@ -322,6 +376,12 @@ const getScoreRowDefinition = (
       aggregate={
         level === "trace" ? data.traceScores[scoreKey] : data.scores[scoreKey]
       }
+      baselineAggregate={
+        level === "trace"
+          ? data.baselineTraceScores?.[scoreKey]
+          : data.baselineScores?.[scoreKey]
+      }
+      baselineExperimentName={data.baselineExperimentName}
       diff={
         level === "trace"
           ? data.traceScoreDiffs?.[scoreKey]
@@ -355,6 +415,201 @@ const MetadataItem = ({
   </div>
 );
 
+/** Metadata fields that used to be a line each inside the cell. */
+const METADATA_KEYS = [
+  "totalCost",
+  "latencyMs",
+  "level",
+  "itemId",
+  "observationId",
+  "traceId",
+  "startTime",
+] as const;
+
+const isMetadataFieldVisible = (
+  columnVisibility: VisibilityState,
+  key: (typeof METADATA_KEYS)[number],
+) => columnVisibility[key] !== false;
+
+export const hasVisibleCellMetadata = (columnVisibility: VisibilityState) =>
+  METADATA_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
+
+/**
+ * The item's identifiers, one hover away. They are the same on every row of a
+ * run and the peek view already carries them, so they don't earn a line each in
+ * a cell whose payload is the output — but they stay reachable here, including
+ * the link out to the execution trace. (LFE-15711)
+ */
+const CellIdentifiers = ({
+  data,
+  columnVisibility,
+}: {
+  data: GridCellData;
+  columnVisibility: VisibilityState;
+}) => {
+  const visible = (key: (typeof METADATA_KEYS)[number]) =>
+    isMetadataFieldVisible(columnVisibility, key);
+
+  const rows: Array<{ label: string; value: React.ReactNode }> = [
+    ...(visible("itemId")
+      ? [
+          {
+            label: "Item ID",
+            value: <span className="font-mono text-xs">{data.itemId}</span>,
+          },
+        ]
+      : []),
+    ...(visible("observationId")
+      ? [
+          {
+            label: "Observation",
+            value: (
+              <span className="font-mono text-xs">{data.observationId}</span>
+            ),
+          },
+        ]
+      : []),
+    ...(visible("traceId")
+      ? [
+          {
+            label: "Execution Trace",
+            value: (
+              <Link
+                href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
+                className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span
+                  className="truncate font-mono text-xs"
+                  title={data.traceId}
+                >
+                  {data.traceId}
+                </span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    ...(visible("startTime")
+      ? [
+          {
+            label: "Start Time",
+            value: (
+              <span
+                className="text-xs"
+                title={
+                  buildLocalIsoDatePresentation({ date: data.startTime })?.title
+                }
+              >
+                {
+                  buildLocalIsoDatePresentation({ date: data.startTime })
+                    ?.display
+                }
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  if (rows.length === 0) return null;
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground cursor-default text-[10px] font-bold uppercase underline decoration-dotted"
+          onClick={(event) => event.stopPropagation()}
+        >
+          IDs
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="left"
+        align="start"
+        className="flex w-auto max-w-96 flex-col gap-1 p-2"
+      >
+        {rows.map((row) => (
+          <MetadataItem key={row.label} label={row.label}>
+            {row.value}
+          </MetadataItem>
+        ))}
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
+
+/**
+ * One line of per-item metadata under the scores: the two metrics, the status,
+ * and the identifiers behind a hover. Replaces the five-line labelled block
+ * that made a comparison row ~380px of chrome around a 64px output.
+ */
+const CellMetadataFooter = ({
+  data,
+  columnVisibility,
+}: {
+  data: GridCellData;
+  columnVisibility: VisibilityState;
+}) => {
+  const visible = (key: (typeof METADATA_KEYS)[number]) =>
+    isMetadataFieldVisible(columnVisibility, key);
+
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+      {visible("totalCost") && (
+        // Same rule as the diff layout's metric columns: the delta wraps
+        // whole rather than being clipped mid-number.
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+          {data.totalCost ? (
+            usdFormatter(data.totalCost, 2, 6)
+          ) : (
+            <NotRecordedMetric metric="cost" />
+          )}
+          {data.totalCostDiff && (
+            <DiffLabel
+              diff={data.totalCostDiff}
+              preferNegativeDiff
+              formatValue={(value) => usdFormatter(value, 2, 6)}
+              title={describeRunComparison({
+                baselineName: data.baselineExperimentName,
+                baselineText: usdFormatter(data.baselineTotalCost ?? 0, 2, 6),
+                currentText: usdFormatter(data.totalCost ?? 0, 2, 6),
+                verb: "cost",
+              })}
+            />
+          )}
+        </span>
+      )}
+      {visible("latencyMs") && (
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+          {data.latencyMs != null ? (
+            latencyFormatter(data.latencyMs)
+          ) : (
+            <NotRecordedMetric metric="latency" />
+          )}
+          {data.latencyDiff && (
+            <DiffLabel
+              diff={data.latencyDiff}
+              preferNegativeDiff
+              formatValue={(value) => latencyFormatter(value)}
+              title={describeRunComparison({
+                baselineName: data.baselineExperimentName,
+                baselineText: latencyFormatter(data.baselineLatencyMs ?? 0),
+                currentText: latencyFormatter(data.latencyMs ?? 0),
+                verb: "took",
+              })}
+            />
+          )}
+        </span>
+      )}
+      {visible("level") && <span>{data.level}</span>}
+      <CellIdentifiers data={data} columnVisibility={columnVisibility} />
+    </div>
+  );
+};
+
 /**
  * Renders a group section with header and content
  */
@@ -362,12 +617,23 @@ const GroupSection = ({
   header,
   children,
   markerClassName,
+  grow = false,
 }: {
   header?: string;
   children: React.ReactNode;
   markerClassName?: string;
+  /** Take the cell's spare vertical space instead of hugging its content. */
+  grow?: boolean;
 }) => (
-  <div className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
+  <div
+    className={cn(
+      "flex flex-col gap-1 px-2 py-1.5",
+      // `grow` takes the spare space but keeps its content's height as its
+      // base, so a cell with no spare space still shows the output rather than
+      // collapsing to its label and letting the output spill over the scores.
+      grow ? "shrink-0 grow" : "shrink-0",
+    )}
+  >
     {header && (
       <div className="flex items-center gap-1.5">
         {markerClassName !== undefined && (
@@ -409,8 +675,10 @@ export const ExperimentGridCell = ({
   observationScoreOrder,
   traceScoreOrder,
   isBaseline,
+  showDiff = true,
   baselineScores,
   baselineTraceScores,
+  baselineExperimentName,
   isLoading = false,
   columnVisibility = {},
   markerClassName,
@@ -418,29 +686,33 @@ export const ExperimentGridCell = ({
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
-      isBaseline || !baselineScores
+      !showDiff || isBaseline || !baselineScores
         ? undefined
         : computeScoreDiffs(scores, baselineScores),
-    [scores, baselineScores, isBaseline],
+    [scores, baselineScores, isBaseline, showDiff],
   );
 
   const traceScoreDiffs = useMemo(
     () =>
-      isBaseline || !baselineTraceScores
+      !showDiff || isBaseline || !baselineTraceScores
         ? undefined
         : computeScoreDiffs(traceScores, baselineTraceScores),
-    [traceScores, baselineTraceScores, isBaseline],
+    [traceScores, baselineTraceScores, isBaseline, showDiff],
   );
 
   const totalCostDiff = useMemo(
     () =>
-      isBaseline ? null : calculateNumericDiff(totalCost, baselineTotalCost),
-    [baselineTotalCost, isBaseline, totalCost],
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(totalCost, baselineTotalCost),
+    [baselineTotalCost, isBaseline, showDiff, totalCost],
   );
   const latencyDiff = useMemo(
     () =>
-      isBaseline ? null : calculateNumericDiff(latencyMs, baselineLatencyMs),
-    [baselineLatencyMs, isBaseline, latencyMs],
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(latencyMs, baselineLatencyMs),
+    [baselineLatencyMs, isBaseline, latencyMs, showDiff],
   );
 
   const orderedObservationKeys = useMemo(
@@ -475,6 +747,11 @@ export const ExperimentGridCell = ({
     traceScores,
     scoreDiffs,
     traceScoreDiffs,
+    baselineScores,
+    baselineTraceScores,
+    baselineTotalCost,
+    baselineLatencyMs,
+    baselineExperimentName,
     isLoading,
   };
 
@@ -519,115 +796,22 @@ export const ExperimentGridCell = ({
             : []),
         ],
       },
-      // Metadata group - itemId, observationId, level, startTime
-      {
-        accessorKey: "metadata",
-        header: "Metadata",
-        children: [
-          {
-            accessorKey: "itemId",
-            cell: ({ data }) => (
-              <MetadataItem label="Item ID">
-                <span className="font-mono text-xs">{data.itemId}</span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "observationId",
-            cell: ({ data }) => (
-              <MetadataItem label="Observation">
-                <span className="font-mono text-xs">{data.observationId}</span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "traceId",
-            cell: ({ data }) => (
-              <MetadataItem label="Execution Trace">
-                <Link
-                  href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
-                  className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <span
-                    className="truncate font-mono text-xs"
-                    title={data.traceId}
-                  >
-                    {data.traceId}
-                  </span>
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </Link>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "level",
-            cell: ({ data }) => (
-              <MetadataItem label="Status">
-                <span className="text-xs">{data.level}</span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "startTime",
-            cell: ({ data }) => {
-              const preparedDate = buildLocalIsoDatePresentation({
-                date: data.startTime,
-              });
-
-              return (
-                <MetadataItem label="Start Time">
-                  <span className="text-xs" title={preparedDate?.title}>
-                    {preparedDate?.display}
-                  </span>
-                </MetadataItem>
-              );
+      // One compact line, replacing the five labelled metadata rows. The ids
+      // moved into its hover card; cost and latency stay visible because they
+      // are what a reader compares between runs.
+      ...(hasVisibleCellMetadata(columnVisibility)
+        ? ([
+            {
+              accessorKey: "metadata",
+              cell: ({ data }) => (
+                <CellMetadataFooter
+                  data={data}
+                  columnVisibility={columnVisibility}
+                />
+              ),
             },
-          },
-          {
-            accessorKey: "totalCost",
-            cell: ({ data }) => (
-              <MetadataItem label="Total Cost">
-                <span className="inline-flex items-center gap-1 text-xs">
-                  {data.totalCost ? (
-                    usdFormatter(data.totalCost, 2, 6)
-                  ) : (
-                    <NotRecordedMetric metric="cost" />
-                  )}
-                  {data.totalCostDiff && (
-                    <DiffLabel
-                      diff={data.totalCostDiff}
-                      preferNegativeDiff
-                      formatValue={(value) => usdFormatter(value, 2, 6)}
-                    />
-                  )}
-                </span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "latencyMs",
-            cell: ({ data }) => (
-              <MetadataItem label="Latency">
-                <span className="inline-flex items-center gap-1 text-xs">
-                  {data.latencyMs != null ? (
-                    latencyFormatter(data.latencyMs)
-                  ) : (
-                    <NotRecordedMetric metric="latency" />
-                  )}
-                  {data.latencyDiff && (
-                    <DiffLabel
-                      diff={data.latencyDiff}
-                      preferNegativeDiff
-                      formatValue={(value) => latencyFormatter(value)}
-                    />
-                  )}
-                </span>
-              </MetadataItem>
-            ),
-          },
-        ],
-      },
+          ] satisfies CellRowDef<GridCellData>[])
+        : []),
     ],
     [
       columnVisibility,
@@ -668,15 +852,18 @@ export const ExperimentGridCell = ({
         const isFirst = index === 0;
         const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for IOTableCell
+        // Output section - special handling for ConnectedIOTableCell. It is the
+        // one section that grows, so a taller row shows more output rather than
+        // more chrome.
         if (row.accessorKey === "output" && row.cell) {
           return (
             <Fragment key={row.accessorKey}>
               <GroupSection
                 header={row.header}
                 markerClassName={isFirst ? markerClassName : undefined}
+                grow
               >
-                <div className="h-16 overflow-hidden">
+                <div className="min-h-16 flex-1 overflow-hidden">
                   {row.cell({ data: cellData })}
                 </div>
               </GroupSection>
@@ -700,6 +887,21 @@ export const ExperimentGridCell = ({
                     </div>
                   ))}
                 </div>
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
+
+        // Sections that render one cell of their own (the metadata footer).
+        if (row.cell) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+              >
+                {row.cell({ data: cellData })}
               </GroupSection>
               {!isLast && <Separator />}
             </Fragment>
