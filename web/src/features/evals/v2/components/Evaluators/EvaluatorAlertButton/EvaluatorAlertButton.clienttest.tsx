@@ -78,6 +78,42 @@ describe("EvaluatorAlertButton", () => {
     expect(screen.queryByText("Numeric score")).not.toBeInTheDocument();
     expect(screen.queryByText("Boolean score")).not.toBeInTheDocument();
     expect(screen.queryByText("Categorical score")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cost threshold")).not.toBeInTheDocument();
+  });
+
+  it("does not offer another cost alert for connected code evaluators", () => {
+    render(
+      <EvaluatorAlertButton
+        scope="evaluator"
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        evaluatorType="CODE"
+        scoreDataType="BOOLEAN"
+        connectedAlerts={[
+          {
+            id: "alert-1",
+            name: "Evaluator alert",
+            status: "ACTIVE",
+            severity: "UNKNOWN",
+            metric: { measure: "count", aggregation: "count" },
+            thresholdOperator: "GT",
+            alertThreshold: 1,
+            alertedAt: null,
+          },
+        ]}
+        canRead
+        canCreate
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "1 connected evaluator alert" }),
+    );
+
+    expect(screen.getByRole("button", { name: "Score" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cost" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a table link after 20 connected alerts and keeps bottom actions icon-free", () => {

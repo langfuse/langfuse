@@ -68,6 +68,9 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
     : "You do not have permission to create alerts";
   const alertCount = connectedAlerts.length;
   const isAggregateCost = props.scope === "allEvaluators";
+  const supportsCostAlert =
+    isAggregateCost ||
+    (props.scope === "evaluator" && props.evaluatorType === "LLM_AS_JUDGE");
   const scoreAlertUrl = (dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL") => {
     if (props.scope !== "evaluator") return "";
     return evaluatorAlertUrl(projectId, {
@@ -181,7 +184,9 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   {isAggregateCost
                     ? "Get notified when evaluator cost crosses a threshold."
-                    : "Get notified when this evaluator's scores or cost cross a threshold."}
+                    : supportsCostAlert
+                      ? "Get notified when this evaluator's scores or cost cross a threshold."
+                      : "Get notified when this evaluator's score crosses a threshold."}
                 </p>
               </div>
             )}
@@ -212,23 +217,25 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       Score
                     </Button>
                   ) : null}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 cursor-pointer gap-1.5"
-                    disabled={createDisabled}
-                    onClick={() =>
-                      openAlertCreation(
-                        isAggregateCost ? "all_evaluator_cost" : "cost",
-                        costAlertUrl,
-                        closePopover,
-                      )
-                    }
-                  >
-                    <DollarSign className="text-muted-foreground h-4 w-4" />
-                    Cost
-                  </Button>
+                  {supportsCostAlert ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 cursor-pointer gap-1.5"
+                      disabled={createDisabled}
+                      onClick={() =>
+                        openAlertCreation(
+                          isAggregateCost ? "all_evaluator_cost" : "cost",
+                          costAlertUrl,
+                          closePopover,
+                        )
+                      }
+                    >
+                      <DollarSign className="text-muted-foreground h-4 w-4" />
+                      Cost
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -256,27 +263,29 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                     <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
                   </CommandItem>
                 ) : null}
-                <CommandItem
-                  disabled={createDisabled}
-                  onSelect={() =>
-                    openAlertCreation(
-                      isAggregateCost ? "all_evaluator_cost" : "cost",
-                      costAlertUrl,
-                      closePopover,
-                    )
-                  }
-                >
-                  <DollarSign className="text-muted-foreground" />
-                  <div>
-                    <p>Cost threshold</p>
-                    <p className="text-muted-foreground text-xs">
-                      {isAggregateCost
-                        ? "Alert when evaluator cost crosses a threshold"
-                        : "Alert on spend from running this evaluator"}
-                    </p>
-                  </div>
-                  <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
-                </CommandItem>
+                {supportsCostAlert ? (
+                  <CommandItem
+                    disabled={createDisabled}
+                    onSelect={() =>
+                      openAlertCreation(
+                        isAggregateCost ? "all_evaluator_cost" : "cost",
+                        costAlertUrl,
+                        closePopover,
+                      )
+                    }
+                  >
+                    <DollarSign className="text-muted-foreground" />
+                    <div>
+                      <p>Cost threshold</p>
+                      <p className="text-muted-foreground text-xs">
+                        {isAggregateCost
+                          ? "Alert when evaluator cost crosses a threshold"
+                          : "Alert on spend from running this evaluator"}
+                      </p>
+                    </div>
+                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                  </CommandItem>
+                ) : null}
               </CommandGroup>
             )}
             {createDisabled ? (

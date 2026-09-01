@@ -57,7 +57,7 @@ export const CodeEvaluator = meta.story({
   args: {
     ...defaultArgs,
     evaluatorType: "CODE",
-    scoreDataType: undefined,
+    scoreDataType: "BOOLEAN",
   },
 });
 
