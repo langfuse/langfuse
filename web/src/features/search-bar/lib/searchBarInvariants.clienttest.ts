@@ -243,6 +243,69 @@ describe("search bar invariants — events v4 registry", () => {
       ],
     });
   });
+
+  it("filters cached tokens and attributed cached cost", () => {
+    expect(
+      planCommit(
+        "cachedTokens:0 cachedCost:<=0",
+        undefined,
+        EVENTS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "cachedInputTokens",
+          type: "number",
+          operator: "=",
+          value: 0,
+        },
+        {
+          column: "cachedInputCost",
+          type: "number",
+          operator: "<=",
+          value: 0,
+        },
+      ],
+    });
+  });
+
+  it("supports presence filters for cached metrics", () => {
+    const query =
+      "has:cachedTokens -has:cachedTokens has:cachedCost -has:cachedCost";
+    expect(
+      validateQuery(query, undefined, EVENTS_FIELD_REGISTRY).diagnostics,
+    ).toEqual([]);
+    expect(planCommit(query, undefined, EVENTS_FIELD_REGISTRY)).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "cachedInputTokens",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "cachedInputTokens",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+    });
+  });
 });
 
 describe("search bar invariants — evaluation rules registry", () => {
