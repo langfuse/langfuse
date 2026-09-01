@@ -15,6 +15,7 @@ import type {
 } from "@/src/features/public-api/types/annotation-queues";
 import {
   AnnotationQueueStatus,
+  InternalServerError,
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -22,7 +23,10 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { getUserProjectRoles } from "@langfuse/shared/src/server";
+import {
+  getUserProjectRoles,
+  insertAnnotationQueueItems,
+} from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 type GetAnnotationQueuesInput = z.infer<typeof GetAnnotationQueuesQuery>;
@@ -404,19 +408,38 @@ export const createAnnotationQueueItemForApi = async ({
   // Create the queue item with status defaulting to PENDING if not provided
   const status = input.status || AnnotationQueueStatus.PENDING;
 
-  // Set completedAt if status is COMPLETED
-  const completedAt =
-    status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
+  const { createdItems } = await insertAnnotationQueueItems({
+    projectId,
+    queueId,
+    objectType: input.objectType,
+    objectIds: [input.objectId],
+    status,
+  });
 
-  const item = await prisma.annotationQueueItem.create({
-    data: {
-      queueId,
-      objectId: input.objectId,
-      objectType: input.objectType,
-      status,
-      completedAt,
-      projectId,
-    },
+  // Idempotent: the object is already queued here, so return the existing
+  // item unchanged rather than erroring or creating a duplicate.
+  if (createdItems.length === 0) {
+    const existingItem = await prisma.annotationQueueItem.findFirst({
+      where: {
+        projectId,
+        queueId,
+        objectId: input.objectId,
+        objectType: input.objectType,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!existingItem) {
+      throw new InternalServerError(
+        "Annotation queue item insert reported a duplicate but no existing item was found",
+      );
+    }
+
+    return toAnnotationQueueItemApi(existingItem);
+  }
+
+  const item = await prisma.annotationQueueItem.findUniqueOrThrow({
+    where: { id: createdItems[0].id },
   });
 
   if (auditScope) {

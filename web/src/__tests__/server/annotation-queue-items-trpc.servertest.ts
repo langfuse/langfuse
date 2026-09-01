@@ -123,4 +123,55 @@ describe("annotationQueueItems trpc", () => {
       ).rejects.toThrow("User does not have access to this resource or action");
     });
   });
+
+  describe("createMany", () => {
+    it("dedupes objects already queued, including duplicates within one call", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup, "ADMIN");
+
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Test Queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+
+      const alreadyQueuedObjectId = uuidv4();
+      await prisma.annotationQueueItem.create({
+        data: {
+          queueId: queue.id,
+          objectId: alreadyQueuedObjectId,
+          objectType: AnnotationQueueObjectType.TRACE,
+          projectId: setup.project.id,
+        },
+      });
+
+      const newObjectId = uuidv4();
+
+      const result = await caller.annotationQueueItems.createMany({
+        projectId: setup.project.id,
+        queueId: queue.id,
+        // newObjectId listed twice to also exercise in-batch dedup
+        objectIds: [alreadyQueuedObjectId, newObjectId, newObjectId],
+        objectType: AnnotationQueueObjectType.TRACE,
+      });
+
+      expect(result.createdCount).toBe(1);
+
+      const items = await prisma.annotationQueueItem.findMany({
+        where: {
+          queueId: queue.id,
+          objectType: AnnotationQueueObjectType.TRACE,
+          objectId: { in: [alreadyQueuedObjectId, newObjectId] },
+        },
+      });
+      expect(items).toHaveLength(2);
+      expect(
+        items.filter((item) => item.objectId === newObjectId),
+      ).toHaveLength(1);
+    });
+  });
 });

@@ -6,6 +6,7 @@ import {
 
 export * from "./services/StorageService";
 export * from "./media";
+export * from "./annotationQueues";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
 export * from "./cache";
