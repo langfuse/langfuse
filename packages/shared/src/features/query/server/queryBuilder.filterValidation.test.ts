@@ -46,6 +46,93 @@ describe("queryBuilder filter type validation", () => {
     expect(view.dimensions.value).toBeUndefined();
   });
 
+  it.each(["v1", "v2"] as const)(
+    "declares prompt version dimensions as numbers in the %s scores view",
+    (version) => {
+      const scoresView = getViewDeclaration("scores-numeric", version);
+      const observationsView = getViewDeclaration("observations", version);
+
+      expect(scoresView.dimensions.observationPromptVersion?.type).toBe(
+        "number",
+      );
+      expect(observationsView.dimensions.promptVersion?.type).toBe("number");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers a numeric observationPromptVersion filter in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "observationPromptVersion",
+          operator: "=",
+          value: 2,
+          type: "number",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain("prompt_version = {numberFilter");
+      expect(query).not.toContain("position(");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "rejects a string observationPromptVersion filter in the %s scores view",
+    async (version) => {
+      await expect(
+        buildQueryWithFilter(
+          {
+            column: "observationPromptVersion",
+            operator: "contains",
+            value: "2",
+            type: "string",
+          },
+          { view: "scores-numeric" },
+          version,
+        ),
+      ).rejects.toThrow(
+        "Filter type 'string' is not supported for dimension type 'number'",
+      );
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "selects observationPromptVersion when grouping scores in %s",
+    async (version) => {
+      const { query } = await new QueryBuilder(undefined, version).build(
+        {
+          ...baseQuery,
+          view: "scores-numeric",
+          dimensions: [{ field: "observationPromptVersion" }],
+        } as QueryType,
+        "test-project",
+      );
+
+      expect(query).toContain("prompt_version");
+      expect(query).toContain("observationPromptVersion");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers a numeric promptVersion filter in the %s observations view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "promptVersion",
+          operator: "=",
+          value: 3,
+          type: "number",
+        },
+        undefined,
+        version,
+      );
+
+      expect(query).toContain("prompt_version = {numberFilter");
+    },
+  );
+
   it.each([
     {
       name: "arrayOptions on scalar string dimension",
