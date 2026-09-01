@@ -113,7 +113,7 @@ export default async function handler(
 async function authorizeOrgProjectsRead(
   headers: IncomingHttpHeaders,
 ): Promise<NewResult> {
-  const authn = await authenticator.auth({ headers });
+  const authn = await authenticator.authenticate({ headers });
   if (!authn.success) {
     return { success: false, error: { httpCode: authn.error.httpCode } };
   }

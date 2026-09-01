@@ -28,7 +28,7 @@ const headerValue = (
 export async function enforceProjectAuth(
   params: EnforceProjectAuthParams,
 ): Promise<ProjectAccessResult | ErrorResult<AuthError>> {
-  const authn = await authenticator.auth({
+  const authn = await authenticator.authenticate({
     headers: params.headers,
     allowInAppAgentKey: params.allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,

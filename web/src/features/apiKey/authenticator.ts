@@ -16,7 +16,7 @@ import {
   type Success,
 } from "@/src/features/auth/policy/types";
 
-/** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → resolve → gate key kind. */
+/** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → resolve → enforce route settings. */
 export class Authenticator {
   constructor(
     private readonly authn: Verifier = new Verifier(),
@@ -24,8 +24,8 @@ export class Authenticator {
     private readonly cache: AuthenticatorCache = new AuthenticatorCache(),
   ) {}
 
-  /** auth runs the full pipeline read-through the context cache and gates the resolved principal on every path, returning a typed failure rather than throwing. */
-  async auth(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
+  /** authenticate runs the full pipeline read-through the context cache and enforces route settings on the resolved principal on every path, returning a typed failure rather than throwing. */
+  async authenticate(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const credential = parseAuthorizationHeader(params.headers.authorization);
     if (credential.kind === "malformed") {
       return {
@@ -38,7 +38,7 @@ export class Authenticator {
       (await this.cache.get(credential)) ??
       (await this.verifyAndResolve(credential));
     if (result.success) {
-      const denied = gate(result.context.principal, params);
+      const denied = enforceRouteSettings(result.context.principal, params);
       if (denied) return denied;
     }
     return result;
@@ -62,8 +62,8 @@ export class Authenticator {
 /** authenticator is the Authenticator on its default prisma/redis collaborators. */
 export const authenticator = new Authenticator();
 
-/** gate rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved principal so it reruns on every cache path. */
-function gate(
+/** enforceRouteSettings rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved principal so it reruns on every cache path. */
+function enforceRouteSettings(
   principal: Principal,
   params: ApiKeyAuthParams,
 ): ErrorResult<UnauthorizedError> | null {

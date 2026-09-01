@@ -114,14 +114,14 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    const first = await auth.auth(bearer(KNOWN_SECRET));
+    const first = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(first.success).toBe(true);
     expect([...redis.map.keys()]).toEqual([
       `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${knownHash}`,
     ]);
 
     const verifySpy = vi.spyOn(verifier, "verify");
-    const second = await auth.auth(bearer(KNOWN_SECRET));
+    const second = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(second.success).toBe(true);
     expect(verifySpy).not.toHaveBeenCalled();
     if (first.success && second.success) {
@@ -136,7 +136,7 @@ describe("Authenticator consolidated context cache", () => {
       resolver,
       new AuthenticatorCache(redis, SALT),
     );
-    await auth.auth(bearer(KNOWN_SECRET));
+    await auth.authenticate(bearer(KNOWN_SECRET));
     const key = [...redis.map.keys()][0];
     expect(key.startsWith(AUTHZ_CONTEXT_CACHE_KEY_PREFIX)).toBe(true);
     expect(key.startsWith(API_KEY_CACHE_KEY_PREFIX)).toBe(false);
@@ -150,7 +150,7 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    const first = await auth.auth(bearer(UNKNOWN_SECRET));
+    const first = await auth.authenticate(bearer(UNKNOWN_SECRET));
     expect(first.success).toBe(false);
     expect(first.error).toBeInstanceOf(UnauthorizedError);
     const stored = redis.map.get(
@@ -159,7 +159,7 @@ describe("Authenticator consolidated context cache", () => {
     expect(stored).toBeDefined();
 
     const verifySpy = vi.spyOn(verifier, "verify");
-    const second = await auth.auth(bearer(UNKNOWN_SECRET));
+    const second = await auth.authenticate(bearer(UNKNOWN_SECRET));
     expect(verifySpy).not.toHaveBeenCalled();
     expect(second.success).toBe(false);
     if (!first.success && !second.success) {
@@ -178,7 +178,7 @@ describe("Authenticator consolidated context cache", () => {
       resolver,
       new AuthenticatorCache(redis, SALT),
     );
-    const result = await auth.auth(bearer(KNOWN_SECRET));
+    const result = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
   });
 
@@ -193,7 +193,7 @@ describe("Authenticator consolidated context cache", () => {
       resolver,
       new AuthenticatorCache(redis, SALT),
     );
-    const result = await auth.auth(bearer(KNOWN_SECRET));
+    const result = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
   });
 
@@ -207,7 +207,7 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    const allowed = await auth.auth({
+    const allowed = await auth.authenticate({
       headers: { authorization: `Bearer ${KNOWN_SECRET}` },
       allowInAppAgentKey: true,
     });
@@ -215,7 +215,7 @@ describe("Authenticator consolidated context cache", () => {
     expect(redis.map.size).toBe(1);
 
     const verifySpy = vi.spyOn(agentVerifier, "verify");
-    const gated = await auth.auth(bearer(KNOWN_SECRET));
+    const gated = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(verifySpy).not.toHaveBeenCalled();
     expect(gated.success).toBe(false);
     if (!gated.success) {
@@ -232,7 +232,7 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    const allowed = await auth.auth({
+    const allowed = await auth.authenticate({
       ...bearer(KNOWN_SECRET),
       isAdminApiKeyAuthAllowed: true,
     });
@@ -240,7 +240,7 @@ describe("Authenticator consolidated context cache", () => {
     expect(redis.map.size).toBe(1);
 
     const verifySpy = vi.spyOn(adminVerifier, "verify");
-    const gated = await auth.auth(bearer(KNOWN_SECRET));
+    const gated = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(verifySpy).not.toHaveBeenCalled();
     expect(gated.success).toBe(false);
     if (!gated.success) {
@@ -254,7 +254,7 @@ describe("Authenticator consolidated context cache", () => {
       resolver,
       new AuthenticatorCache(null, SALT),
     );
-    const result = await nullCacheAuth.auth(bearer(KNOWN_SECRET));
+    const result = await nullCacheAuth.authenticate(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
   });
 
@@ -276,13 +276,13 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    const first = await auth.auth(bearer(KNOWN_SECRET));
+    const first = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(first.success).toBe(false);
     if (!first.success) expect(first.error).toBeInstanceOf(InternalServerError);
     expect(redis.map.size).toBe(0);
 
     const verifySpy = vi.spyOn(failingVerifier, "verify");
-    const second = await auth.auth(bearer(KNOWN_SECRET));
+    const second = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(verifySpy).toHaveBeenCalledTimes(1);
     expect(second.success).toBe(false);
   });
@@ -296,10 +296,10 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    await auth.auth(bearer(KNOWN_SECRET));
+    await auth.authenticate(bearer(KNOWN_SECRET));
     expect(setSpy).toHaveBeenCalledTimes(1);
 
-    await auth.auth(bearer(KNOWN_SECRET));
+    await auth.authenticate(bearer(KNOWN_SECRET));
     expect(setSpy).toHaveBeenCalledTimes(1);
   });
 

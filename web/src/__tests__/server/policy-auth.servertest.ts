@@ -21,7 +21,7 @@ describe("policy authenticate() composition", () => {
   };
 
   const auth = (authorization: string) =>
-    new Authenticator().auth({ headers: { authorization } });
+    new Authenticator().authenticate({ headers: { authorization } });
 
   beforeEach(async () => {
     fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
