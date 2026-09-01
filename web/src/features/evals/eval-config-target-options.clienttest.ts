@@ -3,7 +3,11 @@
 import { EvalTargetObject } from "@langfuse/shared";
 import { resolveCheckboxOperator } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
-import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import {
+  DEFAULT_OBSERVATION_FILTER,
+  DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
+  DEFAULT_TRACE_FILTER,
+} from "@/src/features/evals/utils/evaluator-constants";
 
 describe("eval config target behavior", () => {
   it("should exclude all non-trace targets when selecting trace", () => {
@@ -37,6 +41,18 @@ describe("eval config target behavior", () => {
         EvalTargetObject.EXPERIMENT,
       ]),
     });
+  });
+
+  it("does not expose internal environment exclusions as evaluator defaults", () => {
+    expect(DEFAULT_TRACE_FILTER).toEqual([]);
+    expect(DEFAULT_OBSERVATION_FILTER).toEqual([
+      {
+        column: "type",
+        operator: "any of",
+        value: ["GENERATION"],
+        type: "stringOptions",
+      },
+    ]);
   });
 
   it("uses semantic roots when remapping trace evaluators", () => {

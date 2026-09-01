@@ -453,8 +453,7 @@ export const InnerEvaluatorForm = (props: {
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
         : defaultTarget === EvalTargetObject.TRACE
-          ? // For new trace evaluators, exclude internal environments by default
-            DEFAULT_TRACE_FILTER
+          ? DEFAULT_TRACE_FILTER
           : defaultTarget === EvalTargetObject.EVENT
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
