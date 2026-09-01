@@ -409,6 +409,7 @@ export default function PromptVersionTable({
       )}
       <div className="gap-3">
         <DataTableToolbar
+          tableName="prompt-versions"
           columns={columns}
           timeRange={showControlsInPageHeader ? undefined : timeRange}
           setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}

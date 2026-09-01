@@ -549,6 +549,8 @@ export function SampleObservationSelectorBase(
           tooltip={matchingTooltip}
           trailing={
             <DataTableColumnVisibilityFilter
+              tableName="evaluator-sample-observations"
+              isV4
               columns={columns}
               columnVisibility={columnVisibility}
               setColumnVisibility={setColumnVisibility}

@@ -521,6 +521,7 @@ export default function EvalsTemplateTable({
     <>
       <div className="flex h-full w-full flex-col">
         <DataTableToolbar
+          tableName="eval-templates"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

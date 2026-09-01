@@ -131,7 +131,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
 
   return (
     <>
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="spend-alerts" />
       <DataTable tableName="spend-alerts" columns={columns} data={data} />
 
       {editingAlert && editingAlertData && (

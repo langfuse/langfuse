@@ -276,7 +276,7 @@ export function BillingInvoiceTable() {
       <div className="flex items-center justify-between pt-4">
         <h3 className="font-bold">Invoice History</h3>
       </div>
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="billing-invoices" />
       <DataTable
         tableName="invoices"
         columns={columns}

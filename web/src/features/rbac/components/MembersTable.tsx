@@ -423,6 +423,7 @@ export function MembersTable({
   return (
     <>
       <DataTableToolbar
+        tableName="members"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
