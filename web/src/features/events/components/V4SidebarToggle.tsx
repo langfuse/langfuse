@@ -58,7 +58,7 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
 
   const [showIntroDialog, setShowIntroDialog] = useState(false);
   const [pendingAfterToggle, setPendingAfterToggle] = useState<
-    (() => void) | undefined
+    (() => Promise<unknown> | void) | undefined
   >();
 
   // The pending intent wins while a toggle is committing, so the switch shows
@@ -66,13 +66,15 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
   const isChecked = pendingReadPath ? pendingReadPath === "v4" : isV4;
   const isLoading = pendingReadPath !== null;
 
-  const redirectAfterToggle = (enabled: boolean) => {
+  // Returns the navigation promise so the pending intent (disabled switch)
+  // holds until the redirect lands.
+  const redirectAfterToggle = (enabled: boolean): Promise<unknown> | void => {
     const projectId = asSingleValue(router.query.projectId);
     if (!projectId) return;
 
     if (!enabled) {
       const redirect = getV4PreviewDisabledRedirect(router.pathname, projectId);
-      if (redirect) router.push(redirect);
+      if (redirect) return router.push(redirect);
       return;
     }
 
@@ -81,8 +83,7 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
       projectId,
     );
     if (evaluatorRedirect) {
-      router.push(evaluatorRedirect);
-      return;
+      return router.push(evaluatorRedirect);
     }
 
     if (
@@ -91,7 +92,7 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
     ) {
       const runId = asSingleValue(router.query.runId);
       if (runId) {
-        router.push(singleRunToExperimentsUrl(projectId, runId));
+        return router.push(singleRunToExperimentsUrl(projectId, runId));
       }
       return;
     }
@@ -103,22 +104,21 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
     ) {
       const runIds = asArrayValue(router.query.runs);
       if (runIds.length > 0) {
-        router.push(toExperimentsResultsUrl(projectId, runIds));
+        return router.push(toExperimentsResultsUrl(projectId, runIds));
       }
     }
   };
 
-  const commitToggle = (enabled: boolean, afterToggle?: () => void) => {
+  const commitToggle = (
+    enabled: boolean,
+    afterToggle?: () => Promise<unknown> | void,
+  ) => {
     setReadPath(enabled ? "v4" : "v3", {
       setV4BetaEnabled: (input) => mutation.mutateAsync(input),
       updateSession,
       onSuccess: () => {
         capture("sidebar:v4_beta_toggled", { enabled, source });
-        if (afterToggle) {
-          afterToggle();
-        } else {
-          redirectAfterToggle(enabled);
-        }
+        return afterToggle ? afterToggle() : redirectAfterToggle(enabled);
       },
     });
   };
@@ -126,7 +126,10 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
   // afterToggle, when given, replaces the default same-page URL translation
   // and runs only after the toggle actually committed (mutation + session
   // update done, intro dialog confirmed rather than dismissed).
-  const handleToggle = (enabled: boolean, afterToggle?: () => void) => {
+  const handleToggle = (
+    enabled: boolean,
+    afterToggle?: () => Promise<unknown> | void,
+  ) => {
     if (
       enabled &&
       typeof window !== "undefined" &&

@@ -17,7 +17,7 @@ type SetReadPathDeps = {
    */
   updateSession: () => Promise<unknown>;
   /** Runs only after the toggle fully committed (mutation + session update). */
-  onSuccess?: () => void | Promise<void>;
+  onSuccess?: () => void | Promise<unknown>;
 };
 
 /**
@@ -64,9 +64,13 @@ export async function setReadPath(
   }
 
   // Pending intent is kept through onSuccess (the post-toggle redirect) so
-  // the switch stays disabled until navigation lands.
+  // the switch stays disabled until navigation lands. The toggle itself has
+  // committed at this point — a failed redirect must not read as a failed
+  // toggle (and callers do not await this workflow).
   try {
     await deps.onSuccess?.();
+  } catch {
+    // best-effort post-toggle navigation
   } finally {
     actions.settle();
   }

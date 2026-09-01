@@ -10,6 +10,7 @@ import {
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   getScoreAggregate,
   getNumericScoreHistogram,
@@ -453,13 +454,19 @@ export const dashboardRouter = createTRPCRouter({
         version: viewVersions,
       }),
     )
-    .query(async ({ input, ctx }) => {
-      // v1 stays open to v4 users (saved v1 widgets render read-only), but v2
-      // reads the events views and follows the session's read path.
-      if (input.version === "v2" && ctx.session.user?.v4BetaEnabled !== true) {
+    .query(async ({ input }) => {
+      // Deployment-level guard, not a per-user one: v2 reads the events
+      // views, which exist whenever the deployment writes them. Monitors
+      // previews and shared v2-widgets legitimately query v2 for users whose
+      // own read path is still v3; only a legacy deployment has nothing for
+      // v2 to read. v1 stays open (saved v1 widgets render for v4 users).
+      if (
+        input.version === "v2" &&
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+      ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "v2 queries require the V4 read path on this account",
+          message: "v2 queries are not available on this deployment",
         });
       }
       try {

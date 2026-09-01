@@ -2,8 +2,11 @@
  * Contract tests for dashboard.executeQuery's `version` input:
  * - `version` is required — there is no implicit v1 default a client can
  *   fall into while its session is still resolving.
- * - v2 (events views) follows the session's read path; v1 stays open to v4
- *   users because saved v1 widgets still render.
+ * - Both versions serve regardless of the USER's read path: saved v1 widgets
+ *   render for v4 users, and monitors previews / shared v2 widgets query v2
+ *   for users whose own read path is still v3. Only a legacy deployment
+ *   (events tables not written) rejects v2 — not covered here because the
+ *   test env boots in dual mode.
  */
 import { type QueryType } from "@langfuse/shared/query";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -88,18 +91,18 @@ describe("dashboard.executeQuery version contract", () => {
     ).rejects.toThrow();
   });
 
-  it("rejects v2 when the session is not on the v4 read path", async () => {
-    const caller = makeCaller({ v4BetaEnabled: false });
-    await expect(
-      caller.dashboard.executeQuery({ projectId, query, version: "v2" }),
-    ).rejects.toThrow(/v4 read path/i);
-  });
-
   it("serves v1 and v2 to a v4 session (saved v1 widgets still render)", async () => {
     const caller = makeCaller({ v4BetaEnabled: true });
     await expect(
       caller.dashboard.executeQuery({ projectId, query, version: "v1" }),
     ).resolves.toBeDefined();
+    await expect(
+      caller.dashboard.executeQuery({ projectId, query, version: "v2" }),
+    ).resolves.toBeDefined();
+  });
+
+  it("serves v2 to a v3-read-path session (monitors previews, shared v2 widgets)", async () => {
+    const caller = makeCaller({ v4BetaEnabled: false });
     await expect(
       caller.dashboard.executeQuery({ projectId, query, version: "v2" }),
     ).resolves.toBeDefined();
