@@ -420,7 +420,7 @@ using the specific `docker-compose.dev-*.yml` files at the repository root.
 Additionally, we use those files to test different ClickHouse versions.
 - Azure: Use 25.12 for compatibility testing with our lowest supported version.
 - Redis Cluster: Use 26.8 as the latest available ClickHouse release.
-- Plain: Use 25.12 as the current Cloud version.
+- Plain: Use 26.4 as the current Cloud version.
 
 ## Staging environment
 
