@@ -111,7 +111,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
       </CodeEvaluatorAssistantExperience>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Code manually" }));
+    fireEvent.click(screen.getByRole("button", { name: "Code" }));
     expect(screen.getByText("Code editor")).toBeInTheDocument();
     unmount();
 
@@ -126,7 +126,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
 
     expect(screen.getByText("Code editor")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Start with AI" }),
+      screen.getByRole("button", { name: "AI input" }),
     ).toBeInTheDocument();
   });
 
@@ -141,12 +141,15 @@ describe("CodeEvaluatorAssistantExperience", () => {
     );
 
     expect(screen.getByText("Code editor")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Edit with AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI input" }));
 
     expect(screen.queryByText("Code editor")).not.toBeInTheDocument();
     expect(
       screen.getByLabelText("Describe how to change this code evaluator"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Edit with Langfuse Assistant"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the code editor when the Assistant launcher is unavailable", () => {
@@ -163,7 +166,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
 
     expect(screen.getByText("Code editor")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Start with AI" }),
+      screen.queryByRole("button", { name: "AI input" }),
     ).not.toBeInTheDocument();
   });
 });

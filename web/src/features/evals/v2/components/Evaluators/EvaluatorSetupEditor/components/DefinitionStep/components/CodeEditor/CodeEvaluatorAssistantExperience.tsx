@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import type { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
-import { Code2, SendHorizontal, Sparkles } from "lucide-react";
+import { SendHorizontal } from "lucide-react";
 
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Button } from "@/src/components/ui/button";
@@ -16,6 +16,7 @@ import {
   useIsInAppAgentLauncherVisible,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { cn } from "@/src/utils/tailwind";
 
 const CODE_EVALUATOR_EDITOR_MODE_STORAGE_KEY =
   "langfuse:code-evaluator-editor-mode:v1";
@@ -62,11 +63,9 @@ First load the current evaluator so you preserve its existing configuration and 
 function AssistantComposer({
   context,
   sourceCodeLanguage,
-  onCodeMode,
 }: {
   context: CodeEvaluatorAssistantContext;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
-  onCodeMode: () => void;
 }) {
   const { openAssistant, submit } = useInAppAiAgent();
   const [request, setRequest] = useState("");
@@ -119,67 +118,45 @@ function AssistantComposer({
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-muted/30 flex min-h-56 flex-col justify-center gap-3 rounded-lg border p-6"
-    >
-      <div className="flex items-center gap-2 font-bold">
-        <Sparkles className="h-4 w-4" />
-        {isScratch
-          ? "Build with Langfuse Assistant"
-          : "Edit with Langfuse Assistant"}
-      </div>
-      <p className="text-muted-foreground text-sm">
-        {isScratch
-          ? "Describe what the evaluator should measure. The Assistant will clarify the requirements, write the code, and create the evaluator."
-          : "Describe what should change. The Assistant will inspect the current evaluator before proposing an update."}
-      </p>
-      <div className="flex items-end gap-2">
-        <Textarea
-          aria-label={
-            isScratch
-              ? "Describe the code evaluator you want"
-              : "Describe how to change this code evaluator"
-          }
-          autoComplete="off"
-          maxLength={2000}
-          rows={3}
-          placeholder={
-            isScratch
-              ? "e.g. Score whether the response cites at least one source"
-              : "e.g. Return 0 instead of throwing when the output is empty"
-          }
-          value={request}
-          disabled={isSubmitting}
-          onChange={(event) => {
-            setRequest(event.target.value);
-            resizeTextarea(event.currentTarget);
-          }}
-          onKeyDown={handleKeyDown}
-          className="max-h-40 resize-none"
-        />
-        <Button
-          type="submit"
-          size="icon"
-          variant="outline"
-          className="shrink-0"
-          aria-label={
-            isScratch
-              ? "Create with Langfuse Assistant"
-              : "Update with Langfuse Assistant"
-          }
-          disabled={!request.trim()}
-          loading={isSubmitting}
-        >
-          <SendHorizontal className="h-4 w-4" />
-        </Button>
-      </div>
-      <div>
-        <Button type="button" variant="link" size="sm" onClick={onCodeMode}>
-          <Code2 className="mr-1.5 h-4 w-4" />
-          {isScratch ? "Code manually" : "Back to code"}
-        </Button>
-      </div>
+    <form onSubmit={handleSubmit} className="flex items-end gap-2">
+      <Textarea
+        aria-label={
+          isScratch
+            ? "Describe the code evaluator you want"
+            : "Describe how to change this code evaluator"
+        }
+        autoComplete="off"
+        maxLength={2000}
+        rows={2}
+        placeholder={
+          isScratch
+            ? "Describe what the evaluator should measure…"
+            : "Describe what should change…"
+        }
+        value={request}
+        disabled={isSubmitting}
+        onChange={(event) => {
+          setRequest(event.target.value);
+          resizeTextarea(event.currentTarget);
+        }}
+        onKeyDown={handleKeyDown}
+        className="max-h-40 min-h-16 resize-none"
+      />
+      <Button
+        type="submit"
+        size="icon"
+        variant="outline"
+        className="shrink-0"
+        aria-label={
+          isScratch
+            ? "Create with Langfuse Assistant"
+            : "Update with Langfuse Assistant"
+        }
+        disabled={!request.trim()}
+        loading={isSubmitting}
+      >
+        <SendHorizontal className="h-4 w-4" />
+      </Button>
     </form>
   );
 }
@@ -215,30 +192,40 @@ export function CodeEvaluatorAssistantExperience({
     });
   };
 
-  if (mode === "assistant") {
-    return (
-      <AssistantComposer
-        context={context}
-        sourceCodeLanguage={sourceCodeLanguage}
-        onCodeMode={() => setMode("code")}
-      />
-    );
-  }
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setMode("assistant")}
+        <div
+          role="group"
+          className="bg-muted inline-flex rounded-md p-0.5"
+          aria-label="Code evaluator input mode"
         >
-          <Sparkles className="mr-1.5 h-4 w-4" />
-          {context === "scratch" ? "Start with AI" : "Edit with AI"}
-        </Button>
+          {(["code", "assistant"] as const).map((inputMode) => (
+            <button
+              key={inputMode}
+              type="button"
+              aria-pressed={mode === inputMode}
+              onClick={() => {
+                if (mode !== inputMode) setMode(inputMode);
+              }}
+              className={cn(
+                "text-muted-foreground hover:text-foreground rounded-sm px-2 py-1 text-xs transition-colors",
+                mode === inputMode && "bg-background text-foreground shadow-xs",
+              )}
+            >
+              {inputMode === "code" ? "Code" : "AI input"}
+            </button>
+          ))}
+        </div>
       </div>
-      {children}
+      {mode === "assistant" ? (
+        <AssistantComposer
+          context={context}
+          sourceCodeLanguage={sourceCodeLanguage}
+        />
+      ) : (
+        children
+      )}
     </div>
   );
 }
