@@ -21,6 +21,7 @@ import { type PublicApiWriteResponse } from "@/src/features/public-api/server/wr
 import {
   createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
+  toStructuredPublicApiErrorBody,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
@@ -230,7 +231,7 @@ export const sendRateLimitResponse = (
       req: responseOptions.req,
       res,
       statusCode: error.httpCode,
-      body: { message: error.message },
+      body: toStructuredPublicApiErrorBody(error),
     });
     return;
   }

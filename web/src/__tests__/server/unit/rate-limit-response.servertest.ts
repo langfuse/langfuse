@@ -81,6 +81,15 @@ vi.mock(
       mockCreateStructuredPublicApiRateLimitError,
     sendStructuredPublicApiErrorResponse:
       mockSendStructuredPublicApiErrorResponse,
+    toStructuredPublicApiErrorBody: (error: {
+      message: string;
+      code: string;
+      details?: unknown;
+    }) => ({
+      message: error.message,
+      code: error.code,
+      ...(error.details !== undefined ? { details: error.details } : {}),
+    }),
   }),
 );
 
@@ -166,6 +175,34 @@ describe("sendRateLimitResponse", () => {
     expect(res.statusCode).toBe(429);
     expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
     expect(res.getHeader("Retry-After")).toBe(3);
+    expect(mockSendStructuredPublicApiErrorResponse).not.toHaveBeenCalled();
+  });
+
+  it("keeps the structured JSON rate-limit body for JSON OTLP writeResponse", () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+    });
+
+    sendRateLimitResponse(res, rateLimitResult, {
+      req,
+      writeResponse: writeOtlpHttpResponse,
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.getHeader("Content-Type")).toMatch(/application\/json/);
+    expect(res._getJSONData()).toEqual({
+      message: "Rate limit exceeded",
+      code: "rate_limited",
+      details: {
+        retryAfterSeconds: 3,
+        limit: 10,
+        remaining: 0,
+        resetAt: expect.any(String),
+      },
+    });
     expect(mockSendStructuredPublicApiErrorResponse).not.toHaveBeenCalled();
   });
 
