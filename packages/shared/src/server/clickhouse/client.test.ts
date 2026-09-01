@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
     CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
+    CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE: "auto",
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -53,6 +54,7 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
     mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
+    mocks.env.CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE = "auto";
     setClickHouseCompatibilityVersionForTests(null);
   });
 
@@ -66,6 +68,19 @@ describe("ClickHouseClientManager compatibility settings", () => {
       mocks.createClient.mock.calls[0][0].clickhouse_settings,
     ).toMatchObject({
       query_plan_top_k_through_join: 0,
+    });
+  });
+
+  it("applies DateTime64 raw-tick insert parsing on ClickHouse 26.8+", () => {
+    setClickHouseCompatibilityVersionForTests("26.8.1.2041");
+
+    clickhouseClient();
+
+    expect(mocks.createClient).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({
+      input_format_read_datetime_number_as_raw_value: 1,
     });
   });
 

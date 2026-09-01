@@ -4,6 +4,7 @@ const envMock = vi.hoisted(() => ({
   env: {
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
     CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
+    CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE: "auto",
   },
 }));
 
@@ -21,6 +22,9 @@ const disableLazyMaterialization = {
   query_plan_optimize_lazy_materialization: 0,
 };
 const disableTopKThroughJoin = { query_plan_top_k_through_join: 0 };
+const readDatetimeNumberAsRawValue = {
+  input_format_read_datetime_number_as_raw_value: 1,
+};
 
 describe("ClickHouse compatibility version parsing", () => {
   it("parses and compares ClickHouse build components", () => {
@@ -70,6 +74,9 @@ describe("resolveClickHouseCompatibility", () => {
     ["26.7.1.1334", noCompatibilitySettings],
     ["26.7.2.0", disableTopKThroughJoin],
     ["26.7.2.11", noCompatibilitySettings],
+    ["26.7.99.9999", noCompatibilitySettings],
+    ["26.8.0.0", readDatetimeNumberAsRawValue],
+    ["26.8.1.2041", readDatetimeNumberAsRawValue],
   ])("resolves automatic settings for %s", (version, expectedSettings) => {
     expect(resolveClickHouseCompatibility({ version }).settings).toEqual(
       expectedSettings,
@@ -95,6 +102,12 @@ describe("resolveClickHouseCompatibility", () => {
         matchesVersionBand: true,
         applied: true,
       }),
+      expect.objectContaining({
+        id: "read-datetime-number-as-raw-value",
+        setting: "input_format_read_datetime_number_as_raw_value",
+        matchesVersionBand: false,
+        applied: false,
+      }),
     ]);
   });
 
@@ -105,9 +118,13 @@ describe("resolveClickHouseCompatibility", () => {
         overrides: {
           CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "true",
           CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "false",
+          CLICKHOUSE_READ_DATETIME_NUMBER_AS_RAW_VALUE: "true",
         },
       }).settings,
-    ).toEqual(disableLazyMaterialization);
+    ).toEqual({
+      ...disableLazyMaterialization,
+      ...readDatetimeNumberAsRawValue,
+    });
   });
 });
 
