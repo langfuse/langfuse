@@ -31,6 +31,7 @@ import {
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
   isMediaReferencePart,
+  isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
@@ -677,6 +678,12 @@ export function MarkdownView({
     // A bare reference string is a whole part (LFE-9577).
     if (isMediaReferencePart(content)) {
       return <LangfuseMediaView key={index} mediaReferenceString={content} />;
+    }
+
+    if (isAiSdkFileContentPart(content)) {
+      return (
+        <LangfuseMediaView key={index} mediaReferenceString={content.data} />
+      );
     }
 
     if (isOpenAITextContentPart(content)) {

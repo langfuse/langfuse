@@ -4,6 +4,7 @@ import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   buildEventBucketPrefix,
+  compileLangfuseMediaMessages,
   createLLMOutput,
   DefaultEvalModelService,
   generateLLMText,
@@ -23,6 +24,9 @@ type StructuredOutputSchema = z.ZodObject<{
   reasoning: z.ZodString;
   score: z.ZodType;
 }>;
+
+const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
+  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
 
 /**
  * Result of fetching model configuration.
@@ -145,6 +149,12 @@ function serializeSchemaForEgress(schema: unknown): string {
   }
 }
 
+function serializeProviderMessagesForEgress(messages: unknown): string {
+  return JSON.stringify(messages, (_key, value) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
+  );
+}
+
 /**
  * Creates the production implementation of eval execution dependencies.
  * This is the default implementation used in production code.
@@ -221,33 +231,49 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      // Keep the evaluator contract unchanged, but avoid exposing the
-      // overloaded `reasoning` field name to the model.
-      const modelFacingStructuredOutputSchema = z.object({
-        scoreExplanation: params.structuredOutputSchema.shape.reasoning,
-        score: params.structuredOutputSchema.shape.score,
+      const modelParams = {
+        provider: params.modelConfig.provider,
+        model: params.modelConfig.model,
+        adapter,
+        ...params.modelConfig.modelParams,
+      };
+      const llmParams = mapLegacyLLMCompletionParams({
+        connection,
+        messages: params.messages,
+        modelParams,
       });
+      const { providerMessages, traceMessages } =
+        await compileLangfuseMediaMessages({
+          projectId: params.traceSinkParams.targetProjectId,
+          messages: params.messages,
+          adapter,
+        });
 
-      // llmaj egress: serialized request body (messages + schema), uncompressed.
+      // Keep the evaluator contract unchanged while the model-facing schema
+      // resolves custom output instructions into the supported fields.
+      const modelFacingStructuredOutputSchema = z
+        .object({
+          scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+          score: params.structuredOutputSchema.shape.score,
+        })
+        .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
+
+      // llmaj egress: provider-bound messages (including base64-expanded inline
+      // media) plus schema, uncompressed.
       const bytes =
-        Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
+        Buffer.byteLength(
+          serializeProviderMessagesForEgress(providerMessages),
+          "utf8",
+        ) +
         Buffer.byteLength(
           serializeSchemaForEgress(modelFacingStructuredOutputSchema),
           "utf8",
         );
 
-      const llmParams = mapLegacyLLMCompletionParams({
-        connection,
-        messages: params.messages,
-        modelParams: {
-          provider: params.modelConfig.provider,
-          model: params.modelConfig.model,
-          adapter,
-          ...params.modelConfig.modelParams,
-        },
-      });
       const result = await generateLLMText({
         ...llmParams,
+        messages: providerMessages,
+        traceInput: traceMessages,
         output: createLLMOutput(modelFacingStructuredOutputSchema),
         maxRetries: 1,
         trace: {

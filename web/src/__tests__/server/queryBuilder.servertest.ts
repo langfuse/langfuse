@@ -4074,6 +4074,9 @@ describe("queryBuilder", () => {
       expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
+      // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
+      // makes ClickHouse throw "Duplicate alias in ARRAY JOIN".
+      expect(sql).not.toMatch(/costType\s+as\s+costType/i);
     });
 
     maybeItWithEventsTable(

@@ -55,8 +55,8 @@ export interface LogViewToolbarProps {
   onCopyJson?: () => void;
   /** Callback to download JSON */
   onDownloadJson?: () => void;
-  /** Current view type (pretty/json/json-beta) */
-  currentView?: "pretty" | "json" | "json-beta";
+  /** Current view type (pretty/pretty-beta/json/json-beta) */
+  currentView?: "pretty" | "pretty-beta" | "json" | "json-beta";
   /** Whether indent visualization is enabled */
   indentEnabled?: boolean;
   /** Whether indent toggle is disabled (tree too deep) */

@@ -3,18 +3,24 @@ import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
-const { mockCreateLLMOutput, mockGenerateLLMText, mockRecordIncrement } =
-  vi.hoisted(() => ({
-    mockCreateLLMOutput: vi.fn(),
-    mockGenerateLLMText: vi.fn(),
-    mockRecordIncrement: vi.fn(),
-  }));
+const {
+  mockCompileLangfuseMediaMessages,
+  mockCreateLLMOutput,
+  mockGenerateLLMText,
+  mockRecordIncrement,
+} = vi.hoisted(() => ({
+  mockCompileLangfuseMediaMessages: vi.fn(),
+  mockCreateLLMOutput: vi.fn(),
+  mockGenerateLLMText: vi.fn(),
+  mockRecordIncrement: vi.fn(),
+}));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...original,
+    compileLangfuseMediaMessages: mockCompileLangfuseMediaMessages,
     createLLMOutput: mockCreateLLMOutput,
     generateLLMText: mockGenerateLLMText,
     recordIncrement: mockRecordIncrement,
@@ -35,6 +41,15 @@ vi.mock("../../../env", async (importOriginal) => {
 describe("createProductionEvalExecutionDeps", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCompileLangfuseMediaMessages.mockImplementation(
+      async ({ messages }) => {
+        const mapped = messages.map(({ role, content }: any) => ({
+          role,
+          content,
+        }));
+        return { providerMessages: mapped, traceMessages: mapped };
+      },
+    );
     mockCreateLLMOutput.mockImplementation((schema) => ({ schema }));
     mockGenerateLLMText.mockResolvedValue({ output: { completion: "ok" } });
   });
@@ -75,8 +90,12 @@ describe("createProductionEvalExecutionDeps", () => {
       },
     });
 
+    expect(mockCompileLangfuseMediaMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "project-123" }),
+    );
     expect(mockGenerateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
+        maxRetries: 1,
         trace: expect.objectContaining({
           traceId: "trace-123",
           environment: "langfuse-llm-as-a-judge",
@@ -127,6 +146,8 @@ describe("createProductionEvalExecutionDeps", () => {
       schema: z.ZodType;
     };
     expect(z.toJSONSchema(modelOutput.schema)).toMatchObject({
+      description:
+        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
       properties: {
         scoreExplanation: { type: "string" },
         score: { type: "number" },
@@ -151,6 +172,23 @@ describe("createProductionEvalExecutionDeps", () => {
     const messages = [
       { role: "user", type: "user", content: "Judge this answer" },
     ];
+    const providerMessages = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Judge this answer" },
+          {
+            type: "file",
+            data: new Uint8Array([1, 2, 3]),
+            mediaType: "image/png",
+          },
+        ],
+      },
+    ];
+    mockCompileLangfuseMediaMessages.mockResolvedValueOnce({
+      providerMessages,
+      traceMessages: messages,
+    });
     // Production passes a Zod schema, not a plain object.
     const structuredOutputSchema = z.object({
       reasoning: z.string().describe("why this score was given"),
@@ -176,12 +214,23 @@ describe("createProductionEvalExecutionDeps", () => {
       },
     });
 
-    const modelFacingSchema = z.object({
-      scoreExplanation: structuredOutputSchema.shape.reasoning,
-      score: structuredOutputSchema.shape.score,
-    });
+    const serializedProviderMessages = JSON.stringify(
+      providerMessages,
+      (_key, value) =>
+        value instanceof Uint8Array
+          ? Buffer.from(value).toString("base64")
+          : value,
+    );
+    const modelFacingSchema = z
+      .object({
+        scoreExplanation: structuredOutputSchema.shape.reasoning,
+        score: structuredOutputSchema.shape.score,
+      })
+      .describe(
+        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
+      );
     const expectedBytes =
-      Buffer.byteLength(JSON.stringify(messages), "utf8") +
+      Buffer.byteLength(serializedProviderMessages, "utf8") +
       Buffer.byteLength(
         JSON.stringify(z.toJSONSchema(modelFacingSchema)),
         "utf8",
