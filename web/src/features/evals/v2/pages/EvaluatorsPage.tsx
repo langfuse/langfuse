@@ -271,7 +271,7 @@ export default function EvaluatorsPage() {
     filterState.length === 0;
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evalJobExecution:read",
   });
   const defaultModelConnection = projectDefaultModel.connections.find(
     ({ provider }) => provider === projectDefaultModel.defaultModel?.provider,
@@ -600,6 +600,10 @@ export default function EvaluatorsPage() {
                 }}
                 onConfigureProviders={projectDefaultModel.openProviderSettings}
                 onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
+                hasModelConfiguration={Boolean(
+                  defaultModelConfig &&
+                  Object.keys(defaultModelConfig.modelParams).length > 0,
+                )}
               >
                 <PopoverTrigger asChild>
                   <JudgeModelPickerTrigger

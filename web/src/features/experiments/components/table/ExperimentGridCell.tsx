@@ -2,7 +2,7 @@
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
    as a variant, the same way `DiffLabel` takes one. */
 /* eslint-disable @repo/no-style-props */
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -21,7 +21,7 @@ import {
   type CellRowDef,
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
@@ -496,8 +496,16 @@ const CellIdentifiers = ({
           {
             label: "Start Time",
             value: (
-              <span className="text-xs">
-                <LocalIsoDate date={data.startTime} />
+              <span
+                className="text-xs"
+                title={
+                  buildLocalIsoDatePresentation({ date: data.startTime })?.title
+                }
+              >
+                {
+                  buildLocalIsoDatePresentation({ date: data.startTime })
+                    ?.display
+                }
               </span>
             ),
           },
@@ -755,14 +763,20 @@ export const ExperimentGridCell = ({
       {
         accessorKey: "output",
         header: "Output",
-        cell: ({ data }) => (
-          <MemoizedIOTableCell
-            isLoading={data.isLoading}
-            data={data.output ?? null}
-            className="bg-accent-light-green min-h-8"
-            singleLine={singleLine}
-          />
-        ),
+        cell: ({ data }) =>
+          data.isLoading ? (
+            <ConnectedIOTableCell
+              isLoading
+              variant="output"
+              singleLine={singleLine}
+            />
+          ) : (
+            <ConnectedIOTableCell
+              data={data.output ?? null}
+              variant="output"
+              singleLine={singleLine}
+            />
+          ),
       },
       // Keep all score levels together. Individual score visibility still
       // follows the list-view columns.
@@ -838,7 +852,7 @@ export const ExperimentGridCell = ({
         const isFirst = index === 0;
         const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for MemoizedIOTableCell. It is the
+        // Output section - special handling for ConnectedIOTableCell. It is the
         // one section that grows, so a taller row shows more output rather than
         // more chrome.
         if (row.accessorKey === "output" && row.cell) {

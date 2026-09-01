@@ -10,6 +10,12 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -33,18 +39,18 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { collectScoreNameCoverage } from "@/src/features/scores/lib/aggregateScores";
@@ -54,10 +60,6 @@ import {
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/IOTableCell";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
@@ -135,7 +137,7 @@ function ExperimentsMultiSelectActionMenu({
 
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   // Build query with experiment context filter for batch actions
@@ -231,7 +233,7 @@ function ExperimentsMultiSelectActionMenu({
             icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
             customDialog: true,
             accessCheck: {
-              scope: "evalJob:CUD",
+              scope: "evaluationRule:CUD",
             },
           } as TableAction,
         ]
@@ -280,15 +282,6 @@ export default function ExperimentsTable({
   showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
-  const filterConfig = useMemo(
-    () =>
-      getExperimentsFilterConfig(
-        fixedFilter
-          .map((filter) => filter.column)
-          .filter(isExperimentsOmittableFilterColumn),
-      ),
-    [fixedFilter],
-  );
 
   const { setDetailPageList } = useDetailPageLists();
   // Selection lives in a per-mount vanilla zustand store (not useState) so a
@@ -300,29 +293,6 @@ export default function ExperimentsTable({
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiments",
     "s",
-  );
-
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
-
-  // A match on the experiment's name, expressed as a filter because the
-  // experiments query takes a FilterState and has no search input of its own.
-  const searchFilter: FilterState = useMemo(() => {
-    const query = searchQuery?.trim();
-    return query
-      ? [{ column: "name", type: "string", operator: "contains", value: query }]
-      : [];
-  }, [searchQuery]);
-
-  const submitSearch = useCallback(
-    (query: string) => {
-      setSearchQuery(query.trim() || null);
-      // A narrower result set can leave the current page out of range.
-      setPaginationState({ page: 1, limit: paginationState.limit });
-    },
-    [setSearchQuery, setPaginationState, paginationState.limit],
   );
 
   const [inputFilterState] = useQueryFilterState([], "experiments", projectId);
@@ -366,10 +336,28 @@ export default function ExperimentsTable({
   const oldFilterState = inputFilterState.concat(dateRangeFilter, fixedFilter);
 
   // Fetch filter options for datasets and scores
-  const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
+  const {
+    filterOptions,
+    datasetIdByName,
+    datasetNameById,
+    isFilterOptionsPending,
+  } = useExperimentFilterOptions({
     projectId,
     oldFilterState,
   });
+
+  // Built after the dataset map, which its filter-state migration needs to
+  // translate a legacy dataset id into the name the facet is keyed by.
+  const filterConfig = useMemo(
+    () =>
+      getExperimentsFilterConfig(
+        fixedFilter
+          .map((filter) => filter.column)
+          .filter(isExperimentsOmittableFilterColumn),
+        datasetNameById,
+      ),
+    [fixedFilter, datasetNameById],
+  );
 
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
@@ -401,13 +389,45 @@ export default function ExperimentsTable({
     [],
   );
 
+  // Grammar search bar: an ADDITIONAL editor over the same FilterState the
+  // facet sidebar edits. Score filtering stays in the sidebar here — see
+  // experimentsSearchRegistry.
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+  // The experiments table has no full-text lane, so the registry rejects free
+  // text and these stay inert.
+  const noSearchLane = useCallback(() => {}, []);
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    tableName: filterConfig.tableName,
+    enabled: true,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery: null,
+    searchType: DEFAULT_SEARCH_TYPE,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery: noSearchLane,
+    setSearchType: noSearchLane,
+    registry: EXPERIMENTS_FIELD_REGISTRY,
+  });
+
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
     fixedFilter,
-    searchFilter,
   );
 
-  const filterState = combinedFilterState;
+  // The one boundary where a dataset NAME becomes its id — see
+  // fns/datasetNameFilter.
+  const filterState = useMemo(
+    () => withDatasetNamesResolved(combinedFilterState, datasetIdByName),
+    [combinedFilterState, datasetIdByName],
+  );
 
   // Use the custom hook for experiments data fetching
   const {
@@ -534,52 +554,34 @@ export default function ExperimentsTable({
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ExperimentsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getExperimentsColumnName("name"),
       size: 200,
       isPinnedLeft: true,
-      cell: ({ row }) => {
-        const value: string = row.getValue("name");
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
-      id: "description",
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
       // Off by default: 300px of mostly boilerplate ahead of the score columns.
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("description");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       // Placed here (right after the identifying name/description columns) rather
       // than last so it is never the trailing column. As the last column its right
       // resize handle sat flush against the table edge and could not be dragged
       // wider in a maximized browser (LFE-10460).
       accessorKey: "metadata",
-      id: "metadata",
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
+      singleLine: rowHeight === "s",
+    }),
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
       header: getExperimentsColumnName("itemCount"),
@@ -614,13 +616,13 @@ export default function ExperimentsTable({
     {
       accessorKey: "datasetId",
       id: "datasetId",
-      header: getExperimentsColumnName("experimentDatasetId"),
+      header: getExperimentsColumnName("experimentDatasetName"),
       size: 150,
       cell: ({ row }) => {
         const datasetId: string | undefined = row.getValue("datasetId");
-        const datasetName = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === datasetId,
-        )?.displayValue;
+        const datasetName = datasetId
+          ? datasetNameById.get(datasetId)
+          : undefined;
 
         if (!datasetId || !datasetName) {
           return undefined;
@@ -810,7 +812,6 @@ export default function ExperimentsTable({
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
-      setSearchQuery,
     },
     validationContext: {
       columns,
@@ -891,44 +892,53 @@ export default function ExperimentsTable({
               setTimeRange={setTimeRange}
             />
           )}
-          {/* Toolbar spanning full width */}
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Experiments,
-              projectId,
-              controllers: viewControllers,
-            }}
-            tableName={filterConfig.tableName}
-            isV4={true}
-            onColumnGroupToggle={handleColumnGroupToggle}
-            columnsWithCustomSelect={["name", "datasetId"]}
-            searchConfig={{
-              metadataSearchFields: ["Name"],
-              updateQuery: submitSearch,
-              currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: false,
-            }}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            mergeSettingsIntoPopover
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            actionButtons={[
-              <ExperimentsMultiSelectActionMenu
-                key="experiments-multi-select-actions"
-                projectId={projectId}
-                store={experimentsTableStore}
-                datasetIdByExperimentId={datasetIdByExperimentId}
-              />,
-            ]}
-          />
+          {/* The composer and the toolbar stick together as one band so the
+              toolbar cannot scroll under the composer and render half-clipped;
+              pb-1.5 matches the other bar surfaces' spacing above the table. */}
+          <div className="bg-background sticky top-0 z-30 pb-1.5">
+            <EventsSearchBarRow
+              projectId={projectId}
+              tableName={filterConfig.tableName}
+              store={searchBarStore}
+              commit={searchBarCommit}
+              observed={observedOptions}
+              onApplyFilters={searchBarApplyFilters}
+              registry={EXPERIMENTS_FIELD_REGISTRY}
+            />
+            {/* Toolbar spanning full width */}
+            <DataTableToolbar
+              rowClassName="my-1"
+              columns={columns}
+              filterState={queryFilter.filterState}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Experiments,
+                projectId,
+                controllers: viewControllers,
+              }}
+              tableName={filterConfig.tableName}
+              isV4={true}
+              onColumnGroupToggle={handleColumnGroupToggle}
+              columnsWithCustomSelect={["name", "datasetId"]}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibilityState}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              orderByState={orderByState}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              mergeSettingsIntoPopover
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              actionButtons={[
+                <ExperimentsMultiSelectActionMenu
+                  key="experiments-multi-select-actions"
+                  projectId={projectId}
+                  store={experimentsTableStore}
+                  datasetIdByExperimentId={datasetIdByExperimentId}
+                />,
+              ]}
+            />
+          </div>
 
           {isShowingMostRecent && (
             <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">

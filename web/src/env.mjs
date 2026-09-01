@@ -369,6 +369,8 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+    // Server-reachable storage address when signed URLs use a different browser-facing endpoint.
+    LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -478,6 +480,8 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
 
+    // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+    // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
     // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
@@ -511,6 +515,14 @@ export const env = createEnv({
       ),
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+    LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
+      .enum(["url", "inline", "disabled"])
+      .optional(),
+    LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20_000_000),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -940,6 +952,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+    LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT,
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY:
@@ -1068,6 +1082,10 @@ export const env = createEnv({
     LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
+    LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
+      process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES:
+      process.env.LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,

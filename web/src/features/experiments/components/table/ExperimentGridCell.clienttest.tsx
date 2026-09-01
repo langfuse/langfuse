@@ -19,8 +19,8 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/components/ui/IOTableCell", () => ({
-  MemoizedIOTableCell: () => <div>IO cell</div>,
+vi.mock("@/src/components/table/ConnectedIOTableCell", () => ({
+  ConnectedIOTableCell: () => <div>IO cell</div>,
 }));
 
 const observationScoreKey = "quality-EVAL-NUMERIC";
@@ -105,6 +105,7 @@ describe("ExperimentGridCell", () => {
       screen.getByText("Output").parentElement?.nextElementSibling;
 
     expect(outputContent).toHaveClass("min-h-16", "flex-1", "overflow-hidden");
+    expect(outputContent?.firstElementChild).toBe(screen.getByText("IO cell"));
   });
 
   it("links evaluator score comments to their execution trace", async () => {

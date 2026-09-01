@@ -20,7 +20,7 @@
 
 import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { getLevelColors } from "@/src/components/level-colors";
+import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -139,17 +139,7 @@ export function SpanContent({
             {node.type !== "TRACE" &&
               node.level &&
               node.level !== "DEFAULT" && (
-                <div className="flex">
-                  <span
-                    className={cn(
-                      "rounded-sm p-0.5 text-xs",
-                      getLevelColors(node.level).bg,
-                      getLevelColors(node.level).text,
-                    )}
-                  >
-                    {node.level}
-                  </span>
-                </div>
+                <ObservationLevelBadge level={node.level} size="sm" />
               )}
           </div>
         </div>

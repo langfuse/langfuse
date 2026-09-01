@@ -31,6 +31,7 @@ import {
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
   isMediaReferencePart,
+  isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
@@ -562,7 +563,7 @@ export function MarkdownView({
     <Button
       variant="ghost"
       size="xs"
-      onClick={toggleCollapsed}
+      onClick={() => toggleCollapsed("inline")}
       className="w-fit text-xs underline"
     >
       {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
@@ -579,6 +580,14 @@ export function MarkdownView({
             handleOnValueChange={handleOnValueChange}
             handleOnCopy={handleOnCopy}
             controlButtons={controlButtons}
+            collapseControl={
+              shouldBeCollapsible
+                ? {
+                    isCollapsed,
+                    onToggle: () => toggleCollapsed("header"),
+                  }
+                : undefined
+            }
           />
           <div className="border-t" />
         </>
@@ -669,6 +678,12 @@ export function MarkdownView({
     // A bare reference string is a whole part (LFE-9577).
     if (isMediaReferencePart(content)) {
       return <LangfuseMediaView key={index} mediaReferenceString={content} />;
+    }
+
+    if (isAiSdkFileContentPart(content)) {
+      return (
+        <LangfuseMediaView key={index} mediaReferenceString={content.data} />
+      );
     }
 
     if (isOpenAITextContentPart(content)) {

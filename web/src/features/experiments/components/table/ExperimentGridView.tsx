@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -208,53 +208,36 @@ export const ExperimentGridView = ({
     singleLine,
   ]);
 
-  const expectedOutputColumn: LangfuseColumnDef<ExperimentItemsTableRow> =
-    useMemo(
-      () => ({
-        accessorKey: "expectedOutput",
-        id: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        cell: ({ row }) => {
-          const expectedOutput = row.original.expectedOutput;
-          // An empty expected output used to render as two literal quote characters.
-          if (!isLoading && !expectedOutput) return undefined;
-          return (
-            <MemoizedIOTableCell
-              isLoading={isLoading}
-              data={expectedOutput ?? null}
-              singleLine={singleLine}
-              className="bg-accent-light-green"
-            />
-          );
-        },
-      }),
-      [isLoading, singleLine],
-    );
-
   // Build all columns: Select, Input, Expected Output, then experiment columns
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = useMemo(
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={singleLine}
-          />
-        ),
-      },
-      ...(showExpectedOutput ? [expectedOutputColumn] : []),
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+      }),
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: "Expected Output",
+              size: 200,
+              getCell: (value) =>
+                isLoading ? { type: "loading" } : value || undefined,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
       ...experimentColumns,
     ],
     [
-      expectedOutputColumn,
       experimentColumns,
       isLoading,
       selectActionColumn,

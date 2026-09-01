@@ -31,7 +31,7 @@ export const EvalTemplateDetail = () => {
   const capture = usePostHogClientCapture();
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   // get the current template by id
@@ -231,7 +231,7 @@ function UpdateTemplate({
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const capture = usePostHogClientCapture();
 

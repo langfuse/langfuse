@@ -1,17 +1,16 @@
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import TableLink, {
-  type TableLinkProps,
-} from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
 } from "./utils/createTableColumn";
 
 type LinkTableColumnProps = Pick<
-  TableLinkProps,
+  React.ComponentProps<typeof TextLink>,
   "path" | "value" | "title" | "onClick"
 > & {
   icon?: LucideIcon;
@@ -31,17 +30,20 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
 }) {
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
       if (!cell) return null;
-      if (cell.type === "loading") return <TableTextLoadingCell />;
+      if (cell.type === "loading") return <Skeleton className="h-4 w-1/2" />;
 
-      const { icon: Icon, ...tableLinkProps } = cell.props;
+      const { icon: Icon, path, value: linkValue, title, onClick } = cell.props;
       return (
-        <TableLink
-          {...tableLinkProps}
-          icon={Icon ? <Icon className="h-4 w-4" /> : undefined}
+        <TextLink
+          path={path}
+          value={linkValue}
+          title={title ?? linkValue}
+          onClick={onClick}
+          icon={Icon}
         />
       );
     },

@@ -134,63 +134,67 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listEvaluators: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
   },
   listManagedEvaluatorTemplates: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
   },
   getEvaluator: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
+  },
+  testEvaluator: {
+    approval: "approval",
+    availability: { scope: "evaluator:CUD" },
   },
   createEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   updateEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   deleteEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   listEvaluationRules: {
     approval: "auto",
-    availability: { scope: "evalJob:read" },
+    availability: { scope: "evaluationRule:read" },
   },
   getEvaluationRule: {
     approval: "auto",
-    availability: { scope: "evalJob:read" },
+    availability: { scope: "evaluationRule:read" },
   },
   createEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   updateEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   attachEvaluatorToEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   detachEvaluatorFromEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   deleteEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   listExperiments: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   listExperimentItems: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   submitFeedback: {
     approval: "approval",

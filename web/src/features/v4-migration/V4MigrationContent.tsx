@@ -52,7 +52,7 @@ import {
   type MigrationCountState,
   type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -79,6 +79,8 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Headline form of the deadline; the year is noise in a title.
+const V4_MIGRATION_DEADLINE_SHORT = "November 16";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -1207,14 +1209,26 @@ export function V4MigrationDocsLink() {
   );
 }
 
+/**
+ * Headline for the migration surfaces. It names the compatibility deadline
+ * rather than a version: the app shell already shows a v4 build number, so a
+ * "upgrade to v4" title reads as a contradiction to users whose integrations,
+ * not their deployment, are the thing left to update.
+ */
+export function useV4MigrationTitle(): string {
+  return useHasV4MigrationDeadline()
+    ? `Ensure compatibility after ${V4_MIGRATION_DEADLINE_SHORT}`
+    : "Ensure compatibility";
+}
+
 export function V4MigrationDeadlineNote() {
   const hasDeadline = useHasV4MigrationDeadline();
 
   if (!hasDeadline) {
     return (
       <p>
-        Some features may stop working without an upgrade once your
-        administrator disables the legacy mode.
+        Some features may stop working if you don&apos;t update integrations
+        before your administrator disables the legacy mode.
       </p>
     );
   }
@@ -1228,7 +1242,7 @@ export function V4MigrationDeadlineNote() {
       >
         {V4_MIGRATION_DEADLINE}
       </ExternalLink>{" "}
-      some features may stop working without a v4 upgrade.
+      some features may stop working if you don&apos;t update integrations.
     </p>
   );
 }
@@ -1248,6 +1262,7 @@ export function V4MigrationHeaderContent({
   readiness?: ProjectMigrationReadiness;
 }) {
   const actionNeeded = readiness === "action-needed";
+  const title = useV4MigrationTitle();
 
   return (
     <>
@@ -1257,7 +1272,7 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
+        <p className="min-w-0 text-lg font-bold">{title}</p>
       </div>
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
@@ -1300,7 +1315,7 @@ export function V4MigrationHeaderContent({
           </ExternalLink>
           .
           {actionNeeded
-            ? " Complete the action items below to switch this project over."
+            ? " Complete the action items below to avoid disruption."
             : ""}{" "}
           <V4MigrationDocsLink />
         </p>
@@ -1480,12 +1495,12 @@ export function V4MigrationDetailsContent({
     projectId,
     enabled: Boolean(projectId),
   });
-  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const { canToggleV4, isV4 } = useReadPath();
   // Evidence links target the v4 events table; with the v4 preview off the
   // route renders the v3 observations table, which cannot express the
   // ingestionApiKey filter — the link would open an unfiltered table. Keep
   // the key as plain text there instead of a misleading link.
-  const evidenceProjectId = isBetaEnabled ? projectId : undefined;
+  const evidenceProjectId = isV4 ? projectId : undefined;
 
   // PostHog is the external system here: the panel's checks resolve
   // asynchronously after open, so the "how much work was shown" event can

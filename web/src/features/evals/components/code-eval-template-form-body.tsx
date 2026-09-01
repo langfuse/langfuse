@@ -33,6 +33,7 @@ import {
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   getCodeEvalHoverDocs,
@@ -376,6 +377,7 @@ export function CodeEvalTemplateFormBody({
         : []),
       EditorView.lineWrapping,
       codeMirrorLayoutTheme,
+      codeMirrorSearchPanel,
     ],
     [
       codeEvalCompletionExtension,

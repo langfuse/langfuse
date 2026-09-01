@@ -39,14 +39,15 @@ import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -62,7 +63,7 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
@@ -289,11 +290,10 @@ const StackedOutputRow = ({
           markerClass,
         )}
       />
-      <MemoizedIOTableCell
-        isLoading={false}
+      <ConnectedIOTableCell
         data={output}
         singleLine={singleLine}
-        className="bg-accent-light-green"
+        variant="output"
       />
       {chip}
     </div>
@@ -364,7 +364,7 @@ const StackedOutputCell = ({
             <span className="text-muted-foreground mt-0.5 mr-1 shrink-0 text-[10px] font-bold uppercase">
               Exp
             </span>
-            <MemoizedIOTableCell
+            <ConnectedIOTableCell
               isLoading={false}
               data={expectedOutput ?? null}
               singleLine={singleLine}
@@ -386,11 +386,7 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <MemoizedIOTableCell
-                  isLoading={true}
-                  data={null}
-                  singleLine={singleLine}
-                />
+                <ConnectedIOTableCell isLoading singleLine={singleLine} />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -438,7 +434,7 @@ export default function ExperimentItemsTable({
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const {
@@ -1108,26 +1104,16 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.observationScoreColumns.length > 0 &&
     scoreColumnDefs.traceScoreColumns.length > 0;
 
-  const expectedOutputColumn: LangfuseColumnDef<ExperimentItemsTableRow> = {
+  const expectedOutputColumn = createIOTableColumn<ExperimentItemsTableRow>({
     accessorKey: "expectedOutput",
-    id: "expectedOutput",
     header: "Expected Output",
     size: 300,
     enableHiding: true,
-    cell: ({ row }) => {
-      const expectedOutput = row.original.expectedOutput;
-      // An empty expected output used to render as two literal quote characters.
-      if (!ioLoading && !expectedOutput) return undefined;
-      return (
-        <MemoizedIOTableCell
-          isLoading={ioLoading}
-          data={expectedOutput ?? null}
-          singleLine={ioSingleLine}
-          className="bg-accent-light-green"
-        />
-      );
-    },
-  };
+    // An empty expected output used to render as two literal quote characters.
+    getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    singleLine: ioSingleLine,
+    variant: "output",
+  }) as LangfuseColumnDef<ExperimentItemsTableRow>;
 
   const baselineExperimentOf = (experiments: ExperimentItemData[]) =>
     hasBaseline && baselineId
@@ -1174,22 +1160,14 @@ export default function ExperimentItemsTable({
       size: 150,
       enableHiding: true,
     }),
-    {
+    createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
-      id: "input",
       header: "Input",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.input ?? null}
-            singleLine={ioSingleLine}
-          />
-        );
-      },
-    },
+      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+      singleLine: ioSingleLine,
+    }),
     // The scores sit between the item's input and its outputs: the input says
     // which item this is, the score headers carry the judgement, and the outputs
     // are the drill-down a regression sends you to (peek carries it too).
@@ -1341,7 +1319,7 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+            renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
       },
@@ -1365,7 +1343,15 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
+            renderValue={(exp) => {
+              const preparedDate = buildLocalIsoDatePresentation({
+                date: exp.startTime,
+              });
+
+              return preparedDate ? (
+                <span title={preparedDate.title}>{preparedDate.display}</span>
+              ) : null;
+            }}
           />
         );
       },
@@ -1774,7 +1760,7 @@ export default function ExperimentItemsTable({
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
-            scope: "evalJob:CUD",
+            scope: "evaluationRule:CUD",
           },
         } as TableAction,
       ]

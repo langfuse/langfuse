@@ -4,15 +4,15 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -91,7 +91,7 @@ export type SessionTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: SessionOmittableFilterColumn[];
-  isBetaEnabled?: boolean;
+  isV4?: boolean;
   /**
    * When true, render the time-range picker and auto-refresh button in the
    * page header (next to the title) via the header controls slot, instead of
@@ -105,12 +105,12 @@ export default function SessionsTable({
   projectId,
   userId,
   omittedFilter = [],
-  isBetaEnabled = false,
+  isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
-    () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
-    [isBetaEnabled, omittedFilter],
+    () => getSessionFilterConfig(omittedFilter, isV4),
+    [isV4, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -199,7 +199,7 @@ export default function SessionsTable({
           : undefined,
     },
     {
-      enabled: !isBetaEnabled,
+      enabled: !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -217,7 +217,7 @@ export default function SessionsTable({
           : undefined,
     },
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -226,7 +226,7 @@ export default function SessionsTable({
     },
   );
 
-  const filterOptions = isBetaEnabled ? filterOptionsV4 : filterOptionsV3;
+  const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
 
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
@@ -277,9 +277,9 @@ export default function SessionsTable({
       ),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-      isV4: isBetaEnabled,
+      isV4,
     }),
-    [isBetaEnabled, isSidebarFilterLoading, projectId, userId],
+    [isV4, isSidebarFilterLoading, projectId, userId],
   );
 
   const queryFilter = useSidebarFilterState(
@@ -305,7 +305,7 @@ export default function SessionsTable({
   // Generally available on the v4 sessions table. Still off on the user-detail
   // mount, which is page-scoped by a userId filter the bar must not fight (the
   // same embedded opt-out EventsTable applies).
-  const sessionsSearchBarEnabled = isBetaEnabled && !userId;
+  const sessionsSearchBarEnabled = isV4 && !userId;
   const observedOptions = useMemo(
     () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
     [newFilterOptions, isSidebarFilterLoading],
@@ -356,29 +356,27 @@ export default function SessionsTable({
   };
 
   const sessionsV3 = api.sessions.all.useQuery(payloadGetAll, {
-    enabled: !isBetaEnabled,
+    enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionsV4 = api.sessions.allFromEvents.useQuery(payloadGetAll, {
-    enabled: isBetaEnabled,
+    enabled: isV4,
     refetchOnWindowFocus: true,
   });
-  const sessions = isBetaEnabled ? sessionsV4 : sessionsV3;
+  const sessions = isV4 ? sessionsV4 : sessionsV3;
 
   const sessionCountQueryV3 = api.sessions.countAll.useQuery(payloadCount, {
-    enabled: !isBetaEnabled,
+    enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionCountQueryV4 = api.sessions.countAllFromEvents.useQuery(
     payloadCount,
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       refetchOnWindowFocus: true,
     },
   );
-  const sessionCountQuery = isBetaEnabled
-    ? sessionCountQueryV4
-    : sessionCountQueryV3;
+  const sessionCountQuery = isV4 ? sessionCountQueryV4 : sessionCountQueryV3;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -407,7 +405,7 @@ export default function SessionsTable({
       sessionIds: sessionsV3.data?.sessions.map((s) => s.id) ?? [],
     },
     {
-      enabled: sessionsV3.data !== undefined && !isBetaEnabled,
+      enabled: sessionsV3.data !== undefined && !isV4,
       refetchOnWindowFocus: true,
     },
   );
@@ -419,12 +417,12 @@ export default function SessionsTable({
       queryFromTimestamp: dateRange?.from ?? null,
     },
     {
-      enabled: sessionsV4.data !== undefined && isBetaEnabled,
+      enabled: sessionsV4.data !== undefined && isV4,
       refetchOnWindowFocus: true,
     },
   );
 
-  const sessionMetrics = isBetaEnabled ? sessionMetricsV4 : sessionMetricsV3;
+  const sessionMetrics = isV4 ? sessionMetricsV4 : sessionMetricsV3;
 
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];
@@ -527,7 +525,7 @@ export default function SessionsTable({
       header: "Duration",
       size: 130,
       enableHiding: true,
-      formatter: formatIntervalSeconds,
+      formatter: (value) => formatIntervalSeconds(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -549,36 +547,26 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
-    {
+    createLinkListTableColumn<SessionTableRow>({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.includes("userIds"),
-      id: "userIds",
       header: "User IDs",
       size: 200,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["userIds"] = row.getValue("userIds");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value && Array.isArray(value) ? (
-          <div className="flex gap-1">
-            {(value as string[]).map((user) => (
-              <TableLink
-                key={user}
-                path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-                value={user}
-              />
-            ))}
-          </div>
-        ) : undefined;
+      getCell: (userIds) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!userIds?.length) return undefined;
+
+        return userIds.map((userId) => ({
+          path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,
+          value: userId,
+        }));
       },
-    },
+    }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "countTraces",
       header: "Traces",
@@ -604,7 +592,7 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -620,7 +608,7 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -635,7 +623,7 @@ export default function SessionsTable({
       size: 110,
       enableHiding: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -688,34 +676,24 @@ export default function SessionsTable({
         return value;
       },
     }),
-    {
-      accessorKey: "usage",
+    createTokenUsageTableColumn<SessionTableRow, number | undefined>({
       id: "usage",
+      accessorFn: (row) => row.totalTokens,
       header: "Usage",
       size: 220,
       enableHiding: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const promptTokens: SessionTableRow["inputTokens"] =
-          row.getValue("inputTokens");
-        const completionTokens: SessionTableRow["outputTokens"] =
-          row.getValue("outputTokens");
-        const totalTokens: SessionTableRow["totalTokens"] =
-          row.getValue("totalTokens");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return (
-          <TokenUsageBadge
-            inputUsage={Number(promptTokens ?? 0)}
-            outputUsage={Number(completionTokens ?? 0)}
-            totalUsage={Number(totalTokens ?? 0)}
-            inline
-          />
-        );
+      getCell: (_value, { row }) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+
+        return {
+          type: "usage",
+          inputUsage: Number(row.original.inputTokens ?? 0),
+          outputUsage: Number(row.original.outputTokens ?? 0),
+          totalUsage: Number(row.original.totalTokens ?? 0),
+        };
       },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",
@@ -723,11 +701,11 @@ export default function SessionsTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
         if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return (
           value &&

@@ -55,7 +55,14 @@ function JudgeModelConfigurationDialogContent({
   onSave: (model: ProjectDefaultModelConfig) => void;
 }) {
   const { modelParams, updateModelParamValue, setModelParamEnabled } =
-    useModelParams(undefined, { initialModel });
+    useModelParams(undefined, {
+      initialModel: {
+        provider: initialModel.provider,
+        adapter: initialModel.adapter,
+        model: initialModel.model,
+        ...initialModel.modelParams,
+      },
+    });
 
   return (
     <DialogContent>

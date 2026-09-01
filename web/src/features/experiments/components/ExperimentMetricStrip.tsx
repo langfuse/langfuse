@@ -325,13 +325,10 @@ export function ExperimentMetricStrip({
                       // can't swallow a keystroke.
                       textValue={option.label}
                     >
-                      <span className="flex items-center">
+                      <span className="flex items-center gap-1.5">
                         {option.label}
                         {option.level && (
-                          <ScoreTag
-                            level={SCORE_LEVEL_TAGS[option.level]}
-                            className="ml-1.5"
-                          />
+                          <ScoreTag level={SCORE_LEVEL_TAGS[option.level]} />
                         )}
                       </span>
                     </SelectItem>

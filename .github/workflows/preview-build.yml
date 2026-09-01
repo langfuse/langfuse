@@ -297,6 +297,13 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           sparse-checkout: .github/actions
 
+      # The URL is a markdown link whose label ends in "preview" so Linear's
+      # GitHub integration picks it up as a custom preview link and offers it
+      # on every linked Linear issue. Linear parses PR descriptions and
+      # comments (author or bot) for markdown links labelled "... preview";
+      # a bare URL or a label ending in the hostname is not matched. The
+      # pinned description block below uses the same label and URL, so Linear
+      # shows one entry rather than two.
       - name: Mark preview image pushed
         if: needs.build.result == 'success'
         uses: ./.github/actions/preview-comment
@@ -308,7 +315,7 @@ jobs:
             Argo CD is rolling it out — the environment is usually ready within a
             few minutes of this comment.
 
-            **URL:** https://${{ needs.meta.outputs.preview_host }} (signs you in automatically; opt out with `/auth/sign-in?autoSignIn=false`)
+            **URL:** [pr-${{ github.event.pull_request.number }} app preview](https://${{ needs.meta.outputs.preview_host }}) (signs you in automatically; opt out with `/auth/sign-in?autoSignIn=false`)
             **Login:** `${{ needs.meta.outputs.login_email }}` / `${{ needs.meta.outputs.login_password }}`
             **API keys:** `${{ needs.meta.outputs.public_key }}` / `${{ needs.meta.outputs.secret_key }}`
             **Commit:** ${{ needs.meta.outputs.commit_sha }}
@@ -321,6 +328,7 @@ jobs:
             ```sh
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-worker   # worker
+            kubectl -n ${{ needs.meta.outputs.namespace }} port-forward svc/preview-mailpit 8025:8025                  # captured email UI → http://localhost:8025
             ```
             Add `--previous` for a crashed container, `--tail=200` to limit, or
             `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
@@ -442,10 +450,13 @@ jobs:
             const host = process.env.PREVIEW_HOST;
 
             // Exactly one bold line, by request — the markdown link is needed
-            // because a schemeless hostname does not auto-link.
+            // because a schemeless hostname does not auto-link. Its label ends
+            // in "preview" so Linear's GitHub integration picks the line up as
+            // a custom preview link on every linked Linear issue; the label and
+            // URL match the status comment's, so Linear shows one entry.
             const block = [
               START,
-              `🟡 **Live preview: [${host}](https://${host})**`,
+              `🟡 **Live preview: [pr-${pull_number} app preview](https://${host})**`,
               END,
               "",
               "",

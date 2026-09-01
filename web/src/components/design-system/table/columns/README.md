@@ -39,7 +39,7 @@ export function createExampleTableColumn<TData extends RowData>(
 ) {
   return createTableColumn<TData, string>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value) => (value ? <Example value={value} /> : null),
   });
 }

@@ -6,14 +6,15 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "../../ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -63,9 +64,9 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   ScoreTag,
   scoreLevelFromScore,
@@ -170,14 +171,14 @@ export default function ScoresTable({
     () => new Set<string>(hiddenColumns),
     [hiddenColumns],
   );
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
-  const useEventsBackedScores = isBetaEnabled;
+  const useEventsBackedScores = isV4;
   // Same derivation `WidgetForm.tsx`/`ChartScores` use (`activeVersion`/
   // `metricsVersion`) — the chart/outlier strip must read the same version
   // as the table's own data, or a non-beta project's trace/observation
   // breakdown would run against the events-backed view and come back empty.
-  const chartViewVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const chartViewVersion: ViewVersion = isV4 ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -239,7 +240,7 @@ export default function ScoresTable({
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: scoresFilterConfig.tableName,
-    isV4: isBetaEnabled,
+    isV4,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -576,22 +577,15 @@ export default function ScoresTable({
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ScoresTableRow>({
       accessorKey: "id",
-      id: "id",
       enableColumnFilter: false,
       header: "Score ID",
       size: 100,
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
-    },
+    }),
     createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -650,26 +644,14 @@ export default function ScoresTable({
         return <ScoreTag level={level} />;
       },
     },
-    {
+    createIOTableColumn<ScoresTableRow>({
       accessorKey: "comment",
       header: "Comment",
-      id: "comment",
       enableHiding: true,
       size: 400,
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        );
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
@@ -684,10 +666,11 @@ export default function ScoresTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
+        if (isV4 && !scoreMetrics.data) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags &&
@@ -710,11 +693,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -742,7 +721,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (value) => {
-        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
         if (!value) return undefined;
 
         const filter = encodeURIComponent(
@@ -870,7 +849,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 100,
       getCell: (value) => {
-        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
         if (typeof value !== "string") return undefined;
 
         return {
@@ -902,9 +881,9 @@ export default function ScoresTable({
     }),
     createLinkTableColumn<ScoresTableRow>({
       accessorKey: "jobConfigurationId",
-      header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
+      header: isV4 ? "Evaluator" : "Eval Configuration ID",
       headerTooltip: {
-        description: isBetaEnabled
+        description: isV4
           ? "The evaluator associated with the score."
           : "The Job Configuration ID associated with the score.",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
@@ -914,7 +893,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (_, { row }) => {
-        if (isBetaEnabled) {
+        if (isV4) {
           const value = row.original.evaluatorId;
           if (typeof value !== "string") return undefined;
 
@@ -1013,7 +992,7 @@ export default function ScoresTable({
 
   // Merge v4 metrics into table rows
   const enrichedScores = useMemo(() => {
-    if (!isBetaEnabled) {
+    if (!isV4) {
       return scoresV3.data?.scores.map(convertToTableRow);
     }
 
@@ -1059,7 +1038,7 @@ export default function ScoresTable({
       } satisfies ScoresTableRow;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores.data, scoreMetrics.data, isBetaEnabled]);
+  }, [scores.data, scoreMetrics.data, isV4]);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
@@ -1257,7 +1236,7 @@ export default function ScoresTable({
             expandPeek={expandScorePeek}
             itemType="TRACE"
             tableName={scoresFilterConfig.tableName}
-            isV4={isBetaEnabled}
+            isV4={isV4}
             projectId={projectId}
           />
         )}
@@ -1287,11 +1266,11 @@ const ScoresMetadataCell = ({
       refetchOnMount: false, // prevents refetching loops
     },
   );
+  if (score.isPending) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
   return (
-    <IOTableCell
-      isLoading={score.isPending}
-      data={score.data?.metadata}
-      singleLine={singleLine}
-    />
+    <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
   );
 };

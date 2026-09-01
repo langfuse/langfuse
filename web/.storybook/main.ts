@@ -11,6 +11,8 @@ import {
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Avatar/Avatar",
+  "Badge/Badge",
   "Callout/Callout",
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
@@ -23,9 +25,12 @@ const DESIGN_COMPONENT_STORIES = [
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "TextLink/TextLink",
   "Toggle/Toggle",
+  "table/components/IOTableCell/IOTableCell",
   "table/columns/createBadgeTableColumn",
   "table/columns/createDateTableColumn",
+  "table/columns/createDropdownTableColumn",
   "table/columns/createDurationTableColumn",
   "table/columns/createIdTableColumn",
   "table/columns/createItemBadgeTableColumn",
@@ -33,6 +38,7 @@ const DESIGN_COMPONENT_STORIES = [
   "table/columns/createStatusTableColumn",
   "table/columns/createTagsTableColumn",
   "table/columns/createTextTableColumn",
+  "table/columns/createTokenUsageTableColumn",
 ] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
@@ -44,7 +50,11 @@ const DESIGN_COMPONENT_STORIES = [
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
   {
     directory: "src/components/design-system/table/columns",
-    titlePrefix: "Design/Components/Table",
+    titlePrefix: "Design/Components/Table/Columns",
+  },
+  {
+    directory: "src/components/design-system/table/components",
+    titlePrefix: "Design/Components/Table/Cells",
   },
   {
     directory: "src/features/evals/v2/components",

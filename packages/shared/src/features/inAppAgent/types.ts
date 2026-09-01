@@ -66,6 +66,11 @@ export enum InAppAgentRunErrorCode {
    * configured wall but did not produce a final answer.
    */
   STEP_LIMIT = "step_limit",
+  /**
+   * The last model step ended with a `length` finish: the response hit the
+   * provider's output-token limit before a final answer.
+   */
+  OUTPUT_LIMIT = "output_limit",
 }
 
 /**
