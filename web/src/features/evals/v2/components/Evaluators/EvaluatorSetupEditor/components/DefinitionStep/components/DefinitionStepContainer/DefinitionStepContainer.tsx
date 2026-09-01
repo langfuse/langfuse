@@ -27,6 +27,7 @@ export function DefinitionStepContainer({
   onSetProjectDefault,
   codeValidationResult,
   codeEvaluatorAssistantContext,
+  onCodeEvaluatorAssistantSubmit,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
@@ -40,6 +41,7 @@ export function DefinitionStepContainer({
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
   codeValidationResult: CodeEvalValidationResult | null;
   codeEvaluatorAssistantContext: CodeEvaluatorAssistantContext | null;
+  onCodeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const state = useStore(
     store,
@@ -86,6 +88,7 @@ export function DefinitionStepContainer({
           store={store}
           validationResult={codeValidationResult}
           assistantContext={codeEvaluatorAssistantContext}
+          onAssistantSubmit={onCodeEvaluatorAssistantSubmit}
         />
       }
     />

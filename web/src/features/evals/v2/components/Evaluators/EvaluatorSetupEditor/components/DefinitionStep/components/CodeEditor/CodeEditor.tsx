@@ -17,11 +17,13 @@ export function CodeEditor({
   store,
   validationResult,
   assistantContext,
+  onAssistantSubmit,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
   validationResult: CodeEvalValidationResult | null;
   assistantContext: CodeEvaluatorAssistantContext | null;
+  onAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const sampleObservation = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
@@ -46,7 +48,7 @@ export function CodeEditor({
   return (
     <CodeEvaluatorAssistantExperience
       context={assistantContext}
-      sourceCodeLanguage={state.sourceCodeLanguage}
+      onAssistantSubmit={onAssistantSubmit}
     >
       <CodeEvalTemplateFormBody
         sourceCode={state.sourceCode}

@@ -73,7 +73,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getEvaluator: [],
   langfuse_testEvaluator: ["evals", "evalsV2"],
   langfuse_createEvaluator: ["evals", "evalsV2", "models"],
-  langfuse_updateEvaluator: ["evals", "evalsV2", "models"],
+  langfuse_updateEvaluator: ["evals", "models"],
   langfuse_deleteEvaluator: ["evals", "evalsV2", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
@@ -212,6 +212,7 @@ function performTargetInvalidation(
 export type CompletedToolCall = {
   toolCallId: string;
   toolName: string;
+  toolArguments?: unknown;
   toolError?: unknown;
 };
 
@@ -232,6 +233,7 @@ export function getCompletedToolCalls(
         toolCalls.set(toolCall.id, {
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
+          toolArguments: toolCall.function.arguments,
         });
       }
       continue;
@@ -258,13 +260,16 @@ export function getCompletedToolCalls(
 export function performToolSideEffectsForCompletedToolCalls({
   toolCalls,
   handledToolCallIds,
+  projectId,
   utils,
 }: {
   toolCalls: readonly CompletedToolCall[];
   handledToolCallIds: Set<string>;
+  projectId: string;
   utils: ReturnType<typeof api.useUtils>;
 }) {
   const targets = new Set<InAppAgentTrpcInvalidationTarget>();
+  const updatedEvaluatorIds = new Set<string>();
 
   for (const toolCall of toolCalls) {
     if (handledToolCallIds.has(toolCall.toolCallId)) {
@@ -276,6 +281,15 @@ export function performToolSideEffectsForCompletedToolCalls({
       continue;
     }
 
+    if (toolCall.toolName === "langfuse_updateEvaluator") {
+      const evaluatorId = getEvaluatorIdFromToolArguments(
+        toolCall.toolArguments,
+      );
+      if (evaluatorId) {
+        updatedEvaluatorIds.add(evaluatorId);
+      }
+    }
+
     for (const target of getInAppAgentTrpcInvalidationTargets(
       toolCall.toolName,
     )) {
@@ -283,7 +297,30 @@ export function performToolSideEffectsForCompletedToolCalls({
     }
   }
 
-  return Promise.all(
-    Array.from(targets, (target) => performTargetInvalidation(target, utils)),
-  );
+  return Promise.all([
+    ...Array.from(targets, (target) =>
+      performTargetInvalidation(target, utils),
+    ),
+    ...Array.from(updatedEvaluatorIds, (evaluatorId) =>
+      utils.evalsV2.get.invalidate({ projectId, evaluatorId }),
+    ),
+  ]);
+}
+
+function getEvaluatorIdFromToolArguments(toolArguments: unknown) {
+  const parsedArguments =
+    typeof toolArguments === "string"
+      ? safeJsonParse(toolArguments)
+      : toolArguments;
+
+  if (
+    typeof parsedArguments !== "object" ||
+    parsedArguments === null ||
+    !("evaluatorId" in parsedArguments) ||
+    typeof parsedArguments.evaluatorId !== "string"
+  ) {
+    return null;
+  }
+
+  return parsedArguments.evaluatorId;
 }

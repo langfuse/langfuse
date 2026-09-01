@@ -3,10 +3,69 @@ import { describe, expect, it, vi } from "vitest";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import {
   applyEvaluatorSuggestion,
+  getCodeEvaluatorAssistantPrompt,
   getEvaluatorVersionDefinition,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
+  startCodeEvaluatorAssistantHandoff,
 } from "./EvaluatorSetupPage";
+
+describe("getCodeEvaluatorAssistantPrompt", () => {
+  it("targets the persisted evaluator by id", () => {
+    const prompt = getCodeEvaluatorAssistantPrompt({
+      evaluatorId: "evaluator-1",
+      request: "Return zero for empty outputs",
+    });
+
+    expect(prompt).toContain('evaluator ID "evaluator-1"');
+    expect(prompt).toContain("Return zero for empty outputs");
+    expect(prompt).toContain("Do not create a new evaluator");
+  });
+});
+
+describe("startCodeEvaluatorAssistantHandoff", () => {
+  it("persists before submitting an update for that evaluator id", async () => {
+    const callOrder: string[] = [];
+    const submitToAssistant = vi.fn(async (prompt: string) => {
+      callOrder.push("submit");
+      expect(prompt).toContain('evaluator ID "evaluator-1"');
+      return true;
+    });
+
+    await expect(
+      startCodeEvaluatorAssistantHandoff({
+        request: "Return zero for empty outputs",
+        openAssistant: () => true,
+        persistEvaluator: async () => {
+          callOrder.push("persist");
+          return "evaluator-1";
+        },
+        submitToAssistant,
+      }),
+    ).resolves.toEqual({ evaluatorId: "evaluator-1", started: true });
+
+    expect(callOrder).toEqual(["persist", "submit"]);
+    expect(submitToAssistant).toHaveBeenCalledWith(expect.any(String), {
+      newConversation: true,
+      entryPoint: "code-evaluator-editor",
+    });
+  });
+
+  it("does not submit when the evaluator cannot be persisted", async () => {
+    const submitToAssistant = vi.fn();
+
+    await expect(
+      startCodeEvaluatorAssistantHandoff({
+        request: "Return zero for empty outputs",
+        openAssistant: () => true,
+        persistEvaluator: async () => null,
+        submitToAssistant,
+      }),
+    ).resolves.toBeNull();
+
+    expect(submitToAssistant).not.toHaveBeenCalled();
+  });
+});
 
 describe("shouldOfferRuleAttachment", () => {
   it("does not offer rule attachment for a blocked evaluator", () => {

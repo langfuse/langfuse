@@ -57,6 +57,7 @@ import {
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type InitialEvaluator = {
   id: string;
@@ -83,6 +84,53 @@ export function applyEvaluatorSuggestion(
   if (!suggestion) return false;
   setSuggestion(suggestion);
   return true;
+}
+
+export function getCodeEvaluatorAssistantPrompt({
+  evaluatorId,
+  request,
+}: {
+  evaluatorId: string;
+  request: string;
+}) {
+  return `Update the code evaluator with evaluator ID "${evaluatorId}" for this request:
+
+${request}
+
+First load this evaluator and preserve its existing configuration unless the request requires a change. Ask follow-up questions if the request is ambiguous. Use the evaluator update tool with evaluator ID "${evaluatorId}" after I approve the tool call. Do not create a new evaluator.`;
+}
+
+export async function startCodeEvaluatorAssistantHandoff({
+  request,
+  openAssistant,
+  persistEvaluator,
+  submitToAssistant,
+}: {
+  request: string;
+  openAssistant: () => boolean;
+  persistEvaluator: () => Promise<string | null>;
+  submitToAssistant: (
+    prompt: string,
+    options: {
+      newConversation: true;
+      entryPoint: "code-evaluator-editor";
+    },
+  ) => Promise<boolean>;
+}) {
+  if (!openAssistant()) return null;
+
+  const evaluatorId = await persistEvaluator();
+  if (!evaluatorId) return null;
+
+  const started = await submitToAssistant(
+    getCodeEvaluatorAssistantPrompt({ evaluatorId, request }),
+    {
+      newConversation: true,
+      entryPoint: "code-evaluator-editor",
+    },
+  );
+
+  return { evaluatorId, started };
 }
 
 export function getEvaluatorVersionDefinition(
@@ -160,6 +208,7 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const { openAssistant, submit: submitToAssistant } = useInAppAiAgent();
   const canReactivate = useHasProjectAccess({
     projectId,
     scope: "evaluator:CUD",
@@ -202,6 +251,7 @@ export function EvaluatorSetupPage(
       definition: prepareEvaluatorDraft(state).definition,
     });
   const initialSnapshot = useRef(getCurrentSnapshot());
+  const assistantPersistedEvaluatorIdRef = useRef<string | null>(null);
   const testPanelOpen = useStore(
     evaluatorSetupStore,
     (state) => state.testPanelOpen,
@@ -419,15 +469,35 @@ export function EvaluatorSetupPage(
     else close().catch(trpcErrorToast);
   };
 
-  const save = async () => {
+  const save = async (
+    intent: "manual" | "assistant" = "manual",
+  ): Promise<string | null> => {
     try {
       let state = evaluatorSetupStore.getState();
+      const isAssistantHandoff = intent === "assistant";
+      if (
+        isAssistantHandoff &&
+        props.mode === "create" &&
+        assistantPersistedEvaluatorIdRef.current
+      ) {
+        return assistantPersistedEvaluatorIdRef.current;
+      }
+      if (
+        isAssistantHandoff &&
+        initialEvaluator &&
+        getCurrentSnapshot(state) === initialSnapshot.current
+      ) {
+        return initialEvaluator.id;
+      }
       const metadata = await prepareEvaluatorMetadataForSave({
         currentName: state.name,
         currentDescription: state.description,
-        generateName: nameAIAssistanceAvailable ? generateNameSuggestion : null,
+        generateName:
+          !isAssistantHandoff && nameAIAssistanceAvailable
+            ? generateNameSuggestion
+            : null,
         generateDescription:
-          nameAIAssistanceAvailable && !initialEvaluator
+          !isAssistantHandoff && nameAIAssistanceAvailable && !initialEvaluator
             ? async () => {
                 try {
                   return await generateDescriptionSuggestion();
@@ -437,6 +507,7 @@ export function EvaluatorSetupPage(
                 }
               }
             : null,
+        fallbackName: isAssistantHandoff ? "Draft code evaluator" : undefined,
         setName: state.actions.setName,
         setDescription: state.actions.setDescription,
       });
@@ -445,7 +516,7 @@ export function EvaluatorSetupPage(
           "Evaluator name required",
           "We couldn't generate a name. Please enter one manually and try again.",
         );
-        return;
+        return null;
       }
       state = evaluatorSetupStore.getState();
       if (state.type === "CODE") {
@@ -462,11 +533,11 @@ export function EvaluatorSetupPage(
           state.sourceCode !== validatedSourceCode ||
           state.sourceCodeLanguage !== validatedSourceCodeLanguage
         ) {
-          return;
+          return null;
         }
       }
       const { definition } = prepareEvaluatorDraft(state);
-      if (!definition) return;
+      if (!definition) return null;
       const { name, description } = metadata;
 
       if (props.mode === "edit") {
@@ -483,14 +554,18 @@ export function EvaluatorSetupPage(
             ? getJudgePromptAnalyticsProperties(definition.promptMessages)
             : {}),
         });
-        showSuccessToast({
-          title: "Evaluator saved",
-          description: "Your evaluator changes are saved.",
-        });
+        if (!isAssistantHandoff) {
+          showSuccessToast({
+            title: "Evaluator saved",
+            description: "Your evaluator changes are saved.",
+          });
+        }
         initialSnapshot.current = getCurrentSnapshot(state);
         await utils.evalsV2.filterOptions.invalidate({ projectId });
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
-        return;
+        if (!isAssistantHandoff) {
+          await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        }
+        return evaluator.id;
       }
 
       const evaluator = await create.mutateAsync({
@@ -529,9 +604,13 @@ export function EvaluatorSetupPage(
       );
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
+      if (isAssistantHandoff) {
+        assistantPersistedEvaluatorIdRef.current = evaluator.id;
+        return evaluator.id;
+      }
       if (!shouldOfferRuleAttachment(evaluator)) {
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
-        return;
+        return evaluator.id;
       }
       setSavedEvaluator({
         id: evaluator.id,
@@ -544,6 +623,7 @@ export function EvaluatorSetupPage(
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,
       });
+      return evaluator.id;
     } catch (error) {
       if (
         initialEvaluator &&
@@ -554,7 +634,42 @@ export function EvaluatorSetupPage(
       } else {
         trpcErrorToast(error);
       }
+      return null;
     }
+  };
+
+  const submitCodeEvaluatorAssistantRequest = async (request: string) => {
+    const handoff = await startCodeEvaluatorAssistantHandoff({
+      request,
+      openAssistant: () => openAssistant("code_evaluator_editor"),
+      persistEvaluator: async () => {
+        const persistedEvaluatorId = await save("assistant");
+        if (!persistedEvaluatorId) {
+          showErrorToast(
+            "Couldn't save evaluator",
+            "Review the code for validation errors, then try again.",
+          );
+        }
+        return persistedEvaluatorId;
+      },
+      submitToAssistant,
+    });
+    if (!handoff) return false;
+
+    if (!handoff.started) {
+      showErrorToast(
+        "Assistant didn't start",
+        "The evaluator was saved. Open AI input and try again.",
+      );
+    }
+
+    if (props.mode === "create") {
+      await router.replace(
+        `/project/${projectId}/evals/${handoff.evaluatorId}`,
+      );
+    }
+
+    return handoff.started;
   };
 
   const discardConflictingChanges = async () => {
@@ -611,6 +726,7 @@ export function EvaluatorSetupPage(
             ? "scratch"
             : null
       }
+      onCodeEvaluatorAssistantSubmit={submitCodeEvaluatorAssistantRequest}
       onStepOpenChange={setStepOpen}
       nameAIAssistance={
         !nameAIAssistanceAvailable

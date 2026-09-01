@@ -5,16 +5,12 @@ import {
   useRef,
   useState,
 } from "react";
-import type { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { SendHorizontal } from "lucide-react";
 
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import {
-  useInAppAiAgent,
-  useIsInAppAgentLauncherVisible,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 
@@ -32,42 +28,13 @@ function resizeTextarea(textarea: HTMLTextAreaElement | null) {
   textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
 }
 
-function getLanguageLabel(language: EvalTemplateSourceCodeLanguage) {
-  return language === "PYTHON" ? "Python" : "TypeScript";
-}
-
-function getAssistantPrompt({
-  context,
-  request,
-  sourceCodeLanguage,
-}: {
-  context: CodeEvaluatorAssistantContext;
-  request: string;
-  sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
-}) {
-  if (context === "scratch") {
-    return `Create a new ${getLanguageLabel(sourceCodeLanguage)} code evaluator in Langfuse for this request:
-
-${request}
-
-Ask follow-up questions if the evaluation criteria or score output are ambiguous. Then write the evaluator code and create the evaluator in Langfuse after I approve the tool call.`;
-  }
-
-  return `Update the code evaluator shown on the current Langfuse page for this request:
-
-${request}
-
-First load the current evaluator so you preserve its existing configuration and only change what is needed. Ask follow-up questions if the requested change is ambiguous, then update the evaluator after I approve the tool call.`;
-}
-
 function AssistantComposer({
   context,
-  sourceCodeLanguage,
+  onAssistantSubmit,
 }: {
   context: CodeEvaluatorAssistantContext;
-  sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
+  onAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
-  const { openAssistant, submit } = useInAppAiAgent();
   const [request, setRequest] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitInFlightRef = useRef(false);
@@ -76,28 +43,14 @@ function AssistantComposer({
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedRequest = request.trim();
-    if (
-      !trimmedRequest ||
-      submitInFlightRef.current ||
-      !openAssistant("code_evaluator_editor")
-    ) {
+    if (!trimmedRequest || submitInFlightRef.current) {
       return;
     }
 
     submitInFlightRef.current = true;
     setIsSubmitting(true);
     try {
-      const started = await submit(
-        getAssistantPrompt({
-          context,
-          request: trimmedRequest,
-          sourceCodeLanguage,
-        }),
-        {
-          newConversation: true,
-          entryPoint: "code-evaluator-editor",
-        },
-      );
+      const started = await onAssistantSubmit(trimmedRequest);
 
       if (started) setRequest("");
     } finally {
@@ -163,11 +116,11 @@ function AssistantComposer({
 
 export function CodeEvaluatorAssistantExperience({
   context,
-  sourceCodeLanguage,
+  onAssistantSubmit,
   children,
 }: {
   context: CodeEvaluatorAssistantContext | null;
-  sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
+  onAssistantSubmit: (request: string) => Promise<boolean>;
   children: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
@@ -221,7 +174,7 @@ export function CodeEvaluatorAssistantExperience({
       {mode === "assistant" ? (
         <AssistantComposer
           context={context}
-          sourceCodeLanguage={sourceCodeLanguage}
+          onAssistantSubmit={onAssistantSubmit}
         />
       ) : (
         children

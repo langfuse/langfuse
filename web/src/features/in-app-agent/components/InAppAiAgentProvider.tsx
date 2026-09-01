@@ -322,7 +322,9 @@ function InAppAiAgentProviderInner({
   const backgroundSessionRef = useRef<BackgroundExecutionSession | null>(null);
   const [backgroundSession, setBackgroundSession] =
     useState<BackgroundExecutionSession | null>(null);
-  const toolCallNamesRef = useRef(new Map<string, string>());
+  const toolCallMetadataRef = useRef(
+    new Map<string, { toolName: string; toolArguments?: unknown }>(),
+  );
   const handledToolCallIdsRef = useRef(new Set<string>());
   const submitInFlightRef = useRef<string | null>(null);
 
@@ -652,7 +654,7 @@ function InAppAiAgentProviderInner({
     backgroundSessionRef.current?.dispose();
     backgroundSessionRef.current = null;
     setBackgroundSession(null);
-    toolCallNamesRef.current.clear();
+    toolCallMetadataRef.current.clear();
     handledToolCallIdsRef.current.clear();
     clearLoadingEvents();
   }, [clearLoadingEvents]);
@@ -712,7 +714,9 @@ function InAppAiAgentProviderInner({
           }
 
           if (event.type === EventType.TOOL_CALL_START) {
-            toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
+            toolCallMetadataRef.current.set(event.toolCallId, {
+              toolName: String(event.toolCallName),
+            });
             updateLoadingEvent(event.toolCallId, true);
             return;
           }
@@ -731,19 +735,38 @@ function InAppAiAgentProviderInner({
             clearLoadingEvents();
           }
         },
+        onToolCallEndEvent: ({ event, toolCallArgs }) => {
+          const toolCallId = String(event.toolCallId);
+          const existingMetadata = toolCallMetadataRef.current.get(toolCallId);
+          if (!existingMetadata) {
+            return;
+          }
+
+          toolCallMetadataRef.current.set(toolCallId, {
+            ...existingMetadata,
+            toolArguments: toolCallArgs as unknown,
+          });
+        },
         onToolCallResultEvent: ({ event }) => {
           const toolCallId = String(event.toolCallId);
-          const toolName = toolCallNamesRef.current.get(toolCallId);
-          toolCallNamesRef.current.delete(toolCallId);
-          if (toolName) {
+          const toolCallMetadata = toolCallMetadataRef.current.get(toolCallId);
+          toolCallMetadataRef.current.delete(toolCallId);
+          if (toolCallMetadata) {
             performToolSideEffectsForCompletedToolCalls({
-              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
+              toolCalls: [
+                {
+                  toolCallId,
+                  ...toolCallMetadata,
+                  toolError: event.error,
+                },
+              ],
               handledToolCallIds: handledToolCallIdsRef.current,
+              projectId,
               utils,
             }).catch((error: unknown) => {
               console.error(
                 "Failed to invalidate tRPC routes after in-app agent tool call",
-                { error, toolName },
+                { error, toolName: toolCallMetadata.toolName },
               );
             });
           }
@@ -752,7 +775,7 @@ function InAppAiAgentProviderInner({
           setError(getInAppAgentError(event));
         },
       }) satisfies AgentSubscriber,
-    [clearLoadingEvents, updateLoadingEvent, utils],
+    [clearLoadingEvents, projectId, updateLoadingEvent, utils],
   );
 
   // Release only the caller's lock; a newer conversation may own it.
@@ -878,6 +901,7 @@ function InAppAiAgentProviderInner({
           performToolSideEffectsForCompletedToolCalls({
             toolCalls: getCompletedToolCalls(messages),
             handledToolCallIds: handledToolCallIdsRef.current,
+            projectId,
             utils,
           }).catch((error: unknown) => {
             console.error(

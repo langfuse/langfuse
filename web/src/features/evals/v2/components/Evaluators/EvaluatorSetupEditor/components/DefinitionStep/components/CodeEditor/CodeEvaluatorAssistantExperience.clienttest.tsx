@@ -2,16 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { CodeEvaluatorAssistantExperience } from "./CodeEvaluatorAssistantExperience";
 
-const agentContext = vi.hoisted(() => ({
-  isSubmitting: false,
-  openAssistant: vi.fn().mockReturnValue(true),
-  submit: vi.fn().mockResolvedValue(true),
-}));
+const submitRequest = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 const capture = vi.hoisted(() => vi.fn());
 const launcher = vi.hoisted(() => ({ visible: true }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useInAppAiAgent: () => agentContext,
   useIsInAppAgentLauncherVisible: () => launcher.visible,
 }));
 
@@ -23,8 +18,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
   beforeEach(() => {
     window.localStorage.clear();
     launcher.visible = true;
-    agentContext.openAssistant.mockClear().mockReturnValue(true);
-    agentContext.submit.mockClear().mockResolvedValue(true);
+    submitRequest.mockClear().mockResolvedValue(true);
     capture.mockClear();
   });
 
@@ -32,7 +26,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     render(
       <CodeEvaluatorAssistantExperience
         context="scratch"
-        sourceCodeLanguage="TYPESCRIPT"
+        onAssistantSubmit={submitRequest}
       >
         <div>Code editor</div>
       </CodeEvaluatorAssistantExperience>,
@@ -51,23 +45,15 @@ describe("CodeEvaluatorAssistantExperience", () => {
     );
 
     await waitFor(() => {
-      expect(agentContext.submit).toHaveBeenCalledWith(
-        expect.stringContaining("Score whether the answer cites a source"),
-        {
-          newConversation: true,
-          entryPoint: "code-evaluator-editor",
-        },
+      expect(submitRequest).toHaveBeenCalledWith(
+        "Score whether the answer cites a source",
       );
     });
-    expect(agentContext.submit.mock.calls[0]?.[0]).toContain("TypeScript");
-    expect(agentContext.openAssistant).toHaveBeenCalledWith(
-      "code_evaluator_editor",
-    );
   });
 
   it("starts only one conversation while a submission is pending", async () => {
     let resolveSubmission: (started: boolean) => void = () => undefined;
-    agentContext.submit.mockReturnValueOnce(
+    submitRequest.mockReturnValueOnce(
       new Promise<boolean>((resolve) => {
         resolveSubmission = resolve;
       }),
@@ -75,7 +61,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     render(
       <CodeEvaluatorAssistantExperience
         context="scratch"
-        sourceCodeLanguage="TYPESCRIPT"
+        onAssistantSubmit={submitRequest}
       >
         <div>Code editor</div>
       </CodeEvaluatorAssistantExperience>,
@@ -91,8 +77,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     fireEvent.submit(form!);
     fireEvent.submit(form!);
 
-    expect(agentContext.openAssistant).toHaveBeenCalledOnce();
-    expect(agentContext.submit).toHaveBeenCalledOnce();
+    expect(submitRequest).toHaveBeenCalledOnce();
     expect(
       screen.getByRole("button", { name: "Create with Langfuse Assistant" }),
     ).toBeDisabled();
@@ -105,7 +90,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     const { unmount } = render(
       <CodeEvaluatorAssistantExperience
         context="scratch"
-        sourceCodeLanguage="TYPESCRIPT"
+        onAssistantSubmit={submitRequest}
       >
         <div>Code editor</div>
       </CodeEvaluatorAssistantExperience>,
@@ -118,7 +103,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     render(
       <CodeEvaluatorAssistantExperience
         context="scratch"
-        sourceCodeLanguage="TYPESCRIPT"
+        onAssistantSubmit={submitRequest}
       >
         <div>Code editor</div>
       </CodeEvaluatorAssistantExperience>,
@@ -134,7 +119,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     render(
       <CodeEvaluatorAssistantExperience
         context="edit"
-        sourceCodeLanguage="PYTHON"
+        onAssistantSubmit={submitRequest}
       >
         <div>Code editor</div>
       </CodeEvaluatorAssistantExperience>,
@@ -158,7 +143,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     render(
       <CodeEvaluatorAssistantExperience
         context="scratch"
-        sourceCodeLanguage="TYPESCRIPT"
+        onAssistantSubmit={submitRequest}
       >
         <div>Code editor</div>
       </CodeEvaluatorAssistantExperience>,
