@@ -429,6 +429,13 @@ function classifyLambdaFunctionError(params: {
     );
   }
 
+  if (errorType === "Runtime.OutOfMemory") {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Evaluator exceeded the available memory",
+      { code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY, retryable: false },
+    );
+  }
+
   // Abnormal runtime exit (OOM kill, segfault, process.exit, SIGKILL).
   // Retrying never recovers from these.
   if (errorType === "Runtime.ExitError") {

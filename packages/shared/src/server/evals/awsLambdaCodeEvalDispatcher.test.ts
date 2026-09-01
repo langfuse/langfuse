@@ -193,6 +193,38 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
     });
   });
 
+  it("classifies Lambda out-of-memory failures as evaluator memory errors", async () => {
+    const dispatcher = new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: {
+        send: vi.fn().mockResolvedValue({
+          StatusCode: 200,
+          FunctionError: "Unhandled",
+          Payload: Buffer.from(
+            JSON.stringify({
+              errorMessage: "Runtime exited with error: signal: killed",
+              errorType: "Runtime.OutOfMemory",
+            }),
+          ),
+          $metadata: {
+            requestId: "request-oom",
+            httpStatusCode: 200,
+            attempts: 1,
+            totalRetryDelay: 0,
+          },
+        }),
+      } as any,
+    });
+
+    await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+      code: "OUT_OF_MEMORY",
+      retryable: false,
+    });
+    expectSpanAttributes({
+      "langfuse.code_eval.error.code": "OUT_OF_MEMORY",
+      "langfuse.code_eval.error.retryable": false,
+    });
+  });
+
   it("records the original Lambda FunctionError before throwing the derived user-facing error", async () => {
     const dispatcher = new AwsLambdaCodeEvalDispatcher({
       lambdaClient: {
