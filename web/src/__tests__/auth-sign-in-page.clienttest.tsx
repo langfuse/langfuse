@@ -67,6 +67,7 @@ const authProviders: PageProps["authProviders"] = {
   auth0: false,
   clickhouseCloud: false,
   cognito: false,
+  jumpcloud: false,
   keycloak: false,
   workos: false,
   wordpress: false,
@@ -219,5 +220,51 @@ describe("sign-in page NextAuth error classification", () => {
 
     expect(screen.getByText("Sign in to your account")).toBeInTheDocument();
     expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sign-in page JumpCloud provider button", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    signInMock.mockResolvedValue(undefined);
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("does not render a JumpCloud button when the provider is disabled", () => {
+    renderSignIn();
+
+    expect(
+      screen.queryByRole("button", { name: /JumpCloud/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a JumpCloud button and signs in with the jumpcloud provider", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        jumpcloud: true,
+      },
+    });
+
+    const button = screen.getByRole("button", { name: /JumpCloud/ });
+    fireEvent.click(button);
+
+    expect(signInMock).toHaveBeenCalledWith("jumpcloud");
+  });
+
+  it("still renders JumpCloud when username/password auth is disabled", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        credentials: false,
+        jumpcloud: true,
+      },
+    });
+
+    expect(
+      screen.getByRole("button", { name: /JumpCloud/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
   });
 });

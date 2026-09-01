@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
@@ -19,7 +20,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
+import { ChevronDown, Columns3, Trash } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -507,34 +508,23 @@ export function DatasetRunsTable(props: {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
+    createDropdownTableColumn<DatasetRunRowData, DatasetRunRowData["id"]>({
       id: "actions",
-      accessorKey: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 70,
-      cell: ({ row }) => {
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DeleteDatasetRunButton
-                projectId={props.projectId}
-                datasetRunId={id}
-                datasetId={props.datasetId}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
+      renderMenu: (id) =>
+        id ? (
+          <>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DeleteDatasetRunButton
+              projectId={props.projectId}
+              datasetRunId={id}
+              datasetId={props.datasetId}
+            />
+          </>
+        ) : null,
+    }),
   ];
 
   const convertToTableRow = (

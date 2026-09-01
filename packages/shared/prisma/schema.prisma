@@ -941,6 +941,7 @@ model EvaluatorVersion {
   createdByUser   User?   @relation("EvaluatorVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   prompt             String?
+  promptMessages     Json?                        @map("prompt_messages")
   partner            String?
   model              String?
   provider           String?
