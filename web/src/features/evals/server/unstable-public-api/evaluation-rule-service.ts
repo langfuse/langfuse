@@ -94,6 +94,7 @@ function toEvaluatorDefinition(
     version: version.version,
     type: evaluator.type,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     partner: version.partner,
     provider: version.provider,
     model: version.model,
