@@ -154,19 +154,21 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   on a `textSearch` field — `-name:=v` — is representable: it lowers to a
   `stringOptions none of`, the exact-inequality form the facet emits when one
   value is unchecked. It is NOT `does not contain`.)
-- **User-authored filters are never auto-removed.** The bar reads the sidebar's
-  **explicit** `FilterState`, so the managed-environment implicit default
-  (`environment none of [hidden internal envs]`, derived into _effective_ state
-  by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
+- **User-authored filters are never auto-removed.** The bar reads a display
+  projection of the sidebar's **explicit** `FilterState`, so the
+  managed-environment implicit default (`environment none of [hidden internal
+envs]`, derived into _effective_ state by
+  `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
   That policy strips the implicit `none of [hidden]` default (which the facet
-  also re-creates on "clear back to default") and canonicalizes
-  `none of [hidden ∪ extras]` down to `none of [extras]` so only the values
-  that differ from the global default appear as chips
-  (`-environment:production`). Queries still exclude the hidden set — effective
-  state folds it back in. A user-authored positive selection
-  (`environment:default`, typed or saved) is kept explicit even when it equals
-  the current default set; the user returns to the default by removing the
-  filter, never by us inferring it.
+  also re-creates on "clear back to default") and keeps
+  `none of [hidden ∪ extras]` in persisted/effective state so queries still
+  exclude the hidden set. The search-bar projection shows only extras
+  (`-environment:production`). A bar commit of that extras-only chip expands
+  back to the full exclusion set. Enabling any hidden environment stores a
+  positive `any of [checked]` instead, so it cannot be remasked as extras-only
+  none-of. A user-authored positive selection (`environment:default`, typed or
+  saved) is kept explicit even when it equals the current default set; the user
+  returns to the default by removing the filter, never by us inferring it.
 
 ## Ownership map
 

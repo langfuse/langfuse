@@ -17,6 +17,10 @@ import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
+import {
+  buildManagedEnvironmentPolicyConfig,
+  toSearchBarEnvironmentFilters,
+} from "./lib/managedEnvironmentPolicy";
 
 const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();
@@ -217,6 +221,9 @@ function SavedViewHarness({
       <div data-testid="applied-view-id">{appliedViewId ?? "null"}</div>
       <pre data-testid="explicit-state">
         {JSON.stringify(queryFilter.explicitFilterState)}
+      </pre>
+      <pre data-testid="search-bar-state">
+        {JSON.stringify(queryFilter.searchBarFilterState)}
       </pre>
       <pre data-testid="effective-state">
         {JSON.stringify(queryFilter.filterState)}
@@ -729,6 +736,9 @@ describe("Saved view restore with implicit environment defaults", () => {
     const explicit = JSON.parse(
       screen.getByTestId("explicit-state").textContent ?? "[]",
     ) as FilterState;
+    const searchBar = JSON.parse(
+      screen.getByTestId("search-bar-state").textContent ?? "[]",
+    ) as FilterState;
     const effective = JSON.parse(
       screen.getByTestId("effective-state").textContent ?? "[]",
     ) as FilterState;
@@ -739,7 +749,7 @@ describe("Saved view restore with implicit environment defaults", () => {
           column: "environment",
           type: "stringOptions",
           operator: "none of",
-          value: ["production"],
+          value: [...HIDDEN_ENVIRONMENTS, "production"],
         },
         {
           column: "name",
@@ -751,7 +761,7 @@ describe("Saved view restore with implicit environment defaults", () => {
     );
     expect(
       explicit.find((filter) => filter.column === "environment")?.value,
-    ).toEqual(["production"]);
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
 
     const envEffective = effective.find(
       (filter) => filter.column === "environment",
@@ -768,8 +778,75 @@ describe("Saved view restore with implicit environment defaults", () => {
     ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
 
     expect(
-      filterStateToQueryText(explicit, {}, EVENTS_FIELD_REGISTRY).text,
+      searchBar.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(["production"]);
+    expect(
+      filterStateToQueryText(
+        toSearchBarEnvironmentFilters({
+          explicitFilters: explicit,
+          config: buildManagedEnvironmentPolicyConfig({
+            hiddenEnvironments: HIDDEN_ENVIRONMENTS,
+          }),
+        }),
+        {},
+        EVENTS_FIELD_REGISTRY,
+      ).text,
     ).toContain("-environment:production");
+  });
+
+  it("expands a legacy extras-only saved view to the full exclusion set", async () => {
+    savedViewFilters = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ];
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "View excluding production",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: savedViewFilters,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    const explicit = JSON.parse(
+      screen.getByTestId("explicit-state").textContent ?? "[]",
+    ) as FilterState;
+    const searchBar = JSON.parse(
+      screen.getByTestId("search-bar-state").textContent ?? "[]",
+    ) as FilterState;
+    const effective = JSON.parse(
+      screen.getByTestId("effective-state").textContent ?? "[]",
+    ) as FilterState;
+
+    expect(
+      explicit.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
+    expect(
+      effective.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
+    expect(
+      searchBar.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(["production"]);
   });
 });
 

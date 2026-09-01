@@ -39,6 +39,7 @@ import {
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
+  toSearchBarEnvironmentFilters,
 } from "./lib/managedEnvironmentPolicy";
 import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
@@ -1319,7 +1320,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     // re-creates when the user clears back to the default selection — is the
     // `none of [hidden]` shape. That default is stripped before persistence,
     // so returning to default leaves a clean URL. Extra exclusions on top of
-    // that default are kept as `none of [extras]` only.
+    // that default stay as `none of [hidden ∪ extras]`.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -1432,26 +1433,76 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     ]);
   });
 
-  it("keeps only non-default environment exclusions in explicit state", () => {
+  it("keeps the full none-of exclusion set in explicit state", () => {
     // Unchecking a default-included environment (production) from the implicit
     // `none of [hidden]` default produces `none of [hidden ∪ production]`.
-    // The bar should persist/show only the deviation (`production`), not the
-    // implicit hidden set that every table already applies.
+    // Persist the full set so this cannot collapse with "enabled every hidden
+    // env and left production unchecked".
+    const fullExclusion: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(strip(fullExclusion)).toEqual(fullExclusion);
+  });
+
+  it("expands extras-only none-of to the full exclusion set on persist", () => {
+    // A search-bar commit of the displayed chip (`-environment:production`)
+    // lowers to extras-only none-of. Treat that as default-plus-extra-exclusion.
+    const stripped = strip([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ]);
+
+    expect(stripped).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+    ]);
     expect(
-      strip([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "none of",
-          value: [...hiddenEnvironments, "production"],
-        },
-        {
-          column: "name",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["trace-a"],
-        },
-      ]),
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: stripped,
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual(stripped);
+  });
+
+  it("shows only extras in the search-bar projection of a full none-of", () => {
+    expect(
+      toSearchBarEnvironmentFilters({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: [...hiddenEnvironments, "production"],
+          },
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["trace-a"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
     ).toEqual([
       {
         column: "environment",
@@ -1468,25 +1519,28 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     ]);
   });
 
-  it("merges hidden environments back into extras-only none-of effective state", () => {
-    const effective = buildEffectiveEnvironmentFilter({
-      explicitFilters: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "none of",
-          value: ["production"],
-        },
-      ],
-      config: managedEnvironmentConfig,
-    });
-
-    expect(effective).toEqual([
+  it("does not fold extras-only none-of in effective state", () => {
+    // Effective state uses the persisted form as-is. Extras-only is expanded
+    // on persist/read of explicit state first; callers must strip before
+    // building effective state so hidden envs stay excluded.
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: ["production"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
       {
         column: "environment",
         type: "stringOptions",
         operator: "none of",
-        value: [...hiddenEnvironments, "production"],
+        value: ["production"],
       },
     ]);
   });

@@ -32,6 +32,7 @@ import {
   buildEffectiveEnvironmentFilter,
   buildManagedEnvironmentPolicyConfig,
   stripImplicitEnvironmentFilterFromExplicitState,
+  toSearchBarEnvironmentFilters,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
@@ -809,6 +810,18 @@ export function useSidebarFilterStateCore(
     ],
   );
 
+  // Display projection for the search bar: persist the full
+  // `none of [hidden ∪ extras]` exclusion, but show only extras
+  // (`-environment:production`) so implicit hidden envs stay off the chip.
+  const searchBarFilterState: FilterState = useMemo(
+    () =>
+      toSearchBarEnvironmentFilters({
+        explicitFilters: explicitFilterState,
+        config: managedEnvironmentPolicyConfig,
+      }),
+    [explicitFilterState, managedEnvironmentPolicyConfig],
+  );
+
   // `options.updateType` controls the history semantics of the URL write:
   // user-initiated filter edits keep the default (push — a Back-able step);
   // programmatic writes (e.g. the session default-view auto-apply) pass
@@ -988,6 +1001,7 @@ export function useSidebarFilterStateCore(
     /** Effective applied filters: explicit + defaults + managed-env policy. */
     filterState,
     explicitFilterState,
+    searchBarFilterState,
     setFilterState,
     expandedState,
     onExpandedChange,
@@ -1021,6 +1035,7 @@ export function useSidebarFilterPresentation(
   const {
     filterState,
     explicitFilterState,
+    searchBarFilterState,
     setFilterState,
     expandedState,
     onExpandedChange,
@@ -1040,6 +1055,10 @@ export function useSidebarFilterPresentation(
       managedEnvironmentColumn:
         managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
           ? managedEnvironmentColumn
+          : undefined,
+      hiddenEnvironments:
+        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
+          ? managedEnvironmentPolicyConfig.hiddenEnvironments
           : undefined,
     }),
     [
@@ -1863,7 +1882,8 @@ export function useSidebarFilterPresentation(
         // implicit hidden-env default (`none of [hidden]`) is added to EFFECTIVE
         // state only and stripped from explicit state by the managed-environment
         // policy. Extra exclusions on top of that default persist as
-        // `none of [extras]` only. So "explicit env filter present" is exactly
+        // `none of [hidden ∪ extras]`; the search bar display projection shows
+        // only extras. So "explicit env filter present" is exactly
         // "the user committed to an environment selection" — including
         // `environment:default` (any-of the default set), which now persists.
         // Keying the facet's active state off this keeps it in sync with the
@@ -1990,6 +2010,7 @@ export function useSidebarFilterPresentation(
     filterState,
     effectiveFilterState: filterState,
     explicitFilterState,
+    searchBarFilterState,
     setFilterState,
     updateFilter,
     updateFilterOnly,

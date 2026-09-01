@@ -90,7 +90,7 @@ export function useEventsSearchBar({
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
   enabled: boolean;
-  /** The user's explicit facet filters (sidebar `explicitFilterState`). */
+  /** Search-bar projection of the user's explicit facet filters. */
   filterState: FilterState;
   searchQuery: string | null;
   searchType: TracingSearchType[];
