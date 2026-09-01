@@ -17,7 +17,11 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
   endpoint: z.url().optional().nullable(),
-  region: z.string().default("auto"),
+  region: z
+    .string()
+    .trim()
+    .min(1, { message: "Region is required" })
+    .default("auto"),
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
   prefix: z

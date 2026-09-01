@@ -70,6 +70,11 @@ export async function upsertBlobStorageIntegration(params: {
 
   const accessKeyId = data.accessKeyId?.trim() || null;
   const secretAccessKey = data.secretAccessKey?.trim() || null;
+  const region = data.region.trim();
+
+  if (!region) {
+    throw new InvalidRequestError("Region is required");
+  }
 
   if (data.endpoint) {
     try {
@@ -96,7 +101,7 @@ export async function upsertBlobStorageIntegration(params: {
     type: data.type,
     bucketName: data.bucketName,
     endpoint: data.endpoint,
-    region: data.region,
+    region,
     accessKeyId,
     prefix: data.prefix,
     exportFrequency: data.exportFrequency,

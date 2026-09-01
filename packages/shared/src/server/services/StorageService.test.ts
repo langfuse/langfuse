@@ -9,6 +9,27 @@ import { env } from "../../env";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
+describe("S3StorageService region normalization", () => {
+  it("trims a persisted region before configuring the AWS client", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: " us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.region()).resolves.toBe("us-west-2");
+  });
+});
+
 describe("resolveMediaStorageEndpoints", () => {
   it("keeps the existing endpoint for both server access and signed URLs by default", () => {
     expect(

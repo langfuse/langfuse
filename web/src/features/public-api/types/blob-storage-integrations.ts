@@ -99,7 +99,7 @@ export const CreateBlobStorageIntegrationRequest = z
     type: BlobStorageIntegrationType,
     bucketName: z.string().min(1),
     endpoint: z.string().nullable().optional(),
-    region: z.string(),
+    region: z.string().trim().min(1),
     accessKeyId: z.string().nullable().optional(),
     secretAccessKey: z.string().nullable().optional(),
     prefix: z
