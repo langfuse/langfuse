@@ -2,6 +2,9 @@ import { beforeEach, expect, describe, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyObservationFieldOverflow: vi.fn(),
+  validateAndInflateScoreOverride: undefined as
+    | ((...args: unknown[]) => unknown)
+    | undefined,
 }));
 
 vi.mock(
@@ -11,6 +14,20 @@ vi.mock(
   }),
 );
 
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...actual,
+    validateAndInflateScore: (...args: unknown[]) =>
+      mocks.validateAndInflateScoreOverride
+        ? mocks.validateAndInflateScoreOverride(...args)
+        : (actual.validateAndInflateScore as (...a: unknown[]) => unknown)(
+            ...args,
+          ),
+  };
+});
+
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
@@ -18,7 +35,6 @@ import {
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
-import * as sharedServer from "@langfuse/shared/src/server";
 import { TableName } from "../../ClickhouseWriter";
 
 describe("IngestionService unit tests", () => {
@@ -27,6 +43,7 @@ describe("IngestionService unit tests", () => {
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
+    mocks.validateAndInflateScoreOverride = undefined;
   });
 
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
@@ -525,9 +542,9 @@ describe("IngestionService unit tests", () => {
     vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
       null,
     );
-    vi.spyOn(sharedServer, "toClickhouseDateTime").mockImplementation(() => {
-      throw new Error("unexpected timestamp failure");
-    });
+    mocks.validateAndInflateScoreOverride = () => {
+      throw new Error("unexpected score validation failure");
+    };
 
     await expect(
       (ingestionService as any).processScoreEventList({
@@ -580,9 +597,9 @@ describe("IngestionService unit tests", () => {
         timestamp: new Date(timestamp).getTime(),
       }),
     );
-    vi.spyOn(sharedServer, "toClickhouseDateTime").mockImplementation(() => {
-      throw new Error("unexpected timestamp failure");
-    });
+    mocks.validateAndInflateScoreOverride = () => {
+      throw new Error("unexpected score validation failure");
+    };
 
     await expect(
       (ingestionService as any).processScoreEventList({
