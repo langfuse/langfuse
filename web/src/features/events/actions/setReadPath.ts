@@ -11,7 +11,10 @@ type SetReadPathDeps = {
   setV4BetaEnabled: (input: {
     enabled: boolean;
   }) => Promise<{ v4BetaEnabled: boolean }>;
-  /** next-auth session update. Its failure is a failed toggle. */
+  /**
+   * next-auth session update. Returns null on failure (it never throws) —
+   * a failed refresh is a failed toggle.
+   */
   updateSession: () => Promise<unknown>;
   /** Runs only after the toggle fully committed (mutation + session update). */
   onSuccess?: () => void | Promise<void>;
@@ -45,7 +48,12 @@ export async function setReadPath(
       [V4_BETA_ENABLED_POSTHOG_PROPERTY]: v4BetaEnabled,
     });
     setV4BetaEnabledSentryTag(v4BetaEnabled);
-    await deps.updateSession();
+    const updatedSession = await deps.updateSession();
+    if (!updatedSession) {
+      throw new Error(
+        "The setting was saved but the session could not be refreshed",
+      );
+    }
   } catch (error) {
     actions.settle();
     showErrorToast(
