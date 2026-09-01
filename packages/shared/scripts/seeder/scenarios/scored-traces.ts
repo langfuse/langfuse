@@ -112,6 +112,14 @@ const run = async (
   const startedAt = Date.now();
   const traceCount = Math.max(1, Number(params.traces ?? 24));
   const withV4 = params.v4 === true;
+  const withRootShapes = params["root-shapes"] === true;
+
+  if (withRootShapes && !withV4) {
+    throw new SeedError(
+      "--root-shapes requires --v4 because the root variants live in events_full",
+      "Re-run with --v4 --root-shapes",
+    );
+  }
 
   // Anchor on utcDayStartMs() (today's UTC midnight), NOT Date.now(): these
   // timestamps land in ClickHouse ORDER BY keys, and the seeder contract
@@ -145,10 +153,15 @@ const run = async (
         // the cross-type `grade` collision), plus one obs-level score on the
         // v4 root span (mixed-level root)
         scores: traceCount * (withV4 ? 13 : 12),
-        events: withV4 ? traceCount * 2 : 0,
+        events: withV4 ? traceCount * 2 - (withRootShapes ? 1 : 0) : 0,
       },
       verified: {},
       links: [
+        ...(withRootShapes
+          ? [
+              `${ctx.baseUrl}/project/${ctx.projectId}?filter=${encodeURIComponent("traceName;stringOptions;;any of;score-app-root-only")}`,
+            ]
+          : []),
         tracesListLink(ctx),
         traceLink(ctx, `${ctx.idPrefix}-t0`, firstTraceTimestamp),
       ],
@@ -182,7 +195,12 @@ const run = async (
       environment: ctx.environment,
       session_id: null,
       timestamp,
-      name: rng.pick(TRACE_NAMES),
+      name:
+        withRootShapes && t === 0
+          ? "score-app-root-only"
+          : withRootShapes && t === 1
+            ? "score-dual-root"
+            : rng.pick(TRACE_NAMES),
       user_id: `user-${ctx.idPrefix}-${t % 6}`,
       tags: ["seed", "scored-traces"],
       public: false,
@@ -393,23 +411,39 @@ const run = async (
         ...traceToEvent(trace),
         ...ingestionAttribution,
       };
-      events.push(traceEvent);
-      events.push({
+      const observationEvent = {
         ...observationToEvent(observation, trace),
         ...ingestionAttribution,
-      });
+        ...(withRootShapes && t < 2
+          ? {
+              parent_span_id: `${traceId}-external-parent`,
+              is_app_root: true,
+            }
+          : {}),
+      };
 
-      // Observation-level score attached to the v4 ROOT span (`t-<traceId>`):
-      // the root's inline chips then MIX trace-level and observation-level
-      // scores — the shape where per-chip level tags must appear (a
-      // single-level node shows none). v4-only: in the v3 rendering no
-      // observation has this id, so the score would simply not display there.
+      // The first root-shape trace deliberately has no parentless synthetic
+      // row. The second keeps both roots so score aggregates also exercise
+      // their cardinality guard.
+      if (!(withRootShapes && t === 0)) {
+        events.push(traceEvent);
+      }
+      events.push(observationEvent);
+
+      // Add an observation-level score to the visible v4 root: normally the
+      // synthetic root, or the app root when this trace deliberately has no
+      // synthetic row. Its inline chips then mix trace- and observation-level
+      // scores. v4-only: in the v3 rendering a synthetic-root score has no
+      // matching observation and therefore does not display there.
       scores.push(
         createTraceScore({
           id: `${traceId}-root-score-${DUAL_NUMERIC_SCORE}`,
           project_id: ctx.projectId,
           trace_id: traceId,
-          observation_id: traceEvent.span_id,
+          observation_id:
+            withRootShapes && t === 0
+              ? observationEvent.span_id
+              : traceEvent.span_id,
           environment: ctx.environment,
           name: DUAL_NUMERIC_SCORE,
           value: Math.round(rng.next() * 49) / 100,
@@ -515,6 +549,11 @@ const run = async (
     counts,
     verified,
     links: [
+      ...(withRootShapes
+        ? [
+            `${ctx.baseUrl}/project/${ctx.projectId}?filter=${encodeURIComponent("traceName;stringOptions;;any of;score-app-root-only")}`,
+          ]
+        : []),
       tracesListLink(ctx),
       traceLink(ctx, traces[0].id, firstTraceTimestamp),
     ],
@@ -541,6 +580,13 @@ export const scoredTracesScenario: ScenarioDefinition = {
       default: false,
       description:
         "also mirror traces/observations into v4 events_full/events_core",
+    },
+    {
+      flag: "root-shapes",
+      type: "boolean",
+      default: false,
+      description:
+        "make the first v4 trace score-app-root-only and the second score-dual-root",
     },
   ],
   run,

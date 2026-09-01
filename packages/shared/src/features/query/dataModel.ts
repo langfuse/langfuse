@@ -949,13 +949,9 @@ const createScoreTableRelations = (
   return {
     events_traces: {
       name: "events_core",
-      // Legacy and dual-write ingestion materialize a parentless synthetic
-      // trace event and propagate trace metadata to it. Native V4 may not, but
-      // its app roots come from newer SDKs and are expected to carry trace_name.
-      // A semantic-root join can match both rows in dual-write data and
-      // multiply scores for little fallback value.
-      joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+      // Observation scores use their exact event context. Trace scores use
+      // semantic roots, which covers native app roots and synthetic roots.
+      joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ((ifNull(scores.observation_id, '') != '' AND scores.observation_id = events_traces.span_id) OR (ifNull(scores.observation_id, '') = '' AND ${eventsTableIsRootObservationSqlForAlias("events_traces")}))`,
       timeDimension: "start_time",
       useFinal: false,
     },
@@ -968,6 +964,9 @@ const createScoreTableRelations = (
     },
   };
 };
+
+const scoreCountSql = (version: "v1" | "v2", tableAlias: string) =>
+  version === "v2" ? `uniqExact(${tableAlias}.id)` : "count(*)";
 
 function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
   const baseDimensions =
@@ -988,7 +987,7 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: scoreCountSql(version, "scores_numeric"),
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1036,7 +1035,7 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: scoreCountSql(version, "scores_categorical"),
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1076,7 +1075,7 @@ function scoresBooleanViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: scoreCountSql(version, "scores_boolean"),
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1149,7 +1148,7 @@ function scoresListableCountViewBase(
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: scoreCountSql(version, "scores_listable_count"),
         alias: "count",
         type: "integer",
         description: "Total number of scores across every listable score type.",

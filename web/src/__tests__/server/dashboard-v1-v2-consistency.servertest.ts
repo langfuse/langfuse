@@ -853,6 +853,13 @@ describe("dashboard v1 vs v2 consistency", () => {
       : ["default", "staging"];
 
   maybe("score-aggregate tRPC endpoint v2", () => {
+    const emptyEventMetrics = {
+      cost_details: {},
+      provided_cost_details: {},
+      usage_details: {},
+      provided_usage_details: {},
+    };
+
     const chartInput = (
       version: "v1" | "v2",
       extraFilters: FilterCondition[] = [],
@@ -914,6 +921,199 @@ describe("dashboard v1 vs v2 consistency", () => {
         expect(row).not.toHaveProperty("source");
         expect(row).not.toHaveProperty("sum_count");
       }
+    });
+
+    it("should include observation-level scores by the trace name on their exact events", async () => {
+      const caller = makeCaller();
+      const timestamp = new Date(toTimestamp).getTime() - 30 * 60 * 1000;
+      const traceName = `observation-score-trace-${v4()}`;
+      const appRootOnlyTraceId = v4();
+      const dualRootTraceId = v4();
+      const appRootOnlyRootId = v4();
+      const dualRootAppRootId = v4();
+      const appRootOnlyObservationId = v4();
+      const dualRootObservationId = v4();
+      const appRootOnlyScoreName = `app-root-only-score-${v4()}`;
+      const dualRootScoreName = `dual-root-score-${v4()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: appRootOnlyTraceId,
+          span_id: appRootOnlyRootId,
+          id: appRootOnlyRootId,
+          parent_span_id: `external-${v4()}`,
+          is_app_root: true,
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: appRootOnlyTraceId,
+          span_id: appRootOnlyObservationId,
+          id: appRootOnlyObservationId,
+          parent_span_id: appRootOnlyRootId,
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          span_id: `synthetic-${dualRootTraceId}`,
+          id: `synthetic-${dualRootTraceId}`,
+          parent_span_id: "",
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          span_id: dualRootAppRootId,
+          id: dualRootAppRootId,
+          parent_span_id: `external-${v4()}`,
+          is_app_root: true,
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          span_id: dualRootObservationId,
+          id: dualRootObservationId,
+          parent_span_id: dualRootAppRootId,
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: appRootOnlyTraceId,
+          observation_id: appRootOnlyObservationId,
+          name: appRootOnlyScoreName,
+          value: 1,
+          data_type: "BOOLEAN",
+          timestamp,
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          observation_id: dualRootObservationId,
+          name: dualRootScoreName,
+          value: 0.8,
+          timestamp,
+        }),
+      ]);
+
+      const result = await caller.dashboard.chart(
+        chartInput("v2", [
+          {
+            column: "traceName",
+            operator: "=" as const,
+            value: traceName,
+            type: "string" as const,
+          },
+        ]),
+      );
+
+      const appRootOnlyScore = result.find(
+        (row) => row.scoreName === appRootOnlyScoreName,
+      );
+      const dualRootScore = result.find(
+        (row) => row.scoreName === dualRootScoreName,
+      );
+
+      expect(appRootOnlyScore).toBeDefined();
+      expect(Number(appRootOnlyScore?.countScoreId)).toBe(1);
+      expect(dualRootScore).toBeDefined();
+      expect(Number(dualRootScore?.countScoreId)).toBe(1);
+    });
+
+    it("should include trace-level scores by semantic roots without multiplying dual-root scores", async () => {
+      const caller = makeCaller();
+      const timestamp = new Date(toTimestamp).getTime() - 30 * 60 * 1000;
+      const traceName = `trace-level-score-trace-${v4()}`;
+      const appRootOnlyTraceId = v4();
+      const dualRootTraceId = v4();
+      const appRootOnlyScoreName = `app-root-only-trace-score-${v4()}`;
+      const dualRootScoreName = `dual-root-trace-score-${v4()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: appRootOnlyTraceId,
+          parent_span_id: `external-${v4()}`,
+          is_app_root: true,
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          span_id: `synthetic-${dualRootTraceId}`,
+          id: `synthetic-${dualRootTraceId}`,
+          parent_span_id: "",
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          parent_span_id: `external-${v4()}`,
+          is_app_root: true,
+          trace_name: traceName,
+          start_time: timestamp * 1000,
+          ...emptyEventMetrics,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: appRootOnlyTraceId,
+          name: appRootOnlyScoreName,
+          value: 0.9,
+          timestamp,
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: dualRootTraceId,
+          name: dualRootScoreName,
+          value: 0.8,
+          timestamp,
+        }),
+      ]);
+
+      const result = await caller.dashboard.chart(
+        chartInput("v2", [
+          {
+            column: "traceName",
+            operator: "=" as const,
+            value: traceName,
+            type: "string" as const,
+          },
+        ]),
+      );
+
+      const appRootOnlyScore = result.find(
+        (row) => row.scoreName === appRootOnlyScoreName,
+      );
+      const dualRootScore = result.find(
+        (row) => row.scoreName === dualRootScoreName,
+      );
+
+      expect(appRootOnlyScore).toBeDefined();
+      expect(Number(appRootOnlyScore?.countScoreId)).toBe(1);
+      expect(dualRootScore).toBeDefined();
+      expect(Number(dualRootScore?.countScoreId)).toBe(1);
     });
 
     it("should return matching counts, avgValue, and order between v1 and v2", async () => {
@@ -1553,9 +1753,9 @@ describe("dashboard v1 vs v2 consistency", () => {
         }),
       );
 
-      // Production ingestion also materializes one parentless trace event.
-      // Scores join this canonical row; including the app root as well would
-      // duplicate a score before aggregation.
+      // Production dual-write ingestion also materializes one parentless
+      // trace event. Score aggregation must remain at one row per score when
+      // both semantic roots are present.
       const syntheticTraceEventEmpty = createEvent({
         id: `t-${emptyTraceNameTraceId}`,
         span_id: `t-${emptyTraceNameTraceId}`,
@@ -1851,7 +2051,7 @@ describe("dashboard v1 vs v2 consistency", () => {
       expect(nameMap.get("PopulatedTraceName")).toBe(1);
     });
 
-    it("scores view: joins only the parentless trace event when an app root coexists", async () => {
+    it("scores view: aggregates once when an app root and parentless root coexist", async () => {
       const result = await executeQuery(
         fallbackProjectId,
         {
@@ -1878,8 +2078,8 @@ describe("dashboard v1 vs v2 consistency", () => {
       const nameMap = new Map(
         result.map((r) => [r.traceName as string, Number(r.sum_value)]),
       );
-      // Summing makes duplicate JOIN matches observable: the app-root score
-      // must remain 0.8 rather than being counted once per semantic root.
+      // The app-root score remains 0.8 rather than being counted once per
+      // semantic root.
       expect(nameMap.get("AppRootFallbackName")).toBeCloseTo(0.8);
       expect(nameMap.get("PhysicalRootFallbackName")).toBeCloseTo(0.7);
       expect(nameMap.get("PopulatedTraceName")).toBeCloseTo(0.9);
