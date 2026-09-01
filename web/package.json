@@ -7,9 +7,10 @@
     "node": "24"
   },
   "scripts": {
-    "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build && pnpm run build:otel-worker",
     "build:test": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build --experimental-build-mode compile",
-    "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build && NEXT_DIST_DIR=.next-check pnpm run build:otel-worker",
+    "build:otel-worker": "DOCKER_BUILD=1 dotenv -e ../.env -- node scripts/build-otel-ingestion-worker.mjs",
     "typecheck": "dotenv -e ../.env -- tsc -p tsconfig.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
@@ -137,6 +138,7 @@
     "next-auth": "^4.24.14",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
+    "piscina": "5.3.0",
     "posthog-js": "^1.417.1",
     "posthog-node": "^5.49.1",
     "prexit": "^2.2.0",
@@ -202,6 +204,7 @@
     "dotenv": "^16.6.1",
     "dotenv-cli": "^7.4.2",
     "dotenv-expand": "^10.0.0",
+    "esbuild": "0.28.1",
     "eslint": "catalog:",
     "eslint-plugin-boundaries": "7.2.0",
     "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.1",
