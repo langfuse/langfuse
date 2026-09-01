@@ -41,16 +41,42 @@ export function useExperimentFilterOptions({
     startTimeFilter: startTimeFilters.length > 0 ? startTimeFilters : undefined,
   });
 
-  const experimentFilterOptions = useMemo(() => {
-    const experimentDatasetFilterOptions = datasets.data
-      ?.filter((d) => filterOptions.data?.experimentDatasetIds?.includes(d.id))
-      .map((d) => ({
-        value: d.id,
-        displayValue: d.name,
-      }));
+  const usedDatasets = useMemo(
+    () =>
+      datasets.data?.filter((d) =>
+        filterOptions.data?.experimentDatasetIds?.includes(d.id),
+      ),
+    [datasets.data, filterOptions.data],
+  );
 
+  // Dataset names are unique per project, so the name IS the filter value —
+  // no displayValue indirection, which is what let the sidebar show a name
+  // while the search bar and the URL showed an opaque id.
+  //
+  // Both maps are built from EVERY dataset in the project, not from the
+  // datasets the facet offers. The facet list comes from a bounded options
+  // query, so a name missing from it would fail to translate and reach the
+  // query as an id that matches nothing — a filter that silently returns no
+  // rows. Offering fewer options than we can translate is fine; the reverse is
+  // not.
+  const datasetIdByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dataset of datasets.data ?? [])
+      map.set(dataset.name, dataset.id);
+    return map;
+  }, [datasets.data]);
+
+  /** Rows carry the dataset id; the table renders its name. */
+  const datasetNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dataset of datasets.data ?? [])
+      map.set(dataset.id, dataset.name);
+    return map;
+  }, [datasets.data]);
+
+  const experimentFilterOptions = useMemo(() => {
     return {
-      experimentDatasetId: experimentDatasetFilterOptions,
+      experimentDatasetName: usedDatasets?.map((d) => ({ value: d.name })),
       // Observation-level score options
       obs_scores_avg: filterOptions.data?.obs_scores_avg ?? undefined,
       obs_score_categories: processScoreCategories(
@@ -65,10 +91,12 @@ export function useExperimentFilterOptions({
       trace_score_booleans:
         filterOptions.data?.trace_score_booleans ?? undefined,
     };
-  }, [datasets.data, filterOptions.data]);
+  }, [usedDatasets, filterOptions.data]);
 
   return {
     filterOptions: experimentFilterOptions,
+    datasetIdByName,
+    datasetNameById,
     isFilterOptionsPending: datasets.isLoading || filterOptions.isLoading,
   };
 }

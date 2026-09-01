@@ -136,4 +136,6 @@ export type StoredPublicEvaluatorTemplate = Pick<
     | "sourceCode"
     | "sourceCodeLanguage"
     | "variableMapping"
-  >;
+  > & {
+    promptMessages?: EvaluatorVersion["promptMessages"];
+  };

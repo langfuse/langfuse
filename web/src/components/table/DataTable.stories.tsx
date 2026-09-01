@@ -25,14 +25,18 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import TableIdOrName from "@/src/components/table/table-id";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -40,20 +44,13 @@ import {
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { formatIntervalSeconds } from "@/src/utils/dates";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
   Folder,
   InfoIcon,
   ListTree,
-  MoreVertical,
   PlusCircle,
   Trash,
 } from "lucide-react";
@@ -86,10 +83,10 @@ const renderMediaReference = (descriptor: MediaDescriptor) => (
 // the standalone visual part with identical DOM/classes:
 //   - tags:      real TagList in the real `flex gap-x-2 gap-y-1` wrapper,
 //                instead of TagPromptPopover/TagManager (same visible children).
-//   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
-//                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
-// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, folder links, Skeleton, the
+//   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
+//                plain menu item instead of the tRPC-bound DeleteTraceButton.
+// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, IdTableCell,
+// createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -344,33 +341,26 @@ function buildTraceColumns(
         ) : undefined;
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<TraceRow, TraceRow["usage"]>({
       id: "tokens",
+      accessorFn: (row) => row.usage,
+      header: "Tokens",
       size: 180,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value = row.original.usage;
-        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
-          return null;
-        }
-        return (
-          <BreakdownTooltip details={row.original.tokenDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage)}
-                outputUsage={Number(value.outputUsage)}
-                totalUsage={Number(value.totalUsage)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableSorting: true,
-    },
+      getCell: (value, { row }) => {
+        if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
+          return undefined;
+        }
+
+        return {
+          type: "usage",
+          inputUsage: Number(value.inputUsage),
+          outputUsage: Number(value.outputUsage),
+          totalUsage: Number(value.totalUsage),
+          details: row.original.tokenDetails,
+        };
+      },
+    }),
     {
       accessorKey: "totalCost",
       id: "totalCost",
@@ -429,19 +419,14 @@ function buildTraceColumns(
       singleLine,
       enableExpandOnHover: singleLine,
     }),
-    {
+    createIdTableColumn<TraceRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       size: 150,
       // Default-hidden in the real table; seeds the Columns drawer unchecked.
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.original.userId;
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
       enableSorting: true,
-    },
+    }),
     createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
@@ -449,31 +434,19 @@ function buildTraceColumns(
       defaultHidden: true,
       enableSorting: true,
     }),
-    {
-      accessorKey: "action",
-      header: "Action",
+    createDropdownTableColumn<TraceRow, string>({
       id: "action",
+      accessorFn: (row) => row.id,
+      header: "Action",
       size: 70,
       isFixedPosition: true,
-      // Real action menu: ghost MoreVertical trigger + dropdown. The destructive
-      // item is a plain menu item (the real one renders DeleteTraceButton, which
-      // needs tRPC) but the trigger DOM/spacing is identical.
-      cell: () => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem className="text-destructive">
-              <Trash className="mr-2 h-4 w-4" />
-              Delete trace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      renderMenu: () => (
+        <DropdownMenuItem className="text-destructive">
+          <Trash className="mr-2 h-4 w-4" />
+          Delete trace
+        </DropdownMenuItem>
       ),
-    },
+    }),
   ];
 }
 
@@ -1051,7 +1024,7 @@ function buildGroupedColumns(
         accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        formatter: usdFormatter,
+        formatter: (value) => usdFormatter(value),
       }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
@@ -1235,8 +1208,13 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     size: 200,
     cell: ({ row }) => {
       if (row.original.type === "folder") return null;
-      const createdAt = row.original.createdAt;
-      return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      const preparedDate = buildLocalIsoDatePresentation({
+        date: row.original.createdAt,
+      });
+
+      return preparedDate ? (
+        <span title={preparedDate.title}>{preparedDate.display}</span>
+      ) : null;
     },
   },
   {
@@ -1350,8 +1328,8 @@ export const WithFolderRows = meta.story({
 // "Provided Model Name" create-affordance, ListTree source links, folder rows).
 // They must NOT shift the text baseline relative to plain rows. This story puts
 // every variant in one column so any vertical-alignment regression is obvious:
-//   - plain TableIdOrName (no icon)
-//   - TableIdOrName + trailing PlusCircle — mirrors features/models
+//   - plain IdTableCell (no icon)
+//   - IdTableCell + trailing PlusCircle — mirrors features/models
 //     ProvidedModelNameCell: the name is wrapped in `inline-flex items-center`
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
@@ -1401,14 +1379,14 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       const { name, kind } = row.original;
       switch (kind) {
         case "createModel":
-          // Faithful to ProvidedModelNameCell: same TableIdOrName + trailing
+          // Faithful to ProvidedModelNameCell: same IdTableCell + trailing
           // icon, in a native <button> trigger (keyboard-activatable).
           return (
             <button
               type="button"
-              className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
+              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
-              <TableIdOrName value={name} className="min-w-0" />
+              <IdTableCell value={name} />
               <PlusCircle className="h-3.5 w-3.5 shrink-0" />
             </button>
           );
@@ -1429,8 +1407,8 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
         case "plain":
         default:
           return (
-            <span className="inline-flex max-w-full items-center">
-              <TableIdOrName value={name} className="min-w-0" />
+            <span className="inline-flex max-w-full min-w-0 items-center">
+              <IdTableCell value={name} />
             </span>
           );
       }

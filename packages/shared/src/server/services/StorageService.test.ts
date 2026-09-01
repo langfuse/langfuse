@@ -6,7 +6,34 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { S3Client } from "@aws-sdk/client-s3";
 
 import { env } from "../../env";
+import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
+
+describe("resolveMediaStorageEndpoints", () => {
+  it("keeps the existing endpoint for both server access and signed URLs by default", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: undefined,
+      }),
+    ).toEqual({
+      endpoint: "http://localhost:9090",
+      externalEndpoint: undefined,
+    });
+  });
+
+  it("uses the internal override for server access and the existing endpoint for signed URLs", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: "http://minio:9000",
+      }),
+    ).toEqual({
+      endpoint: "http://minio:9000",
+      externalEndpoint: "http://localhost:9090",
+    });
+  });
+});
 
 /**
  * Regression tests for the Azure Blob download path.

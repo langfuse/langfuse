@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import boundaries from "eslint-plugin-boundaries";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
@@ -162,6 +163,31 @@ export default [
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
+    plugins: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.plugins,
+      boundaries,
+    },
+    settings: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.settings,
+      // Progressive adoption: only these trees are classified. Unknown
+      // targets (utils, hooks, third-party) stay allowed. Design-system
+      // files also match `app-component`; the policy below excludes that
+      // overlap with `noneOf: ["design-system"]`.
+      "boundaries/files": [
+        {
+          category: "design-system",
+          pattern: "src/components/design-system/**",
+        },
+        {
+          category: "app-component",
+          pattern: "src/components/**",
+        },
+        {
+          category: "feature",
+          pattern: "src/features/**",
+        },
+      ],
+    },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       // Margin makes components harder to compose and should therefore be applied by the parent.
@@ -170,6 +196,29 @@ export default [
       "@repo/no-margin-on-root-elements": [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
+      ],
+      "boundaries/dependencies": [
+        "error",
+        {
+          default: "allow",
+          policies: [
+            {
+              from: { file: { categories: "design-system" } },
+              disallow: {
+                to: {
+                  file: {
+                    categories: {
+                      anyOf: ["app-component", "feature"],
+                      noneOf: ["design-system"],
+                    },
+                  },
+                },
+              },
+              message:
+                "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
+            },
+          ],
+        },
       ],
 
       // TODO: Expand to more of the codebase
