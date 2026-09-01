@@ -6,19 +6,17 @@ import { createShaHash } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
+  parseAuthorizationHeader,
+  type Credential,
+} from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import {
   type ErrorResult,
   type Success,
 } from "@/src/features/auth/policy/types";
 
 /** invalidCredentials is today's single 401 body for any unknown or malformed token. */
-const invalidCredentials =
+export const invalidCredentials =
   "Invalid credentials. Confirm that you've configured the correct host.";
-
-/** basicPrefix is the HTTP Basic auth scheme prefix. */
-const basicPrefix = "Basic ";
-
-/** bearerPrefix is the HTTP Bearer auth scheme prefix. */
-const bearerPrefix = "Bearer ";
 
 /** Verifier authenticates a request credential into a resolvable presentation, dispatching Basic vs Bearer and never throwing. */
 export class Verifier {
@@ -31,35 +29,32 @@ export class Verifier {
 
   /** cacheKey derives the context-cache hash for a credential — `sha(secret+salt)` for Basic, `sha(token+salt)` for Bearer — or null when uncacheable. */
   cacheKey(authHeader: string | undefined): string | null {
-    if (authHeader?.startsWith(basicPrefix)) {
-      const credentials = decodeBasic(authHeader.slice(basicPrefix.length));
-      return credentials
-        ? createShaHash(credentials.secretKey, this.salt)
-        : null;
+    const credential = parseAuthorizationHeader(authHeader);
+    if (credential.kind === "basic") {
+      return createShaHash(credential.secretKey, this.salt);
     }
-    if (authHeader?.startsWith(bearerPrefix)) {
-      return createShaHash(authHeader.slice(bearerPrefix.length), this.salt);
+    if (credential.kind === "bearer") {
+      return createShaHash(credential.token, this.salt);
     }
     return null;
   }
 
-  /** verify resolves the Authorization header to a credential presentation, or a typed failure. */
-  async verify(authHeader: string | undefined): Promise<VerifyResult> {
-    if (authHeader?.startsWith(basicPrefix)) {
-      return this.verifyBasic(authHeader.slice(basicPrefix.length));
+  /** verify resolves a parsed credential to a presentation, or a typed failure. */
+  async verify(credential: Credential): Promise<VerifyResult> {
+    if (credential.kind === "basic") {
+      return this.verifyBasic(credential.publicKey, credential.secretKey);
     }
-    if (authHeader?.startsWith(bearerPrefix)) {
-      return this.verifyBearer(authHeader.slice(bearerPrefix.length));
+    if (credential.kind === "bearer") {
+      return this.verifyBearer(credential.token);
     }
     return unauthorized();
   }
 
   /** verifyBasic authenticates a public:secret pair as the privateKey presentation. */
-  private async verifyBasic(encoded: string): Promise<VerifyResult> {
-    const credentials = decodeBasic(encoded);
-    if (!credentials) return unauthorized();
-    const { publicKey, secretKey } = credentials;
-
+  private async verifyBasic(
+    publicKey: string,
+    secretKey: string,
+  ): Promise<VerifyResult> {
     const byFastHash = await this.store.findByFastHash(
       createShaHash(secretKey, this.salt),
     );
@@ -132,15 +127,6 @@ function privateKey(apiKey: ApiKey): VerifyResult {
 /** unauthorized is the single 401 outcome for any unknown or malformed credential. */
 function unauthorized(): ErrorResult<UnauthorizedError> {
   return { success: false, error: new UnauthorizedError(invalidCredentials) };
-}
-
-/** decodeBasic decodes a base64 `public:secret` payload, or undefined if malformed. */
-function decodeBasic(
-  encoded: string,
-): { publicKey: string; secretKey: string } | undefined {
-  const [publicKey, secretKey] = atob(encoded).split(":");
-  if (!publicKey || !secretKey) return undefined;
-  return { publicKey, secretKey };
 }
 
 /** VerifiedCredential is the presentation the resolver consumes: an api key with how it was presented, or the admin key. */

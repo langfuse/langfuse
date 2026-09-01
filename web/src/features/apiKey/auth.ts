@@ -24,8 +24,10 @@ import {
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { env } from "@/src/env.mjs";
 import { resolveContext } from "@/src/features/auth/policy/resolveContext";
+import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import {
   Verifier,
+  invalidCredentials,
   type ApiKeyRepository,
 } from "@/src/features/apiKey/verifier";
 import {
@@ -51,6 +53,14 @@ export class Authenticator {
   /** auth runs the full pipeline read-through the consolidated context cache, returning a typed failure rather than throwing. */
   async auth(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const authHeader = headerValue(params.headers.authorization);
+    const credential = parseAuthorizationHeader(authHeader);
+    if (credential.kind === "malformed") {
+      return {
+        success: false,
+        error: new UnauthorizedError(invalidCredentials),
+      };
+    }
+
     const cacheKey = this.verifier.cacheKey(authHeader);
 
     if (cacheKey) {
@@ -58,7 +68,7 @@ export class Authenticator {
       if (cached) return cached;
     }
 
-    const verified = await this.verifier.verify(authHeader);
+    const verified = await this.verifier.verify(credential);
     if (!verified.success) {
       if (cacheKey && verified.error instanceof UnauthorizedError) {
         await this.cache.writeUnauthorized(cacheKey, verified.error);

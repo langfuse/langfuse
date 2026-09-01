@@ -9,6 +9,7 @@ import {
   type ApiKeyRepository,
   type VerifySlowResult,
 } from "@/src/features/apiKey/verifier";
+import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 
 const SALT = "salt";
 const ADMIN = "admin-secret";
@@ -55,11 +56,15 @@ const verifier = (store: ApiKeyRepository) =>
 
 describe("scheme dispatch", () => {
   it("a missing header is a 401", async () => {
-    const result = await verifier(stubStore()).verify(undefined);
+    const result = await verifier(stubStore()).verify(
+      parseAuthorizationHeader(undefined),
+    );
     expect(result.success).toBe(false);
   });
   it("an unknown scheme is a 401", async () => {
-    const result = await verifier(stubStore()).verify("Digest x");
+    const result = await verifier(stubStore()).verify(
+      parseAuthorizationHeader("Digest x"),
+    );
     expect(result.success).toBe(false);
   });
 });
@@ -70,7 +75,9 @@ describe("Basic authenticates the secret as privateKey", () => {
     const store = stubStore({
       findByFastHash: vi.fn(async () => lookup(key)),
     });
-    const result = await verifier(store).verify(basicHeader("pk-lf-1", "sk"));
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
     expect(result).toMatchObject({
       success: true,
       authorization: "privateKey",
@@ -85,13 +92,15 @@ describe("Basic authenticates the secret as privateKey", () => {
       verifySlow: vi.fn(async () => slow(true)),
       backfillFastHash: backfill,
     });
-    const result = await verifier(store).verify(basicHeader("pk-lf-1", "sk"));
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
     expect(result.success).toBe(true);
     expect(backfill).toHaveBeenCalledOnce();
   });
   it("401s when neither index nor bcrypt matches", async () => {
     const result = await verifier(stubStore()).verify(
-      basicHeader("pk-lf-1", "sk"),
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
     );
     expect(result.success).toBe(false);
   });
@@ -99,7 +108,9 @@ describe("Basic authenticates the secret as privateKey", () => {
 
 describe("Bearer chains admin then private then public", () => {
   it("resolves the admin key first", async () => {
-    const result = await verifier(stubStore()).verify(`Bearer ${ADMIN}`);
+    const result = await verifier(stubStore()).verify(
+      parseAuthorizationHeader(`Bearer ${ADMIN}`),
+    );
     expect(result).toMatchObject({ success: true, authorization: "adminKey" });
   });
   it("private-first: a token matching the fast hash is privateKey", async () => {
@@ -109,7 +120,9 @@ describe("Bearer chains admin then private then public", () => {
       findByFastHash: vi.fn(async () => lookup(key)),
       findByPublicKey,
     });
-    const result = await verifier(store).verify("Bearer sk-secret");
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer sk-secret"),
+    );
     expect(result).toMatchObject({
       success: true,
       authorization: "privateKey",
@@ -121,7 +134,9 @@ describe("Bearer chains admin then private then public", () => {
     const store = stubStore({
       findByPublicKey: vi.fn(async () => lookup(key)),
     });
-    const result = await verifier(store).verify("Bearer pk-lf-1");
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer pk-lf-1"),
+    );
     expect(result).toMatchObject({
       success: true,
       authorization: "publicKey",
@@ -134,7 +149,9 @@ describe("Bearer chains admin then private then public", () => {
       findByFastHash: vi.fn(async () => lookup(key)),
       findByPublicKey: vi.fn(async () => lookup(null)),
     });
-    const result = await verifier(store).verify("Bearer sk-secret");
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer sk-secret"),
+    );
     expect(result.success).toBe(false);
   });
 });
@@ -142,7 +159,9 @@ describe("Bearer chains admin then private then public", () => {
 describe("admin key is self-host only", () => {
   it("is ignored on cloud", async () => {
     const cloud = new Verifier(stubStore(), SALT, ADMIN, true);
-    const result = await cloud.verify(`Bearer ${ADMIN}`);
+    const result = await cloud.verify(
+      parseAuthorizationHeader(`Bearer ${ADMIN}`),
+    );
     expect(result.success).toBe(false);
   });
 });
@@ -157,7 +176,9 @@ describe("infra failures surface as typed errors, not throws", () => {
         }),
       ),
     });
-    const result = await verifier(store).verify(basicHeader("pk-lf-1", "sk"));
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error).toBeInstanceOf(InternalServerError);
