@@ -13,7 +13,10 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { ScoreTag, SCORE_LEVEL_LABELS } from "@/src/components/score-tag";
 import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { type QueryType } from "@langfuse/shared/query";
-import type { MetricOption } from "@/src/features/experiments/types/charts";
+import type {
+  MetricOption,
+  ScoreCoverageByLevel,
+} from "@/src/features/experiments/types/charts";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
 import { SCORE_LEVEL_TAGS } from "@/src/features/experiments/constants/charts";
 import { cn } from "@/src/utils/tailwind";
@@ -48,7 +51,7 @@ const EMPTY_PLOT = <MetricStripMessage message="No values for this metric" />;
 const PLOT_WITH_LEGEND_HEIGHT_CLASS = "h-[83px]";
 
 const AXIS_EXPLANATION =
-  "One bar per experiment in view, oldest on the left and newest on the right, so a metric that improved over time climbs. The bars are a set of runs in start order, not a timeline — nothing is implied between two of them. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out. The legend below names each bar; past eight experiments the chart palette would give two bars the same colour, so the bars go one colour and hovering one names it.";
+  "One bar per experiment in view, oldest on the left and newest on the right, so a metric that improved over time climbs. The bars are a set of runs in start order, not a timeline — nothing is implied between two of them. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out. The legend below names each bar; past eight experiments the chart palette would give two bars the same colour, so the bars go one colour and hovering one names it. Which metric opens by default is data-driven: the numeric score recorded on the most items across these experiments, with ties settled by name, falling back to cost only when none of them carry a score. Pick any metric from the dropdown and that choice is kept instead.";
 
 /**
  * Which columns carry the experiment, keyed by the chart's entity dimension.
@@ -109,13 +112,20 @@ type ExperimentMetricStripProps = {
   fromTimestamp: Date;
   toTimestamp: Date;
   isExternalLoading?: boolean;
+  /**
+   * Values recorded per score name across the experiments in view, from the
+   * table's own rows. Decides the default metric (`pickDefaultStripMetric`);
+   * undefined until the row metrics land.
+   */
+  scoreCoverage?: ScoreCoverageByLevel;
 };
 
 /**
  * The compact metric strip above the experiments table — one chart in the band
  * the 4×224px chart grid used to occupy, modelled on the events table's
  * outlier strip. It plots one metric across the experiments in view, defaulting
- * to a score rather than cost, as one bar per experiment on a chronological
+ * to the best-recorded numeric score rather than cost, as one bar per
+ * experiment on a chronological
  * x-axis (oldest left) so an improving metric climbs. The axis is a set of
  * discrete runs, not a timeline — hence bars, not a line. Long experiment names
  * stay off the axis; the legend and the hover tooltip carry identity.
@@ -127,6 +137,7 @@ export function ExperimentMetricStrip({
   fromTimestamp,
   toTimestamp,
   isExternalLoading = false,
+  scoreCoverage,
 }: ExperimentMetricStripProps) {
   // Chronological, oldest first: an improving metric has to read left-to-right.
   // The table stays newest-first, so this is deliberately not the table order.
@@ -144,7 +155,7 @@ export function ExperimentMetricStrip({
   );
 
   const { metricId, setMetricId, availableMetricOptions, isLoading } =
-    useExperimentStripMetric({ projectId, experimentIds });
+    useExperimentStripMetric({ projectId, experimentIds, scoreCoverage });
   const capture = usePostHogClientCapture();
 
   // Do people move the strip off its score-first default, and onto which score

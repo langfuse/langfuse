@@ -22,6 +22,20 @@ export const SCORE_LEVEL_TAGS: Record<ScoreLevel, ScoreTagLevel> = {
   experiment: "experiment",
 };
 
+/**
+ * Where the boolean score names sit per level. Booleans are also listed under
+ * `*_scores_avg` (they are stored as 0/1), so this is what tells a numeric
+ * option apart from a boolean one.
+ */
+export const SCORE_BOOLEAN_FILTER_KEYS: Record<
+  ScoreLevel,
+  "obs_score_booleans" | "trace_score_booleans" | "experiment_score_booleans"
+> = {
+  obs: "obs_score_booleans",
+  trace: "trace_score_booleans",
+  experiment: "experiment_score_booleans",
+};
+
 export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
   "obs:numeric": {
     level: "obs",

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { useExperimentStripMetric } from "./useExperimentStripMetric";
+import { type ScoreCoverageByLevel } from "@/src/features/experiments/types/charts";
 
 const scoreOptionsQuery = vi.fn();
 
@@ -22,10 +23,35 @@ const SCORE_OPTIONS_DATA = {
   experiment_score_categories: [],
 };
 
-function Harness({ experimentIds }: { experimentIds: string[] }) {
+/**
+ * Two trace-level scores as the score-options endpoint returns them: booleans
+ * are listed under `*_scores_avg` too, and only `*_score_columns` says which
+ * they are.
+ */
+const MIXED_SCORE_OPTIONS_DATA = {
+  ...SCORE_OPTIONS_DATA,
+  trace_scores_avg: ["answered_in_right_language", "groundedness"],
+  trace_score_columns: [
+    {
+      name: "answered_in_right_language",
+      dataType: "BOOLEAN",
+      source: "EVAL",
+    },
+    { name: "groundedness", dataType: "NUMERIC", source: "EVAL" },
+  ],
+};
+
+function Harness({
+  experimentIds,
+  scoreCoverage,
+}: {
+  experimentIds: string[];
+  scoreCoverage?: ScoreCoverageByLevel;
+}) {
   const { metricId, isLoading } = useExperimentStripMetric({
     projectId: "p1",
     experimentIds,
+    scoreCoverage,
   });
   return (
     <div data-testid="state">{`${isLoading ? "loading" : "ready"}:${metricId}`}</div>
@@ -74,6 +100,51 @@ describe("useExperimentStripMetric", () => {
     });
     render(<Harness experimentIds={[]} />);
     expect(state()).toBe("ready:base:cost");
+  });
+
+  // The reviewer's question: why this score? Because it is the numeric score
+  // with the most values recorded across the runs in view — not the first name.
+  it("opens on the best-recorded numeric score", () => {
+    scoreOptionsQuery.mockReturnValue({
+      data: {
+        ...SCORE_OPTIONS_DATA,
+        obs_scores_avg: ["accuracy", "groundedness"],
+      },
+      isSuccess: true,
+      isError: false,
+    });
+    render(
+      <Harness
+        experimentIds={["e1"]}
+        scoreCoverage={{
+          obs: new Map([
+            ["accuracy", 4],
+            ["groundedness", 88],
+          ]),
+        }}
+      />,
+    );
+    expect(state()).toBe("ready:obs-score-numeric:groundedness");
+  });
+
+  it("does not open on a boolean score while a numeric one exists", () => {
+    scoreOptionsQuery.mockReturnValue({
+      data: MIXED_SCORE_OPTIONS_DATA,
+      isSuccess: true,
+      isError: false,
+    });
+    render(
+      <Harness
+        experimentIds={["e1"]}
+        scoreCoverage={{
+          trace: new Map([
+            ["answered_in_right_language", 300],
+            ["groundedness", 30],
+          ]),
+        }}
+      />,
+    );
+    expect(state()).toBe("ready:trace-score-numeric:groundedness");
   });
 
   it("falls back to cost when the options query fails", () => {

@@ -10,7 +10,21 @@ export type MetricOption = {
    * tracing tables' score facets read the same way. (LFE-15711)
    */
   level?: ScoreLevel;
+  /**
+   * How the score's values read, absent on base metrics. Boolean scores share
+   * the numeric bucket (they are stored as 0/1) but summarise as a share
+   * rather than a magnitude, so they rank below a true numeric as a default.
+   */
+  valueKind?: "numeric" | "boolean" | "categorical";
 };
+
+/**
+ * How many values each score name carries across the runs in view, per level.
+ * Keyed by normalized score name, as `collectScoreNameCoverage` returns it.
+ */
+export type ScoreCoverageByLevel = Partial<
+  Record<ScoreLevel, ReadonlyMap<string, number>>
+>;
 
 export type ScoreFilterOptions = {
   obs_scores_avg?: string[];

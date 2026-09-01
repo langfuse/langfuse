@@ -6,6 +6,7 @@ import {
   NUMERIC_SCORE_CHART_CONFIG,
   SCORE_LEVEL_ENTITY_DIMENSIONS,
   SCORE_LEVEL_FILTERS,
+  SCORE_BOOLEAN_FILTER_KEYS,
   SCORE_METRIC_SPECS,
 } from "@/src/features/experiments/constants/charts";
 import type {
@@ -123,11 +124,21 @@ export function buildMetricOptions(
         dataType,
       );
 
+      const booleanNames = new Set(
+        scoreFilterOptions[SCORE_BOOLEAN_FILTER_KEYS[level]] ?? [],
+      );
+
       return scoreNames.map((scoreName) => ({
         id: buildScoreChartId(level, dataType, scoreName),
         label: scoreName,
         group: "Scores" as const,
         level,
+        valueKind:
+          dataType === "categorical"
+            ? ("categorical" as const)
+            : booleanNames.has(scoreName)
+              ? ("boolean" as const)
+              : ("numeric" as const),
       }));
     },
   );

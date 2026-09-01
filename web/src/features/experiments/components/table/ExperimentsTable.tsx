@@ -47,6 +47,7 @@ import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { collectScoreNameCoverage } from "@/src/features/scores/lib/aggregateScores";
 import {
   collectPresentScoreKeys,
   revealScoreColumns,
@@ -435,6 +436,19 @@ export default function ExperimentsTable({
         rows.map((r) => r.observationItemScores),
       ),
       experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
+
+  // Which score the runs in view actually measured, from the same rows and at
+  // the same time as `presentScoreKeys`: the strip opens on the best-recorded
+  // numeric score instead of the alphabetically first one, with no extra query.
+  const scoreCoverage = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),
+      trace: collectScoreNameCoverage(rows.map((r) => r.traceItemScores)),
+      experiment: collectScoreNameCoverage(rows.map((r) => r.experimentScores)),
     };
   }, [experiments, metricsLoading]);
 
@@ -942,6 +956,7 @@ export default function ExperimentsTable({
                   fromTimestamp={tableDateRange.from}
                   toTimestamp={tableDateRange.to}
                   isExternalLoading={experiments.status === "loading"}
+                  scoreCoverage={scoreCoverage}
                 />
               )}
               <DataTable
