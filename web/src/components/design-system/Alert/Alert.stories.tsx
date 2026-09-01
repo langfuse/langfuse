@@ -111,7 +111,11 @@ export const DismissAction = meta.story({
 
     await expect(alert).toHaveClass("pr-10");
     await expect(alert.className).not.toContain("[&>svg");
-    await expect(icon).toHaveClass("absolute", "top-3", "left-3", "size-4");
+    await expect(alert).toHaveClass(
+      "[&>[data-slot=alert-icon]]:top-3",
+      "[&>[data-slot=alert-icon]]:left-3",
+    );
+    await expect(icon).toHaveClass("absolute", "size-4");
     await expect(icon).toHaveAttribute("aria-hidden", "true");
     await expect(dismissButton).not.toHaveClass("pl-6");
     await userEvent.click(dismissButton);

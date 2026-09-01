@@ -8,7 +8,7 @@ import { cn } from "@/src/utils/tailwind";
 type AlertContent = Exclude<React.ReactNode, null | undefined | boolean>;
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-3 [&>[data-slot=alert-icon]]:text-foreground [&>[data-slot=alert-title]]:mb-1",
+  "relative w-full border [&>[data-slot=alert-icon]]:text-foreground [&>[data-slot=alert-title]]:mb-1",
   {
     variants: {
       variant: {
@@ -24,7 +24,8 @@ const alertVariants = cva(
           "border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20 [&>[data-slot=alert-icon]]:text-yellow-600 dark:[&>[data-slot=alert-icon]]:text-yellow-500 [&>[data-slot=alert-title]]:text-yellow-800 dark:[&>[data-slot=alert-title]]:text-yellow-400 [&>[data-slot=alert-description]]:text-yellow-700 dark:[&>[data-slot=alert-description]]:text-yellow-500",
       },
       size: {
-        default: "",
+        default:
+          "rounded-lg p-3 [&>[data-slot=alert-icon]]:top-3 [&>[data-slot=alert-icon]]:left-3",
         sm: "rounded-md p-2 [&>[data-slot=alert-icon]]:top-2 [&>[data-slot=alert-icon]]:left-2 [&>[data-slot=alert-title]]:text-sm [&>[data-slot=alert-description]]:text-xs",
       },
       actionPosition: {
@@ -73,7 +74,7 @@ function AlertRoot({
       {Icon ? (
         <Icon
           data-slot="alert-icon"
-          className="absolute top-3 left-3 size-4"
+          className="absolute size-4"
           aria-hidden="true"
         />
       ) : null}
