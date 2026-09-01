@@ -1,7 +1,8 @@
 /* eslint-disable @repo/no-null-render */
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
@@ -65,12 +66,64 @@ function InAppAgentHostFrame({ children }: { children: ReactNode }) {
   return <div className="flex min-h-0 flex-1 flex-col">{children}</div>;
 }
 
+function createInAppAgentOutletNode() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const node = document.createElement("div");
+  node.className = "h-full min-h-0 w-full";
+  return node;
+}
+
+function InAppAgentPersistentWindow({
+  children,
+  node,
+}: {
+  children: ReactNode;
+  node: HTMLElement | null;
+}) {
+  if (!node) {
+    return null;
+  }
+
+  return createPortal(children, node);
+}
+
+function InAppAgentPersistentWindowSink({
+  node,
+}: {
+  node: HTMLElement | null;
+}) {
+  const slotRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const slot = slotRef.current;
+    if (!slot || !node) {
+      return;
+    }
+
+    slot.appendChild(node);
+    return () => {
+      if (node.parentElement === slot) {
+        slot.removeChild(node);
+      }
+    };
+  }, [node]);
+
+  return <div className="h-full min-h-0" ref={slotRef} />;
+}
+
 /**
  * Hosts the assistant window and its presentations. Must be rendered from a
  * scope that survives route changes (the authenticated layout), wrapping page
  * content so the docked sidebar can push that content aside. Overlay
  * presentations (detached and fullscreen) still render through the `agent`
  * layer; the handheld drawer is unchanged.
+ *
+ * Sidebar and overlay chrome are mutually exclusive in the DOM. The window
+ * itself is rendered once into a detached node that the active chrome reparents,
+ * so composer state survives dock, detach, and expand.
  */
 export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
@@ -80,6 +133,7 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
+  const [outletNode] = useState(createInAppAgentOutletNode);
 
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl();
 
@@ -152,6 +206,8 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const showSidebar = open && dock === "sidebar" && !isExpanded && !isHandheld;
   const showOverlay =
     isHandheld || (open && (isExpanded || dock === "detached"));
+  const showWindow = showSidebar || showOverlay;
+  const isHeaderDragHandleEnabled = showOverlay && !isHandheld && !isExpanded;
 
   return (
     <DialogController<InAppAgentWindowConversation>
@@ -164,7 +220,7 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
       )}
     >
       {(deleteConversationDialog) => {
-        const renderWindow = (isHeaderDragHandleEnabled: boolean) => (
+        const agentWindow = (
           <ControlledInAppAgentWindow
             isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
             isExpanded={isExpanded}
@@ -180,6 +236,11 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
 
         return (
           <InAppAgentHostFrame>
+            {showWindow ? (
+              <InAppAgentPersistentWindow node={outletNode}>
+                {agentWindow}
+              </InAppAgentPersistentWindow>
+            ) : null}
             {isHandheld ? (
               children
             ) : (
@@ -189,9 +250,10 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
                 secondaryContent={
                   <div
                     data-testid="in-app-agent-sidebar"
+                    data-ignore-outside-interaction
                     className="h-full min-h-0 overflow-hidden"
                   >
-                    {renderWindow(false)}
+                    <InAppAgentPersistentWindowSink node={outletNode} />
                   </div>
                 }
                 open={showSidebar}
@@ -221,9 +283,7 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
                   open={open}
                   panelRef={panelRef}
                 >
-                  {({ isHeaderDragHandleEnabled }) =>
-                    renderWindow(isHeaderDragHandleEnabled)
-                  }
+                  {() => <InAppAgentPersistentWindowSink node={outletNode} />}
                 </InAppAgentWindowShell>
               </Layer>
             ) : null}

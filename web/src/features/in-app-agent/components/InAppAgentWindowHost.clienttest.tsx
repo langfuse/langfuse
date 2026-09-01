@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { InAppAgentWindowHost } from "./InAppAgentWindowHost";
 import type { InAppAgentDock } from "@/src/features/in-app-agent/presentation";
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   setOpen: vi.fn(),
   setDock: vi.fn(),
   setIsExpanded: vi.fn(),
+  windowMounts: 0,
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
@@ -50,11 +51,17 @@ vi.mock("@/src/components/ui/resizable-split-layout", () => ({
 vi.mock(
   "@/src/features/in-app-agent/components/ControlledInAppAgentWindow",
   () => ({
-    ControlledInAppAgentWindow: () => (
-      <div data-in-app-agent-window-drag-handle="true" data-testid="window">
-        <textarea data-testid="composer" />
-      </div>
-    ),
+    ControlledInAppAgentWindow: function MockControlledInAppAgentWindow() {
+      useEffect(() => {
+        mocks.windowMounts += 1;
+      }, []);
+
+      return (
+        <div data-in-app-agent-window-drag-handle="true" data-testid="window">
+          <textarea data-testid="composer" />
+        </div>
+      );
+    },
   }),
 );
 
@@ -127,6 +134,7 @@ describe("InAppAgentWindowHost", () => {
     mocks.setOpen.mockReset();
     mocks.setDock.mockReset();
     mocks.setIsExpanded.mockReset();
+    mocks.windowMounts = 0;
 
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -166,8 +174,41 @@ describe("InAppAgentWindowHost", () => {
 
     expect(screen.getByTestId("page")).toBeInTheDocument();
     expect(screen.getByTestId("window")).toBeInTheDocument();
-    expect(screen.getByTestId("in-app-agent-sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("in-app-agent-sidebar")).toHaveAttribute(
+      "data-ignore-outside-interaction",
+    );
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
+  });
+
+  it("keeps the composer draft when detaching or expanding from the sidebar", () => {
+    mocks.open = true;
+    const { rerender } = renderHost();
+
+    fireEvent.change(screen.getByTestId("composer"), {
+      target: { value: "unsent draft" },
+    });
+    expect(screen.getByTestId("composer")).toHaveValue("unsent draft");
+    expect(mocks.windowMounts).toBe(1);
+
+    mocks.dock = "detached";
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
+    expect(screen.getByTestId("composer")).toHaveValue("unsent draft");
+    expect(mocks.windowMounts).toBe(1);
+
+    mocks.dock = "sidebar";
+    mocks.isExpanded = true;
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
+    expect(screen.getByTestId("composer")).toHaveValue("unsent draft");
+    expect(mocks.windowMounts).toBe(1);
+    expect(screen.getByTestId("in-app-agent-fullscreen")).toBeInTheDocument();
   });
 
   it("detaches into the movable overlay without unmounting the page", () => {
