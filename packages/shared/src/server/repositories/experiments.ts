@@ -1499,16 +1499,27 @@ export const getExperimentItemsBatchIO = async (props: {
   });
 };
 
+/**
+ * Experiment options for the baseline / comparison pickers: one row per run,
+ * with the dataset it ran on and when it started so the UI can group by dataset
+ * and order by recency.
+ */
 export const getExperimentNamesFromEvents = async (props: {
   projectId: string;
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
+    // Grouped by experiment id: two runs sharing a name are two runs, not one
+    // option pointing at an arbitrary id.
     groupByColumn: "e.experiment_id",
-    selectExpression:
-      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
+    selectExpression: `any(e.experiment_name) as experimentName,
+    e.experiment_id as experimentId,
+    nullIf(any(e.experiment_dataset_id), '') as datasetId,
+    min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    // Keeps the bound meaningful: the newest 1000 runs, not an arbitrary 1000.
+    .orderBy("ORDER BY min(e.start_time) DESC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1517,6 +1528,7 @@ export const getExperimentNamesFromEvents = async (props: {
     experimentName: string;
     experimentId: string;
     datasetId: string | null;
+    startTime: string;
   }>({
     query,
     params,
@@ -1524,5 +1536,10 @@ export const getExperimentNamesFromEvents = async (props: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return res;
+  return res.map((row) => ({
+    experimentId: row.experimentId,
+    experimentName: row.experimentName,
+    datasetId: row.datasetId,
+    startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
+  }));
 };
