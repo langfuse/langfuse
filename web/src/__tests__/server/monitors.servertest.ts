@@ -245,9 +245,9 @@ describe("monitors trpc", () => {
         filters: [
           {
             column: "evaluatorId",
-            type: "stringOptions",
-            operator: "none of",
-            value: [""],
+            type: "string",
+            operator: "is not empty",
+            value: "",
           },
           {
             column: "isEvaluatorTest",
