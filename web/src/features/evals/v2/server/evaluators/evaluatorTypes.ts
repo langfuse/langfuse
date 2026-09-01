@@ -200,10 +200,16 @@ export const ListEvaluatorsSchema = z.object({
   filter: EvaluatorListFilterSchema,
 });
 
-export const ListEvaluatorGallerySchema = ListEvaluatorsSchema.omit({
-  page: true,
-}).extend({
-  cursor: z.number().int().positive().optional(),
+export const ListEvaluatorGallerySchema = z.object({
+  projectId: z.string(),
+  cursor: z
+    .object({
+      createdAt: z.date(),
+      id: z.string(),
+    })
+    .optional(),
+  limit: paginationLimitZod.optional().default(50),
+  search: z.string().trim().max(200).optional(),
 });
 
 export const EvaluatorOptionsSchema = z.object({

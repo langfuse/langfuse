@@ -76,18 +76,19 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluator:read",
       });
-      const { cursor, ...params } = input;
-      const page = cursor ?? 1;
-      const result = await serviceForContext(ctx).list({
-        ...params,
+      const service = serviceForContext(ctx);
+      const params = {
+        ...input,
         projectId: ctx.session.projectId,
-        page,
-      });
+      };
+      const [result, totalItems] = await Promise.all([
+        service.listCursor(params),
+        input.cursor ? undefined : service.count(params),
+      ]);
 
       return {
         ...result,
-        nextCursor:
-          page * input.limit < result.totalItems ? page + 1 : undefined,
+        totalItems,
       };
     }),
 

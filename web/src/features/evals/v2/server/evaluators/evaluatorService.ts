@@ -104,8 +104,16 @@ export class EvaluatorService {
     projectId: string;
     limit: number;
     cursor?: { createdAt: Date; id: string };
+    search?: string;
   }) {
     return repository.listEvaluatorsCursor({
+      prisma: this.prisma,
+      ...params,
+    });
+  }
+
+  count(params: { projectId: string; search?: string }) {
+    return repository.countEvaluators({
       prisma: this.prisma,
       ...params,
     });
