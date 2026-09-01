@@ -331,6 +331,7 @@ export async function listEvaluatorsCursor(params: {
   projectId: string;
   limit: number;
   cursor?: { createdAt: Date; id: string };
+  search?: string;
 }) {
   const baseWhere = await evaluatorWhere(params);
   const where: Prisma.EvaluatorWhereInput = params.cursor
@@ -367,6 +368,15 @@ export async function listEvaluatorsCursor(params: {
     nextCursor:
       hasMore && last ? { createdAt: last.createdAt, id: last.id } : undefined,
   };
+}
+
+export async function countEvaluators(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  search?: string;
+}) {
+  const where = await evaluatorWhere(params);
+  return params.prisma.evaluator.count({ where });
 }
 
 export async function listEvaluatorFilterOptions(params: {

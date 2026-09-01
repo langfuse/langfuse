@@ -10,7 +10,6 @@ import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -56,6 +55,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -331,13 +331,9 @@ export default function EvalsTemplateTable({
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
   const columns = [
-    columnHelper.accessor("name", {
+    createIdTableColumn<EvalsTemplateRow>({
+      accessorKey: "name",
       header: "Name",
-      id: "name",
-      cell: (row) => {
-        const name = row.getValue();
-        return name ? <TableIdOrName value={name} /> : undefined;
-      },
     }),
     columnHelper.accessor("type", {
       id: "type",
@@ -404,15 +400,11 @@ export default function EvalsTemplateTable({
       size: 80,
       formatter: (value) => String(value),
     }),
-    columnHelper.accessor("id", {
+    createIdTableColumn<EvalsTemplateRow>({
+      accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 100,
       enableHiding: true,
-      cell: (row) => {
-        const id = row.getValue();
-        return id ? <TableIdOrName value={id} /> : null;
-      },
     }),
     columnHelper.accessor("actions", {
       header: "Actions",

@@ -74,7 +74,6 @@ import {
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
-import TableIdOrName from "@/src/components/table/table-id";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -927,9 +926,8 @@ export default function ObservationsTable({
         );
       },
     },
-    {
+    createIdTableColumn<ObservationsTableRow>({
       accessorKey: "promptName",
-      id: "promptName",
       header: "Prompt",
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
@@ -938,13 +936,14 @@ export default function ObservationsTable({
       size: 200,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
+      getValue: (_value, { row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableIdOrName value={value} />;
+        return promptName && promptVersion
+          ? `${promptName} (v${promptVersion})`
+          : undefined;
       },
-    },
+    }),
     createBadgeTableColumn<ObservationsTableRow>({
       accessorKey: "environment",
       header: "Environment",
@@ -1004,23 +1003,20 @@ export default function ObservationsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<ObservationsTableRow>({
       accessorKey: "id",
-      id: "id",
       header: "ObservationID",
       size: 100,
       defaultHidden: true,
       enableSorting,
       enableHiding: true,
-      cell: ({ row }) => {
-        const observationId = row.getValue("id");
+      getValue: (observationId, { row }) => {
         const traceId = row.getValue("traceId");
-        return typeof observationId === "string" &&
-          typeof traceId === "string" ? (
-          <TableIdOrName value={observationId} />
-        ) : null;
+        return typeof observationId === "string" && typeof traceId === "string"
+          ? observationId
+          : undefined;
       },
-    },
+    }),
     createTextTableColumn<ObservationsTableRow>({
       accessorKey: "traceName",
       header: "Trace Name",

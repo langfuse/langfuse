@@ -22,7 +22,7 @@ function StatefulEvaluatorGallerySection(args: EvaluatorGallerySectionProps) {
       expanded={expanded}
       onExpandedChange={(nextExpanded) => {
         setExpanded(nextExpanded);
-        args.onExpandedChange(nextExpanded);
+        args.onExpandedChange?.(nextExpanded);
       }}
     />
   );

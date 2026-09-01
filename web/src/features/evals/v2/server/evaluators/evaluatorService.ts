@@ -161,6 +161,7 @@ export class EvaluatorService {
     projectId: string;
     limit: number;
     cursor?: { createdAt: Date; id: string };
+    search?: string;
   }) {
     const page = await repository.listEvaluatorsCursor({
       prisma: this.prisma,
@@ -170,6 +171,13 @@ export class EvaluatorService {
       ...page,
       evaluators: page.evaluators.map(normalizeEvaluatorPromptMessages),
     };
+  }
+
+  count(params: { projectId: string; search?: string }) {
+    return repository.countEvaluators({
+      prisma: this.prisma,
+      ...params,
+    });
   }
 
   listFilterOptions(projectId: string) {
