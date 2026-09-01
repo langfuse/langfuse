@@ -3381,8 +3381,13 @@ describe("queryBuilder", () => {
         result.data = await executeQuery(projectId, query);
 
         expect(result.data).toHaveLength(2);
-        expect(result.data[0].name).toBe("observation-basic");
-        expect(Number(result.data[0].count_count)).toBe(1);
+        expect(result.data.map((row) => row.name).toSorted()).toEqual([
+          "observation-basic",
+          "observation-premium",
+        ]);
+        expect(result.data.every((row) => Number(row.count_count) === 1)).toBe(
+          true,
+        );
       });
 
       it("should generate histogram with custom bin count for cost distribution", async () => {
