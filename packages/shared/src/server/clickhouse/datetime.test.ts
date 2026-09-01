@@ -28,6 +28,13 @@ describe("convertDateTime64TicksToClickhouseDateTime", () => {
       "1969-12-31 23:59:58.765433",
     );
   });
+
+  it("rejects DateTime64(3) ticks that overflow the ClickHouse year range", () => {
+    const microsecondTicks = Date.UTC(2026, 8, 1) * 1000;
+    expect(() =>
+      convertDateTime64TicksToClickhouseDateTime(microsecondTicks, 3),
+    ).toThrow(/DateTime64 tick is outside ClickHouse year range/);
+  });
 });
 
 describe("quoteDateTime64InsertValue", () => {

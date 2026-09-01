@@ -82,17 +82,38 @@ export const CLICKHOUSE_DATETIME64_INSERT_FIELDS = {
 export type ClickHouseDateTime64InsertTable =
   keyof typeof CLICKHOUSE_DATETIME64_INSERT_FIELDS;
 
+// ClickHouse DateTime64 calendar range is 1925-01-01 through 2283-11-11.
+// ISO-8601 expanded years (`+058638-...`) are not valid DateTime64 input.
+const CLICKHOUSE_DATETIME64_MIN_YEAR = 1925;
+const CLICKHOUSE_DATETIME64_MAX_YEAR = 2283;
+
+const assertClickHouseDateTime64Year = (date: Date): void => {
+  const year = date.getUTCFullYear();
+  if (
+    year < CLICKHOUSE_DATETIME64_MIN_YEAR ||
+    year > CLICKHOUSE_DATETIME64_MAX_YEAR
+  ) {
+    throw new Error(
+      `DateTime64 tick is outside ClickHouse year range (${year})`,
+    );
+  }
+};
+
 export const convertDateTime64TicksToClickhouseDateTime = (
   ticks: number,
   precision: DateTime64Precision,
 ): string => {
   if (precision === 3) {
-    return convertDateToClickhouseDateTime(new Date(ticks));
+    const date = new Date(ticks);
+    assertClickHouseDateTime64Year(date);
+    return convertDateToClickhouseDateTime(date);
   }
 
   const milliseconds = Math.floor(ticks / 1000);
   const microsecondRemainder = ((ticks % 1000) + 1000) % 1000;
-  return `${convertDateToClickhouseDateTime(new Date(milliseconds))}${String(microsecondRemainder).padStart(3, "0")}`;
+  const date = new Date(milliseconds);
+  assertClickHouseDateTime64Year(date);
+  return `${convertDateToClickhouseDateTime(date)}${String(microsecondRemainder).padStart(3, "0")}`;
 };
 
 export const quoteDateTime64InsertValue = (
