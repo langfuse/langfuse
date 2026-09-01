@@ -194,22 +194,13 @@ describe("toPrismaWhere", () => {
       },
     ];
 
-    expect(toPrismaWhere("proj_01", filter)).toEqual({
+    expect(
+      toPrismaWhere("proj_01", filter, ["monitor-1", "monitor-2"]),
+    ).toEqual({
       projectId: "proj_01",
       AND: [
         {
-          OR: ["eval-1", "eval-2"].map((value) => ({
-            filters: {
-              array_contains: [
-                {
-                  column: "evaluatorId",
-                  type: "string",
-                  operator: "=",
-                  value,
-                },
-              ],
-            },
-          })),
+          id: { in: ["monitor-1", "monitor-2"] },
         },
       ],
     });
@@ -225,26 +216,11 @@ describe("toPrismaWhere", () => {
       },
     ];
 
-    expect(toPrismaWhere("proj_01", filter)).toEqual({
+    expect(toPrismaWhere("proj_01", filter, ["monitor-1"])).toEqual({
       projectId: "proj_01",
       AND: [
         {
-          NOT: {
-            OR: [
-              {
-                filters: {
-                  array_contains: [
-                    {
-                      column: "evaluatorId",
-                      type: "string",
-                      operator: "=",
-                      value: "eval-1",
-                    },
-                  ],
-                },
-              },
-            ],
-          },
+          id: { notIn: ["monitor-1"] },
         },
       ],
     });

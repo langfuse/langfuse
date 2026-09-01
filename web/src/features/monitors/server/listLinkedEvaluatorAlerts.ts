@@ -1,4 +1,5 @@
 import { metric as MetricSchema } from "@langfuse/shared";
+import { findMonitorIdsLinkedToEvaluators } from "@langfuse/shared/monitors/server";
 import type { Prisma, PrismaClient } from "@langfuse/shared/src/db";
 
 const LINKED_ALERTS_PAGE_SIZE = 20;
@@ -10,20 +11,19 @@ export async function listLinkedEvaluatorAlerts(
     | { scope: "evaluator"; projectId: string; evaluatorId: string }
     | { scope: "allEvaluators"; projectId: string },
 ) {
+  const evaluatorMonitorIds =
+    params.scope === "evaluator"
+      ? await findMonitorIdsLinkedToEvaluators(prisma, {
+          projectId: params.projectId,
+          evaluatorIds: [params.evaluatorId],
+          limit: LINKED_ALERTS_PAGE_SIZE + 1,
+        })
+      : undefined;
   const where: Prisma.MonitorWhereInput =
     params.scope === "evaluator"
       ? {
           projectId: params.projectId,
-          filters: {
-            array_contains: [
-              {
-                column: "evaluatorId",
-                type: "string",
-                operator: "=",
-                value: params.evaluatorId,
-              },
-            ],
-          },
+          id: { in: evaluatorMonitorIds },
         }
       : {
           projectId: params.projectId,
@@ -58,21 +58,24 @@ export async function listLinkedEvaluatorAlerts(
           ],
         };
 
-  const monitors = await prisma.monitor.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      severity: true,
-      metric: true,
-      thresholdOperator: true,
-      alertThreshold: true,
-      alertedAt: true,
-    },
-    orderBy: { updatedAt: "desc" },
-    take: LINKED_ALERTS_PAGE_SIZE + 1,
-  });
+  const monitors =
+    evaluatorMonitorIds?.length === 0
+      ? []
+      : await prisma.monitor.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            severity: true,
+            metric: true,
+            thresholdOperator: true,
+            alertThreshold: true,
+            alertedAt: true,
+          },
+          orderBy: { updatedAt: "desc" },
+          take: LINKED_ALERTS_PAGE_SIZE + 1,
+        });
 
   return {
     data: monitors

@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { listLinkedEvaluatorAlerts } from "./listLinkedEvaluatorAlerts";
 
-const prismaWithFindMany = (rows: unknown[] = []) => {
+const prismaWithFindMany = (rows: unknown[] = [], linkedIds: string[] = []) => {
   const findMany = vi.fn().mockResolvedValue(rows);
+  const $queryRaw = vi.fn().mockResolvedValue(linkedIds.map((id) => ({ id })));
   return {
     findMany,
-    prisma: { monitor: { findMany } } as unknown as Parameters<
+    $queryRaw,
+    prisma: { monitor: { findMany }, $queryRaw } as unknown as Parameters<
       typeof listLinkedEvaluatorAlerts
     >[0],
   };
@@ -14,7 +16,10 @@ const prismaWithFindMany = (rows: unknown[] = []) => {
 
 describe("listLinkedEvaluatorAlerts", () => {
   it("filters evaluator connections in the database", async () => {
-    const { prisma, findMany } = prismaWithFindMany();
+    const { prisma, findMany, $queryRaw } = prismaWithFindMany(
+      [],
+      ["monitor-1"],
+    );
 
     await listLinkedEvaluatorAlerts(prisma, {
       scope: "evaluator",
@@ -26,19 +31,11 @@ describe("listLinkedEvaluatorAlerts", () => {
       expect.objectContaining({
         where: {
           projectId: "project-1",
-          filters: {
-            array_contains: [
-              {
-                column: "evaluatorId",
-                type: "string",
-                operator: "=",
-                value: "evaluator-1",
-              },
-            ],
-          },
+          id: { in: ["monitor-1"] },
         },
       }),
     );
+    expect($queryRaw).toHaveBeenCalledOnce();
   });
 
   it("returns at most 20 alerts and reports when more exist", async () => {
@@ -52,7 +49,10 @@ describe("listLinkedEvaluatorAlerts", () => {
       alertThreshold: { toNumber: () => index },
       alertedAt: null,
     }));
-    const { prisma, findMany } = prismaWithFindMany(rows);
+    const { prisma, findMany } = prismaWithFindMany(
+      rows,
+      rows.map((row) => row.id),
+    );
 
     const result = await listLinkedEvaluatorAlerts(prisma, {
       scope: "evaluator",

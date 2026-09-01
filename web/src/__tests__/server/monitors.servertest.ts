@@ -178,7 +178,7 @@ describe("monitors trpc", () => {
       ).resolves.toBeNull();
     });
 
-    it("returns only alerts with an exact evaluator id filter", async () => {
+    it("returns alerts whose positive evaluator filter matches the evaluator id", async () => {
       const { project, caller } = await prepare();
 
       const exact = await caller.monitors.create({
@@ -199,39 +199,55 @@ describe("monitors trpc", () => {
         data: { alertedAt },
       });
 
-      await caller.monitors.create({
+      const contains = await caller.monitors.create({
         ...validMonitorInput(project.id),
-        name: "Partial evaluator",
+        name: "Contains evaluator",
         filters: [
           {
             column: "evaluatorId",
             type: "string",
             operator: "contains",
-            value: "evaluator-1",
+            value: "valuator-1",
+          },
+        ],
+      });
+      const startsWith = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Starts with evaluator",
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "string",
+            operator: "starts with",
+            value: "evaluator-",
+          },
+        ],
+      });
+      const anyOf = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Any-of evaluator",
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["evaluator-2", "evaluator-1"],
           },
         ],
       });
 
-      await expect(
-        caller.monitors.linkedEvaluatorAlerts({
-          projectId: project.id,
-          evaluatorId: "evaluator-1",
-        }),
-      ).resolves.toEqual({
-        data: [
-          {
-            id: exact.id,
-            name: "Exact evaluator",
-            status: MonitorStatusSchema.enum.ACTIVE,
-            severity: MonitorSeveritySchema.enum.UNKNOWN,
-            metric: { measure: "count", aggregation: "count" },
-            thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
-            alertThreshold: 100,
-            alertedAt,
-          },
-        ],
-        hasMore: false,
+      const linked = await caller.monitors.linkedEvaluatorAlerts({
+        projectId: project.id,
+        evaluatorId: "evaluator-1",
       });
+
+      expect(linked.data.map(({ id }) => id).sort()).toEqual(
+        [exact.id, contains.id, startsWith.id, anyOf.id].sort(),
+      );
+      expect(linked.data.find(({ id }) => id === exact.id)?.alertedAt).toEqual(
+        alertedAt,
+      );
+      expect(linked.hasMore).toBe(false);
     });
 
     it("returns aggregate evaluator spend alerts", async () => {
@@ -563,8 +579,8 @@ describe("monitors trpc", () => {
           {
             column: "evaluatorId",
             type: "string",
-            operator: "=",
-            value: linkedEvaluatorId,
+            operator: "contains",
+            value: linkedEvaluatorId.slice(1, -1),
           },
         ],
       });
