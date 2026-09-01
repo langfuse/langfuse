@@ -602,6 +602,12 @@ const shouldSilenceError = (
     return true;
   }
 
+  // For queries whose surface owns the error UX entirely (e.g. a widget's
+  // inline error state) — non-HTTP errors carry no status to match against.
+  if (meta?.silentAllErrors === true) {
+    return true;
+  }
+
   if (Array.isArray(meta?.silentHttpCodes)) {
     const httpStatus = getHttpStatus(error);
     return (

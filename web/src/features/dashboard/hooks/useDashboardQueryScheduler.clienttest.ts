@@ -12,7 +12,8 @@ import { act, renderHook } from "@testing-library/react";
 import {
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { type DashboardQuerySchedulerStore } from "@/src/features/dashboard/stores/dashboardQuerySchedulerStore";
 
 describe("getDashboardSchedulerResetKey", () => {
   const base = {
@@ -61,6 +62,9 @@ describe("getDashboardSchedulerResetKey", () => {
 });
 
 describe("useDashboardQueryScheduler", () => {
+  const canFetch = (store: DashboardQuerySchedulerStore, id: string) =>
+    store.getState().items[id]?.status === "running";
+
   // Characterizes `register`'s incremental behavior (a new id is inserted as
   // `queued` and scheduled without iterating existing items). This is the
   // property the reset-key fix relies on — not itself a guard for LFE-10986
@@ -70,30 +74,31 @@ describe("useDashboardQueryScheduler", () => {
     const { result } = renderHook(() =>
       useDashboardQueryScheduler({ maxConcurrent: 2, resetKey: "k1" }),
     );
+    const { actions } = result.current.getState();
 
     act(() => {
-      result.current.register("w1", 1);
-      result.current.register("w2", 2);
+      actions.register("w1", 1);
+      actions.register("w2", 2);
     });
 
     // Both promoted (maxConcurrent = 2) then completed.
     act(() => {
-      result.current.markDone("w1");
-      result.current.markDone("w2");
+      actions.markDone("w1");
+      actions.markDone("w2");
     });
 
-    expect(result.current.canFetch("w1")).toBe(false);
-    expect(result.current.canFetch("w2")).toBe(false);
+    expect(canFetch(result.current, "w1")).toBe(false);
+    expect(canFetch(result.current, "w2")).toBe(false);
 
     // "Add Widget": a brand-new placement registers and schedules on its own.
     act(() => {
-      result.current.register("w3", 3);
+      actions.register("w3", 3);
     });
 
-    expect(result.current.canFetch("w3")).toBe(true);
+    expect(canFetch(result.current, "w3")).toBe(true);
     // The done siblings must stay done — never re-queued/re-run.
-    expect(result.current.canFetch("w1")).toBe(false);
-    expect(result.current.canFetch("w2")).toBe(false);
+    expect(canFetch(result.current, "w1")).toBe(false);
+    expect(canFetch(result.current, "w2")).toBe(false);
   });
 
   it("re-queues completed widgets when the reset key changes", () => {
@@ -102,19 +107,49 @@ describe("useDashboardQueryScheduler", () => {
         useDashboardQueryScheduler({ maxConcurrent: 5, resetKey }),
       { initialProps: { resetKey: "k1" } },
     );
+    const { actions } = result.current.getState();
 
     act(() => {
-      result.current.register("w1", 1);
+      actions.register("w1", 1);
     });
     act(() => {
-      result.current.markDone("w1");
+      actions.markDone("w1");
     });
 
-    expect(result.current.canFetch("w1")).toBe(false);
+    expect(canFetch(result.current, "w1")).toBe(false);
 
     // A genuine query-param change (new reset key) must refresh everything.
     rerender({ resetKey: "k2" });
 
-    expect(result.current.canFetch("w1")).toBe(true);
+    expect(canFetch(result.current, "w1")).toBe(true);
+  });
+
+  it("holds queued widgets until a running slot frees, in priority order", () => {
+    const { result } = renderHook(() =>
+      useDashboardQueryScheduler({ maxConcurrent: 1, resetKey: "k1" }),
+    );
+    const { actions } = result.current.getState();
+
+    act(() => {
+      actions.register("late", 10);
+      actions.register("early", 1);
+    });
+
+    // One slot: "late" grabbed it on registration; "early" waits.
+    expect(canFetch(result.current, "late")).toBe(true);
+    expect(canFetch(result.current, "early")).toBe(false);
+
+    // Slot frees on ANY completion path (done or unmount) — the waiter with
+    // the lowest priority value runs next.
+    act(() => {
+      actions.markDone("late");
+    });
+    expect(canFetch(result.current, "early")).toBe(true);
+
+    act(() => {
+      actions.register("next", 5);
+      actions.unregister("early");
+    });
+    expect(canFetch(result.current, "next")).toBe(true);
   });
 });

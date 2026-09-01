@@ -129,9 +129,15 @@ export default async function handler(
   });
   res.flushHeaders();
 
+  // A closed client must cancel the ClickHouse query, not just stop the
+  // response: abort the CH HTTP request AND set
+  // cancel_http_readonly_queries_on_client_close so the server kills the
+  // query instead of running an abandoned aggregation to completion.
   let aborted = false;
+  const chAbort = new AbortController();
   req.on("close", () => {
     aborted = true;
+    chAbort.abort();
   });
 
   try {
@@ -145,7 +151,14 @@ export default async function handler(
 
     for await (const event of queryClickhouseWithProgress<
       Record<string, unknown>
-    >(chOpts)) {
+    >({
+      ...chOpts,
+      abortSignal: chAbort.signal,
+      clickhouseSettings: {
+        ...chOpts.clickhouseSettings,
+        cancel_http_readonly_queries_on_client_close: 1,
+      },
+    })) {
       if (aborted) break;
 
       if (isProgressRow(event)) {

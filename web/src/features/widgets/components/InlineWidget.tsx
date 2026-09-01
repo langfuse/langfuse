@@ -7,7 +7,7 @@ import {
   type ViewVersion,
   getResultUnit,
 } from "@langfuse/shared/query";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { hashKey, useQuery, type QueryKey } from "@tanstack/react-query";
 import { type RouterInputs } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 
@@ -12,17 +13,14 @@ export type QueryProgress = {
   percent: number;
 };
 
-type SSEQueryStatus = "idle" | "loading" | "success" | "error";
-
 type SSEQueryResult = {
   data: Record<string, unknown>[] | undefined;
   progress: QueryProgress | null;
-  status: SSEQueryStatus;
   isLoading: boolean;
   isSuccess: boolean;
   isError: boolean;
   error: string | null;
-  fetchStatus: "fetching" | "idle";
+  fetchStatus: "fetching" | "paused" | "idle";
   isPending: boolean;
 };
 
@@ -72,213 +70,221 @@ export function computeMonotonicPercent(
   return Math.max(prevMax, rawPercent);
 }
 
+// A stream that stops producing bytes for this long is dead — the server caps
+// query execution well below this, and progress events flow throughout.
+export const SSE_STALL_TIMEOUT_MS = 60_000;
+
+/**
+ * Consumes one execute-query SSE stream to completion and returns its rows.
+ * Progress events go to the caller as a side channel (they are high-frequency
+ * and must stay out of the query cache). A stream that stalls (no bytes for
+ * `stallTimeoutMs`) is aborted and surfaces as a normal error — never as a
+ * forever-pending query holding a scheduler slot.
+ */
+export async function fetchDashboardSSERows(
+  input: DashboardExecuteQueryInput,
+  {
+    basePath,
+    signal,
+    onProgress,
+    stallTimeoutMs = SSE_STALL_TIMEOUT_MS,
+  }: {
+    basePath: string;
+    signal: AbortSignal;
+    onProgress: (progress: QueryProgress) => void;
+    stallTimeoutMs?: number;
+  },
+): Promise<Record<string, unknown>[]> {
+  const controller = new AbortController();
+  const onOuterAbort = () => controller.abort();
+  if (signal.aborted) controller.abort();
+  signal.addEventListener("abort", onOuterAbort);
+
+  let stalled = false;
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const armWatchdog = () => {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => {
+      stalled = true;
+      controller.abort();
+    }, stallTimeoutMs);
+  };
+
+  let maxPercent = 0;
+  const rows: Record<string, unknown>[] = [];
+
+  try {
+    armWatchdog();
+    const resp = await fetch(`${basePath}/api/dashboard/execute-query-stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      let message = `HTTP ${resp.status}`;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.message) message = parsed.message;
+      } catch {
+        if (body) message = body;
+      }
+      throw new Error(message);
+    }
+
+    if (!resp.body) {
+      throw new Error("No response body");
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let done: "success" | "error" | null = null;
+    let errorMessage = "";
+
+    const handleEvent = (event: SSEEvent) => {
+      if (done) return;
+      if (event.type === "progress") {
+        try {
+          const p = JSON.parse(event.data);
+          const readRows = Number(p.read_rows);
+          const totalRows = Number(p.total_rows_to_read);
+          maxPercent = computeMonotonicPercent(readRows, totalRows, maxPercent);
+          onProgress({
+            read_rows: readRows,
+            total_rows_to_read: totalRows,
+            elapsed_ns: Number(p.elapsed_ns),
+            read_bytes: Number(p.read_bytes),
+            percent: maxPercent,
+          });
+        } catch {
+          // Ignore malformed progress events
+        }
+      } else if (event.type === "row") {
+        try {
+          rows.push(JSON.parse(event.data));
+        } catch {
+          // Ignore malformed row events
+        }
+      } else if (event.type === "done") {
+        done = "success";
+      } else if (event.type === "error") {
+        try {
+          const err = JSON.parse(event.data);
+          errorMessage = err.message ?? "Unknown error";
+        } catch {
+          errorMessage = event.data;
+        }
+        done = "error";
+      }
+    };
+
+    while (!done) {
+      const { done: streamEnded, value } = await reader.read();
+      if (streamEnded) break;
+      armWatchdog();
+
+      buffer += decoder.decode(value, { stream: true });
+      const { events, remaining } = parseSSEBuffer(buffer);
+      buffer = remaining;
+
+      for (const event of events) {
+        handleEvent(event);
+      }
+    }
+
+    // Flush any remaining buffer (e.g. "done" event without trailing newline)
+    if (!done && buffer.trim()) {
+      const { events } = parseSSEBuffer(buffer + "\n\n");
+      for (const event of events) {
+        handleEvent(event);
+      }
+    }
+
+    if (done === "error") {
+      throw new Error(errorMessage);
+    }
+    if (done === "success" || rows.length > 0) {
+      return rows;
+    }
+    throw new Error("Stream ended unexpectedly");
+  } catch (error) {
+    if (stalled) {
+      throw new Error("The query stream stalled and was aborted");
+    }
+    throw error;
+  } finally {
+    clearTimeout(watchdog);
+    signal.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+/**
+ * SSE transport for a dashboard executeQuery, backed by the React Query
+ * cache: rows/status live in the cache under the SAME key as the tRPC
+ * transport, so identical widgets share one ClickHouse stream (dedupe), a
+ * transport flip reuses cached rows, and cache/gc policy applies uniformly.
+ * Only the high-frequency progress events stay out of the cache, as local
+ * state on the mount that initiated the fetch.
+ */
 export function useSSEDashboardQuery(
   input: DashboardExecuteQueryInput,
   options: {
     enabled?: boolean;
-    inputKey?: string;
-    queryId: string;
+    queryKey: QueryKey;
+    staleTime: number;
+    gcTime: number;
+    meta?: Record<string, unknown>;
   },
 ): SSEQueryResult {
-  const { enabled = true, inputKey: inputKeyOverride } = options;
-  const [data, setData] = useState<Record<string, unknown>[] | undefined>(
-    undefined,
-  );
-  const [progress, setProgress] = useState<QueryProgress | null>(null);
-  const [status, setStatus] = useState<SSEQueryStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [stateInputKey, setStateInputKey] = useState<string | null>(null);
-  const maxPercentRef = useRef(0);
-  // Input key of the last run that produced a successful result currently held
-  // in `data`. Used to keep-previous-data across a same-input re-run so an
-  // already-rendered widget never blanks on a re-run it did not need (e.g. the
-  // scheduler re-promoting an item). A genuine input change still clears.
-  const lastSuccessfulInputKeyRef = useRef<string | null>(null);
+  const { enabled = true, queryKey, staleTime, gcTime, meta } = options;
   const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-  // Stable reference for the input to avoid re-triggering on every render
-  const inputRef = useRef(input);
-  inputRef.current = input;
+  const [progress, setProgress] = useState<QueryProgress | null>(null);
+  // A new key is a new run: drop the previous run's progress in the same
+  // render instead of showing it over the fresh pending state.
+  const keyHash = hashKey(queryKey);
+  const [lastKeyHash, setLastKeyHash] = useState(keyHash);
+  if (lastKeyHash !== keyHash) {
+    setLastKeyHash(keyHash);
+    setProgress(null);
+  }
 
-  const runQuery = useCallback(
-    async (runInputKey: string, signal: AbortSignal) => {
-      const isSameInputAsLastSuccess =
-        lastSuccessfulInputKeyRef.current === runInputKey;
-      setStateInputKey(runInputKey);
-      setStatus("loading");
+  const query = useQuery<Record<string, unknown>[], Error>({
+    queryKey,
+    queryFn: async ({ signal }) => {
       setProgress(null);
-      setError(null);
-      // Keep the previously loaded rows when re-running the exact same query, so
-      // the chart stays rendered instead of flashing empty; only clear when the
-      // input actually changed (a genuinely new query).
-      if (!isSameInputAsLastSuccess) {
-        setData(undefined);
-      }
-      maxPercentRef.current = 0;
-
-      try {
-        const resp = await fetch(
-          `${basePath}/api/dashboard/execute-query-stream`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(inputRef.current),
-            signal,
-          },
-        );
-
-        if (!resp.ok) {
-          const body = await resp.text();
-          let message = `HTTP ${resp.status}`;
-          try {
-            const parsed = JSON.parse(body);
-            if (parsed.message) message = parsed.message;
-          } catch {
-            if (body) message = body;
-          }
-          throw new Error(message);
-        }
-
-        if (!resp.body) {
-          throw new Error("No response body");
-        }
-
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        const rows: Record<string, unknown>[] = [];
-        let terminated = false;
-
-        const handleEvent = (event: SSEEvent) => {
-          if (terminated) return;
-          if (event.type === "progress") {
-            try {
-              const p = JSON.parse(event.data);
-              const readRows = Number(p.read_rows);
-              const totalRows = Number(p.total_rows_to_read);
-              const percent = computeMonotonicPercent(
-                readRows,
-                totalRows,
-                maxPercentRef.current,
-              );
-              maxPercentRef.current = percent;
-
-              setProgress({
-                read_rows: readRows,
-                total_rows_to_read: totalRows,
-                elapsed_ns: Number(p.elapsed_ns),
-                read_bytes: Number(p.read_bytes),
-                percent,
-              });
-            } catch {
-              // Ignore malformed progress events
-            }
-          } else if (event.type === "row") {
-            try {
-              rows.push(JSON.parse(event.data));
-            } catch {
-              // Ignore malformed row events
-            }
-          } else if (event.type === "done") {
-            setData(rows);
-            setStatus("success");
-            lastSuccessfulInputKeyRef.current = runInputKey;
-            terminated = true;
-          } else if (event.type === "error") {
-            try {
-              const err = JSON.parse(event.data);
-              setError(err.message ?? "Unknown error");
-            } catch {
-              setError(event.data);
-            }
-            setStatus("error");
-            // An errored re-run must not keep stale success rows behind the
-            // error state (keep-previous-data applies to in-flight/success
-            // only). lastSuccessfulInputKeyRef is intentionally left untouched.
-            setData(undefined);
-            terminated = true;
-          }
-        };
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const { events, remaining } = parseSSEBuffer(buffer);
-          buffer = remaining;
-
-          for (const event of events) {
-            handleEvent(event);
-          }
-        }
-
-        // Flush any remaining buffer (e.g. "done" event without trailing newline)
-        if (!terminated && buffer.trim()) {
-          const { events } = parseSSEBuffer(buffer + "\n\n");
-          for (const event of events) {
-            handleEvent(event);
-          }
-        }
-
-        // Fallback if stream ended without a terminal event
-        if (!terminated) {
-          if (rows.length > 0) {
-            setData(rows);
-            setStatus("success");
-            lastSuccessfulInputKeyRef.current = runInputKey;
-          } else {
-            setError("Stream ended unexpectedly");
-            setStatus("error");
-            setData(undefined);
-          }
-        }
-      } catch (err) {
-        if (signal.aborted) return;
-        setError(err instanceof Error ? err.message : "Unknown error");
-        setStatus("error");
-        setData(undefined);
-      }
+      return fetchDashboardSSERows(input, {
+        basePath,
+        signal,
+        onProgress: setProgress,
+      });
     },
-    [basePath],
-  );
-
-  // Derive a stable key from the input to detect changes
-  const inputKey = inputKeyOverride ?? JSON.stringify(input);
-
-  useEffect(() => {
-    if (!enabled) {
-      setStatus((current) =>
-        current === "success" || current === "error" ? current : "idle",
-      );
-      return;
-    }
-
-    const abortController = new AbortController();
-    runQuery(inputKey, abortController.signal);
-
-    return () => {
-      abortController.abort();
-    };
-  }, [enabled, inputKey, runQuery]);
-
-  const hasCurrentState = stateInputKey === inputKey;
-  const shouldHidePreviousRunState = enabled && !hasCurrentState;
-  const isPendingForCurrentRun =
-    enabled &&
-    (status === "idle" || status === "loading" || shouldHidePreviousRunState);
-  const effectiveStatus = isPendingForCurrentRun ? "loading" : status;
+    enabled,
+    staleTime,
+    gcTime,
+    // A failed stream must fail visibly (inline widget error + released
+    // scheduler slot), not silently re-run a heavy ClickHouse query.
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    // The widget owns the error UX; the global toast handler stays silent.
+    meta: { ...meta, silentAllErrors: true },
+  });
 
   return {
-    data: shouldHidePreviousRunState ? undefined : data,
-    progress: shouldHidePreviousRunState ? null : progress,
-    status: effectiveStatus,
-    isLoading: effectiveStatus === "loading",
-    isSuccess: effectiveStatus === "success",
-    isError: effectiveStatus === "error",
-    error: shouldHidePreviousRunState ? null : error,
-    // Compatibility with existing scheduler expectations
-    fetchStatus: isPendingForCurrentRun ? "fetching" : "idle",
-    isPending: isPendingForCurrentRun,
+    // An errored re-run must not keep stale success rows behind the error
+    // state (keep-previous-data applies to in-flight/success only).
+    data: query.isError ? undefined : query.data,
+    progress: query.isError ? null : progress,
+    isLoading: query.isLoading,
+    isSuccess: query.isSuccess,
+    isError: query.isError,
+    error: query.error ? query.error.message : null,
+    fetchStatus: query.fetchStatus,
+    isPending: query.isPending,
   };
 }
