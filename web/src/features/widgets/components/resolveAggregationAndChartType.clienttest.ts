@@ -221,6 +221,18 @@ describe("resolveMeasureChangeAggregation", () => {
     ).toBe("p95");
   });
 
+  it("does not replace a stored non-count aggregation with the new measure's default", () => {
+    // latency defaults to avg; a widget already on sum must stay on sum.
+    expect(
+      resolveMeasureChangeAggregation({
+        currentAggregation: "sum",
+        newMeasure: "latency",
+        view: "observations",
+        viewVersion: "v1",
+      }),
+    ).toBe("sum");
+  });
+
   it("keeps count when the new measure declares no default", () => {
     // uniqueUserIds (v2) deliberately has no default: its stored `count`
     // contract is remapped to distinct-user semantics via aggregationOverrides.

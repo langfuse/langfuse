@@ -474,4 +474,38 @@ describe("toolCallInvocations measure", () => {
     );
     expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
   });
+
+  it("honors a stored count aggregation instead of the UI default sum", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "count" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("count(toolCallInvocations)");
+    expect(compiledQuery).not.toContain("sum(toolCallInvocations)");
+  });
+});
+
+describe("toolCalls stored aggregation", () => {
+  it("compiles count(toolCalls) when the widget stored count, not the UI default sum", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCalls", aggregation: "count" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("count(toolCalls)");
+    expect(compiledQuery).not.toContain("sum(toolCalls)");
+  });
 });
