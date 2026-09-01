@@ -2,7 +2,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 type SchedulerItemStatus = "queued" | "running" | "done";
 
-export type SchedulerItem = {
+type SchedulerItem = {
   id: string;
   priority: number;
   isEligible: boolean;
@@ -10,7 +10,7 @@ export type SchedulerItem = {
   status: SchedulerItemStatus;
 };
 
-export type DashboardQuerySchedulerState = {
+type DashboardQuerySchedulerState = {
   /** Immutable record — widgets subscribe to `items[id]?.status`. */
   items: Record<string, SchedulerItem>;
   maxConcurrent: number;

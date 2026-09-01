@@ -72,7 +72,7 @@ export function computeMonotonicPercent(
 
 // A stream that stops producing bytes for this long is dead — the server caps
 // query execution well below this, and progress events flow throughout.
-export const SSE_STALL_TIMEOUT_MS = 60_000;
+const SSE_STALL_TIMEOUT_MS = 60_000;
 
 /**
  * Consumes one execute-query SSE stream to completion and returns its rows.
@@ -81,7 +81,7 @@ export const SSE_STALL_TIMEOUT_MS = 60_000;
  * `stallTimeoutMs`) is aborted and surfaces as a normal error — never as a
  * forever-pending query holding a scheduler slot.
  */
-export async function fetchDashboardSSERows(
+async function fetchDashboardSSERows(
   input: DashboardExecuteQueryInput,
   {
     basePath,
