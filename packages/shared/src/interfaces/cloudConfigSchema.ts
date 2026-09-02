@@ -36,6 +36,7 @@ export const CloudConfigSchema = z.object({
       // validate the uuid before persisting. Change the stored schema first,
       // writers second, if the id format ever loosens.
       organizationId: z.uuid(),
+      // CHB attached plan id (`data.id` on webhook events)
       bundleId: z.string().nullish(),
       // Validated against the shared plan-code enum so downstream resolution is
       // an exhaustive lookup. `.catch(null)` contains the damage if a code ever
@@ -49,16 +50,17 @@ export const CloudConfigSchema = z.object({
       paymentStatus: z.string().nullish(), // "active" | "failed" | ...
       nextPaymentDate: z.string().nullish(),
       // Stripe customer behind the CHB bundle (payment.provider.customerId on
-      // bundle.* events). Support tooling only — routing, plan resolution, and
+      // attachedplan.* events). Support tooling only — routing, plan resolution, and
       // the worker jobs never read it.
       stripeCustomerId: z.string().nullish(),
-      // Snapshot of a pending scheduled change (downgrade/cancel) for the UI.
+      // Snapshot of a pending scheduled change (upgrade/downgrade/cancel).
       scheduled: z
         .object({
           type: z.string(), // "upgrade" | "downgrade" | "cancel"
           when: z.string(), // "immediate" | "billing_cycle_end" | ISO date
-          planCode: z.string().nullish(),
-          startDate: z.string().nullish(),
+          planCode: z.string().nullish(), // upgrade / downgrade target
+          startDate: z.string().nullish(), // upgrade / downgrade effective date
+          endDate: z.string().nullish(), // cancel: when the plan ends
         })
         .nullish(),
       // Monotonic guard against out-of-order webhook delivery.

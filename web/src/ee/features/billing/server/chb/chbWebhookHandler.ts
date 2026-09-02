@@ -6,6 +6,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  chbPlanCodes,
   CloudConfigSchema,
   parseDbOrg,
   type ParsedOrganization,
@@ -20,13 +21,12 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 
-import { ChbScheduledChangeSchema } from "./chbApiClient";
 import { sendChbProjectEvent } from "./chbProjectEvents";
 
 /**
  * ClickHouse Billing webhook handler — structural twin of
- * stripeWebhookHandler. CHB is the source of truth for bundle state; this
- * handler is the single writer of `cloudConfig.clickhouse` (plus the
+ * stripeWebhookHandler. CHB is the source of truth for attached-plan state;
+ * this handler is the single writer of `cloudConfig.clickhouse` (plus the
  * checkout-session write of `organizationId`).
  *
  * Pipeline: verify HMAC → dedupe → resolve org (region fan-out) → ordering
@@ -38,33 +38,59 @@ const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
 const DEDUPE_TTL_SECONDS = 24 * 60 * 60;
 
 // Envelope as the ClickHouse control plane's signed-webhook dispatcher emits
-// it: `{eventId, type, occurredAt, data}`, where `data` is the bundle payload
-// and names the owning ClickHouse organization. The body is signed as-is, so
-// this schema only ever sees bytes that already passed verification. `data`
-// stays permissive about unknown fields so CHB can extend the payload without
-// a deploy here.
+// it: `{eventId, type, occurredAt, data}`. `data` is the attached-plan payload
+// of the CHB webhook contract and names the owning ClickHouse organization.
+// The body is signed as-is, so this schema only ever sees bytes that already
+// passed verification. Objects stay permissive about unknown fields so CHB can
+// extend the payload without a deploy here.
+
+// A pending change on the attached plan. `when` is "immediate",
+// "billing_cycle_end", or an ISO date. The plan itself flips only when the
+// terminal attachedplan.updated / attachedplan.cancelled event lands.
+const ChbWebhookScheduledChangeSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("cancel"),
+    when: z.string(),
+    endDate: z.string().nullish(),
+  }),
+  z.object({
+    type: z.literal("downgrade"),
+    when: z.string(),
+    planCode: z.string(),
+    startDate: z.string().nullish(),
+  }),
+  z.object({
+    type: z.literal("upgrade"),
+    when: z.string(),
+    planCode: z.string(),
+    startDate: z.string().nullish(),
+  }),
+]);
+
 const ChbWebhookEventSchema = z.object({
   eventId: z.string().min(1),
   type: z.string(),
   occurredAt: z.iso.datetime({ offset: true }),
   data: z.object({
-    // ClickHouse Organization ID owning the bundle
+    // ClickHouse Organization ID owning the attached plan
     organizationId: z.uuid(),
-    bundleId: z.string().nullish(),
+    // Attached plan id, stored as `clickhouse.bundleId`
+    id: z.string().nullish(),
     planCode: z.string().nullish(),
     startDate: z.string().nullish(),
-    nextPaymentDate: z.string().nullish(),
     payment: z
       .object({
         status: z.string().nullish(),
+        dueDate: z.string().nullish(),
         provider: z
           .object({
+            name: z.string().nullish(),
             customerId: z.string().nullish(),
           })
           .nullish(),
       })
       .nullish(),
-    scheduled: ChbScheduledChangeSchema.nullish(),
+    scheduled: ChbWebhookScheduledChangeSchema.nullish(),
   }),
 });
 export type ChbWebhookEvent = z.infer<typeof ChbWebhookEventSchema>;
@@ -315,19 +341,37 @@ export async function chbWebhookHandler(req: NextRequest) {
     return NextResponse.json({ received: true }, { status: 200 });
   }
 
+  // An unknown plan code means CHB shipped a tier before its mapping is
+  // deployed here. Storing it would null the plan and resolve a paying org to
+  // cloud:hobby, so refuse and page instead. The 500 keeps the event inside
+  // the dispatcher's retry budget: once the mapping ships, the retry applies it.
+  if (
+    event.data.planCode != null &&
+    !(chbPlanCodes as readonly string[]).includes(event.data.planCode)
+  ) {
+    await releaseEventClaim(event.eventId);
+    const message = `[CHB Webhook] Unknown plan code ${event.data.planCode} on ${event.type} for org ${parsedOrg.id}, refusing until a mapping ships`;
+    logger.error(message);
+    traceException(message);
+    return NextResponse.json(
+      { message: "Webhook error: unknown plan code" },
+      { status: 500 },
+    );
+  }
+
   try {
     switch (event.type) {
-      case "bundle.created":
-        await handleBundleCreated(parsedOrg, event);
+      case "attachedplan.created":
+        await handleAttachedPlanCreated(parsedOrg, event);
         break;
-      case "bundle.updated":
-        await handleBundleUpdated(parsedOrg, event);
+      case "attachedplan.updated":
+        await handleAttachedPlanUpdated(parsedOrg, event);
         break;
-      case "bundle.scheduled":
-        await handleBundleScheduled(parsedOrg, event);
+      case "attachedplan.scheduled":
+        await handleAttachedPlanScheduled(parsedOrg, event);
         break;
-      case "bundle.cancelled":
-        await handleBundleCancelled(parsedOrg, event);
+      case "attachedplan.cancelled":
+        await handleAttachedPlanCancelled(parsedOrg, event);
         break;
       default:
         logger.warn(`[CHB Webhook] Unhandled event type ${event.type}`);
@@ -427,47 +471,47 @@ async function persistAndPropagate(params: {
   return updatedCloudConfig;
 }
 
-async function handleBundleCreated(
+async function handleAttachedPlanCreated(
   parsedOrg: ParsedOrganization,
   event: ChbWebhookEvent,
 ) {
   const { data } = event;
   const existing = parsedOrg.cloudConfig?.clickhouse;
 
-  if (!data.bundleId) {
+  if (!data.id) {
     logger.error(
-      `[CHB Webhook] bundle.created without bundleId for org ${parsedOrg.id}, skipping`,
+      `[CHB Webhook] attachedplan.created without an attached plan id for org ${parsedOrg.id}, skipping`,
     );
     traceException(
-      `[CHB Webhook] bundle.created without bundleId for org ${parsedOrg.id}`,
+      `[CHB Webhook] attachedplan.created without an attached plan id for org ${parsedOrg.id}`,
     );
     return;
   }
 
-  // Same gate as bundle.updated and the Stripe path: only clear the free-tier
-  // suspension once payment is credibly current. A bundle whose initial payment
-  // is pending or failed must not un-block ingestion for an org that was
-  // suspended at the free-tier limit -- bundle.updated lifts it when the payment
-  // goes active.
+  // Same gate as attachedplan.updated and the Stripe path: only clear the
+  // free-tier suspension once payment is credibly current. A plan whose initial
+  // payment is pending or failed must not un-block ingestion for an org that
+  // was suspended at the free-tier limit -- attachedplan.updated lifts it when
+  // the payment goes active.
   const isPaidAndCurrent = data.payment?.status === "active";
 
   await persistAndPropagate({
     parsedOrg,
     event,
     // Fresh block: a re-subscription must not inherit scheduled state from a
-    // previously cancelled bundle.
+    // previously cancelled plan.
     clickhouse: {
       organizationId: event.data.organizationId,
-      bundleId: data.bundleId,
+      bundleId: data.id,
       planCode: data.planCode,
       paymentStatus: data.payment?.status,
-      nextPaymentDate: data.nextPaymentDate,
+      nextPaymentDate: data.payment?.dueDate,
       stripeCustomerId:
         data.payment?.provider?.customerId ?? existing?.stripeCustomerId,
       lastEventCreatedAt: event.occurredAt,
     },
     orgColumns: {
-      // First paid subscription anchors the billing cycle on the bundle start
+      // First paid subscription anchors the billing cycle on the plan start
       cloudBillingCycleAnchor: data.startDate
         ? new Date(data.startDate)
         : startOfDayUTC(new Date()),
@@ -521,16 +565,16 @@ async function backfillProjectEvents(
   }
 }
 
-async function handleBundleUpdated(
+async function handleAttachedPlanUpdated(
   parsedOrg: ParsedOrganization,
   event: ChbWebhookEvent,
 ) {
   const { data } = event;
   const existing = parsedOrg.cloudConfig?.clickhouse;
 
-  if (!existing?.bundleId && !data.bundleId) {
+  if (!existing?.bundleId && !data.id) {
     logger.error(
-      `[CHB Webhook] bundle.updated for org ${parsedOrg.id} without any bundle id, skipping`,
+      `[CHB Webhook] attachedplan.updated for org ${parsedOrg.id} without any attached plan id, skipping`,
     );
     return;
   }
@@ -547,13 +591,13 @@ async function handleBundleUpdated(
     clickhouse: {
       ...existing,
       organizationId: event.data.organizationId,
-      ...(data.bundleId !== undefined ? { bundleId: data.bundleId } : {}),
+      ...(data.id !== undefined ? { bundleId: data.id } : {}),
       ...(data.planCode !== undefined ? { planCode: data.planCode } : {}),
       ...(data.payment?.status !== undefined
         ? { paymentStatus: data.payment.status }
         : {}),
-      ...(data.nextPaymentDate !== undefined
-        ? { nextPaymentDate: data.nextPaymentDate }
+      ...(data.payment?.dueDate !== undefined
+        ? { nextPaymentDate: data.payment.dueDate }
         : {}),
       ...(data.payment?.provider?.customerId
         ? { stripeCustomerId: data.payment.provider.customerId }
@@ -567,16 +611,15 @@ async function handleBundleUpdated(
   });
 }
 
-async function handleBundleScheduled(
+async function handleAttachedPlanScheduled(
   parsedOrg: ParsedOrganization,
   event: ChbWebhookEvent,
 ) {
   const existing = parsedOrg.cloudConfig?.clickhouse;
 
-  // Snapshot only — no plan change. The UI renders the pending-change banner
-  // from it; the plan flips when bundle.updated / bundle.cancelled lands. We
-  // never execute scheduled changes locally on a timer: CHB owns the terminal
-  // event, and a local timer would race it.
+  // Snapshot only — no plan change. The plan flips when attachedplan.updated or
+  // attachedplan.cancelled lands. We never execute scheduled changes locally on
+  // a timer: CHB owns the terminal event, and a local timer would race it.
   await persistAndPropagate({
     parsedOrg,
     event,
@@ -589,7 +632,7 @@ async function handleBundleScheduled(
   });
 }
 
-async function handleBundleCancelled(
+async function handleAttachedPlanCancelled(
   parsedOrg: ParsedOrganization,
   event: ChbWebhookEvent,
 ) {
@@ -599,7 +642,7 @@ async function handleBundleCancelled(
     parsedOrg,
     event,
     // Keep organizationId (the customer and CH org survive cancellation) and
-    // stripeCustomerId (support tooling); drop the bundle so the org resolves
+    // stripeCustomerId (support tooling); drop the plan so the org resolves
     // back to cloud:hobby — same semantics as Stripe subscription.deleted.
     clickhouse: {
       organizationId: event.data.organizationId,

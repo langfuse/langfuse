@@ -40,7 +40,7 @@ export class ChbPaymentRequiredError extends ChbApiError {
   }
 }
 
-export const ChbScheduledChangeSchema = z.object({
+const ChbScheduledChangeSchema = z.object({
   type: z.string(), // "upgrade" | "downgrade" | "cancel"
   when: z.string(), // "immediate" | "billing_cycle_end" | ISO date
   planCode: z.string().nullish(),
