@@ -50,7 +50,7 @@ export function TierAccordionItem({
 
   return (
     <AccordionItem value={tier.id} className="bg-muted/30 rounded-lg border">
-      <AccordionTrigger className="px-4 hover:no-underline">
+      <AccordionTrigger variant="plain" className="px-4">
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-bold">{name ?? tier.name}</span>

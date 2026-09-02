@@ -9,15 +9,24 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
 const accordionTriggerVariants = cva(
-  "flex flex-1 items-center justify-between py-4 font-bold transition-all hover:underline [&[data-state=open]>svg]:rotate-180",
+  "flex flex-1 items-center font-bold transition-all",
   {
     variants: {
+      variant: {
+        default:
+          "justify-between py-4 hover:underline [&[data-state=open]>svg]:rotate-180",
+        plain:
+          "justify-between py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180",
+        start:
+          "justify-start gap-2 py-2 hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0",
+      },
       size: {
         default: "",
         sm: "text-sm",
       },
     },
     defaultVariants: {
+      variant: "default",
       size: "default",
     },
   },
@@ -56,23 +65,21 @@ type AccordionTriggerProps = Omit<
   >,
   "children" | "className"
 > &
-  Pick<VariantProps<typeof accordionTriggerVariants>, "size"> & {
+  Pick<VariantProps<typeof accordionTriggerVariants>, "size" | "variant"> & {
     children: React.ReactNode;
-    className?:
-      | "justify-start gap-2 py-2 [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0"
-      | "px-3 pt-2 pb-1 hover:no-underline"
-      | "px-4 hover:no-underline";
+    className?: "px-3 pt-2 pb-1" | "px-4";
   };
 
 function AccordionTrigger({
   children,
   className,
   size,
+  variant,
 }: AccordionTriggerProps) {
   return (
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
-        className={cn(accordionTriggerVariants({ size }), className)}
+        className={cn(accordionTriggerVariants({ size, variant }), className)}
       >
         {children}
         <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />

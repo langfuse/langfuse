@@ -666,10 +666,7 @@ export const MonitorForm = ({
                 />
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-b-0">
-                    <AccordionTrigger
-                      size="sm"
-                      className="justify-start gap-2 py-2 [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0"
-                    >
+                    <AccordionTrigger size="sm" variant="start">
                       Advanced Options
                     </AccordionTrigger>
                     <AccordionContent>
