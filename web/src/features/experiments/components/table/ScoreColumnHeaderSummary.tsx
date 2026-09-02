@@ -66,7 +66,7 @@ const SummaryRow = ({
  * name: this experiment's aggregate and the item count behind it, and — with a
  * comparison selected — the comparison's aggregate, the signed delta and how
  * many items moved which way. This is what the deleted Analytics tab was going
- * to be, put where the eye already is. (LFE-15711)
+ * to be, put where the eye already is.
  */
 export const ScoreColumnHeaderSummary = ({
   label,

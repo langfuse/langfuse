@@ -13,6 +13,16 @@ const categorical = (value: string): AggregatedScoreData => ({
   valueCounts: [{ value, count: 1 }],
 });
 
+/** One item several annotators scored, all picking the same value. */
+const categoricalMulti = (
+  value: string,
+  count: number,
+): AggregatedScoreData => ({
+  type: "CATEGORICAL",
+  values: Array.from({ length: count }, () => value),
+  valueCounts: [{ value, count }],
+});
+
 describe("summariseScoreColumn", () => {
   it("averages a numeric column and counts the items behind it", () => {
     const summary = summariseScoreColumn({
@@ -158,6 +168,31 @@ describe("summariseScoreColumn", () => {
       unchanged: 1,
       changed: 2,
       notComparable: 0,
+    });
+  });
+
+  // The modal count and the total are printed as one fraction, so they have to
+  // be the same unit. Pooling an item's raw values made a value out-count the
+  // items it was printed over.
+  it("counts a categorical column in items, not in raw values", () => {
+    const summary = summariseScoreColumn({
+      pairs: [
+        { baseline: categoricalMulti("A", 3), comparison: null },
+        { baseline: categorical("A"), comparison: null },
+        { baseline: categorical("B"), comparison: null },
+      ],
+      dataType: "CATEGORICAL",
+      hasComparison: false,
+    });
+
+    expect(summary.baseline).toEqual({
+      kind: "distribution",
+      modalValue: "A",
+      distribution: [
+        { value: "A", count: 2 },
+        { value: "B", count: 1 },
+      ],
+      count: 3,
     });
   });
 });

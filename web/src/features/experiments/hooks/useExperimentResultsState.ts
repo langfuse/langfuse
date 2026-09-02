@@ -130,8 +130,17 @@ export function useExperimentResultsState() {
     setState({ layout: newLayout });
   };
 
-  const diffMode: ExperimentDiffMode =
+  const requestedDiffMode: ExperimentDiffMode =
     asDiffMode(state.diff) ?? storedDiffMode ?? "comparison";
+
+  // Expected → Output is the list layout's two-line cell, and no other layout
+  // draws it. A shared URL or a remembered pick that pairs it with another
+  // layout would leave the menu promising a comparison the table is not
+  // showing, so it reads as the baseline diff until the layout can express it.
+  const diffMode: ExperimentDiffMode =
+    requestedDiffMode === "expected" && layout !== "list"
+      ? "comparison"
+      : requestedDiffMode;
 
   const setDiffMode = (newDiffMode: ExperimentDiffMode) => {
     setStoredDiffMode(newDiffMode);

@@ -3,7 +3,7 @@
  * sentence reads from that run's side: the baseline is named, this run is "this
  * run". `a → b` and `+0.07` are ambiguous on their own — the reader cannot tell
  * "was, now is" from "this run vs the comparison" — and this is the sentence
- * that settles it. (LFE-15711)
+ * that settles it.
  */
 export function describeRunComparison({
   baselineName,
