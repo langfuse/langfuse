@@ -10,7 +10,7 @@ export const renamedRouteRedirects = [
     // move into the results table. The list is the destination rather than
     // `results`, which needs a `baseline` an old analytics bookmark never
     // carried. Temporary, so a future analytics surface at this path is not
-    // shadowed by a cached 308. (LFE-15711)
+    // shadowed by a cached 308.
     source: "/project/:projectId/experiments/analytics",
     destination: "/project/:projectId/experiments",
     permanent: false,

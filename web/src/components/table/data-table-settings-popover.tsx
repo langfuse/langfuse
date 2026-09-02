@@ -21,12 +21,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 /**
  * One "Table settings" surface for the controls that shape the same table —
  * columns and row height — instead of a button per control. Filed against the
- * old compare view as "fields vs. columns confused me as a new user" (LFE-8420)
+ * old compare view as "fields vs. columns confused me as a new user"
  * and reproduced by the new experiments UI with one more control.
  *
  * The column list keeps its own drawer: it carries drag-to-reorder, groups and
  * restore-defaults, and it opens from inside this popover rather than from a
- * second button in the toolbar. (LFE-15711)
+ * second button in the toolbar.
  */
 export function DataTableSettingsPopover<TData, TValue>({
   columns,
@@ -47,7 +47,7 @@ export function DataTableSettingsPopover<TData, TValue>({
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight: RowHeight;
   setRowHeight: (rowHeight: RowHeight) => void;
-  /** Analytics identity (LFE-15720) for the events fired from inside the
+  /** Analytics identity for the events fired from inside the
    *  popover — the row-height buttons here and the column drawer's toggles. */
   tableName: string;
   isV4: boolean;

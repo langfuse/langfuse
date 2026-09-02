@@ -179,6 +179,11 @@ export function useExperimentsTableData({
     metricsLoading: metricsQuery.isLoading,
     /** The rows shown are the most recent runs, not the selected time range. */
     isShowingMostRecent,
-    mostRecentLimit: MOST_RECENT_FALLBACK_LIMIT,
+    /**
+     * How many fallback runs are actually on screen. The cap is what was asked
+     * for, not what came back, so a project with fewer runs than the cap must
+     * not be told it is looking at ten of them.
+     */
+    mostRecentCount: fallbackRows?.length ?? 0,
   };
 }
