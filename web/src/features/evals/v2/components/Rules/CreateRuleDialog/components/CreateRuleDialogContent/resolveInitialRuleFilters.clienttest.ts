@@ -3,8 +3,15 @@ import { describe, expect, it } from "vitest";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
 describe("resolveInitialRuleFilters", () => {
-  it("starts new rules without visible filters", () => {
-    expect(resolveInitialRuleFilters()).toEqual([]);
+  it("starts new rules with a root span filter", () => {
+    expect(resolveInitialRuleFilters()).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
   });
 
   it("preserves supplied filters", () => {
