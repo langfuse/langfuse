@@ -46,7 +46,7 @@ const DEDUPE_TTL_SECONDS = 24 * 60 * 60;
 // this schema only ever sees bytes that already passed verification. `data`
 // stays permissive about unknown fields so CHB can extend the payload without
 // a deploy here.
-export const ChbWebhookEventSchema = z.object({
+const ChbWebhookEventSchema = z.object({
   eventId: z.string().min(1),
   type: z.string(),
   occurredAt: z.iso.datetime({ offset: true }),
@@ -79,7 +79,7 @@ export type ChbWebhookEvent = z.infer<typeof ChbWebhookEventSchema>;
  * rotates its signing key: the dispatcher signs with every key it holds, and a
  * receiver accepts the request if any of them matches the key it holds.
  */
-export function parseChbSignatureHeader(
+function parseChbSignatureHeader(
   header: string,
 ): { timestamp: string; signatures: string[] } | null {
   let timestamp: string | undefined;
