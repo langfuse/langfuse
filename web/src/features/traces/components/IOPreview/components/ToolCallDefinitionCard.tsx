@@ -3,7 +3,7 @@ import { ChevronRight, ChevronDown, Wrench } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";

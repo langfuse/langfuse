@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";

@@ -1,4 +1,4 @@
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   HoverCard,
   HoverCardContent,

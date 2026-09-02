@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionCategoricalChart } from "../charts/ScoreDistributionCategoricalChart";
 import { getScoreCategoryColors } from "../../lib/color-scales";

@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Plus, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";

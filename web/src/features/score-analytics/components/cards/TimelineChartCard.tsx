@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";

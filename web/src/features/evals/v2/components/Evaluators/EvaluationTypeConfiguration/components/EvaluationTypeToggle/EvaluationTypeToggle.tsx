@@ -1,7 +1,7 @@
 import { Code2, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 /** Selects the evaluator implementation. */
 export function EvaluationTypeToggle({

@@ -11,7 +11,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";

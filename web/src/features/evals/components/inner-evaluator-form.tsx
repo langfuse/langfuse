@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,

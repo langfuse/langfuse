@@ -14,7 +14,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";

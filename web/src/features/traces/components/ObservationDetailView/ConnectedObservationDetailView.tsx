@@ -26,7 +26,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   TabsBar,
   TabsBarContent,

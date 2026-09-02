@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   Select,
   SelectContent,

@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";

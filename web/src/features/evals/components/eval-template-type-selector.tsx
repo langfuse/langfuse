@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Tabs } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { type templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
 import {
   type CodeEvalSourceCodeLanguage,
