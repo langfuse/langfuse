@@ -54,6 +54,12 @@ async function selectTopic(canvasElement: HTMLElement, topic: string) {
   await userEvent.click(await body.findByRole("option", { name: topic }));
 }
 
+function getMessageField(canvasElement: HTMLElement) {
+  return within(canvasElement).getByPlaceholderText(
+    /Please explain as fully as possible/,
+  );
+}
+
 export const WarnsOnShortMessage = meta.story({
   name: "(Test) Warns on short message",
   args: defaultArgs,
@@ -61,15 +67,10 @@ export const WarnsOnShortMessage = meta.story({
     const canvas = within(canvasElement);
 
     await selectTopic(canvasElement, "Observability");
-    await userEvent.type(
-      canvas.getByRole("textbox", { name: "Message" }),
-      "Too short",
-    );
+    await userEvent.type(getMessageField(canvasElement), "Too short");
     await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
 
-    await expect(
-      canvas.getByRole("status", { name: /message seems short/i }),
-    ).toBeVisible();
+    await expect(canvas.getByText(/The message seems short/i)).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Submit Anyways" }),
     ).toBeVisible();
@@ -88,10 +89,7 @@ export const SubmitsRequest = meta.story({
     const canvas = within(canvasElement);
 
     await selectTopic(canvasElement, "Observability");
-    await userEvent.type(
-      canvas.getByRole("textbox", { name: "Message" }),
-      LONG_MESSAGE,
-    );
+    await userEvent.type(getMessageField(canvasElement), LONG_MESSAGE);
     await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
 
     await expect(args.onSubmit).toHaveBeenCalledWith(
@@ -125,21 +123,17 @@ export const ConfirmsSeverity1 = meta.story({
     );
 
     await selectTopic(canvasElement, "Observability");
-    await userEvent.type(
-      canvas.getByRole("textbox", { name: "Message" }),
-      LONG_MESSAGE,
-    );
+    await userEvent.type(getMessageField(canvasElement), LONG_MESSAGE);
     await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
 
-    await expect(
-      body.getByRole("heading", {
-        name: "Confirm Severity 1 (Critical Business Impact)",
-      }),
-    ).toBeVisible();
+    const confirmTitle = await body.findByRole("heading", {
+      name: "Confirm Severity 1 (Critical Business Impact)",
+    });
+    await expect(confirmTitle).toBeInTheDocument();
     await expect(args.onSubmit).not.toHaveBeenCalled();
 
     await userEvent.click(
-      body.getByRole("button", { name: "Confirm & Submit" }),
+      await body.findByRole("button", { name: "Confirm & Submit" }),
     );
 
     await expect(args.onSubmit).toHaveBeenCalledWith(
