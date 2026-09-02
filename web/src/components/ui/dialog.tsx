@@ -184,6 +184,7 @@ type DialogControllerProps = {
     Trigger: typeof DialogTrigger;
   }) => React.ReactNode;
   closeOnInteractionOutside: boolean;
+  onBeforeClose?: () => boolean;
   onDismiss?: () => void;
   renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
@@ -192,18 +193,27 @@ type DialogControllerProps = {
 const DialogController = ({
   children,
   closeOnInteractionOutside,
+  onBeforeClose,
   onDismiss,
   renderContent,
   size,
 }: DialogControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const closeDialog = () => {
+    if (onBeforeClose?.() === false) return false;
+    setIsOpen(false);
+    return true;
+  };
 
   return (
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        setIsOpen(open);
-        if (!open) onDismiss?.();
+        if (open) {
+          setIsOpen(true);
+          return;
+        }
+        if (closeDialog()) onDismiss?.();
       }}
     >
       {children({
@@ -215,7 +225,7 @@ const DialogController = ({
         size={size}
         closeOnInteractionOutside={closeOnInteractionOutside}
       >
-        {renderContent({ closeDialog: () => setIsOpen(false) })}
+        {renderContent({ closeDialog })}
       </DialogContent>
     </Dialog>
   );

@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { ExternalLinkIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -41,6 +41,7 @@ export function CloneFirstDialogController({
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const capture = usePostHogClientCapture();
+  const cloneInFlightRef = useRef(false);
   const handleCancel = () => {
     capture("dashboard:clone_first_cancelled", {
       dashboard_id: props.dashboardId,
@@ -52,13 +53,22 @@ export function CloneFirstDialogController({
   return (
     <DialogController
       closeOnInteractionOutside={false}
+      onBeforeClose={() => !cloneInFlightRef.current}
       onDismiss={handleCancel}
       size="default"
       renderContent={({ closeDialog }) => (
         <CloneFirstDialogContent
           {...props}
           closeDialog={closeDialog}
-          onCancel={handleCancel}
+          cancelDialog={() => {
+            if (cloneInFlightRef.current) return false;
+            closeDialog();
+            handleCancel();
+            return true;
+          }}
+          onPendingChange={(isPending) => {
+            cloneInFlightRef.current = isPending;
+          }}
         />
       )}
     >
@@ -69,14 +79,17 @@ export function CloneFirstDialogController({
 
 function CloneFirstDialogContent({
   closeDialog,
+  cancelDialog,
+  onPendingChange,
   projectId,
   dashboardId,
   dashboardName,
   setAsHome = false,
   pendingDefinition,
-  onCancel,
-}: CloneFirstDialogControllerProps & {
+}: Omit<CloneFirstDialogControllerProps, "onCancel"> & {
   closeDialog: () => void;
+  cancelDialog: () => boolean;
+  onPendingChange: (isPending: boolean) => void;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -109,6 +122,7 @@ function CloneFirstDialogContent({
 
   const cloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
+      onPendingChange(false);
       utils.dashboard.invalidate();
       capture("dashboard:clone_dashboard", {
         source: "clone_first_dialog",
@@ -133,11 +147,13 @@ function CloneFirstDialogContent({
       }
     },
     onError: (e) => {
+      onPendingChange(false);
       showErrorToast("Failed to create copy", e.message);
     },
   });
 
   const handleConfirm = () => {
+    onPendingChange(true);
     cloneDashboard.mutate({
       projectId,
       dashboardId,
@@ -147,12 +163,7 @@ function CloneFirstDialogContent({
   };
 
   const handleClose = () => {
-    // Keep the dialog open while the clone is in flight (it navigates on
-    // success); closing mid-flight would revert the grid and then surprise-
-    // navigate.
-    if (cloneDashboard.isPending) return;
-    onCancel?.();
-    closeDialog();
+    cancelDialog();
   };
 
   return (
@@ -190,14 +201,14 @@ function CloneFirstDialogContent({
                 variant="outline"
                 size="sm"
                 type="button"
+                disabled={cloneDashboard.isPending}
                 onClick={() => {
                   capture("dashboard:clone_open_existing_click", {
                     dashboard_id: dashboardId,
                     existing_clone_id: existingClone.id,
                     had_pending_change: Boolean(pendingDefinition),
                   });
-                  closeDialog();
-                  onCancel?.();
+                  if (!cancelDialog()) return;
                   router.push(
                     `/project/${projectId}/dashboards/${encodeURIComponent(existingClone.id)}`,
                   );
