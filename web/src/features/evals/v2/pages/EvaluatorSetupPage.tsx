@@ -89,24 +89,48 @@ export function applyEvaluatorSuggestion(
 export function getCodeEvaluatorAssistantPrompt({
   evaluatorId,
   request,
+  sampleObservation,
 }: {
   evaluatorId: string;
   request: string;
+  sampleObservation?: {
+    observationId: string;
+    traceId: string;
+    startTime: string;
+  } | null;
 }) {
+  const sampleTestInstructions = sampleObservation
+    ? `
+
+After the update, test the updated evaluator against the sample observation selected by the user with these exact test parameters:
+- evaluatorId: "${evaluatorId}"
+- observationId: "${sampleObservation.observationId}"
+- traceId: "${sampleObservation.traceId}"
+- startTime: "${sampleObservation.startTime}"
+
+Use the evaluator test tool with these references; do not substitute another observation.`
+    : "";
+
   return `Update the code evaluator with evaluator ID "${evaluatorId}" for this request:
 
 ${request}
 
-First load this evaluator and preserve its existing configuration unless the request requires a change. Ask follow-up questions if the request is ambiguous. Use the evaluator update tool with evaluator ID "${evaluatorId}" after I approve the tool call. Do not create a new evaluator.`;
+First load this evaluator and preserve its existing configuration unless the request requires a change. Ask follow-up questions if the request is ambiguous. Use the evaluator update tool with evaluator ID "${evaluatorId}" after I approve the tool call. Do not create a new evaluator.${sampleTestInstructions}`;
 }
 
 export async function startCodeEvaluatorAssistantHandoff({
   request,
+  sampleObservation,
   openAssistant,
   persistEvaluator,
   submitToAssistant,
 }: {
   request: string;
+  sampleObservation?: {
+    observationId: string;
+    traceId: string;
+    startTime: string;
+  } | null;
   openAssistant: () => boolean;
   persistEvaluator: () => Promise<string | null>;
   submitToAssistant: (
@@ -123,7 +147,11 @@ export async function startCodeEvaluatorAssistantHandoff({
   if (!evaluatorId) return null;
 
   const started = await submitToAssistant(
-    getCodeEvaluatorAssistantPrompt({ evaluatorId, request }),
+    getCodeEvaluatorAssistantPrompt({
+      evaluatorId,
+      request,
+      sampleObservation,
+    }),
     {
       newConversation: true,
       entryPoint: "code-evaluator-editor",
@@ -639,8 +667,19 @@ export function EvaluatorSetupPage(
   };
 
   const submitCodeEvaluatorAssistantRequest = async (request: string) => {
+    const selectedObservation =
+      evaluatorSetupStore.getState().selectedObservation;
+    const sampleObservation =
+      selectedObservation?.traceId && selectedObservation.startTime
+        ? {
+            observationId: selectedObservation.id,
+            traceId: selectedObservation.traceId,
+            startTime: selectedObservation.startTime.toISOString(),
+          }
+        : null;
     const handoff = await startCodeEvaluatorAssistantHandoff({
       request,
+      sampleObservation,
       openAssistant: () => openAssistant("code_evaluator_editor"),
       persistEvaluator: async () => {
         const persistedEvaluatorId = await save("assistant");
