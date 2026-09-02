@@ -145,6 +145,7 @@ export type ObservationsTableRow = {
   id: string;
   traceName?: string;
   traceId?: string;
+  modelId?: string;
   version: string;
   timestamp?: Date;
   promptId?: string;
