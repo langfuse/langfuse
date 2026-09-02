@@ -43,6 +43,42 @@ export const Default = meta.story({
   },
 });
 
+export const FullWidthTriggers = meta.story({
+  name: "(Test) Full Width Triggers",
+  args: {
+    defaultValue: "first",
+    children: (
+      <>
+        <Tabs.List layout="full">
+          <span className="flex-1">
+            <Tabs.Trigger value="first">First</Tabs.Trigger>
+          </span>
+          <span className="flex-1">
+            <Tabs.Trigger value="second">Second</Tabs.Trigger>
+          </span>
+        </Tabs.List>
+        <Tabs.Content value="first">First tab fills its wrapper.</Tabs.Content>
+        <Tabs.Content value="second">
+          Second tab fills its wrapper.
+        </Tabs.Content>
+      </>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const firstTab = canvas.getByRole("tab", { name: "First" });
+    const wrapper = firstTab.parentElement;
+
+    await expect(wrapper).toBeTruthy();
+    await expect(
+      Math.abs(
+        firstTab.getBoundingClientRect().width -
+          wrapper!.getBoundingClientRect().width,
+      ),
+    ).toBeLessThan(1);
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     defaultValue: "account",
