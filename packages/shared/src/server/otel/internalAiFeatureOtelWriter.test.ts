@@ -110,23 +110,23 @@ const spanAttributeMap = (span: {
     ]),
   );
 
-const createProcessor = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
+const createProcessor = async () => {
   const { OtelIngestionProcessor } = await vi.importActual<
     typeof import("./OtelIngestionProcessor")
   >("./OtelIngestionProcessor");
   return new OtelIngestionProcessor({
     projectId: "project-1",
     publicKey: "",
-    sdkName,
+    sdkName: AI_FEATURE_OTEL_SDK_NAME,
     sdkVersion: "unknown",
     ingestionVersion: "4",
     isLangfuseInternal: false,
   });
 };
 
-const processPublishedSpans = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
+const processPublishedSpans = async () => {
   const resourceSpans = getPublishedResourceSpans();
-  return (await createProcessor(sdkName)).processToEvent(resourceSpans);
+  return (await createProcessor()).processToEvent(resourceSpans);
 };
 
 const processPublishedIngestionEvents = async () => {
@@ -195,7 +195,7 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       traceId: TRACE_ID,
       parentSpanId: TRACE_ID,
       name: "agent-turn",
-      traceName: "agent-turn",
+      traceName: null,
       type: "AGENT",
       environment: "production",
     });
@@ -203,7 +203,7 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       traceId: TRACE_ID,
       parentSpanId: RUN_ID,
       name: "invoke-model",
-      traceName: "agent-turn",
+      traceName: null,
       type: "GENERATION",
       environment: "production",
       modelName: "claude-opus",
@@ -216,7 +216,7 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       traceId: TRACE_ID,
       parentSpanId: RUN_ID,
       name: "langfuse_listPrompts",
-      traceName: "agent-turn",
+      traceName: null,
       type: "TOOL",
       environment: "production",
       userId: "user-1",
@@ -247,20 +247,6 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
         spanAttributeMap(child)[LangfuseOtelSpanAttributes.TRACE_NAME],
       ).toBe(undefined);
     }
-  });
-
-  it("does not copy the batch-root traceName onto children for other SDK names", async () => {
-    await publishFixture();
-
-    const events = await processPublishedSpans("langfuse-internal-otel-writer");
-    const wrappingRoot = events.find((event) => event.spanId === TRACE_ID);
-    const generation = events.find(
-      (event) => event.spanId === `${RUN_ID}-llm-0`,
-    );
-
-    expect(wrappingRoot?.traceName).toBe("agent-turn");
-    expect(generation?.name).toBe("invoke-model");
-    expect(generation?.traceName).toBeNull();
   });
 
   it("does not emit named trace-create rewrites from child spans", async () => {
