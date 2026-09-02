@@ -22,7 +22,7 @@ type RadioGroupProps = Pick<
 > &
   Pick<VariantProps<typeof radioGroupVariants>, "layout">;
 
-const RadioGroup = React.forwardRef<
+const RadioGroupRoot = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
 >(({ layout, ...props }, ref) => {
@@ -34,7 +34,7 @@ const RadioGroup = React.forwardRef<
     />
   );
 });
-RadioGroup.displayName = RadioGroupPrimitive.Root.displayName;
+RadioGroupRoot.displayName = RadioGroupPrimitive.Root.displayName;
 
 type RadioGroupItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>,
@@ -59,4 +59,8 @@ const RadioGroupItem = React.forwardRef<
 });
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;
 
-export { RadioGroup, RadioGroupItem };
+const RadioGroup = Object.assign(RadioGroupRoot, {
+  Item: RadioGroupItem,
+});
+
+export { RadioGroup };

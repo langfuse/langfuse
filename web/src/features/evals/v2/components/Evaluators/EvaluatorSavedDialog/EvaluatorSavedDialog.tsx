@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/ui/radio-group";
 import {
   Tooltip,
   TooltipContent,
@@ -111,7 +111,7 @@ export function EvaluatorSavedDialog({
                       >
                         <div className="flex items-start gap-2">
                           <div className="mt-0.5">
-                            <RadioGroupItem
+                            <RadioGroup.Item
                               id={id}
                               value={option.value}
                               aria-controls={contentId}

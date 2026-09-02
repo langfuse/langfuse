@@ -1,5 +1,5 @@
 import { Label } from "@/src/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/ui/radio-group";
 import type { MappingMode } from "../types";
 
 type MappingModeSelectorProps = {
@@ -18,7 +18,7 @@ export function MappingModeSelector({
   return (
     <RadioGroup value={value} onValueChange={(v) => onChange(v as MappingMode)}>
       <div className="hover:bg-muted/50 flex items-center space-x-3 rounded-md border px-3">
-        <RadioGroupItem value="full" id={`${fieldName}-full`} />
+        <RadioGroup.Item value="full" id={`${fieldName}-full`} />
         <Label
           htmlFor={`${fieldName}-full`}
           className="flex-1 cursor-pointer py-3 text-sm font-bold"
@@ -27,7 +27,7 @@ export function MappingModeSelector({
         </Label>
       </div>
       <div className="hover:bg-muted/50 flex items-center space-x-3 rounded-md border px-3">
-        <RadioGroupItem value="custom" id={`${fieldName}-custom`} />
+        <RadioGroup.Item value="custom" id={`${fieldName}-custom`} />
         <Label
           htmlFor={`${fieldName}-custom`}
           className="flex-1 cursor-pointer py-3 text-sm font-bold"
@@ -37,7 +37,7 @@ export function MappingModeSelector({
       </div>
       {fieldName !== "input" && (
         <div className="hover:bg-muted/50 flex items-center space-x-3 rounded-md border px-3">
-          <RadioGroupItem
+          <RadioGroup.Item
             value="none"
             id={`${fieldName}-none`}
             disabled={fieldName === "input"}

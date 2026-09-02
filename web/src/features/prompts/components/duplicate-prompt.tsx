@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/ui/radio-group";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
 enum CopySettings {
@@ -138,7 +138,7 @@ const DuplicatePromptForm: React.FC<{
                   >
                     <FormItem className="flex items-center space-y-0 space-x-3">
                       <FormControl>
-                        <RadioGroupItem value={CopySettings.SINGLE_VERSION} />
+                        <RadioGroup.Item value={CopySettings.SINGLE_VERSION} />
                       </FormControl>
                       <FormLabel className="font-normal">
                         Copy only version {promptVersion}
@@ -146,7 +146,7 @@ const DuplicatePromptForm: React.FC<{
                     </FormItem>
                     <FormItem className="flex items-center space-y-0 space-x-3">
                       <FormControl>
-                        <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
+                        <RadioGroup.Item value={CopySettings.ALL_VERSIONS} />
                       </FormControl>
                       <FormLabel className="font-normal">
                         Copy all prompt versions and labels
