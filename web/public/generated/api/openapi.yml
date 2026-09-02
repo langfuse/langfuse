@@ -4285,7 +4285,7 @@ paths:
         - `metadata` - metadata (truncated to 200 chars by default, use
         `expandMetadata` to get full values)
 
-        - `model` - providedModelName, internalModelId, modelParameters
+        - `model` - model, internalModelId, modelParameters
 
         - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
 
@@ -10619,7 +10619,7 @@ components:
         metadata:
           nullable: true
           description: Additional metadata of the observation
-        providedModelName:
+        model:
           type: string
           nullable: true
           description: The model name as provided by the user

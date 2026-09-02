@@ -3445,25 +3445,25 @@ const costMetricFields = {
   },
 } as const;
 
-const getCostMetricsByMetadataIds = async <
+const getCostMetricsByIdentifierIds = async <
   const TFields extends readonly (keyof typeof costMetricFields)[],
 >(params: {
   projectId: string;
-  metadataIds: string[];
+  identifierIds: string[];
   fields: TFields;
   identifier: "evaluator" | "rule";
 }) => {
-  if (params.metadataIds.length === 0) return [];
+  if (params.identifierIds.length === 0) return [];
 
   const traceCostsBuilder = traceCostsByIdentifier({
     projectId: params.projectId,
-    identifiers: [{ identifier: params.identifier, alias: "metadata_id" }],
+    identifiers: [{ identifier: params.identifier, alias: "identifier_id" }],
     additionalSelect: [
       `countIf(${evaluatorTestEventCondition}) as test_event_count`,
     ],
   })
-    .havingRaw("metadata_id IN ({metadataIds: Array(String)})", {
-      metadataIds: params.metadataIds,
+    .havingRaw("identifier_id IN ({identifierIds: Array(String)})", {
+      identifierIds: params.identifierIds,
     })
     .havingRaw("test_event_count = 0");
 
@@ -3471,14 +3471,14 @@ const getCostMetricsByMetadataIds = async <
   const queryBuilder = new CTEQueryBuilder()
     .withCTE("trace_costs", {
       ...traceCosts,
-      schema: ["trace_id", "metadata_id", "trace_total_cost"] as const,
+      schema: ["trace_id", "identifier_id", "trace_total_cost"] as const,
     })
     .from("trace_costs", "tc")
     .select(
-      "tc.metadata_id as metadata_id",
+      "tc.identifier_id as identifier_id",
       ...params.fields.map((field) => costMetricFields[field].select),
     )
-    .groupBy("tc.metadata_id");
+    .groupBy("tc.identifier_id");
 
   const { query, params: queryParams } = queryBuilder.buildWithParams();
   const rows = await queryClickhouse<Record<string, string>>({
@@ -3496,7 +3496,7 @@ const getCostMetricsByMetadataIds = async <
       ]),
     ) as Record<TFields[number], number>;
 
-    return { metadataId: row.metadata_id, ...metrics };
+    return { identifierId: row.identifier_id, ...metrics };
   });
 };
 
@@ -3504,14 +3504,14 @@ export const getAvgCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
-  const metrics = await getCostMetricsByMetadataIds({
+  const metrics = await getCostMetricsByIdentifierIds({
     projectId,
-    metadataIds: evaluatorIds,
+    identifierIds: evaluatorIds,
     fields: ["avgCost", "executionCount"],
     identifier: "evaluator",
   });
-  return metrics.map(({ metadataId, ...costs }) => ({
-    evaluatorId: metadataId,
+  return metrics.map(({ identifierId, ...costs }) => ({
+    evaluatorId: identifierId,
     ...costs,
   }));
 };
@@ -3520,14 +3520,14 @@ export const getTotalCostByRule = async (
   projectId: string,
   ruleIds: string[],
 ) => {
-  const metrics = await getCostMetricsByMetadataIds({
+  const metrics = await getCostMetricsByIdentifierIds({
     projectId,
-    metadataIds: ruleIds,
+    identifierIds: ruleIds,
     fields: ["totalCost"],
     identifier: "rule",
   });
-  return metrics.map(({ metadataId, totalCost }) => ({
-    ruleId: metadataId,
+  return metrics.map(({ identifierId, totalCost }) => ({
+    ruleId: identifierId,
     totalCost,
   }));
 };
@@ -3536,67 +3536,15 @@ export const getTotalCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
-  const metrics = await getCostMetricsByMetadataIds({
+  const metrics = await getCostMetricsByIdentifierIds({
     projectId,
-    metadataIds: evaluatorIds,
+    identifierIds: evaluatorIds,
     fields: ["totalCost"],
     identifier: "evaluator",
   });
-  return metrics.map(({ metadataId, totalCost }) => ({
-    evaluatorId: metadataId,
+  return metrics.map(({ identifierId, totalCost }) => ({
+    evaluatorId: identifierId,
     totalCost,
-  }));
-};
-
-// Prompt-experiment executions still use the trace-name fallback until every
-// execution is linked to an evaluator id.
-export const getTotalCostByEvaluatorTraceNames = async (
-  projectId: string,
-  traceNames: string[],
-) => {
-  if (traceNames.length === 0) return [];
-
-  const traceCostsBuilder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.trace_id, e.trace_name",
-    selectExpression: [
-      "e.trace_id as trace_id",
-      "e.trace_name as trace_name",
-      "sum(e.total_cost) as trace_total_cost",
-      `countIf(${evaluatorTestEventCondition}) as test_event_count`,
-    ].join(", "),
-  })
-    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.trace_name IN ({traceNames: Array(String)})", { traceNames })
-    .havingRaw("test_event_count = 0");
-
-  const traceCosts = traceCostsBuilder.buildWithParams();
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTE("trace_costs", {
-      ...traceCosts,
-      schema: ["trace_id", "trace_name", "trace_total_cost"] as const,
-    })
-    .from("trace_costs", "tc")
-    .select(
-      "tc.trace_name as trace_name",
-      "sum(tc.trace_total_cost) as total_cost",
-    )
-    .groupBy("tc.trace_name");
-
-  const { query, params } = queryBuilder.buildWithParams();
-  const rows = await queryClickhouse<{
-    trace_name: string;
-    total_cost: string;
-  }>({
-    query,
-    params,
-    tags: { projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.map((row) => ({
-    traceName: row.trace_name,
-    totalCost: Number(row.total_cost),
   }));
 };
 
@@ -3636,32 +3584,32 @@ export const getLatestEvaluatorRunCost = async (
 
 export const getRecentEvaluatorExecutionTraces = async (
   projectId: string,
-  traceNames: string[],
+  evaluatorIds: string[],
 ) => {
-  if (traceNames.length === 0) return [];
+  if (evaluatorIds.length === 0) return [];
 
   const builder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "e.trace_id, e.trace_name",
+    groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
       "e.trace_id as id",
-      "e.trace_name as trace_name",
+      "e.evaluator_id as evaluator_id",
       "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
       "min(e.start_time) as timestamp",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.trace_name IN ({traceNames: Array(String)})", {
-      traceNames,
+    .whereRaw("e.evaluator_id IN ({evaluatorIds: Array(String)})", {
+      evaluatorIds,
     })
     .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`)
     .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "trace_name");
+    .limitByCount(5, "evaluator_id");
 
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<{
     id: string;
-    trace_name: string;
+    evaluator_id: string;
     level: string;
     timestamp: string;
   }>({
@@ -3673,7 +3621,7 @@ export const getRecentEvaluatorExecutionTraces = async (
 
   return rows.map((row) => ({
     id: row.id,
-    traceName: row.trace_name,
+    evaluatorId: row.evaluator_id,
     level: row.level,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));

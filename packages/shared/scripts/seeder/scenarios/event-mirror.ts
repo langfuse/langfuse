@@ -5,9 +5,6 @@ import {
   TraceRecordInsertType,
 } from "../../../src/server";
 
-const toMicros = (ms: number | null | undefined): number | null =>
-  ms === null || ms === undefined ? null : ms * 1000;
-
 const utf8Bytes = (value: unknown): number =>
   typeof value === "string" ? Buffer.byteLength(value, "utf8") : 0;
 
@@ -66,12 +63,12 @@ export const traceToEvent = (
     prompt_version: null,
     metadata_names: names,
     metadata_values: values,
-    start_time: toMicros(trace.timestamp) ?? Date.now() * 1000,
+    start_time: trace.timestamp,
     end_time: null,
     completion_start_time: null,
-    created_at: toMicros(trace.created_at) ?? Date.now() * 1000,
-    updated_at: toMicros(trace.updated_at) ?? Date.now() * 1000,
-    event_ts: toMicros(trace.event_ts) ?? Date.now() * 1000,
+    created_at: trace.created_at,
+    updated_at: trace.updated_at,
+    event_ts: trace.event_ts,
     event_bytes: utf8Bytes(trace.input) + utf8Bytes(trace.output),
     source: "API",
   });
@@ -131,12 +128,12 @@ export const observationToEvent = (
     tool_call_names: observation.tool_call_names ?? [],
     metadata_names: names,
     metadata_values: values,
-    start_time: toMicros(observation.start_time) ?? Date.now() * 1000,
-    end_time: toMicros(observation.end_time),
-    completion_start_time: toMicros(observation.completion_start_time),
-    created_at: toMicros(observation.created_at) ?? Date.now() * 1000,
-    updated_at: toMicros(observation.updated_at) ?? Date.now() * 1000,
-    event_ts: toMicros(observation.event_ts) ?? Date.now() * 1000,
+    start_time: observation.start_time,
+    end_time: observation.end_time,
+    completion_start_time: observation.completion_start_time,
+    created_at: observation.created_at,
+    updated_at: observation.updated_at,
+    event_ts: observation.event_ts,
     event_bytes: utf8Bytes(observation.input) + utf8Bytes(observation.output),
     source: "API",
   });
