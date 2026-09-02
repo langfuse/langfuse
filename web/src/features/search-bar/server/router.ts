@@ -35,7 +35,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
 import { z } from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,

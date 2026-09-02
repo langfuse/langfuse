@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   const hasAccess = useHasOrganizationAccess({

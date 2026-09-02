@@ -12,7 +12,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Copy, CopyPlus, FileJson, MoreVertical, Trash } from "lucide-react";
 import {
   buildWidgetExport,
