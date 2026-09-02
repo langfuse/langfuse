@@ -200,12 +200,19 @@ export function itemRegressionFilterAppliedProps({
   comparisonIds: string[];
   source: ExperimentScoreComparisonSource;
 }) {
+  const comparisonIndex = comparisonIds.indexOf(comparisonExperimentId);
+  // The filter points at a run that is not among the compared ones, which a
+  // shared URL can outlive. The table treats such a filter as inactive, so
+  // there is no applied filter to report and an out-of-range index would only
+  // be noise: the caller skips the event.
+  if (comparisonIndex < 0) return null;
+
   return {
     ...experimentAnalyticsDimensions(tableName),
     scoreLevel,
     dataType: dataType ?? "unknown",
     operator,
-    comparisonIndex: comparisonIds.indexOf(comparisonExperimentId),
+    comparisonIndex,
     source,
   };
 }

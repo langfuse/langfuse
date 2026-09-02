@@ -59,7 +59,7 @@ export default function ExperimentResults() {
   // Is the new score-matrix layout adopted, and diff mode — Expected → Output
   // in particular — used at all? Captured on the menu pick rather than on the
   // URL state, which also changes on navigation, on a restored view, and (for
-  // the layout) as a side effect of choosing Expected → Output. (LFE-15720)
+  // the layout) as a side effect of choosing Expected → Output.
   const handleLayoutChange = useCallback(
     (newLayout: ExperimentResultsLayout) => {
       if (newLayout !== layout) {

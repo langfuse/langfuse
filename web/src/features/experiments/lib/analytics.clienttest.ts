@@ -218,7 +218,8 @@ describe("experiment analytics payloads", () => {
       comparisonIndex: 1,
       source: "header_menu",
     });
-    expectMetadataOnly(payload);
+    expect(payload).not.toBeNull();
+    expectMetadataOnly(payload!);
     expect(payload).not.toHaveProperty("column");
 
     // An unknown data type is reported as such rather than dropped, so the
@@ -234,5 +235,22 @@ describe("experiment analytics payloads", () => {
         source: "url",
       }),
     ).toMatchObject({ dataType: "unknown", comparisonIndex: 0 });
+  });
+
+  // A shared URL can outlive the run its filter points at. The table treats
+  // that filter as inactive, so there is no applied filter to report — an
+  // out-of-range index would be noise in the funnel.
+  it("reports no event for a filter pointing outside the compared runs", () => {
+    expect(
+      itemRegressionFilterAppliedProps({
+        tableName: "experiment-items",
+        scoreLevel: "trace",
+        dataType: "NUMERIC",
+        operator: "lower",
+        comparisonExperimentId: "cmp-gone",
+        comparisonIds: ["cmp-1", "cmp-2"],
+        source: "url",
+      }),
+    ).toBeNull();
   });
 });

@@ -292,7 +292,7 @@ const events = {
   // auto — so the auto-selected comparison stays out of "users who compare".
   //
   // Two events from the original plan went away with the surfaces they
-  // measured (LFE-15711): `analytics_tab_opened` (the Analytics route is
+  // measured: `analytics_tab_opened` (the Analytics route is
   // deleted) and `charts_section_toggled` (the charts accordion is replaced by
   // an always-on metric strip). `chart_metric_changed` now belongs to that
   // strip and `item_regression_filter_applied` to the score-comparison filter:

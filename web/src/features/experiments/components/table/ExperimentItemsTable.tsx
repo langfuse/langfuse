@@ -839,7 +839,6 @@ export default function ExperimentItemsTable({
   // rebuild is for, so it carries the score's level and type, which comparison
   // it reads against, and whether the user picked it or arrived with it in a
   // shared URL. No score name and no score value — those are user content.
-  // (LFE-15720)
   const captureScoreComparisonFilter = useCallback(
     ({
       filter,
@@ -849,19 +848,18 @@ export default function ExperimentItemsTable({
       filter: ScoreComparisonFilter;
       dataType: ScoreColumnDataType | undefined;
       source: "header_menu" | "url";
-    }) =>
-      capture(
-        "experiment:item_regression_filter_applied",
-        itemRegressionFilterAppliedProps({
-          tableName: "experiment-items",
-          scoreLevel: filter.level,
-          dataType,
-          operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
-          comparisonExperimentId: filter.comparisonExperimentId,
-          comparisonIds,
-          source,
-        }),
-      ),
+    }) => {
+      const props = itemRegressionFilterAppliedProps({
+        tableName: "experiment-items",
+        scoreLevel: filter.level,
+        dataType,
+        operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
+        comparisonExperimentId: filter.comparisonExperimentId,
+        comparisonIds,
+        source,
+      });
+      if (props) capture("experiment:item_regression_filter_applied", props);
+    },
     [capture, comparisonIds],
   );
 

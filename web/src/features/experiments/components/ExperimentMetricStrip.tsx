@@ -167,7 +167,7 @@ export function ExperimentMetricStrip({
   // LEVEL? Trace-level is where an LLM-as-judge on a dataset run writes, so the
   // level is the interesting half. The score's NAME is user content and is
   // never sent. Reuses `chart_metric_changed` from the chart grid this strip
-  // replaced, so the metric-choice history is continuous. (LFE-15720)
+  // replaced, so the metric-choice history is continuous.
   const handleMetricChange = (newMetricId: string) => {
     if (newMetricId === metricId) return;
     capture(
