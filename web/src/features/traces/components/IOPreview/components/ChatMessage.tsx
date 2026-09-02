@@ -36,6 +36,7 @@ export interface ChatMessageProps {
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
   contentMode?: IOPreviewContentMode;
+  observationType?: string;
 }
 
 /**
@@ -54,6 +55,7 @@ export function ChatMessage({
   toolCallNumbers,
   isOutputMessage,
   contentMode = "all",
+  observationType,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -64,6 +66,12 @@ export function ChatMessage({
   // so name-bearing system prompts would otherwise never collapse.
   const isSystemPrompt = message.role === "system";
   const showData = contentMode !== "conversation";
+  const ioField =
+    isOutputMessage === undefined
+      ? undefined
+      : isOutputMessage
+        ? "output"
+        : "input";
 
   // Toggle button for passthrough JSON
   const passthroughToggleButton =
@@ -93,6 +101,8 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
+            observationType={observationType}
+            ioField={ioField}
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -100,6 +110,8 @@ export function ChatMessage({
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
+            observationType={observationType}
+            ioField={ioField}
           />
         </div>
       </div>
@@ -114,6 +126,8 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           currentView={currentView}
+          observationType={observationType}
+          ioField={ioField}
         />
       </div>
     );
@@ -128,6 +142,8 @@ export function ChatMessage({
           json={message.json}
           currentView="pretty"
           controlButtons={passthroughToggleButton}
+          observationType={observationType}
+          ioField={ioField}
         />
       </div>
     );
@@ -197,6 +213,8 @@ export function ChatMessage({
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
+            observationType={observationType}
+            ioField={ioField}
           />
           {showData && toolCalls.length > 0 && (
             <div className="mt-2">
@@ -217,6 +235,8 @@ export function ChatMessage({
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
+            observationType={observationType}
+            ioField={ioField}
           />
           {showData && toolCalls.length > 0 && (
             <div className="mt-2">
@@ -239,6 +259,8 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}
           currentView={currentView}
+          observationType={observationType}
+          ioField={ioField}
         />
       </div>
     );

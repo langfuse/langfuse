@@ -196,6 +196,7 @@ export const SessionObservationIO = ({
       parsedOutput={parsedOutput}
       parsedMetadata={parsedMetadata}
       chatMLParserResult={chatMLParserResult}
+      observationType={observation.type || undefined}
     />
   );
 

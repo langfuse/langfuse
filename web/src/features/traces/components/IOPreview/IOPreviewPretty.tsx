@@ -37,6 +37,7 @@ interface JsonInputOutputViewProps {
   onOutputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  observationType?: string;
 }
 
 function JsonInputOutputView({
@@ -52,6 +53,7 @@ function JsonInputOutputView({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  observationType,
 }: JsonInputOutputViewProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
@@ -68,6 +70,8 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={inputExpansionState}
           onExternalExpansionChange={onInputExpansionChange}
+          observationType={observationType}
+          ioField="input"
         />
       )}
       {showOutput && (
@@ -80,6 +84,8 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
+          observationType={observationType}
+          ioField="output"
         />
       )}
     </div>
@@ -113,6 +119,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  observationType?: string;
   // Which parser produces the preview; the normalized parser is admin-only
   // while it is being validated. Legacy remains the safe default.
   parser?: IOPreviewParserMode;
@@ -161,6 +168,7 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
+  observationType,
   parser = "legacy",
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
@@ -273,6 +281,7 @@ export function IOPreviewPretty({
     outputExpansionState,
     onInputExpansionChange,
     onOutputExpansionChange,
+    observationType,
   };
 
   // Determine if metadata should be shown
@@ -308,6 +317,7 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
+            observationType={observationType}
           />
           {showCorrections && (
             <CorrectedOutputField
@@ -351,6 +361,8 @@ export function IOPreviewPretty({
             externalExpansionState={metadataExpansionState}
             onExternalExpansionChange={onMetadataExpansionChange}
             metadataActions={metadataActions}
+            observationType={observationType}
+            ioField="metadata"
           />
         </div>
       )}

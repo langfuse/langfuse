@@ -6,6 +6,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { type IoFormatToggleContext } from "@/src/features/posthog-analytics/ioFormatToggleContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -159,6 +160,8 @@ export function MarkdownJsonView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  observationType,
+  ioField,
 }: {
   content?: unknown;
   title?: string;
@@ -172,7 +175,7 @@ export function MarkdownJsonView({
   /** Collapse long content to a preview (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
-}) {
+} & IoFormatToggleContext) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
   // "not renderable as markdown", without re-widening the narrowed type.
@@ -196,6 +199,8 @@ export function MarkdownJsonView({
           controlButtons={controlButtons}
           afterHeader={afterHeader}
           isSystemPrompt={isSystemPrompt}
+          observationType={observationType}
+          ioField={ioField}
         />
       ) : (
         <PrettyJsonView
@@ -208,6 +213,8 @@ export function MarkdownJsonView({
           controlButtons={controlButtons}
           afterHeader={afterHeader}
           isSystemPrompt={isSystemPrompt}
+          observationType={observationType}
+          ioField={ioField}
         />
       )}
     </>

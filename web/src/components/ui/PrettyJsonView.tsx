@@ -9,6 +9,7 @@ import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { type IoFormatToggleContext } from "@/src/features/posthog-analytics/ioFormatToggleContext";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -745,38 +746,40 @@ function JsonPrettyTable({
   );
 }
 
-export function PrettyJsonView(props: {
-  json?: unknown;
-  parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
-  title?: string;
-  titleIcon?: React.ReactNode;
-  className?: string;
-  isLoading?: boolean;
-  isParsing?: boolean;
-  codeClassName?: string;
-  collapseStringsAfterLength?: number | null;
-  media?: MediaReturnType[];
-  scrollable?: boolean;
-  controlButtons?: React.ReactNode;
-  currentView?: "pretty" | "json";
-  externalExpansionState?: Record<string, boolean> | boolean;
-  onExternalExpansionChange?: (
-    expansion: Record<string, boolean> | boolean,
-  ) => void;
-  showNullValues?: boolean;
-  stickyTopLevelKey?: boolean;
-  showObservationTypeBadge?: boolean;
-  tone?: PrettyJsonViewTone;
-  inset?: boolean;
-  /** Content to render between header and main content (e.g., thinking blocks) */
-  afterHeader?: React.ReactNode;
-  /** When set, rows show an actions menu with copy + add-to-filter shortcuts
+export function PrettyJsonView(
+  props: {
+    json?: unknown;
+    parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
+    title?: string;
+    titleIcon?: React.ReactNode;
+    className?: string;
+    isLoading?: boolean;
+    isParsing?: boolean;
+    codeClassName?: string;
+    collapseStringsAfterLength?: number | null;
+    media?: MediaReturnType[];
+    scrollable?: boolean;
+    controlButtons?: React.ReactNode;
+    currentView?: "pretty" | "json";
+    externalExpansionState?: Record<string, boolean> | boolean;
+    onExternalExpansionChange?: (
+      expansion: Record<string, boolean> | boolean,
+    ) => void;
+    showNullValues?: boolean;
+    stickyTopLevelKey?: boolean;
+    showObservationTypeBadge?: boolean;
+    tone?: PrettyJsonViewTone;
+    inset?: boolean;
+    /** Content to render between header and main content (e.g., thinking blocks) */
+    afterHeader?: React.ReactNode;
+    /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
-  metadataActions?: MetadataFilterActions;
-  /** Collapse long string content to a preview (from raw `role === "system"`,
+    metadataActions?: MetadataFilterActions;
+    /** Collapse long string content to a preview (from raw `role === "system"`,
       since the title can carry a message `name` instead of the role). */
-  isSystemPrompt?: boolean;
-}) {
+    isSystemPrompt?: boolean;
+  } & IoFormatToggleContext,
+) {
   const toneClasses = props.tone
     ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
     : undefined;
@@ -1301,6 +1304,8 @@ export function PrettyJsonView(props: {
               markdown={markdownContent || ""}
               media={props.media}
               isSystemPrompt={props.isSystemPrompt}
+              observationType={props.observationType}
+              ioField={props.ioField}
             />
           )}
         </div>
@@ -1366,6 +1371,8 @@ export function PrettyJsonView(props: {
               scrollable={props.scrollable}
               externalJsonCollapsed={jsonIsCollapsed}
               onToggleCollapse={handleJsonToggleCollapse}
+              observationType={props.observationType}
+              ioField={props.ioField}
             />
           </div>
         </>
