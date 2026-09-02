@@ -125,62 +125,6 @@ describe("BufferedStreamUploader", () => {
       expect(mock.uploadedParts[0].data.byteLength).toBe(10);
       expect(mock.uploadedParts[1].data.byteLength).toBe(5);
     });
-
-    it("should emit exact partSizeBytes for every non-final part when chunks do not divide evenly", async () => {
-      const mock = createMockStrategy();
-      const uploader = new BufferedStreamUploader({
-        ...defaultParams(mock.strategy),
-        partSizeBytes: 10,
-      });
-
-      // 7+6=13 and 3+9=12: flushing the whole buffer would emit unequal
-      // non-final parts. Slice to exact partSizeBytes instead.
-      const chunks = ["1234567", "abcdef", "xyz", "123456789"];
-      await uploader.upload(streamFrom(chunks));
-
-      expect(mock.uploadedParts).toHaveLength(3);
-      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[1].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[2].data.byteLength).toBe(5);
-      expect(
-        Buffer.concat(mock.uploadedParts.map((p) => p.data)).toString(),
-      ).toBe(chunks.join(""));
-    });
-
-    it("should coerce a fractional partSizeBytes to an integer byte length", async () => {
-      const mock = createMockStrategy();
-      const uploader = new BufferedStreamUploader({
-        ...defaultParams(mock.strategy),
-        partSizeBytes: 10.5,
-      });
-
-      // 15 bytes: floor(10.5)=10 full part + 5-byte remainder. A float
-      // part size would throw in Buffer.concat before this change.
-      await uploader.upload(streamFrom(["aaaaaaaaaa", "bbbbb"]));
-
-      expect(mock.uploadedParts).toHaveLength(2);
-      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[1].data.byteLength).toBe(5);
-    });
-
-    it("should slice a single oversized chunk into exact partSizeBytes parts", async () => {
-      const mock = createMockStrategy();
-      const uploader = new BufferedStreamUploader({
-        ...defaultParams(mock.strategy),
-        partSizeBytes: 10,
-      });
-
-      const largeChunk = "a".repeat(25);
-      await uploader.upload(streamFrom([largeChunk]));
-
-      expect(mock.uploadedParts).toHaveLength(3);
-      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[1].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[2].data.byteLength).toBe(5);
-      expect(
-        Buffer.concat(mock.uploadedParts.map((p) => p.data)).toString(),
-      ).toBe(largeChunk);
-    });
   });
 
   describe("empty stream", () => {

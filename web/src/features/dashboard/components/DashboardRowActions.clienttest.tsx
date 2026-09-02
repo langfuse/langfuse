@@ -99,7 +99,7 @@ vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: vi.fn(),
 }));
 
-vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 

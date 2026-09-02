@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 
-import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
   splitStringByMediaReferences,
@@ -27,7 +27,7 @@ import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -72,10 +72,7 @@ function MappedValuePreview({ value }: { value: string }) {
         >
           {mediaSegments.map((segment, index) =>
             segment.type === "media" ? (
-              <MediaTag
-                key={index}
-                contentType={segment.descriptor.contentType}
-              />
+              <MediaReferenceTag key={index} descriptor={segment.descriptor} />
             ) : (
               <span key={index} className="break-words whitespace-pre-wrap">
                 {segment.value}
@@ -108,8 +105,22 @@ function MappingPreviewSurface({
       aria-label={`Change mapping for {{${variable}}}`}
       title={`Change mapping for {{${variable}}}`}
       className="hover:bg-muted/50 focus-visible:ring-ring cursor-pointer rounded-b-md transition-colors focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
-      onClick={onEdit}
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
+        onEdit();
+      }}
       onKeyDown={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onEdit();

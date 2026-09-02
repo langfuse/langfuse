@@ -21,7 +21,7 @@ import {
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getRecentEvaluatorExecutionTraces,
-  getTotalCostByEvaluatorTraceNames,
+  getTotalCostByEvaluatorIds,
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
@@ -254,64 +254,29 @@ export class EvaluatorService {
     ) as Record<string, EvaluatorExecutionTrace[]>;
     if (params.evaluatorIds.length === 0) return result;
 
-    const evaluators = await repository.findEvaluatorsByIds({
-      prisma: this.prisma,
-      projectId: params.projectId,
-      evaluatorIds: params.evaluatorIds,
-    });
-    // Prompt-experiment executions do not always carry evaluator_id metadata,
-    // but all evaluator execution paths use this trace-name convention.
-    const evaluatorIdsByTraceName = new Map<string, string[]>();
-    for (const evaluator of evaluators) {
-      const traceName = `Execute evaluator: ${evaluator.name}`;
-      evaluatorIdsByTraceName.set(traceName, [
-        ...(evaluatorIdsByTraceName.get(traceName) ?? []),
-        evaluator.id,
-      ]);
-    }
-    const traces = await getRecentEvaluatorExecutionTraces(params.projectId, [
-      ...evaluatorIdsByTraceName.keys(),
-    ]);
+    const traces = await getRecentEvaluatorExecutionTraces(
+      params.projectId,
+      params.evaluatorIds,
+    );
 
     for (const trace of traces) {
-      for (const evaluatorId of evaluatorIdsByTraceName.get(trace.traceName) ??
-        []) {
-        result[evaluatorId]?.push({
-          id: trace.id,
-          level: trace.level,
-          timestamp: trace.timestamp,
-        });
-      }
+      result[trace.evaluatorId]?.push({
+        id: trace.id,
+        level: trace.level,
+        timestamp: trace.timestamp,
+      });
     }
 
     return result;
   }
 
   async getTotalCosts(params: { projectId: string; evaluatorIds: string[] }) {
-    const evaluators = await repository.findEvaluatorsByIds({
-      prisma: this.prisma,
-      projectId: params.projectId,
-      evaluatorIds: params.evaluatorIds,
-    });
-    const evaluatorIdsByTraceName = new Map<string, string[]>();
-    for (const evaluator of evaluators) {
-      const traceName = `Execute evaluator: ${evaluator.name}`;
-      evaluatorIdsByTraceName.set(traceName, [
-        ...(evaluatorIdsByTraceName.get(traceName) ?? []),
-        evaluator.id,
-      ]);
-    }
-
-    const costs = await getTotalCostByEvaluatorTraceNames(params.projectId, [
-      ...evaluatorIdsByTraceName.keys(),
-    ]);
+    const costs = await getTotalCostByEvaluatorIds(
+      params.projectId,
+      params.evaluatorIds,
+    );
     return Object.fromEntries(
-      costs.flatMap(({ traceName, totalCost }) =>
-        (evaluatorIdsByTraceName.get(traceName) ?? []).map((evaluatorId) => [
-          evaluatorId,
-          totalCost,
-        ]),
-      ),
+      costs.map(({ evaluatorId, totalCost }) => [evaluatorId, totalCost]),
     );
   }
 

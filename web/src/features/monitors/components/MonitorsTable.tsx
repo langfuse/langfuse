@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -119,8 +119,15 @@ export function MonitorsTable() {
           displayValue: value.replace(/_/g, " "),
         })),
       tags: filterOptions.data?.tags.map((t) => ({ value: t.value })) ?? [],
+      evaluatorId: filterOptions.data?.evaluators ?? [],
     }),
     [filterOptions.data],
+  );
+
+  const monitorFilterConfig = useMemo(
+    () =>
+      getMonitorFilterConfig((filterOptions.data?.evaluators.length ?? 0) > 0),
+    [filterOptions.data?.evaluators.length],
   );
 
   /** queryFilter is the bound sidebar filter state, synced to the URL and to session storage per project. */

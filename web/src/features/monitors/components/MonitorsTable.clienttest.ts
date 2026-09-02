@@ -9,6 +9,7 @@ import {
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { __test } from "./MonitorsTable";
 
 const { filterStateToListMonitorFilter, buildStatusToggleUpdate } = __test;
@@ -41,6 +42,21 @@ const monitorFixture = (status: Monitor["status"]): Monitor => ({
   lastPublishedAt: null,
   lastClaimedAt: null,
   lastCompletedAt: null,
+});
+
+describe("getMonitorFilterConfig", () => {
+  it("shows the evaluator facet only when evaluator-specific alerts exist", () => {
+    expect(
+      getMonitorFilterConfig(false).facets.some(
+        (facet) => facet.column === "evaluatorId",
+      ),
+    ).toBe(false);
+    expect(
+      getMonitorFilterConfig(true).facets.some(
+        (facet) => facet.column === "evaluatorId",
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("filterStateToListMonitorFilter", () => {
@@ -138,6 +154,18 @@ describe("filterStateToListMonitorFilter", () => {
         ],
       },
     ]);
+  });
+
+  it("passes evaluator ID rows through unchanged", () => {
+    const state: FilterState = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "any of",
+        value: ["eval-1"],
+      },
+    ];
+    expect(filterStateToListMonitorFilter(state)).toEqual(state);
   });
 
   it("passes tags rows through unchanged", () => {
