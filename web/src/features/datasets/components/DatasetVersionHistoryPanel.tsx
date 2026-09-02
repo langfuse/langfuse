@@ -234,7 +234,7 @@ export function DatasetVersionHistoryPanel({
           {/* Today */}
           {groupedVersions.today.length > 0 && (
             <AccordionItem value="today" className="px-2">
-              <AccordionTrigger className="text-sm">
+              <AccordionTrigger size="sm">
                 Today ({groupedVersions.today.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -248,7 +248,7 @@ export function DatasetVersionHistoryPanel({
           {/* Yesterday */}
           {groupedVersions.yesterday.length > 0 && (
             <AccordionItem value="yesterday" className="px-2">
-              <AccordionTrigger className="text-sm">
+              <AccordionTrigger size="sm">
                 Yesterday ({groupedVersions.yesterday.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -264,7 +264,7 @@ export function DatasetVersionHistoryPanel({
           {/* Last 7 Days */}
           {groupedVersions.last7Days.length > 0 && (
             <AccordionItem value="last7days" className="px-2">
-              <AccordionTrigger className="text-sm">
+              <AccordionTrigger size="sm">
                 Last 7 Days ({groupedVersions.last7Days.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -280,7 +280,7 @@ export function DatasetVersionHistoryPanel({
           {/* Last 30 Days */}
           {groupedVersions.last30Days.length > 0 && (
             <AccordionItem value="last30days" className="px-2">
-              <AccordionTrigger className="text-sm">
+              <AccordionTrigger size="sm">
                 Last 30 Days ({groupedVersions.last30Days.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -296,7 +296,7 @@ export function DatasetVersionHistoryPanel({
           {/* Older */}
           {groupedVersions.older.length > 0 && (
             <AccordionItem value="older" className="px-2">
-              <AccordionTrigger className="text-sm">
+              <AccordionTrigger size="sm">
                 Older ({groupedVersions.older.length})
               </AccordionTrigger>
               <AccordionContent>
