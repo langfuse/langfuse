@@ -43,8 +43,8 @@ type AccordionTriggerProps = Omit<
 > & {
   children: React.ReactNode;
   className?:
-    | "text-sm font-bold"
-    | "justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0"
+    | "text-sm"
+    | "justify-start gap-2 py-2 text-sm [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0"
     | "px-3 pt-2 pb-1 hover:no-underline"
     | "px-4 hover:no-underline";
 };

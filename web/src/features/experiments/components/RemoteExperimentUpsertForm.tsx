@@ -383,7 +383,7 @@ export const RemoteExperimentUpsertForm = ({
 
             <Accordion type="single" collapsible>
               <AccordionItem value="advanced" className="border-b-0">
-                <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                <AccordionTrigger className="justify-start gap-2 py-2 text-sm [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                   Advanced Options
                 </AccordionTrigger>
                 <AccordionContent>
