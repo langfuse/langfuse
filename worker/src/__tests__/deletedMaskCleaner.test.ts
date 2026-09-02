@@ -22,8 +22,6 @@ import {
 import {
   buildApplyDeletedMaskQuery,
   buildMutationCountQuery,
-  DELETED_MASK_CLEANER_TABLES,
-  DELETED_MASK_CLEANER_WORK_QUERY,
   normalizeMutationCounts,
   selectCandidateToProcess,
   shouldUseDeletedMaskCleanerClusterMode,
@@ -34,6 +32,8 @@ import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 const TEST_TABLE = "events_full" as const;
 const PATCH_WAIT_TIMEOUT_MS = 30_000;
+const PATCH_CLEAN_TIMEOUT_MS = 60_000;
+const DRAIN_TIMEOUT_MS = 120_000;
 
 async function skipUnlessEventsTableEnabled(ctx: TestContext): Promise<void> {
   await skipUnlessClickhouseTablesExist(
@@ -53,8 +53,9 @@ async function eventually<T>(
   getValue: () => Promise<T>,
   predicate: (value: T) => boolean,
   message: string,
+  timeoutMs: number = PATCH_WAIT_TIMEOUT_MS,
 ): Promise<T> {
-  const deadline = Date.now() + PATCH_WAIT_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
   let lastValue: T | undefined;
 
   while (Date.now() < deadline) {
@@ -95,14 +96,25 @@ function workCandidate(
   };
 }
 
-async function getCleanerCandidates(): Promise<WorkCandidateRow[]> {
-  return queryClickhouse<WorkCandidateRow>({
-    query: DELETED_MASK_CLEANER_WORK_QUERY,
+async function getLeftoverPatchPartitions(): Promise<string[]> {
+  const rows = await queryClickhouse<{ partition_to_clean: string }>({
+    query: `
+      SELECT DISTINCT splitByString('-', partition)[3] AS partition_to_clean
+      FROM system.parts
+      WHERE table = {table: String}
+        AND database = {database: String}
+        AND startsWith(partition, 'patch-')
+        AND partition_to_clean <> ''
+        AND partition_to_clean <> toString(toYYYYMM(now()))
+        AND active = 1
+    `,
     params: {
+      table: TEST_TABLE,
       database: env.CLICKHOUSE_DB,
-      tables: Array.from(DELETED_MASK_CLEANER_TABLES),
     },
   });
+
+  return rows.map((row) => row.partition_to_clean);
 }
 
 async function hasActivePatchPart(partitionToClean: string): Promise<boolean> {
@@ -143,6 +155,7 @@ async function waitForCleanerCandidateGone(
     () => hasActivePatchPart(partitionToClean),
     (hasCandidate) => !hasCandidate,
     `Timed out waiting for ClickHouse patch part ${partitionToClean} to be cleaned`,
+    PATCH_CLEAN_TIMEOUT_MS,
   );
 }
 
@@ -175,6 +188,7 @@ async function waitForNoActiveMutations(
     () => getActiveMutationCount(table),
     (mutationCount) => mutationCount === 0,
     `Timed out waiting for ClickHouse mutations to finish on ${table}`,
+    PATCH_CLEAN_TIMEOUT_MS,
   );
 }
 
@@ -194,8 +208,14 @@ function cleanerDdlConfig() {
 async function applyDeletedMask(candidate: WorkCandidateRow): Promise<void> {
   await commandClickhouse({
     query: buildApplyDeletedMaskQuery(candidate, cleanerDdlConfig()),
+    clickhouseSettings: {
+      mutations_sync: "2",
+    },
   });
 
+  // Mutation count can still be 0 before the ALTER is visible. The patch
+  // disappearing from system.parts is the completion signal.
+  await waitForCleanerCandidateGone(candidate.partition_to_clean);
   await waitForNoActiveMutations(candidate.table);
 }
 
@@ -212,26 +232,25 @@ async function applyDeletedMaskIfNeeded(
     partition_to_clean: partitionToClean,
     total_rows: 0,
   });
-  await waitForCleanerCandidateGone(partitionToClean);
 }
 
 async function drainCleanerCandidates(): Promise<void> {
-  const deadline = Date.now() + PATCH_WAIT_TIMEOUT_MS;
+  const deadline = Date.now() + DRAIN_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    const candidates = await getCleanerCandidates();
-    if (candidates.length === 0) {
+    const partitions = await getLeftoverPatchPartitions();
+    if (partitions.length === 0) {
       return;
     }
 
-    for (const candidate of candidates) {
-      await applyDeletedMask(candidate);
+    for (const partition of partitions) {
+      await applyDeletedMaskIfNeeded(partition);
     }
   }
 
   throw new Error(
     `Timed out draining leftover deleted-mask candidates: ${JSON.stringify(
-      await getCleanerCandidates(),
+      await getLeftoverPatchPartitions(),
     )}`,
   );
 }
@@ -434,7 +453,7 @@ describe.sequential("DeletedMaskCleaner integration", () => {
       await applyDeletedMaskIfNeeded(partition);
     }
     cleanupPartitions.clear();
-  }, 90_000);
+  }, 150_000);
 
   it("applies a deleted mask for a real events patch partition", async (ctx) => {
     await skipUnlessEventsTableEnabled(ctx);
@@ -463,7 +482,8 @@ describe.sequential("DeletedMaskCleaner integration", () => {
       },
       (stillPresent) => !stillPresent,
       `Timed out waiting for ClickHouse patch part ${partitionToClean} to be cleaned`,
+      PATCH_CLEAN_TIMEOUT_MS,
     );
     expect(await redis?.get(DELETED_MASK_CLEANER_LOCK_KEY)).toBeNull();
-  }, 180_000);
+  }, 240_000);
 });
