@@ -93,6 +93,7 @@ export function DashboardRowActions({
             renderMenu={() => (
               <>
                 <DropdownMenuItem
+                  allowPointerEventsWhenDisabled
                   disabled={disabled !== undefined}
                   title={disabled?.reason}
                   onClick={openEdit}
@@ -101,6 +102,7 @@ export function DashboardRowActions({
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
+                  allowPointerEventsWhenDisabled
                   disabled={disabled !== undefined}
                   title={disabled?.reason}
                   onClick={handleClone}
@@ -110,6 +112,7 @@ export function DashboardRowActions({
                 </DropdownMenuItem>
                 {dashboard.owner === "PROJECT" ? (
                   <DropdownMenuItem
+                    allowPointerEventsWhenDisabled
                     disabled={deleteDisabled !== undefined}
                     title={deleteDisabled?.reason}
                     className="text-destructive focus:text-destructive"

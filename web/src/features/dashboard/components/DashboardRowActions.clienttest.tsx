@@ -10,6 +10,7 @@ import { vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   deleteDashboard: vi.fn().mockResolvedValue(undefined),
+  hasAccess: true,
   closeMenu: () => {},
 }));
 
@@ -48,18 +49,30 @@ vi.mock("@/src/components/ui/dropdown-menu", () => ({
     );
   },
   DropdownMenuItem: ({
+    allowPointerEventsWhenDisabled,
     children,
+    disabled,
     onClick,
     onSelect,
+    title,
   }: {
+    allowPointerEventsWhenDisabled?: boolean;
     children: ReactNode;
+    disabled?: boolean;
     onClick?: MouseEventHandler<HTMLButtonElement>;
     onSelect?: (event: { preventDefault: () => void }) => void;
+    title?: string;
   }) => (
     <button
       type="button"
       role="menuitem"
+      disabled={disabled}
+      title={title}
+      data-allow-pointer-events-when-disabled={
+        allowPointerEventsWhenDisabled ? "true" : undefined
+      }
       onClick={(event) => {
+        if (disabled) return;
         onClick?.(event);
         const selectEvent = {
           defaultPrevented: false,
@@ -91,7 +104,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
-  useHasProjectAccess: () => true,
+  useHasProjectAccess: () => mocks.hasAccess,
 }));
 
 vi.mock("next/router", () => ({
@@ -144,6 +157,7 @@ const projectDashboard = {
 describe("DashboardRowActions", () => {
   beforeEach(() => {
     mocks.deleteDashboard.mockClear();
+    mocks.hasAccess = true;
   });
 
   it("keeps the delete confirmation after the actions menu closes", async () => {
@@ -196,5 +210,25 @@ describe("DashboardRowActions", () => {
     expect(
       screen.queryByRole("menuitem", { name: /delete/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("exposes why disabled actions are blocked on hover", () => {
+    mocks.hasAccess = false;
+    render(
+      <DashboardRowActions projectId="proj-1" dashboard={projectDashboard} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+
+    const edit = screen.getByRole("menuitem", { name: /edit/i });
+    expect(edit).toBeDisabled();
+    expect(edit).toHaveAttribute(
+      "title",
+      "You don't have permission to change this dashboard.",
+    );
+    expect(edit).toHaveAttribute(
+      "data-allow-pointer-events-when-disabled",
+      "true",
+    );
   });
 });
