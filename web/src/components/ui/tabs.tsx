@@ -38,13 +38,12 @@ const TabsTrigger = React.forwardRef<
 ));
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
-function TabsContent({
-  children,
-  value,
-}: Pick<
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>,
-  "children" | "value"
->) {
+type TabsContentProps = {
+  children: React.ReactNode;
+  value: string;
+};
+
+function TabsContent({ children, value }: TabsContentProps) {
   return (
     <TabsPrimitive.Content
       value={value}
