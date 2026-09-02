@@ -63,7 +63,12 @@ function expressionReturnsJsxOrNull(
   node: TSESTree.Node | null | undefined,
 ): boolean {
   if (!node) return false;
-  if (isJsxNode(node) || isNullLiteral(node)) return true;
+  if (
+    isJsxNode(node) ||
+    isNullLiteral(node) ||
+    (node.type === AST_NODE_TYPES.Literal && node.value === false)
+  )
+    return true;
 
   switch (node.type) {
     case AST_NODE_TYPES.ConditionalExpression:

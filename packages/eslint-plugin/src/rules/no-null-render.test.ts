@@ -43,7 +43,6 @@ ruleTester.run("no-null-render", rule, {
        if (n) return 1;
        return <div />;
      }`,
-    `function Comp() { return false; }`,
     `function Comp() { return; }`,
     `function notAComponent() { return 1; }`,
     `const button = () => <div />;`,
@@ -190,6 +189,34 @@ ruleTester.run("no-null-render", rule, {
      }`,
   ],
   invalid: [
+    {
+      code: `function Comp() { return <></>; }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `const Comp = () => <React.Fragment></React.Fragment>;`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp() {
+               return (
+                 <>
+                   {/* intentionally empty */}
+                 </>
+               );
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ show }: { show: boolean }) {
+               return show ? <div /> : <React.Fragment />;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp() { return false; }`,
+      errors: [unexpectedNullishRender],
+    },
     {
       code: `function Comp() { return null; }`,
       errors: [unexpectedNullishRender],
@@ -422,7 +449,7 @@ ruleTester.run("no-null-render", rule, {
                if (!show) return null;
                return <></>;
              }`,
-      errors: [unexpectedNullishRender],
+      errors: [unexpectedNullishRender, unexpectedNullishRender],
     },
     {
       code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {

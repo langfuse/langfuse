@@ -21,6 +21,10 @@ function isNullish(node: TSESTree.Node): boolean {
   return isNullLiteral(node) || isUndefinedIdentifier(node);
 }
 
+function isFalseLiteral(node: TSESTree.Node): boolean {
+  return node.type === AST_NODE_TYPES.Literal && node.value === false;
+}
+
 function unwrapExpression(node: TSESTree.Node): TSESTree.Node {
   let current = node;
   while (
@@ -82,6 +86,29 @@ function isFragmentElement(node: TSESTree.JSXElement): boolean {
     name.object.type === AST_NODE_TYPES.JSXIdentifier &&
     name.object.name === "React" &&
     name.property.name === "Fragment"
+  );
+}
+
+function hasOnlyEmptyJsxChildren(children: TSESTree.JSXChild[]): boolean {
+  return children.every((child) => {
+    if (child.type === AST_NODE_TYPES.JSXText) {
+      return child.value.trim() === "";
+    }
+    return (
+      child.type === AST_NODE_TYPES.JSXExpressionContainer &&
+      child.expression.type === AST_NODE_TYPES.JSXEmptyExpression
+    );
+  });
+}
+
+function isEmptyFragment(node: TSESTree.Node): boolean {
+  if (node.type === AST_NODE_TYPES.JSXFragment) {
+    return hasOnlyEmptyJsxChildren(node.children);
+  }
+  return (
+    node.type === AST_NODE_TYPES.JSXElement &&
+    isFragmentElement(node) &&
+    hasOnlyEmptyJsxChildren(node.children)
   );
 }
 
@@ -242,27 +269,31 @@ function isHeadlessPassthrough(
   );
 }
 
-function visitNullishRender(
+function visitEmptyRender(
   node: TSESTree.Expression,
-  onNullish: (nullishNode: TSESTree.Node) => void,
+  onEmptyRender: (emptyNode: TSESTree.Node) => void,
   resolve: ResolveReturnExpression,
 ): void {
   const unwrapped = unwrapExpression(resolve(node));
 
-  if (isNullish(unwrapped)) {
-    onNullish(unwrapped);
+  if (
+    isNullish(unwrapped) ||
+    isFalseLiteral(unwrapped) ||
+    isEmptyFragment(unwrapped)
+  ) {
+    onEmptyRender(unwrapped);
     return;
   }
 
   if (unwrapped.type === AST_NODE_TYPES.ConditionalExpression) {
-    visitNullishRender(unwrapped.consequent, onNullish, resolve);
-    visitNullishRender(unwrapped.alternate, onNullish, resolve);
+    visitEmptyRender(unwrapped.consequent, onEmptyRender, resolve);
+    visitEmptyRender(unwrapped.alternate, onEmptyRender, resolve);
     return;
   }
 
   if (unwrapped.type === AST_NODE_TYPES.LogicalExpression) {
-    visitNullishRender(unwrapped.left, onNullish, resolve);
-    visitNullishRender(unwrapped.right, onNullish, resolve);
+    visitEmptyRender(unwrapped.left, onEmptyRender, resolve);
+    visitEmptyRender(unwrapped.right, onEmptyRender, resolve);
   }
 }
 
@@ -272,12 +303,12 @@ const rule = createRule({
     type: "problem",
     docs: {
       description:
-        "Disallow React components that return null or undefined, except headless children/portal passthroughs.",
+        "Disallow React components that render nothing, except headless children/portal passthroughs.",
     },
     schema: [],
     messages: {
       unexpectedNullishRender:
-        "Do not return null or undefined from a component. Handle the condition in the parent, or extract a hook/HOC so this component always renders. Headless gates and portals that only pass through children may return null.",
+        "Do not render nothing from a component. Handle the condition in the parent, or extract a hook/HOC so this component always renders. Headless gates and portals that only pass through children may render nothing.",
     },
   },
   defaultOptions: [],
@@ -286,11 +317,11 @@ const rule = createRule({
       onComponentReturns(expressions, resolve) {
         if (isHeadlessPassthrough(expressions, resolve)) return;
         for (const expression of expressions) {
-          visitNullishRender(
+          visitEmptyRender(
             expression,
-            (nullishNode) => {
+            (emptyNode) => {
               context.report({
-                node: nullishNode,
+                node: emptyNode,
                 messageId: "unexpectedNullishRender",
               });
             },

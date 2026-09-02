@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Badge } from "@/src/components/ui/badge";
 import { numberFormatter } from "@/src/utils/numbers";
 import { type Observation } from "@langfuse/shared";
