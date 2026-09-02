@@ -450,6 +450,7 @@ export function InlineFilterBuilder({
   stringObjectValueOptions,
   onStringObjectKeyChange,
   compact = false,
+  subtleAddButton = false,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -471,6 +472,8 @@ export function InlineFilterBuilder({
   onStringObjectKeyChange?: (key: string) => void;
   /** compact renders the width-constrained two-line layout instead of the legacy single-row table. */
   compact?: boolean;
+  /** Renders the add action like the subtle prompt-editor "Add message" action. */
+  subtleAddButton?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -520,6 +523,7 @@ export function InlineFilterBuilder({
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
         compact={compact}
+        subtleAddButton={subtleAddButton}
       />
     </div>
   );
@@ -566,6 +570,7 @@ function FilterBuilderForm({
   stringObjectValueOptions = {},
   onStringObjectKeyChange,
   compact = false,
+  subtleAddButton = false,
   aiFilter,
 }: {
   columnIdentifier: ColumnIdentifier;
@@ -585,6 +590,7 @@ function FilterBuilderForm({
   onStringObjectKeyChange?: (key: string) => void;
   /** compact renders each condition as a wrapping block for width-constrained inline builders instead of the wide table. */
   compact?: boolean;
+  subtleAddButton?: boolean;
   aiFilter?: AiFilterConfig;
 }) {
   const [showAiFilter, setShowAiFilter] = useState(false);
@@ -1109,10 +1115,12 @@ function FilterBuilderForm({
     ) : (
       <tr key={i}>
         <td className="p-1 text-sm">{connector}</td>
-        <td className="flex gap-2 p-1">
-          {/* selector of the column to be filtered */}
-          {columnCombobox}
-          {keyControl}
+        <td className="p-1">
+          <div className="flex gap-2">
+            {/* selector of the column to be filtered */}
+            {columnCombobox}
+            {keyControl}
+          </div>
         </td>
         <td className="p-1">{operatorSelect}</td>
         <td className="p-1">{valueControl}</td>
@@ -1219,11 +1227,21 @@ function FilterBuilderForm({
             <Button
               onClick={() => addNewFilter()}
               type="button" // required as it will otherwise submit forms where this component is used
-              className={cn("mt-2", compact && "mt-4 self-start")}
-              variant="outline"
+              className={cn(
+                subtleAddButton
+                  ? "text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+                  : "mt-2",
+                compact && !subtleAddButton && "mt-4 self-start",
+              )}
+              variant={subtleAddButton ? "ghost" : "outline"}
               size="sm"
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus
+                className={cn(
+                  "shrink-0",
+                  subtleAddButton ? "h-3.5 w-3.5" : "mr-2 h-4 w-4",
+                )}
+              />
               Add filter
             </Button>
           ) : null}

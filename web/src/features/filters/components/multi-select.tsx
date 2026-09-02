@@ -131,18 +131,7 @@ export function MultiSelect({
   };
 
   function getSelectedOptions() {
-    const selectedOptions = options.filter(({ value }) =>
-      selectedValues.has(value),
-    );
-
-    const hasCustomOption =
-      !!freeText &&
-      !!getFreeTextInput(isCustomSelectEnabled, values, optionValues);
-    const customOption: FilterOption[] = hasCustomOption
-      ? [{ value: freeText }]
-      : [];
-
-    return [...selectedOptions, ...customOption];
+    return mergedOptions.filter(({ value }) => selectedValues.has(value));
   }
 
   const selectedBadges =

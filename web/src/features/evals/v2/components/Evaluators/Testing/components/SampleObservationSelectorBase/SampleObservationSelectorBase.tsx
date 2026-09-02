@@ -2,6 +2,10 @@
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 import {
+  eventsEvalFilterColumns,
+  experimentEvalFilterColsWithOptions,
+  observationEvalFilterColsWithOptions,
+  type ColumnDefinition,
   type FilterState,
   type TimeFilter,
   type TracingSearchType,
@@ -15,6 +19,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -33,7 +38,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
+import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
+import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder";
 import {
   buildSampleQueryFilters,
   removeInternalEvaluationEnvironmentOptions,
@@ -42,9 +50,11 @@ import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evalu
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
 import {
   DATASET_NAME_COLUMN,
+  DATASET_NAME_FILTER_COLUMN,
   addDatasetNameObservedOptions,
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type SampleObservation =
@@ -182,6 +192,11 @@ export function SampleObservationSelectorBase(
     mapObservedOptions,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
+  const [filterMode, setFilterMode] =
+    useLocalStorage<EvaluatorFilterExperience>(
+      EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
+      "builder",
+    );
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
     {
@@ -257,7 +272,7 @@ export function SampleObservationSelectorBase(
     startTimeFilter,
     refiningFilter,
     includeApproxCount: true,
-    lazy: true,
+    lazy: filterMode === "query",
   });
   const observed = useMemo(() => {
     const visibleOptions = removeInternalEvaluationEnvironmentOptions(
@@ -271,6 +286,43 @@ export function SampleObservationSelectorBase(
     options.filterOptions,
     options.isFilterOptionsPending,
   ]);
+  const builderColumns = useMemo<ColumnDefinition[]>(() => {
+    const supportsDatasetName = searchRegistry.fields.some(
+      (field) => field.id === DATASET_NAME_COLUMN,
+    );
+    const columnsWithOptions = experimentEvalFilterColsWithOptions(
+      options.filterOptions,
+      observationEvalFilterColsWithOptions(options.filterOptions, [
+        ...eventsEvalFilterColumns,
+      ]),
+    ).filter(
+      (column) => !supportsDatasetName || column.id !== "experimentDatasetId",
+    );
+    const datasetColumn: ColumnDefinition = {
+      name: DATASET_NAME_FILTER_COLUMN.name,
+      id: "experimentDatasetId",
+      aliases: DATASET_NAME_FILTER_COLUMN.aliases,
+      type: "stringOptions",
+      internal: DATASET_NAME_FILTER_COLUMN.internal,
+      nullable: DATASET_NAME_FILTER_COLUMN.nullable,
+      options: datasetOptions.map((dataset) => ({
+        value: dataset.id,
+        displayValue: dataset.name,
+      })),
+    };
+    const columns = supportsDatasetName
+      ? [...columnsWithOptions, datasetColumn]
+      : columnsWithOptions;
+
+    return columns;
+  }, [datasetOptions, options.filterOptions, searchRegistry]);
+  const queryOnlyColumnIds = useMemo(
+    () =>
+      searchRegistry.fields
+        .filter((field) => field.directFilter === false)
+        .map((field) => field.filterColumn ?? field.id),
+    [searchRegistry],
+  );
   const search = useEventsSearchBar({
     projectId,
     tableName,
@@ -498,11 +550,21 @@ export function SampleObservationSelectorBase(
           meta={null}
           description={filterDescription}
           tooltip={filterTooltip}
-          trailing={null}
+          trailing={
+            <FilterModeToggle
+              mode={filterMode}
+              onChange={(mode) => {
+                if (mode === "builder" && searchQuery !== null) {
+                  search.applyFilters(filterState);
+                }
+                setFilterMode(mode);
+              }}
+            />
+          }
         />
         {datasets.isPending ? (
           <Skeleton className="h-10 w-full" />
-        ) : (
+        ) : filterMode === "query" ? (
           <EventsSearchBarRow
             projectId={projectId}
             tableName={tableName}
@@ -519,26 +581,35 @@ export function SampleObservationSelectorBase(
             aiScoreNames={aiScoreNames}
             className="p-0"
           />
+        ) : (
+          <ObservationFilterBuilder
+            columns={builderColumns}
+            filterState={filterState}
+            onChange={setFilters}
+            queryOnlyColumnIds={queryOnlyColumnIds}
+          />
         )}
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((example) => (
-            <Button
-              key={example.label}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex h-8 items-center gap-2 text-sm"
-              onClick={() => {
-                setFilters((current) =>
-                  toggleExampleFilters(current, [...example.filters]),
-                );
-              }}
-            >
-              <example.icon className="h-4 w-4" />
-              <span>{example.label}</span>
-            </Button>
-          ))}
-        </div>
+        {filterMode === "query" ? (
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map((example) => (
+              <Button
+                key={example.label}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex h-8 items-center gap-2 text-sm"
+                onClick={() => {
+                  setFilters((current) =>
+                    toggleExampleFilters(current, [...example.filters]),
+                  );
+                }}
+              >
+                <example.icon className="h-4 w-4" />
+                <span>{example.label}</span>
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="flex min-h-0 flex-col gap-2">
