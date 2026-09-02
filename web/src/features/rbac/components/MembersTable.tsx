@@ -31,6 +31,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
@@ -318,17 +319,12 @@ export function MembersTable({
           },
         ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
-    {
+    createDateTableColumn<MembersTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Member Since",
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as MembersTableRow["createdAt"];
-        return value ? new Date(value).toLocaleString() : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "meta",
       id: "meta",
