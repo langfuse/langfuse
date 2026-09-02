@@ -21,7 +21,6 @@ import {
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { InAppAgentHeaderSlotProvider } from "@/src/features/in-app-agent/components/InAppAgentDockLayout";
 
 function DeleteConversationDialog({
   close,
@@ -118,10 +117,9 @@ function InAppAgentPersistentWindowSink({
 /**
  * Hosts the assistant window and its presentations. Must be rendered from a
  * scope that survives route changes (the authenticated layout), wrapping page
- * content so the docked sidebar can push the page body aside. Page headers
- * portal above that split so the top bar stays full width. Overlay
- * presentations (detached and fullscreen) still render through the `agent`
- * layer; the handheld drawer is unchanged.
+ * content so the docked sidebar can push the page — including the top chrome
+ * — aside. Overlay presentations (detached and fullscreen) still render
+ * through the `agent` layer; the handheld drawer is unchanged.
  *
  * Sidebar and overlay chrome are mutually exclusive in the DOM. The window
  * itself is rendered once into a detached node that the active chrome reparents,
@@ -136,7 +134,6 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
   const [outletNode] = useState(createInAppAgentOutletNode);
-  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null);
 
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl();
 
@@ -238,68 +235,62 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
         );
 
         return (
-          <InAppAgentHeaderSlotProvider slot={headerSlot}>
-            <InAppAgentHostFrame>
-              {showWindow ? (
-                <InAppAgentPersistentWindow node={outletNode}>
-                  {agentWindow}
-                </InAppAgentPersistentWindow>
-              ) : null}
-              <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-                <div
-                  ref={setHeaderSlot}
-                  data-testid="in-app-agent-header-slot"
-                  className="shrink-0"
-                />
-                {isHandheld ? (
-                  children
-                ) : (
-                  <ResizableSplitLayout
-                    className="flex h-full min-h-0 w-full flex-1"
-                    primaryContent={children}
-                    secondaryContent={
-                      <div
-                        data-testid="in-app-agent-sidebar"
-                        data-ignore-outside-interaction
-                        className="h-full min-h-0 overflow-hidden"
-                      >
-                        <InAppAgentPersistentWindowSink node={outletNode} />
-                      </div>
-                    }
-                    open={showSidebar}
-                    defaultPrimarySize={70}
-                    defaultSecondarySize={30}
-                    minPrimarySize={40}
-                    maxSecondarySize={50}
-                    keepSecondaryMounted={false}
-                    persistId="in-app-agent-sidebar"
-                  />
-                )}
-              </div>
-              {showOverlay ? (
-                // Detached, fullscreen, and handheld presentations live in the
-                // `agent` overlay layer — a <body>-level layer container that
-                // floats above page content and panel surfaces, but below true
-                // modals and transient overlays by DOM order alone. No z-index:
-                // layer ORDER stacks it (see components/ui/layer.tsx). The
-                // docked sidebar is in-flow above, not in this layer.
-                <Layer name="agent">
-                  <InAppAgentWindowShell
-                    floatingPanelHandle={floatingPanelHandle}
-                    isExpanded={isExpanded}
-                    onClose={() => {
-                      setOpen(false);
-                    }}
-                    onExpandedChange={handleExpandedChange}
-                    open={open}
-                    panelRef={panelRef}
+          <InAppAgentHostFrame>
+            {showWindow ? (
+              <InAppAgentPersistentWindow node={outletNode}>
+                {agentWindow}
+              </InAppAgentPersistentWindow>
+            ) : null}
+            {isHandheld ? (
+              children
+            ) : (
+              <ResizableSplitLayout
+                className="flex h-full min-h-0 w-full flex-1"
+                primaryContent={children}
+                secondaryContent={
+                  <div
+                    data-testid="in-app-agent-sidebar"
+                    data-ignore-outside-interaction
+                    className="h-full min-h-0 overflow-hidden"
                   >
-                    {() => <InAppAgentPersistentWindowSink node={outletNode} />}
-                  </InAppAgentWindowShell>
-                </Layer>
-              ) : null}
-            </InAppAgentHostFrame>
-          </InAppAgentHeaderSlotProvider>
+                    <InAppAgentPersistentWindowSink node={outletNode} />
+                  </div>
+                }
+                open={showSidebar}
+                defaultPrimarySize={70}
+                defaultSecondarySize={30}
+                minPrimarySize={40}
+                maxSecondarySize={50}
+                // Floor where quick-action tabs and the composer footer
+                // still layout; dragging can only widen from here.
+                minSecondarySize="24rem"
+                keepSecondaryMounted={false}
+                persistId="in-app-agent-sidebar"
+              />
+            )}
+            {showOverlay ? (
+              // Detached, fullscreen, and handheld presentations live in the
+              // `agent` overlay layer — a <body>-level layer container that
+              // floats above page content and panel surfaces, but below true
+              // modals and transient overlays by DOM order alone. No z-index:
+              // layer ORDER stacks it (see components/ui/layer.tsx). The
+              // docked sidebar is in-flow above, not in this layer.
+              <Layer name="agent">
+                <InAppAgentWindowShell
+                  floatingPanelHandle={floatingPanelHandle}
+                  isExpanded={isExpanded}
+                  onClose={() => {
+                    setOpen(false);
+                  }}
+                  onExpandedChange={handleExpandedChange}
+                  open={open}
+                  panelRef={panelRef}
+                >
+                  {() => <InAppAgentPersistentWindowSink node={outletNode} />}
+                </InAppAgentWindowShell>
+              </Layer>
+            ) : null}
+          </InAppAgentHostFrame>
         );
       }}
     </DialogController>

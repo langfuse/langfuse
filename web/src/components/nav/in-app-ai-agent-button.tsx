@@ -113,10 +113,8 @@ export const InAppAiAgentButton = ({
       {attentionCount > 0 && (
         <span
           aria-hidden="true"
-          className="bg-primary-accent text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold"
-        >
-          {attentionCount > 99 ? "99+" : attentionCount}
-        </span>
+          className="bg-primary-accent absolute -top-0.5 -right-0.5 size-2 rounded-full"
+        />
       )}
       {/* The prominent launcher is a fixed 36px square (top bar, below md), so
           it stays strictly icon-only — the `sm:inline` label would otherwise

@@ -1,6 +1,7 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { startOfWeek, subDays, subHours, subWeeks } from "date-fns";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
   InAppAgentRunErrorCode,
@@ -597,48 +598,64 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   );
 }
 
+function conversationHistoryFixtureDates(now = new Date()) {
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+
+  return {
+    today: subHours(now, 2),
+    yesterday: subDays(now, 1),
+    thisWeek: weekStart,
+    lastWeek: subWeeks(weekStart, 1),
+    older: subWeeks(now, 3),
+  };
+}
+
+const historyDates = conversationHistoryFixtureDates();
+
 const conversations = [
   {
     id: "conversation-1",
     title: "Latency outliers",
-    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+    updatedAt: historyDates.today,
   },
   {
     id: "conversation-2",
     title: "Score correlation",
-    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+    updatedAt: historyDates.yesterday,
   },
 ];
 
 /**
  * One conversation per activity state, in the priority order a row applies:
- * only the first matching state is ever rendered.
+ * only the first matching state is ever rendered. Dates span recency groups
+ * so the history menu can show Today / Yesterday / This week / Last week /
+ * Older in one list.
  */
 const activityConversations = [
   {
     id: "activity-approval",
     title: "Create the eval dataset",
-    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+    updatedAt: historyDates.today,
   },
   {
     id: "activity-running",
     title: "Activity digest comparing last two weeks",
-    updatedAt: new Date("2026-05-19T09:30:00.000Z"),
+    updatedAt: historyDates.yesterday,
   },
   {
     id: "activity-failed",
     title: "Score correlation",
-    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+    updatedAt: historyDates.thisWeek,
   },
   {
     id: "activity-done",
     title: "Latency outliers",
-    updatedAt: new Date("2026-05-19T08:30:00.000Z"),
+    updatedAt: historyDates.lastWeek,
   },
   {
     id: "activity-none",
     title: "Seed conversation",
-    updatedAt: new Date("2026-05-19T08:00:00.000Z"),
+    updatedAt: historyDates.older,
   },
 ];
 
@@ -701,13 +718,6 @@ const meta = preview.meta({
   parameters: {
     layout: "fullscreen",
   },
-  decorators: [
-    (Story) => (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Story />
-      </div>
-    ),
-  ],
   args: {
     error: null,
     executionUi: { notice: null, stop: null },
@@ -798,13 +808,55 @@ export const Empty = meta.story({
 });
 
 function DockedSidebarInAppAgentWindow(args: InAppAgentWindowProps) {
-  return (
-    <div className="flex h-screen w-full">
-      <div className="bg-muted/40 min-h-0 min-w-0 flex-1" />
-      <div className="h-full w-[min(100%,28rem)] min-w-80 border-l">
-        <StatefulInAppAgentWindow {...args} dock="sidebar" isExpanded={false} />
+  const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const [dock, setDock] = useState<InAppAgentDock>(args.dock ?? "sidebar");
+  const handleExpandedChange = (nextExpanded: boolean) => {
+    setIsExpanded(nextExpanded);
+    args.onExpandedChange(nextExpanded);
+  };
+  const handleDockChange = (nextDock: InAppAgentDock) => {
+    setDock(nextDock);
+    args.onDockChange?.(nextDock);
+  };
+
+  const agentWindow = (
+    <InAppAgentWindow
+      {...args}
+      dock={dock}
+      onDockChange={handleDockChange}
+      isHeaderDragHandleEnabled={false}
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    />
+  );
+
+  if (dock === "sidebar" && !isExpanded) {
+    return (
+      <div className="flex h-screen w-full">
+        <div className="bg-muted/40 min-h-0 min-w-0 flex-1" />
+        <div className="h-full min-h-0 w-[min(100%,28rem)] min-w-96 border-l">
+          {agentWindow}
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
+      {({ isHeaderDragHandleEnabled }) => (
+        <InAppAgentWindow
+          {...args}
+          dock={dock}
+          onDockChange={handleDockChange}
+          isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+          isExpanded={isExpanded}
+          onExpandedChange={handleExpandedChange}
+        />
+      )}
+    </InAppAgentWindowStoryShell>
   );
 }
 
@@ -814,6 +866,21 @@ export const DockedSidebar = meta.story({
     messages: [],
   },
   render: (args) => <DockedSidebarInAppAgentWindow {...args} />,
+});
+
+/**
+ * Title-triggered history: recency groups and relative age. Hover a row to
+ * replace the age with delete. New conversation stays a header action.
+ */
+export const PastConversations = meta.story({
+  name: "Past Conversations",
+  args: {
+    conversations: activityConversations,
+    activityByConversationId,
+    selectedConversationId: "activity-running",
+    selectedConversationTitle: "Activity digest comparing last two weeks",
+    messages: [],
+  },
 });
 
 export const Conversation = meta.story({
@@ -1844,11 +1911,10 @@ export const ApprovalExpired = meta.story({
 });
 
 /**
- * Every activity state in the row it belongs to, sharing one fixed-width slot
- * so the column stays straight despite the dots being narrower than the icons.
- *
- * The trigger badge counts the same rows, so it reads 3 here, not 4: the
- * running conversation has nothing for the user to act on yet.
+ * Recency groups, left-side activity, and relative age. The title is only a
+ * name: attention lives on the rows and the launcher, and the count stays in
+ * the trigger's accessible name. The running conversation is omitted from
+ * that count: it has nothing for the user to act on yet.
  */
 export const ConversationActivity = meta.story({
   name: "(Test) Conversation activity",
@@ -1856,20 +1922,87 @@ export const ConversationActivity = meta.story({
     conversations: activityConversations,
     activityByConversationId,
     selectedConversationId: "activity-running",
+    selectedConversationTitle: "Activity digest comparing last two weeks",
     messages: [],
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
 
-    // Exact name (not the prefix match the activity-free stories use) so the
-    // badge count is asserted on the way in.
+    const historyTrigger = canvas.getByRole("button", {
+      name: "Conversation history (3 need attention)",
+    });
+
+    await expect(historyTrigger).toBeVisible();
+    await expect(
+      within(historyTrigger).queryByText("3"),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(historyTrigger);
+
+    const history = within(await screen.findByRole("menu"));
+
+    await expect(
+      history.getByText("Past conversations", { exact: true }),
+    ).toBeInTheDocument();
+    await expect(
+      history.getByText("Today", { exact: true }),
+    ).toBeInTheDocument();
+    await expect(
+      history.getByText("Yesterday", { exact: true }),
+    ).toBeInTheDocument();
+    await expect(
+      history.getByText("This week", { exact: true }),
+    ).toBeInTheDocument();
+    await expect(
+      history.getByText("Last week", { exact: true }),
+    ).toBeInTheDocument();
+    await expect(
+      history.getByText("Older", { exact: true }),
+    ).toBeInTheDocument();
+    await expect(
+      history.getByRole("menuitem", { name: /Create the eval dataset/ }),
+    ).toBeInTheDocument();
+    await expect(history.getByText("2h")).toBeInTheDocument();
+    await expect(
+      history.getByLabelText("Needs your approval"),
+    ).toBeInTheDocument();
+    await expect(history.getByLabelText("Working")).toBeInTheDocument();
+    await expect(history.getByLabelText("Failed")).toBeInTheDocument();
+    await expect(history.getByLabelText("Finished")).toBeInTheDocument();
+  },
+});
+
+export const DeletesAConversation = meta.story({
+  name: "(Test) Deletes a conversation",
+  args: {
+    selectedConversationId: "conversation-1",
+    selectedConversationTitle: "Latency outliers",
+    messages: [],
+  },
+  play: async ({
+    args,
+    canvasElement,
+  }: {
+    args: InAppAgentWindowProps;
+    canvasElement: HTMLElement;
+  }) => {
+    const canvas = within(canvasElement);
+
     await userEvent.click(
-      canvas.getByRole("button", {
-        name: "Conversation history (3 need attention)",
-      }),
+      canvas.getByRole("button", { name: /^Conversation history/ }),
     );
-    // The dropdown portals out of the canvas.
-    await screen.findByText("Recent conversations");
+
+    const history = within(await screen.findByRole("menu"));
+    const row = history.getByRole("menuitem", { name: /Latency outliers/ });
+
+    await userEvent.hover(row);
+    await userEvent.click(
+      within(row).getByRole("button", { name: "Delete conversation" }),
+    );
+
+    await expect(args.onDeleteConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "conversation-1" }),
+    );
   },
 });
 
@@ -1939,6 +2072,7 @@ export const BackgroundHint = meta.story({
         canvas.getByText(/I keep running in the background/),
       ).toBeVisible();
     });
+    await expect(canvas.getByText(/Feel free to close/)).toBeVisible();
 
     await waitFor(
       () =>

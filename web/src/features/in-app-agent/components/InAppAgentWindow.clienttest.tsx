@@ -14,6 +14,7 @@ import {
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import type { InAppAgentError } from "./utils/utils";
+import { resizeComposerTextarea } from "@/src/features/in-app-agent/lib/resizeComposerTextarea";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -215,43 +216,6 @@ describe("InAppAgentWindow quick actions", () => {
   });
 });
 
-describe("InAppAgentWindow conversation history", () => {
-  it("counts conversations that still owe the user a look on the history trigger", () => {
-    render(
-      windowElement({
-        activityByConversationId: new Map([
-          [
-            "conversation-1",
-            {
-              activityKey: "run-1:SUCCEEDED",
-              runId: "run-1",
-              title: "Latency outliers",
-              state: "done-unread",
-              needsAttention: true,
-            },
-          ],
-          [
-            "conversation-2",
-            {
-              activityKey: "run-2:RUNNING",
-              runId: "run-2",
-              title: "Score correlation",
-              state: "running",
-              needsAttention: false,
-            },
-          ],
-        ]),
-      }),
-    );
-
-    expect(
-      screen.getByRole("button", {
-        name: "Conversation history (1 needs attention)",
-      }),
-    ).toBeInTheDocument();
-  });
-});
-
 describe("InAppAgentWindow header", () => {
   it("titles the window by the conversation, and falls back to the product name", () => {
     const { rerender } = render(
@@ -324,7 +288,7 @@ describe("InAppAgentWindow header", () => {
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));
 
-    fireEvent.dblClick(screen.getByText("Assistant"));
+    fireEvent.dblClick(screen.getByRole("banner"));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
 
     fireEvent.dblClick(
@@ -650,6 +614,27 @@ describe("InAppAgentWindow activity", () => {
 });
 
 describe("InAppAgentWindow composer", () => {
+  it("does not lock the composer to the height cap before the field has a width", () => {
+    const textarea = document.createElement("textarea");
+    textarea.style.height = "36px";
+    vi.spyOn(textarea, "getBoundingClientRect").mockReturnValue({
+      width: 0,
+      height: 36,
+      top: 0,
+      left: 0,
+      bottom: 36,
+      right: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(textarea, "scrollHeight", { value: 480 });
+
+    resizeComposerTextarea(textarea);
+
+    expect(textarea.style.height).toBe("36px");
+  });
+
   it("uses Reply after an assistant answer and the welcome copy on a fresh conversation", () => {
     const { rerender } = render(windowElement());
 

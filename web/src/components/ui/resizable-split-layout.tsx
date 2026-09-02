@@ -94,6 +94,20 @@ export function ResizableSplitLayout({
     storage,
   });
 
+  // Without a rail, a persisted 0% share is an unrecoverable sliver. Restore
+  // the default split instead of handing that layout to the group.
+  const secondaryShare = defaultLayout?.[SECONDARY_PANEL_ID];
+  const restoredLayout =
+    !hasCollapsedRail &&
+    typeof secondaryShare === "number" &&
+    secondaryShare < 2
+      ? {
+          ...defaultLayout,
+          [PRIMARY_PANEL_ID]: defaultPrimarySize,
+          [SECONDARY_PANEL_ID]: defaultSecondarySize,
+        }
+      : defaultLayout;
+
   useLayoutEffect(() => {
     if (!keepSecondaryMounted) return;
 
@@ -148,7 +162,7 @@ export function ResizableSplitLayout({
       id={groupId}
       orientation="horizontal"
       className={className}
-      defaultLayout={renderSecondaryPanel ? defaultLayout : undefined}
+      defaultLayout={renderSecondaryPanel ? restoredLayout : undefined}
       onLayoutChanged={
         persistId && renderSecondaryPanel ? onLayoutChanged : undefined
       }
@@ -161,8 +175,8 @@ export function ResizableSplitLayout({
           defaultSize={`${defaultSecondarySize}%`}
           minSize={minSecondarySize}
           maxSize={`${maxSecondarySize}%`}
-          collapsible={true}
-          collapsedSize={collapsedSecondarySize}
+          collapsible={hasCollapsedRail}
+          collapsedSize={hasCollapsedRail ? collapsedSecondarySize : undefined}
           onResize={handleSecondaryResize}
           className={secondaryPanelClassName}
           style={{ overscrollBehaviorY: "none" }}
@@ -197,8 +211,8 @@ export function ResizableSplitLayout({
           defaultSize={`${defaultSecondarySize}%`}
           minSize={minSecondarySize}
           maxSize={`${maxSecondarySize}%`}
-          collapsible={true}
-          collapsedSize={collapsedSecondarySize}
+          collapsible={hasCollapsedRail}
+          collapsedSize={hasCollapsedRail ? collapsedSecondarySize : undefined}
           onResize={handleSecondaryResize}
           className={secondaryPanelClassName}
           style={{ overscrollBehaviorY: "none" }}

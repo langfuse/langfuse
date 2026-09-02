@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -13,19 +14,18 @@ import {
   ArrowRight,
   ArrowDown,
   BotMessageSquare,
+  ChevronDown,
   ChevronRight,
-  History,
   Info,
   Maximize2,
-  TriangleAlert,
   Minimize2,
-  Minus,
   PanelRight,
   PictureInPicture2,
   Plus,
   SendHorizontal,
   Square,
   Trash2,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -33,6 +33,7 @@ import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -43,6 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { APP_SHELL_CHROME_ROW_CLASS } from "@/src/components/layouts/app-shell-chrome";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
@@ -85,6 +87,11 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { resizeComposerTextarea } from "@/src/features/in-app-agent/lib/resizeComposerTextarea";
+import {
+  formatConversationHistoryAge,
+  groupConversationsByRecency,
+} from "@/src/features/in-app-agent/lib/conversationHistoryGroups";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -1034,8 +1041,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
-  // Same conversations the launcher badge counts, narrowed to the ones behind
-  // this trigger: the list is the only place to act on them.
+  // Same conversations the launcher badge counts. The title stays a name;
+  // the count only goes on the trigger's accessible name.
   const historyAttentionCount = [...activityByConversationId.values()].filter(
     (entry) => entry.needsAttention,
   ).length;
@@ -1043,8 +1050,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     historyAttentionCount > 0
       ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
       : "";
+  const conversationHistoryGroups = useMemo(
+    () => groupConversationsByRecency(conversations),
+    [conversations],
+  );
   const hasUserMessage = messages.some((message) => message.role === "user");
   const conversationTitle = selectedConversationTitle?.trim() || null;
+  const windowTitle = conversationTitle ?? "Assistant";
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
       ? message.content.tools.filter((tool) => tool.approval)
@@ -1125,16 +1137,32 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     [isAssistantTurnInProgress, isComposerDisabled, isHandheld],
   );
 
-  useEffect(() => {
-    const input = inputRef.current;
+  useLayoutEffect(() => {
+    resizeComposerTextarea(inputRef.current);
+  }, [input]);
 
-    if (!input) {
+  // The sidebar split first-measures near 0 width. Re-run once the field has
+  // a real width so a wrapped placeholder cannot lock in the 160px cap.
+  useEffect(() => {
+    const node = inputRef.current;
+    if (!node || typeof ResizeObserver === "undefined") {
       return;
     }
 
-    input.style.height = "auto";
-    input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
-  }, [input]);
+    let lastWidth = node.getBoundingClientRect().width;
+    const observer = new ResizeObserver(() => {
+      const width = node.getBoundingClientRect().width;
+      if (Math.abs(width - lastWidth) < 0.5) {
+        return;
+      }
+      lastWidth = width;
+      resizeComposerTextarea(node);
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isComposerDisabled]);
 
   return (
     <section
@@ -1151,7 +1179,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           isHeaderDragHandleEnabled ? "true" : undefined
         }
         className={cn(
-          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          APP_SHELL_CHROME_ROW_CLASS,
+          "bg-card shrink-0 justify-between gap-2 px-3",
           isHeaderDragHandleEnabled && "cursor-move touch-none",
           // Double-click toggles, so never let it select the title instead.
           !isHandheld && "select-none",
@@ -1172,22 +1201,133 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               }
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {conversationTitle ? (
-            <p
-              className="min-w-0 truncate text-sm font-bold"
-              title={conversationTitle}
+        <div className="flex min-w-0 flex-1 items-center">
+          <DropdownMenu
+            open={isConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
+          >
+            <Tooltip delayDuration={100} disableHoverableContent>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 max-w-full min-w-0 gap-1 px-1.5 text-sm font-bold"
+                    // Count lives on the button name, as on the launcher — a
+                    // nested badge aria-label is ignored once the parent has one.
+                    aria-label={`Conversation history${historyAttentionSuffix}`}
+                  >
+                    <span className="min-w-0 truncate" title={windowTitle}>
+                      {windowTitle}
+                    </span>
+                    <ChevronDown className="size-3 shrink-0 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Conversation history</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+              align="start"
+              className="w-72"
+              header="Past conversations"
+              maxHeight="20rem"
             >
-              {conversationTitle}
-            </p>
-          ) : (
-            <p
-              className="shrink-0 truncate text-sm font-bold"
-              title="Assistant"
-            >
-              Assistant
-            </p>
-          )}
+              {conversations.length === 0 ? (
+                <DropdownMenuItem disabled>
+                  No conversations yet
+                </DropdownMenuItem>
+              ) : (
+                conversationHistoryGroups.map((group, groupIndex) => (
+                  <DropdownMenuGroup key={group.id}>
+                    {groupIndex > 0 ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-xs">
+                      {group.label}
+                    </DropdownMenuLabel>
+                    {group.items.map((conversation) => {
+                      const itemTitle =
+                        conversation.title?.trim() || "Untitled conversation";
+                      const activityState = activityByConversationId.get(
+                        conversation.id,
+                      )?.state;
+                      const isSelected =
+                        conversation.id === selectedConversationId;
+
+                      return (
+                        <DropdownMenuItem
+                          key={conversation.id}
+                          className={cn(
+                            "group flex items-center gap-2 text-xs",
+                            isSelected && "bg-accent text-accent-foreground",
+                          )}
+                          onSelect={() => {
+                            onSelectConversation(conversation.id);
+                          }}
+                        >
+                          <span className="flex size-3 shrink-0 items-center justify-center">
+                            {activityState ? (
+                              <ConversationActivityIndicator
+                                state={activityState}
+                              />
+                            ) : null}
+                          </span>
+                          <span
+                            className="min-w-0 flex-1 truncate"
+                            title={itemTitle}
+                          >
+                            {itemTitle}
+                          </span>
+                          <span className="relative flex h-6 min-w-7 shrink-0 items-center justify-end">
+                            <span className="text-muted-foreground tabular-nums group-focus-within:invisible group-hover:invisible">
+                              {formatConversationHistoryAge(
+                                conversation.updatedAt,
+                              )}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="text-muted-foreground hover:text-destructive absolute inset-y-0 right-0 my-auto opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                              aria-label="Delete conversation"
+                              onPointerDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setIsConversationHistoryOpen(false);
+                                onDeleteConversation(conversation);
+                              }}
+                            >
+                              <Trash2 className="size-3" />
+                            </Button>
+                          </span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuGroup>
+                ))
+              )}
+              {hasMoreConversations ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={isLoadingMoreConversations}
+                    onSelect={onLoadMoreConversations}
+                  >
+                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
@@ -1208,120 +1348,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
           </Tooltip>
-          <DropdownMenu
-            open={isConversationHistoryOpen}
-            onOpenChange={(nextOpen) => {
-              setIsConversationHistoryOpen(nextOpen);
-
-              if (nextOpen) {
-                onOpenConversationHistory();
-              }
-            }}
-          >
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="relative size-6 shrink-0"
-                    // Count lives on the button name, as on the launcher — a
-                    // nested badge aria-label is ignored once the parent has one.
-                    aria-label={`Conversation history${historyAttentionSuffix}`}
-                  >
-                    <History className="size-3" />
-                    {/* Launcher badge, scaled to the 24px trigger. Visual only —
-                        accessible name is on the button. */}
-                    {historyAttentionCount > 0 && (
-                      <span
-                        aria-hidden="true"
-                        className="bg-primary-accent text-primary-foreground absolute -top-0.5 -right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[9px] leading-none font-bold"
-                      >
-                        {historyAttentionCount > 99
-                          ? "99+"
-                          : historyAttentionCount}
-                      </span>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Conversation history</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent
-              align="end"
-              className="max-h-80 w-64 overflow-y-auto"
-            >
-              <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {conversations.length === 0 ? (
-                <DropdownMenuItem disabled>
-                  No conversations yet
-                </DropdownMenuItem>
-              ) : (
-                conversations.map((conversation) => {
-                  const conversationTitle =
-                    conversation.title?.trim() || "Untitled conversation";
-                  const activityState = activityByConversationId.get(
-                    conversation.id,
-                  )?.state;
-
-                  return (
-                    <DropdownMenuItem
-                      key={conversation.id}
-                      className={cn(
-                        "flex items-center gap-1",
-                        conversation.id === selectedConversationId &&
-                          "bg-accent text-accent-foreground",
-                      )}
-                      onSelect={() => {
-                        onSelectConversation(conversation.id);
-                      }}
-                    >
-                      <span
-                        className="min-w-0 flex-1 truncate"
-                        title={conversationTitle}
-                      >
-                        {conversationTitle}
-                      </span>
-                      {activityState ? (
-                        <ConversationActivityIndicator state={activityState} />
-                      ) : null}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        // Deleting is always allowed; it cancels whatever the
-                        // conversation was doing rather than refusing.
-                        disabled={isConversationInteractionDisabled}
-                        aria-label="Delete conversation"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setIsConversationHistoryOpen(false);
-                          onDeleteConversation(conversation);
-                        }}
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
-                    </DropdownMenuItem>
-                  );
-                })
-              )}
-              {hasMoreConversations ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    disabled={isLoadingMoreConversations}
-                    onSelect={onLoadMoreConversations}
-                  >
-                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
-                  </DropdownMenuItem>
-                </>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
           {/* Fullscreen and handheld have nowhere to dock or detach into. */}
           {onDockChange && !isHandheld && !isExpanded ? (
             <Tooltip delayDuration={100} disableHoverableContent>
@@ -1389,23 +1415,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  // Full-screen has nothing to minimize into, and with no
-                  // drag-to-dismiss this is the only way out.
-                  aria-label={
-                    isHandheld ? "Close assistant" : "Minimize assistant"
-                  }
+                  aria-label="Close assistant"
                   onClick={props.onClose}
                 >
-                  {isHandheld ? (
-                    <X className="size-3" />
-                  ) : (
-                    <Minus className="size-3" />
-                  )}
+                  <X className="size-3" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                {isHandheld ? "Close assistant" : "Minimize assistant"}
-              </TooltipContent>
+              <TooltipContent>Close assistant</TooltipContent>
             </Tooltip>
           ) : null}
         </div>
@@ -1579,7 +1595,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
             isExpanded={isExpanded}
-            onMinimize={() => {
+            onClose={() => {
               backgroundHint.hide();
               props.onClose?.();
             }}
@@ -1608,7 +1624,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         ) : null}
         <div
           className={cn(
-            "p-1.5",
+            "shrink-0 p-1.5",
             (isExpanded || isAssistantTurnInProgress) && "pt-0",
           )}
         >
@@ -1637,6 +1653,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               value={input}
               onChange={(event) => {
                 setInput(event.target.value);
+                resizeComposerTextarea(event.currentTarget);
               }}
               onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                 if (
