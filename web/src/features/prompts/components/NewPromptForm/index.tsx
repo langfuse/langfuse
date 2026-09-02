@@ -301,26 +301,28 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             >
               {!initialPrompt ? (
                 <TabsList className="flex w-full">
-                  <TabsTrigger
-                    disabled={
-                      Boolean(initialPromptVariant) &&
-                      initialPromptVariant?.type !== PromptType.Text
-                    }
-                    className="flex-1"
-                    value={PromptType.Text}
-                  >
-                    {capitalize(PromptType.Text)}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    disabled={
-                      Boolean(initialPromptVariant) &&
-                      initialPromptVariant?.type !== PromptType.Chat
-                    }
-                    className="flex-1"
-                    value={PromptType.Chat}
-                  >
-                    {capitalize(PromptType.Chat)}
-                  </TabsTrigger>
+                  <span className="flex-1">
+                    <TabsTrigger
+                      disabled={
+                        Boolean(initialPromptVariant) &&
+                        initialPromptVariant?.type !== PromptType.Text
+                      }
+                      value={PromptType.Text}
+                    >
+                      {capitalize(PromptType.Text)}
+                    </TabsTrigger>
+                  </span>
+                  <span className="flex-1">
+                    <TabsTrigger
+                      disabled={
+                        Boolean(initialPromptVariant) &&
+                        initialPromptVariant?.type !== PromptType.Chat
+                      }
+                      value={PromptType.Chat}
+                    >
+                      {capitalize(PromptType.Chat)}
+                    </TabsTrigger>
+                  </span>
                 </TabsList>
               ) : null}
               {hadDraft && (

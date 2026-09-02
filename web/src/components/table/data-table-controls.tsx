@@ -1878,12 +1878,11 @@ function CategoricalSelectContent({
                   engages by itself when a value is unchecked. */}
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <span className="min-w-0">
+                  <span className="w-full min-w-0">
                     <TabsTrigger
                       value="none of"
                       disabled={operator === undefined}
                       size="sm"
-                      className="w-full"
                     >
                       None of
                     </TabsTrigger>

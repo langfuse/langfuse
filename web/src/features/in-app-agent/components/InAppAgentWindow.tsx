@@ -151,16 +151,16 @@ function InAppAgentQuickActionPicker({
           className="flex h-auto w-full rounded-none border-b bg-transparent p-0"
         >
           {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
-            <TabsTrigger
-              key={context}
-              value={context}
-              disabled={isDisabled}
-              variant="underline"
-              size="sm"
-              className="min-w-0 flex-1"
-            >
-              {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
-            </TabsTrigger>
+            <span key={context} className="min-w-0 flex-1">
+              <TabsTrigger
+                value={context}
+                disabled={isDisabled}
+                variant="underline"
+                size="sm"
+              >
+                {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+              </TabsTrigger>
+            </span>
           ))}
         </TabsList>
       </Tabs>

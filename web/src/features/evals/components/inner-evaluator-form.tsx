@@ -886,39 +886,44 @@ export const InnerEvaluatorForm = (props: {
                         }}
                       >
                         <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                          <TabsTrigger
-                            value="event"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px]"
-                          >
-                            <CircleDot className="h-3.5 w-3.5" />
-                            Observations
-                          </TabsTrigger>
-                          {showLegacyTargetOptions && (
+                          <span className="min-w-[100px]">
                             <TabsTrigger
-                              value="trace"
+                              value="event"
                               disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px]"
                             >
-                              <ListTree className="h-3.5 w-3.5" />
-                              Traces
-                              <Badge
-                                variant="secondary"
-                                size="sm"
-                                className="border-border border font-normal"
-                              >
-                                Legacy
-                              </Badge>
+                              <CircleDot className="h-3.5 w-3.5" />
+                              Observations
                             </TabsTrigger>
+                          </span>
+                          {showLegacyTargetOptions && (
+                            <span className="min-w-[100px]">
+                              <TabsTrigger
+                                value="trace"
+                                disabled={
+                                  props.disabled || props.mode === "edit"
+                                }
+                              >
+                                <ListTree className="h-3.5 w-3.5" />
+                                Traces
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="border-border border font-normal"
+                                >
+                                  Legacy
+                                </Badge>
+                              </TabsTrigger>
+                            </span>
                           )}
-                          <TabsTrigger
-                            value="offline-experiment"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px]"
-                          >
-                            <FlaskConical className="h-3.5 w-3.5" />
-                            Experiments
-                          </TabsTrigger>
+                          <span className="min-w-[100px]">
+                            <TabsTrigger
+                              value="offline-experiment"
+                              disabled={props.disabled || props.mode === "edit"}
+                            >
+                              <FlaskConical className="h-3.5 w-3.5" />
+                              Experiments
+                            </TabsTrigger>
+                          </span>
                         </TabsList>
                       </Tabs>
                     </FormControl>
@@ -967,29 +972,31 @@ export const InnerEvaluatorForm = (props: {
                     }}
                   >
                     <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                      <TabsTrigger
-                        value="otel"
-                        className="min-w-[100px]"
-                        disabled={props.mode === "edit" || props.disabled}
-                      >
-                        <FlaskConical className="h-3.5 w-3.5" />
-                        Experiment Runner SDK
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="non-otel"
-                        className="min-w-[100px]"
-                        disabled={props.mode === "edit" || props.disabled}
-                      >
-                        <BetweenHorizonalStart className="h-3.5 w-3.5" />
-                        Low-level SDK methods
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border-border border font-normal"
+                      <span className="min-w-[100px]">
+                        <TabsTrigger
+                          value="otel"
+                          disabled={props.mode === "edit" || props.disabled}
                         >
-                          Legacy
-                        </Badge>
-                      </TabsTrigger>
+                          <FlaskConical className="h-3.5 w-3.5" />
+                          Experiment Runner SDK
+                        </TabsTrigger>
+                      </span>
+                      <span className="min-w-[100px]">
+                        <TabsTrigger
+                          value="non-otel"
+                          disabled={props.mode === "edit" || props.disabled}
+                        >
+                          <BetweenHorizonalStart className="h-3.5 w-3.5" />
+                          Low-level SDK methods
+                          <Badge
+                            variant="secondary"
+                            size="sm"
+                            className="border-border border font-normal"
+                          >
+                            Legacy
+                          </Badge>
+                        </TabsTrigger>
+                      </span>
                     </TabsList>
                   </Tabs>
                 </div>

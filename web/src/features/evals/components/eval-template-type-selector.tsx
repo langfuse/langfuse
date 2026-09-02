@@ -115,28 +115,27 @@ export function EvalTemplateTypeSelector({
             >
               <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
                 {mode === "all" ? (
-                  <TabsTrigger
-                    value={EvalTemplateType.LLM_AS_JUDGE}
-                    className="min-w-[100px]"
-                  >
-                    LLM-as-judge
-                  </TabsTrigger>
+                  <span className="min-w-[100px]">
+                    <TabsTrigger value={EvalTemplateType.LLM_AS_JUDGE}>
+                      LLM-as-judge
+                    </TabsTrigger>
+                  </span>
                 ) : null}
-                <TabsTrigger
-                  value={EvalTemplateSourceCodeLanguage.TYPESCRIPT}
-                  className="min-w-[100px]"
-                >
-                  TypeScript
-                </TabsTrigger>
+                <span className="min-w-[100px]">
+                  <TabsTrigger
+                    value={EvalTemplateSourceCodeLanguage.TYPESCRIPT}
+                  >
+                    TypeScript
+                  </TabsTrigger>
+                </span>
                 {codeEvalCapabilities.supportedSourceCodeLanguages.includes(
                   EvalTemplateSourceCodeLanguage.PYTHON,
                 ) ? (
-                  <TabsTrigger
-                    value={EvalTemplateSourceCodeLanguage.PYTHON}
-                    className="min-w-[100px]"
-                  >
-                    Python
-                  </TabsTrigger>
+                  <span className="min-w-[100px]">
+                    <TabsTrigger value={EvalTemplateSourceCodeLanguage.PYTHON}>
+                      Python
+                    </TabsTrigger>
+                  </span>
                 ) : null}
               </TabsList>
             </Tabs>

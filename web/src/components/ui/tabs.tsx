@@ -45,23 +45,17 @@ const TabsList = React.forwardRef<
   />
 ));
 
-type TabsTriggerProps = Omit<
-  Pick<
-    React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>,
-    "children" | "className" | "disabled" | "title" | "value"
-  >,
-  "children" | "className" | "value"
-> & {
+type TabsTriggerProps = {
   children: React.ReactNode;
+  disabled?: boolean;
+  title?: string;
   value: string;
-  className?: "w-full" | "min-w-[100px]" | "min-w-0 flex-1" | "flex-1";
 } & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant">;
 
 TabsList.displayName = TabsPrimitive.List.displayName;
 
 function TabsTrigger({
   children,
-  className,
   disabled,
   size,
   title,
@@ -73,7 +67,7 @@ function TabsTrigger({
       value={value}
       disabled={disabled}
       title={title}
-      className={cn(tabsTriggerVariants({ size, variant }), className)}
+      className={tabsTriggerVariants({ size, variant })}
     >
       {children}
     </TabsPrimitive.Trigger>
