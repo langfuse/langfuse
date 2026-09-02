@@ -19,6 +19,7 @@ import {
   buildScoreRowsCTE,
   buildScoresCTE,
   eventsExperimentsRootSpans,
+  eventsExperimentsTraceRootSpans,
   eventsExperimentsForItems,
   eventsExperiments,
   eventsExperimentsAggregation,
@@ -691,14 +692,23 @@ const buildScoreFilterOptionsQuery = (params: {
   projectId: string;
   experimentIds: string[];
   level: "observation" | "trace";
+  /**
+   * Which span has to carry the experiment for a score to count as belonging
+   * to it. `itemRoot` (the default) is the per-item view the item tables
+   * filter on. `traceLinkage: "traceRoot"` matches what a chart over the
+   * scores -> events_traces relation can resolve, so an option offered under
+   * it can actually be plotted. Only meaningful at trace level.
+   */
+  traceLinkage?: "itemRoot" | "traceRoot";
 }): { query: string; params: Record<string, unknown> } => {
-  const { projectId, experimentIds, level } = params;
+  const { projectId, experimentIds, level, traceLinkage = "itemRoot" } = params;
 
   // Build experiment events CTE using existing fragment
-  const experimentEventsCTE = eventsExperimentsRootSpans({
-    projectId,
-    experimentIds,
-  })
+  const experimentEventsCTE = (
+    traceLinkage === "traceRoot"
+      ? eventsExperimentsTraceRootSpans({ projectId, experimentIds })
+      : eventsExperimentsRootSpans({ projectId, experimentIds })
+  )
     .selectRaw("e.project_id", "e.trace_id", "e.span_id")
     .limitBy("e.project_id", "e.trace_id", "e.span_id")
     .buildWithParams();
@@ -895,10 +905,17 @@ const getExperimentScoreOptionsByLevel = async ({
   // this a score recorded on the trace was never even suggested — and it is also
   // where an LLM-as-judge on a dataset run writes, so it belongs in the chart's
   // metric list next to the other two levels.
+  //
+  // These names feed a metric dropdown, so they are matched on the trace's own
+  // parentless row: that is the linkage the chart resolves the experiment
+  // through, and offering a metric that draws nothing is worse than leaving it
+  // out. A trace-level score on a trace shared with non-experiment work is not
+  // attributable to a single run through that linkage, so it stays out.
   const traceQuery = buildScoreFilterOptionsQuery({
     projectId,
     experimentIds: uniqueExperimentIds,
     level: "trace",
+    traceLinkage: "traceRoot",
   });
 
   const runQuery = buildExperimentRunScoreFilterOptionsQuery({

@@ -269,6 +269,74 @@ maybeEventTables("level-agnostic experiment score filters", () => {
     ]);
     expect(options.score_name_levels_numeric[traceOnly]).toEqual(["trace"]);
   });
+
+  it("withholds a chart metric for a trace-level score it cannot attribute", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const scoreName = `nested-${randomUUID().slice(0, 8)}`;
+    const traceId = randomUUID();
+    const appRootSpanId = randomUUID();
+    const itemRootSpanId = randomUUID();
+    const experimentId = `exp-${randomUUID()}`;
+
+    // The item runs inside a wider trace, so the trace's parentless row is app
+    // work that carries no experiment. The chart resolves a run through that
+    // row, so it can never attribute this score to the run.
+    await createEventsCh([
+      createEvent({
+        id: appRootSpanId,
+        span_id: appRootSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "app-root",
+        type: "SPAN",
+        start_time: startTimeMs * 1000,
+        end_time: (startTimeMs + 200) * 1000,
+      }),
+      createEvent({
+        id: itemRootSpanId,
+        span_id: itemRootSpanId,
+        parent_span_id: appRootSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "nested-item-root",
+        type: "SPAN",
+        start_time: startTimeMs * 1000,
+        end_time: (startTimeMs + 100) * 1000,
+        experiment_id: experimentId,
+        experiment_name: "nested-item-run",
+        experiment_dataset_id: "dataset-score-levels",
+        experiment_item_id: randomUUID(),
+        experiment_item_root_span_id: itemRootSpanId,
+      }),
+    ]);
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: scoreName,
+        value: 0.9,
+        data_type: "NUMERIC",
+        timestamp: startTimeMs,
+      }),
+    ]);
+
+    const chartOptions = await getExperimentScoreOptions({
+      projectId,
+      experimentIds: [experimentId],
+    });
+    expect(chartOptions.trace_scores_avg).not.toContain(scoreName);
+
+    // The item table filters per item, not through the chart's linkage, so the
+    // same score stays available there.
+    const itemOptions = await getExperimentItemsFilterOptions({
+      projectId,
+      experimentIds: [experimentId],
+    });
+    expect(itemOptions.trace_scores_avg).toContain(scoreName);
+  });
 });
 
 maybeEventTables("level-agnostic experiment ITEM score filters", () => {
