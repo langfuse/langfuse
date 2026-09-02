@@ -69,19 +69,13 @@ type AccordionTriggerProps = Omit<
 > &
   Pick<VariantProps<typeof accordionTriggerVariants>, "size" | "variant"> & {
     children: React.ReactNode;
-    className?: "px-3" | "px-4";
   };
 
-function AccordionTrigger({
-  children,
-  className,
-  size,
-  variant,
-}: AccordionTriggerProps) {
+function AccordionTrigger({ children, size, variant }: AccordionTriggerProps) {
   return (
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
-        className={cn(accordionTriggerVariants({ size, variant }), className)}
+        className={accordionTriggerVariants({ size, variant })}
       >
         {children}
         <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />

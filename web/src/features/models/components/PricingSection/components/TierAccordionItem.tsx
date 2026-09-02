@@ -50,30 +50,32 @@ export function TierAccordionItem({
 
   return (
     <AccordionItem value={tier.id} className="bg-muted/30 rounded-lg border">
-      <AccordionTrigger variant="plain" className="px-4">
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-bold">{name ?? tier.name}</span>
-            {isDefault && <Badge variant="secondary">Default</Badge>}
-            <span className="text-muted-foreground text-xs">
-              Priority: {priority}
-            </span>
+      <div className="px-4">
+        <AccordionTrigger variant="plain">
+          <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-bold">{name ?? tier.name}</span>
+              {isDefault && <Badge variant="secondary">Default</Badge>}
+              <span className="text-muted-foreground text-xs">
+                Priority: {priority}
+              </span>
+            </div>
+            {!isDefault && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove(index);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {!isDefault && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                remove(index);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </AccordionTrigger>
+        </AccordionTrigger>
+      </div>
 
       <AccordionContent>
         <div className="space-y-4 px-4">
