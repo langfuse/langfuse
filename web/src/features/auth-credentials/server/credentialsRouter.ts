@@ -20,6 +20,10 @@ export const credentialsRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const normalizedEmail = input.email.toLowerCase();
+      // Public procedures still receive the session when a cookie is present;
+      // it is only optional. Logged-out recovery has none. When a user changes
+      // their password from account settings, the code must belong to the
+      // signed-in account so a stale session cannot reset someone else's.
       const sessionEmail = ctx.session?.user?.email?.toLowerCase();
       if (sessionEmail && sessionEmail !== normalizedEmail) {
         throw new TRPCError({
