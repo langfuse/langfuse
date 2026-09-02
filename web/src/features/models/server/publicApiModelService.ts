@@ -39,6 +39,8 @@ type ModelAuditScope = {
 
 type ListModelsInput = z.infer<typeof GetModelsV1Query> & {
   projectId: string;
+  fromTimestamp?: Date | null;
+  toTimestamp?: Date | null;
 };
 
 type GetModelInput = z.infer<typeof GetModelV1Query> & {
@@ -142,8 +144,22 @@ export const listModelsForApi = async ({
   projectId,
   page,
   limit,
+  fromTimestamp,
+  toTimestamp,
 }: ListModelsInput) => {
-  const where = visibleModelsWhere(projectId);
+  const where = {
+    ...visibleModelsWhere(projectId),
+    // Optional half-open time window on createdAt. The two params are
+    // independent, so omitting both preserves the existing behavior.
+    ...(fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: fromTimestamp } : {}),
+            ...(toTimestamp ? { lte: toTimestamp } : {}),
+          },
+        }
+      : {}),
+  };
 
   const [models, totalItems] = await Promise.all([
     prisma.model.findMany({

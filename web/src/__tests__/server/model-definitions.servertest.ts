@@ -666,3 +666,162 @@ describe("/models API Endpoints", () => {
     expect(modelsAfterDelete.status).toBe(200);
   });
 });
+
+describe("GET /api/public/models timestamp window", () => {
+  it("returns only models with createdAt >= fromTimestamp", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const early = await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName: `early-${v4()}`,
+        matchPattern: "(.*)early(.*)",
+        startDate: "2026-01-01",
+        inputPrice: 0.001,
+        outputPrice: 0.002,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+    expect(early.status).toBe(200);
+
+    const late = await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName: `late-${v4()}`,
+        matchPattern: "(.*)late(.*)",
+        startDate: "2026-12-31",
+        inputPrice: 0.003,
+        outputPrice: 0.004,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+    expect(late.status).toBe(200);
+
+    // Force the "late" model's createdAt to a known timestamp in the future
+    // so the fromTimestamp filter is deterministic.
+    const future = new Date("2027-06-15T12:00:00Z");
+    await prisma.model.update({
+      where: { id: late.body.id },
+      data: { createdAt: future },
+    });
+    // Push the "early" model's createdAt into the past so it falls below
+    // the fromTimestamp cutoff.
+    const past = new Date("2026-06-15T12:00:00Z");
+    await prisma.model.update({
+      where: { id: early.body.id },
+      data: { createdAt: past },
+    });
+
+    const res = await makeZodVerifiedAPICall(
+      GetModelsV1Response,
+      "GET",
+      `/api/public/models?fromTimestamp=${encodeURIComponent("2027-01-01T00:00:00Z")}`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((m) => m.id);
+    expect(ids).toContain(late.body.id);
+    expect(ids).not.toContain(early.body.id);
+
+    // Cleanup
+    await prisma.model.deleteMany({
+      where: { projectId, id: { in: [early.body.id, late.body.id] } },
+    });
+  });
+
+  it("returns only models with createdAt <= toTimestamp", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const early = await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName: `early-${v4()}`,
+        matchPattern: "(.*)early(.*)",
+        startDate: "2026-01-01",
+        inputPrice: 0.001,
+        outputPrice: 0.002,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+    expect(early.status).toBe(200);
+
+    const late = await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName: `late-${v4()}`,
+        matchPattern: "(.*)late(.*)",
+        startDate: "2026-12-31",
+        inputPrice: 0.003,
+        outputPrice: 0.004,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+    expect(late.status).toBe(200);
+
+    // early.createdAt = 2026-06-15; late.createdAt = 2027-06-15.
+    await prisma.model.update({
+      where: { id: early.body.id },
+      data: { createdAt: new Date("2026-06-15T12:00:00Z") },
+    });
+    await prisma.model.update({
+      where: { id: late.body.id },
+      data: { createdAt: new Date("2027-06-15T12:00:00Z") },
+    });
+
+    const res = await makeZodVerifiedAPICall(
+      GetModelsV1Response,
+      "GET",
+      `/api/public/models?toTimestamp=${encodeURIComponent("2026-12-31T23:59:59Z")}`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((m) => m.id);
+    expect(ids).toContain(early.body.id);
+    expect(ids).not.toContain(late.body.id);
+
+    await prisma.model.deleteMany({
+      where: { projectId, id: { in: [early.body.id, late.body.id] } },
+    });
+  });
+
+  it("rejects an invalid timestamp with 400", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const res = await makeAPICall(
+      "GET",
+      "/api/public/models?fromTimestamp=not-a-date",
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("omitting both params preserves the existing unfiltered behavior", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    // No filter, just exercise the route to make sure it still returns 200.
+    const res = await makeZodVerifiedAPICall(
+      GetModelsV1Response,
+      "GET",
+      "/api/public/models",
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+});
