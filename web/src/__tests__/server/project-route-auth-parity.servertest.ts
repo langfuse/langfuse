@@ -171,12 +171,24 @@ function getHeaders(
     ];
   }
   const { publicKey, secretKey } = keys[apiKeyKind];
+  // An org key has no bound project, so a realistic org request names its target
+  // via header; project/agent keys resolve their project from the key itself.
+  const target =
+    apiKeyKind === "org"
+      ? { "x-langfuse-project-id": fixtureProjectId }
+      : undefined;
   return [
     {
       headerKind: "basic",
-      headers: { authorization: createBasicAuthHeader(publicKey, secretKey) },
+      headers: {
+        authorization: createBasicAuthHeader(publicKey, secretKey),
+        ...target,
+      },
     },
-    { headerKind: "bearer", headers: { authorization: `Bearer ${publicKey}` } },
+    {
+      headerKind: "bearer",
+      headers: { authorization: `Bearer ${publicKey}`, ...target },
+    },
   ];
 }
 
@@ -312,9 +324,9 @@ describe("project-route auth parity", () => {
     expect(matrices.shadow).toEqual(matrices.legacy);
   });
 
-  // enforce is not yet byte-identical to legacy: an org key with no project
-  // target returns 400 (missing x-langfuse-project-id) where legacy returns 403
-  // for basic and 401 for bearer. Convert to `it` once the seam matches legacy.
+  // enforce is not yet byte-identical to legacy: an org key over bearer returns
+  // 403 (authenticated, then denied) where legacy special-cases it to 401.
+  // Convert to `it` once the seam matches legacy.
   it.fails("enforce is not yet byte-identical to legacy", () => {
     expect(matrices.enforce).toEqual(matrices.legacy);
   });
