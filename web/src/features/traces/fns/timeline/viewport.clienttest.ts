@@ -99,6 +99,21 @@ describe("viewport", () => {
     expect(fromThere.rows.start).toBeCloseTo(800, 6);
     expect(fromThere.time).toEqual(panned.time);
 
+    // A clock that has already been sliced stays sliced; only the rows grow.
+    const narrowed = zoomViewport(fitted, limits, {
+      factor: 2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+      axes: "x",
+    });
+    expect(canExpandRowsToReadable(narrowed, limits)).toBe(true);
+    const expandedClock = expandRowsToReadable(narrowed, limits);
+    expect(expandedClock.time).toEqual(narrowed.time);
+    expect(rowHeightOf(expandedClock, limits.boxHeight)).toBeCloseTo(
+      HUMAN_ROW_HEIGHT,
+      6,
+    );
+
     // A short trace already sits at the human height — nothing to grow.
     const short = { ...limits, rowCount: 12 };
     const shortFit = fitViewport(short);
@@ -126,6 +141,18 @@ describe("viewport", () => {
     });
     expect(reveal.time).toEqual(fitted.time);
     expect(rowHeightOf(reveal, limits.boxHeight)).toBeCloseTo(2, 6);
+
+    // A factor large enough to cross the labelled threshold spends the rest
+    // on both axes — otherwise a batched pinch would leave the clock full.
+    const crossing = zoomViewportRevealLabels(fitted, limits, {
+      factor: LABELLED_ROW_HEIGHT * 1.2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(rowHeightOf(crossing, limits.boxHeight)).toBeGreaterThanOrEqual(
+      LABELLED_ROW_HEIGHT,
+    );
+    expect(crossing.time.duration).toBeCloseTo(fitted.time.duration / 1.2, 6);
 
     const labelled = expandRowsToReadable(fitted, limits);
     const both = zoomViewportRevealLabels(labelled, limits, {

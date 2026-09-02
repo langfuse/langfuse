@@ -1869,6 +1869,71 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
   },
 });
 
+/**
+ * A box that only slices time must not hide Fit behind Show labels. Growing
+ * the rows would keep that narrow clock; Fit is the way back to the overview.
+ */
+export const FitStaysAfterATimeOnlyBox = meta.story({
+  name: "(Test) Fit Stays After A Time Only Box",
+  args: {
+    roots: manySpans(150),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+
+    await expect(
+      canvasElement.querySelector('button[aria-label="Show labels"]'),
+    ).not.toBeNull();
+
+    const rect = surface.getBoundingClientRect();
+    const drag = (type: string, x: number, y: number) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          buttons: type === "pointerup" ? 0 : 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    // Full height, half the clock: rows stay hairline, time narrows.
+    drag("pointerdown", rect.left + rect.width * 0.25, rect.top + 2);
+    drag("pointermove", rect.left + rect.width * 0.75, rect.bottom - 2);
+    drag("pointerup", rect.left + rect.width * 0.75, rect.bottom - 2);
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+    await expect(readout()).toMatch(/[1-4]\.\dpx rows/);
+
+    await expect(
+      canvasElement.querySelector('button[aria-label="Show labels"]'),
+    ).toBeNull();
+    const fit = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Fit whole trace"]',
+    );
+    if (!fit) throw new Error("Fit disappeared after a time-only box");
+    await expect(fit.disabled).toBe(false);
+  },
+});
+
 /** Collapse in the tree means collapse here: the same set, honoured. */
 export const CollapsedRowsAreNotDrawn = meta.story({
   name: "(Test) Collapsed Rows Are Not Drawn",

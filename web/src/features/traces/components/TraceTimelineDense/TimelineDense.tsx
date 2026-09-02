@@ -495,6 +495,9 @@ export function TimelineDense({
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const canShowLabels = canExpandRowsToReadable(current, limits);
+  // Only replace Fit at rest. A time-zoomed hairline still needs one click
+  // back to the whole trace; Show labels would keep that narrow clock.
+  const offerShowLabels = canShowLabels && fitted;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   /**
@@ -821,7 +824,14 @@ export function TimelineDense({
   );
 
   const showLabels = () => {
-    flyTo(expandRowsToReadable(viewportRef.current, layoutRef.current.limits));
+    const { limits: live, extentOf } = layoutRef.current;
+    flyTo(
+      anchorTimeToRows(
+        expandRowsToReadable(viewportRef.current, live),
+        live,
+        extentOf,
+      ),
+    );
   };
 
   const scheduleGesture = useCallback(() => {
@@ -1324,7 +1334,7 @@ export function TimelineDense({
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
-        {canShowLabels ? (
+        {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
             <UnfoldVertical className="h-3 w-3" />
           </ToolbarButton>
@@ -1348,10 +1358,10 @@ export function TimelineDense({
           className="text-muted-foreground truncate"
           style={{ fontSize: "10px" }}
           title={
-            canShowLabels ? "Show labels" : fitted ? undefined : windowHint
+            offerShowLabels ? "Show labels" : fitted ? undefined : windowHint
           }
         >
-          {canShowLabels ? "Show labels" : fitted ? null : windowHint}
+          {offerShowLabels ? "Show labels" : fitted ? null : windowHint}
         </span>
       </div>
 

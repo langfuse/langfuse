@@ -70,8 +70,8 @@ export type ViewportLimits = {
   boxHeight: number;
 };
 
-const finite = (value: number, fallback: number) =>
-  Number.isFinite(value) ? value : fallback;
+const finite = (value: number | undefined, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -246,8 +246,9 @@ export function canExpandRowsToReadable(
 }
 
 /**
- * Zoom in: grow rows first until labels fit, then zoom both axes.
- * Zoom out: both axes (a full-width window only shrinks the rows).
+ * Zoom in: grow rows first until labels fit, then apply whatever factor is
+ * left to both axes. Zoom out: both axes (a full-width window only shrinks
+ * the rows).
  */
 export function zoomViewportRevealLabels(
   viewport: Viewport,
@@ -259,10 +260,22 @@ export function zoomViewportRevealLabels(
     return zoomViewport(viewport, limits, options);
   }
   const height = rowHeightOf(viewport, limits.boxHeight);
-  if (height >= LABELLED_ROW_HEIGHT) {
+  if (!(height > 0) || height >= LABELLED_ROW_HEIGHT) {
     return zoomViewport(viewport, limits, options);
   }
-  return zoomViewport(viewport, limits, { ...options, axes: "y" });
+  const yFactorNeeded = LABELLED_ROW_HEIGHT / height;
+  if (factor <= yFactorNeeded) {
+    return zoomViewport(viewport, limits, { ...options, axes: "y" });
+  }
+  const labelled = zoomViewport(viewport, limits, {
+    ...options,
+    factor: yFactorNeeded,
+    axes: "y",
+  });
+  return zoomViewport(labelled, limits, {
+    ...options,
+    factor: factor / yFactorNeeded,
+  });
 }
 
 /**
