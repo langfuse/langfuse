@@ -6,14 +6,13 @@ import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createColumnHelper } from "@tanstack/react-table";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Copy, Edit, User as UserIcon } from "lucide-react";
+import { Copy, Edit } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -225,7 +224,6 @@ export function DashboardTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashboards.isSuccess, dashboards.data]);
 
-  const columnHelper = createColumnHelper<DashboardTableRow>();
   const dashboardColumns = [
     createLinkTableColumn<DashboardTableRow>({
       accessorKey: "name",
@@ -250,25 +248,6 @@ export function DashboardTable() {
       accessorKey: "description",
       header: "Description",
       size: 300,
-    }),
-    columnHelper.display({
-      id: "ownerTag",
-      header: "Owner",
-      size: 80,
-      cell: (row) => {
-        return row.row.original.owner === "LANGFUSE" ? (
-          <span className="flex gap-1 px-2 py-0.5 text-xs">
-            <span role="img" aria-label="Langfuse">
-              🪢
-            </span>
-            Langfuse
-          </span>
-        ) : (
-          <span className="flex gap-1 px-2 py-0.5 text-xs">
-            <UserIcon className="h-3 w-3" /> Project
-          </span>
-        );
-      },
     }),
     createUserTableColumn<DashboardTableRow, { name: string }>({
       accessorFn: (row) =>
