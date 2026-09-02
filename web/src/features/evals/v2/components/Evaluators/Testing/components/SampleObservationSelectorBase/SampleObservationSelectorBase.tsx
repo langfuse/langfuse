@@ -544,7 +544,7 @@ export function SampleObservationSelectorBase(
 
   return (
     <div className="flex shrink-0 flex-col gap-6">
-      <section className="flex flex-col gap-2">
+      <section className="flex w-full max-w-5xl flex-col gap-2">
         <SectionHeader
           title="Filter observations"
           meta={null}
