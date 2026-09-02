@@ -1737,6 +1737,8 @@ class OCIObjectStorageService implements StorageService {
         namespaceName,
         bucketName: this.bucketName,
         prefix,
+        // Object summaries only carry `name` unless asked for more.
+        fields: "name,timeCreated",
       };
       const resp = await client.listObjects(req);
       const objects = ((resp as any).listObjects?.objects ?? []) as Array<{

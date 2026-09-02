@@ -495,6 +495,17 @@ describe("IngestionService unit tests", () => {
     expect(sortedEventList).not.toBe(records); // Ensure that the original array is not mutated
   });
 
+  it("puts the first-arriving of tied create events last so it wins the merge", () => {
+    // OTel stamps a root span's trace-create and a child span's trace update
+    // with the same start time; the child arrives first and must win.
+    const first = { timestamp: 1, type: "trace-create", id: "first" };
+    const second = { timestamp: 1, type: "trace-create", id: "second" };
+
+    expect(
+      (IngestionService as any).toTimeSortedEventList([first, second]),
+    ).toEqual([second, first]);
+  });
+
   it("correctly convert Date to Clickhouse DateTime", async () => {
     const date = new Date("2024-10-12T12:13:14.123Z");
 
@@ -894,5 +905,72 @@ describe("IngestionService unit tests", () => {
     ).rejects.toThrow("Unexpected error(s) validating score batch");
 
     expect(addToQueue).not.toHaveBeenCalled();
+  });
+
+  it("keeps the last-arriving event when score events share a timestamp", async () => {
+    // Re-sending the full score with the same id, name, and timestamp is the
+    // documented way to overwrite it, so the events tie on timestamp and
+    // arrival order has to decide the winner.
+    const timestamp = "2026-08-31T12:00:00.000Z";
+    const buildEvent = (id: string, value: string): ScoreEventType => ({
+      id,
+      timestamp,
+      type: "score-create",
+      body: {
+        id: "score-id",
+        name: "quality",
+        dataType: "TEXT",
+        source: "API",
+        sessionId: "session-id",
+        environment: "default",
+        value,
+      },
+    });
+    const first = buildEvent("event-first", "first");
+    const second = buildEvent("event-second", "second");
+
+    const mergeAndReadValue = async (events: ScoreEventType[]) => {
+      const addToQueue = vi.fn();
+      const ingestionService = new IngestionService(
+        {} as any,
+        {} as any,
+        { addToQueue } as any,
+        {} as any,
+      );
+      vi.spyOn(
+        ingestionService as any,
+        "getClickhouseRecord",
+      ).mockResolvedValue(null);
+
+      await ingestionService.mergeAndWrite({
+        eventType: "score",
+        projectId: "project-id",
+        entityId: "score-id",
+        createdAtTimestamp: new Date(timestamp),
+        events,
+        forwardToEventsTable: false,
+        attribution: {
+          ingestionApiKey: "pk-lf-unit-test",
+          ingestionSdkName: "langfuse-test",
+          ingestionSdkVersion: "0.0.0",
+        },
+      });
+
+      expect(addToQueue).toHaveBeenCalledWith(
+        TableName.Scores,
+        expect.anything(),
+      );
+      return addToQueue.mock.calls[0]?.[1].string_value;
+    };
+
+    for (const events of [
+      [first, second],
+      [second, first],
+    ]) {
+      await expect(
+        mergeAndReadValue(events),
+        `arrival order ${events.map((e) => e.id).join(", ")}`,
+      ).resolves.toBe(events.at(-1)?.body.value);
+    }
   });
 });
