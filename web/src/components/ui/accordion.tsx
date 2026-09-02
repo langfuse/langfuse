@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -63,12 +62,9 @@ const accordionContentVariants = cva("", {
   },
 });
 
-type AccordionItemProps = Omit<
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
-    "children" | "className" | "value"
-  >,
-  "children" | "className"
+type AccordionItemProps = Pick<
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
+  "value"
 > &
   Pick<VariantProps<typeof accordionItemVariants>, "inset" | "variant"> & {
     children: React.ReactNode;
