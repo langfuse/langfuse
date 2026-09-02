@@ -885,7 +885,7 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
+                        <TabsList layout="packed">
                           <span className="min-w-[100px]">
                             <TabsTrigger
                               value="event"
@@ -971,7 +971,7 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
+                    <TabsList layout="packed">
                       <span className="min-w-[100px]">
                         <TabsTrigger
                           value="otel"

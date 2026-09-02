@@ -150,7 +150,7 @@ export function CustomMappingEditor({
           onValueChange={(v) => handleTypeChange(v as MappingTarget)}
           className="mt-2"
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList layout="cols-2">
             <TabsTrigger value="root">Root</TabsTrigger>
             <TabsTrigger value="keyValueMap">Key-value map</TabsTrigger>
           </TabsList>

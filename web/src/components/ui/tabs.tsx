@@ -1,14 +1,11 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/src/utils/tailwind";
-
 const tabsListVariants = cva(
-  "text-muted-foreground inline-flex items-center justify-center",
+  "text-muted-foreground items-center justify-center",
   {
     variants: {
       variant: {
@@ -21,6 +18,15 @@ const tabsListVariants = cva(
         default: "",
         sm: "",
         auto: "",
+      },
+      layout: {
+        default: "inline-flex",
+        full: "flex w-full",
+        "cols-2": "grid w-full grid-cols-2",
+        "cols-2-gap": "grid w-full grid-cols-2 gap-1",
+        "cols-3": "grid w-full grid-cols-3",
+        packed: "grid w-fit max-w-fit grid-flow-col gap-4",
+        gap: "inline-flex gap-1",
       },
     },
     compoundVariants: [
@@ -37,6 +43,7 @@ const tabsListVariants = cva(
     defaultVariants: {
       variant: "default",
       size: "default",
+      layout: "default",
     },
   },
 );
@@ -66,28 +73,21 @@ const tabsTriggerVariants = cva(
 type TabsListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
-  className?:
-    | "grid w-full grid-cols-3"
-    | "grid w-full grid-cols-2"
-    | "grid w-fit max-w-fit grid-flow-col gap-4"
-    | "flex w-full"
-    | "gap-1"
-    | "grid w-full grid-cols-2 gap-1";
-} & Pick<VariantProps<typeof tabsListVariants>, "size" | "variant">;
+} & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
 
 const Tabs = TabsPrimitive.Root;
 
 function TabsList({
   "aria-label": ariaLabel,
   children,
-  className,
+  layout,
   size,
   variant,
 }: TabsListProps) {
   return (
     <TabsPrimitive.List
       aria-label={ariaLabel}
-      className={cn(tabsListVariants({ size, variant }), className)}
+      className={tabsListVariants({ layout, size, variant })}
     >
       {children}
     </TabsPrimitive.List>

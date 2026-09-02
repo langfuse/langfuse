@@ -113,7 +113,7 @@ export function EvalTemplateTypeSelector({
                 )
               }
             >
-              <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
+              <TabsList layout="packed">
                 {mode === "all" ? (
                   <span className="min-w-[100px]">
                     <TabsTrigger value={EvalTemplateType.LLM_AS_JUDGE}>

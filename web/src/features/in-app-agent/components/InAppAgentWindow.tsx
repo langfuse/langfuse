@@ -150,7 +150,7 @@ function InAppAgentQuickActionPicker({
           aria-label="Quick action category"
           variant="underline"
           size="auto"
-          className="flex w-full"
+          layout="full"
         >
           {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
             <span key={context} className="min-w-0 flex-1">

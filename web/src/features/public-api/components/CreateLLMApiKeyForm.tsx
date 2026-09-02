@@ -796,10 +796,7 @@ export function CreateLLMApiKeyForm({
                             }
                             className="w-full"
                           >
-                            <TabsList
-                              className="grid w-full grid-cols-2 gap-1"
-                              size="auto"
-                            >
+                            <TabsList layout="cols-2-gap" size="auto">
                               <TabsTrigger
                                 value={AuthMethod.AccessKeys}
                                 size="sm"
