@@ -29,7 +29,7 @@ export const ModelCostTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const modelCostQuery: QueryType = {

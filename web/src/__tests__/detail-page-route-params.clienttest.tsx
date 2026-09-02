@@ -21,8 +21,8 @@ vi.mock("@/src/components/session", () => ({
   ),
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({ isBetaEnabled: false }),
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({ isV4: false }),
 }));
 
 vi.mock(

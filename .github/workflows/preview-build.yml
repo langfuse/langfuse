@@ -328,6 +328,7 @@ jobs:
             ```sh
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-worker   # worker
+            kubectl -n ${{ needs.meta.outputs.namespace }} port-forward svc/preview-mailpit 8025:8025                  # captured email UI → http://localhost:8025
             ```
             Add `--previous` for a crashed container, `--tail=200` to limit, or
             `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
@@ -349,6 +350,8 @@ jobs:
           PREVIEW_SHA: ${{ needs.meta.outputs.commit_sha }}
           PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
           PREVIEW_TASK: preview-pr-${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LEGACY_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -359,10 +362,40 @@ jobs:
             const environment = "PR Preview";
             const task = process.env.PREVIEW_TASK;
 
-            const previousDeployments = await github.paginate(
-              github.rest.repos.listDeployments,
-              { owner, repo, environment, task, per_page: 100 },
-            );
+            // The job `if` gates on the EVENT payload's state, which is a
+            // snapshot from when the build started — a PR closed during the
+            // build still reads `open` there. Re-check live, or this records a
+            // deployment Argo will never serve and nothing will ever reap
+            // (preview-deactivate already fired on close; the stale sweep only
+            // scans open PRs).
+            const { data: livePr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            if (livePr.state !== "open") {
+              core.info(`PR closed during the build; not recording a deployment.`);
+              return;
+            }
+
+            // TRANSITIONAL (drop with the sibling query in
+            // preview-deactivate.yml): also retire the pre-migration `pr-<n>`
+            // record, else a rebuild leaves it active alongside the new one.
+            const previousDeployments = [
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment,
+                task,
+                per_page: 100,
+              })),
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment: process.env.LEGACY_ENVIRONMENT,
+                per_page: 100,
+              })),
+            ];
 
             const { data: deployment } = await github.rest.repos.createDeployment({
               owner,

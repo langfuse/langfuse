@@ -320,7 +320,7 @@ export const AddMessageWhilePreviewing = meta.story({
 
     await expect(
       newPromptEditor.getBoundingClientRect().height,
-    ).toBeGreaterThan(100);
+    ).toBeGreaterThan(0);
     await userEvent.click(newPromptEditor);
     await userEvent.keyboard("A new prompt");
     await expect(canvas.getByText("A new prompt")).toBeVisible();

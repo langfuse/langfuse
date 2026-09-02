@@ -146,6 +146,8 @@ describe("createProductionEvalExecutionDeps", () => {
       schema: z.ZodType;
     };
     expect(z.toJSONSchema(modelOutput.schema)).toMatchObject({
+      description:
+        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
       properties: {
         scoreExplanation: { type: "string" },
         score: { type: "number" },
@@ -219,10 +221,14 @@ describe("createProductionEvalExecutionDeps", () => {
           ? Buffer.from(value).toString("base64")
           : value,
     );
-    const modelFacingSchema = z.object({
-      scoreExplanation: structuredOutputSchema.shape.reasoning,
-      score: structuredOutputSchema.shape.score,
-    });
+    const modelFacingSchema = z
+      .object({
+        scoreExplanation: structuredOutputSchema.shape.reasoning,
+        score: structuredOutputSchema.shape.score,
+      })
+      .describe(
+        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
+      );
     const expectedBytes =
       Buffer.byteLength(serializedProviderMessages, "utf8") +
       Buffer.byteLength(

@@ -81,6 +81,7 @@ export type PageProps = {
     auth0: boolean;
     clickhouseCloud: boolean;
     cognito: boolean;
+    jumpcloud: boolean;
     keycloak:
       | {
           name: string;
@@ -158,6 +159,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_COGNITO_CLIENT_ID !== undefined &&
           env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
           env.AUTH_COGNITO_ISSUER !== undefined,
+        jumpcloud:
+          env.AUTH_JUMPCLOUD_CLIENT_ID !== undefined &&
+          env.AUTH_JUMPCLOUD_CLIENT_SECRET !== undefined &&
+          env.AUTH_JUMPCLOUD_ISSUER !== undefined,
         keycloak:
           env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
           env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
@@ -214,6 +219,7 @@ export const FALLBACK_AUTH_PROVIDERS: PageProps["authProviders"] = {
   auth0: false,
   clickhouseCloud: false,
   cognito: false,
+  jumpcloud: false,
   keycloak: false,
   workos: false,
   wordpress: false,
@@ -399,6 +405,17 @@ export function SSOButtons({
               loading={providerSigningIn === "cognito"}
               showLastUsedBadge={
                 hasMultipleAuthMethods && lastUsedMethod === "cognito"
+              }
+            />
+          )}
+          {authProviders.jumpcloud && (
+            <AuthProviderButton
+              icon={<TbBrandOauth className="mr-3" size={18} />}
+              label="JumpCloud"
+              onClick={() => handleSignIn("jumpcloud")}
+              loading={providerSigningIn === "jumpcloud"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "jumpcloud"
               }
             />
           )}
