@@ -792,8 +792,10 @@ describe("pivot-table-utils", () => {
           // Sum should be summed: 5000 + 8000 + 2500 = 15500
           expect(totalRow.values.sum_tokens).toBe(15500);
 
-          // Average should be averaged: (120 + 80 + 140) / 3 = 113.33...
-          expect(totalRow.values.avg_latency).toBeCloseTo(113.33, 2);
+          // Average is weighted by each row's count, so the total equals the
+          // true overall average rather than an average of averages:
+          // (120*100 + 80*200 + 140*50) / 350 = 35000 / 350 = 100
+          expect(totalRow.values.avg_latency).toBeCloseTo(100, 2);
 
           // Min should be minimum: min(0.05, 0.02, 0.06) = 0.02
           expect(totalRow.values.min_cost).toBe(0.02);
@@ -801,8 +803,10 @@ describe("pivot-table-utils", () => {
           // Max should be maximum: max(0.15, 0.08, 0.18) = 0.18
           expect(totalRow.values.max_cost).toBe(0.18);
 
-          // Percentile should be averaged: (250 + 150 + 300) / 3 = 233.33...
-          expect(totalRow.values.p95_duration).toBeCloseTo(233.33, 2);
+          // Percentiles cannot be recombined exactly, but weighting by count is
+          // strictly closer than an unweighted mean of per-group percentiles:
+          // (250*100 + 150*200 + 300*50) / 350 = 70000 / 350 = 200
+          expect(totalRow.values.p95_duration).toBeCloseTo(200, 2);
         }
       });
 
@@ -868,8 +872,9 @@ describe("pivot-table-utils", () => {
           // Count: 100 + 200 = 300 (strings parsed correctly)
           expect(totalRow.values.count_requests).toBe(300);
 
-          // Average: (120.5 + 80.2) / 2 = 100.35
-          expect(totalRow.values.avg_latency).toBeCloseTo(100.35, 2);
+          // Average weighted by count (strings parsed correctly):
+          // (120.5*100 + 80.2*200) / 300 = 28090 / 300 = 93.6333...
+          expect(totalRow.values.avg_latency).toBeCloseTo(93.6333, 2);
 
           // Sum: 5000 + 8000 = 13000 (strings parsed correctly)
           expect(totalRow.values.sum_tokens).toBe(13000);
@@ -953,8 +958,9 @@ describe("pivot-table-utils", () => {
           // Production tokens: 5000 + 8000 = 13000
           expect(productionSubtotal.values.sum_tokens).toBe(13000);
 
-          // Production avg latency: (120 + 80) / 2 = 100
-          expect(productionSubtotal.values.avg_latency).toBe(100);
+          // Production avg latency weighted by count:
+          // (120*100 + 80*200) / 300 = 28000 / 300 = 93.333...
+          expect(productionSubtotal.values.avg_latency).toBeCloseTo(93.3333, 2);
 
           // Production min cost: min(0.05, 0.02) = 0.02
           expect(productionSubtotal.values.min_cost).toBe(0.02);

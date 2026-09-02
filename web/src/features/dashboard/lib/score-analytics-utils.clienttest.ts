@@ -19,11 +19,7 @@ describe("createHistogramData", () => {
   it("does not push a value into a bucket whose range excludes it", () => {
     // Regression for the reported symptom: a score of 0.857 was counted in the
     // "[0.86, 1]" bucket. It must land in the bucket that actually contains it.
-    const { chartData } = createHistogramData(
-      rows([0, 0.857, 0.86, 1]),
-      7,
-      7,
-    );
+    const { chartData } = createHistogramData(rows([0, 0.857, 0.86, 1]), 7, 7);
 
     const topBin = chartData[chartData.length - 1];
     expect(topBin.binLabel).toBe("[0.86, 1]");
