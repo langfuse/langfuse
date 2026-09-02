@@ -312,10 +312,9 @@ describe("project-route auth parity", () => {
     expect(matrices.shadow).toEqual(matrices.legacy);
   });
 
-  // enforce is not yet byte-identical to legacy: it changes rejection codes on
-  // malformed-auth cells (org+basic 403->400, org+bearer 401->400,
-  // project+bearer 403->401) and rejects public-key bearer on POST scores/index
-  // (400->401). Convert to `it` once the seam matches legacy.
+  // enforce is not yet byte-identical to legacy: an org key with no project
+  // target returns 400 (missing x-langfuse-project-id) where legacy returns 403
+  // for basic and 401 for bearer. Convert to `it` once the seam matches legacy.
   it.fails("enforce is not yet byte-identical to legacy", () => {
     expect(matrices.enforce).toEqual(matrices.legacy);
   });
