@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   traceException: vi.fn(),
   recordIncrement: vi.fn(),
   auditLog: vi.fn(),
-  createDefaultSpendAlertsForPlan: vi.fn(),
   sendChbProjectEvent: vi.fn(),
 }));
 
@@ -49,10 +48,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
-}));
-
-vi.mock("@/src/ee/features/billing/server/stripe/stripeWebhookHandler", () => ({
-  createDefaultSpendAlertsForPlan: mocks.createDefaultSpendAlertsForPlan,
 }));
 
 vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
@@ -227,7 +222,6 @@ describe("chbWebhookHandler", () => {
     mocks.redisSet.mockResolvedValue("OK");
     mocks.redisDel.mockResolvedValue(1);
     mocks.sendChbProjectEvent.mockResolvedValue(undefined);
-    mocks.createDefaultSpendAlertsForPlan.mockResolvedValue(undefined);
     // clearAllMocks keeps mockRejectedValue implementations, so every mock a
     // test rejects has to be pinned back here or it leaks into the next test.
     mocks.invalidateCachedOrgApiKeys.mockResolvedValue(undefined);

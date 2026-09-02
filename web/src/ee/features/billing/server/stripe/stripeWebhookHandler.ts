@@ -498,32 +498,10 @@ export async function createDefaultSpendAlerts({
     return;
   }
 
-  return createDefaultSpendAlertsForPlan({ orgId, plan });
-}
-
-/**
- * Plan-based variant so provider-agnostic callers (CHB webhook) can seed the
- * same default alerts without a Stripe product id. The Stripe path above is
- * behaviorally unchanged — it resolves the product id and delegates here.
- */
-export async function createDefaultSpendAlertsForPlan({
-  orgId,
-  plan,
-  actor = "stripe-webhook",
-  logPrefix = "[Stripe Webhook]",
-}: {
-  orgId: string;
-  plan: Plan;
-  actor?: string;
-  logPrefix?: string;
-}) {
-  const planThreshold =
-    DEFAULT_SPEND_ALERT_THRESHOLDS[
-      plan as Exclude<Plan, PlanWithoutSpendAlerts>
-    ];
+  const planThreshold = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
   if (!planThreshold) {
     logger.error(
-      `${logPrefix} createDefaultSpendAlerts: No spend alerts configured for plan ${plan}, skipping`,
+      `[Stripe Webhook] createDefaultSpendAlerts: No spend alerts configured for plan ${plan}, skipping`,
     );
     return;
   }
@@ -535,7 +513,7 @@ export async function createDefaultSpendAlertsForPlan({
   });
   if (existingAlerts) {
     logger.info(
-      `${logPrefix} createDefaultSpendAlerts: Org ${orgId} already has spend alerts, skipping`,
+      `[Stripe Webhook] createDefaultSpendAlerts: Org ${orgId} already has spend alerts, skipping`,
     );
     return;
   }
@@ -556,7 +534,7 @@ export async function createDefaultSpendAlertsForPlan({
 
     await auditLog({
       session: {
-        user: { id: actor },
+        user: { id: "stripe-webhook" },
         orgId,
       },
       orgId,
@@ -567,7 +545,7 @@ export async function createDefaultSpendAlertsForPlan({
     });
 
     logger.info(
-      `${logPrefix} createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
+      `[Stripe Webhook] createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
     );
   }
 }

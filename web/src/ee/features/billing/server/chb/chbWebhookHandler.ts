@@ -6,8 +6,6 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  type ChbPlanCode,
-  chbPlanCodeToPlan,
   CloudConfigSchema,
   parseDbOrg,
   type ParsedOrganization,
@@ -22,7 +20,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 
-import { createDefaultSpendAlertsForPlan } from "../stripe/stripeWebhookHandler";
 import { ChbScheduledChangeSchema } from "./chbApiClient";
 import { sendChbProjectEvent } from "./chbProjectEvents";
 
@@ -478,33 +475,9 @@ async function handleBundleCreated(
     },
   });
 
-  // Default spend alerts, same thresholds as the Stripe path (best-effort).
-  // The shared map is total over known codes, so an unknown one (CHB shipping a
-  // tier before we deploy support for it) resolves to undefined rather than
-  // seeding alerts for the wrong plan.
-  const plan = data.planCode
-    ? chbPlanCodeToPlan[data.planCode as ChbPlanCode]
-    : undefined;
-  if (plan) {
-    try {
-      await createDefaultSpendAlertsForPlan({
-        orgId: parsedOrg.id,
-        plan,
-        actor: "clickhouse-webhook",
-        logPrefix: "[CHB Webhook]",
-      });
-    } catch (error) {
-      logger.error("[CHB Webhook] Failed to create default spend alerts", {
-        orgId: parsedOrg.id,
-        error,
-      });
-      traceException(error);
-    }
-  } else {
-    logger.error(
-      `[CHB Webhook] bundle.created with unknown plan code ${data.planCode} for org ${parsedOrg.id}, skipping spend alert seeding`,
-    );
-  }
+  // No default spend alerts for CHB orgs. The spend-alert job computes current
+  // spend from the org's own Stripe subscription, which a CHB org does not
+  // have, so seeded alerts would show in billing settings and never fire.
 
   // Backfill-emit LANGFUSE_PROJECT_CREATED for all existing projects: projects
   // created before checkout would otherwise be invisible to CHB metering.
