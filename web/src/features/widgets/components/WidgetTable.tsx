@@ -302,22 +302,22 @@ export function DashboardWidgetTable() {
       header: "Description",
       size: 300,
     }),
-    columnHelper.accessor("view", {
+    createTextTableColumn<WidgetTableRow>({
+      accessorKey: "view",
       header: "View Type",
-      id: "view",
       enableSorting: true,
       size: 100,
-      cell: (row) => {
-        return startCase(row.getValue().toLowerCase());
-      },
+      mapValue: (value) => startCase(value?.toLowerCase()),
     }),
-    columnHelper.accessor("chartType", {
+    createTextTableColumn<WidgetTableRow>({
+      accessorKey: "chartType",
       header: "Chart Type",
-      id: "chartType",
       enableSorting: true,
       size: 100,
-      cell: (row) =>
-        getChartTypeDisplayName(row.getValue() as DashboardWidgetChartType),
+      mapValue: (value) =>
+        value
+          ? getChartTypeDisplayName(value as DashboardWidgetChartType)
+          : undefined,
     }),
     createDateTableColumn<WidgetTableRow>({
       accessorKey: "createdAt",

@@ -673,18 +673,13 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     }),
-    {
+    createTextTableColumn<TracesTableRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: TracesTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -760,20 +755,24 @@ export default function TracesTable({
       },
       enableHiding: true,
     },
-    createTextTableColumn<TracesTableRow, number>({
+    {
       accessorKey: "latency",
+      id: "latency",
       header: "Latency",
       size: 100,
-      className: "text-nowrap",
-      mapValue: (value, { row }) =>
-        isMetricPending(row.original.id)
-          ? { type: "loading" }
-          : value === null || value === undefined
-            ? undefined
-            : formatIntervalSeconds(value),
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
+      cell: ({ row }) => {
+        const value: TracesTableRow["latency"] = row.getValue("latency");
+        if (isMetricPending(row.original.id)) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
+        return value !== undefined ? (
+          <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
+        ) : undefined;
+      },
       enableHiding: true,
       enableSorting,
-    }),
+    },
 
     createTokenUsageTableColumn<TracesTableRow, TracesTableRow["usage"]>({
       id: "tokens",
@@ -1011,9 +1010,8 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createTextTableColumn<TracesTableRow>({
       accessorKey: "version",
-      id: "version",
       header: "Version",
       size: 100,
       headerTooltip: {
@@ -1037,10 +1035,9 @@ export default function TracesTable({
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
-    {
+    }),
+    createTextTableColumn<TracesTableRow>({
       accessorKey: "release",
-      id: "release",
       header: "Release",
       size: 100,
       headerTooltip: {
@@ -1065,7 +1062,7 @@ export default function TracesTable({
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
+    }),
     createIdTableColumn<TracesTableRow>({
       accessorKey: "id",
       header: "Trace ID",

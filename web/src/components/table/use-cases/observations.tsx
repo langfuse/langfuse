@@ -145,6 +145,7 @@ export type ObservationsTableRow = {
   id: string;
   traceName?: string;
   traceId?: string;
+  version: string;
   timestamp?: Date;
   promptId?: string;
   promptVersion?: string;
@@ -1041,9 +1042,8 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
+    createTextTableColumn<ObservationsTableRow>({
       accessorKey: "version",
-      id: "version",
       header: "Version",
       size: 100,
       headerTooltip: {
@@ -1053,7 +1053,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "usage",
       header: "Usage",
