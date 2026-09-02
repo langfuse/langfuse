@@ -4,27 +4,26 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigrationPopoverController } from "@/src/features/background-migrations/components/retry-background-migration";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { RotateCcw } from "lucide-react";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
 
   const columns = [
-    {
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "name",
-      id: "name",
       enableColumnFilter: false,
       header: "Name",
-    },
-    {
+    }),
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "script",
-      id: "script",
       enableColumnFilter: false,
       header: "Script",
-    },
+    }),
     {
       accessorKey: "args",
       id: "args",
@@ -33,40 +32,32 @@ export default function BackgroundMigrationsTable() {
       size: 80,
       cell: (row) => JSON.stringify(row.getValue()),
     },
-    {
+    createStatusTableColumn<BackgroundMigration, BackgroundMigration>({
       id: "status",
+      accessorFn: (row) => row,
+      getStatus: (migration) => {
+        if (!migration) return undefined;
+        if (migration.failedAt) return "failed";
+        if (migration.finishedAt) return "finished";
+        if (migration.workerId) return "active";
+
+        return "queued";
+      },
       header: "Status",
       size: 80,
-      cell: (row) => {
-        const failedAt = row.row.original.failedAt;
-        if (failedAt) {
-          return <StatusBadge type="failed" />;
-        }
-        const finishedAt = row.row.original.finishedAt;
-        if (finishedAt) {
-          return <StatusBadge type="finished" />;
-        }
-        const workerId = row.row.original.workerId;
-        if (workerId) {
-          return <StatusBadge type="active" />;
-        }
-
-        return <StatusBadge type="queued" />;
-      },
-    },
-    {
+      enableSorting: false,
+    }),
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "failedReason",
-      id: "failedReason",
       enableColumnFilter: false,
       header: "Failed Reason",
-    },
-    {
+    }),
+    createTextTableColumn<BackgroundMigration, BackgroundMigration["state"]>({
       accessorKey: "state",
-      id: "state",
       enableColumnFilter: false,
       header: "State",
-      cell: (row) => JSON.stringify(row.getValue()),
-    },
+      mapValue: (value) => JSON.stringify(value),
+    }),
     {
       id: "actions",
       header: "Actions",

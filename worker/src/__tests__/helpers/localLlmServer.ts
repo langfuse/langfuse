@@ -5,7 +5,7 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 
-export type RecordedRequest = {
+type RecordedRequest = {
   method: string;
   url: string;
   headers: Record<string, string | string[] | undefined>;

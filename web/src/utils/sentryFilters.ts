@@ -15,7 +15,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
  * Matched by URL path SUFFIX so an optional `NEXT_PUBLIC_BASE_PATH` prefix
  * (e.g. `/self-hosted/api/auth/session`) still matches.
  */
-export const HTTP_CLIENT_NOISE_PATHS = [
+const HTTP_CLIENT_NOISE_PATHS = [
   "/api/auth/session", // NextAuth session poll (5-min interval + on window focus)
   // The two probes below are defensive/inert: they are only fetched by infra
   // liveness/readiness checks, never by the browser, so they cannot actually
@@ -184,6 +184,15 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
   // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
   "Object Not Found Matching Id:",
 ];
+
+/**
+ * Chromium Android WebView wording when a host-app `@JavascriptInterface`
+ * method fails. The method name is a Java identifier; the suffix is fixed.
+ * Observed: LANGFUSE-60G (`Error invoking batch: Java bridge method
+ * invocation error`).
+ */
+const ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE =
+  /^Error invoking [A-Za-z_][\w$]*: Java bridge method invocation error$/;
 
 /**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
@@ -398,6 +407,27 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       /^Failed to read the '(localStorage|sessionStorage)' property from 'Window':/.test(
         exceptionValue,
       )
+    ) {
+      return true;
+    }
+
+    // Android WebView `@JavascriptInterface` methods only accept primitives.
+    // Chromium throws `Error invoking <method>: Java bridge method invocation
+    // error` when an injected host-app bridge fails — typically on `unload`,
+    // after the Java side is already torn down. Sentry's addEventListener wrap
+    // then captures the HOST APP's listener, not Langfuse code. We have no
+    // Java bridge (LANGFUSE-60G: Chrome Mobile WebView, anonymous `batch`
+    // frames only).
+    //
+    // Anchored to Chromium's exact wording (Java identifier method name) AND
+    // a Sentry browser-API / global-handler mechanism so an app-captured
+    // exception that merely quotes this phrase is KEPT. A first-party
+    // TypeError from our own listener is also KEPT (different message).
+    const mechanismType = exception?.mechanism?.type;
+    if (
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)
     ) {
       return true;
     }

@@ -8,17 +8,17 @@ import { useMediaQuery } from "react-responsive";
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
-import { TableBadgeLoadingCell } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -119,8 +119,15 @@ export function MonitorsTable() {
           displayValue: value.replace(/_/g, " "),
         })),
       tags: filterOptions.data?.tags.map((t) => ({ value: t.value })) ?? [],
+      evaluatorId: filterOptions.data?.evaluators ?? [],
     }),
     [filterOptions.data],
+  );
+
+  const monitorFilterConfig = useMemo(
+    () =>
+      getMonitorFilterConfig((filterOptions.data?.evaluators.length ?? 0) > 0),
+    [filterOptions.data?.evaluators.length],
   );
 
   /** queryFilter is the bound sidebar filter state, synced to the URL and to session storage per project. */
@@ -166,7 +173,7 @@ export function MonitorsTable() {
       size: 100,
       minSize: 100,
       maxSize: 100,
-      loadingCell: <TableBadgeLoadingCell className="h-6 w-20" />,
+      loadingCell: <Skeleton className="h-6 w-20 shrink-0 rounded-sm" />,
       cell: ({ row }) => (
         <MonitorSeverityBadge severity={row.original.severity} />
       ),

@@ -27,15 +27,11 @@ import {
   type FieldRef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
 
-export type CompletionStage =
-  | "empty"
-  | "field"
-  | "value"
-  | "operator"
-  | "recent";
+type CompletionStage = "empty" | "field" | "value" | "operator" | "recent";
 
 export type CompletionOption =
   | {
@@ -83,7 +79,7 @@ export type CompletionOption =
       query: string;
     };
 
-export type CompletionSection = { title: string; options: CompletionOption[] };
+type CompletionSection = { title: string; options: CompletionOption[] };
 
 export type QueryPresetSection = {
   title: string;
@@ -121,18 +117,18 @@ export type CompletionPlan = {
   autoHighlight?: boolean;
 };
 
-export const SECTION_SUGGESTIONS = "Suggestions";
+const SECTION_SUGGESTIONS = "Suggestions";
 export const SECTION_FIELDS = "Fields";
 export const SECTION_MATCHING_FILTERS = "Matching filters";
 export const SECTION_VALUES = "Observed values";
-export const SECTION_OPERATORS = "Operators";
-export const SECTION_PATTERNS = "Patterns";
+const SECTION_OPERATORS = "Operators";
+const SECTION_PATTERNS = "Patterns";
 export const SECTION_RECENT = "Recent searches";
 export const SECTION_MATCH_OPS = "Match operators";
 export const SECTION_COMPARE_OPS = "Comparisons";
-export const SECTION_KEYS = "Observed keys";
-export const SECTION_SCORE_NAMES = "Score names";
-export const SECTION_SEARCH_IN = "Full-text search";
+const SECTION_KEYS = "Observed keys";
+const SECTION_SCORE_NAMES = "Score names";
+const SECTION_SEARCH_IN = "Full-text search";
 
 const MAX_RECENTS_SHOWN = 5;
 const MAX_PRESETS_SHOWN = 10;
@@ -233,11 +229,16 @@ function fieldOptions(
     );
   }
   if (includeVirtual) {
+    // The example names one of THIS view's nullable fields; `has:endTime` on a
+    // view without endTime advertises a filter that cannot resolve.
+    const example = registry.nullableFields()[0]?.id;
     opts.push({
       id: "field:has",
       kind: "field",
       label: "has",
-      detail: "field has a value, e.g. has:endTime (-has: for missing)",
+      detail: example
+        ? `field has a value, e.g. has:${example} (-has: for missing)`
+        : "field has a value (-has: for missing)",
       fieldId: "has",
     });
   }
@@ -394,16 +395,24 @@ function valueOptions(
 function recentOptions(
   recents: string[],
   currentQueryText: string,
+  registry: FieldRegistry,
 ): CompletionOption[] {
-  return recents
-    .filter((q) => q !== currentQueryText.trim())
-    .slice(0, MAX_RECENTS_SHOWN)
-    .map((q, i) => ({
-      id: `recent:${i}:${q}`,
-      kind: "recent" as const,
-      label: q,
-      query: q,
-    }));
+  return (
+    recents
+      .filter((q) => q !== currentQueryText.trim())
+      // Recents are stored per PROJECT, not per view, so a query typed on another
+      // table can be offered here. Picking one that names a field this view does
+      // not have would insert a query that cannot commit, so offer only the ones
+      // that are valid against THIS registry.
+      .filter((q) => validateQuery(q, undefined, registry).valid)
+      .slice(0, MAX_RECENTS_SHOWN)
+      .map((q, i) => ({
+        id: `recent:${i}:${q}`,
+        kind: "recent" as const,
+        label: q,
+        query: q,
+      }))
+  );
 }
 
 function queryPresetSections(
@@ -442,9 +451,11 @@ const NUMERIC_EXAMPLE: Record<string, string> = {
   timeToFirstToken: "0.5",
   tokensPerSecond: "50",
   inputTokens: "1000",
+  cachedInputTokens: "500",
   outputTokens: "500",
   totalTokens: "1500",
   inputCost: "0.001",
+  cachedInputCost: "0.0005",
   outputCost: "0.001",
   totalCost: "0.01",
   promptVersion: "3",
@@ -575,7 +586,8 @@ function pathKindOf(
   const lower = keyPart.toLowerCase();
   for (const kind of PATH_PREFIXES) {
     if (kind.canonical === "metadata." && !registry.metadata) continue;
-    if (kind.canonical !== "metadata." && !registry.scores) continue;
+    if (kind.canonical === "scores." && !registry.scores) continue;
+    if (kind.canonical === "traceScores." && !registry.traceScores) continue;
     if (lower.startsWith(kind.prefix)) {
       return { kind, typedKey: keyPart.slice(kind.prefix.length) };
     }
@@ -1203,8 +1215,8 @@ export function planInputCompletions(
           ...section(SECTION_FIELDS, fieldOptions(registry)),
           ...section(
             SECTION_RECENT,
-            registry.allowFreeText
-              ? recentOptions(ctx.recents, ctx.currentQueryText)
+            registry.recentSearches
+              ? recentOptions(ctx.recents, ctx.currentQueryText, registry)
               : [],
           ),
         ],
@@ -1320,6 +1332,26 @@ export function planInputCompletions(
       colon === -1 && !negated
         ? freeTextRun(ctx.currentQueryText, caret)
         : null;
+    // A view with no full-text lane offers the one rewrite it does support, so
+    // the bare-word canonicalization is visible BEFORE Enter, not after it.
+    const defaultTextRewrite: CompletionOption[] =
+      run !== null && !registry.allowFreeText && registry.defaultTextField
+        ? (() => {
+            const ref = registry.resolveField(registry.defaultTextField);
+            if (ref?.type !== "field") return [];
+            const insert = `${ref.field.id}:${serializeValue(run.text)}`;
+            return [
+              {
+                id: "scope:defaultTextField",
+                kind: "pattern" as const,
+                label: insert,
+                detail: `${ref.field.label.toLowerCase()} contains "${run.text}"`,
+                insert,
+                replaceSpan: { from: run.from, to: run.to },
+              },
+            ];
+          })()
+        : [];
     const searchScopes: CompletionOption[] =
       run !== null && registry.allowFreeText
         ? scopeSwitchOptions(
@@ -1336,14 +1368,19 @@ export function planInputCompletions(
     // Contextual facet matches share the run gate (and its span) with the scope
     // switches: both rewrite the whole free-text block the user sees, and the
     // gate already excludes negated terms and existing `key:` tokens.
+    // The default-text rewrite IS a matching filter (`id:chat`), not a full-text
+    // scope, so it joins that section after the observed-value matches.
     const matchingFilters: CompletionOption[] =
       run !== null
-        ? matchingFilterOptions(
-            run.text,
-            ctx.observed,
-            { from: run.from, to: run.to },
-            registry,
-          )
+        ? [
+            ...matchingFilterOptions(
+              run.text,
+              ctx.observed,
+              { from: run.from, to: run.to },
+              registry,
+            ),
+            ...defaultTextRewrite,
+          ]
         : [];
     if (
       fields.length +

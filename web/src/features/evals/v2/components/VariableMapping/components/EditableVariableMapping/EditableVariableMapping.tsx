@@ -1,7 +1,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  classifyMediaValue,
+  splitStringByMediaReferences,
+} from "@/src/components/ui/media/mediaUtils";
 import type {
   ActiveVariableMapping,
   VariableFieldState,
@@ -22,7 +27,7 @@ import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -39,6 +44,13 @@ const focusEditingSurface = (element: HTMLDivElement | null) => {
 function MappedValuePreview({ value }: { value: string }) {
   const parsed = useMemo(() => deepParseJsonIterative(value), [value]);
   const isJson = parsed !== null && typeof parsed === "object";
+  const mediaSegments = useMemo(() => {
+    const descriptor = classifyMediaValue(value);
+    return descriptor
+      ? [{ type: "media" as const, descriptor }]
+      : splitStringByMediaReferences(value);
+  }, [value]);
+  const hasMedia = mediaSegments.some((segment) => segment.type === "media");
 
   return (
     <div>
@@ -53,6 +65,24 @@ function MappedValuePreview({ value }: { value: string }) {
           scrollable={true}
           className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
         />
+      ) : hasMedia ? (
+        <div
+          data-testid="mapped-media-preview"
+          className="flex max-h-96 flex-wrap items-center gap-1 overflow-y-auto p-3 text-sm"
+        >
+          {mediaSegments.map((segment, index) =>
+            segment.type === "media" ? (
+              <MediaTag
+                key={index}
+                contentType={segment.descriptor.contentType}
+              />
+            ) : (
+              <span key={index} className="break-words whitespace-pre-wrap">
+                {segment.value}
+              </span>
+            ),
+          )}
+        </div>
       ) : (
         <pre className="max-h-96 overflow-y-auto p-3 font-sans text-sm break-words whitespace-pre-wrap">
           {value}

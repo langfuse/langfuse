@@ -18,45 +18,46 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import TableLink from "@/src/components/table/table-link";
-import TableIdOrName from "@/src/components/table/table-id";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import {
   LevelCountsDisplay,
   type LevelCount,
 } from "@/src/components/level-counts-display";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { formatIntervalSeconds } from "@/src/utils/dates";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
+  Folder,
   InfoIcon,
   ListTree,
-  MoreVertical,
   PlusCircle,
   Trash,
 } from "lucide-react";
+
+const renderMediaReference = (descriptor: MediaDescriptor) => (
+  <MediaTag contentType={descriptor.contentType} status="idle" />
+);
 
 // =============================================================================
 // FIDELITY GOAL
@@ -82,10 +83,10 @@ import {
 // the standalone visual part with identical DOM/classes:
 //   - tags:      real TagList in the real `flex gap-x-2 gap-y-1` wrapper,
 //                instead of TagPromptPopover/TagManager (same visible children).
-//   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
-//                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
-// Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, FolderBreadcrumbLink, Skeleton, the
+//   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
+//                plain menu item instead of the tRPC-bound DeleteTraceButton.
+// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, IdTableCell,
+// createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -229,7 +230,7 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
-// cells use the same MemoizedIOTableCell with the same bg classes + the
+// cells use the same IOTableCell variants + the
 // `singleLine = rowHeight === "s"` rule the real table applies.
 
 function buildTraceColumns(
@@ -283,51 +284,37 @@ function buildTraceColumns(
       header: "Input",
       id: "input",
       size: 400,
+      cellBackground: "gray",
       loadingCell: () => (
-        <MemoizedIOTableCell
+        <IOTableCell
           isLoading
-          data={undefined}
-          className="bg-muted/50"
           singleLine={singleLine}
+          renderMediaReference={renderMediaReference}
         />
       ),
       cell: ({ row }) => (
-        <MemoizedIOTableCell
+        <IOTableCell
           data={row.original.input}
-          className="bg-muted/50"
           singleLine={singleLine}
           enableExpandOnHover={singleLine}
+          renderMediaReference={renderMediaReference}
         />
       ),
     },
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "output",
       header: "Output",
-      id: "output",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.output}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
+      singleLine,
+      enableExpandOnHover: singleLine,
+      variant: "output",
+    }),
     {
       accessorKey: "levelCounts",
       id: "levelCounts",
       header: "Observation Levels",
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.levelCounts;
         const counts: LevelCount[] = Object.entries(value).map(
@@ -346,7 +333,7 @@ function buildTraceColumns(
       header: "Latency",
       size: 100,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.latency;
         return value !== undefined ? (
@@ -354,39 +341,32 @@ function buildTraceColumns(
         ) : undefined;
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<TraceRow, TraceRow["usage"]>({
       id: "tokens",
+      accessorFn: (row) => row.usage,
+      header: "Tokens",
       size: 180,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value = row.original.usage;
-        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
-          return null;
-        }
-        return (
-          <BreakdownTooltip details={row.original.tokenDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage)}
-                outputUsage={Number(value.outputUsage)}
-                totalUsage={Number(value.totalUsage)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableSorting: true,
-    },
+      getCell: (value, { row }) => {
+        if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
+          return undefined;
+        }
+
+        return {
+          type: "usage",
+          inputUsage: Number(value.inputUsage),
+          outputUsage: Number(value.outputUsage),
+          totalUsage: Number(value.totalUsage),
+          details: row.original.tokenDetails,
+        };
+      },
+    }),
     {
       accessorKey: "totalCost",
       id: "totalCost",
       header: "Total Cost",
       size: 130,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const cost = row.original.totalCost;
         return cost != null ? (
@@ -409,7 +389,7 @@ function buildTraceColumns(
       header: "Environment",
       id: "environment",
       size: 150,
-      loadingCell: <TableBadgeLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: ({ row }) => {
         const value = row.original.environment;
         return value ? (
@@ -432,39 +412,21 @@ function buildTraceColumns(
       },
       shouldWrap: rowHeight !== "s",
     }),
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.metadata}
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
-    {
+      singleLine,
+      enableExpandOnHover: singleLine,
+    }),
+    createIdTableColumn<TraceRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       size: 150,
       // Default-hidden in the real table; seeds the Columns drawer unchecked.
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.original.userId;
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
       enableSorting: true,
-    },
+    }),
     createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
@@ -472,31 +434,19 @@ function buildTraceColumns(
       defaultHidden: true,
       enableSorting: true,
     }),
-    {
-      accessorKey: "action",
-      header: "Action",
+    createDropdownTableColumn<TraceRow, string>({
       id: "action",
+      accessorFn: (row) => row.id,
+      header: "Action",
       size: 70,
       isFixedPosition: true,
-      // Real action menu: ghost MoreVertical trigger + dropdown. The destructive
-      // item is a plain menu item (the real one renders DeleteTraceButton, which
-      // needs tRPC) but the trigger DOM/spacing is identical.
-      cell: () => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem className="text-destructive">
-              <Trash className="mr-2 h-4 w-4" />
-              Delete trace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      renderMenu: () => (
+        <DropdownMenuItem className="text-destructive">
+          <Trash className="mr-2 h-4 w-4" />
+          Delete trace
+        </DropdownMenuItem>
       ),
-    },
+    }),
   ];
 }
 
@@ -1074,7 +1024,7 @@ function buildGroupedColumns(
         accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        formatter: usdFormatter,
+        formatter: (value) => usdFormatter(value),
       }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
@@ -1133,12 +1083,12 @@ export const WithGroupedHeaders = meta.story({
 // -----------------------------------------------------------------------------
 // Reproduces features/prompts/components/prompts-table.tsx cell-for-cell:
 //   - cellPadding="comfortable" (the Prompts one-off override at prompts-table.tsx:482)
-//   - Name column: folder rows use the real FolderBreadcrumbLink (TableLink +
-//     Folder icon); prompt rows use TableLink to the prompt.
+//   - Name column: folder rows use the folder key column (TextLink + Folder
+//     icon); prompt rows use TextLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
 //   - "Latest Version Created At": LocalIsoDate, null on folder rows.
-//   - "Number of Observations (7d)": TableLink wrapping the count (0 still links),
+//   - "Number of Observations (7d)": TextLink wrapping the count (0 still links),
 //     with the real Skeleton fallback shape (h-3 w-1/2).
 //   - Tags: real TagList in the `flex gap-x-1 gap-y-1` wrapper; folder rows
 //     render the `h-6` spacer.
@@ -1212,27 +1162,28 @@ const PROMPT_ROWS: PromptRow[] = [
 ];
 
 const promptColumns: LangfuseColumnDef<PromptRow>[] = [
-  {
+  createFolderKeyTableColumn<PromptRow>({
     accessorKey: "name",
     header: "Name",
-    id: "name",
     enableSorting: true,
     size: 250,
-    cell: ({ row }) => {
-      const { name, type, fullPath } = row.original;
+    getCell: (name, { row }) => {
+      if (!name) return undefined;
+      const { type, fullPath } = row.original;
       if (type === "folder") {
-        // Real folder cell: FolderBreadcrumbLink (TableLink + Folder icon).
-        return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+        return { type: "folder", name, onClick: () => undefined };
       }
-      return name ? (
-        <TableLink
-          path={`/prompts/${encodeURIComponent(fullPath)}`}
-          value={name}
-          title={fullPath}
-        />
-      ) : undefined;
+
+      return {
+        type: "link",
+        props: {
+          path: `/prompts/${encodeURIComponent(fullPath)}`,
+          value: name,
+          title: fullPath,
+        },
+      };
     },
-  },
+  }),
   {
     accessorKey: "version",
     header: "Versions",
@@ -1257,8 +1208,13 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     size: 200,
     cell: ({ row }) => {
       if (row.original.type === "folder") return null;
-      const createdAt = row.original.createdAt;
-      return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      const preparedDate = buildLocalIsoDatePresentation({
+        date: row.original.createdAt,
+      });
+
+      return preparedDate ? (
+        <span title={preparedDate.title}>{preparedDate.display}</span>
+      ) : null;
     },
   },
   {
@@ -1270,11 +1226,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
       if (row.original.type === "folder") return null;
       const n = row.original.numberOfObservations;
       // Real cell shows a Skeleton h-3 w-1/2 while metrics load; here metrics
-      // are "loaded", so it always renders the TableLink (0 still links).
+      // are "loaded", so it always renders the TextLink (0 still links).
       if (n === undefined) {
         return <Skeleton className="h-3 w-1/2" />;
       }
-      return <TableLink path="/observations" value={n.toLocaleString()} />;
+      return (
+        <TextLink
+          path="/observations"
+          value={n.toLocaleString()}
+          title={n.toLocaleString()}
+        />
+      );
     },
   },
   {
@@ -1366,13 +1328,13 @@ export const WithFolderRows = meta.story({
 // "Provided Model Name" create-affordance, ListTree source links, folder rows).
 // They must NOT shift the text baseline relative to plain rows. This story puts
 // every variant in one column so any vertical-alignment regression is obvious:
-//   - plain TableIdOrName (no icon)
-//   - TableIdOrName + trailing PlusCircle — mirrors features/models
+//   - plain IdTableCell (no icon)
+//   - IdTableCell + trailing PlusCircle — mirrors features/models
 //     ProvidedModelNameCell: the name is wrapped in `inline-flex items-center`
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
-//   - TableLink with a leading icon (ListTree)
-//   - FolderBreadcrumbLink (Folder icon)
+//   - TextLink with a leading icon (ListTree)
+//   - Folder link (Folder icon)
 // A second plain-text column shows the row stays aligned across the table.
 
 type IconCellRow = {
@@ -1417,37 +1379,36 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       const { name, kind } = row.original;
       switch (kind) {
         case "createModel":
-          // Faithful to ProvidedModelNameCell: same TableIdOrName + trailing
+          // Faithful to ProvidedModelNameCell: same IdTableCell + trailing
           // icon, in a native <button> trigger (keyboard-activatable).
           return (
             <button
               type="button"
-              className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
+              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
-              <TableIdOrName value={name} className="min-w-0" />
+              <IdTableCell value={name} />
               <PlusCircle className="h-3.5 w-3.5 shrink-0" />
             </button>
           );
         case "link":
           return (
-            <TableLink
-              path="#"
-              value={name}
-              icon={
-                <span className="flex flex-row items-center gap-1">
-                  <ListTree className="h-3.5 w-3.5 shrink-0" />
-                  {name}
-                </span>
-              }
-            />
+            <TextLink path="#" value={name} icon={ListTree} title={name} />
           );
         case "folder":
-          return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+          return (
+            <TextLink
+              path=""
+              value={name}
+              icon={Folder}
+              onClick={() => undefined}
+              title={name}
+            />
+          );
         case "plain":
         default:
           return (
-            <span className="inline-flex max-w-full items-center">
-              <TableIdOrName value={name} className="min-w-0" />
+            <span className="inline-flex max-w-full min-w-0 items-center">
+              <IdTableCell value={name} />
             </span>
           );
       }
@@ -1509,5 +1470,30 @@ export const PaginationControlsStayGrouped = meta.story({
     expect(
       canvas.queryByRole("button", { name: "Go to last page" }),
     ).toBeNull();
+  },
+});
+
+export const TestManualIOCellBackground = meta.story({
+  name: "(Test) Manual IO Cell Background",
+  render: () => (
+    <TracesTable
+      tableName="story-manual-io-background"
+      rowHeight="s"
+      cellPadding="compact"
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const headers = Array.from(canvasElement.querySelectorAll("thead th"));
+    const inputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Input",
+    );
+    const outputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Output",
+    );
+    const row = canvasElement.querySelector<HTMLTableRowElement>("tbody tr");
+    if (!row) throw new globalThis.Error("Row not found");
+
+    await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");
   },
 });

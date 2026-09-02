@@ -115,9 +115,9 @@ describe("in-app agent background runs", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AI_MODEL = "test-model";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    // Pin the provider: a local .env with LANGFUSE_AI_PROVIDER=anthropic would
-    // otherwise route these Bedrock cases through the Anthropic branch.
-    (sharedEnv as any).LANGFUSE_AI_PROVIDER = undefined;
+    // Pin Bedrock: a local .env with LANGFUSE_AI_PROVIDER=anthropic would
+    // otherwise route these cases through the Anthropic branch.
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = "bedrock";
     (sharedEnv as any).LANGFUSE_AI_API_KEY = undefined;
     (sharedEnv as any).LANGFUSE_AI_MODEL = "test-model";
     (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = undefined;

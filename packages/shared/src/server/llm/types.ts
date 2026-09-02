@@ -10,6 +10,7 @@ import type {
   InternalTraceEventInput,
   InternalTraceExperimentContext,
 } from "./internalTraceEvents";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 
 // disable lint as this is exported and used in web/worker
 
@@ -541,7 +542,9 @@ export type TraceSinkParams = {
   // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
   environment: string;
   userId?: string;
+  sessionId?: string;
   metadata?: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
   prompt?: {
     name: string;
     version: number;
@@ -553,4 +556,14 @@ export type TraceSinkParams = {
    * events are still written to the legacy traces/observations tables.
    */
   eventsWriter?: InternalEventsWriter;
+  /**
+   * When true, v4 write modes (`dual` / `events_only`) publish through
+   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`
+   * (LangChain) or with `isLangfuseInternal: false` (AI SDK). Used by
+   * in-app agent, Ask AI, and conversation-title product traces. Those
+   * traces use environment `production` (not `langfuse-*`) so they stay
+   * eligible as observation-eval targets. Legacy write mode keeps
+   * `processEventBatch` for the LangChain path.
+   */
+  aiFeatureOtelIngestion?: boolean;
 };

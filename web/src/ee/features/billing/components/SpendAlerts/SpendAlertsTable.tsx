@@ -1,13 +1,7 @@
 import { useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { Edit, Trash2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { formatDistanceToNow } from "date-fns";
@@ -16,8 +10,9 @@ import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { costFormatter } from "@/src/utils/numbers";
 
 interface SpendAlertsTableProps {
@@ -108,34 +103,28 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
             })
           : "Never",
     },
-    {
-      accessorKey: "actions",
+    createDropdownTableColumn<AlertRow, string>({
       id: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 120,
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditingAlert(row.original.id)}>
+      renderMenu: (id) =>
+        id ? (
+          <>
+            <DropdownMenuItem onClick={() => setEditingAlert(id)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => setDeletingAlert(row.original.id)}
+              onClick={() => setDeletingAlert(id)}
               className="text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
+          </>
+        ) : null,
+    }),
   ];
 
   const editingAlertData = spendAlerts?.find((a) => a.id === editingAlert);

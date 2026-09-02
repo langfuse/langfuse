@@ -1,8 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { usdFormatter } from "@/src/utils/numbers";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -21,7 +22,8 @@ import {
 import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
 import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 
@@ -164,18 +166,13 @@ export function DatasetRunItemsByRunTable(props: {
         return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
       },
     },
-    {
+    createNumberTableColumn<DatasetRunItemByRunRowData>({
       accessorKey: "totalCost",
       header: "Cost",
-      id: "totalCost",
       size: 60,
       enableHiding: true,
-      cell: ({ row }) => {
-        const totalCost: DatasetRunItemByRunRowData["totalCost"] =
-          row.getValue("totalCost");
-        return totalCost ?? undefined;
-      },
-    },
+      formatter: (value) => usdFormatter(value),
+    }),
     {
       accessorKey: "scores",
       header: "Scores",
@@ -193,6 +190,7 @@ export function DatasetRunItemsByRunTable(props: {
       id: "input",
       size: 200,
       enableHiding: true,
+      cellBackground: "gray",
       cell: ({ row }) => {
         const trace: DatasetRunItemByRunRowData["trace"] =
           row.getValue("trace");
@@ -216,6 +214,7 @@ export function DatasetRunItemsByRunTable(props: {
       id: "output",
       size: 200,
       enableHiding: true,
+      cellBackground: "green",
       cell: ({ row }) => {
         const trace: DatasetRunItemByRunRowData["trace"] =
           row.getValue("trace");
@@ -239,6 +238,7 @@ export function DatasetRunItemsByRunTable(props: {
       id: "expectedOutput",
       size: 200,
       enableHiding: true,
+      cellBackground: "green",
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return datasetItemId ? (

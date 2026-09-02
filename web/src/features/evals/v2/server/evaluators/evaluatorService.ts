@@ -1,11 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
   EvalTemplateType,
+  type EvaluatorBlockReason,
   type FilterState,
   getBlockReasonForInvalidModelConfig,
   getCodeEvalVariableMapping,
   getEvaluatorBlockMetadata,
+  getEvaluatorPromptMessages,
+  isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
+  InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -27,7 +32,10 @@ import {
   type DeleteEvaluatorsInput,
   type EvaluatorDefinition,
   type EvaluatorDefinitionForPersistence,
+  type EvaluatorListOrderBy,
   type EvaluatorVersionCursor,
+  type NormalizedEvaluatorDefinition,
+  type PatchEvaluatorInput,
   type UpdateEvaluatorInput,
   encodeEvaluatorVersionCursor,
   EvaluatorDefinitionSchema,
@@ -45,18 +53,69 @@ type SuggestEvaluatorTextParams = {
   projectId: string;
   userId: string | null;
   definition: Pick<EvaluatorDefinition, "type"> &
-    ({ prompt: string } | { sourceCode: string });
+    (
+      | Pick<
+          Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>,
+          "promptMessages"
+        >
+      | { sourceCode: string }
+    );
 };
 
 const FALLBACK_EVALUATOR_NAME = "Custom Evaluator";
 const MAX_GENERATED_EVALUATOR_NAME_WORDS = 6;
 
+export function getLegacyEvaluatorPrompt(
+  promptMessages: Array<{ content: string }>,
+) {
+  return promptMessages.map(({ content }) => content).join("\n\n");
+}
+
+export function reconcileEvaluatorPromptMessages(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}) {
+  return getEvaluatorPromptMessages(params);
+}
+
+function normalizeVersionPromptMessages<
+  T extends { prompt: string | null; promptMessages?: unknown },
+>(version: T) {
+  const { prompt, promptMessages, ...normalizedVersion } = version;
+  return {
+    ...normalizedVersion,
+    promptMessages:
+      prompt === null
+        ? null
+        : reconcileEvaluatorPromptMessages({ prompt, promptMessages }),
+  };
+}
+
+function normalizeEvaluatorPromptMessages<
+  T extends {
+    versions: Array<{ prompt: string | null; promptMessages?: unknown }>;
+  },
+>(evaluator: T) {
+  return {
+    ...evaluator,
+    versions: evaluator.versions.map(normalizeVersionPromptMessages),
+  };
+}
+
 function prepareEvaluatorDefinitionForPersistence(
   definition: EvaluatorDefinition,
 ): EvaluatorDefinitionForPersistence {
-  return definition.type === EvalTemplateType.CODE
-    ? { ...definition, variableMapping: getCodeEvalVariableMapping() }
-    : definition;
+  if (definition.type === EvalTemplateType.CODE) {
+    return {
+      ...definition,
+      variableMapping: getCodeEvalVariableMapping(),
+    };
+  }
+
+  return {
+    ...definition,
+    prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
+  };
 }
 
 type EvaluatorExecutionTrace = {
@@ -82,14 +141,42 @@ export class EvaluatorService {
     private readonly audit: (event: EvaluatorAuditEvent) => Promise<void>,
   ) {}
 
-  list(params: {
+  async list(params: {
     projectId: string;
     page: number;
     limit: number;
+    orderBy?: EvaluatorListOrderBy;
     search?: string;
     filter?: FilterState;
   }) {
-    return repository.listEvaluators({
+    const page = await repository.listEvaluators({
+      prisma: this.prisma,
+      ...params,
+    });
+    return {
+      ...page,
+      evaluators: page.evaluators.map(normalizeEvaluatorPromptMessages),
+    };
+  }
+
+  async listCursor(params: {
+    projectId: string;
+    limit: number;
+    cursor?: { createdAt: Date; id: string };
+    search?: string;
+  }) {
+    const page = await repository.listEvaluatorsCursor({
+      prisma: this.prisma,
+      ...params,
+    });
+    return {
+      ...page,
+      evaluators: page.evaluators.map(normalizeEvaluatorPromptMessages),
+    };
+  }
+
+  count(params: { projectId: string; search?: string }) {
+    return repository.countEvaluators({
       prisma: this.prisma,
       ...params,
     });
@@ -122,7 +209,7 @@ export class EvaluatorService {
       evaluatorId,
     });
     if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
-    return evaluator;
+    return normalizeEvaluatorPromptMessages(evaluator);
   }
 
   async getWithSampleFilter(projectId: string, evaluatorId: string) {
@@ -148,11 +235,12 @@ export class EvaluatorService {
       ...params,
       cursor: params.cursor?.version,
     });
-    if (page.data.length === 0 && params.cursor === undefined) {
-      throw new LangfuseNotFoundError("Evaluator not found");
+    if (page.data.length === 0) {
+      await this.get(params.projectId, params.evaluatorId);
     }
     return {
       ...page,
+      data: page.data.map(normalizeVersionPromptMessages),
       nextCursor:
         page.nextCursor === undefined
           ? undefined
@@ -171,8 +259,8 @@ export class EvaluatorService {
       projectId: params.projectId,
       evaluatorIds: params.evaluatorIds,
     });
-    // Prompt-experiment executions do not always carry evaluator_id metadata,
-    // but all evaluator execution paths use this trace-name convention.
+    // Prompt-experiment executions do not always carry an evaluator id, but
+    // all evaluator execution paths use this trace-name convention.
     const evaluatorIdsByTraceName = new Map<string, string[]>();
     for (const evaluator of evaluators) {
       const traceName = `Execute evaluator: ${evaluator.name}`;
@@ -257,12 +345,13 @@ export class EvaluatorService {
         }
         throw error;
       });
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await this.audit({
       action: "create",
       projectId: input.projectId,
       evaluatorId: evaluator.id,
     });
-    return evaluator;
+    return normalizeEvaluatorPromptMessages(evaluator);
   }
 
   // Temporary fallback for the unstable Evaluators API until the final API
@@ -322,12 +411,16 @@ export class EvaluatorService {
         }),
       };
     });
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await this.audit({
       action: result.action,
       projectId: input.projectId,
       evaluatorId: result.evaluator.id,
     });
-    return result;
+    return {
+      ...result,
+      evaluator: normalizeEvaluatorPromptMessages(result.evaluator),
+    };
   }
 
   async update(
@@ -345,12 +438,54 @@ export class EvaluatorService {
         block,
       }),
     );
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await this.audit({
       action: "update",
       projectId: input.projectId,
       evaluatorId: evaluator.id,
     });
-    return evaluator;
+    return normalizeEvaluatorPromptMessages(evaluator);
+  }
+
+  async patch(input: PatchEvaluatorInput, createdByUserId: string | null) {
+    const validationResult = input.definition
+      ? await this.validatePatchedEvaluatorForPersistence(
+          input,
+          input.definition,
+        )
+      : null;
+    const evaluator = await this.prisma.$transaction((tx) =>
+      patchEvaluator({
+        tx,
+        input,
+        createdByUserId,
+        validationResult,
+      }),
+    );
+    await invalidateProjectEvalConfigCaches(input.projectId);
+    await this.audit({
+      action: "update",
+      projectId: input.projectId,
+      evaluatorId: evaluator.id,
+    });
+    return normalizeEvaluatorPromptMessages(evaluator);
+  }
+
+  private async validatePatchedEvaluatorForPersistence(
+    input: PatchEvaluatorInput,
+    definition: EvaluatorDefinition,
+  ) {
+    const current = await this.get(input.projectId, input.evaluatorId);
+    return validateEvaluatorForPersistence({
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      name: input.name ?? current.name,
+      description:
+        input.description === undefined
+          ? current.description
+          : input.description,
+      definition,
+    });
   }
 
   async reactivate(params: { projectId: string; evaluatorId: string }) {
@@ -361,7 +496,8 @@ export class EvaluatorService {
       evaluatorId,
     });
     if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
-    if (!evaluator.blockedAt) return evaluator;
+    if (!evaluator.blockedAt)
+      return normalizeEvaluatorPromptMessages(evaluator);
 
     const version = evaluator.versions[0];
     if (!version)
@@ -434,7 +570,7 @@ export class EvaluatorService {
 
     await invalidateProjectEvalConfigCaches(projectId);
     await this.audit({ action: "update", projectId, evaluatorId });
-    return reactivated;
+    return normalizeEvaluatorPromptMessages(reactivated);
   }
 
   async delete(projectId: string, evaluatorId: string) {
@@ -479,19 +615,63 @@ export class EvaluatorService {
     return evaluatorIds;
   }
 
-  async testEvaluator(params: Parameters<typeof executeEvaluatorTest>[0]) {
-    const evaluator = await this.prisma.evaluator.findFirst({
-      where: { id: params.evaluatorId, projectId: params.projectId },
-      select: { id: true },
-    });
-    // The setup editor pre-generates a UUID so a test run can be attributed to
-    // the evaluator before it is first saved. Every other id must resolve
-    // inside the project — never look it up unscoped, which would turn the
-    // response into a cross-project existence oracle.
-    if (!evaluator && !isPregeneratedEvaluatorId(params.evaluatorId)) {
-      throw new LangfuseNotFoundError("Evaluator not found");
+  async testEvaluator(
+    params: Omit<
+      Parameters<typeof executeEvaluatorTest>[0],
+      "evaluatorId" | "definition" | "includeEvaluatorLink"
+    > & {
+      evaluatorId?: string;
+      definition?: EvaluatorDefinition;
+    },
+  ) {
+    const {
+      evaluatorId: requestedEvaluatorId,
+      definition: requestedDefinition,
+      ...executionParams
+    } = params;
+
+    let evaluatorId = requestedEvaluatorId;
+    let definition = requestedDefinition;
+    let includeEvaluatorLink = false;
+
+    if (definition) {
+      if (evaluatorId) {
+        const evaluator = await this.prisma.evaluator.findFirst({
+          where: { id: evaluatorId, projectId: params.projectId },
+          select: { id: true },
+        });
+        // The setup editor pre-generates a UUID so a test run can be attributed
+        // to the evaluator before it is first saved. Every other id must resolve
+        // inside the project — never look it up unscoped, which would turn the
+        // response into a cross-project existence oracle.
+        if (!evaluator && !isPregeneratedEvaluatorId(evaluatorId)) {
+          throw new LangfuseNotFoundError("Evaluator not found");
+        }
+        includeEvaluatorLink = Boolean(evaluator);
+      } else {
+        evaluatorId = randomUUID();
+      }
+    } else {
+      if (!evaluatorId) {
+        throw new InvalidRequestError(
+          "Either evaluatorId or definition is required",
+        );
+      }
+      const evaluator = await this.get(params.projectId, evaluatorId);
+      const latestVersion = evaluator.versions[0];
+      if (!latestVersion) {
+        throw new LangfuseNotFoundError("Evaluator version not found");
+      }
+      definition = toEvaluatorDefinition(evaluator.type, latestVersion);
+      includeEvaluatorLink = true;
     }
-    return executeEvaluatorTest(params);
+
+    return executeEvaluatorTest({
+      ...executionParams,
+      evaluatorId,
+      definition,
+      includeEvaluatorLink,
+    });
   }
 
   async suggestName(params: SuggestEvaluatorTextParams) {
@@ -559,6 +739,70 @@ async function deleteEvaluator(params: {
   if (!deleted) throw new LangfuseNotFoundError("Evaluator not found");
 }
 
+async function patchEvaluator(params: {
+  tx: Prisma.TransactionClient;
+  input: Omit<PatchEvaluatorInput, "definition"> & {
+    definition?: EvaluatorDefinition;
+  };
+  createdByUserId: string | null;
+  validationResult: Awaited<ReturnType<typeof validateEvaluatorForPersistence>>;
+}) {
+  const { tx, input, createdByUserId } = params;
+  const current = await repository.findEvaluator({
+    prisma: tx,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
+  });
+  if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+  if (input.definition && current.type !== input.definition.type) {
+    throw new LangfuseConflictError("Evaluator type cannot be changed");
+  }
+
+  if (input.name !== undefined || input.description !== undefined) {
+    await repository.updateEvaluatorMetadata({
+      tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      name: input.name,
+      description: input.description,
+    });
+  }
+
+  if (input.definition) {
+    const latest = current.versions[0];
+    if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
+    const definitionChanged = !isDeepStrictEqual(
+      toEvaluatorDefinition(current.type, latest),
+      input.definition,
+    );
+    if (definitionChanged) {
+      await repository.appendEvaluatorVersion({
+        tx,
+        evaluatorId: input.evaluatorId,
+        version: latest.version + 1,
+        definition: prepareEvaluatorDefinitionForPersistence(input.definition),
+        createdByUserId,
+      });
+    }
+    await reconcileEvaluatorBlock({
+      tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      validationResult: params.validationResult,
+      existingBlockedAt: current.blockedAt,
+      existingBlockReason: current.blockReason,
+    });
+  }
+
+  const updated = await repository.findEvaluator({
+    prisma: tx,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
+  });
+  if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
+  return updated;
+}
+
 async function updateEvaluator(params: {
   tx: Prisma.TransactionClient;
   input: UpdateEvaluatorInput;
@@ -604,14 +848,14 @@ async function updateEvaluator(params: {
     });
   }
 
-  if (params.block) {
-    await repository.blockEvaluator({
-      tx,
-      projectId: input.projectId,
-      evaluatorId: input.evaluatorId,
-      ...params.block,
-    });
-  }
+  await reconcileEvaluatorBlock({
+    tx,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
+    validationResult: params.block,
+    existingBlockedAt: current.blockedAt,
+    existingBlockReason: current.blockReason,
+  });
 
   const updated = await repository.findEvaluator({
     prisma: tx,
@@ -620,6 +864,34 @@ async function updateEvaluator(params: {
   });
   if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
   return updated;
+}
+
+async function reconcileEvaluatorBlock(params: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+  evaluatorId: string;
+  validationResult: Awaited<ReturnType<typeof validateEvaluatorForPersistence>>;
+  existingBlockedAt: Date | null;
+  existingBlockReason: EvaluatorBlockReason | null;
+}) {
+  if (params.validationResult) {
+    await repository.blockEvaluator({
+      tx: params.tx,
+      projectId: params.projectId,
+      evaluatorId: params.evaluatorId,
+      ...params.validationResult,
+    });
+    return;
+  }
+  if (!params.existingBlockedAt) return;
+  if (
+    !isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+      params.existingBlockReason,
+    )
+  ) {
+    return;
+  }
+  await repository.unblockEvaluator(params);
 }
 
 async function validateEvaluatorForPersistence(
@@ -649,6 +921,7 @@ export function toEvaluatorDefinition(
   type: EvalTemplateType,
   version: {
     prompt: string | null;
+    promptMessages?: unknown;
     provider: string | null;
     model: string | null;
     modelParams: unknown;
@@ -658,12 +931,15 @@ export function toEvaluatorDefinition(
     sourceCode: string | null;
     sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
   },
-) {
-  return EvaluatorDefinitionSchema.parse(
+): NormalizedEvaluatorDefinition {
+  const definition = EvaluatorDefinitionSchema.parse(
     type === EvalTemplateType.LLM_AS_JUDGE
       ? {
           type,
-          prompt: version.prompt ?? "",
+          promptMessages: reconcileEvaluatorPromptMessages({
+            prompt: version.prompt,
+            promptMessages: version.promptMessages,
+          }),
           provider: version.provider,
           model: version.model,
           modelParams: version.modelParams,
@@ -677,16 +953,20 @@ export function toEvaluatorDefinition(
           sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
         },
   );
+  return definition;
+}
+
+function getSuggestionDefinitionText(params: SuggestEvaluatorTextParams) {
+  return "promptMessages" in params.definition
+    ? getLegacyEvaluatorPrompt(params.definition.promptMessages)
+    : params.definition.sourceCode;
 }
 
 async function defaultNameGenerator(
   params: SuggestEvaluatorTextParams,
   model: string,
 ) {
-  const definition =
-    "prompt" in params.definition
-      ? params.definition.prompt
-      : params.definition.sourceCode;
+  const definition = getSuggestionDefinitionText(params);
   return generateLangfuseAIText({
     messages: [
       {
@@ -711,10 +991,7 @@ async function defaultDescriptionGenerator(
   params: SuggestEvaluatorTextParams,
   model: string,
 ) {
-  const definition =
-    "prompt" in params.definition
-      ? params.definition.prompt
-      : params.definition.sourceCode;
+  const definition = getSuggestionDefinitionText(params);
   return generateLangfuseAIText({
     messages: [
       {

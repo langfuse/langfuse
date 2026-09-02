@@ -26,6 +26,7 @@ vi.mock("@/src/utils/api", () => ({
       filterOptions: { useQuery: generationsFilterOptionsUseQuery },
     },
     events: { filterOptions: { useQuery: noopQuery } },
+    evalsV2: { options: { useQuery: noopQuery } },
     projects: { environmentFilterOptions: { useQuery: noopQuery } },
     datasets: { allDatasetMeta: { useQuery: noopQuery } },
     dashboard: { executeQuery: { useQuery: noopQuery } },
@@ -33,8 +34,8 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 // Force the v1 path, which sources the observation-name picker from generations.
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({ isBetaEnabled: false }),
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({ isV4: false }),
 }));
 
 vi.mock("next/router", () => ({

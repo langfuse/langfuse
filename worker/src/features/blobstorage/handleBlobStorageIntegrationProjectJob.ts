@@ -86,7 +86,7 @@ import {
   buildBlobExportDeprecationNoticeKey,
 } from "./deprecationNotice";
 
-export const BlobExportFormat = {
+const BlobExportFormat = {
   JSON_RAW: "json-raw",
   JSON_GZIP: "json-gzip",
   CSV_RAW: "csv-raw",
@@ -97,7 +97,7 @@ export const BlobExportFormat = {
   // Parquet, so there is no separate raw/gzip split.
   PARQUET: "parquet",
 } as const;
-export type BlobExportFormat =
+type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
 // Text formats only; PARQUET is absent because callers branch on parquetEligible first.

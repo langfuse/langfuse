@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import TableLink from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { CardDescription } from "@/src/components/ui/card";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
@@ -28,7 +28,7 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -51,7 +51,10 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
 
   if (!evalConfig) {
     return <Skeleton className="h-full w-full rounded-none" />;
@@ -133,14 +136,13 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
 
         {showLegacyReadOnlyNotice ? (
-          <Alert className="border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Legacy evaluator is read-only</AlertTitle>
-            <AlertDescription>
+          <Alert variant="warning" icon={AlertTriangle}>
+            <Alert.Title>Legacy evaluator is read-only</Alert.Title>
+            <Alert.Description>
               This evaluator uses a legacy target that the current rule editor
               cannot represent safely. You can review or delete it here, but it
               cannot be edited or reactivated.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         ) : null}
       </div>
@@ -154,11 +156,13 @@ const PeekViewEvaluatorConfigDetail = ({
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
-          <TableLink
-            path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
-            value={evalConfig.evalTemplate.name}
-            className="mr-1 flex min-h-6 items-center"
-          />
+          <span className="mr-1 flex min-h-6 items-center">
+            <TextLink
+              path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
+              value={evalConfig.evalTemplate.name}
+              title={evalConfig.evalTemplate.name}
+            />
+          </span>
         )}
         {evalConfig.evalTemplate && (
           <Tooltip>
@@ -199,13 +203,12 @@ const PeekViewEvaluatorConfigDetail = ({
             }}
           />
         ) : (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Referenced evaluator unavailable</AlertTitle>
-            <AlertDescription>
+          <Alert icon={AlertTriangle}>
+            <Alert.Title>Referenced evaluator unavailable</Alert.Title>
+            <Alert.Description>
               This legacy rule no longer has an evaluator attached, so its
               evaluator configuration cannot be displayed.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
       </div>

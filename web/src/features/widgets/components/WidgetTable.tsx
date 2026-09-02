@@ -6,9 +6,9 @@ import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
@@ -29,7 +29,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useRouter } from "next/router";
@@ -302,22 +302,22 @@ export function DashboardWidgetTable() {
       header: "Description",
       size: 300,
     }),
-    columnHelper.accessor("view", {
+    createTextTableColumn<WidgetTableRow>({
+      accessorKey: "view",
       header: "View Type",
-      id: "view",
       enableSorting: true,
       size: 100,
-      cell: (row) => {
-        return startCase(row.getValue().toLowerCase());
-      },
+      mapValue: (value) => startCase(value?.toLowerCase()),
     }),
-    columnHelper.accessor("chartType", {
+    createTextTableColumn<WidgetTableRow>({
+      accessorKey: "chartType",
       header: "Chart Type",
-      id: "chartType",
       enableSorting: true,
       size: 100,
-      cell: (row) =>
-        getChartTypeDisplayName(row.getValue() as DashboardWidgetChartType),
+      mapValue: (value) =>
+        value
+          ? getChartTypeDisplayName(value as DashboardWidgetChartType)
+          : undefined,
     }),
     createDateTableColumn<WidgetTableRow>({
       accessorKey: "createdAt",

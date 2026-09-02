@@ -24,7 +24,7 @@ import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/co
 // construction = provider misconfig), OAuthCreateAccount / EmailCreateAccount
 // (DB failures), EmailSignin (verification email failed to send), Signin,
 // Configuration, and any unknown/custom string.
-export const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
+const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
   "OAuthCallback",
   "Callback",
 ];
@@ -40,7 +40,7 @@ export const isExpectedSignInError = (code: string): boolean =>
 // - SSO domain mismatch: deliberate rejection thrown by our signIn callback
 //   (logged server-side before the throw).
 // Configuration / AccessDenied / unknown values still capture.
-export const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
+const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
   "Verification",
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
 ];

@@ -268,3 +268,27 @@ export const convertDateToClickhouseDateTime = (date: Date): string => {
   // 2024-11-06T20:37:00.123Z -> 2024-11-06 20:37:00.123
   return date.toISOString().replace("T", " ").replace("Z", "");
 };
+
+const CLICKHOUSE_DATETIME_STRING = /^\d{4}-\d{2}-\d{2} /;
+
+/**
+ * Convert a Date, unix-millisecond timestamp, ISO string, or already-quoted
+ * ClickHouse datetime string to YYYY-MM-DD HH:MM:SS.sss for JSONEachRow inserts.
+ */
+export const toClickhouseDateTime = (
+  value?: Date | number | string | null,
+): string => {
+  if (value == null) {
+    return convertDateToClickhouseDateTime(new Date());
+  }
+  if (value instanceof Date) {
+    return convertDateToClickhouseDateTime(value);
+  }
+  if (typeof value === "number") {
+    return convertDateToClickhouseDateTime(new Date(value));
+  }
+  if (CLICKHOUSE_DATETIME_STRING.test(value)) {
+    return value;
+  }
+  return convertDateToClickhouseDateTime(new Date(value));
+};

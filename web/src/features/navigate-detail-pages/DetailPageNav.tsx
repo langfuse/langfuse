@@ -1,6 +1,6 @@
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -10,8 +10,8 @@ import {
   type ListEntry,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
@@ -44,7 +44,7 @@ export const DetailPageNav = (props: {
   );
 
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
+  const { isV4 } = useReadPath();
   const router = useRouter();
   const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =
@@ -160,12 +160,16 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowUp className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>K</KeyboardShortcut>}
+              {!compact && (
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut keys={["K"]} />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2">K</InputCommandShortcut>
+            <InputCommandShortcut className="ml-2" keys={["K"]} />
           </TooltipContent>
         </Tooltip>
 
@@ -184,12 +188,16 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>J</KeyboardShortcut>}
+              {!compact && (
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut keys={["J"]} />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2">J</InputCommandShortcut>
+            <InputCommandShortcut className="ml-2" keys={["J"]} />
           </TooltipContent>
         </Tooltip>
       </div>

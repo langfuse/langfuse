@@ -94,7 +94,12 @@ export class BufferedStreamUploader {
   private readonly stats: UploadPartStats;
 
   constructor(params: BufferedStreamUploaderParams) {
-    this.params = params;
+    // Buffer.concat rejects a non-integer length. Callers can pass
+    // MiB * 1024 * 1024 from a fractional env value (e.g. 5.1).
+    this.params = {
+      ...params,
+      partSizeBytes: Math.floor(params.partSizeBytes),
+    };
     this.stats = params.stats ?? emptyUploadPartStats();
   }
 
@@ -118,15 +123,20 @@ export class BufferedStreamUploader {
         this.currentBuffer.push(buf);
         this.currentBufferSize += buf.byteLength;
 
-        if (this.currentBufferSize >= this.params.partSizeBytes) {
-          await this.flushBuffer();
-          if (this.errors.hasError()) break;
+        // Slice exact partSizeBytes parts and carry the remainder. Some
+        // S3-compatible endpoints reject complete-multipart when non-trailing
+        // parts differ in length.
+        while (
+          this.currentBufferSize >= this.params.partSizeBytes &&
+          !this.errors.hasError()
+        ) {
+          await this.flushExactPart();
         }
       }
 
-      // Flush remaining data
+      // Final part is the only one allowed to be smaller than partSizeBytes.
       if (this.currentBufferSize > 0 && !this.errors.hasError()) {
-        await this.flushBuffer();
+        await this.flushRemainder();
       }
 
       // Wait for all in-flight uploads to complete
@@ -168,10 +178,34 @@ export class BufferedStreamUploader {
     return this.stats;
   }
 
-  private async flushBuffer(): Promise<void> {
-    const partData = Buffer.concat(this.currentBuffer);
-    this.currentBuffer = [];
-    this.currentBufferSize = 0;
+  private async flushExactPart(): Promise<void> {
+    await this.enqueuePart(this.takeBytes(this.params.partSizeBytes));
+  }
+
+  private async flushRemainder(): Promise<void> {
+    await this.enqueuePart(this.takeBytes(this.currentBufferSize));
+  }
+
+  // Copies the first `byteLength` bytes out of currentBuffer and leaves any
+  // leftover as the new buffer. Caller must pass byteLength <= currentBufferSize.
+  private takeBytes(byteLength: number): Buffer {
+    const partData = Buffer.concat(this.currentBuffer, byteLength);
+    let remaining = byteLength;
+    while (remaining > 0) {
+      const chunk = this.currentBuffer[0];
+      if (chunk.byteLength <= remaining) {
+        remaining -= chunk.byteLength;
+        this.currentBuffer.shift();
+      } else {
+        this.currentBuffer[0] = chunk.subarray(remaining);
+        remaining = 0;
+      }
+    }
+    this.currentBufferSize -= byteLength;
+    return partData;
+  }
+
+  private async enqueuePart(partData: Buffer): Promise<void> {
     this.partNumber++;
 
     // Wait for a slot if all concurrent slots are full

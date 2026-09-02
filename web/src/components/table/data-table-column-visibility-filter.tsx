@@ -49,6 +49,12 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
+export type ColumnGroupTogglePayload = {
+  groupId: string;
+  enabledCount: number;
+  totalCount: number;
+};
+
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
@@ -56,6 +62,9 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  tableName?: string;
+  isV4?: boolean;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -300,6 +309,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  tableName = "unknown",
+  isV4 = false,
+  onColumnGroupToggle,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -321,23 +333,25 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       // calculate target state outside of setState to make it idempotent
       const currentValue = columnVisibility[columnId];
       const targetValue = !currentValue;
-      setColumnVisibility((old: any) => {
-        const newColumnVisibility = {
-          ...old,
-          [columnId]: targetValue,
-        };
-        const selectedColumns = Object.keys(newColumnVisibility).filter(
-          (key) => newColumnVisibility[key],
-        );
-        capture("table:column_visibility_changed", {
-          selectedColumns: selectedColumns,
-        });
-        return newColumnVisibility;
+      // The event belongs to the click, not to the state updater: an updater
+      // must be pure, and React invokes it twice under StrictMode — which
+      // double-counted every toggle. Same payload, emitted once.
+      const nextVisibility = { ...columnVisibility, [columnId]: targetValue };
+      capture("table:column_visibility_changed", {
+        selectedColumns: Object.keys(nextVisibility).filter(
+          (key) => nextVisibility[key],
+        ),
+        tableName,
+        isV4,
       });
+      setColumnVisibility((old: any) => ({
+        ...old,
+        [columnId]: targetValue,
+      }));
     },
     // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility, columnVisibility],
+    [setColumnVisibility, columnVisibility, tableName, isV4],
   );
 
   const toggleAllColumns = useCallback(
@@ -490,11 +504,18 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                               column.header &&
                               typeof column.header === "string"
                             ) {
+                              const enabling =
+                                groupVisibleCount !== groupTotalCount;
                               toggleAllColumns(
                                 groupVisibleCount,
                                 groupTotalCount,
                                 column.header,
                               );
+                              onColumnGroupToggle?.({
+                                groupId: column.accessorKey,
+                                enabledCount: enabling ? groupTotalCount : 0,
+                                totalCount: groupTotalCount,
+                              });
                             }
                           }}
                         >

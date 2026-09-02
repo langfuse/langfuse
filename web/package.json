@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.21.0",
+  "version": "4.27.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -93,6 +93,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@scalar/api-reference": "1.66.1",
     "@sentry/nextjs": "^10.64.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tanstack/react-query": "^5.85.1",
@@ -132,7 +133,7 @@
     "lodash": "^4.18.1",
     "lucide-react": "^0.552.0",
     "nanoid": "3.3.18",
-    "next": "16.3.2",
+    "next": "16.3.3",
     "next-auth": "^4.24.14",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
@@ -202,6 +203,7 @@
     "dotenv-cli": "^7.4.2",
     "dotenv-expand": "^10.0.0",
     "eslint": "catalog:",
+    "eslint-plugin-boundaries": "7.2.0",
     "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.1",
     "eslint-plugin-storybook": "10.5.10",
     "eslint-plugin-tailwindcss": "4.0.2",

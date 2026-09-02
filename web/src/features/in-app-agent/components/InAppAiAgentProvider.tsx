@@ -66,7 +66,7 @@ import {
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
@@ -159,7 +159,7 @@ export type InAppAgentPendingToolApproval = {
   runId?: string;
 };
 
-export type InAppAiAgentConversation = {
+type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
@@ -1596,7 +1596,7 @@ export function useInAppAiAgent() {
  * Features. Use this for polling and other paths that must not hit the
  * server when org AI Features is off. More restrictive than
  * useIsInAppAgentLauncherVisible. */
-export function useCanUseInAppAgent() {
+function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();

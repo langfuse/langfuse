@@ -31,6 +31,10 @@ import {
   type ClickHouseQueryTags,
   type NormalizedClickHouseQueryTags,
 } from "../clickhouse/queryTags";
+import {
+  CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  recordClickHouseQueryOutcome,
+} from "../clickhouse/queryOutcome";
 
 /**
  * Re-exported so callers can build `Array(Tuple(...))` query parameters without
@@ -685,7 +689,7 @@ export async function queryClickhouse<T>(
     async (span) => {
       setSpanQueryAttributes(span, opts.query);
 
-      return await backOff(
+      const rows = await backOff(
         async () => {
           const res = await sendClickhouseQuery({
             ...opts,
@@ -732,11 +736,21 @@ export async function queryClickhouse<T>(
           maxDelay: 100,
         },
       ).catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(
+        const wrapped = ClickHouseResourceError.wrapIfResourceError(
           error as Error,
           normalizedTags,
         );
+        recordClickHouseQueryOutcome(
+          wrapped instanceof ClickHouseResourceError
+            ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
+            : "error",
+          normalizedTags,
+        );
+        throw wrapped;
       });
+
+      recordClickHouseQueryOutcome("success", normalizedTags);
+      return rows;
     },
   );
 }

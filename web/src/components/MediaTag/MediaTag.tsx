@@ -29,7 +29,7 @@ import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
  * itself never fetches, which keeps it pure and Storybook-able.
  */
 export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
-export type MediaTagIntent = "default" | "attachment";
+type MediaTagIntent = "default" | "attachment";
 
 export interface MediaTagProps {
   /**
@@ -289,7 +289,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
         </HoverCardTrigger>
         <HoverCardContent
           align="start"
-          className="flex w-auto max-w-sm flex-col gap-2 p-2"
+          className="ph-no-capture flex w-auto max-w-sm flex-col gap-2 p-2"
         >
           <div className="flex items-center justify-between gap-4">
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">

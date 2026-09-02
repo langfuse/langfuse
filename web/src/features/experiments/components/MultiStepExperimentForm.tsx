@@ -23,7 +23,7 @@ import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
@@ -141,12 +141,12 @@ export const MultiStepExperimentForm = ({
 
   const hasEvalReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
 
   const hasEvaluatorReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evaluator:read",
   });
 
   const canReadEvaluators = useV2Evaluators
@@ -155,7 +155,7 @@ export const MultiStepExperimentForm = ({
 
   const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const form = useForm({

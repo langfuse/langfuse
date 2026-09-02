@@ -3,6 +3,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import {
@@ -10,7 +11,6 @@ import {
   type Prisma,
   type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
-import { IOTableCell } from "../../ui/IOTableCell";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   isBooleanDataType,
@@ -21,6 +21,9 @@ import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DropdownMenu,
@@ -35,8 +38,8 @@ type ScoreConfigTableRow = {
   id: string;
   name: string;
   dataType: ScoreConfigDataType;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   range: {
     maxValue?: number | null;
     minValue?: number | null;
@@ -99,60 +102,45 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const totalCount = configs.data?.totalCount ?? null;
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
-    {
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "name",
-      id: "name",
       header: "Name",
       enableHiding: true,
-    },
-    {
+    }),
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "dataType",
-      id: "dataType",
       header: "Data Type",
       size: 80,
       enableHiding: true,
-    },
-    {
-      accessorKey: "range",
+    }),
+    createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
+      accessorFn: getConfigRange,
       header: "Range",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const range = getConfigRange(row.original);
-
-        return !!range ? (
-          <IOTableCell data={range} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ScoreConfigTableRow>({
       accessorKey: "description",
-      id: "description",
       header: "Description",
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.original.description;
-
-        return !!value ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIdTableColumn<ScoreConfigTableRow>({
       accessorKey: "id",
-      id: "id",
       header: "Config ID",
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createDateTableColumn<ScoreConfigTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Created At",
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "isArchived",
       id: "isArchived",
@@ -305,8 +293,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                       name: config.name,
                       dataType: config.dataType,
                       description: config.description,
-                      createdAt: config.createdAt.toLocaleString(),
-                      updatedAt: config.updatedAt.toLocaleString(),
+                      createdAt: config.createdAt,
+                      updatedAt: config.updatedAt,
                       range: {
                         maxValue: config.maxValue,
                         minValue: config.minValue,

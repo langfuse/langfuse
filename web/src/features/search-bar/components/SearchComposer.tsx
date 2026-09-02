@@ -55,7 +55,7 @@ import {
   WORD_JOINER,
 } from "@/src/features/search-bar/components/ComposerTokens";
 import {
-  COMPOSER_PLACEHOLDER,
+  composerPlaceholder,
   deactivationReason,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
@@ -1201,6 +1201,7 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
+  const placeholder = composerPlaceholder(registry);
   const segments = deriveComposerSegments(draft, scoreTypes, registry);
   // The token holding a collapsed caret — the keyboard counterpart to hover.
   // Not at the trailing insertion point, where the user is appending, not
@@ -1397,9 +1398,9 @@ export function SearchComposer({
                 ? "right-20"
                 : "right-8",
             )}
-            title={COMPOSER_PLACEHOLDER}
+            title={placeholder}
           >
-            {COMPOSER_PLACEHOLDER}
+            {placeholder}
           </div>
         )}
         <div
@@ -1433,7 +1434,7 @@ export function SearchComposer({
           // wrapped lines of pills (single-line is unaffected).
           className={cn(
             COMPOSER_TEXT_CLASSES,
-            "caret-[hsl(var(--foreground))] outline-none",
+            "ph-no-capture caret-[hsl(var(--foreground))] outline-none",
           )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
@@ -1514,7 +1515,7 @@ export function SearchComposer({
       </div>
 
       {showGlobalDiagnostics && (
-        <div className="absolute top-1.5 right-2 flex items-center gap-1">
+        <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
           <span
             className="text-destructive"
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
