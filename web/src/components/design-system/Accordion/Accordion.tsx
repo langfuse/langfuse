@@ -32,25 +32,12 @@ const accordionTriggerVariants = cva(
   },
 );
 
-const accordionItemVariants = cva("border-b", {
-  variants: {
-    inset: {
-      none: "",
-      sm: "px-2",
-    },
-  },
-  defaultVariants: {
-    inset: "none",
-  },
-});
-
 type AccordionItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
   "value"
-> &
-  Pick<VariantProps<typeof accordionItemVariants>, "inset"> & {
-    children: React.ReactNode;
-  };
+> & {
+  children: React.ReactNode;
+};
 
 type AccordionRootProps = React.ComponentPropsWithoutRef<
   typeof AccordionPrimitive.Root
@@ -79,12 +66,9 @@ function AccordionRoot({ children, gap, ...props }: AccordionProps) {
   );
 }
 
-function AccordionItem({ children, inset, value }: AccordionItemProps) {
+function AccordionItem({ children, value }: AccordionItemProps) {
   return (
-    <AccordionPrimitive.Item
-      className={accordionItemVariants({ inset })}
-      value={value}
-    >
+    <AccordionPrimitive.Item className="border-b" value={value}>
       {children}
     </AccordionPrimitive.Item>
   );
