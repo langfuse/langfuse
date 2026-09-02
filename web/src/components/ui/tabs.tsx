@@ -75,10 +75,14 @@ type TabsListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
 } & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
-
 type TabsRootProps = {
   children?: React.ReactNode;
-  className?: string;
+  className?:
+    | "mt-4 w-full max-w-sm"
+    | "w-full"
+    | "ml-auto h-fit px-2 py-0.5"
+    | "mt-2"
+    | "h-fit py-0.5";
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   ref?: React.Ref<HTMLDivElement>;
