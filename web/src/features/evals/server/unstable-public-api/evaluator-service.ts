@@ -1,37 +1,74 @@
-import { extractVariables } from "@langfuse/shared";
+import {
+  EvalTemplateType,
+  extractVariables,
+  LangfuseConflictError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   invalidateProjectEvalConfigCaches,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { type PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
-import {
-  type PUBLIC_EVALUATOR_TYPE_CODE,
-  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-} from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
+import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  EvaluatorService,
+  reconcileEvaluatorPromptMessages,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import {
+  EvaluatorConfigurationError,
+  EvaluatorVersionConflictError,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
+import type { PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
+import { PUBLIC_EVALUATOR_TYPE_CODE } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {
   toApiEvaluator,
-  toStoredEvaluatorType,
   toStoredOutputDefinition,
+  toStoredVariableMappings,
 } from "./adapters";
-import {
-  countEvaluationRulesForEvaluator,
-  countEvaluationRulesForEvaluatorIds,
-  findPublicEvaluatorTemplateOrThrow,
-  listPublicEvaluatorTemplates,
-} from "./queries";
-import { assertEvaluatorDefinitionCanRunForPublicApi } from "./validation";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import type { StoredPublicEvaluatorTemplate } from "./types";
-import { prepareVariableMappingForEvaluatorUpgrade } from "@/src/features/evals/server/evaluatorUpgrade";
+
+function readServiceForPublicApi() {
+  return new EvaluatorService(prisma, async () => undefined);
+}
+
+function serviceForPublicApi(params: {
+  projectId: string;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  return new EvaluatorService(prisma, ({ action, evaluatorId }) =>
+    auditPublicEvaluator(params, action, evaluatorId),
+  );
+}
+
+function ruleServiceForPublicApi() {
+  return new RuleService(prisma, async () => undefined);
+}
+
+function auditPublicEvaluator(
+  params: {
+    projectId: string;
+    auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  },
+  action: "create" | "update" | "delete",
+  evaluatorId: string,
+) {
+  if (!params.auditScope) return Promise.resolve();
+  return auditLog({
+    action,
+    resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+    resourceId: evaluatorId,
+    projectId: params.projectId,
+    orgId: params.auditScope.orgId,
+    apiKeyId: params.auditScope.apiKeyId,
+  });
+}
 
 function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   input: Extract<
@@ -40,7 +77,7 @@ function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   >,
 ) {
   if (!isCodeEvalEnabled()) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 403,
       code: "access_denied",
       message: "Code evals are not enabled",
@@ -48,7 +85,7 @@ function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   }
 
   if (!isCodeEvalSourceCodeLanguageSupported(input.sourceCodeLanguage)) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_request",
       message:
@@ -61,23 +98,100 @@ function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   }
 }
 
+function toDefinition(
+  input: PostUnstableEvaluatorBodyParsedType,
+): EvaluatorDefinition {
+  if (input.type === PUBLIC_EVALUATOR_TYPE_CODE) {
+    return {
+      type: EvalTemplateType.CODE,
+      sourceCode: input.sourceCode,
+      sourceCodeLanguage: input.sourceCodeLanguage,
+    };
+  }
+
+  return {
+    type: EvalTemplateType.LLM_AS_JUDGE,
+    promptMessages: reconcileEvaluatorPromptMessages({ prompt: input.prompt }),
+    provider: input.modelConfig?.provider ?? null,
+    model: input.modelConfig?.model ?? null,
+    modelParams: null,
+    vars: extractVariables(input.prompt),
+    variableMapping:
+      input.mapping === undefined
+        ? null
+        : toStoredVariableMappings({
+            mappings: input.mapping,
+            variables: extractVariables(input.prompt),
+            target: "observation",
+          }),
+    outputDefinition: toStoredOutputDefinition(input.outputDefinition),
+  };
+}
+
+type StableEvaluator =
+  | Awaited<ReturnType<EvaluatorService["get"]>>
+  | Awaited<ReturnType<EvaluatorService["list"]>>["evaluators"][number];
+
+function toLatestTemplate(
+  evaluator: StableEvaluator,
+): StoredPublicEvaluatorTemplate {
+  const version = evaluator.versions[0];
+  if (!version) {
+    throw createStructuredPublicApiError({
+      httpCode: 500,
+      code: "internal_error",
+      message: "Evaluator version is missing",
+    });
+  }
+
+  return {
+    id: evaluator.id,
+    projectId: evaluator.projectId,
+    name: evaluator.name,
+    version: version.version,
+    type: evaluator.type,
+    prompt: null,
+    promptMessages: version.promptMessages,
+    partner: version.partner,
+    provider: version.provider,
+    model: version.model,
+    modelParams: version.modelParams,
+    vars: version.vars,
+    outputDefinition: version.outputDefinition,
+    sourceCode: version.sourceCode,
+    sourceCodeLanguage: version.sourceCodeLanguage,
+    variableMapping: version.variableMapping,
+    createdAt: evaluator.createdAt,
+    updatedAt: evaluator.updatedAt,
+  };
+}
+
+function toPublicEvaluator(
+  evaluator: StableEvaluator,
+  evaluationRuleCount = 0,
+) {
+  return toApiEvaluator({
+    template: toLatestTemplate(evaluator),
+    evaluationRuleCount,
+  });
+}
+
 export async function listPublicEvaluators(params: {
   projectId: string;
   page: number;
   limit: number;
 }) {
-  const { templates, totalItems } = await listPublicEvaluatorTemplates(params);
-  const evaluationRuleCounts = await countEvaluationRulesForEvaluatorIds({
-    projectId: params.projectId,
-    evaluatorIds: templates.map((template) => template.id),
-  });
-
+  const service = readServiceForPublicApi();
+  const ruleService = ruleServiceForPublicApi();
+  const { evaluators, totalItems } = await service.list(params);
+  const evaluatorIds = evaluators.map((evaluator) => evaluator.id);
+  const assignmentCounts = await ruleService.countRulesForEvaluators(
+    params.projectId,
+    evaluatorIds,
+  );
   return {
-    data: templates.map((template) =>
-      toApiEvaluator({
-        template,
-        evaluationRuleCount: evaluationRuleCounts[template.id] ?? 0,
-      }),
+    data: evaluators.map((evaluator) =>
+      toPublicEvaluator(evaluator, assignmentCounts[evaluator.id] ?? 0),
     ),
     meta: {
       page: params.page,
@@ -92,13 +206,13 @@ export async function getPublicEvaluator(params: {
   projectId: string;
   evaluatorId: string;
 }) {
-  const template = await findPublicEvaluatorTemplateOrThrow(params);
-  const evaluationRuleCount = await countEvaluationRulesForEvaluator(params);
-
-  return toApiEvaluator({
-    template,
-    evaluationRuleCount,
-  });
+  const service = readServiceForPublicApi();
+  const evaluator = await service.get(params.projectId, params.evaluatorId);
+  const ruleCounts = await ruleServiceForPublicApi().countRulesForEvaluators(
+    params.projectId,
+    [evaluator.id],
+  );
+  return toPublicEvaluator(evaluator, ruleCounts[evaluator.id] ?? 0);
 }
 
 export async function createPublicEvaluator(params: {
@@ -107,211 +221,63 @@ export async function createPublicEvaluator(params: {
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const { input } = params;
-  const storedEvalTemplateType = toStoredEvaluatorType(input.type);
-  const storedOutputDefinition =
-    input.type === PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE
-      ? toStoredOutputDefinition(input.outputDefinition)
-      : undefined;
-  const nextVariables =
-    input.type === PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE
-      ? extractVariables(input.prompt)
-      : [...CODE_EVAL_TEMPLATE_VARIABLES];
+  const definition = toDefinition(input);
 
-  if (input.type === PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE) {
-    await assertEvaluatorDefinitionCanRunForPublicApi({
-      projectId: params.projectId,
-      template: {
-        name: input.name,
-        provider: input.modelConfig?.provider ?? null,
-        model: input.modelConfig?.model ?? null,
-        outputDefinition: storedOutputDefinition,
-      },
-    });
-  } else {
+  if (input.type === PUBLIC_EVALUATOR_TYPE_CODE) {
     assertCodeEvaluatorDefinitionCanRunForPublicApi(input);
   }
 
+  const service = serviceForPublicApi(params);
   try {
-    const { template, upgradedConfigCount } = await prisma.$transaction(
-      async (tx) => {
-        const conflictingTemplate = await tx.evalTemplate.findFirst({
-          where: {
-            projectId: params.projectId,
-            name: input.name,
-            type: {
-              not: storedEvalTemplateType,
-            },
-          },
-          select: {
-            type: true,
-          },
-        });
-
-        if (conflictingTemplate) {
-          throw createUnstablePublicApiError({
-            httpCode: 409,
-            code: "name_conflict",
-            message: `An evaluator named "${input.name}" already exists with a different type in this project. Use a different name for the ${input.type} evaluator.`,
-            details: {
-              field: "name",
-            },
-          });
-        }
-
-        const existingProjectTemplates = await tx.evalTemplate.findMany({
-          where: {
-            projectId: params.projectId,
-            name: input.name,
-            type: storedEvalTemplateType,
-          },
-          orderBy: [
-            {
-              version: "desc",
-            },
-            {
-              createdAt: "desc",
-            },
-            {
-              id: "desc",
-            },
-          ],
-          select: {
-            id: true,
-            version: true,
-          },
-        });
-        const configsToUpgrade =
-          existingProjectTemplates.length > 0
-            ? await tx.jobConfiguration.findMany({
-                where: {
-                  projectId: params.projectId,
-                  evalTemplateId: {
-                    in: existingProjectTemplates.map(
-                      (existingTemplate) => existingTemplate.id,
-                    ),
-                  },
-                  evalTemplate: {
-                    is: {
-                      type: storedEvalTemplateType,
-                    },
-                  },
-                },
-                select: {
-                  id: true,
-                  scoreName: true,
-                  targetObject: true,
-                  variableMapping: true,
-                },
-              })
-            : [];
-        const upgradedConfigs = configsToUpgrade.map((config) => {
-          const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
-            templateType: storedEvalTemplateType,
-            targetObject: config.targetObject,
-            variableMapping: config.variableMapping,
-            nextVariables,
-          });
-
-          if (preparedMapping.missingVariables.length > 0) {
-            throw createUnstablePublicApiError({
-              httpCode: 409,
-              code: "conflict",
-              message: `Creating a new evaluator version would invalidate the evaluation rule "${config.scoreName}" because it is missing mappings for new evaluator variables: ${preparedMapping.missingVariables.join(", ")}.`,
-              details: {
-                field: "mapping",
-                variables: preparedMapping.missingVariables,
-              },
-            });
-          }
-
-          return {
-            id: config.id,
-            variableMapping: preparedMapping.variableMapping,
-          };
-        });
-        const latestProjectTemplate = existingProjectTemplates[0];
-
-        const template = await tx.evalTemplate.create({
-          data: {
-            projectId: params.projectId,
-            name: input.name,
-            version: (latestProjectTemplate?.version ?? 0) + 1,
-            type: storedEvalTemplateType,
-            prompt: input.prompt ?? null,
-            provider: input.modelConfig?.provider ?? null,
-            model: input.modelConfig?.model ?? null,
-            modelParams: undefined,
-            vars: nextVariables,
-            outputDefinition: storedOutputDefinition,
-            sourceCode: input.sourceCode ?? null,
-            sourceCodeLanguage: input.sourceCodeLanguage ?? null,
-          },
-        });
-
-        if (upgradedConfigs.length > 0) {
-          await Promise.all(
-            upgradedConfigs.map((config) =>
-              tx.jobConfiguration.update({
-                where: {
-                  id: config.id,
-                  projectId: params.projectId,
-                },
-                data: {
-                  evalTemplateId: template.id,
-                  variableMapping: config.variableMapping,
-                },
-              }),
-            ),
-          );
-        }
-
-        return {
-          template,
-          upgradedConfigCount: upgradedConfigs.length,
-        };
-      },
-    );
-
-    if (upgradedConfigCount > 0) {
-      await invalidateProjectEvalConfigCaches(params.projectId);
-    }
-
-    const evaluationRuleCount = await countEvaluationRulesForEvaluator({
-      projectId: params.projectId,
-      evaluatorId: template.id,
-    });
-
-    const evaluator = toApiEvaluator({
-      template: template as StoredPublicEvaluatorTemplate,
-      evaluationRuleCount,
-    });
-
-    if (params.auditScope) {
-      await auditLog({
-        action: "create",
-        resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: evaluator.id,
+    const result = await service.upsertByName(
+      {
         projectId: params.projectId,
-        orgId: params.auditScope.orgId,
-        apiKeyId: params.auditScope.apiKeyId,
-        after: evaluator,
+        name: input.name,
+        description: null,
+        definition,
+      },
+      null,
+    );
+    const { evaluator } = result;
+    const ruleCounts = await ruleServiceForPublicApi().countRulesForEvaluators(
+      params.projectId,
+      [evaluator.id],
+    );
+    return toPublicEvaluator(evaluator, ruleCounts[evaluator.id] ?? 0);
+  } catch (error) {
+    if (error instanceof EvaluatorConfigurationError) {
+      throw createStructuredPublicApiError({
+        httpCode: 422,
+        code: "evaluator_preflight_failed",
+        message: error.message,
+        details: {
+          evaluatorName: input.name,
+          provider:
+            input.type === PUBLIC_EVALUATOR_TYPE_CODE
+              ? null
+              : (input.modelConfig?.provider ?? null),
+          model:
+            input.type === PUBLIC_EVALUATOR_TYPE_CODE
+              ? null
+              : (input.modelConfig?.model ?? null),
+        },
       });
     }
-
-    return evaluator;
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      throw createUnstablePublicApiError({
+    if (error instanceof EvaluatorVersionConflictError) {
+      throw createStructuredPublicApiError({
         httpCode: 409,
         code: "conflict",
-        message:
-          "Evaluator version changed during creation. Retry the request.",
+        message: error.message,
       });
     }
-
+    if (error instanceof LangfuseConflictError) {
+      throw createStructuredPublicApiError({
+        httpCode: 409,
+        code: "name_conflict",
+        message: error.message,
+        details: { field: "name" },
+      });
+    }
     throw error;
   }
 }
@@ -321,13 +287,8 @@ export async function deletePublicEvaluator(params: {
   evaluatorId: string;
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  // an evaluator in the public contract is the whole family; deleting it
-  // removes all stored versions
-  await deleteEvalTemplateFamily({
-    prisma,
-    projectId: params.projectId,
-    evalTemplateId: params.evaluatorId,
-    auditScope: params.auditScope,
-    referencingEntityName: "evaluation rule",
-  });
+  const service = serviceForPublicApi(params);
+  await service.get(params.projectId, params.evaluatorId);
+  await service.delete(params.projectId, params.evaluatorId);
+  await invalidateProjectEvalConfigCaches(params.projectId);
 }

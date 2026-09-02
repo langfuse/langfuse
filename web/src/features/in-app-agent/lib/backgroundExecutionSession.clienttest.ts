@@ -2,8 +2,11 @@ import { EventType } from "@ag-ui/core";
 import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { InAppAgentBackgroundClient } from "./backgroundAgentClient";
 import {
@@ -14,6 +17,8 @@ import {
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   BackgroundExecutionSessionController,
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -105,7 +110,9 @@ const finalMessage = {
 
 function createAgent() {
   return {
+    threadId: "conversation-1",
     messages: [],
+    addMessage: vi.fn(),
     setMessages: vi.fn(),
     setCursor: vi.fn(),
     runAgent: vi.fn().mockResolvedValue(undefined),
@@ -152,6 +159,8 @@ describe("BackgroundExecutionSessionController", () => {
     expect(agent.setCursor).toHaveBeenCalledWith(7);
     expect(agent.connectAgent).toHaveBeenCalledOnce();
     expect(hydrate).toHaveBeenCalledOnce();
+    expect(session.run({ message: "ignored", context: [] })).toBeNull();
+    expect(agent.addMessage).not.toHaveBeenCalled();
     expect(session.getSnapshot()).toMatchObject({
       messages: [message],
       eventCursor: 7,
@@ -516,19 +525,24 @@ describe("BackgroundExecutionSessionController", () => {
 
   it("keeps run-start failures outside attachment state", async () => {
     const startError = new Error("start failed");
+    const agent = {
+      ...createAgent(),
+      runAgent: vi.fn().mockRejectedValue(startError),
+    };
     const session = new BackgroundExecutionSessionController({
-      agent: {
-        ...createAgent(),
-        runAgent: vi.fn().mockRejectedValue(startError),
-      },
+      agent,
       hydrate: vi.fn().mockResolvedValue(runningView),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
     });
 
-    await expect(session.run({ context: [] } as never)).rejects.toBe(
+    await expect(session.run({ message: "hello", context: [] })).rejects.toBe(
       startError,
     );
+    expect(agent.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "user", content: "hello" }),
+    );
+    expect(agent.runAgent).toHaveBeenCalledWith({ context: [] });
     expect(session.getSnapshot().attachment).toEqual({
       status: "detached",
     });
@@ -548,7 +562,7 @@ describe("BackgroundExecutionSessionController", () => {
       decideApproval: vi.fn(),
     });
 
-    await expect(session.run({ context: [] } as never)).rejects.toBe(
+    await expect(session.run({ message: "hello", context: [] })).rejects.toBe(
       watchError,
     );
     expect(session.getSnapshot().attachment).toMatchObject({
@@ -1349,6 +1363,83 @@ describe("InAppAgentBackgroundClient reconnect", () => {
       message: "Assistant watch returned an invalid frame",
       retryable: false,
     });
+  });
+});
+
+describe("getBackgroundRunNotice", () => {
+  const failedRun = (errorCode: string | null) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.FAILED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  const assistantFailedContinue =
+    "The assistant failed. Send another message to continue.";
+  const assistantFailedTryAgain =
+    "The assistant failed. Send another message to try again.";
+
+  it.each([
+    [InAppAgentRunErrorCode.WORKER_LOST, assistantFailedContinue],
+    [InAppAgentRunErrorCode.STALE, assistantFailedContinue],
+    [InAppAgentRunErrorCode.QUEUE_TIMEOUT, assistantFailedContinue],
+    [InAppAgentRunErrorCode.WORKER_SHUTDOWN, assistantFailedContinue],
+    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, assistantFailedContinue],
+    [InAppAgentRunErrorCode.INIT_FAILED, assistantFailedTryAgain],
+    [InAppAgentRunErrorCode.ENQUEUE_FAILED, assistantFailedTryAgain],
+    [
+      InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      "The approval request expired. The action was not run. Send another message if you still want it.",
+    ],
+    [
+      InAppAgentRunErrorCode.RUN_TIMEOUT,
+      "The run hit the time limit. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.AGENT_ERROR,
+      "The assistant hit an error before finishing. Send another message to continue.",
+    ],
+    ["mystery_code", "The run failed. Try again."],
+  ] as const)("maps FAILED %s to the user-facing notice", (errorCode, text) => {
+    expect(getBackgroundRunNotice(failedRun(errorCode))).toEqual({
+      text,
+      tone: "info",
+    });
+  });
+
+  const truncatedRun = (errorCode: InAppAgentRunErrorCode) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.SUCCEEDED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  it.each([
+    [
+      InAppAgentRunErrorCode.STEP_LIMIT,
+      "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.",
+    ],
+  ] as const)("warns and marks SUCCEEDED %s as stopped", (errorCode, text) => {
+    const run = truncatedRun(errorCode);
+
+    expect(getBackgroundRunNotice(run)).toEqual({ text, tone: "warning" });
+    expect(getSettledActivityOutcome(run)).toBe("stopped");
+  });
+
+  it("shows no notice and marks a plain SUCCEEDED run as worked", () => {
+    const run = {
+      id: "run-1",
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: null,
+      cancelRequested: false,
+    };
+
+    expect(getBackgroundRunNotice(run)).toBeNull();
+    expect(getSettledActivityOutcome(run)).toBe("worked");
   });
 });
 

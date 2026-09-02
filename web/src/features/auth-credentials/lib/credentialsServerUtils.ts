@@ -1,4 +1,5 @@
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import { prisma } from "@langfuse/shared/src/db";
 import { compare, hash } from "bcryptjs";
 
@@ -16,8 +17,8 @@ export async function createUserEmailPassword(
   password: string,
   name: string,
   options?: {
-    /** Google Ads click id, see getGclidFromRequest */
-    gclid?: string;
+    /** Ad-platform click ids, see getAdClickIdsFromRequest */
+    adClickIds?: AdClickIds;
   },
 ) {
   if (!isValidPassword(password))
@@ -48,7 +49,7 @@ export async function createUserEmailPassword(
 
   await createProjectMembershipsOnSignup(newUser, {
     userWasJustCreated: true,
-    gclid: options?.gclid,
+    adClickIds: options?.adClickIds,
   });
 
   return newUser.id;
@@ -79,6 +80,6 @@ export async function verifyPassword(password: string, hashedPassword: string) {
   return isValid;
 }
 
-export function isValidPassword(password: string) {
+function isValidPassword(password: string) {
   return password.length >= 8;
 }

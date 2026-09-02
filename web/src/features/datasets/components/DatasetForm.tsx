@@ -84,7 +84,7 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
 type DatasetFormProps = CreateDatasetFormProps | UpdateDatasetFormProps;
 
 // Validation schema for JSON Schema strings
-export const jsonSchemaStringValidator = z.string().refine(
+const jsonSchemaStringValidator = z.string().refine(
   (value) => {
     if (value === "") return true; // Empty is valid (means no schema)
 

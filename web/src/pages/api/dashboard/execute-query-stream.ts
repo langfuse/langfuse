@@ -6,9 +6,9 @@ import {
   isException,
   ClickHouseResourceError,
   queryClickhouseWithProgress,
+  logger,
 } from "@langfuse/shared/src/server";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
@@ -41,10 +41,12 @@ function formatSSEEvent(event: SSEEvent): string {
   }
 }
 
+// `version` is required on purpose — see dashboard.executeQuery: an implicit
+// v1 default let unresolved-session clients silently pick the read path.
 const inputSchema = z.object({
   projectId: z.string(),
   query: customQuery,
-  version: viewVersions.optional().default("v1"),
+  version: viewVersions,
 });
 
 export default async function handler(

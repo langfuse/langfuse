@@ -2,11 +2,14 @@
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
 import { UiColumnMappings } from "../../tableDefinitions";
+import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
 import {
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
   eventsTableHasInputSql,
   eventsTableHasOutputSql,
+  eventsTableCachedInputCostSql,
+  eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
 } from "../../eventsTable";
 
@@ -116,6 +119,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
   {
+    uiTableName: "Cached Input Cost ($)",
+    uiTableId: "cachedInputCost",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableCachedInputCostSql,
+  },
+  {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "events_proto",
@@ -130,8 +139,9 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "events_proto",
     clickhouseSelect: "level",
     queryPrefix: "e",
@@ -169,6 +179,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
+    uiTableName: "Cached Input Tokens",
+    uiTableId: "cachedInputTokens",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableCachedInputTokensSql,
+    clickhouseTypeOverwrite: "Decimal64(3)",
+  },
+  {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "events_proto",
@@ -198,6 +215,18 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: "metadata",
     queryPrefix: "e",
+  },
+  {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_ID}'))`,
+  },
+  {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}')))`,
   },
   {
     uiTableName: "Version",
@@ -320,6 +349,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "experimentId",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_id"',
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Experiment Name",

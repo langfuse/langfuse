@@ -1,6 +1,5 @@
 import z from "zod";
 import {
-  AddToDatasetMappingSchema,
   ObservationAddToDatasetConfigSchema,
   BatchActionQuerySchema,
   BatchEvalSourceTableSchema,
@@ -17,23 +16,10 @@ export const CreateObservationBatchEvaluationActionSchema = z.object({
   query: BatchActionQuerySchema,
   evaluatorIds: z.array(z.string()).min(1),
   sourceTable: BatchEvalSourceTableSchema.default("events"),
-});
-
-export const ValidateBatchAddToDatasetMappingSchema = z.object({
-  projectId: z.string(),
-  observationId: z.string(),
-  traceId: z.string(),
-  datasetId: z.string(),
-  mapping: AddToDatasetMappingSchema,
+  evalVersion: z.literal("v2").optional(),
 });
 
 export const GetBatchActionByIdSchema = z.object({
   projectId: z.string(),
   batchActionId: z.string(),
-});
-
-export const ListBatchActionsSchema = z.object({
-  projectId: z.string(),
-  page: z.number(),
-  limit: z.number(),
 });

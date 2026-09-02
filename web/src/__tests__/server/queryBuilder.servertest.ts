@@ -2807,6 +2807,139 @@ describe("queryBuilder", () => {
     });
 
     describe("observations view", () => {
+      it("counts per-tool invocations including same-tool repeats (toolCallInvocations)", async () => {
+        const projectId = randomUUID();
+        const trace = createTrace({
+          project_id: projectId,
+          name: "tool-invocations-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        const now = new Date().getTime();
+        const base = {
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          environment: "default",
+          start_time: now,
+          end_time: now + 100,
+        };
+        // One observation with three PARALLEL calls to the same tool, one
+        // with a single call, one calling a different tool: ground truth is
+        // fetch = 4 invocations across 2 observations, search = 1.
+        await createObservationsCh([
+          createObservation({
+            ...base,
+            name: "obs-parallel-fetch",
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-single-fetch",
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-search",
+            tool_calls: ['{"id":"c5"}'],
+            tool_call_names: ["search"],
+          }),
+        ]);
+
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(now - 86400000).toISOString(),
+          toTimestamp: new Date(now + 86400000).toISOString(),
+          orderBy: [{ field: "calledToolNames", direction: "asc" }],
+        };
+
+        const result = await executeQuery(projectId, query, "v1", false);
+        expect(result).toHaveLength(2);
+        const fetchRow = result.find((r) => r.calledToolNames === "fetch");
+        const searchRow = result.find((r) => r.calledToolNames === "search");
+        expect(Number(fetchRow!.sum_toolCallInvocations)).toBe(4);
+        expect(Number(searchRow!.sum_toolCallInvocations)).toBe(1);
+
+        // Contrast: counting observation rows dedupes same-tool repeats within
+        // one observation, so the same data yields observations-per-tool.
+        const countResult = await executeQuery(
+          projectId,
+          {
+            ...query,
+            dimensions: [{ field: "calledToolNames" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+          },
+          "v1",
+          false,
+        );
+        const fetchCountRow = countResult.find(
+          (r) => r.calledToolNames === "fetch",
+        );
+        expect(Number(fetchCountRow!.count_count)).toBe(2);
+
+        // The v1 path normally uses the two-level query, but the declaration
+        // also supports the single-level optimization without changing results.
+        const resultOptimized = await executeQuery(
+          projectId,
+          query,
+          "v1",
+          true,
+        );
+        expect(resultOptimized).toEqual(result);
+      });
+
+      it("counts per-tool invocations on the v2 events view (toolCallInvocations)", async () => {
+        const projectId = randomUUID();
+        const now = Date.now() * 1000;
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            start_time: now,
+            end_time: now + 100_000,
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createEvent({
+            project_id: projectId,
+            start_time: now,
+            end_time: now + 100_000,
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [
+              { measure: "toolCallInvocations", aggregation: "sum" },
+              { measure: "count", aggregation: "count" },
+            ],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0].calledToolNames).toBe("fetch");
+        expect(Number(result[0].sum_toolCallInvocations)).toBe(4);
+        expect(Number(result[0].count_count)).toBe(2);
+      });
+
       it("should calculate p95 timeToFirstToken for each trace name using observations view", async () => {
         // Setup
         const projectId = randomUUID();
@@ -3941,6 +4074,9 @@ describe("queryBuilder", () => {
       expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
+      // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
+      // makes ClickHouse throw "Duplicate alias in ARRAY JOIN".
+      expect(sql).not.toMatch(/costType\s+as\s+costType/i);
     });
 
     maybeItWithEventsTable(
@@ -5093,6 +5229,116 @@ describe("query builder measure-aggregation validation", () => {
         // Should return only trace 1 (matches both name AND environment)
         expect(result).toHaveLength(1);
         expect(result[0].name).toBe("target-trace");
+      },
+    );
+  });
+
+  describe("metadata filters on events views (v2)", () => {
+    // events_core stores metadata_values truncated to 200 chars
+    // (events_core_mv); metadata filters must read events_full or matches
+    // beyond the truncation point are silently dropped.
+    const isEventsTableV2Enabled =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    const metadataFilterQuery = (
+      view: "traces" | "observations",
+    ): QueryType => ({
+      view,
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          column: "metadata",
+          operator: "contains",
+          key: "experiments",
+          value: "HAGTI=B",
+          type: "stringObject",
+        },
+      ],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: null,
+    });
+
+    it("reads events_full when a metadata filter is present (traces view)", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        metadataFilterQuery("traces"),
+        randomUUID(),
+      );
+
+      expect(sql).toContain("FROM events_full events_traces");
+      expect(sql).not.toContain("events_core");
+    });
+
+    it("reads events_full when a metadata filter is present (observations view)", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        metadataFilterQuery("observations"),
+        randomUUID(),
+      );
+
+      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).not.toContain("events_core");
+    });
+
+    it("keeps reading events_core without truncation-sensitive filters", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const query = metadataFilterQuery("traces");
+      query.filters = [
+        {
+          column: "environment",
+          operator: "=",
+          value: "production",
+          type: "string",
+        },
+      ];
+      const { query: sql } = await builder.build(query, randomUUID());
+
+      expect(sql).toContain("FROM events_core events_traces");
+      expect(sql).not.toContain("events_full");
+    });
+
+    isEventsTableV2Enabled(
+      "metadata 'contains' matches a value beyond the 200-char truncation point",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        const needle = `HAGTI=B-${randomUUID()}`;
+        const longValue = JSON.stringify([
+          ...Array.from({ length: 20 }, (_, i) => `experiment-${i}`),
+          needle,
+        ]);
+        expect(longValue.length).toBeGreaterThan(200);
+
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            trace_name: "trace-with-long-metadata",
+            name: "root-op",
+            parent_span_id: "",
+            metadata_names: ["experiments"],
+            metadata_values: [longValue],
+            start_time: Date.now() * 1000,
+          }),
+        ]);
+
+        const query = metadataFilterQuery("traces");
+        query.filters = [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "experiments",
+            value: needle,
+            type: "stringObject",
+          },
+        ];
+        const result = await executeQuery(projectId, query, "v2");
+
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe("trace-with-long-metadata");
       },
     );
   });

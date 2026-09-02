@@ -261,7 +261,7 @@ export const getScoresForSessions = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -310,7 +310,7 @@ export const getScoresForExperiments = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -529,7 +529,7 @@ const getScoresForTracesInternal = async <
       ${levelFilter}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<
@@ -1225,11 +1225,13 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const {
     excludeMetadata = false,
     includeHasMetadataFlag = false,
     clickhouseConfigs,
+    preferredClickhouseService,
     ...rest
   } = props;
 
@@ -1273,6 +1275,7 @@ export async function getScoresUiTable<
     excludeMetadata,
     includeHasMetadataFlag,
     clickhouseConfigs,
+    preferredClickhouseService,
     ...rest,
   });
 
@@ -1310,6 +1313,7 @@ const getScoresUiGeneric = async <T>(props: {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<T[]> => {
   const {
     projectId,
@@ -1318,6 +1322,7 @@ const getScoresUiGeneric = async <T>(props: {
     limit,
     offset,
     clickhouseConfigs,
+    preferredClickhouseService,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
   } = props;
@@ -1406,6 +1411,7 @@ const getScoresUiGeneric = async <T>(props: {
     params: input.params,
     tags: input.tags,
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 };
 
@@ -1553,6 +1559,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
+        s.metadata['evaluator_id'] AS evaluator_id,
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
@@ -1623,6 +1630,7 @@ export const getScoresUiCountFromEvents = async (props: {
 
 export type ScoreUiTableRowFromEvents = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
+  evaluatorId: string | null;
 };
 
 export async function getScoresUiTableFromEvents(props: {
@@ -1665,6 +1673,7 @@ export async function getScoresUiTableFromEvents(props: {
     event_ts: string;
     created_at: string;
     updated_at: string;
+    evaluator_id: string;
     has_metadata: 0 | 1;
   }>({
     select: "rows",
@@ -1686,6 +1695,7 @@ export async function getScoresUiTableFromEvents(props: {
     return {
       ...score,
       hasMetadata: !!row.has_metadata,
+      evaluatorId: row.evaluator_id || null,
     };
   });
 }
@@ -2245,9 +2255,15 @@ export const getDistinctScoreNames = async (
     projectId: string;
     cutoffCreatedAt: Date;
     clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+    preferredClickhouseService?: PreferredClickhouseService;
   } & DistinctScoreNamesTimestampSource,
 ) => {
-  const { projectId, cutoffCreatedAt, clickhouseConfigs } = p;
+  const {
+    projectId,
+    cutoffCreatedAt,
+    clickhouseConfigs,
+    preferredClickhouseService,
+  } = p;
   const startTimeFrom = getDistinctScoreNamesStartTimeFrom(p);
 
   const query = `    SELECT DISTINCT
@@ -2273,6 +2289,7 @@ export const getDistinctScoreNames = async (
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   return rows.map((row) => row.name);
@@ -2306,7 +2323,7 @@ const buildScoresForBlobStorageExportQuery = (
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND timestamp < {maxTimestamp: DateTime64(3)}
     AND data_type IN ({dataTypes: Array(String)})
   `;
 

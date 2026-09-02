@@ -11,20 +11,19 @@
 
 import { memo } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
-import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
-import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
+import {
+  VirtualizedTreeNodeWrapper,
+  type TreeNodeMetadata,
+} from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
-import { useMobileLayoutContextOptional } from "./TraceLayoutMobile";
+import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
 import type Decimal from "decimal.js";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 /**
  * Feature-scoped row container: subscribes to the row's OWN playback-active
@@ -89,29 +88,9 @@ const TraceTreeRow = memo(function TraceTreeRow({
 
 export function TraceTree() {
   const { roots, comments } = useTraceData();
-  const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
-    useSelection();
+  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
-  const capture = usePostHogClientCapture();
-  const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null on mobile): reopen the detail panel on select, including
-  // re-selecting the already-selected node.
-  const layout = useDesktopLayoutContextOptional();
-  // Optional (null on desktop): jump to the Info tab on select, including
-  // re-selecting the already-selected node (URL param unchanged → the tab
-  // effect wouldn't fire).
-  const mobileLayout = useMobileLayoutContextOptional();
-  const handleSelectNode = (id: string | null) => {
-    if (id) {
-      capture("trace_detail:node_selected", {
-        source: "tree",
-        ...analyticsDimensions,
-      });
-    }
-    setSelectedNodeId(id);
-    layout?.expandDetailPanel();
-    if (id) mobileLayout?.switchToInfoTab();
-  };
+  const handleSelectNode = useSelectTraceNode("tree");
 
   // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
   // Calculate aggregated totals across all roots for heatmap color scaling

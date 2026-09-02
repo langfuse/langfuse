@@ -38,32 +38,47 @@ export function validateRegexPattern(pattern: string): void {
   }
 }
 
-/**
- * Pricing tier condition schema (shared across API and tRPC)
- */
-export const PricingTierConditionSchema = z.object({
-  usageDetailPattern: z
-    .string()
-    .min(1, "Pattern cannot be empty")
-    .max(200, "Pattern exceeds maximum length of 200 characters")
-    .refine(
-      (pattern) => {
-        try {
-          validateRegexPattern(pattern);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      {
-        message:
-          "Invalid regex pattern: must be valid regex and not cause catastrophic backtracking",
-      },
-    ),
+const UsageDetailPatternSchema = z
+  .string()
+  .min(1, "Pattern cannot be empty")
+  .max(200, "Pattern exceeds maximum length of 200 characters")
+  .refine(
+    (pattern) => {
+      try {
+        validateRegexPattern(pattern);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid regex pattern: must be valid regex and not cause catastrophic backtracking",
+    },
+  );
+
+export const PricingTierUsageConditionSchema = z.object({
+  usageDetailPattern: UsageDetailPatternSchema,
   operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
   value: z.number().nonnegative(),
   caseSensitive: z.boolean().default(false),
 });
+
+export const PricingTierAttributeConditionSchema = z.object({
+  source: z.enum(["model_parameters", "metadata"]),
+  key: z.string().min(1, "Key cannot be empty").max(200),
+  operator: z.literal("in"),
+  values: z.array(z.string().min(1, "Value cannot be empty")).min(1),
+});
+
+/**
+ * Pricing-specific condition union. Usage conditions preserve their established
+ * persisted shape; observation attributes use an explicit exact-match shape.
+ */
+export const PricingTierConditionSchema = z.union([
+  PricingTierUsageConditionSchema,
+  PricingTierAttributeConditionSchema,
+]);
 
 export type PricingTierCondition = z.infer<typeof PricingTierConditionSchema>;
 
@@ -194,11 +209,15 @@ export function validatePricingTiers(
     return { valid: false, error: "Pricing tier names must be unique" };
   }
 
-  // Validate all conditions have valid regex patterns
+  // Validate all usage-detail conditions have valid regex patterns
   for (const tier of tiers) {
     for (const condition of tier.conditions) {
+      const pattern =
+        "usageDetailPattern" in condition ? condition.usageDetailPattern : null;
+      if (pattern === null) continue;
+
       try {
-        validateRegexPattern(condition.usageDetailPattern);
+        validateRegexPattern(pattern);
       } catch (error) {
         return {
           valid: false,

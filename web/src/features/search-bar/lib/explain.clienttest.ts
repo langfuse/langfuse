@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { deriveComposerSegments } from "@/src/features/search-bar/lib/composer-segments";
 import { explainSegment } from "@/src/features/search-bar/lib/explain";
 import { FIELDS } from "@/src/features/search-bar/lib/fields";
@@ -29,7 +31,7 @@ describe("explainSegment", () => {
     expect(explain("metadata.region:eu")).toBe(
       'Metadata "region" is exactly "eu".',
     );
-    expect(explain("level:ERROR")).toBe('Level is "ERROR".');
+    expect(explain("level:ERROR")).toBe('Status is "ERROR".');
     expect(explain("statusMessage:chat*")).toBe(
       'Status message starts with "chat".',
     );
@@ -52,7 +54,7 @@ describe("explainSegment", () => {
       "Start time is after 2026-06-01.",
     );
     expect(explain("-level:(ERROR OR WARNING)")).toBe(
-      'Level is none of "ERROR", "WARNING".',
+      'Status is none of "ERROR", "WARNING".',
     );
   });
 
@@ -93,7 +95,8 @@ describe("explainSegment", () => {
       }
       // Only array fields get a plural verb ("Trace tags include"); everything
       // else is followed by "is", so a plural label would read "… tokens is".
-      if (field.syncMode !== "arrayOption") {
+      // "Status" is a singular noun that happens to end in s.
+      if (field.syncMode !== "arrayOption" && field.label !== "Status") {
         expect(field.label, field.id).not.toMatch(/s$/);
       }
     }

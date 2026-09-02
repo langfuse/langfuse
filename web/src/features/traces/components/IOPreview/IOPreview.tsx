@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
@@ -14,6 +15,7 @@ import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export type { ViewMode };
 export type IOPreviewContentMode = "all" | "conversation";
@@ -53,6 +55,7 @@ export interface ExpansionStateProps {
 export interface IOPreviewProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -104,6 +107,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
 export function IOPreview({
   input,
   output,
+  status,
   outputCorrection,
   metadata,
   parsedInput,
@@ -147,6 +151,11 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
     useLocalStorage<string[]>(STORAGE_KEY, []);
 
@@ -178,6 +187,7 @@ export function IOPreview({
   const sharedProps = {
     input,
     output,
+    status,
     outputCorrection,
     metadata,
     parsedInput,
@@ -222,6 +232,8 @@ export function IOPreview({
           selectedView={selectedView}
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
+          showPrettyBeta={showPrettyBeta}
+          prettyBetaDisabled={chatMLParserResult !== undefined}
         />
       )}
 
@@ -239,6 +251,7 @@ export function IOPreview({
         <IOPreviewJSON
           input={input}
           output={output}
+          status={status}
           metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
@@ -265,6 +278,7 @@ export function IOPreview({
         <IOPreviewJSONSimple
           input={input}
           output={output}
+          status={status}
           metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
@@ -286,10 +300,20 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          showCorrections={showCorrections}
         />
       ) : (
         <IOPreviewPretty
           {...sharedProps}
+          parser={
+            // Precomputed legacy parses win inside the parser hook, so a
+            // beta-labeled view must never claim them as normalized output.
+            selectedView === "pretty-beta" &&
+            showPrettyBeta &&
+            chatMLParserResult === undefined
+              ? "normalized"
+              : "legacy"
+          }
           observationName={observationName}
           showMetadata={showMetadata}
           contentMode={contentMode}

@@ -107,6 +107,7 @@ export type RealOrganizationMembership = Awaited<
 export type OnboardingRedirectTarget = {
   redirectTo: string;
   orgId?: string;
+  canConfigureAiFeatures?: true;
 };
 
 const getAccessibleProjects = (
@@ -170,6 +171,7 @@ export const resolveOnboardingRedirectTarget = async ({
       return {
         redirectTo: `/project/${starterProject.id}/traces`,
         orgId: starterOrganizationMembership.organization.id,
+        canConfigureAiFeatures: true,
       };
     }
   }
@@ -208,7 +210,7 @@ export const resolveOnboardingRedirectTarget = async ({
   return null;
 };
 
-export const resolveOnboardingRedirectTargetWithFallback = async ({
+const resolveOnboardingRedirectTargetWithFallback = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -241,8 +243,15 @@ export const getCloudSignupOnboardingStatus = async ({
   });
 
   if (!completedSurvey) {
+    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+      prisma,
+      userId,
+      canCreateOrganizations,
+    });
+
     return {
       completed: false as const,
+      canConfigureAiFeatures: redirectTarget.canConfigureAiFeatures === true,
     };
   }
 
@@ -264,12 +273,14 @@ export const completeCloudSignupOnboarding = async ({
   userEmail,
   canCreateOrganizations,
   referralSource,
+  aiFeaturesEnabled,
 }: {
   prisma: PrismaClient;
   userId: string;
   userEmail?: string | null;
   canCreateOrganizations: boolean;
   referralSource?: string;
+  aiFeaturesEnabled?: boolean;
 }) =>
   prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
@@ -297,6 +308,17 @@ export const completeCloudSignupOnboarding = async ({
 
     if (!existingSurvey) {
       const normalizedReferralSource = referralSource?.trim();
+
+      if (
+        redirectTarget.canConfigureAiFeatures &&
+        aiFeaturesEnabled !== undefined &&
+        redirectTarget.orgId
+      ) {
+        await tx.organization.update({
+          where: { id: redirectTarget.orgId },
+          data: { aiFeaturesEnabled },
+        });
+      }
 
       await tx.survey.create({
         data: {

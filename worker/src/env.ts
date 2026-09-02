@@ -16,6 +16,14 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  // Base URL for the in-app agent's MCP calls. Defaults to NEXTAUTH_URL.
+  // Set this instead of redirecting NEXTAUTH_URL when the worker should reach
+  // web internally: NEXTAUTH_URL also builds user-facing links in emails and
+  // Slack messages, which must stay externally resolvable.
+  // Web validates the Host header of MCP requests, so any hostname used here
+  // other than NEXTAUTH_URL's own must be listed in LANGFUSE_MCP_ALLOWED_HOSTS
+  // on web, or the requests are rejected.
+  LANGFUSE_MCP_BASE_URL: z.url().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
@@ -234,11 +242,32 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Off by default until the background-execution rollout: the consumer needs
-  // Bedrock/MCP/sandbox config the worker deployment may not carry yet.
+  // Optional opt-outs for split-role workers. Unset follows
+  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .optional(),
+  // The ambient host profile takes precedence over the agent-specific default
+  // so local developer credentials win when both are configured.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -293,6 +322,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -327,10 +359,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
@@ -351,6 +379,12 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
+  LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(8),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -373,6 +407,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -628,6 +663,17 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  // Default 15 minutes. Do not go below the heartbeat-stale window (60s) or a
+  // live worker can lose the race. Faster also adds no resolution: every
+  // deadline this runner reports against is 5 minutes or longer.
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_DLQ_RETRY_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
@@ -649,7 +695,7 @@ export const v4WritesToLegacyTables = (envValue: ParsedEnv): boolean =>
 export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR === "direct";
 
-export const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
+const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
 const validateV4Flags = (parsed: ParsedEnv): void => {
@@ -681,9 +727,26 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
   }
 };
 
+const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
+    );
+  }
+};
+
 const parseEnv = (): ParsedEnv => {
   const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
   validateV4Flags(parsed);
+  validateInAppAgentSandboxConfig(parsed);
   return parsed;
 };
 

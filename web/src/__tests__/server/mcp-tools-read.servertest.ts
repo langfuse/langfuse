@@ -23,18 +23,20 @@ vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
   }),
 }));
 
-// Skip the LLM model preflight so llm_as_judge evaluators don't require a
-// provisioned default eval model.
+// Skip evaluator configuration validation so these tool tests do not require
+// a provisioned default eval model.
 vi.mock(
   "@/src/features/evals/server/evaluator-preflight",
   async (importActual) => ({
     ...(await importActual<object>()),
+    getEvaluatorDefinitionConfigurationError: vi.fn(async () => null),
     getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
   }),
 );
 
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -68,7 +70,7 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
   getDashboardWidgetTool,
@@ -79,118 +81,122 @@ import {
   handleListDashboardWidgets,
   listDashboardsTool,
   listDashboardWidgetsTool,
-} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
+} from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
 
 // Import MCP tool handlers directly
 import {
   getObservationTool,
   handleGetObservation,
-} from "@/src/features/mcp/features/observations/tools/getObservation";
+} from "@/src/features/mcp/server/observations/tools/getObservation";
 import {
   getObservationFieldSchemaTool,
   handleGetObservationFieldSchema,
-} from "@/src/features/mcp/features/observations/tools/getObservationFieldSchema";
+} from "@/src/features/mcp/server/observations/tools/getObservationFieldSchema";
 import {
   getObservationFilterSchemaTool,
   handleGetObservationFilterSchema,
-} from "@/src/features/mcp/features/observations/tools/getObservationFilterSchema";
+} from "@/src/features/mcp/server/observations/tools/getObservationFilterSchema";
 import {
   getObservationFilterValuesTool,
   handleGetObservationFilterValues,
-} from "@/src/features/mcp/features/observations/tools/getObservationFilterValues";
+} from "@/src/features/mcp/server/observations/tools/getObservationFilterValues";
 import {
   listObservationsTool,
   handleListObservations,
-} from "@/src/features/mcp/features/observations/tools/listObservations";
+} from "@/src/features/mcp/server/observations/tools/listObservations";
 import {
   getMetricsSchemaTool,
   handleGetMetricsSchema,
-} from "@/src/features/mcp/features/metrics/tools/getMetricsSchema";
+} from "@/src/features/mcp/server/metrics/tools/getMetricsSchema";
 import {
   queryMetricsTool,
   handleQueryMetrics,
-} from "@/src/features/mcp/features/metrics/tools/queryMetrics";
+} from "@/src/features/mcp/server/metrics/tools/queryMetrics";
 import {
   getPromptTool,
   handleGetPrompt,
-} from "@/src/features/mcp/features/prompts/tools/getPrompt";
+} from "@/src/features/mcp/server/prompts/tools/getPrompt";
 import {
   getPromptUnresolvedTool,
   handleGetPromptUnresolved,
-} from "@/src/features/mcp/features/prompts/tools/getPromptUnresolved";
+} from "@/src/features/mcp/server/prompts/tools/getPromptUnresolved";
 import {
   listPromptsTool,
   handleListPrompts,
-} from "@/src/features/mcp/features/prompts/tools/listPrompts";
+} from "@/src/features/mcp/server/prompts/tools/listPrompts";
 import {
   createScoreConfigTool,
   handleCreateScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/createScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/createScoreConfig";
 import {
   createScoreTool,
   handleCreateScore,
-} from "@/src/features/mcp/features/scores/tools/createScore";
+} from "@/src/features/mcp/server/scores/tools/createScore";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/deleteScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
 import {
   getScoreTool,
   handleGetScore,
-} from "@/src/features/mcp/features/scores/tools/getScore";
+} from "@/src/features/mcp/server/scores/tools/getScore";
 import {
   getScoreConfigTool,
   handleGetScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/getScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/getScoreConfig";
 import {
   listScoreConfigsTool,
   handleListScoreConfigs,
-} from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
+} from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
 import {
   listScoresTool,
   handleListScores,
-} from "@/src/features/mcp/features/scores/tools/listScores";
+} from "@/src/features/mcp/server/scores/tools/listScores";
 import {
   updateScoreConfigTool,
   handleUpdateScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 import {
   getMediaTool,
   handleGetMedia,
-} from "@/src/features/mcp/features/media/tools/getMedia";
+} from "@/src/features/mcp/server/media/tools/getMedia";
 import {
   getEvaluatorTool,
   handleGetEvaluator,
-} from "@/src/features/mcp/features/evals/tools/getEvaluator";
+} from "@/src/features/mcp/server/evals/tools/getEvaluator";
 import {
   listEvaluatorsTool,
   handleListEvaluators,
-} from "@/src/features/mcp/features/evals/tools/listEvaluators";
+} from "@/src/features/mcp/server/evals/tools/listEvaluators";
+import {
+  handleListManagedEvaluatorTemplates,
+  listManagedEvaluatorTemplatesTool,
+} from "@/src/features/mcp/server/evals/tools/listManagedEvaluatorTemplates";
 import {
   getEvaluationRuleTool,
   handleGetEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
-} from "@/src/features/mcp/features/evals/tools/listEvaluationRules";
-import { handleUpsertEvaluator } from "@/src/features/mcp/features/evals/tools/upsertEvaluator";
-import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/listEvaluationRules";
+import { handleCreateEvaluator } from "@/src/features/mcp/server/evals/tools/createEvaluator";
+import { handleCreateEvaluationRule } from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
 import {
   getMonitorTool,
   handleGetMonitor,
-} from "@/src/features/mcp/features/monitors/tools/getMonitor";
+} from "@/src/features/mcp/server/monitors/tools/getMonitor";
 import {
   listMonitorsTool,
   handleListMonitors,
-} from "@/src/features/mcp/features/monitors/tools/listMonitors";
+} from "@/src/features/mcp/server/monitors/tools/listMonitors";
 import {
   GetDatasetItemsMcpInput,
   GetDatasetMcpInput,
   GetDatasetRunMcpInput,
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
-} from "@/src/features/mcp/features/datasets/schema";
+} from "@/src/features/mcp/server/datasets/schema";
 
 const maybeEventsTable =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -203,13 +209,12 @@ const createLlmEvaluatorForMcpReadTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
   name = `mcp-eval-${nanoid()}`,
 ) => {
-  return (await handleUpsertEvaluator(
+  return (await handleCreateEvaluator(
     {
       name,
-      type: "llm_as_judge",
+      type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
       outputDefinition: mcpEvalOutputDefinition,
-      modelConfig: null,
     },
     setup.context,
   )) as { id: string; name: string };
@@ -260,20 +265,19 @@ const createEvaluationRuleForMcpReadTest = async (
   const rule = (await handleCreateEvaluationRule(
     {
       name: ruleName,
-      evaluator: {
-        name: evaluatorName,
-        scope: "project",
-        type: "llm_as_judge",
-      },
-      enabled: false,
+      evaluatorAssignments: [
+        {
+          evaluatorId: evaluator.id,
+          variableMapping: [
+            { variable: "input", source: "input" },
+            { variable: "output", source: "output" },
+          ],
+        },
+      ],
+      enabled: true,
       sampling: 1,
-      target: "observation",
       filter: [
         { column: "version", operator: "=", value: "1.0.0", type: "string" },
-      ],
-      mapping: [
-        { variable: "input", source: "input" },
-        { variable: "output", source: "output" },
       ],
     },
     setup.context,
@@ -558,6 +562,37 @@ describe("MCP Read Tools", () => {
     });
   });
 
+  describe("listManagedEvaluatorTemplates tool", () => {
+    it("lists filtered managed templates without database state", async () => {
+      verifyToolAnnotations(listManagedEvaluatorTemplatesTool, {
+        readOnlyHint: true,
+      });
+      const result = (await handleListManagedEvaluatorTemplates(
+        { type: "CODE" },
+        mockServerContext(),
+      )) as {
+        schemaVersion: number;
+        templates: Array<{ key: string; evaluator: { type: string } }>;
+      };
+
+      expect(result.schemaVersion).toBe(1);
+      expect(result.templates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "exact-match",
+            evaluator: expect.objectContaining({ type: "CODE" }),
+          }),
+        ]),
+      );
+      expect(result.templates.length).toBeGreaterThan(0);
+      expect(
+        result.templates.every(
+          (template) => template.evaluator.type === "CODE",
+        ),
+      ).toBe(true);
+    });
+  });
+
   describe("getEvaluator tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getEvaluatorTool, { readOnlyHint: true });
@@ -621,6 +656,116 @@ describe("MCP Read Tools", () => {
       )) as { data: Array<{ id: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(rule.id);
+    });
+
+    it("should list incomplete evaluator mappings", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createLlmEvaluatorForMcpReadTest(setup);
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-incomplete-mapping-rule-${nanoid()}`,
+          targetObject: "event",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: {
+              projectId: setup.projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: [
+                {
+                  templateVariable: "input",
+                  selectedColumnId: "",
+                  jsonSelector: null,
+                },
+                {
+                  templateVariable: "output",
+                  selectedColumnId: "output",
+                  jsonSelector: null,
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      const result = (await handleListEvaluationRules(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as {
+        data: Array<{
+          id: string;
+          evaluators: Array<{
+            evaluatorId: string;
+            variableMapping: Array<{
+              variable: string;
+              source: string | null;
+            }> | null;
+          }>;
+        }>;
+      };
+
+      expect(result.data.find((item) => item.id === rule.id)).toMatchObject({
+        evaluators: [
+          {
+            evaluatorId: evaluator.id,
+            variableMapping: [
+              { variable: "input", source: null },
+              { variable: "output", source: "output" },
+            ],
+          },
+        ],
+      });
+    });
+
+    it("returns multi-evaluator rules with all assignments", async () => {
+      const setup = await createMcpTestSetup();
+      const [firstEvaluator, secondEvaluator] = await Promise.all([
+        createLlmEvaluatorForMcpReadTest(setup),
+        createLlmEvaluatorForMcpReadTest(setup),
+      ]);
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-multi-evaluator-rule-${nanoid()}`,
+          targetObject: "event",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: [firstEvaluator, secondEvaluator].map((evaluator) => ({
+              projectId: setup.projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: [],
+            })),
+          },
+        },
+      });
+
+      const result = (await handleListEvaluationRules(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data).toContainEqual(
+        expect.objectContaining({
+          id: rule.id,
+          evaluators: expect.arrayContaining([
+            expect.objectContaining({ evaluatorId: firstEvaluator.id }),
+            expect.objectContaining({ evaluatorId: secondEvaluator.id }),
+          ]),
+        }),
+      );
+      await expect(
+        handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
+      ).resolves.toMatchObject({
+        id: rule.id,
+        evaluators: expect.arrayContaining([
+          expect.objectContaining({ evaluatorId: firstEvaluator.id }),
+          expect.objectContaining({ evaluatorId: secondEvaluator.id }),
+        ]),
+      });
     });
   });
 
@@ -799,9 +944,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should return public-compatible observation filter schema", async () => {
-      const { context } = await createMcpTestSetup();
-
-      const result = (await handleGetObservationFilterSchema({}, context)) as {
+      const result = (await handleGetObservationFilterSchema(
+        {},
+        mockServerContext(),
+      )) as {
         resource: string;
         columns: Record<string, { type: string; operators: string[] }>;
       };
@@ -812,9 +958,13 @@ describe("MCP Read Tools", () => {
       expect(result.columns.metadata).toEqual(
         expect.objectContaining({
           type: "stringObject",
+          operators: expect.arrayContaining(["matches"]),
           requiresKey: true,
         }),
       );
+      expect(result.columns.input.operators).toEqual(["=", "matches"]);
+      expect(result.columns.output.operators).toEqual(["=", "matches"]);
+      expect(result.columns.version.operators).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -863,6 +1013,29 @@ describe("MCP Read Tools", () => {
     );
   });
 
+  it.each([
+    ["input", "contains"],
+    ["version", "matches"],
+  ] as const)("should reject %s filters using %s", async (column, operator) => {
+    await expect(
+      handleListObservations(
+        {
+          traceId: randomUUID(),
+          filter: [
+            {
+              type: "string",
+              column,
+              operator,
+              value: "needle",
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        mockServerContext(),
+      ),
+    ).rejects.toThrow();
+  });
   maybeEventsTable("listObservations tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
@@ -1250,7 +1423,7 @@ describe("MCP Read Tools", () => {
       const matchingObservation = createObservationEvent({
         projectId,
         traceId,
-        input: `${"x".repeat(250)}${needle}`,
+        input: `${"x".repeat(250)} ${needle}`,
       });
 
       await createEventsCh([
@@ -1269,7 +1442,7 @@ describe("MCP Read Tools", () => {
             {
               type: "string",
               column: "input",
-              operator: "contains",
+              operator: "matches",
               value: needle,
             },
           ],
@@ -1308,7 +1481,7 @@ describe("MCP Read Tools", () => {
               {
                 type: "string",
                 column: "input",
-                operator: "contains",
+                operator: "matches",
                 value: "secret",
               },
             ],
@@ -1925,6 +2098,34 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(/Use returned metric aliases.*getMetricsSchema/i);
+    });
+
+    it("should return an invalid request for filters on pair-expanded dimensions", async () => {
+      const context = mockServerContext();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "usageType",
+                operator: "contains",
+                value: "cache",
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toMatchObject({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          "Field 'usageType' cannot be used as a filter.",
+        ),
+      });
     });
 
     it("should apply default row_limit of 100 when omitted", async () => {

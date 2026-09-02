@@ -33,6 +33,7 @@ import {
   ActionId,
   BatchActionType,
   BatchExportTableName,
+  type BulkDatasetItemValidationError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -82,6 +83,7 @@ import {
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
+  getDatasetExperimentMetricsFromEvents,
   getDatasetVersionForRun,
   escapeSqlLikePattern,
   fetchWithSecureRedirects,
@@ -95,7 +97,6 @@ import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
@@ -185,7 +186,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
  * @param filters - Array of filter conditions to evaluate
  * @returns true if any filter requires DRI metrics, false if using basic dataset run data is sufficient
  */
-export const requiresClickhouseLookups = (filters: FilterState): boolean => {
+const requiresClickhouseLookups = (filters: FilterState): boolean => {
   if (filters.length === 0) {
     return false;
   }
@@ -490,31 +491,40 @@ export const datasetRouter = createTRPCRouter({
 
       if (input.datasetIds.length === 0) return { metrics: [] };
 
-      // Get dataset runs metrics
-      const runsMetrics = await ctx.prisma.$queryRaw<
-        Array<{
-          id: string;
-          countDatasetRuns: number;
-          lastRunAt: Date | null;
-        }>
-      >`
-        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
-        FROM datasets d
-        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
-        WHERE d.project_id = ${input.projectId}
-        AND d.id IN (${Prisma.join(input.datasetIds)})
-        GROUP BY d.id
-      `;
-
-      // Get dataset items count for all datasets
-      const itemsCounts = await getDatasetItemsCountGrouped({
-        projectId: input.projectId,
-        datasetIds: input.datasetIds,
-      });
+      const [runsMetrics, itemsCounts] = await Promise.all([
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+          ? getDatasetExperimentMetricsFromEvents({
+              projectId: input.projectId,
+              datasetIds: input.datasetIds,
+            })
+          : ctx.prisma.$queryRaw<
+              Array<{
+                datasetId: string;
+                countDatasetRuns: bigint;
+                lastRunAt: Date | null;
+              }>
+            >`
+                SELECT d.id AS "datasetId", COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+                FROM datasets d
+                LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+                WHERE d.project_id = ${input.projectId}
+                AND d.id IN (${Prisma.join(input.datasetIds)})
+                GROUP BY d.id
+              `.then((rows) =>
+              rows.map((row) => ({
+                ...row,
+                countDatasetRuns: Number(row.countDatasetRuns),
+              })),
+            ),
+        getDatasetItemsCountGrouped({
+          projectId: input.projectId,
+          datasetIds: input.datasetIds,
+        }),
+      ]);
 
       // Merge the metrics
       const metrics = input.datasetIds.map((datasetId) => {
-        const runsMetric = runsMetrics.find((m) => m.id === datasetId);
+        const runsMetric = runsMetrics.find((m) => m.datasetId === datasetId);
         const itemsCount = itemsCounts.find((m) => m.datasetId === datasetId);
 
         return {
@@ -2174,11 +2184,47 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      const existingHeaders = parseStoredRemoteExperimentHeaders(
+        dataset.remoteExperimentRequestHeaders,
+      );
+      const submittedHeadersByLowerKey = input.requestHeaders
+        ? Object.fromEntries(
+            Object.entries(input.requestHeaders).map(([key, value]) => [
+              key.trim().toLowerCase(),
+              value,
+            ]),
+          )
+        : undefined;
+      const reusesSecretHeader = Object.entries(existingHeaders).some(
+        ([key, existingHeader]) => {
+          if (!existingHeader.secret) {
+            return false;
+          }
+
+          // Omitting requestHeaders preserves every existing header.
+          if (input.requestHeaders === undefined) {
+            return true;
+          }
+
+          const normalizedKey = key.trim().toLowerCase();
+          const submittedHeader = submittedHeadersByLowerKey?.[normalizedKey];
+
+          // An empty submitted value preserves the existing secret.
+          return submittedHeader?.value.trim() === "";
+        },
+      );
+
+      if (input.url !== dataset.remoteExperimentUrl && reusesSecretHeader) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Secret headers must be re-entered when changing the remote experiment URL",
+        });
+      }
+
       const { requestHeaders, displayHeaders } = processRemoteExperimentHeaders(
         input.requestHeaders,
-        parseStoredRemoteExperimentHeaders(
-          dataset.remoteExperimentRequestHeaders,
-        ),
+        existingHeaders,
       );
 
       const signingSecret =

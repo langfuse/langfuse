@@ -4,6 +4,7 @@ import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   buildEventBucketPrefix,
+  compileLangfuseMediaMessages,
   createLLMOutput,
   DefaultEvalModelService,
   generateLLMText,
@@ -13,18 +14,24 @@ import {
   QueueJobs,
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
+  type ChatMessage,
 } from "@langfuse/shared/src/server";
-import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 
-type StructuredOutputSchema = z.ZodType;
+type StructuredOutputSchema = z.ZodObject<{
+  reasoning: z.ZodString;
+  score: z.ZodType;
+}>;
+
+const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
+  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
 
 /**
  * Result of fetching model configuration.
  */
-export type ModelConfigResult =
+type ModelConfigResult =
   | {
       valid: true;
       config: {
@@ -46,8 +53,8 @@ export type ModelConfigResult =
 /**
  * Parameters for calling the LLM.
  */
-export interface LLMCallParams {
-  messages: ReturnType<typeof buildEvalMessages>;
+interface LLMCallParams {
+  messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {
@@ -62,7 +69,7 @@ export interface LLMCallParams {
 /**
  * Update data for job execution status.
  */
-export interface UpdateJobExecutionData {
+interface UpdateJobExecutionData {
   status: JobExecutionStatus;
   endTime?: Date;
   jobOutputScoreId?: string;
@@ -72,7 +79,7 @@ export interface UpdateJobExecutionData {
 /**
  * Parameters for uploading a score to S3.
  */
-export interface UploadScoreParams {
+interface UploadScoreParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -82,7 +89,7 @@ export interface UploadScoreParams {
 /**
  * Parameters for enqueueing score ingestion.
  */
-export interface EnqueueScoreIngestionParams {
+interface EnqueueScoreIngestionParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -91,7 +98,7 @@ export interface EnqueueScoreIngestionParams {
 /**
  * Parameters for updating a job execution.
  */
-export interface UpdateJobExecutionParams {
+interface UpdateJobExecutionParams {
   id: string;
   projectId: string;
   data: UpdateJobExecutionData;
@@ -100,7 +107,7 @@ export interface UpdateJobExecutionParams {
 /**
  * Parameters for fetching model configuration.
  */
-export interface FetchModelConfigParams {
+interface FetchModelConfigParams {
   projectId: string;
   provider?: string;
   model?: string;
@@ -140,6 +147,12 @@ function serializeSchemaForEgress(schema: unknown): string {
   } catch {
     return JSON.stringify(schema);
   }
+}
+
+function serializeProviderMessagesForEgress(messages: unknown): string {
+  return JSON.stringify(messages, (_key, value) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
+  );
 }
 
 /**
@@ -218,29 +231,50 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      // llmaj egress: serialized request body (messages + schema), uncompressed.
-      const bytes =
-        Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
-        (params.structuredOutputSchema
-          ? Buffer.byteLength(
-              serializeSchemaForEgress(params.structuredOutputSchema),
-              "utf8",
-            )
-          : 0);
-
+      const modelParams = {
+        provider: params.modelConfig.provider,
+        model: params.modelConfig.model,
+        adapter,
+        ...params.modelConfig.modelParams,
+      };
       const llmParams = mapLegacyLLMCompletionParams({
         connection,
         messages: params.messages,
-        modelParams: {
-          provider: params.modelConfig.provider,
-          model: params.modelConfig.model,
-          adapter,
-          ...params.modelConfig.modelParams,
-        },
+        modelParams,
       });
+      const { providerMessages, traceMessages } =
+        await compileLangfuseMediaMessages({
+          projectId: params.traceSinkParams.targetProjectId,
+          messages: params.messages,
+          adapter,
+        });
+
+      // Keep the evaluator contract unchanged while the model-facing schema
+      // resolves custom output instructions into the supported fields.
+      const modelFacingStructuredOutputSchema = z
+        .object({
+          scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+          score: params.structuredOutputSchema.shape.score,
+        })
+        .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
+
+      // llmaj egress: provider-bound messages (including base64-expanded inline
+      // media) plus schema, uncompressed.
+      const bytes =
+        Buffer.byteLength(
+          serializeProviderMessagesForEgress(providerMessages),
+          "utf8",
+        ) +
+        Buffer.byteLength(
+          serializeSchemaForEgress(modelFacingStructuredOutputSchema),
+          "utf8",
+        );
+
       const result = await generateLLMText({
         ...llmParams,
-        output: createLLMOutput(params.structuredOutputSchema),
+        messages: providerMessages,
+        traceInput: traceMessages,
+        output: createLLMOutput(modelFacingStructuredOutputSchema),
         maxRetries: 1,
         trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
@@ -259,7 +293,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         projectId: params.traceSinkParams.targetProjectId,
       });
 
-      return result.output;
+      return {
+        score: result.output.score,
+        reasoning: result.output.scoreExplanation,
+      };
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {

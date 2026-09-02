@@ -8,6 +8,7 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
+  safeJsonParse,
   type JsonNested,
 } from "@langfuse/shared";
 import {
@@ -41,6 +42,7 @@ import {
   TraceUpsertQueue,
   UsageCostType,
   findModel,
+  hasPricingTierUsageDetails,
   matchPricingTier,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
@@ -52,7 +54,9 @@ import {
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
+  sanitizeSdkMetricTagValue,
   type IngestionAttribution,
+  type PricingTierMatchAttributes,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -79,7 +83,43 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   return num;
 }
 
+function toPricingAttributeRecord(value: unknown): Record<string, string> {
+  const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
+
+  if (
+    !parsedValue ||
+    typeof parsedValue !== "object" ||
+    Array.isArray(parsedValue)
+  ) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
+      typeof attributeValue === "string" ||
+      typeof attributeValue === "number" ||
+      typeof attributeValue === "boolean"
+        ? [[key, String(attributeValue)]]
+        : [],
+    ),
+  );
+}
+
 export type EventInput = InternalTraceEventInput;
+
+function parseEventModelParameters(
+  value: EventInput["modelParameters"],
+): string | object | number | boolean | null {
+  if (!value) return {};
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value) as string | object | number | boolean | null;
+  } catch {
+    return value;
+  }
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
@@ -93,6 +133,11 @@ type MergeAndWriteParams = {
   events: IngestionEventType[];
   forwardToEventsTable: boolean;
   attribution: IngestionAttribution;
+};
+
+type PricingTierMatchAttributeValues = {
+  modelParameters?: unknown;
+  metadata?: unknown;
 };
 
 /**
@@ -256,6 +301,9 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+    const modelParameters = parseEventModelParameters(
+      eventData.modelParameters,
+    );
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -288,6 +336,10 @@ export class IngestionService {
       shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
+            pricingMatchAttributeValues: {
+              modelParameters,
+              metadata: eventData.metadata,
+            },
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -359,11 +411,11 @@ export class IngestionService {
       // Model
       model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: eventData.modelParameters
-        ? typeof eventData.modelParameters === "string"
-          ? JSON.parse(eventData.modelParameters)
-          : eventData.modelParameters
-        : {},
+      // Evaluation scheduling consumes this enriched record before it is
+      // written and expects parsed model parameters. The established runtime
+      // contract is therefore wider than the ClickHouse insert type declares.
+      model_parameters:
+        modelParameters as EventRecordInsertType["model_parameters"],
 
       // Usage & Cost
       provided_usage_details: eventData.providedUsageDetails ?? {},
@@ -677,6 +729,9 @@ export class IngestionService {
         reason: "score_validation_dropped",
         source: "api",
         domain: "score",
+        projectId,
+        sdkName: sanitizeSdkMetricTagValue(attribution.ingestionSdkName),
+        sdkVersion: sanitizeSdkMetricTagValue(attribution.ingestionSdkVersion),
       });
     }
 
@@ -937,6 +992,21 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
+    const pricingEventIndex = observationRecords.findLastIndex(
+      (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+    );
+    const pricingEvent = timeSortedEvents[pricingEventIndex];
+    const pricingMatchAttributeValues:
+      | PricingTierMatchAttributeValues
+      | undefined = pricingEvent
+      ? {
+          modelParameters:
+            "modelParameters" in pricingEvent.body
+              ? pricingEvent.body.modelParameters
+              : undefined,
+          metadata: pricingEvent.body.metadata,
+        }
+      : undefined;
     const normalizedTools = normalizeToolsForObservation(
       rawInput,
       rawOutput,
@@ -981,6 +1051,7 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
+      pricingMatchAttributeValues,
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1197,6 +1268,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
+    pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1220,7 +1292,8 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord } = params;
+    const { projectId, observationRecord, pricingMatchAttributeValues } =
+      params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1241,14 +1314,38 @@ export class IngestionService {
     let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
     let usage_pricing_tier_id: string | null = null;
     let usage_pricing_tier_name: string | null = null;
-
     if (
       pricingTiers.length > 0 &&
-      Object.keys(final_usage_details.usage_details ?? {}).length > 0
+      hasPricingTierUsageDetails(final_usage_details.usage_details)
     ) {
+      const attributeSources = new Set(
+        pricingTiers.flatMap((tier) =>
+          tier.isDefault
+            ? []
+            : tier.conditions.flatMap((condition) =>
+                "source" in condition ? [condition.source] : [],
+              ),
+        ),
+      );
+      const pricingMatchAttributes: PricingTierMatchAttributes | undefined =
+        attributeSources.size > 0
+          ? {
+              modelParameters: attributeSources.has("model_parameters")
+                ? toPricingAttributeRecord(
+                    pricingMatchAttributeValues?.modelParameters,
+                  )
+                : {},
+              metadata: attributeSources.has("metadata")
+                ? toPricingAttributeRecord(
+                    pricingMatchAttributeValues?.metadata,
+                  )
+                : {},
+            }
+          : undefined;
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
+        pricingMatchAttributes,
       );
 
       if (matchedTier) {

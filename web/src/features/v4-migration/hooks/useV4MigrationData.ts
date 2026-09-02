@@ -1,16 +1,17 @@
-import { useState } from "react";
-
 import { api } from "@/src/utils/api";
-import { countLegacyApiEntrypoints } from "@/src/features/v4/utils";
 import {
-  aggregateLegacyApiUsage,
-  createV4MigrationDetectionRange,
+  countActionableLegacyApiEntrypoints,
+  isActionableLegacyApiUsage,
+  normalizeLegacyApiEntrypoint,
+} from "@/src/features/v4/utils";
+import {
   getLegacyIntegrationLabels,
   getMigrationActionState,
   getMigrationCountState,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { getV4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 
@@ -30,7 +31,6 @@ export function useAccountV4MigrationData(params: {
   enabled: boolean;
 }): Map<string, ProjectMigrationStatus> {
   const { organizations, enabled } = params;
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
 
   const integrationQueries = api.useQueries((t) =>
     organizations.map((organization) =>
@@ -58,10 +58,7 @@ export function useAccountV4MigrationData(params: {
   const sdkQueries = api.useQueries((t) =>
     organizations.map((organization) =>
       t.v4Transition.sdkUsageSummaryByProject(
-        {
-          orgId: organization.id,
-          ...detectionRange,
-        },
+        { orgId: organization.id },
         {
           ...queryOptions,
           enabled,
@@ -73,10 +70,7 @@ export function useAccountV4MigrationData(params: {
   const apiQueries = api.useQueries((t) =>
     organizations.map((organization) =>
       t.v4Transition.legacyApiUsageSummaryByProject(
-        {
-          orgId: organization.id,
-          ...detectionRange,
-        },
+        { orgId: organization.id },
         {
           ...queryOptions,
           enabled,
@@ -85,7 +79,6 @@ export function useAccountV4MigrationData(params: {
       ),
     ),
   );
-
   const statusByProjectId = new Map<string, ProjectMigrationStatus>();
 
   organizations.forEach((organization, organizationIndex) => {
@@ -117,7 +110,7 @@ export function useAccountV4MigrationData(params: {
               ?.experimentInstrumentationMigration.status ?? "not_required",
         ),
         apis: getMigrationCountState(apiQuery, (rows) => {
-          return countLegacyApiEntrypoints(
+          return countActionableLegacyApiEntrypoints(
             rows.filter((row) => row.projectId === project.id),
           );
         }),
@@ -127,6 +120,13 @@ export function useAccountV4MigrationData(params: {
               ?.legacyIntegrationCount ?? 0
           );
         }),
+        // Forced-v3 projects still appear in the aggregation, marked as
+        // partner-managed so surfaces can show "upgrade handled by your
+        // integration partner" instead of a user-facing migration action.
+        forceV3Experience:
+          integrationQuery?.data?.projects.find(
+            (row) => row.projectId === project.id,
+          )?.forceV3Experience === true,
       });
     });
   });
@@ -136,31 +136,23 @@ export function useAccountV4MigrationData(params: {
 
 function useProjectV4SdkSummary(params: {
   projectId: string | undefined;
-  orgId: string | undefined;
   enabled: boolean;
 }) {
-  const { projectId, orgId, enabled } = params;
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
-  const queryEnabled = enabled && Boolean(projectId) && Boolean(orgId);
-  const sdkQuery = api.v4Transition.sdkUsageSummaryByProject.useQuery(
-    {
-      orgId: orgId ?? "",
-      ...detectionRange,
-    },
+  const { projectId, enabled } = params;
+  const queryEnabled = enabled && Boolean(projectId);
+  const sdkQuery = api.v4Transition.sdkUsageSummary.useQuery(
+    { projectId: projectId ?? "" },
     {
       ...queryOptions,
       enabled: queryEnabled,
       trpc: { context: { skipBatch: true } },
     },
   );
-  const summary = sdkQuery.data?.find((row) => row.projectId === projectId);
-
-  return { sdkQuery, summary };
+  return { sdkQuery, summary: sdkQuery.data };
 }
 
 export function useProjectV4SdkData(params: {
   projectId: string | undefined;
-  orgId: string | undefined;
   enabled: boolean;
 }) {
   const { sdkQuery, summary } = useProjectV4SdkSummary(params);
@@ -174,7 +166,6 @@ export function useProjectV4SdkData(params: {
 
 export function useProjectV4EvalData(params: {
   projectId: string | undefined;
-  orgId: string | undefined;
   enabled: boolean;
 }) {
   const { projectId, enabled } = params;
@@ -186,29 +177,46 @@ export function useProjectV4EvalData(params: {
   return getMigrationCountState(evalQuery, (data) => data.traceLevelEvalCount);
 }
 
+export function useProjectV4MigrationActions(projectId: string | undefined): {
+  actionNeeded: boolean;
+} {
+  const query = api.v4Transition.migrationActions.useQuery(
+    { projectId: projectId ?? "" },
+    { ...queryOptions, enabled: Boolean(projectId) },
+  );
+  const actions = query.data;
+
+  if (!actions || actions.forceV3Experience) {
+    return { actionNeeded: false };
+  }
+  return {
+    actionNeeded: [
+      actions.sdkActionNeeded,
+      actions.experimentsActionNeeded,
+      actions.apisActionNeeded,
+      actions.evalsActionNeeded,
+      actions.exportsActionNeeded,
+    ].some((categoryActionNeeded) => categoryActionNeeded === true),
+  };
+}
+
 export function useProjectV4MigrationData(params: {
   projectId: string | undefined;
-  orgId: string | undefined;
   enabled: boolean;
 }) {
-  const { projectId, orgId, enabled } = params;
+  const { projectId, enabled } = params;
   const queryEnabled = enabled && Boolean(projectId);
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
+  const forceV3Experience = useForceV3Experience(projectId);
   const { sdkQuery, summary: sdkSummary } = useProjectV4SdkSummary({
     projectId,
-    orgId,
     enabled,
   });
   const evalQuery = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: projectId ?? "" },
     { ...queryOptions, enabled: queryEnabled },
   );
-  const apiQuery = api.v4Transition.timeSeriesByEntrypoint.useQuery(
-    {
-      projectId: projectId ?? "",
-      ...detectionRange,
-      granularity: "auto",
-    },
+  const apiQuery = api.v4Transition.legacyApiUsageSummary.useQuery(
+    { projectId: projectId ?? "" },
     {
       ...queryOptions,
       enabled: queryEnabled,
@@ -220,7 +228,25 @@ export function useProjectV4MigrationData(params: {
     { ...queryOptions, enabled: queryEnabled },
   );
 
-  const apiUsage = aggregateLegacyApiUsage(apiQuery.data);
+  const apiUsage = (apiQuery.data ?? [])
+    .map((row) => ({
+      endpoint: normalizeLegacyApiEntrypoint(row.entrypoint),
+      count: row.count,
+      lastSeen: row.lastSeen,
+      callers: Array.from(
+        row.callers ?? [
+          {
+            count: row.count,
+            lastSeen: row.lastSeen,
+          },
+        ],
+      ).sort((left, right) => right.lastSeen.localeCompare(left.lastSeen)),
+    }))
+    .sort(
+      (left, right) =>
+        right.lastSeen.localeCompare(left.lastSeen) ||
+        left.endpoint.localeCompare(right.endpoint),
+    );
   const legacyIntegrations = getLegacyIntegrationLabels(
     integrationQuery.data?.legacyIntegrations,
   );
@@ -237,17 +263,19 @@ export function useProjectV4MigrationData(params: {
     ),
     experiments: getMigrationActionState(
       sdkQuery,
-      (rows) =>
-        rows.find((row) => row.projectId === projectId)
-          ?.experimentInstrumentationMigration.status ?? "not_required",
+      (summary) => summary.experimentInstrumentationMigration.status,
     ),
     experimentInstrumentationUpgradePath:
       sdkSummary?.experimentInstrumentationMigration.upgradePath ?? null,
-    apis: getMigrationCountState(apiQuery, () => apiUsage.length),
+    apis: getMigrationCountState(
+      apiQuery,
+      () => apiUsage.filter(isActionableLegacyApiUsage).length,
+    ),
     exports: getMigrationCountState(
       integrationQuery,
       (data) => data.legacyIntegrationCount,
     ),
+    forceV3Experience,
     apiUsage,
     legacyIntegrations,
   };

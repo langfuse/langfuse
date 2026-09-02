@@ -6,9 +6,11 @@ import {
 import {
   filterInterface,
   sqlInterface,
+  type DatabaseRow,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   getScoreAggregate,
   getNumericScoreHistogram,
@@ -19,7 +21,6 @@ import {
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   query as customQuery,
@@ -129,9 +130,8 @@ const LEGACY_CAMEL_CASE_MAP: Record<string, string> = {
  */
 function prepareScoresNumericV2Params(filter: FilterState) {
   const [from, to] = extractFromAndToTimestampsFromFilter(filter);
-  // Fallback to 2000-01-01 instead of epoch 0 — ClickHouse DateTimeFilter
-  // passes new Date(value).getTime() as the parameter, and the value 0
-  // (epoch) is rejected by ClickHouse's DateTime64(3) parameter parser.
+  // Preserve the existing default range. DateTimeFilter now accepts epoch as a
+  // lower bound, but widening dashboard queries is a separate behavior change.
   const fromIso = from?.value
     ? new Date(from.value as Date).toISOString()
     : new Date("2000-01-01T00:00:00.000Z").toISOString();
@@ -448,10 +448,27 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         query: customQuery,
-        version: viewVersions.optional().default("v1"),
+        // Required on purpose: a client must decide the read path explicitly.
+        // An implicit v1 default let unresolved-session clients silently fire
+        // legacy-table queries for v4 users.
+        version: viewVersions,
       }),
     )
     .query(async ({ input }) => {
+      // Deployment-level guard, not a per-user one: v2 reads the events
+      // views, which exist whenever the deployment writes them. Monitors
+      // previews and shared v2-widgets legitimately query v2 for users whose
+      // own read path is still v3; only a legacy deployment has nothing for
+      // v2 to read. v1 stays open (saved v1 widgets render for v4 users).
+      if (
+        input.version === "v2" &&
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "v2 queries are not available on this deployment",
+        });
+      }
       try {
         const validation = validateQuery(input.query, input.version);
         if (!validation.valid) {

@@ -25,17 +25,18 @@ import {
   JobConfigState,
   validateEvaluatorFiltersForTarget,
   evalTraceTableCols,
-} from "@langfuse/shared";
-import { z } from "zod";
-import { useEffect, useMemo, useState, memo } from "react";
-import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import {
   type EvalTemplate,
   EvalTemplateSourceCodeLanguage,
   variableMapping,
   observationVariableMapping,
+  EvalTargetObject,
+  EvalTargetObjectSchema,
+  getCodeEvalVariableMapping,
 } from "@langfuse/shared";
+import { z } from "zod";
+import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
+import { api } from "@/src/utils/api";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -48,15 +49,14 @@ import {
   evalConfigFormSchema,
   getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
-import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,
@@ -94,6 +94,7 @@ import {
   isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -105,10 +106,9 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
-  getCodeEvalVariableMapping,
   isCodeEvalTemplate,
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
@@ -189,7 +189,7 @@ const ObservationsPreview = memo(
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
-    const { isBetaEnabled } = useV4Beta();
+    const { isV4 } = useReadPath();
 
     const dateRange = useMemo(() => {
       return {
@@ -241,7 +241,7 @@ const ObservationsPreview = memo(
             ) : (
               // Keep the evaluator preview isolated from the parent route's table state.
               <PeekTableStateProvider>
-                {isBetaEnabled ? (
+                {isV4 ? (
                   <EventsTable
                     projectId={projectId}
                     hideControls
@@ -346,11 +346,12 @@ export const InnerEvaluatorForm = (props: {
     isSaveDisabled: boolean;
   }) => React.ReactNode;
   oldConfigId?: string;
+  sourceRuleAction?: "mark-inactive" | "delete";
 }) => {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const isCodeEvalConfig =
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
@@ -380,7 +381,7 @@ export const InnerEvaluatorForm = (props: {
     datasetFilterOptions,
   } = useEvalConfigFilterOptions({
     projectId: props.projectId,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
     includeLegacyTraceOptions: showLegacyTargetOptions,
   });
 
@@ -559,7 +560,7 @@ export const InnerEvaluatorForm = (props: {
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
-    isExperimentTarget(watchedTarget) && isBetaEnabled;
+    isExperimentTarget(watchedTarget) && isV4;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
   const previewTableVisible = !props.disabled && !props.hidePreviewTable;
@@ -711,13 +712,20 @@ export const InnerEvaluatorForm = (props: {
           delay,
           timeScope: isModern ? ["NEW"] : values.timeScope,
           ...(status ? { status } : {}),
+          ...(props.oldConfigId
+            ? {
+                sourceRuleId: props.oldConfigId,
+                sourceRuleAction:
+                  props.sourceRuleAction ?? ("mark-inactive" as const),
+              }
+            : {}),
         })
     )
       .then(() => {
         props.onFormSuccess?.();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
-          router.push(`/project/${props.projectId}/evals`);
+          router.push(`/project/${props.projectId}/evals/legacy`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
           // Only reset form when NOT redirecting
@@ -802,12 +810,12 @@ export const InnerEvaluatorForm = (props: {
     isCodeEvalConfig &&
     !props.disabled &&
     (isEventTarget(watchedTarget) ||
-      (isExperimentTarget(watchedTarget) && isBetaEnabled));
+      (isExperimentTarget(watchedTarget) && isV4));
   const shouldShowCodeEvalSourceLinkInSettingsCard =
     isCodeEvalConfig &&
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
-    !isBetaEnabled;
+    !isV4;
 
   const formBody = (
     <div
@@ -1230,6 +1238,11 @@ export const InnerEvaluatorForm = (props: {
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
                                 }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
+                                }
                               />
                             )}
                           </div>
@@ -1252,7 +1265,12 @@ export const InnerEvaluatorForm = (props: {
                 {/* Preview based on target type */}
                 {previewTableVisible && (
                   <>
-                    {isTraceTarget(form.watch("target")) && (
+                    {/* The traces preview reads the legacy traces table, which
+                        is not the v4 user's experience — never show it there. */}
+                    {shouldShowLegacyTracePreview(
+                      form.watch("target"),
+                      isV4,
+                    ) && (
                       <TracesPreview
                         projectId={props.projectId}
                         filterState={watchedFilter}

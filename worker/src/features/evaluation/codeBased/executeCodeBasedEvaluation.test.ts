@@ -9,7 +9,6 @@ import {
   parseDispatchResult,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../../packages/shared/src/server/evals/codeEvalExecution";
-import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
@@ -67,6 +66,7 @@ describe("executeCodeBasedEvaluation", () => {
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
+      evaluatorId: "evaluator-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -143,7 +143,10 @@ describe("executeCodeBasedEvaluation", () => {
     });
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        scope: expect.objectContaining({ organizationId: "org-1" }),
+        scope: expect.objectContaining({
+          organizationId: "org-1",
+          evaluatorId: "evaluator-1",
+        }),
         payload: expectedPayload,
       }),
     );
@@ -207,6 +210,7 @@ describe("executeCodeBasedEvaluation", () => {
     ]);
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
+        scope: expect.objectContaining({ evaluatorId: "template-1" }),
         payload: {
           observation: {
             input: null,
@@ -485,7 +489,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow("runner exploded");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
@@ -555,7 +563,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow(
       "The evaluator returned an invalid result.",
     );
@@ -629,6 +641,56 @@ describe("executeCodeBasedEvaluation", () => {
     expect(trace).not.toContain(rawTimeoutMessage);
   });
 
+  it("shows a user-visible error when evaluator code exceeds available memory", async () => {
+    const error = new CodeEvalDispatcherError(
+      "Runtime.OutOfMemory: Runtime exited with error: signal: killed",
+      {
+        code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
+        retryable: false,
+      },
+    );
+    mocks.dispatcher.dispatch.mockRejectedValue(error);
+
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toMatchObject({
+      code: "OUT_OF_MEMORY",
+      retryable: false,
+    });
+    await expect(promise).rejects.toThrow(
+      "Evaluator exceeded the available memory limit. Reduce memory usage in your evaluator code to stay within the limit, then try again.",
+    );
+
+    const trace = JSON.stringify(mocks.writeInternalTrace.mock.calls[0]?.[0]);
+    expect(trace).toContain(
+      "Evaluator exceeded the available memory limit. Reduce memory usage in your evaluator code to stay within the limit, then try again.",
+    );
+    expect(trace).not.toContain("Runtime.OutOfMemory");
+  });
+
   it("masks internal dispatcher errors in the internal trace", async () => {
     const error = new CodeEvalDispatcherError(
       "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",
@@ -664,7 +726,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: "INTERNAL_ERROR",
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow("An internal error occurred");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);

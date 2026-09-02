@@ -23,11 +23,17 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+- Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
+  recording/diff harness that captures the current SQL at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
+  `clickhouse format` for snapshot comparison. Every migrated call site is
+  proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
+  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
+  typed selection, virtual views, catalog parity) lives under
+  `src/server/query-ast/kysely/`.
 - Postgres schema: `prisma/schema.prisma`
-- For unstable public eval APIs, the public `evaluatorId` is currently the
-  exact `EvalTemplate.id`. Latest-version family grouping is derived from
-  `(projectId, name)` rather than stored on extra evaluator identity fields.
 - Prisma migrations: `prisma/migrations/*`
 - ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
@@ -36,7 +42,8 @@
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
-  helpers, eval/model-pricing helpers, and other frontend-safe utilities.
+  helpers, eval/model-pricing helpers, product path builders, and other
+  frontend-safe utilities.
   Includes the unicode-decoding JSON serialization helpers (`stringify`,
   `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
   trace-download route and client-side download/copy paths; the server barrel
@@ -45,7 +52,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), and server test utilities.
+  `streamLLMText`), Bedrock default-credential provider auth
+  (`createDefaultBedrockProviderAuth`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
@@ -54,20 +62,24 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/instrumentation/bootstrap` via
+  `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
-  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers).
-  `AgUiRunAgentInput` is a compile-time-only execution contract; there is no
-  runtime input or browser runtime-state schema. Never re-export server code
-  here.
-- `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
-  `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
-  the in-app-agent runtime (Mastra/Bedrock/MCP loop, tools, persistence,
-  sandbox), consumed by web's router/watch adapters and the worker execution
-  processor.
+  client-safe durable in-app-agent contracts: AG-UI messages/events/context,
+  run requests/status/errors, approval events, constants, message helpers,
+  and interrupt parsing. Never re-export server code here.
+- In-app-agent server contracts use explicit subpaths only:
+  `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
+  `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
+  storage/lifecycle, durable cross-process policy, or instance-model contracts;
+  the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`, and
-  `@langfuse/shared/src/utils/chatml`.
+  `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/llm/llmText`, and
+  `@langfuse/shared/src/utils/chatml`. The experimental
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe but **do not
+  use it yet**; its public contract is still being validated.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
@@ -154,9 +166,18 @@ the same PR.
 
 - Keep backward compatibility in queue payloads when possible during rolling
   deployments.
+- Register recurring cron jobs through
+  `src/server/redis/scheduleRecurringJob.ts` (BullMQ job schedulers), never
+  via the deprecated `Queue.add(name, data, { repeat })` API. When changing a
+  cron pattern, append the old pattern to `previousPatterns` so the legacy
+  md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
+- Adding vocabulary here — a field on a shared schema, an option on a shared
+  signature, an enum member, a branch for one caller — is owned by `web`,
+  `worker`, and `ee` at once. Apply
+  `.agents/skills/backend-dev-guidelines/references/new-concepts.md` first.
 - Changes to domain constants consumed by blob storage exports (e.g.
   `LISTABLE_SCORE_TYPES` in `src/domain/scores.ts`, score data type enums)
   should be reviewed against the blob storage export field reference docs for

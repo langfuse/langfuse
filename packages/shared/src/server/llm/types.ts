@@ -410,6 +410,7 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
@@ -435,6 +436,7 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
@@ -539,6 +541,7 @@ export type TraceSinkParams = {
   // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
   environment: string;
   userId?: string;
+  sessionId?: string;
   metadata?: Record<string, unknown>;
   prompt?: {
     name: string;
@@ -551,4 +554,14 @@ export type TraceSinkParams = {
    * events are still written to the legacy traces/observations tables.
    */
   eventsWriter?: InternalEventsWriter;
+  /**
+   * When true, v4 write modes (`dual` / `events_only`) publish through
+   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`
+   * (LangChain) or with `isLangfuseInternal: false` (AI SDK). Used by
+   * in-app agent, Ask AI, and conversation-title product traces. Those
+   * traces use environment `production` (not `langfuse-*`) so they stay
+   * eligible as observation-eval targets. Legacy write mode keeps
+   * `processEventBatch` for the LangChain path.
+   */
+  aiFeatureOtelIngestion?: boolean;
 };

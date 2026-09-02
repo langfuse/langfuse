@@ -13,7 +13,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -45,7 +45,7 @@ import {
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls } from "../PlaybackControls";
+import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -94,7 +94,7 @@ function TracePanelNavigationHeaderExpanded({
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { roots, trace, observations } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -149,7 +149,7 @@ function TracePanelNavigationHeaderExpanded({
     useWatchedPromiseCallback(async () => {
       capture("trace_detail:download_button_click", analyticsDimensions);
       try {
-        if (!isBetaEnabled) {
+        if (!isV4) {
           downloadLegacyTraceAsJson({
             trace,
             observations,
@@ -174,22 +174,27 @@ function TracePanelNavigationHeaderExpanded({
             : "Failed to download trace JSON",
         );
       }
-    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
+    }, [isV4, observations, trace, capture, analyticsDimensions]);
 
   const isTimelineView = viewMode === "timeline";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      {/* Responsive toolbar via container queries on this row's own width —
-          no JS measurement. The breakpoints are tuned to the row's actual
-          content minimums (all fixed-size icon buttons + the search input's
-          min-width, so the sums are font-independent): with playback controls
-          present the row needs ~434px with switcher labels, ~352px icons-only,
-          ~292px with the minor tools folded into "…". Hence: labels < 440px →
-          hidden; tools < 360px → folded; search < 300px → narrower min-width
-          (covers dragging to the 260px panel min). If you ADD anything to this
-          row, re-measure and retune all three — stale thresholds show up as a
-          clipped switcher at default widths (LFE-10729). */}
+      {/* Responsive toolbar via container queries on this row's own width — no JS
+          measurement. The breakpoints are tuned to the row's actual content
+          minimums (all fixed-size icon buttons plus the search input's
+          min-width, so the sums are font-independent). Measured states:
+
+            ≥ 440px   switcher labels, minor tools and transport all inline
+            360-440   switcher icons-only, tools and transport still inline
+            < 360px   tools AND transport folded into the "…" menu; this row
+                      first overflows at 188px, well under the 260px panel min
+
+          Hence: labels < 440px → hidden; tools and the transport < 360px →
+          folded; search < 300px → narrower min-width (covers dragging to the
+          panel min). If you ADD anything to this row, re-measure and retune all
+          three — stale thresholds show up as a clipped switcher at default
+          widths, which is what the folding exists to prevent. */}
       <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
@@ -282,6 +287,7 @@ function TracePanelNavigationHeaderExpanded({
                 <Download className="mr-2 h-3.5 w-3.5" />
                 Download trace as JSON
               </DropdownMenuItem>
+              <PlaybackMenuItems />
               <DropdownMenuSeparator />
               <TraceViewOptionsMenuItems
                 isGraphViewAvailable={isGraphViewAvailable}
@@ -290,8 +296,13 @@ function TracePanelNavigationHeaderExpanded({
           </DropdownMenu>
 
           {/* Playback transport + circular time-progress ring. View-agnostic:
-              shown in both Tree and Timeline views (see PlaybackControls). */}
-          <PlaybackControls />
+              shown in both Tree and Timeline views (see PlaybackControls) — and
+              folded into the overflow menu on a narrow panel, like the tools
+              above it. Two more 28px buttons are what tipped this row over: the
+              search input collapsed to "Se" and the switch clipped. */}
+          <div className="hidden flex-row items-center @min-[360px]/navheader:flex">
+            <PlaybackControls />
+          </div>
 
           {/* Tree / Timeline segmented switch (labels collapse to icons when
               the panel is narrow — see @container/navheader). */}
@@ -333,6 +344,9 @@ function ViewModeSwitch({
         icon={ListTree}
         label="Tree"
       />
+      {/* One Timeline. What it IS depends on the Compact Timeline feature
+          preview — see TracePanelNavigation — rather than on a third segment
+          the user has to understand. */}
       <ViewModeSegment
         active={isTimelineView}
         onClick={() => onSelect(true)}

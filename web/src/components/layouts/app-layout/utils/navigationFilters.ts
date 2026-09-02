@@ -19,7 +19,7 @@ type Organization =
  * Individual filter functions - each handles one concern
  * Exported for testing and composition
  */
-export const filters = {
+const filters = {
   /**
    * Filter routes that require a project ID when none is available
    */
@@ -81,12 +81,6 @@ export const filters = {
 
     if (route.featureFlag === "v4BetaToggleVisible") {
       return ctx.session?.user?.canToggleV4 === true ? route : null;
-    }
-
-    if (route.featureFlag === "v4UpgradeUi") {
-      return ctx.session?.user?.featureFlags.v4UpgradeUi === true
-        ? route
-        : null;
     }
 
     const hasFlag =
@@ -177,6 +171,7 @@ export const filters = {
       projectId: ctx.routerProjectId,
       isLangfuseCloud: ctx.isLangfuseCloud,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
+      v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
     })
       ? route
       : null;

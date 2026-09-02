@@ -13,6 +13,11 @@
 //   INV-2  no silent drop/rewrite — FilterState → text → FilterState is stable:
 //          every filter round-trips unchanged or is reported in skippedFilters,
 //          and nothing is rewritten into a different filter.
+//   INV-4  derived text is parseable — text derived FROM a FilterState is
+//          always valid for that registry. INV-2 enters from text, so it only
+//          ever sees filters the bar can already express; a sidebar can put a
+//          column in the URL that the bar does not expose, and emitting a token
+//          for it renders an "unknown field" the user cannot fix.
 //   INV-3  serialize ↔ parse symmetry — a free-text value always re-parses to
 //          itself and stays valid. (Regressed in #4: serializeValue emitted a
 //          bare reserved token — `or`, `!important` — that the parser rejects.)
@@ -26,11 +31,10 @@
 // parse/validate/lower calls below — the generators and assertions do not
 // change.
 
-import type { FieldDef } from "./fields";
-import type { ScoreTypeContext } from "./adapter";
+import type { FieldRegistry } from "./fields";
+import { type ScoreTypeContext, astToFilterState } from "./adapter";
 import type { FilterState } from "@langfuse/shared";
 import { parse, serialize } from "./langQ";
-import { astToFilterState } from "./adapter";
 import { validateQuery } from "./validate";
 import { filterStateToQueryText } from "./filter-state-to-query";
 
@@ -39,7 +43,7 @@ export type RegistryUnderTest = {
   /** Label for failure messages (e.g. "events v4"). */
   name: string;
   /** The field registry the grammar resolves against. */
-  fields: FieldDef[];
+  registry: FieldRegistry;
   /**
    * Grammar-overlay keys that are not plain fields: dot-path examples
    * (`metadata.region`, `scores.accuracy`, `traceScores.nps`) and the `has:`
@@ -57,6 +61,12 @@ export type RegistryUnderTest = {
    * leading operators, quotes) — these are what break serialize↔parse.
    */
   freeTextValues: string[];
+  /**
+   * Filter states the view's SIDEBAR can put in the URL, including columns the
+   * bar deliberately does not expose (INV-4). Without these the harness only
+   * ever sees the bar's own field surface and cannot catch a one-sided gate.
+   */
+  sidebarFilters?: FilterState[];
 };
 
 export type InvariantFailure = {
@@ -95,7 +105,10 @@ function sameFilters(a: FilterState, b: FilterState): boolean {
 
 /** Every query string the matrix generates for a view. */
 export function generateQueryCases(view: RegistryUnderTest): string[] {
-  const keys = [...view.fields.map((f) => f.id), ...view.extraKeys];
+  const keys = [
+    ...view.registry.fields.map((field) => field.id),
+    ...view.extraKeys,
+  ];
   const cases: string[] = [];
   for (const key of keys) {
     // `has:` entries already carry their own value in extraKeys.
@@ -124,9 +137,14 @@ export function generateQueryCases(view: RegistryUnderTest): string[] {
 function checkParity(
   text: string,
   ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx).valid) return null; // gate rejects → no claim
-  const errors = astToFilterState(parse(text).ast, ctx).errors;
+  if (!validateQuery(text, ctx, registry).valid) return null;
+  const errors = astToFilterState(
+    parse(text, registry).ast,
+    ctx,
+    registry,
+  ).errors;
   if (errors.length === 0) return null;
   return {
     invariant: "INV-1 commit-gate parity",
@@ -139,13 +157,18 @@ function checkParity(
 function checkFilterStateRoundTrip(
   text: string,
   ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx).valid) return null;
-  const first = astToFilterState(parse(text).ast, ctx);
+  if (!validateQuery(text, ctx, registry).valid) return null;
+  const first = astToFilterState(parse(text, registry).ast, ctx, registry);
   if (first.errors.length > 0 || first.filters.length === 0) return null;
   const fs1 = first.filters;
-  const forward = filterStateToQueryText(fs1);
-  const fs2 = astToFilterState(parse(forward.text).ast, ctx).filters;
+  const forward = filterStateToQueryText(fs1, {}, registry);
+  const fs2 = astToFilterState(
+    parse(forward.text, registry).ast,
+    ctx,
+    registry,
+  ).filters;
   // Filters with no grammar form are preserved via skippedFilters, not text.
   const expected = fs1.filter(
     (f) => !forward.skippedFilters.some((s) => stable(s) === stable(f)),
@@ -161,9 +184,12 @@ function checkFilterStateRoundTrip(
 }
 
 /** INV-3: a free-text value re-parses to itself and stays valid. */
-function checkSerializeSymmetry(value: string): InvariantFailure | null {
-  const text = serialize({ kind: "text", value });
-  const res = parse(text);
+function checkSerializeSymmetry(
+  value: string,
+  registry: FieldRegistry,
+): InvariantFailure | null {
+  const text = serialize({ kind: "text", value }, registry);
+  const res = parse(text, registry);
   const ast = res.ast;
   const ok = res.valid && ast?.kind === "text" && ast.value === value;
   if (ok) return null;
@@ -177,7 +203,30 @@ function checkSerializeSymmetry(value: string): InvariantFailure | null {
 }
 
 /**
- * Run all three invariants over a view's registry and return every failure.
+ * INV-4: text derived from a FilterState always parses for that registry.
+ *
+ * Deliberately context-free: this is about whether the registry EXPOSES the
+ * field at all, not about how an observed score type routes. Pinning a score
+ * context here would only re-test INV-2's ground and could fail on a
+ * value/type mismatch that says nothing about field exposure.
+ */
+function checkDerivedTextValidity(
+  filters: FilterState,
+  registry: FieldRegistry,
+): InvariantFailure | null {
+  const derived = filterStateToQueryText(filters, {}, registry);
+  if (validateQuery(derived.text, undefined, registry).valid) return null;
+  return {
+    invariant: "INV-4 derived text is parseable",
+    case: stable(filters),
+    detail: `derived "${derived.text}" which the same registry rejects; a column the bar does not expose belongs in skippedFilters (skipped: ${stable(
+      derived.skippedFilters,
+    )})`,
+  };
+}
+
+/**
+ * Run all invariants over a view's registry and return every failure.
  * The caller (a *.clienttest.ts) asserts the list is empty.
  */
 export function runSearchBarInvariants(
@@ -189,14 +238,18 @@ export function runSearchBarInvariants(
 
   for (const text of generateQueryCases(view)) {
     for (const ctx of contexts) {
-      const parity = checkParity(text, ctx);
+      const parity = checkParity(text, ctx, view.registry);
       if (parity) failures.push(parity);
-      const roundTrip = checkFilterStateRoundTrip(text, ctx);
+      const roundTrip = checkFilterStateRoundTrip(text, ctx, view.registry);
       if (roundTrip) failures.push(roundTrip);
     }
   }
+  for (const filters of view.sidebarFilters ?? []) {
+    const derived = checkDerivedTextValidity(filters, view.registry);
+    if (derived) failures.push(derived);
+  }
   for (const value of view.freeTextValues) {
-    const symmetry = checkSerializeSymmetry(value);
+    const symmetry = checkSerializeSymmetry(value, view.registry);
     if (symmetry) failures.push(symmetry);
   }
   return failures;

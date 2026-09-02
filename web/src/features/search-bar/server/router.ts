@@ -22,13 +22,16 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
-  LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
+import {
+  getInAppAgentModelConfig,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -45,6 +48,19 @@ import {
   recordParseOutcomeScores,
 } from "./parseOutcomeScoring";
 import { getProductBaseUrl } from "@/src/utils/base-url";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  EVALUATOR_FIELD_REGISTRY,
+  RULE_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import {
+  EVENTS_FIELD_REGISTRY,
+  withFieldOptions,
+  type FieldRegistry,
+} from "../lib/fields";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -52,9 +68,34 @@ const scoreNameList = z
   .array(z.string().max(MAX_SCORE_NAME_LENGTH))
   .max(MAX_SCORE_NAMES_PER_TYPE);
 
+const REGISTRY_IDS = [
+  "events",
+  "evaluationRules",
+  "evaluatorSamples",
+  "ruleSamples",
+  "sessions",
+  "experiments",
+] as const;
+
+/**
+ * Every accepted registryId maps to its registry EXPLICITLY. A fallback here is
+ * what made an unmapped view generate against the events vocabulary while the
+ * `aiFilterPrompt` guard below read the events flag and let it through; with a
+ * total map, adding an id without a registry is a type error instead.
+ */
+const REGISTRIES_BY_ID: Record<(typeof REGISTRY_IDS)[number], FieldRegistry> = {
+  events: EVENTS_FIELD_REGISTRY,
+  evaluationRules: RULE_FIELD_REGISTRY,
+  evaluatorSamples: EVALUATOR_FIELD_REGISTRY,
+  ruleSamples: RULE_SAMPLE_FIELD_REGISTRY,
+  sessions: SESSIONS_FIELD_REGISTRY,
+  experiments: EXPERIMENTS_FIELD_REGISTRY,
+};
+
 const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
+  registryId: z.enum(REGISTRY_IDS).default("events"),
   /** Existing bar query text, so the model refines the current filters. */
   currentQuery: z.string().max(4096).optional(),
   /** Project data context (observed values, metadata keys, result count) built
@@ -80,6 +121,16 @@ export const searchBarRouter = createTRPCRouter({
     .input(GenerateFilterInput)
     .mutation(async ({ input, ctx }) => {
       try {
+        const baseRegistry = REGISTRIES_BY_ID[input.registryId];
+        // Defence in depth for the client gate above: a view that has no AI
+        // prompt of its own must be rejected, not answered with another view's
+        // column vocabulary.
+        if (!baseRegistry.aiFilterPrompt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "AI filter generation is not available for this view",
+          });
+        }
         // Generating a filter reads nothing a project member cannot already
         // read by hand, so membership is the right bar; whether the org uses
         // AI at all is governed by `aiFeaturesEnabled` below.
@@ -89,22 +140,25 @@ export const searchBarRouter = createTRPCRouter({
           scope: "project:read",
         });
 
-        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "AI filter generation is not available in self-hosted deployments.",
-          });
-        }
-
-        const project = await ctx.prisma.project.findUnique({
-          where: { id: input.projectId },
-          select: {
-            organization: {
-              select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+        const isSampleRegistry =
+          input.registryId === "evaluatorSamples" ||
+          input.registryId === "ruleSamples";
+        const [project, datasets] = await Promise.all([
+          ctx.prisma.project.findUnique({
+            where: { id: input.projectId },
+            select: {
+              organization: {
+                select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+              },
             },
-          },
-        });
+          }),
+          isSampleRegistry
+            ? ctx.prisma.dataset.findMany({
+                where: { projectId: input.projectId },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+        ]);
 
         if (!project) {
           throw new TRPCError({
@@ -120,31 +174,39 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        const model =
-          env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ??
-          env.LANGFUSE_AWS_BEDROCK_MODEL;
+        const registry = isSampleRegistry
+          ? withFieldOptions(
+              baseRegistry,
+              DATASET_NAME_COLUMN,
+              datasets.map((dataset) => ({
+                value: dataset.id,
+                displayValue: dataset.name,
+              })),
+            )
+          : baseRegistry;
 
-        if (!model) {
+        const modelConfig = getInAppAgentModelConfig();
+
+        if (!modelConfig) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+            message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
           });
         }
+
+        const model = modelConfig.titleModelId;
 
         // Anchor relative time expressions ("today", "last 24h") to now.
         const now = new Date();
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
 
-        const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-
-        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Langfuse AI Features not configured.",
-          });
-        }
+        // Tracing is optional: skip it when the AI-features project is not
+        // configured (the default self-hosted case) rather than failing the
+        // generation. Self-hosted cannot toggle `aiTelemetryEnabled` off.
+        const aiTelemetryEnabled =
+          project.organization.aiTelemetryEnabled &&
+          isLangfuseAITracingConfigured();
 
         // Pre-generated (rather than left to `getLangfuseAITraceSinkParams`'s
         // own default) so this handler OWNS the id: the parse-outcome scores
@@ -171,6 +233,7 @@ export const searchBarRouter = createTRPCRouter({
             aiFeaturesPublicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
             aiFeaturesSecretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
             aiFeaturesHost: env.LANGFUSE_AI_FEATURES_HOST,
+            registry,
           });
 
         // The current query being refined and the observed project data are
@@ -209,8 +272,6 @@ export const searchBarRouter = createTRPCRouter({
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 traceId,
-                environment:
-                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "search-bar-filter",
                 projectId: ctx.session.projectId,
                 traceName: "search-bar-filter",
@@ -252,7 +313,7 @@ export const searchBarRouter = createTRPCRouter({
         // dropped and reported) so a misspelled score name can never apply as a
         // dead filter that silently matches nothing.
         const { filters, queryText, droppedCount, unknownScoreNames } =
-          parseGeneratedFilters(llmCompletion, input.scoreNames);
+          parseGeneratedFilters(llmCompletion, input.scoreNames, registry);
 
         if (droppedCount > 0) {
           logger.warn(

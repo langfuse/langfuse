@@ -2,12 +2,13 @@ import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
-import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
-  type ChatMLParserResult,
-  useChatMLParser,
-} from "../../hooks/useChatMLParser";
+  type IOPreviewParserMode,
+  useIOPreviewParser,
+} from "../../hooks/useIOPreviewParser";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -16,6 +17,8 @@ import {
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
+import { StatusMessageSection } from "./components/StatusMessageSection";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -86,6 +89,7 @@ function JsonInputOutputView({
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -109,6 +113,9 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  // Which parser produces the preview; the normalized parser is admin-only
+  // while it is being validated. Legacy remains the safe default.
+  parser?: IOPreviewParserMode;
 }
 
 /**
@@ -120,12 +127,13 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * - Large content safety (markdown rendering limit)
  * - Accepts pre-parsed data to avoid duplicate parsing
  *
- * This component performs ChatML parsing which is only needed for pretty view.
- * For JSON view, use IOPreviewJSON instead.
+ * This component selects and renders the pretty-view parser output. For JSON
+ * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
   input,
   output,
+  status,
   metadata,
   outputCorrection,
   parsedInput: preParsedInput,
@@ -153,6 +161,7 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
+  parser = "legacy",
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -180,7 +189,8 @@ export function IOPreviewPretty({
     [projectId, observationId],
   );
 
-  // Parse ChatML format
+  // Parse into the shared preview contract. The normalized parser is opt-in
+  // while it is being rolled out; legacy remains the safe default.
   const {
     canDisplayAsChat,
     allMessages,
@@ -191,7 +201,8 @@ export function IOPreviewPretty({
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
     inputMessageCount,
-  } = useChatMLParser(
+  } = useIOPreviewParser(
+    parser,
     input,
     output,
     metadata,
@@ -201,6 +212,8 @@ export function IOPreviewPretty({
     parsedMetadata,
     chatMLParserResult,
   );
+
+  const characterLimit = useMarkdownRenderCharacterLimit();
 
   // Determine if markdown is safe to render (content size check)
   const shouldRenderMarkdown = useMemo(() => {
@@ -233,10 +246,10 @@ export function IOPreviewPretty({
     const messagesSize = estimateSize(allMessages);
     const totalSize = inputSize + outputSize + messagesSize;
 
-    const shouldRender = totalSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
+    const shouldRender = totalSize <= characterLimit;
 
     return shouldRender;
-  }, [parsedInput, parsedOutput, allMessages]);
+  }, [parsedInput, parsedOutput, allMessages, characterLimit]);
 
   // Prepare additional input (only if non-empty)
   const additionalInputToShow = useMemo(() => {
@@ -270,6 +283,10 @@ export function IOPreviewPretty({
 
   return (
     <div>
+      {showData && status ? (
+        <StatusMessageSection status={status} currentView="pretty" />
+      ) : null}
+
       {showData ? (
         <SectionToolDefinitions
           tools={allTools}

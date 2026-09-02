@@ -10,11 +10,13 @@ import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvi
 import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";
+import { useV4MigrationTitle } from "@/src/features/v4-migration/V4MigrationContent";
 
 export function MobileRightDrawer({ children }: PropsWithChildren) {
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
   const { open: migrationOpen, setOpen: setMigrationOpen } =
     useV4MigrationPanel();
+  const migrationTitle = useV4MigrationTitle();
 
   return (
     <>
@@ -31,12 +33,8 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
         }}
         forceDirection="bottom"
       >
-        <DrawerContent
-          id="support-drawer"
-          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
-          size="full"
-        >
-          <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+        <DrawerContent id="support-drawer" size="full">
+          <DrawerHeader className="p-0 text-left">
             <div className="flex w-full items-center justify-center pt-3">
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
@@ -46,9 +44,10 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
               A list of resources and options to help you with your questions.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="mt-4 max-h-full">
-            <SupportDrawer showCloseButton={false} className="h-full pb-20" />
-          </div>
+          <SupportDrawer
+            showCloseButton={false}
+            className="min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          />
         </DrawerContent>
       </Drawer>
 
@@ -61,28 +60,22 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
         }}
         forceDirection="bottom"
       >
-        <DrawerContent
-          id="v4-migration-drawer"
-          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
-          size="full"
-        >
-          <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+        <DrawerContent id="v4-migration-drawer" size="full">
+          <DrawerHeader className="p-0 text-left">
             <div className="flex w-full items-center justify-center pt-3">
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
             {/* sr-only for screen readers and accessibility */}
-            <DrawerTitle className="sr-only">Migrate to v4</DrawerTitle>
+            <DrawerTitle className="sr-only">{migrationTitle}</DrawerTitle>
             <DrawerDescription className="sr-only">
-              Information about migrating to Langfuse v4 and upcoming
-              deprecations.
+              Action items to keep your integrations compatible with Langfuse v4
+              and upcoming deprecations.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="mt-4 max-h-full">
-            <V4MigrationPanel
-              showCloseButton={false}
-              className="h-full pb-20"
-            />
-          </div>
+          <V4MigrationPanel
+            showCloseButton={false}
+            className="min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          />
         </DrawerContent>
       </Drawer>
     </>

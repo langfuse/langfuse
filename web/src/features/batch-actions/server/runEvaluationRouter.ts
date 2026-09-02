@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
+import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 
 export const runEvaluationRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -31,7 +32,7 @@ export const runEvaluationRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "evalJob:CUD",
+          scope: "evaluationRule:CUD",
         });
 
         const {
@@ -57,19 +58,38 @@ export const runEvaluationRouter = createTRPCRouter({
 
         const requestedEvaluatorIds = Array.from(new Set(rawEvaluatorIds));
 
+        if (
+          input.evalVersion === "v2" &&
+          ctx.session.user.v4BetaEnabled !== true
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Evaluator v2 is only available in fast preview.",
+          });
+        }
+
         const evaluatorIds = (
-          await ctx.prisma.jobConfiguration.findMany({
-            where: {
-              id: {
-                in: requestedEvaluatorIds,
-              },
-              projectId,
-              targetObject,
-            },
-            select: {
-              id: true,
-            },
-          })
+          input.evalVersion === "v2"
+            ? await ctx.prisma.evaluator.findMany({
+                where: {
+                  id: { in: requestedEvaluatorIds },
+                  projectId,
+                  ...batchEligibleEvaluatorWhere,
+                },
+                select: { id: true },
+              })
+            : await ctx.prisma.evaluationRule.findMany({
+                where: {
+                  id: {
+                    in: requestedEvaluatorIds,
+                  },
+                  projectId,
+                  targetObject,
+                },
+                select: {
+                  id: true,
+                },
+              })
         ).map((e) => e.id);
 
         if (evaluatorIds.length !== requestedEvaluatorIds.length) {
@@ -82,8 +102,12 @@ export const runEvaluationRouter = createTRPCRouter({
             code: "BAD_REQUEST",
             message:
               missingEvaluatorIds.length > 0
-                ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or not ${scopeLabel}-scoped.`
-                : `Selected evaluators are missing or not ${scopeLabel}-scoped.`,
+                ? input.evalVersion === "v2"
+                  ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or incompatible with batch evaluation.`
+                  : `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or not ${scopeLabel}-scoped.`
+                : input.evalVersion === "v2"
+                  ? "Selected evaluators are missing or incompatible with batch evaluation."
+                  : `Selected evaluators are missing or not ${scopeLabel}-scoped.`,
           });
         }
 
@@ -118,7 +142,10 @@ export const runEvaluationRouter = createTRPCRouter({
         }
 
         const userId = ctx.session.user.id;
-        const batchConfig = { evaluatorIds };
+        const batchConfig = {
+          evaluatorIds,
+          ...(input.evalVersion ? { evalVersion: input.evalVersion } : {}),
+        };
 
         logger.info(
           "[TRPC] Creating observation-run-batched-evaluation action",
@@ -163,6 +190,9 @@ export const runEvaluationRouter = createTRPCRouter({
               cutoffCreatedAt: new Date(),
               query,
               evaluatorIds: batchConfig.evaluatorIds,
+              ...(batchConfig.evalVersion
+                ? { evalVersion: batchConfig.evalVersion }
+                : {}),
             },
           },
           {

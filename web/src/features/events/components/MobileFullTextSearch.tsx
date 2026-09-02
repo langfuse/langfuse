@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
@@ -26,11 +24,15 @@ export function MobileFullTextSearch({
   updateQuery,
   tableAllowsFullTextSearch,
   metadataSearchFields,
+  tableName = "observations-events",
+  isV4 = true,
 }: {
   currentQuery?: string;
   updateQuery: (query: string) => void;
   tableAllowsFullTextSearch?: boolean;
   metadataSearchFields?: string[];
+  tableName?: string;
+  isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const committed = currentQuery ?? "";
@@ -47,48 +49,37 @@ export function MobileFullTextSearch({
   }
 
   const submit = (query: string) => {
-    capture("table:search_submit");
+    capture("table:search_submit", {
+      tableName,
+      isV4,
+    });
     updateQuery(query);
   };
 
   return (
-    <div className="border-input bg-background flex h-9 min-w-0 items-center rounded-md border pl-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Search"
-        className="mr-1 h-7 w-7 shrink-0"
-        onClick={() => submit(draft)}
-      >
-        <Search className="h-4 w-4" />
-      </Button>
-      <Input
-        placeholder={
-          tableAllowsFullTextSearch
-            ? "Search…"
-            : `Search (${metadataSearchFields?.join(", ") ?? ""})`
-        }
-        value={draft}
-        onChange={(event) => {
-          const next = event.currentTarget.value;
-          setDraft(next);
-          // Match the toolbar: clearing the field applies immediately so the
-          // list unfilters without needing an explicit submit.
-          if (next === "") submit("");
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") submit(draft);
-        }}
-        // Commit on blur too, so tapping the sheet's "Show results" (or anywhere
-        // outside the field) applies a typed-but-not-Entered query instead of
-        // discarding it — matching the grammar bar's commit-on-blur. Guarded so
-        // a focus/blur without changes (or right after an icon/Enter submit)
-        // doesn't re-fire.
-        onBlur={() => {
-          if (draft !== committed) submit(draft);
-        }}
-        className="w-full min-w-0 border-none bg-transparent px-0 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-      />
-    </div>
+    <SearchInput
+      size="large"
+      placeholder={
+        tableAllowsFullTextSearch
+          ? "Search…"
+          : `Search (${metadataSearchFields?.join(", ") ?? ""})`
+      }
+      value={draft}
+      onChange={(next) => {
+        setDraft(next);
+        // Match the toolbar: clearing the field applies immediately so the
+        // list unfilters without needing an explicit submit.
+        if (next === "") submit("");
+      }}
+      onSubmit={submit}
+      // Commit on blur too, so tapping the sheet's "Show results" (or anywhere
+      // outside the field) applies a typed-but-not-Entered query instead of
+      // discarding it — matching the grammar bar's commit-on-blur. Guarded so
+      // a focus/blur without changes (or right after an icon/Enter submit)
+      // doesn't re-fire.
+      onBlur={(value) => {
+        if (value !== committed) submit(value);
+      }}
+    />
   );
 }

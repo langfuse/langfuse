@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { InvalidRequestError } from "../../../errors";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -44,6 +45,93 @@ describe("queryBuilder filter type validation", () => {
     expect(view.dimensions.booleanValue?.uiHidden).toBeUndefined();
     expect(view.dimensions.value).toBeUndefined();
   });
+
+  it.each(["v1", "v2"] as const)(
+    "declares prompt version dimensions as numbers in the %s scores view",
+    (version) => {
+      const scoresView = getViewDeclaration("scores-numeric", version);
+      const observationsView = getViewDeclaration("observations", version);
+
+      expect(scoresView.dimensions.observationPromptVersion?.type).toBe(
+        "number",
+      );
+      expect(observationsView.dimensions.promptVersion?.type).toBe("number");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers a numeric observationPromptVersion filter in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "observationPromptVersion",
+          operator: "=",
+          value: 2,
+          type: "number",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain("prompt_version = {numberFilter");
+      expect(query).not.toContain("position(");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "rejects a string observationPromptVersion filter in the %s scores view",
+    async (version) => {
+      await expect(
+        buildQueryWithFilter(
+          {
+            column: "observationPromptVersion",
+            operator: "contains",
+            value: "2",
+            type: "string",
+          },
+          { view: "scores-numeric" },
+          version,
+        ),
+      ).rejects.toThrow(
+        "Filter type 'string' is not supported for dimension type 'number'",
+      );
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "selects observationPromptVersion when grouping scores in %s",
+    async (version) => {
+      const { query } = await new QueryBuilder(undefined, version).build(
+        {
+          ...baseQuery,
+          view: "scores-numeric",
+          dimensions: [{ field: "observationPromptVersion" }],
+        } as QueryType,
+        "test-project",
+      );
+
+      expect(query).toContain("prompt_version");
+      expect(query).toContain("observationPromptVersion");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers a numeric promptVersion filter in the %s observations view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "promptVersion",
+          operator: "=",
+          value: 3,
+          type: "number",
+        },
+        undefined,
+        version,
+      );
+
+      expect(query).toContain("prompt_version = {numberFilter");
+    },
+  );
 
   it.each([
     {
@@ -130,6 +218,24 @@ describe("queryBuilder filter type validation", () => {
     },
   );
 
+  it("rejects filters on pair-expanded dimensions", async () => {
+    const result = buildQueryWithFilter(
+      {
+        column: "usageType",
+        operator: "contains",
+        value: "cache",
+        type: "string",
+      },
+      undefined,
+      "v2",
+    );
+
+    await expect(result).rejects.toThrow(InvalidRequestError);
+    await expect(result).rejects.toThrow(
+      "Field 'usageType' cannot be used as a filter.",
+    );
+  });
+
   it.each([
     {
       name: "arrayOptions on string array dimension",
@@ -169,6 +275,27 @@ describe("queryBuilder filter type validation", () => {
     expect(query).toContain("toBool(scores_boolean.value) = {booleanFilter");
     expect(query).toContain(": Boolean}");
   });
+
+  it.each(["v1", "v2"] as const)(
+    "lowers evaluator score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "evaluatorId",
+          operator: "any of",
+          value: ["evaluator-1", "rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain(
+        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
+      );
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
 
   it("lowers the semantic-root observation filter only in the v2 events view", async () => {
     const { query } = await buildQueryWithFilter(
@@ -312,4 +439,126 @@ describe("legacy traces compatibility when routed through v2", () => {
       expect(validateQuery(query, "v2")).toEqual({ valid: true });
     },
   );
+});
+
+describe("queryBuilder DateTime64 parameter encoding", () => {
+  it("encodes epoch fromTimestamp without ClickHouse-rejected numeric 0", async () => {
+    const query = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "1970-01-01T00:00:00.000Z",
+      toTimestamp: "2026-08-14T21:30:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    queryBuilder.setRootEventConditionMaxWindowHours(0);
+
+    const { query: compiledQuery, parameters } = await queryBuilder.build(
+      query,
+      "test-project",
+      true,
+    );
+
+    expect(compiledQuery).toContain("DateTime64(3, 'UTC')");
+    expect(compiledQuery).not.toContain(": DateTime64(3)}");
+
+    const dateTimeParams = Object.entries(parameters).filter(
+      ([key]) =>
+        key.startsWith("dateTimeFilter") ||
+        key.startsWith("subFrom") ||
+        key.startsWith("subTo"),
+    );
+
+    expect(dateTimeParams.length).toBeGreaterThan(0);
+    expect(dateTimeParams.some(([key]) => key.startsWith("subFrom"))).toBe(
+      true,
+    );
+    expect(dateTimeParams.some(([key]) => key.startsWith("subTo"))).toBe(true);
+    for (const [, value] of dateTimeParams) {
+      // ClickHouse rejects numeric 0 for DateTime64(3) query parameters.
+      expect(value).not.toBe(0);
+      expect(typeof value).toBe("string");
+    }
+    expect(Object.values(parameters)).toContain("1970-01-01 00:00:00.000");
+    expect(Object.values(parameters)).toContain("2026-08-14 21:30:00.000");
+  });
+
+  it("binds WITH FILL bounds as UTC DateTime64 parameters", async () => {
+    const query = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: { granularity: "day" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-01-02T00:00:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    const { query: compiledQuery, parameters } = await new QueryBuilder(
+      undefined,
+      "v2",
+    ).build(query, "test-project", true);
+
+    expect(compiledQuery).toContain(
+      "toDate({fillFromDate: DateTime64(3, 'UTC')})",
+    );
+    expect(compiledQuery).toContain(
+      "toDate({fillToDate: DateTime64(3, 'UTC')})",
+    );
+    expect(parameters.fillFromDate).toBe("2025-01-01 00:00:00.000");
+    expect(parameters.fillToDate).toBe("2025-01-02 00:00:00.000");
+  });
+});
+
+describe("toolCallInvocations measure", () => {
+  it("auto-includes distinct calledToolNames in a two-level query", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain(
+      "arrayJoin(arrayDistinct(observations.tool_call_names)) as calledToolNames",
+    );
+    expect(compiledQuery).toContain(
+      "countEqual(any(observations.tool_call_names), calledToolNames)",
+    );
+    expect(compiledQuery).toContain("sum(toolCallInvocations)");
+  });
+
+  it("stays single-level for the events view", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v2",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+      },
+      "test-project",
+      true,
+    );
+
+    expect(compiledQuery).toContain(
+      "arrayJoin(arrayDistinct(events_observations.tool_call_names)) as calledToolNames",
+    );
+    expect(compiledQuery).toContain(
+      "sum(countEqual((events_observations.tool_call_names), calledToolNames))",
+    );
+    expect(compiledQuery).not.toContain(
+      "any(events_observations.tool_call_names)",
+    );
+    expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
+  });
 });

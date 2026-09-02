@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -10,7 +10,7 @@ import {
   type ExperimentItemsTableRow,
   getExperimentColorStyles,
 } from "./types";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
   type OnChangeFn,
@@ -20,7 +20,6 @@ import {
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
-import { type ReactNode } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
@@ -201,33 +200,21 @@ export const ExperimentGridView = ({
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={singleLine}
-          />
-        ),
-      },
-      {
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+      }),
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "expectedOutput",
-        id: "expectedOutput",
         header: "Expected Output",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+        variant: "output",
+      }),
       ...experimentColumns,
     ],
     [experimentColumns, isLoading, selectActionColumn, singleLine],

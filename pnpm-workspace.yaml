@@ -6,6 +6,7 @@ packages:
   - "ee"
 catalog:
   "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-lambda": 3.1074.0
   "@aws-sdk/client-lambda-microvms": 3.1074.0
   "@aws-sdk/client-s3": 3.1074.0
@@ -28,6 +29,12 @@ packageExtensions:
   # TypeScript 7 has no JavaScript compiler API yet. Keep Storybook's toolchain
   # on the TypeScript 6 compatibility package while Next builds with 7.
   "@storybook/nextjs-vite@10.3.6":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+  # dependency-cruiser reads the JS compiler API to follow TypeScript imports.
+  # Resolved against web's `typescript` (7.x) it finds no API, silently stops
+  # parsing .ts/.tsx, and reports an empty import graph instead of an error.
+  "dependency-cruiser@18.1.0":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
   "eslint-plugin-storybook@10.3.6":
@@ -59,12 +66,16 @@ allowBuilds:
   "@scarf/scarf": false
   cpu-features: true
   ssh2: true
+  vue-demi: true
 overrides:
+  # The root Mastra adapter does not load CopilotKit. Only its unused
+  # `@ag-ui/mastra/copilotkit` subpath requires this peer.
+  "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
   postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0
   zod: 4.3.6
-  nanoid: 3.3.17
+  nanoid: 3.3.18
   katex: ^0.16.21
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
@@ -83,14 +94,13 @@ overrides:
   "@ai-sdk/provider-utils@<=4.0.32": 4.0.33
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.33"
   "@ai-sdk/provider-utils-v6": "npm:@ai-sdk/provider-utils@4.0.33"
+  # Scalar's agent package pins an SSRF-vulnerable AI SDK through two paths.
+  "@scalar/agent-chat@0.12.28>ai": 6.0.230
+  "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
-  # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
-  # Remove once @langchain/anthropic allows the same SDK range.
-  # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
-  "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
@@ -111,3 +121,15 @@ patchedDependencies:
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
+minimumReleaseAgeExclude:
+  - '@next/env@16.3.3'
+  - '@next/eslint-plugin-next@16.3.3'
+  - '@next/swc-darwin-arm64@16.3.3'
+  - '@next/swc-darwin-x64@16.3.3'
+  - '@next/swc-linux-arm64-gnu@16.3.3'
+  - '@next/swc-linux-arm64-musl@16.3.3'
+  - '@next/swc-linux-x64-gnu@16.3.3'
+  - '@next/swc-linux-x64-musl@16.3.3'
+  - '@next/swc-win32-arm64-msvc@16.3.3'
+  - '@next/swc-win32-x64-msvc@16.3.3'
+  - next@16.3.3

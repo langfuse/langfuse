@@ -16,6 +16,7 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 
@@ -62,6 +63,22 @@
 - Preserve metrics/tracing patterns in `workerManager` and queue processors.
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.
 - Keep queue payload parsing/schema validation centralized in shared contracts.
+
+## In-App Agent Runtime
+
+- `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
+  instrumentation, prompt loading, continuation handling, tools, skills, and
+  sandbox providers.
+- Worker env owns queue concurrency, sandbox configuration, and the
+  development-only in-app-agent AWS profile. Enablement is
+  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+  `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
+  `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
+  worker out of the queue consumer (and nested DLQ retry) or integrity runner.
+  Shared lifecycle policy values are fixed constants, so web and worker cannot
+  diverge.
+- Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
+  handling, and the seeded system prompt remain explicit shared subpaths.
 
 ## Package-Specific Rules
 

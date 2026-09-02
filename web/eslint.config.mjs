@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import boundaries from "eslint-plugin-boundaries";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
@@ -63,6 +64,13 @@ export default [
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
   {
+    name: "langfuse/web/storybook-test-story-names",
+    files: ["src/**/*.stories.{ts,tsx}"],
+    rules: {
+      "@repo/storybook-play-requires-test-name": "error",
+    },
+  },
+  {
     ...tailwindcssRecommendedConfig,
     settings: {
       tailwindcss: {
@@ -79,6 +87,8 @@ export default [
             "io-message-header",
             // Used by parent arbitrary selectors to tune IO preview body spacing and borders.
             "io-message-content",
+            // posthog-js block class: elements carrying it are excluded from session recordings.
+            "ph-no-capture",
             // Component-level selector hook for code block wrappers, not a Tailwind utility.
             "codeblock",
             // Sonner root hook used by group-[.toaster] descendant variants.
@@ -130,9 +140,10 @@ export default [
     },
   },
 
-  // Component APIs should expose explicit variants instead of className or style
-  // escape hatches. New file-level overrides are only acceptable for headless
-  // components that do not apply any internal styling themselves.
+  // Component APIs should expose explicit variants instead of className, style,
+  // or prefixed variants such as badgeClassName. New file-level overrides are
+  // only acceptable for headless components that do not apply any internal
+  // styling themselves.
   {
     name: "langfuse/web/no-style-props",
     files: ["src/**/*.{ts,tsx}"],
@@ -152,6 +163,31 @@ export default [
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
+    plugins: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.plugins,
+      boundaries,
+    },
+    settings: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.settings,
+      // Progressive adoption: only these trees are classified. Unknown
+      // targets (utils, hooks, third-party) stay allowed. Design-system
+      // files also match `app-component`; the policy below excludes that
+      // overlap with `noneOf: ["design-system"]`.
+      "boundaries/files": [
+        {
+          category: "design-system",
+          pattern: "src/components/design-system/**",
+        },
+        {
+          category: "app-component",
+          pattern: "src/components/**",
+        },
+        {
+          category: "feature",
+          pattern: "src/features/**",
+        },
+      ],
+    },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       // Margin makes components harder to compose and should therefore be applied by the parent.
@@ -160,6 +196,29 @@ export default [
       "@repo/no-margin-on-root-elements": [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
+      ],
+      "boundaries/dependencies": [
+        "error",
+        {
+          default: "allow",
+          policies: [
+            {
+              from: { file: { categories: "design-system" } },
+              disallow: {
+                to: {
+                  file: {
+                    categories: {
+                      anyOf: ["app-component", "feature"],
+                      noneOf: ["design-system"],
+                    },
+                  },
+                },
+              },
+              message:
+                "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
+            },
+          ],
+        },
       ],
 
       // TODO: Expand to more of the codebase

@@ -13,9 +13,8 @@ import {
 import { z } from "zod";
 
 // Define the form schema for webhook actions
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via z.infer<typeof>, which is a legitimate pattern)
-export const WebhookActionFormSchema = z.object({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
+const WebhookActionFormSchema = z.object({
   webhook: z.object({
     url: z.url("Invalid URL"),
     headers: z

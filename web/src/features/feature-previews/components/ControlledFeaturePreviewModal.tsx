@@ -2,8 +2,9 @@ import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
 
 import {
@@ -17,18 +18,12 @@ type ControlledFeaturePreviewModalProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-const PREVIEW_LABEL: Record<PreviewFlag, string> = {
-  modernSession: "Compact Session View",
-  searchBar: "Filter Search Bar",
-  v4UpgradeUi: "V4 Migration",
-};
-
 export function ControlledFeaturePreviewModal({
   open,
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -40,9 +35,7 @@ export function ControlledFeaturePreviewModal({
         });
         showSuccessToast({
           title: "Feature preview updated",
-          description: `${PREVIEW_LABEL[variables.flag]} preview has been ${
-            variables.enabled ? "enabled" : "disabled"
-          }.`,
+          description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
       },
       onError: (error) => {
@@ -59,9 +52,9 @@ export function ControlledFeaturePreviewModal({
         authSession.data?.user?.featureFlags.modernSession === true ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       disabled:
-        !isBetaEnabled ||
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
+      warningReason: !isV4
         ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
@@ -69,19 +62,6 @@ export function ControlledFeaturePreviewModal({
       onToggle: onToggle("modernSession"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    v4UpgradeUi: {
-      enabled: authSession.data?.user?.featureFlags.v4UpgradeUi === true,
-      onToggle: onToggle("v4UpgradeUi"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
-    // The "Filter Search Bar" preview is retired — the bar is now generally
-    // available on the v4 events tables for everyone (see useSearchBarEnabled),
-    // so it no longer renders a tile here. The `searchBar` flag plumbing
-    // (PreviewFlag type, registry entry, the userAccount allowlist) is kept for
-    // now so a rollback is a one-line revert; restore the `searchBar: { ... }`
-    // state entry to bring the tile back.
-    // TODO(remove ~2026-06-19): delete the dead searchBar plumbing once the GA
-    // rollout is confirmed stable — see useSearchBarEnabled for the full list.
   };
 
   return (

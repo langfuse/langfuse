@@ -1,5 +1,7 @@
-import { type ChatMlMessage } from "./chatMessageUtils";
+// @vitest-environment node
+
 import {
+  type ChatMlMessage,
   getMessageTitle,
   hasRenderableContent,
   hasAdditionalData,

@@ -10,6 +10,7 @@ This is the canonical shared review checklist for Langfuse.
   - E.g. `ReplacingMergeTree` is likely an error while `ReplicatedReplacingMergeTree` would be correct in most cases.
 - ClickHouse migrations in the `packages/shared/clickhouse/migrations/unclustered` directory must not include `ON CLUSTER` statements and must not use `Replicated` merge tree table types.
 - Migrations in `packages/shared/clickhouse/migrations/clustered` should match their counterparts in `packages/shared/clickhouse/migrations/unclustered` aside from the restrictions listed above.
+- Every metadata `ALTER` (`ADD`/`DROP`/`MODIFY COLUMN`, `ADD`/`DROP INDEX`) in a `clustered` migration must end with `SETTINGS alter_sync = 2`, including files that contain only one `ALTER` — the race is across migration files, not within one. `alter_sync` defaults to `1`, so without it the statement returns once the initiating replica has bumped the table's metadata version, and the next migration file's first `ALTER` on that table can hit a replica still on the old version, aborting the run with `code 517 … Looks like this replica doesn't catchup with latest ALTER query updates`. `SETTINGS mutations_sync = 2` does not substitute for it: that setting governs when mutations finish, not metadata propagation. The `unclustered` counterpart runs against plain `MergeTree` and does not need (and should not duplicate) either setting.
 - Migrations must not use `CREATE OR REPLACE VIEW` (nor `CREATE OR REPLACE TABLE` / `EXCHANGE TABLES`): the atomic replace requires `renameat2`, which fails on NFS-backed self-hosted deployments such as ClickHouse-on-EFS (GitHub issue #14906). Plain views are redefined with `DROP VIEW IF EXISTS <name>;` followed by `CREATE VIEW <name> AS ...` in the same migration file — the migration runner enables `x-multi-statement=true`, and every statement should stay idempotent (`IF EXISTS` / `IF NOT EXISTS`) so a dirty migration can be re-run.
 - Materialized views must never be dropped and recreated while their source table receives inserts — rows written between `DROP` and `CREATE` are silently and permanently missing from the target table. Redefine the SELECT with `ALTER TABLE <mv> MODIFY QUERY ...` instead, altering the target table(s) first when columns change.
 - For rationale and full patterns, see "Langfuse-Specific Rules" in the [`clickhouse-best-practices`](../../clickhouse-best-practices/SKILL.md) skill.
@@ -31,6 +32,10 @@ This is the canonical shared review checklist for Langfuse.
 
 - Highlight usage of `redis.call` invocations. Those may have suboptimal redis cluster routing and will raise errors. Instead, use the native call patterns.
   Example: `await redis?.call("SET", key, "1", "NX", "EX", TTLSeconds);` should use `await redis?.set(key, "1", "EX", TTLSeconds, "NX");` instead.
+
+## New Concepts in Shared Code
+
+- When a change adds vocabulary to shared backend code — a field on a shared schema or payload, an option on a shared signature, an enum member, an env toggle, a branch for one caller — or concludes that no change is needed, review it against [`new-concepts.md`](../../backend-dev-guidelines/references/new-concepts.md) in the [`backend-dev-guidelines`](../../backend-dev-guidelines/SKILL.md) skill.
 
 ## Langfuse Cloud
 
@@ -58,8 +63,15 @@ This is the canonical shared review checklist for Langfuse.
   `validateBlobStorageEndpoint`, or a new wrapper around
   `validateOutboundUrlHost`) is a finding.
 - For changes that add a new integration, secret-bearing field, redirect
-  follower, or RBAC scope, run the rest of the
+  follower, RBAC scope, product analytics, browser monitoring, or session
+  replay, run the rest of the
   [`security-review/references/checklist.md`](../../security-review/references/checklist.md).
+- For changes that shape what a read route returns — a repository or domain
+  converter, a `Safe*` type, a response projection — a catch-all branch that
+  returns the stored value for unhandled types, or an `as Safe*` assertion
+  standing in place of a sanitizer, is a finding: feature read scopes are held
+  by VIEWER. See
+  [`security-review/references/secret-read-paths.md`](../../security-review/references/secret-read-paths.md).
 
 ## JavaScript / TypeScript Style
 

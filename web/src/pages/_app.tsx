@@ -6,9 +6,12 @@ import "@/src/polyfills/crypto-random-uuid";
 import { type AppType } from "next/app";
 import Head from "next/head";
 import { type Session } from "next-auth";
-import { SessionProvider } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
-import { useSession } from "next-auth/react";
+import {
+  clearV4BetaEnabledSentryTag,
+  setV4BetaEnabledSentryTag,
+} from "@/src/utils/sentryV4BetaTag";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
@@ -81,6 +84,7 @@ import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/co
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -88,21 +92,40 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  getPostHogClientConfig,
+  isPostHogClientEnabled,
+  isProductAnalyticsAvailable,
+} from "@/src/features/posthog-analytics/productAnalyticsAvailability";
 
-// Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
-if (
-  typeof window !== "undefined" &&
-  process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-  process.env.NEXT_PUBLIC_POSTHOG_HOST
-) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+// Session replay is a Langfuse Cloud feature, so self-hosted never records.
+// The product-analytics gate makes this redundant in HIPAA (PostHog is not
+// initialized there at all); it stays in the expression as defense in depth for
+// a compliance-sensitive flag.
+const isPostHogSessionRecordingEnabled =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+  isProductAnalyticsAvailable();
+
+// Check that PostHog is client-side (used to handle Next.js SSR), that env vars
+// are set, and that the deployment region runs product analytics at all.
+const postHogClientConfig = getPostHogClientConfig();
+if (typeof window !== "undefined" && postHogClientConfig) {
+  posthog.init(postHogClientConfig.key, {
+    api_host: postHogClientConfig.host,
     ui_host: "https://eu.posthog.com",
     // Enable debug mode in development
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    disable_session_recording: !isPostHogSessionRecordingEnabled,
     session_recording: {
+      maskAllInputs: true,
+      // Custom editors and the trace search composer render customer text in
+      // contenteditable elements, which maskAllInputs does not cover.
+      maskTextSelector: '[contenteditable="true"]',
+      // Trace/observation payload renderers use this class so recordings show
+      // the surrounding UI without capturing customer input/output values.
+      blockClass: "ph-no-capture",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
@@ -110,7 +133,7 @@ if (
       },
     },
     autocapture: false,
-    enable_heatmaps: false,
+    enable_heatmaps: true,
     persistence: "cookie",
   });
 }
@@ -126,7 +149,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
-    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+    if (isPostHogClientEnabled()) {
       const handleRouteChange = () => {
         posthog.capture("$pageview");
       };
@@ -151,8 +174,9 @@ const MyApp: AppType<{ session: Session | null }> = ({
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
-          the engine-level zoom block is `touch-action` on html/body
-          (styles/globals.css). `viewport-fit=cover` is what makes
+          the engine-level zoom block is `touch-action` on `#__next` and the
+          overlay layers — NOT on html/body, which WebKit ignores for page
+          pinch (styles/globals.css). `viewport-fit=cover` is what makes
           `env(safe-area-inset-*)` non-zero. */}
       <Head>
         <meta
@@ -176,27 +200,29 @@ const MyApp: AppType<{ session: Session | null }> = ({
                 <ResilientSessionProvider basePath={authBasePath}>
                   <DetailPageListsProvider>
                     <MarkdownContextProvider>
-                      <ThemeProvider
-                        attribute="class"
-                        enableSystem
-                        disableTransitionOnChange
-                      >
-                        <ScoreCacheProvider>
-                          <CorrectionCacheProvider>
-                            <SupportDrawerProvider defaultOpen={false}>
-                              <V4MigrationPanelProvider defaultOpen={false}>
-                                <InAppAiAgentProvider defaultOpen={false}>
-                                  {skipAppLayout ? (
-                                    page
-                                  ) : (
-                                    <AppLayout>{page}</AppLayout>
-                                  )}
-                                </InAppAiAgentProvider>
-                              </V4MigrationPanelProvider>
-                            </SupportDrawerProvider>
-                          </CorrectionCacheProvider>
-                        </ScoreCacheProvider>
-                      </ThemeProvider>
+                      <MarkdownRenderCharacterLimitProvider>
+                        <ThemeProvider
+                          attribute="class"
+                          enableSystem
+                          disableTransitionOnChange
+                        >
+                          <ScoreCacheProvider>
+                            <CorrectionCacheProvider>
+                              <SupportDrawerProvider defaultOpen={false}>
+                                <V4MigrationPanelProvider defaultOpen={false}>
+                                  <InAppAiAgentProvider defaultOpen={false}>
+                                    {skipAppLayout ? (
+                                      page
+                                    ) : (
+                                      <AppLayout>{page}</AppLayout>
+                                    )}
+                                  </InAppAiAgentProvider>
+                                </V4MigrationPanelProvider>
+                              </SupportDrawerProvider>
+                            </CorrectionCacheProvider>
+                          </ScoreCacheProvider>
+                        </ThemeProvider>
+                      </MarkdownRenderCharacterLimitProvider>
                     </MarkdownContextProvider>
                   </DetailPageListsProvider>
                 </ResilientSessionProvider>
@@ -226,7 +252,7 @@ function UserTracking() {
     ) {
       lastIdentifiedUser.current = JSON.stringify(sessionUser);
       // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+      if (isPostHogClientEnabled()) {
         posthog.identify(sessionUser.id ?? undefined, {
           environment: process.env.NODE_ENV,
           email: sessionUser.email ?? undefined,
@@ -249,16 +275,18 @@ function UserTracking() {
         });
       }
 
-      // Sentry
+      // Sentry — user identity stays on setUser; v4 is a boolean tag only
       setUser({
         email: sessionUser.email ?? undefined,
         id: sessionUser.id ?? undefined,
       });
+      setV4BetaEnabledSentryTag(sessionUser.v4BetaEnabled);
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       posthog.unregister(V4_BETA_ENABLED_POSTHOG_PROPERTY);
       // Sentry
       setUser(null);
+      clearV4BetaEnabledSentryTag();
     }
   }, [sessionUser, session.status, region]);
 
