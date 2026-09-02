@@ -196,6 +196,9 @@ const events = {
     "detach_evaluator",
     "filter_reused",
   ],
+  // One-shot batch evaluation from the events / experiments tables.
+  // Counts and enums only — never mapping contents or observation payloads.
+  batch_eval: ["run"],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",

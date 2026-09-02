@@ -358,9 +358,19 @@ async function resolveObservationEvalExecution(params: {
       where: { id: evaluatorId, projectId, type: executionType },
       include: evaluatorInclude,
     });
-    return evaluator
-      ? buildV2Execution({ rule: null, assignment: null, evaluator })
-      : { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    if (!evaluator) {
+      return { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    }
+    // Ruleless batch runs have no assignment row. A mapping on the queue
+    // payload is the override; omitting it inherits the version mapping.
+    const assignment =
+      event.variableMapping !== undefined
+        ? {
+            id: event.evaluatorId ?? evaluator.id,
+            variableMapping: event.variableMapping,
+          }
+        : null;
+    return buildV2Execution({ rule: null, assignment, evaluator });
   }
 
   // The assignment is what authorizes this execution — it is the (rule,

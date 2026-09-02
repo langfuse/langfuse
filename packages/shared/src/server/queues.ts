@@ -9,7 +9,11 @@ import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
-import { EvalTargetObjectSchema } from "../features/evals/types";
+import {
+  BatchEvalEvaluatorMappingSchema,
+  EvalTargetObjectSchema,
+  observationVariableMappingList,
+} from "../features/evals/types";
 import { EvalExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
@@ -157,6 +161,10 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // which the executor resolves on pickup and records on the execution.
   evaluatorId: z.string().optional(),
   evaluationRuleId: z.string().optional(),
+  // Ruleless manual batch runs have no assignment row to hold a mapping
+  // override. Optional for jobs queued before this field existed; those
+  // inherit the evaluator version mapping.
+  variableMapping: observationVariableMappingList.optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
@@ -260,6 +268,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       batchActionId: z.string(),
       evaluatorIds: z.array(z.string()),
       evalVersion: z.literal("v2").optional(),
+      evaluatorMappings: z.array(BatchEvalEvaluatorMappingSchema).optional(),
     }),
   ],
 );

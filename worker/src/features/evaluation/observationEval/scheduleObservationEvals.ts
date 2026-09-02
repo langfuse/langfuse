@@ -1,3 +1,4 @@
+import type { ObservationVariableMapping } from "@langfuse/shared";
 import {
   type ObservationForEval,
   type ObservationEvalAssignment,
@@ -19,6 +20,7 @@ import {
   type EvalExecutionMode,
   canRunEvalRule,
   mapEventEvalFilterColumnIdToField,
+  observationVariableMappingList,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
@@ -252,6 +254,9 @@ async function processMatchingConfig(
             : {}),
         }
       : {}),
+    ...(assignment.variableMapping != null
+      ? { variableMapping: assignment.variableMapping }
+      : {}),
   });
 
   logger.debug("Scheduled observation eval job", {
@@ -269,6 +274,12 @@ type ScheduledObservationEvalAssignment = {
   /** Legacy template id, or evaluator id for a ruleless V2 batch run. */
   evalTemplateId: string | null;
   evaluatorType: ObservationEvalAssignment["evaluator"]["type"];
+  /**
+   * Mapping override for a ruleless batch run. Omitted when the run should
+   * inherit the evaluator version mapping, and never set for rule-backed jobs
+   * (those load the assignment row at pickup).
+   */
+  variableMapping?: ObservationVariableMapping[];
 };
 
 function getExecutableAssignments(
@@ -300,6 +311,10 @@ function getExecutableAssignments(
       return [];
     }
 
+    const parsedMapping = observationVariableMappingList.safeParse(
+      assignment.variableMapping,
+    );
+
     return [
       {
         id: assignment.id,
@@ -308,6 +323,9 @@ function getExecutableAssignments(
         // Ruleless batch runs use the evaluator as the legacy template anchor.
         evalTemplateId: rule.ruleId === null ? assignment.evaluator.id : null,
         evaluatorType: assignment.evaluator.type,
+        ...(rule.ruleId === null && parsedMapping.success
+          ? { variableMapping: parsedMapping.data }
+          : {}),
       },
     ];
   });

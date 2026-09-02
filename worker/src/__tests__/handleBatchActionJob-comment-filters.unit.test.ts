@@ -242,4 +242,47 @@ describe("event batch-action comment filter wiring", () => {
       }),
     );
   });
+
+  it("applies mapping overrides to ruleless in-memory assignments", async () => {
+    const mapping = [{ templateVariable: "output", selectedColumnId: "input" }];
+    mocks.findEvaluators.mockResolvedValue([
+      {
+        id: "standalone-evaluator",
+        name: "Standalone evaluator",
+        projectId: "project-1",
+        type: "LLM_AS_JUDGE",
+        blockedAt: null,
+        versions: [{ id: "version-2", variableMapping: [] }],
+        assignments: [],
+      },
+    ]);
+
+    await runBatchAction({
+      ...createPayload("observation-run-batched-evaluation"),
+      evaluatorIds: ["standalone-evaluator"],
+      evalVersion: "v2",
+      evaluatorMappings: [
+        {
+          evaluatorId: "standalone-evaluator",
+          variableMapping: mapping,
+        },
+      ],
+    });
+
+    expect(mocks.processBatchedObservationEval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluators: [
+          expect.objectContaining({
+            ruleId: null,
+            assignments: [
+              expect.objectContaining({
+                evaluatorId: "standalone-evaluator",
+                variableMapping: mapping,
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
 });
