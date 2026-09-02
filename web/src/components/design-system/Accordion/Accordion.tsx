@@ -18,24 +18,15 @@ const accordionVariants = cva("", {
 });
 
 const accordionTriggerVariants = cva(
-  "flex flex-1 items-center font-bold transition-all",
+  "flex flex-1 items-center justify-between pt-2 pb-1 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180",
   {
     variants: {
-      variant: {
-        default:
-          "justify-between py-4 hover:underline [&[data-state=open]>svg]:rotate-180",
-        plain:
-          "justify-between py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180",
-        section:
-          "justify-between pt-2 pb-1 hover:no-underline [&[data-state=open]>svg]:rotate-180",
-      },
       size: {
         default: "",
         sm: "text-sm",
       },
     },
     defaultVariants: {
-      variant: "default",
       size: "default",
     },
   },
@@ -101,16 +92,16 @@ function AccordionItem({ children, inset, value }: AccordionItemProps) {
 
 type AccordionTriggerProps = Pick<
   VariantProps<typeof accordionTriggerVariants>,
-  "size" | "variant"
+  "size"
 > & {
   children: React.ReactNode;
 };
 
-function AccordionTrigger({ children, size, variant }: AccordionTriggerProps) {
+function AccordionTrigger({ children, size }: AccordionTriggerProps) {
   return (
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
-        className={accordionTriggerVariants({ size, variant })}
+        className={accordionTriggerVariants({ size })}
       >
         {children}
         <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
