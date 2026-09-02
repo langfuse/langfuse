@@ -60,16 +60,12 @@ const AccordionItem = React.forwardRef<
 ));
 AccordionItem.displayName = "AccordionItem";
 
-type AccordionTriggerProps = Omit<
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>,
-    "children" | "className"
-  >,
-  "children" | "className"
-> &
-  Pick<VariantProps<typeof accordionTriggerVariants>, "size" | "variant"> & {
-    children: React.ReactNode;
-  };
+type AccordionTriggerProps = Pick<
+  VariantProps<typeof accordionTriggerVariants>,
+  "size" | "variant"
+> & {
+  children: React.ReactNode;
+};
 
 function AccordionTrigger({ children, size, variant }: AccordionTriggerProps) {
   return (
