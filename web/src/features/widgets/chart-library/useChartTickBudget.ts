@@ -7,7 +7,7 @@ const AXIS_GUTTER_PX = 56;
 
 // Vertical room one y-axis label needs. Below it recharts silently drops
 // colliding labels and which ones survive is arbitrary — a 63px band came out
-// labelled "1" and "0.25", with no zero. (LFE-15711)
+// labelled "1" and "0.25", with no zero.
 const APPROX_Y_LABEL_PX = 28;
 
 /** Recharts' own YAxis default; the budget only ever thins below it. */
@@ -17,7 +17,7 @@ const DEFAULT_Y_TICK_COUNT = 5;
  * Measures the chart's box and returns how many ticks comfortably fit on each
  * axis (`maxTicks` across, `maxYTicks` down). The preparer (`prepareTimeAxis`)
  * turns the x budget into the actual tick interval + labels — this hook only
- * measures. (LFE-10549)
+ * measures.
  */
 export function useChartTickBudget() {
   const ref = useRef<HTMLDivElement>(null);

@@ -52,8 +52,7 @@ MetricStripTrigger.displayName = "MetricStripTrigger";
  * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
  * programmatic refocus renders as a keyboard-style outline on the trigger.
  * Escape / click-outside / keyboard selection keep the default focus return
- * so keyboard users aren't dropped onto <body> (mirrors ChatMessages,
- * LFE-6864).
+ * so keyboard users aren't dropped onto <body> (mirrors ChatMessages).
  */
 export const usePointerSelectionFocusGuard = () => {
   const selectedViaPointerRef = useRef(false);
