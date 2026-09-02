@@ -93,7 +93,10 @@ import {
   type ScoreColumnSummary,
 } from "@/src/features/experiments/fns/summariseScoreColumn";
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
-import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
+import {
+  ScoreColumnFilterMenu,
+  ScoreColumnFilterMenuTrigger,
+} from "./ScoreColumnFilterMenu";
 import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
 import {
   ExperimentScoreMatrix,
@@ -949,7 +952,20 @@ export default function ExperimentItemsTable({
                           activeComparisonFilter &&
                           removeScoreComparisonFilter(activeComparisonFilter)
                         }
-                      />
+                      >
+                        {({ Trigger }) => (
+                          // The header cell sorts on click, so opening the menu
+                          // must not also reorder the table.
+                          <Trigger
+                            asChild
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <ScoreColumnFilterMenuTrigger
+                              isActive={Boolean(activeComparisonFilter)}
+                            />
+                          </Trigger>
+                        )}
+                      </ScoreColumnFilterMenu>
                     }
                   />
                 ),
@@ -1842,7 +1858,6 @@ export default function ExperimentItemsTable({
         <ScoreComparisonFilterPills
           pills={scoreComparisonPills}
           onRemove={removeScoreComparisonFilter}
-          className="border-b"
         />
 
         {/* Filter Pills with Experiment Targeting */}
