@@ -142,6 +142,7 @@ export const EvaluatorDetail = () => {
               <EvaluatorPausedCallout
                 projectId={projectId}
                 evalConfig={existingEvaluator}
+                blockedAt={existingEvaluator.blockedAt}
                 allowReactivation
               />
             </div>
