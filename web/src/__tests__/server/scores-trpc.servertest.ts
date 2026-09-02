@@ -195,7 +195,7 @@ describe("scores trpc", () => {
       );
     });
 
-    it("filters evaluator scores by recorded evaluator and legacy rule metadata", async () => {
+    it("filters evaluator scores only by recorded evaluator metadata", async () => {
       const [evaluator, otherEvaluator] = await Promise.all(
         ["Evaluator", "Other evaluator"].map((name) =>
           prisma.evaluator.create({
@@ -256,13 +256,13 @@ describe("scores trpc", () => {
       ]);
 
       expect(new Set(scores.scores.map(({ id }) => id))).toEqual(
-        new Set([directScore.id, legacyScore.id]),
+        new Set([directScore.id]),
       );
       expect(new Set(eventScores.scores.map(({ id }) => id))).toEqual(
-        new Set([directScore.id, legacyScore.id]),
+        new Set([directScore.id]),
       );
-      expect(count.totalCount).toBe(2);
-      expect(eventCount.totalCount).toBe(2);
+      expect(count.totalCount).toBe(1);
+      expect(eventCount.totalCount).toBe(1);
     });
 
     it("does not match empty boolean representations when filtering boolean values", async () => {

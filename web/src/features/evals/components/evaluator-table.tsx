@@ -46,6 +46,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import {
@@ -53,7 +54,7 @@ import {
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -302,14 +303,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("createdAt", {
-      id: "createdAt",
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "createdAt",
       header: "Created At",
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.accessor("updatedAt", {
-      id: "updatedAt",
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "updatedAt",
       header: "Updated At",
       enableSorting: true,
       size: 150,

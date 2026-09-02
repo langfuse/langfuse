@@ -12,6 +12,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -593,14 +594,13 @@ export default function ScoresTable({
       enableSorting: true,
       size: 150,
     }),
-    {
+    createTextTableColumn<ScoresTableRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       enableHiding: true,
       enableSorting: true,
       size: 150,
-    },
+    }),
     {
       accessorKey: "value",
       header: "Value",
@@ -609,15 +609,14 @@ export default function ScoresTable({
       enableSorting: true,
       size: 100,
     },
-    {
+    createTextTableColumn<ScoresTableRow>({
       accessorKey: "dataType",
       header: "Data Type",
-      id: "dataType",
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
       size: 100,
-    },
+    }),
     {
       accessorKey: "source",
       header: "Source",

@@ -225,6 +225,8 @@ export const scoreRecordBaseSchema = z.object({
   source: z.string(),
   comment: z.string().nullish(),
   metadata: z.record(z.string(), z.string()),
+  evaluator_id: z.string().optional(),
+  evaluation_rule_id: z.string().optional(),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
   data_type: z.string(),
@@ -517,6 +519,9 @@ export const eventRecordBaseSchema = z.object({
   // Metadata
   metadata_names: z.array(z.string()).default([]),
   metadata_values: z.array(z.string()).default([]),
+  evaluator_id: z.string().optional(),
+  evaluation_rule_id: z.string().optional(),
+  evaluator_execution_is_test: z.boolean().optional(),
 
   // Experiment properties
   experiment_id: z.string().nullish(),

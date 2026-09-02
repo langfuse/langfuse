@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Layer } from "@/src/components/ui/layer";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { versionUpdateStore } from "./versionUpdateStore";
 import { useVersionUpdateAvailable } from "./useVersionUpdateAvailable";
 import { useAppSettled } from "./useAppSettled";

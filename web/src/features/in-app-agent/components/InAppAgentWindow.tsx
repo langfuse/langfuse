@@ -80,7 +80,7 @@ import {
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;

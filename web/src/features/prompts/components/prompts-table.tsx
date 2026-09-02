@@ -29,6 +29,7 @@ import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagin
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 type PromptTableRow = {
   id: string;
@@ -305,13 +306,12 @@ export function PromptTable() {
         return getValue<number | undefined>();
       },
     },
-    {
+    createTextTableColumn<PromptTableRow>({
       accessorKey: "type",
       header: "Type",
-      id: "type",
       enableSorting: true,
       size: 60,
-    },
+    }),
     createDateTableColumn({
       accessorKey: "createdAt",
       header: "Latest Version Created At",

@@ -32,7 +32,7 @@ import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -494,7 +494,6 @@ export default function EvaluatorsPage() {
                     row.original.id,
                     row.original.name,
                     row.original.type,
-                    row.original.assignedRuleIds,
                   ),
                 )
               }

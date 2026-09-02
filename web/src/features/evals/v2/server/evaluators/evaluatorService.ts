@@ -259,8 +259,8 @@ export class EvaluatorService {
       projectId: params.projectId,
       evaluatorIds: params.evaluatorIds,
     });
-    // Prompt-experiment executions do not always carry evaluator_id metadata,
-    // but all evaluator execution paths use this trace-name convention.
+    // Prompt-experiment executions do not always carry an evaluator id, but
+    // all evaluator execution paths use this trace-name convention.
     const evaluatorIdsByTraceName = new Map<string, string[]>();
     for (const evaluator of evaluators) {
       const traceName = `Execute evaluator: ${evaluator.name}`;

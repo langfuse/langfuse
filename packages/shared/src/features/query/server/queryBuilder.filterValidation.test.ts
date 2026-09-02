@@ -290,9 +290,26 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain(
-        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
+      expect(query).toContain("scores_numeric.evaluator_id");
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers rule score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "ruleId",
+          operator: "any of",
+          value: ["rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
       );
+
+      expect(query).toContain("scores_numeric.evaluation_rule_id");
       expect(query).toContain("IN ({stringOptionsFilter");
     },
   );
@@ -560,5 +577,39 @@ describe("toolCallInvocations measure", () => {
       "any(events_observations.tool_call_names)",
     );
     expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
+  });
+
+  it("honors a stored count aggregation instead of the UI default sum", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "count" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("count(toolCallInvocations)");
+    expect(compiledQuery).not.toContain("sum(toolCallInvocations)");
+  });
+});
+
+describe("toolCalls stored aggregation", () => {
+  it("compiles count(toolCalls) when the widget stored count, not the UI default sum", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCalls", aggregation: "count" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("count(toolCalls)");
+    expect(compiledQuery).not.toContain("sum(toolCalls)");
   });
 });

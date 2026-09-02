@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -44,7 +45,7 @@ import {
   addDatasetNameObservedOptions,
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -396,30 +397,27 @@ export function SampleObservationSelectorBase(
         size: 170,
         enableHiding: true,
       }),
-      {
+      createTextTableColumn<SampleObservation>({
         accessorKey: "type",
-        id: "type",
         header: "Type",
         size: 110,
         enableHiding: true,
-      },
-      {
+      }),
+      createTextTableColumn<SampleObservation>({
         accessorKey: "name",
-        id: "name",
         header: "Name",
         size: 200,
         enableHiding: true,
-        cell: ({ row }) => row.original.name ?? "—",
-      },
-      {
+        mapValue: (value) => value ?? "—",
+      }),
+      createTextTableColumn<SampleObservation>({
         accessorKey: "traceName",
-        id: "traceName",
         header: "Trace name",
         size: 180,
         enableHiding: true,
         defaultHidden: true,
-        cell: ({ row }) => row.original.traceName ?? "—",
-      },
+        mapValue: (value) => value ?? "—",
+      }),
       createIOTableColumn<SampleObservation>({
         accessorKey: "input",
         header: "Input",
@@ -461,14 +459,13 @@ export function SampleObservationSelectorBase(
         singleLine: rowHeight === "s",
         enableExpandOnHover: rowHeight === "s",
       }),
-      {
+      createTextTableColumn<SampleObservation>({
         accessorKey: "environment",
-        id: "environment",
         header: "Environment",
         size: 130,
         enableHiding: true,
         defaultHidden: true,
-      },
+      }),
     ],
     [observationIOById, observationIOPending, leadingColumns, rowHeight],
   );
