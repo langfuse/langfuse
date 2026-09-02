@@ -74,6 +74,27 @@ describe("SingleSelect", () => {
     expect(onValueChange).toHaveBeenCalledWith("evaluator-1");
   });
 
+  it("finds duplicate display labels by their visible stable value", () => {
+    render(
+      <SingleSelect
+        title="Evaluator"
+        options={[
+          { value: "evaluator-1", displayValue: "Answer quality" },
+          { value: "evaluator-2", displayValue: "Answer quality" },
+        ]}
+        onValueChange={() => {}}
+        showOptionValue
+      />,
+    );
+
+    open();
+    fireEvent.change(screen.getByPlaceholderText("Evaluator"), {
+      target: { value: "evaluator-2" },
+    });
+
+    expect(screen.getByText("(evaluator-2)")).toBeInTheDocument();
+  });
+
   it("shows stable option values only for duplicate display labels", () => {
     render(
       <SingleSelect

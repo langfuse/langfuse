@@ -97,9 +97,10 @@ export function SingleSelect({
       displayOptions.filter((option) => {
         if (option.value.length === 0) return false;
         if (!query) return true;
-        return (option.displayValue ?? option.value)
-          .toLowerCase()
-          .includes(query);
+        return (
+          option.value.toLowerCase().includes(query) ||
+          (option.displayValue ?? "").toLowerCase().includes(query)
+        );
       }),
     [displayOptions, query],
   );
@@ -154,7 +155,7 @@ export function SingleSelect({
             >
               {label ?? title ?? "Select"}
             </span>
-            {shouldShowOptionValue(selectedOption) ? (
+            {shouldShowOptionValue(selectedOption) && selectedOption ? (
               <span
                 className="text-muted-foreground min-w-0 truncate font-normal"
                 title={selectedOption.value}
