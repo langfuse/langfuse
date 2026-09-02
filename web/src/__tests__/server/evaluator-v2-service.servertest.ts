@@ -299,6 +299,52 @@ describe("EvaluatorService", () => {
     );
   });
 
+  it("returns the existing evaluator when create is retried with the same id", async () => {
+    const audit = vi.fn();
+    const service = new EvaluatorService(prisma, audit);
+    const evaluatorId = crypto.randomUUID();
+    const created = await service.create(
+      { ...llmInput("Retry create"), evaluatorId },
+      null,
+    );
+
+    const retried = await service.create(
+      { ...llmInput("Retry create with a different name"), evaluatorId },
+      null,
+    );
+
+    expect(retried).toMatchObject({
+      id: created.id,
+      projectId,
+      name: "Retry create",
+    });
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidateProjectEvalConfigCaches).toHaveBeenCalledTimes(1);
+    await expect(
+      prisma.evaluator.count({ where: { id: evaluatorId } }),
+    ).resolves.toBe(1);
+  });
+
+  it("rejects a client id that already exists in another project", async () => {
+    const service = createService();
+    const evaluatorId = crypto.randomUUID();
+    await service.create(
+      {
+        ...llmInput("Other project evaluator"),
+        projectId: otherProjectId,
+        evaluatorId,
+      },
+      null,
+    );
+
+    await expect(
+      service.create(
+        { ...llmInput("This project evaluator"), evaluatorId },
+        null,
+      ),
+    ).rejects.toThrow("An evaluator with this id already exists");
+  });
+
   it("writes the canonical mapping when creating a code evaluator", async () => {
     const created = await createService().create(
       {
