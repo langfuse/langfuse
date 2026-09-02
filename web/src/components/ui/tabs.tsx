@@ -3,8 +3,26 @@
 
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
+
+const tabsTriggerVariants = cva(
+  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex h-6 items-center justify-center px-2 py-0.5 text-sm font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default:
+          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-xs",
+        underline:
+          "rounded-none border-b-2 border-transparent bg-transparent text-muted-foreground shadow-none data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
 
 const Tabs = TabsPrimitive.Root;
 
@@ -37,12 +55,12 @@ type TabsTriggerProps = Omit<
     | "h-5 px-2 text-xs"
     | "min-w-[100px]"
     | "min-w-[100px] gap-1.5"
-    | "text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+    | "h-7 min-w-0 flex-1 px-1 text-xs"
     | "h-fit px-1 text-xs"
     | "text-xs"
     | "flex-1"
     | "gap-1.5 leading-none";
-};
+} & Pick<VariantProps<typeof tabsTriggerVariants>, "variant">;
 
 TabsList.displayName = TabsPrimitive.List.displayName;
 
@@ -52,16 +70,14 @@ function TabsTrigger({
   disabled,
   title,
   value,
+  variant,
 }: TabsTriggerProps) {
   return (
     <TabsPrimitive.Trigger
       value={value}
       disabled={disabled}
       title={title}
-      className={cn(
-        "ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex h-6 items-center justify-center rounded-sm px-2 py-0.5 text-sm font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=active]:shadow-xs",
-        className,
-      )}
+      className={cn(tabsTriggerVariants({ variant }), className)}
     >
       {children}
     </TabsPrimitive.Trigger>
