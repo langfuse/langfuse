@@ -132,7 +132,7 @@ const DuplicatePromptForm: React.FC<{
                 <FormLabel>Settings</FormLabel>
                 <FormControl>
                   <RadioGroup
-                    {...field}
+                    value={field.value}
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >

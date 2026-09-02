@@ -162,7 +162,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                     <FormLabel>Version settings</FormLabel>
                     <FormControl>
                       <RadioGroup
-                        {...field}
+                        value={field.value}
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
