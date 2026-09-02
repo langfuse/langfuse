@@ -46,8 +46,9 @@ type AccordionContentProps = Omit<
     React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>,
     "children" | "className"
   >,
-  "className"
+  "children" | "className"
 > & {
+  children: React.ReactNode;
   className?:
     | "space-y-6 px-1 pt-2"
     | "max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1"
