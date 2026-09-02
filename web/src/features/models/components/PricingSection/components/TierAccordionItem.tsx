@@ -1,8 +1,8 @@
-import { Trash2 } from "lucide-react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import {
   FormControl,
   FormField,
@@ -45,9 +45,12 @@ export function TierAccordionItem({
   });
 
   return (
-    <Accordion.Item value={tier.id} variant="card">
-      <div className="px-4">
-        <Accordion.Trigger variant="plain">
+    <AccordionPrimitive.Item
+      className="bg-muted/30 rounded-lg border"
+      value={tier.id}
+    >
+      <AccordionPrimitive.Header className="flex">
+        <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between px-4 py-4 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180">
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-bold">{name ?? tier.name}</span>
@@ -70,11 +73,12 @@ export function TierAccordionItem({
               </Button>
             )}
           </div>
-        </Accordion.Trigger>
-      </div>
+          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+        </AccordionPrimitive.Trigger>
+      </AccordionPrimitive.Header>
 
-      <Accordion.Content>
-        <div className="space-y-4 px-4">
+      <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+        <div className="space-y-4 px-4 pt-0 pb-4">
           {/* Tier Name */}
           <FormField
             control={form.control}
@@ -95,7 +99,7 @@ export function TierAccordionItem({
 
           {children}
         </div>
-      </Accordion.Content>
-    </Accordion.Item>
+      </AccordionPrimitive.Content>
+    </AccordionPrimitive.Item>
   );
 }
