@@ -233,7 +233,7 @@ export function DatasetVersionHistoryPanel({
                 Today ({groupedVersions.today.length})
               </Accordion.Trigger>
               <Accordion.Content>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 pb-4">
                   {groupedVersions.today.map((v, i) => renderVersionItem(v, i))}
                 </div>
               </Accordion.Content>
@@ -247,7 +247,7 @@ export function DatasetVersionHistoryPanel({
                 Yesterday ({groupedVersions.yesterday.length})
               </Accordion.Trigger>
               <Accordion.Content>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 pb-4">
                   {groupedVersions.yesterday.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
@@ -263,7 +263,7 @@ export function DatasetVersionHistoryPanel({
                 Last 7 Days ({groupedVersions.last7Days.length})
               </Accordion.Trigger>
               <Accordion.Content>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 pb-4">
                   {groupedVersions.last7Days.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
@@ -279,7 +279,7 @@ export function DatasetVersionHistoryPanel({
                 Last 30 Days ({groupedVersions.last30Days.length})
               </Accordion.Trigger>
               <Accordion.Content>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 pb-4">
                   {groupedVersions.last30Days.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
@@ -295,7 +295,7 @@ export function DatasetVersionHistoryPanel({
                 Older ({groupedVersions.older.length})
               </Accordion.Trigger>
               <Accordion.Content>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 pb-4">
                   {groupedVersions.older.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}

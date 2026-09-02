@@ -19,40 +19,46 @@ export const DatasetItemDiffView = ({
           <Accordion.Item value="input">
             <Accordion.Trigger>Input</Accordion.Trigger>
             <Accordion.Content>
-              <DiffViewer
-                oldString={stringifyDatasetItemData(selectedVersion.input)}
-                newString={stringifyDatasetItemData(latestVersion.input)}
-                oldLabel="Selected Version"
-                newLabel="Latest Version"
-              />
+              <div className="pb-4">
+                <DiffViewer
+                  oldString={stringifyDatasetItemData(selectedVersion.input)}
+                  newString={stringifyDatasetItemData(latestVersion.input)}
+                  oldLabel="Selected Version"
+                  newLabel="Latest Version"
+                />
+              </div>
             </Accordion.Content>
           </Accordion.Item>
 
           <Accordion.Item value="output">
             <Accordion.Trigger>Expected Output</Accordion.Trigger>
             <Accordion.Content>
-              <DiffViewer
-                oldString={stringifyDatasetItemData(
-                  selectedVersion.expectedOutput,
-                )}
-                newString={stringifyDatasetItemData(
-                  latestVersion.expectedOutput,
-                )}
-                oldLabel="Selected Version"
-                newLabel="Latest Version"
-              />
+              <div className="pb-4">
+                <DiffViewer
+                  oldString={stringifyDatasetItemData(
+                    selectedVersion.expectedOutput,
+                  )}
+                  newString={stringifyDatasetItemData(
+                    latestVersion.expectedOutput,
+                  )}
+                  oldLabel="Selected Version"
+                  newLabel="Latest Version"
+                />
+              </div>
             </Accordion.Content>
           </Accordion.Item>
 
           <Accordion.Item value="metadata">
             <Accordion.Trigger>Metadata</Accordion.Trigger>
             <Accordion.Content>
-              <DiffViewer
-                oldString={stringifyDatasetItemData(selectedVersion.metadata)}
-                newString={stringifyDatasetItemData(latestVersion.metadata)}
-                oldLabel="Selected Version"
-                newLabel="Latest Version"
-              />
+              <div className="pb-4">
+                <DiffViewer
+                  oldString={stringifyDatasetItemData(selectedVersion.metadata)}
+                  newString={stringifyDatasetItemData(latestVersion.metadata)}
+                  oldLabel="Selected Version"
+                  newLabel="Latest Version"
+                />
+              </div>
             </Accordion.Content>
           </Accordion.Item>
         </Accordion>
