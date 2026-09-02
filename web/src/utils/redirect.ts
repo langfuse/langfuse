@@ -4,26 +4,20 @@ import { env } from "@/src/env.mjs";
  * Dummy https origin used only so the WHATWG URL parser can resolve the
  * input the same way a browser would. Never returned to callers.
  */
-const SAME_ORIGIN_BASE = "https://langfuse.invalid";
-const SAME_ORIGIN = new URL(SAME_ORIGIN_BASE).origin;
-
-function isAbsoluteUrl(value: string): boolean {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const REDIRECT_ORIGIN = "https://langfuse.invalid";
 
 /**
  * Validates and sanitizes a redirect path to prevent open redirect attacks.
  *
  * Security Requirements:
- * - Only allows path-absolute relative paths (e.g., "/dashboard", "/project/123")
- * - Blocks any input the WHATWG parser would resolve off the dummy origin
+ * - Only allows path-absolute relative paths that start with "/"
+ * - Parses with the WHATWG URL constructor and rejects off-origin results
  *   (protocol-relative, backslash-normalized, absolute http(s), other schemes)
+ * - Rejects serialized output that starts with "//" after dot-segment resolution
  * - Automatically prepends NEXT_PUBLIC_BASE_PATH if configured
+ *
+ * Returned paths are URL-serialized: spaces and control characters are
+ * percent-encoded, and dot segments are resolved.
  *
  * @param targetPath - The path to validate (typically from query params or user input)
  * @returns A safe redirect path with basePath prepended, or "/" (with basePath) if invalid
@@ -45,61 +39,36 @@ export function getSafeRedirectPath(
   const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
   const safeDefault = basePath ? `${basePath}/` : "/";
 
-  // Handle empty/null/undefined
-  if (!targetPath || typeof targetPath !== "string") {
+  if (typeof targetPath !== "string") {
     return safeDefault;
   }
 
-  const trimmed = targetPath.trim();
+  const input = targetPath.trim();
 
-  if (!trimmed) {
+  if (!input.startsWith("/")) {
     return safeDefault;
   }
 
-  // Absolute URLs parse without a base. Reject them so a value such as
-  // `https://langfuse.invalid/...` cannot pass the origin check below,
-  // and so javascript:/data:/file: schemes never reach the relative parse.
-  if (isAbsoluteUrl(trimmed)) {
-    return safeDefault;
-  }
-
-  let parsed: URL;
+  let url: URL;
   try {
-    parsed = new URL(trimmed, SAME_ORIGIN_BASE);
+    url = new URL(input, REDIRECT_ORIGIN);
   } catch {
     return safeDefault;
   }
 
-  // Protocol-relative (`//evil.com`), backslash forms (`/\evil.com`),
-  // and any other host change fail this check. The parser is the same
-  // one the browser uses for `location.assign(path)` / `new URL(path, origin)`.
-  if (parsed.origin !== SAME_ORIGIN) {
+  const path = `${url.pathname}${url.search}${url.hash}`;
+
+  // Origin rejects `/\evil.com` (HTTPS parser resolves it off-site).
+  // Leading `//` after serialization rejects `/x/..//evil.com`.
+  if (url.origin !== REDIRECT_ORIGIN || path.startsWith("//")) {
     return safeDefault;
   }
 
-  // Path-absolute only (`/` or `\`). `dashboard`, `./x`, and `../x`
-  // resolve same-origin against the dummy base but are not accepted
-  // in-app paths.
-  if (!trimmed.startsWith("/") && !trimmed.startsWith("\\")) {
-    return safeDefault;
-  }
+  const includesBasePath =
+    basePath &&
+    (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`));
 
-  const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-
-  // Dot-segment resolution can produce a protocol-relative path while
-  // staying on the dummy origin (`/x/..//evil.com` → `//evil.com`).
-  // Callers such as window.open and res.redirect treat that as off-site.
-  if (path.startsWith("//")) {
-    return safeDefault;
-  }
-
-  // If basePath is configured, check if the path already starts with it
-  // This prevents double-prepending when the path already includes the base path
-  if (basePath && path.startsWith(basePath)) {
-    return path;
-  }
-
-  return basePath + path;
+  return includesBasePath ? path : basePath + path;
 }
 
 /**

@@ -112,6 +112,7 @@ describe("getSafeRedirectPath", () => {
         expect(getSafeRedirectPath("./dashboard")).toBe("/");
         expect(getSafeRedirectPath("../dashboard")).toBe("/");
         expect(getSafeRedirectPath("evil.com")).toBe("/");
+        expect(getSafeRedirectPath("\\dashboard")).toBe("/");
       });
 
       it("should handle URL-encoded attack attempts", () => {
@@ -150,6 +151,7 @@ describe("getSafeRedirectPath", () => {
         expect(getSafeRedirectPath("/x/..//evil.com")).toBe("/");
         expect(getSafeRedirectPath("/..//evil.com")).toBe("/");
         expect(getSafeRedirectPath("/x/..//evil.com/path")).toBe("/");
+        expect(getSafeRedirectPath("/x/%2e%2e//evil.com")).toBe("/");
       });
     });
   });
@@ -228,6 +230,12 @@ describe("getSafeRedirectPath", () => {
         "/my-app/some/my-app/path",
       );
     });
+
+    it("should only skip prepending when the path is a basePath segment", () => {
+      expect(getSafeRedirectPath("/my-application")).toBe(
+        "/my-app/my-application",
+      );
+    });
   });
 
   describe("edge cases", () => {
@@ -258,7 +266,6 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("/dashboard\\tab?view=traces")).toBe(
         "/dashboard/tab?view=traces",
       );
-      expect(getSafeRedirectPath("\\dashboard")).toBe("/dashboard");
       expect(getSafeRedirectPath("/foo/../bar")).toBe("/bar");
     });
 
