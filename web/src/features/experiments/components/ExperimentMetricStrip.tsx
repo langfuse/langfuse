@@ -46,9 +46,18 @@ const EMPTY_PLOT = <MetricStripMessage message="No values for this metric" />;
  * per-experiment legend, or the "hover a bar" note when there are more
  * experiments than the palette can tell apart — so the plot itself stays the
  * band's 63px and still lines up with the events and scores strips instead of
- * being squeezed to make room. (LFE-15711)
+ * being squeezed to make room.
  */
 const PLOT_WITH_LEGEND_HEIGHT_CLASS = "h-[83px]";
+
+/**
+ * What this strip's ready content occupies, for the band's loading and empty
+ * box: the 13px header row (a `leading-none` 13px trigger), the 6px gap under
+ * it, and the plot with its legend. Taller than the band's default, and a
+ * placeholder of the wrong height drops the table by the difference the moment
+ * the data arrives.
+ */
+const CONTENT_HEIGHT_CLASS = "h-[102px]";
 
 const AXIS_EXPLANATION =
   "One bar per experiment in view, oldest on the left and newest on the right, so a metric that improved over time climbs. The bars are a set of runs in start order, not a timeline — nothing is implied between two of them. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out. The legend below names each bar; past eight experiments the chart palette would give two bars the same colour, so the bars go one colour and hovering one names it. Which metric opens by default is data-driven: the numeric score recorded on the most items across these experiments, with ties settled by name, falling back to cost only when none of them carry a score. Pick any metric from the dropdown and that choice is kept instead.";
@@ -64,10 +73,7 @@ const EXPERIMENT_SCOPE_COLUMNS: Record<
   { nameColumn?: string; idColumn: string }
 > = {
   experimentName: { nameColumn: "experimentName", idColumn: "experimentId" },
-  traceExperimentName: {
-    nameColumn: "traceExperimentName",
-    idColumn: "traceExperimentId",
-  },
+  traceExperimentId: { idColumn: "traceExperimentId" },
   datasetRunId: { idColumn: "datasetRunId" },
 };
 
@@ -129,7 +135,6 @@ type ExperimentMetricStripProps = {
  * x-axis (oldest left) so an improving metric climbs. The axis is a set of
  * discrete runs, not a timeline — hence bars, not a line. Long experiment names
  * stay off the axis; the legend and the hover tooltip carry identity.
- * (LFE-15711)
  */
 export function ExperimentMetricStrip({
   projectId,
@@ -280,6 +285,7 @@ export function ExperimentMetricStrip({
   return (
     <MetricStripBand
       status={status}
+      contentHeightClass={CONTENT_HEIGHT_CLASS}
       // The band's own voice, in place of a 144px dashed card clipped by a
       // 63px band: say which half is missing.
       emptyMessage="No experiments in view"

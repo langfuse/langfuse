@@ -22,7 +22,7 @@ export type ScoreComparisonPill = {
 /**
  * The active score comparisons, in plain English ("Worse groundedness than
  * judge-haiku-baseline") and removable — the same affordance the score filters
- * get, for the one predicate that is evaluated in the client. (LFE-15711 C7)
+ * get, for the one predicate that is evaluated in the client.
  */
 export const ScoreComparisonFilterPills = ({
   pills,

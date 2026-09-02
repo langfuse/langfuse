@@ -175,7 +175,7 @@ describe("DataTableColumnVisibilityFilter", () => {
   // has to be pure, and React re-invokes it under StrictMode — which the app
   // enables — so every toggle was counted twice. Rendering the harness in
   // StrictMode is what makes this a guard rather than a restatement of the
-  // test above. (LFE-15720)
+  // test above.
   it("counts one toggle once under StrictMode", () => {
     render(
       <StrictMode>

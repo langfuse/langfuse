@@ -9,7 +9,7 @@ import {
 
 /**
  * "Show only the items this run scored worse on than <comparison>" — Annabell's
- * top ask, as a filter rather than a report. (LFE-15711 C7)
+ * top ask, as a filter rather than a report.
  *
  * The predicate is about a *pair* of experiments, which the items query cannot
  * express: `compileExperimentFilter` translates each condition into a

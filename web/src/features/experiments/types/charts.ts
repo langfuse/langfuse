@@ -7,7 +7,7 @@ export type MetricOption = {
    * The level the score was recorded at, absent on base metrics. Presentation
    * only: the metric still resolves to one level to plot, but the dropdown
    * tags the entry with the level instead of splitting the list by it — the
-   * tracing tables' score facets read the same way. (LFE-15711)
+   * tracing tables' score facets read the same way.
    */
   level?: ScoreLevel;
   /**

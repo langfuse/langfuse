@@ -22,7 +22,7 @@ export type ScoreColumnAggregate =
       count: number;
     };
 
-export type ScoreColumnMovement = {
+type ScoreColumnMovement = {
   /** Items the baseline — the experiment you opened — scored better on. */
   improved: number;
   /** Items the baseline scored worse on. */
@@ -71,12 +71,18 @@ export const readOrderedScoreValue = (
   return trueCount / total;
 };
 
-/** The single categorical value of an item, or null if it carries several. */
+/**
+ * The single categorical value of an item, or null if it carries several.
+ * Distinct values, not raw ones: several annotators who all picked the same
+ * value still leave the item with one value to stand for it, while annotators
+ * who disagree leave it with none.
+ */
 const singleCategoricalValue = (
   aggregate: AggregatedScoreData | null,
 ): string | null => {
   if (!aggregate || aggregate.type !== "CATEGORICAL") return null;
-  return aggregate.values.length === 1 ? aggregate.values[0] : null;
+  const distinct = new Set(aggregate.values);
+  return distinct.size === 1 ? (aggregate.values[0] ?? null) : null;
 };
 
 const aggregateAcrossItems = (
@@ -87,11 +93,16 @@ const aggregateAcrossItems = (
 
   if (dataType === "CATEGORICAL") {
     const counts = new Map<string, number>();
+    let counted = 0;
     for (const aggregate of aggregates) {
-      if (aggregate.type !== "CATEGORICAL") continue;
-      for (const { value, count } of aggregate.valueCounts) {
-        counts.set(value, (counts.get(value) ?? 0) + count);
-      }
+      // One vote per item, so the modal count and the total it is printed over
+      // are both counts of items. Pooling each item's raw values instead let a
+      // value scored by several annotators on one item out-count the items
+      // themselves, and the header read "A 7/5".
+      const value = singleCategoricalValue(aggregate);
+      if (value === null) continue;
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+      counted += 1;
     }
     if (counts.size === 0) return null;
     // Most frequent first, ties by value so the header is stable across fetches.
@@ -102,7 +113,7 @@ const aggregateAcrossItems = (
       kind: "distribution",
       modalValue: distribution[0].value,
       distribution,
-      count: aggregates.length,
+      count: counted,
     };
   }
 
@@ -129,7 +140,7 @@ const emptyMovement = (): ScoreColumnMovement => ({
  * What a score column's header says about the items in view: this experiment's
  * aggregate, the comparison's, the signed delta, and how many items moved which
  * way. This is the analysis the deleted Analytics tab was going to carry, put
- * where the eye already is. (LFE-15711)
+ * where the eye already is.
  *
  * A delta chip describes the thing it is attached to, and this summary is the
  * header of the experiment you opened — so the delta reads
