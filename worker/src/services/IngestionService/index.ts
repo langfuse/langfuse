@@ -618,8 +618,15 @@ export class IngestionService {
     } = params;
     if (scoreEventList.length === 0) return;
 
-    const timeSortedEvents =
-      IngestionService.toTimeSortedEventList(scoreEventList);
+    // Re-sending a score with the same id and timestamp is the documented way
+    // to overwrite it, so ties must keep arrival order for the later one to
+    // win. Score events are all creates, so no create-first rule is needed.
+    const timeSortedEvents = scoreEventList
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
 
     const minTimestamp = Math.min(
       ...timeSortedEvents.flatMap((e) =>
@@ -1217,14 +1224,20 @@ export class IngestionService {
   }
 
   private static toTimeSortedEventList<
-    T extends TraceEventType | ScoreEventType | ObservationEvent,
+    T extends TraceEventType | ObservationEvent,
   >(eventList: T[]): T[] {
     return eventList.slice().sort((a, b) => {
       const aTimestamp = new Date(a.timestamp).getTime();
       const bTimestamp = new Date(b.timestamp).getTime();
 
       if (aTimestamp === bTimestamp) {
-        return a.type.includes("create") ? -1 : 1; // create events should come first
+        // Creates sort before updates. For two tied creates this is not a
+        // total order: V8 places the later-arriving one first, so the
+        // first-arriving create wins the merge. OTel relies on that: a root
+        // span's trace-create and a child span's trace update share the span
+        // start time, and the child's explicit fields must beat the root's
+        // derived ones. Score events use their own stable sort instead.
+        return a.type.includes("create") ? -1 : 1;
       }
 
       return aTimestamp - bTimestamp;

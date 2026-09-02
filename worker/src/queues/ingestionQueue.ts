@@ -182,6 +182,12 @@ export const ingestionQueueProcessorBuilder = (
         events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
       } else {
         eventFiles = await s3Client.listFiles(s3Prefix);
+        // Listings are ordered by key (client-supplied event ids), not by
+        // upload time. Sort so arrival order is upload order; score merges
+        // rely on that for same-timestamp re-sends.
+        eventFiles.sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+        );
 
         // Process files in batches
         // If a user has 5k events, this will likely take 100 seconds.
@@ -225,11 +231,8 @@ export const ingestionQueueProcessorBuilder = (
         totalS3DownloadSizeBytes,
       );
 
-      const firstS3WriteTime =
-        eventFiles
-          .map((fileRef) => fileRef.createdAt)
-          .sort()
-          .shift() ?? new Date();
+      // eventFiles is sorted by createdAt above.
+      const firstS3WriteTime = eventFiles[0]?.createdAt ?? new Date();
 
       if (events.length === 0) {
         logger.warn(
