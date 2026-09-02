@@ -49,7 +49,7 @@ export function TierAccordionItem({
   });
 
   return (
-    <AccordionItem value={tier.id} className="bg-muted/30 rounded-lg border">
+    <AccordionItem value={tier.id} variant="card">
       <div className="px-4">
         <AccordionTrigger variant="plain">
           <div className="flex w-full items-center justify-between">

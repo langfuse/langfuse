@@ -382,7 +382,7 @@ export const RemoteExperimentUpsertForm = ({
             />
 
             <Accordion type="single" collapsible>
-              <AccordionItem value="advanced" className="border-b-0">
+              <AccordionItem value="advanced" variant="none">
                 <AccordionTrigger size="sm" variant="start">
                   Advanced Options
                 </AccordionTrigger>

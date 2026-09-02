@@ -34,6 +34,20 @@ const accordionTriggerVariants = cva(
   },
 );
 
+const accordionItemVariants = cva("", {
+  variants: {
+    variant: {
+      default: "border-b",
+      none: "",
+      top: "border-t",
+      card: "bg-muted/30 rounded-lg border",
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+  },
+});
+
 const accordionContentVariants = cva("", {
   variants: {
     size: {
@@ -52,21 +66,23 @@ type AccordionItemProps = Omit<
     "children" | "className" | "value"
   >,
   "children" | "className"
-> & {
-  children: React.ReactNode;
-  className?:
-    | "px-2"
-    | "border-b-0"
-    | "border-t"
-    | "bg-muted/30 rounded-lg border";
-};
+> &
+  Pick<VariantProps<typeof accordionItemVariants>, "variant"> & {
+    children: React.ReactNode;
+    className?: "px-2";
+  };
 
 const Accordion = AccordionPrimitive.Root;
 
-function AccordionItem({ children, className, value }: AccordionItemProps) {
+function AccordionItem({
+  children,
+  className,
+  value,
+  variant,
+}: AccordionItemProps) {
   return (
     <AccordionPrimitive.Item
-      className={cn("border-b", className)}
+      className={cn(accordionItemVariants({ variant }), className)}
       value={value}
     >
       {children}

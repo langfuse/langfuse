@@ -879,7 +879,7 @@ export default function ExperimentsTable({
               value={accordionValue}
               onValueChange={handleChartsAccordionChange}
             >
-              <AccordionItem value="charts" className="border-t">
+              <AccordionItem value="charts" variant="top">
                 <div className="px-3">
                   <AccordionTrigger variant="section">
                     <div className="flex items-center gap-2">
