@@ -94,12 +94,17 @@ function CloneFirstDialogContent({
     { enabled: true },
   );
   const existingClone = useMemo(() => {
-    const clonePattern = new RegExp(
-      `^${dashboardName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\(Clone( \\d+)?\\)$`,
-    );
-    return dashboards.data?.dashboards.find(
-      (d) => d.owner === "PROJECT" && clonePattern.test(d.name),
-    );
+    const cloneName = `${dashboardName} (Clone)`;
+    const numberedClonePrefix = `${dashboardName} (Clone `;
+    return dashboards.data?.dashboards.find((dashboard) => {
+      if (dashboard.owner !== "PROJECT") return false;
+      if (dashboard.name === cloneName) return true;
+      if (!dashboard.name.startsWith(numberedClonePrefix)) return false;
+      if (!dashboard.name.endsWith(")")) return false;
+
+      const cloneNumber = dashboard.name.slice(numberedClonePrefix.length, -1);
+      return /^\d+$/.test(cloneNumber);
+    });
   }, [dashboards.data?.dashboards, dashboardName]);
 
   const cloneDashboard = api.dashboard.cloneDashboard.useMutation({
