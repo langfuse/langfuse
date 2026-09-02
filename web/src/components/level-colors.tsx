@@ -2,7 +2,7 @@ import type React from "react";
 import { type ObservationLevelType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
-export const observationLevelToStatus = {
+const observationLevelToStatus = {
   ERROR: "error",
   WARNING: "warning",
   DEBUG: "debug",
