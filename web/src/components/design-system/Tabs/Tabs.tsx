@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
 
 const tabsListVariants = cva(
-  "text-muted-foreground items-center justify-center [&>:not([role=tab])>[role=tab]]:w-full",
+  "text-muted-foreground items-center justify-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
   {
     variants: {
       variant: {

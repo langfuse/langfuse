@@ -181,6 +181,30 @@ export const FillsWrappedTrigger = meta.story({
   },
 });
 
+export const CentersWrappedTriggerVertically = meta.story({
+  name: "(Test) Centers Wrapped Trigger Vertically",
+  args: {
+    defaultValue: "first",
+    children: fullWidthChildren,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const firstTab = canvas.getByRole("tab", { name: "First" });
+    const wrapper = firstTab.parentElement;
+    const list = firstTab.closest('[role="tablist"]');
+
+    await expect(wrapper).toBeTruthy();
+    await expect(list).toBeTruthy();
+
+    const listRect = list!.getBoundingClientRect();
+    const tabRect = firstTab.getBoundingClientRect();
+    const topInset = tabRect.top - listRect.top;
+    const bottomInset = listRect.bottom - tabRect.bottom;
+
+    await expect(Math.abs(topInset - bottomInset)).toBeLessThan(1);
+  },
+});
+
 export const KeepsUnwrappedTriggersContentWidth = meta.story({
   name: "(Test) Keeps Unwrapped Triggers Content Width",
   args: {
