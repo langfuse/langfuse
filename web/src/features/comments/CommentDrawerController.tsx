@@ -7,6 +7,7 @@ import {
 } from "@/src/components/ui/drawer";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -104,6 +105,7 @@ export function CommentDrawerController({
   onOpenChange: controlledOnOpenChange,
 }: CommentDrawerControllerProps) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const hasAutoOpenedRef = useRef(false);
@@ -160,7 +162,10 @@ export function CommentDrawerController({
   ]);
 
   const openDrawer = () => {
-    if (!disabled) setIsOpen(true);
+    if (disabled) return;
+    // Collaboration reach per object kind; objectType only, never content.
+    capture("comments:drawer_open", { objectType });
+    setIsOpen(true);
   };
 
   const handleOpenChange = (open: boolean) => {

@@ -50,6 +50,7 @@ import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 import { Badge } from "@/src/components/ui/badge";
 import { useTheme } from "next-themes";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // IO field background colors - same as IOPreviewJSON.tsx
 const IO_FIELD_COLORS = {
@@ -103,6 +104,7 @@ export function CommentList({
 }) {
   const session = useSession();
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -304,6 +306,8 @@ export function CommentList({
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
+      // Collaboration activity per object kind; objectType only, never content.
+      capture("comments:created", { objectType });
       form.reset();
 
       // Clear pending selection after successful comment creation

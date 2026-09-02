@@ -383,6 +383,17 @@ export const SessionPage: React.FC<{
     },
   );
 
+  // PostHog is the external system: report one view per session once it
+  // loaded (id-ref dedupes Strict Mode double-mounts; navigating between
+  // sessions re-reports) — same pattern as trace_detail:view.
+  const legacySessionLoaded = Boolean(session.data);
+  const viewedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!legacySessionLoaded || viewedSessionRef.current === sessionId) return;
+    viewedSessionRef.current = sessionId;
+    capture("session_detail:view", { isV4: false });
+  }, [capture, sessionId, legacySessionLoaded]);
+
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
     false,
@@ -874,6 +885,7 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const capture = usePostHogClientCapture();
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -906,6 +918,17 @@ export const SessionEventsPage: React.FC<{
       },
     },
   );
+
+  // PostHog is the external system: report one view per session once it
+  // loaded (id-ref dedupes Strict Mode double-mounts; navigating between
+  // sessions re-reports) — same pattern as trace_detail:view.
+  const v4SessionLoaded = Boolean(session.data);
+  const viewedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!v4SessionLoaded || viewedSessionRef.current === sessionId) return;
+    viewedSessionRef.current = sessionId;
+    capture("session_detail:view", { isV4: true });
+  }, [capture, sessionId, v4SessionLoaded]);
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;

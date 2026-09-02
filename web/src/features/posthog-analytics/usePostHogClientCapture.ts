@@ -17,9 +17,18 @@ const events = {
     "column_visibility_change",
     "column_sorting_header_click",
     "column_visibility_changed",
+    // Export format chosen from the table export dropdown; tableName + format
+    // only, never query contents.
+    "export_clicked",
   ],
+  // Collaboration on trace/session/observation objects; objectType only,
+  // never comment content.
+  comments: ["drawer_open", "created"],
   trace: ["delete_form_open", "delete", "delete_form_submit"],
   trace_detail: [
+    // One view per trace on the full detail page (id-ref deduped); separates
+    // reach from engagement events like node_selected. isV4 = events read path.
+    "view",
     "publish_button_click",
     "observation_tree_collapse",
     "observation_tree_expand",
@@ -142,6 +151,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    // One view per session on the detail page (id-ref deduped); isV4 = which
+    // page variant rendered (SessionEventsPage vs legacy SessionPage).
+    "view",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
