@@ -107,6 +107,9 @@ export class StringFilter implements Filter {
       case "ends with":
         query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
         break;
+      case "is not empty":
+        query = `(${fieldWithPrefix} != '' AND ${fieldWithPrefix} IS NOT NULL)`;
+        break;
       case FTS_MATCH_OPERATOR:
         assertValidFtsMatchFilter({
           filterType: "string",
@@ -132,8 +135,8 @@ export class StringFilter implements Filter {
     }
 
     return {
-      query: query,
-      params: { [varName]: this.value },
+      query,
+      params: this.operator === "is not empty" ? {} : { [varName]: this.value },
     };
   }
 }

@@ -54,4 +54,23 @@ describe("SingleSelect", () => {
 
     expect(onValueChange).toHaveBeenCalledWith("release");
   });
+
+  it("renders display labels but commits stable option values", () => {
+    const onValueChange = vi.fn();
+    render(
+      <SingleSelect
+        title="Evaluator"
+        options={[
+          { value: "evaluator-1", displayValue: "Answer quality" },
+          { value: "evaluator-2", displayValue: "Hallucination" },
+        ]}
+        onValueChange={onValueChange}
+      />,
+    );
+
+    open();
+    fireEvent.click(screen.getByRole("option", { name: "Answer quality" }));
+
+    expect(onValueChange).toHaveBeenCalledWith("evaluator-1");
+  });
 });

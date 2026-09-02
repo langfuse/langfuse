@@ -55,9 +55,18 @@ export const toPrismaOrderBy = (
 export const toPrismaWhere = (
   projectId: string,
   filter: ListMonitorFilter | undefined,
+  evaluatorMonitorIds?: string[],
 ): Prisma.MonitorWhereInput => {
   const and: Prisma.MonitorWhereInput[] = [];
   for (const f of filter ?? []) {
+    if (f.column === "evaluatorId") {
+      and.push(
+        f.operator === "any of"
+          ? { id: { in: evaluatorMonitorIds ?? [] } }
+          : { id: { notIn: evaluatorMonitorIds ?? [] } },
+      );
+      continue;
+    }
     if (f.type === "stringOptions") {
       and.push(
         f.operator === "any of"
