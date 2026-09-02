@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
@@ -19,7 +20,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
+import { ChevronDown, Columns3, Trash } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,8 +46,10 @@ import {
 } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   Dialog,
   DialogContent,
@@ -74,10 +77,10 @@ export type DatasetRunRowData = {
   id: string;
   name: string;
   createdAt: Date;
-  countRunItems: string;
+  countRunItems: bigint;
   avgLatency: number | undefined;
-  avgTotalCost: string | undefined;
-  totalCost: string | undefined;
+  avgTotalCost: number | undefined;
+  totalCost: number | undefined;
   // scores holds grouped column with individual scores
   runItemScores?: ScoreAggregate | undefined;
   runScores?: ScoreAggregate | undefined;
@@ -417,74 +420,56 @@ export function DatasetRunsTable(props: {
         };
       },
     }),
-    {
+    createTextTableColumn<DatasetRunRowData>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const description: DatasetRunRowData["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
-    {
+    }),
+    createNumberTableColumn<DatasetRunRowData, bigint>({
       accessorKey: "countRunItems",
       header: "Run Items",
-      id: "countRunItems",
       size: 90,
       enableHiding: true,
-      cell: ({ row }) => {
-        const countRunItems: DatasetRunRowData["countRunItems"] =
-          row.getValue("countRunItems");
-        if (countRunItems === undefined || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{countRunItems}</>;
-      },
-    },
-    {
+      formatter: (value) => String(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
+    createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "avgLatency",
       header: "Latency (avg)",
-      id: "avgLatency",
       size: 120,
       enableHiding: true,
-      cell: ({ row }) => {
-        const avgLatency: DatasetRunRowData["avgLatency"] =
-          row.getValue("avgLatency");
-        if (avgLatency === undefined || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{formatIntervalSeconds(avgLatency)}</>;
-      },
-    },
-    {
+      formatter: (value) => formatIntervalSeconds(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
+    createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "avgTotalCost",
       header: "Trace Cost (avg)",
-      id: "avgTotalCost",
       size: 130,
       enableHiding: true,
-      cell: ({ row }) => {
-        const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
-          row.getValue("avgTotalCost");
-        if (!avgTotalCost || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{avgTotalCost}</>;
-      },
-    },
-    {
+      formatter: (value) => usdFormatter(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
+    createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "totalCost",
       header: "Trace Cost (sum)",
-      id: "totalCost",
       size: 130,
       enableHiding: true,
-      cell: ({ row }) => {
-        const totalCost: DatasetRunRowData["totalCost"] =
-          row.getValue("totalCost");
-        if (!totalCost || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{totalCost}</>;
-      },
-    },
+      formatter: (value) => usdFormatter(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
     {
       accessorKey: "runScores",
       header: "Run-Level Scores",
@@ -523,34 +508,23 @@ export function DatasetRunsTable(props: {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
+    createDropdownTableColumn<DatasetRunRowData, DatasetRunRowData["id"]>({
       id: "actions",
-      accessorKey: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 70,
-      cell: ({ row }) => {
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DeleteDatasetRunButton
-                projectId={props.projectId}
-                datasetRunId={id}
-                datasetId={props.datasetId}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
+      renderMenu: (id) =>
+        id ? (
+          <>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DeleteDatasetRunButton
+              projectId={props.projectId}
+              datasetRunId={id}
+              datasetId={props.datasetId}
+            />
+          </>
+        ) : null,
+    }),
   ];
 
   const convertToTableRow = (
@@ -560,14 +534,10 @@ export function DatasetRunsTable(props: {
       id: item.id,
       name: item.name,
       createdAt: item.createdAt,
-      countRunItems: item.countRunItems?.toString() ?? "0",
+      countRunItems: BigInt(item.countRunItems ?? 0),
       avgLatency: item.avgLatency ?? 0,
-      avgTotalCost: item.avgTotalCost
-        ? usdFormatter(item.avgTotalCost.toNumber())
-        : usdFormatter(0),
-      totalCost: item.totalCost
-        ? usdFormatter(item.totalCost.toNumber())
-        : usdFormatter(0),
+      avgTotalCost: item.avgTotalCost?.toNumber() ?? 0,
+      totalCost: item.totalCost?.toNumber() ?? 0,
       runItemScores: item.scores,
       runScores: item.runScores
         ? addPrefixToScoreKeys(item.runScores, "Run-level")

@@ -1,8 +1,8 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import {
   type V4WriteMode,

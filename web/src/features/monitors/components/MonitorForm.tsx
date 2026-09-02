@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
@@ -7,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
+import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Button } from "@/src/components/ui/button";
 import {
   Accordion,
@@ -40,11 +42,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useProject } from "@/src/features/projects";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -87,18 +92,24 @@ import {
 } from "../helpers/renderMonitorLabels";
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
-const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
+const createDefaults = (
+  projectId: string,
+  prefill?: Partial<
+    Pick<CreateMonitor, "view" | "filters" | "metric" | "window" | "tags">
+  >,
+  initialTriggerIds: string[] = [],
+): Partial<CreateMonitor> => ({
   projectId,
-  view: "observations",
-  filters: [],
-  metric: { measure: "count", aggregation: "count" },
-  window: "5m",
+  view: prefill?.view ?? "observations",
+  filters: prefill?.filters ?? [],
+  metric: prefill?.metric ?? { measure: "count", aggregation: "count" },
+  window: prefill?.window ?? "5m",
   thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   warningThreshold: null,
   noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
   renotify: { mode: "OFF" },
-  tags: [],
-  triggerIds: [],
+  tags: prefill?.tags ?? [],
+  triggerIds: initialTriggerIds,
   status: MonitorStatusSchema.enum.ACTIVE,
 });
 
@@ -139,19 +150,49 @@ const nameOrPlaceholder = (
   placeholder: string,
 ): string => name || placeholder;
 
+type MonitorAnalyticsSource =
+  | "alerts"
+  | "evaluator_score"
+  | "evaluator_cost"
+  | "all_evaluator_cost";
+
+const monitorCreateAnalyticsProperties = (
+  source: MonitorAnalyticsSource,
+  monitor: Pick<CreateMonitor, "view" | "metric" | "window">,
+) => ({
+  source,
+  view: monitor.view,
+  measure: monitor.metric.measure,
+  aggregation: monitor.metric.aggregation,
+  window: monitor.window,
+});
+
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
   projectId,
   monitor,
+  prefill,
+  analyticsSource = "alerts",
+  initialTriggerIds = [],
   onNameChange,
 }: {
   projectId: string;
   monitor?: Monitor;
+  prefill?: Partial<
+    Pick<CreateMonitor, "view" | "filters" | "metric" | "window" | "tags">
+  >;
+  analyticsSource?: MonitorAnalyticsSource;
+  initialTriggerIds?: string[];
   /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
   onNameChange?: (name: string) => void;
 }) => {
   /** router is the Next router used to redirect after a successful create. */
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useProject(projectId);
+  const nameAIAssistanceAvailable =
+    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   /** isEdit is true when the form is bound to an existing monitor. */
   const isEdit = Boolean(monitor);
   /** hasAccess gates write controls behind the alerts:CUD RBAC scope. */
@@ -164,7 +205,7 @@ export const MonitorForm = ({
   /** defaultValues seeds the form from the existing monitor on edit, otherwise from createDefaults. */
   const defaultValues = isEdit
     ? monitorToDefaults(monitor as Monitor)
-    : createDefaults(projectId);
+    : createDefaults(projectId, prefill, initialTriggerIds);
 
   /** namePlaceholderRef holds the latest computed name placeholder for the resolver. */
   const namePlaceholderRef = useRef("");
@@ -189,10 +230,42 @@ export const MonitorForm = ({
     mode: "onChange",
   });
 
+  const suggestName = api.monitors.suggestName.useMutation();
+  const generateNameSuggestion = async (): Promise<string | null> => {
+    if (!nameAIAssistanceAvailable) return null;
+    try {
+      return await suggestName.mutateAsync({
+        projectId,
+        description: namePlaceholderRef.current,
+      });
+    } catch {
+      return null;
+    }
+  };
+  const requestNameSuggestion = async () => {
+    const generatedName = await generateNameSuggestion();
+    if (!generatedName) {
+      showErrorToast(
+        "Couldn't generate an alert title",
+        "Please enter a title manually.",
+      );
+      return;
+    }
+    form.setValue("name", generatedName, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    onNameChange?.(generatedName);
+  };
+
   /** createMutation creates a new monitor and returns to the monitors list on success. */
   const createMutation = api.monitors.create.useMutation({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
+      capture(
+        "monitors:create",
+        monitorCreateAnalyticsProperties(analyticsSource, variables),
+      );
       showSuccessToast({
         title: "Alert created",
         description: `"${variables.name}" is now active.`,
@@ -217,9 +290,24 @@ export const MonitorForm = ({
 
   /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
-    (values) => {
+    async (values) => {
+      const resolvedName = await resolveMonitorNameForSave({
+        name: form.getValues("name"),
+        fallbackName: namePlaceholderRef.current,
+        aiAvailable: nameAIAssistanceAvailable,
+        generateName: generateNameSuggestion,
+      });
+      if (!resolvedName) {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+        );
+        return;
+      }
+
       const normalizedValues = {
         ...values,
+        name: resolvedName,
         filters: partitionWidgetUiTableFiltersToView(
           values.view as Parameters<
             typeof partitionWidgetUiTableFiltersToView
@@ -326,7 +414,8 @@ export const MonitorForm = ({
   const submitting =
     form.formState.isSubmitting ||
     createMutation.isPending ||
-    updateMutation.isPending;
+    updateMutation.isPending ||
+    suggestName.isPending;
 
   return (
     <Form {...form}>
@@ -708,18 +797,33 @@ export const MonitorForm = ({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <Input
+                        <AIAssistedInput
+                          id="monitor-title"
                           maxLength={200}
                           placeholder={namePlaceholder}
                           disabled={!hasAccess}
-                          {...field}
                           value={field.value ?? ""}
                           onChange={(e) => {
                             field.onChange(e);
                             onNameChange?.(e.target.value ?? "");
                           }}
+                          fieldName="title"
+                          aiAssistance={
+                            !nameAIAssistanceAvailable
+                              ? { state: "unavailable" }
+                              : suggestName.isPending
+                                ? { state: "generating" }
+                                : {
+                                    state: "idle",
+                                    onGenerate: () => {
+                                      requestNameSuggestion().catch(
+                                        () => undefined,
+                                      );
+                                    },
+                                  }
+                          }
                         />
                       </FormControl>
                       <FormMessage />
@@ -1016,4 +1120,5 @@ export const __test = {
   monitorToDefaults,
   nameOrPlaceholder,
   resolveViewChangePatch,
+  monitorCreateAnalyticsProperties,
 };

@@ -3,6 +3,7 @@ import {
   MediaReferenceStringSchema,
   isOpenAIImageContentPart,
   isMediaReferencePart,
+  isAiSdkFileContentPart,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
   type ParsedMediaReferenceType,
@@ -57,6 +58,11 @@ export const getRenderedInlineMediaIds = ({
     (markdown ?? []).forEach((content) => {
       if (isMediaReferencePart(content)) {
         const mediaId = getMediaReferenceId(content);
+        if (mediaId) {
+          mediaIds.add(mediaId);
+        }
+      } else if (isAiSdkFileContentPart(content)) {
+        const mediaId = getMediaReferenceId(content.data);
         if (mediaId) {
           mediaIds.add(mediaId);
         }

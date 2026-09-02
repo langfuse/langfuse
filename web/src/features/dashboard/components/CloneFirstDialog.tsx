@@ -1,3 +1,4 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo } from "react";
 import { useRouter } from "next/router";
 import { ExternalLinkIcon } from "lucide-react";
@@ -11,8 +12,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 
 /**

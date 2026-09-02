@@ -1,3 +1,5 @@
+import { showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   type CreateQueueWithAssignments,
   type ScoreConfigDomain,
@@ -6,9 +8,7 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
-import { showErrorToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
 

@@ -66,10 +66,12 @@ allowBuilds:
   "@scarf/scarf": false
   cpu-features: true
   ssh2: true
+  vue-demi: true
 overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
   "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0
@@ -93,6 +95,9 @@ overrides:
   "@ai-sdk/provider-utils@<=4.0.32": 4.0.33
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.33"
   "@ai-sdk/provider-utils-v6": "npm:@ai-sdk/provider-utils@4.0.33"
+  # Scalar's agent package pins an SSRF-vulnerable AI SDK through two paths.
+  "@scalar/agent-chat@0.12.28>ai": 6.0.230
+  "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.

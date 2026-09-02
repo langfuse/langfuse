@@ -59,7 +59,7 @@ import {
 // Re-exported so existing consumers (tests, session view) keep their path.
 export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -184,6 +184,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   renderIcon?: (value: string) => React.ReactNode;
   /** Optional content rendered after a filter option label */
   renderOptionSuffix?: (value: string) => React.ReactNode;
+  /** Optional browser hover title for a filter option. */
+  getOptionTitle?: (value: string, displayLabel: string) => string;
   /**
    * Current operator of the facet's checkbox filter (arrayOptions AND
    * stringOptions columns; undefined when no filter is applied):
@@ -1905,6 +1907,8 @@ export function useSidebarFilterPresentation(
             facet.type === "categorical" ? facet.renderIcon : undefined,
           renderOptionSuffix:
             facet.type === "categorical" ? facet.renderOptionSuffix : undefined,
+          getOptionTitle:
+            facet.type === "categorical" ? facet.getOptionTitle : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {

@@ -1,6 +1,9 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -63,7 +66,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import {
   parsePastedWidget,
   toWidgetCreateFields,
@@ -98,7 +101,33 @@ function placementNextTo(anchor: DashboardPlacement) {
   };
 }
 
+// Controller: no widget query may fire before the session resolves the v3/v4
+// read path — an unresolved session used to read as v3 and fire a wave of
+// legacy-table queries that was thrown away once the session landed.
 export default function DashboardDetail() {
+  const router = useRouter();
+  const { projectId } = router.query as { projectId: string };
+  const { readPath } = useReadPath();
+  if (readPath === "unknown") {
+    return (
+      <Page
+        withPadding
+        scrollable
+        headerProps={{
+          title: "Dashboard",
+          breadcrumb: [
+            { name: "Dashboards", href: `/project/${projectId}/dashboards` },
+          ],
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+  return <DashboardDetailView readPath={readPath} />;
+}
+
+function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -110,7 +139,7 @@ export default function DashboardDetail() {
   };
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
-  const { isBetaEnabled } = useV4Beta();
+  const isV4 = readPath === "v4";
 
   // Fetch dashboard data
   const dashboard = api.dashboard.getDashboard.useQuery({
@@ -558,7 +587,7 @@ export default function DashboardDetail() {
         );
         return;
       }
-      const parsed = parsePastedWidget(text, { isBetaEnabled });
+      const parsed = parsePastedWidget(text, { isV4 });
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
@@ -588,13 +617,7 @@ export default function DashboardDetail() {
       }
       await handleParsedWidgetPaste(parsed, source, anchor);
     },
-    [
-      capture,
-      dashboardId,
-      handleParsedWidgetPaste,
-      handlePastedPreset,
-      isBetaEnabled,
-    ],
+    [capture, dashboardId, handleParsedWidgetPaste, handlePastedPreset, isV4],
   );
 
   // Cmd/Ctrl+V on the dashboard pastes a copied widget. Only intercepts when
@@ -614,7 +637,7 @@ export default function DashboardDetail() {
       }
       const text = event.clipboardData?.getData("text/plain");
       if (!text) return;
-      const parsed = parsePastedWidget(text, { isBetaEnabled });
+      const parsed = parsePastedWidget(text, { isV4 });
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         // Neither widget nor preset payload: leave the event alone (silent,
@@ -641,7 +664,7 @@ export default function DashboardDetail() {
     return () => document.removeEventListener("paste", onPaste);
   }, [
     hasCUDAccess,
-    isBetaEnabled,
+    isV4,
     handleParsedWidgetPaste,
     handlePastedPreset,
     capture,
@@ -652,8 +675,8 @@ export default function DashboardDetail() {
   // holding a pasteable payload, where the browser lets us check silently.
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
   const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
+    (text: string) => isPasteablePlacementPayload(text, { isV4 }),
+    [isV4],
   );
   const clipboardProbe = useClipboardWidgetProbe(
     isDashboardMenuOpen && hasCUDAccess,
@@ -792,7 +815,7 @@ export default function DashboardDetail() {
     async (file: File) => {
       const text = await file.text();
 
-      const dashboardResult = parseDashboardImport(text, { isBetaEnabled });
+      const dashboardResult = parseDashboardImport(text, { isV4 });
       if (dashboardResult.status === "dashboard") {
         await handleDashboardImport(dashboardResult.dashboard);
         return;
@@ -811,7 +834,7 @@ export default function DashboardDetail() {
         return;
       }
 
-      const widgetResult = parsePastedWidget(text, { isBetaEnabled });
+      const widgetResult = parsePastedWidget(text, { isV4 });
       if (widgetResult.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
@@ -842,7 +865,7 @@ export default function DashboardDetail() {
       await handleParsedWidgetPaste(widgetResult, "drop");
     },
     [
-      isBetaEnabled,
+      isV4,
       handleDashboardImport,
       handleParsedWidgetPaste,
       handlePastedPreset,
@@ -900,7 +923,7 @@ export default function DashboardDetail() {
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
-    isBetaEnabled,
+    isV4,
     timeRange,
   });
 
@@ -1130,14 +1153,14 @@ export default function DashboardDetail() {
     ],
   );
 
-  const scheduler = useDashboardQueryScheduler({
+  const schedulerStore = useDashboardQueryScheduler({
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
 
   return (
     <DashboardQuerySchedulerProvider
-      scheduler={scheduler}
+      store={schedulerStore}
       shouldBucketQueriesByTimeRange={!("from" in timeRange)}
     >
       <Page
@@ -1375,6 +1398,7 @@ export default function DashboardDetail() {
           <div>
             <DashboardGrid
               key={gridResetKey}
+              readPath={readPath}
               widgets={dashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
                 if (isLockedEditable) {

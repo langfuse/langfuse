@@ -1,3 +1,4 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   EvalTemplateType,
   observationVariableMappingList,
@@ -10,8 +11,7 @@ import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/Ru
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
-import { showSuccessToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 

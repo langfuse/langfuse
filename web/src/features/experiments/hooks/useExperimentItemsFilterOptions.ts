@@ -20,9 +20,9 @@ const processCategoricalScoreOptions = (
   );
 
 /**
- * Hook to fetch experiment item filter options (scores) scoped to specific experiment IDs.
- * Returns score filter options for both observation-level and trace-level scores,
- * plus full score column definitions for table column visibility.
+ * Experiment item filter options (scores) scoped to specific experiment IDs.
+ * Returns the level-agnostic score filter options the three facets offer, plus
+ * the per-level score column definitions the table's column visibility uses.
  */
 export const useExperimentItemsFilterOptions = ({
   projectId,
@@ -34,7 +34,9 @@ export const useExperimentItemsFilterOptions = ({
   const filterOptions = api.experiments.itemsFilterOptions.useQuery(
     { projectId, experimentIds },
     {
-      enabled: experimentIds.length > 0,
+      // `projectId` arrives with `router.query` after hydration; without it in
+      // the guard the query can fire with `undefined` and zod rejects it.
+      enabled: Boolean(projectId) && experimentIds.length > 0,
       staleTime: Infinity,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
@@ -45,26 +47,28 @@ export const useExperimentItemsFilterOptions = ({
   const transformedOptions = useMemo(() => {
     if (!filterOptions.data) {
       return {
-        obs_scores_avg: undefined,
-        obs_score_categories: undefined,
-        obs_score_booleans: undefined,
-        trace_scores_avg: undefined,
-        trace_score_categories: undefined,
-        trace_score_booleans: undefined,
+        scores_avg: undefined,
+        score_categories: undefined,
+        score_booleans: undefined,
+        score_name_levels_numeric: undefined,
+        score_name_levels_categorical: undefined,
+        score_name_levels_boolean: undefined,
       } satisfies ExperimentItemScoreFilterOptions;
     }
 
+    // One entry per score name across both levels; the level maps tag each
+    // offered name with where it exists. `useSidebarFilterState` looks the maps
+    // up by these exact keys.
     return {
-      obs_scores_avg: filterOptions.data.obs_scores_avg,
-      obs_score_categories: processCategoricalScoreOptions(
-        filterOptions.data.obs_score_categories,
+      scores_avg: filterOptions.data.scores_avg,
+      score_categories: processCategoricalScoreOptions(
+        filterOptions.data.score_categories,
       ),
-      obs_score_booleans: filterOptions.data.obs_score_booleans,
-      trace_scores_avg: filterOptions.data.trace_scores_avg,
-      trace_score_categories: processCategoricalScoreOptions(
-        filterOptions.data.trace_score_categories,
-      ),
-      trace_score_booleans: filterOptions.data.trace_score_booleans,
+      score_booleans: filterOptions.data.score_booleans,
+      score_name_levels_numeric: filterOptions.data.score_name_levels_numeric,
+      score_name_levels_categorical:
+        filterOptions.data.score_name_levels_categorical,
+      score_name_levels_boolean: filterOptions.data.score_name_levels_boolean,
     } satisfies ExperimentItemScoreFilterOptions;
   }, [filterOptions.data]);
 

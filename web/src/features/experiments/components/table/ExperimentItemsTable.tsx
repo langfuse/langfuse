@@ -9,7 +9,7 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { LightbulbIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -28,7 +28,7 @@ import {
   BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,
@@ -37,10 +37,10 @@ import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -281,7 +281,7 @@ export default function ExperimentItemsTable({
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const {
@@ -346,7 +346,12 @@ export default function ExperimentItemsTable({
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
-    { stateLocation: "url", loading: isFilterOptionsLoading, isV4: true },
+    {
+      stateLocation: "url",
+      loading: isFilterOptionsLoading,
+      // v4-only surface — drives `isV4` on filters:* analytics.
+      isV4: true,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -713,7 +718,7 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+            renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
       },
@@ -736,7 +741,15 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
+            renderValue={(exp) => {
+              const preparedDate = buildLocalIsoDatePresentation({
+                date: exp.startTime,
+              });
+
+              return preparedDate ? (
+                <span title={preparedDate.title}>{preparedDate.display}</span>
+              ) : null;
+            }}
           />
         );
       },
@@ -1085,7 +1098,7 @@ export default function ExperimentItemsTable({
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
-            scope: "evalJob:CUD",
+            scope: "evaluationRule:CUD",
           },
         } as TableAction,
       ]

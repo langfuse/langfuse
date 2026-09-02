@@ -265,6 +265,8 @@ type InAppAgentCompleteOutcome = {
   /** The turn reached the step cap, whether or not wrap-up rescued it. */
   reachedStepLimit: boolean;
   truncatedByStepLimit: boolean;
+  /** The last model step ended with a `length` finish. */
+  truncatedByOutputLimit: boolean;
 };
 
 type StepLimitState = {
@@ -276,8 +278,13 @@ type StepLimitState = {
 function isTruncatedByStepLimit(state: StepLimitState): boolean {
   return (
     state.iteration >= IN_APP_AGENT_MAX_STEPS &&
-    state.lastFinishReason !== "stop"
+    state.lastFinishReason !== "stop" &&
+    state.lastFinishReason !== "length"
   );
+}
+
+function isTruncatedByOutputLimit(state: StepLimitState): boolean {
+  return state.lastFinishReason === "length";
 }
 
 type CreateAgUiStreamOptions = {
@@ -897,12 +904,15 @@ export async function createAgUiStream(params: {
                   ? async () => {
                       const truncatedByStepLimit =
                         isTruncatedByStepLimit(stepLimitState);
+                      const truncatedByOutputLimit =
+                        isTruncatedByOutputLimit(stepLimitState);
                       recordInstrumentation("end", (instrumentation) =>
                         instrumentation.end(
-                          truncatedByStepLimit
+                          truncatedByStepLimit || truncatedByOutputLimit
                             ? {
                                 result: {
-                                  truncatedByStepLimit: true,
+                                  truncatedByStepLimit,
+                                  truncatedByOutputLimit,
                                   finishReason: stepLimitState.lastFinishReason,
                                 },
                               }
@@ -915,6 +925,7 @@ export async function createAgUiStream(params: {
                       return params.options.onComplete?.({
                         reachedStepLimit: stepLimitState.wrapUp,
                         truncatedByStepLimit,
+                        truncatedByOutputLimit,
                       });
                     }
                   : async () => {

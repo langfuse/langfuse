@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -32,7 +32,7 @@ export const runEvaluationRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "evalJob:CUD",
+          scope: "evaluationRule:CUD",
         });
 
         const {

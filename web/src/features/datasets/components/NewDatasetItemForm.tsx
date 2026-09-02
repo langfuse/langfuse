@@ -27,7 +27,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import {

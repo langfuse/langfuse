@@ -55,7 +55,7 @@ describe("runImport", () => {
     await runImport({
       file: fileFor({ ...baseWidget, filters: [] }),
       optionSets: { observationLevels: [] },
-      isBetaEnabled: false,
+      isV4: false,
       onImport,
     });
 
@@ -70,7 +70,7 @@ describe("runImport", () => {
     await runImport({
       file: { text: async () => "not json" } as File,
       optionSets: { observationLevels: [] },
-      isBetaEnabled: false,
+      isV4: false,
       onImport,
     });
 
@@ -98,7 +98,7 @@ describe("runImport", () => {
         ],
       }),
       optionSets: { observationLevels: [], environmentValues: [] },
-      isBetaEnabled: false,
+      isV4: false,
       onImport,
     });
 

@@ -1,7 +1,7 @@
 import { UploadIcon } from "lucide-react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { useState } from "react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionButton } from "@/src/components/ActionButton";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 

@@ -363,6 +363,95 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
     > 272K multiplier applies. It also added the two Anthropic Fast-mode tiers, including
     > the documented prompt-cache multipliers.
 
+- **Claude Fable 5.1 / Claude Mythos 5.1 (added September 2 2026)** — Anthropic
+  released `claude-fable-5-1` (now the recommended model for "demanding reasoning and
+  long-horizon agentic work" ahead of `claude-fable-5`, which the models-overview page
+  now lists under "Legacy models (still available)") and `claude-mythos-5-1`
+  (limited availability via Project Glasswing, mirroring `claude-mythos-5`). Both are
+  priced identically to their non-`5-1` siblings for base input ($10/MTok), output
+  ($50/MTok), 5m cache write ($12.50/MTok), and 1h cache write ($20/MTok) — but **cache
+  hits are priced at 0.025x base input ($0.25/MTok) instead of the standard 0.1x
+  multiplier** used by every other Claude model including `claude-fable-5` and
+  `claude-mythos-5`. Confirmed verbatim via the pricing page's model table and its
+  footnote: "Cache hits and refreshes on Claude Fable 5.1 and Claude Mythos 5.1 are
+  priced at 0.025x the base input price. All other models use the standard 0.1x
+  multiplier." No Fast mode (only Opus 5 / Opus 4.8 have Fast mode). Both are on the
+  flat 1M-context list. API ID / Bedrock ID / Google Cloud ID: `claude-fable-5-1` and
+  `claude-mythos-5-1` (dateless pinned snapshots, following the `claude-fable-5`
+  pattern with `-1` appended — verify this doesn't collide with the non-`5-1` sibling's
+  `matchPattern`, since both are anchored with `$` and the `-1` suffix prevents overlap
+  either direction). Official sources:
+  `https://platform.claude.com/docs/en/about-claude/pricing`,
+  `https://platform.claude.com/docs/en/models/overview`,
+  `https://platform.claude.com/docs/en/models/mythos-5-1/overview`.
+- **Fast mode confirmed NOT available on Claude Opus 4.7 or Opus 4.6 (confirmed
+  September 2 2026)** — The pricing page's "Fast mode pricing" section states
+  verbatim: "Fast mode is not available on Claude Opus 4.7 (requests with
+  `speed: "fast"` return an error) or Claude Opus 4.6 (requests run at standard speed
+  and are billed at standard rates)." Only Claude Opus 5 and Claude Opus 4.8 have a
+  Fast mode tier ($10/$50 per MTok input/output). The pricing file already reflects
+  this correctly (`claude-opus-4-7` and `claude-opus-4-6` have only a Standard tier;
+  `claude-opus-5` and `claude-opus-4-8` each have a Fast mode tier) — no change was
+  needed, but do not add a Fast mode tier to Opus 4.7 or Opus 4.6 in a future audit
+  without first re-checking this page, since the two are easy to conflate with their
+  Fast-mode-supporting siblings.
+- **gpt-5.3-codex Fast mode tier (added September 2 2026)** — OpenAI documents Fast
+  mode pricing for `gpt-5.3-codex` at $3.50/MTok input, $0.35/MTok cached input,
+  $28.00/MTok output (exactly 2x the standard $1.75/$0.175/$14.00 rate), but **only in
+  the main pricing page's Fast-mode table's "Specialized models" section** — the
+  model's own dedicated page (`https://developers.openai.com/api/docs/models/gpt-5.3-codex`)
+  does not mention Fast mode at all. A first fetch of the dedicated model page alone
+  incorrectly suggested no Fast mode tier existed; a second fetch of the aggregate
+  `developers.openai.com/api/docs/pricing` page, asked specifically to check the
+  "Specialized models" rows of the Fast mode table, found the row. Lesson: for
+  Codex-family (and possibly other "Specialized models" section) entries, always check
+  that aggregate table section even when the model's own page looks silent on Fast
+  mode. Also added the previously-missing `cache_read_input_tokens` and
+  `reasoning_tokens` aliases to this entry's Standard tier (it only had the narrower
+  `input_cached_tokens`/`input_cache_read` and `output_reasoning_tokens`/
+  `output_reasoning` aliases) so both tiers expose the same complete key set, per the
+  usage-key matrix's OpenAI reasoning-model template.
+- **gpt-5.6-cyber found, confirmed out of scope (September 2 2026)** — OpenAI's
+  models-listing page lists `gpt-5.6-cyber`, described as "Our most advanced
+  cybersecurity model for authorized vulnerability research and security testing,"
+  priced at $12.50/MTok input, $1.25/MTok cached input, $15.625/MTok cache write
+  (1.25x input, matching the gpt-5.6-family pattern), $75.00/MTok output, with the
+  same >272K long-context multiplier as the rest of the gpt-5.6 family. It requires
+  separate approval through OpenAI's "Daybreak" program and supports only the
+  Responses API. Not added: unlike the general-purpose gpt-5.6 sol/terra/luna models,
+  this is a gated, specialized-use endpoint most Langfuse customers cannot call
+  regardless of pricing-file coverage. Treat as a documented, deliberate scope
+  exclusion rather than a gap to re-investigate every run unless a future task
+  explicitly asks to cover restricted/specialized OpenAI models. Also noted:
+  `gpt-daybreak-red-latest` and `gpt-daybreak-blue-latest` are floating aliases (not
+  pinned snapshots) currently pointing at `gpt-5.6-cyber` and `gpt-5.6-sol`
+  respectively — do not add pricing entries for `-latest`-style floating aliases.
+- **Gemini 3.8 Flash (added September 2 2026)** — `gemini-3.8-flash` is confirmed via
+  `https://ai.google.dev/gemini-api/docs/models` as the new "New Stable" GA release,
+  described as "Our most intelligent Flash model, engineered for long-horizon software
+  engineering, autonomous agents, and complex enterprise workflows" — the direct
+  successor to `gemini-3.7-flash` (whose description changed to "Our previous-generation
+  Flash model," matching the same demotion pattern seen when 3.7 superseded 3.6). It
+  launched at the exact same introductory price as `gemini-3.6-flash`/`gemini-3.7-flash`:
+  $0.75/MTok input, $3.75/MTok output, $0.075/MTok cache read, "through December 31,
+  2026," stepping up to $1.50/$7.50/$0.15 "starting January 1, 2027" — confirmed via a
+  targeted verbatim fetch of `ai.google.dev/gemini-api/docs/pricing` that explicitly
+  separated the Free/Paid columns. Added to the pricing file (mirroring the
+  `gemini-3.7-flash` key set exactly, including `grounding_queries`/`web_search_queries`
+  at 0.014/query) and to `vertexAIModels`/`googleAIStudioModels` in `types.ts`, not as
+  the first entry. matchPattern: `(?i)^(google(ai)?\/)?(gemini-3.8-flash)$`. This is now
+  a third model sharing the same Jan 1, 2027 price step-up — see unresolved finding in
+  `model-audit-memory.md` about updating all three (3.6, 3.7, 3.8 Flash) on/after that
+  date.
+- **Gemini 2.5-family grounding price is a different rate than 3.x — confirmed the
+  pricing file correctly has no grounding keys on 2.5-family models (September 2
+  2026)** — `gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` grounding is
+  "1,500 RPD (free), then $35 per 1,000 grounded prompts" per the official pricing
+  page, a different rate from the Gemini 3.x $14-per-1,000 rate. Verified via `jq` that
+  none of the three 2.5-family pricing-file entries carry a `grounding_queries` key —
+  the 0.014/query rate is correctly scoped to 3.x models only. No change needed; this
+  confirms the existing scoping is correct rather than being a shared/hardcoded bug.
+
 Capture:
 
 1. Base input token price per million tokens

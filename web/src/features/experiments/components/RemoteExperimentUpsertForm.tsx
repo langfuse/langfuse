@@ -1,3 +1,4 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,8 +30,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";

@@ -4,7 +4,53 @@ import {
   AZURE_CONTAINER_NAME_REGEX,
   validateAzureContainerName,
 } from "./validation";
+import { blobStorageIntegrationFormSchemaBase } from "./types";
+import { CreateBlobStorageIntegrationRequest } from "@/src/features/public-api/types/blob-storage-integrations";
 import { z } from "zod";
+
+describe("blob storage region normalization", () => {
+  it("trims regions submitted through the settings form", () => {
+    expect(
+      blobStorageIntegrationFormSchemaBase.shape.region.parse(" us-west-2"),
+    ).toBe("us-west-2");
+  });
+
+  it("trims regions submitted through the public API", () => {
+    expect(
+      CreateBlobStorageIntegrationRequest.shape.region.parse(" us-west-2"),
+    ).toBe("us-west-2");
+  });
+
+  it.each(["europe-west1", "eastus", "auto", "US", "wnam"])(
+    "accepts S3-compatible provider region %s",
+    (region) => {
+      expect(
+        blobStorageIntegrationFormSchemaBase.shape.region.parse(region),
+      ).toBe(region);
+      expect(
+        CreateBlobStorageIntegrationRequest.shape.region.parse(region),
+      ).toBe(region);
+    },
+  );
+
+  it.each([
+    "us west-2",
+    "East US",
+    "US-CENTRAL1+US-EAST1",
+    "-us-west-2",
+    "us-west-2-",
+    "a".repeat(64),
+  ])("rejects a region the S3 client cannot use: %s", (region) => {
+    expect(
+      blobStorageIntegrationFormSchemaBase.shape.region.safeParse(region)
+        .success,
+    ).toBe(false);
+    expect(
+      CreateBlobStorageIntegrationRequest.shape.region.safeParse(region)
+        .success,
+    ).toBe(false);
+  });
+});
 
 describe("AZURE_CONTAINER_NAME_REGEX", () => {
   const valid = [

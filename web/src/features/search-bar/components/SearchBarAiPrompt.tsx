@@ -26,7 +26,7 @@ import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 // "No such score X" note for score filters the server dropped because their
 // name matches no observed score (exactly or normalized).

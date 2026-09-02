@@ -1,3 +1,4 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
@@ -16,6 +17,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
@@ -25,11 +27,10 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -44,15 +45,22 @@ import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/co
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { getFirstCodeEvaluatorScoreDataType } from "@/src/features/evals/v2/fns/evaluators/getFirstCodeEvaluatorScoreDataType";
 import {
   getEvaluatorCreationAnalyticsProperties,
+  getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 
@@ -61,7 +69,7 @@ type InitialEvaluator = {
   name: string;
   description: string | null;
   type: EvalTemplateType;
-  definition: EvaluatorDefinition;
+  definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
@@ -85,7 +93,7 @@ export function applyEvaluatorSuggestion(
 
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
-): EvaluatorDefinition {
+): NormalizedEvaluatorDefinition {
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -95,13 +103,13 @@ export function getEvaluatorVersionDefinition(
   }
 
   type LlmEvaluatorDefinition = Extract<
-    EvaluatorDefinition,
+    NormalizedEvaluatorDefinition,
     { type: "LLM_AS_JUDGE" }
   >;
 
   return {
     type: version.type,
-    prompt: version.prompt ?? "",
+    promptMessages: version.promptMessages!,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams,
@@ -158,10 +166,27 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
+    EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
+    "query",
+  );
   const canReactivate = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "evaluator",
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+  });
+  const scoreDataType = initialEvaluator
+    ? initialEvaluator.definition.type === "LLM_AS_JUDGE"
+      ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
+          .dataType
+      : getFirstCodeEvaluatorScoreDataType(
+          initialEvaluator.definition.sourceCode,
+        )
+    : undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -265,7 +290,8 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-    prompt: version.prompt,
+    promptMessages:
+      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],
@@ -332,7 +358,7 @@ export function EvaluatorSetupPage(
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
     return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, prompt: state.prompt }
+      ? { type: state.type, promptMessages: state.promptMessages }
       : { type: state.type, sourceCode: state.sourceCode };
   };
 
@@ -474,7 +500,13 @@ export function EvaluatorSetupPage(
           description,
           definition,
         });
-        capture("evaluators:update", { evaluatorType: state.type });
+        capture("evaluators:update", {
+          evaluatorType: state.type,
+          filterExperience,
+          ...(definition.type === "LLM_AS_JUDGE"
+            ? getJudgePromptAnalyticsProperties(definition.promptMessages)
+            : {}),
+        });
         showSuccessToast({
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
@@ -492,9 +524,8 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
-      capture(
-        "evaluators:create",
-        getEvaluatorCreationAnalyticsProperties({
+      capture("evaluators:create", {
+        ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
           creationSource: props.creationSource,
           sourceCodeLanguage:
@@ -502,6 +533,10 @@ export function EvaluatorSetupPage(
           variableMapping:
             definition.type === "LLM_AS_JUDGE"
               ? definition.variableMapping
+              : undefined,
+          promptMessages:
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.promptMessages
               : undefined,
           evaluatorConfig:
             state.type === "LLM_AS_JUDGE"
@@ -514,7 +549,8 @@ export function EvaluatorSetupPage(
                 }
               : undefined,
         }),
-      );
+        filterExperience,
+      });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {
@@ -665,9 +701,18 @@ export function EvaluatorSetupPage(
                 initialEvaluator.definition.variableMapping
               }
             />
+            <EvaluatorAlertButton
+              scope="evaluator"
+              projectId={projectId}
+              evaluatorId={initialEvaluator.id}
+              evaluatorType={initialEvaluator.type}
+              scoreDataType={scoreDataType}
+              {...evaluatorAlerts}
+            />
             <Button
               type="button"
               variant="outline"
+              title="View version history"
               onClick={() => {
                 capture("evaluators:version_history_interaction", {
                   action: "open",

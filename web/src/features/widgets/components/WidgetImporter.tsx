@@ -23,13 +23,13 @@ export const WidgetImporter = ({
   projectId,
   viewVersion,
   dateRange,
-  isBetaEnabled,
+  isV4,
   onImport,
 }: {
   projectId: string;
   viewVersion: ViewVersion;
   dateRange: { from: Date; to: Date } | undefined;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   onImport: (snapshot: ImportedWidgetFormSnapshot) => void;
 }) => {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +52,7 @@ export const WidgetImporter = ({
       dateRange,
     });
 
-    await runImport({ file, optionSets, isBetaEnabled, onImport });
+    await runImport({ file, optionSets, isV4, onImport });
   };
 
   return (
@@ -175,14 +175,14 @@ function buildImportOptionSets(params: {
 async function runImport(params: {
   file: File;
   optionSets: WidgetImportOptionSets;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   onImport: (snapshot: ImportedWidgetFormSnapshot) => void;
 }): Promise<void> {
   try {
     const result = await importWidgetFile({
       file: params.file,
       optionSets: params.optionSets,
-      isBetaEnabled: params.isBetaEnabled,
+      isV4: params.isV4,
     });
 
     params.onImport(result.snapshot);

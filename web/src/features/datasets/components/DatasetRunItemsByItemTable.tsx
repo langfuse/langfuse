@@ -3,6 +3,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { usdFormatter } from "@/src/utils/numbers";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -13,9 +14,10 @@ import { ListTree } from "lucide-react";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import TableIdOrName from "@/src/components/table/table-id";
 import { convertRunItemToItemsByItemUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import {
   DatasetItemIOCell,
@@ -65,18 +67,13 @@ export function DatasetRunItemsByItemTable(props: {
     });
 
   const columns: LangfuseColumnDef<DatasetRunItemByItemRowData>[] = [
-    {
+    createIdTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "datasetRunName",
       header: "Run Name",
-      id: "datasetRunName",
       size: 150,
       isPinnedLeft: true,
-      cell: ({ row }) => {
-        const datasetRunName: string | undefined =
-          row.getValue("datasetRunName");
-        return <TableIdOrName value={datasetRunName || "-"} />;
-      },
-    },
+      emptyValue: "-",
+    }),
     createDateTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "runAt",
       header: "Run At",
@@ -188,18 +185,13 @@ export function DatasetRunItemsByItemTable(props: {
         return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
       },
     },
-    {
+    createNumberTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "totalCost",
       header: "Cost",
-      id: "totalCost",
       size: 60,
       enableHiding: true,
-      cell: ({ row }) => {
-        const totalCost: DatasetRunItemByItemRowData["totalCost"] =
-          row.getValue("totalCost");
-        return totalCost ?? undefined;
-      },
-    },
+      formatter: (value) => usdFormatter(value),
+    }),
     {
       accessorKey: "scores",
       header: "Scores",

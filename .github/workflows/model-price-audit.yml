@@ -503,6 +503,16 @@ jobs:
             cat "$RUNNER_TEMP/claude-model-price-audit.txt"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Discard pricing-only formatting changes
+        run: |
+          set -euo pipefail
+
+          base_pricing_file="$RUNNER_TEMP/default-model-prices-before-audit.json"
+          git show "HEAD:worker/src/constants/default-model-prices.json" > "$base_pricing_file"
+          node scripts/model-price-audit/discard-formatting-only-pricing-diff.mjs \
+            --base "$base_pricing_file" \
+            --current worker/src/constants/default-model-prices.json
+
       - name: Validate audit diff
         run: |
           set -euo pipefail
