@@ -14,15 +14,16 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Copy, Edit, User as UserIcon } from "lucide-react";
+import { Copy, Edit, Trash2, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { DeleteDashboardButton } from "@/src/components/deleteButton";
-import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
-import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
+import { DeleteDialogDashboardContent } from "@/src/features/dashboard/components/DeleteDialogDashboardContent";
+import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
+import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
 import { useRouter } from "next/router";
+import { DialogController } from "@/src/components/ui/dialog";
 
 type DashboardTableRow = {
   id: string;
@@ -95,93 +96,14 @@ function CloneDashboardButton({
   );
 }
 
-function EditDashboardButton({
-  dashboardId,
-  projectId,
-  dashboardName,
-  dashboardDescription,
-}: {
-  dashboardId: string;
-  projectId: string;
-  dashboardName: string;
-  dashboardDescription: string;
-}) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
-
-  return (
-    <div className={dashboardMenuButtonWrapperClassName}>
-      <Button
-        variant="ghost"
-        size="default"
-        className={dashboardMenuButtonClassName}
-        disabled={!hasAccess}
-        onClick={() => setIsDialogOpen(true)}
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </Button>
-
-      <EditDashboardDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        projectId={projectId}
-        dashboardId={dashboardId}
-        initialName={dashboardName}
-        initialDescription={dashboardDescription}
-      />
-    </div>
-  );
-}
-
-function LockedEditDashboardButton({
-  dashboardId,
-  projectId,
-  dashboardName,
-}: {
-  dashboardId: string;
-  projectId: string;
-  dashboardName: string;
-}) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
-  const capture = usePostHogClientCapture();
-
-  return (
-    <div className={dashboardMenuButtonWrapperClassName}>
-      <Button
-        variant="ghost"
-        size="default"
-        className={dashboardMenuButtonClassName}
-        disabled={!hasAccess}
-        onClick={() => {
-          capture("dashboard:locked_edit_attempt", {
-            dashboard_id: dashboardId,
-            attempt: "list_edit",
-            surface: "list",
-          });
-          setIsDialogOpen(true);
-        }}
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </Button>
-
-      <CloneFirstDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        projectId={projectId}
-        dashboardId={dashboardId}
-        dashboardName={dashboardName}
-      />
-    </div>
-  );
-}
-
 export function DashboardTable() {
   const projectId = useProjectIdFromURL() as string;
   const { setDetailPageList } = useDetailPageLists();
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const [selectedDashboard, setSelectedDashboard] =
+    useState<DashboardTableRow | null>(null);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -276,96 +198,146 @@ export function DashboardTable() {
       enableSorting: true,
       size: 150,
     }),
-    createDropdownTableColumn<DashboardTableRow, string>({
-      id: "actions",
-      accessorFn: (row) => row.id,
-      header: "Actions",
-      size: 70,
-      renderMenu: (id, { row }) => {
-        if (!id) return null;
-        const { name, description, owner } = row.original;
-        return (
-          <>
-            {owner === "PROJECT" ? (
-              <DropdownMenuItem className="w-full p-0">
-                <EditDashboardButton
-                  dashboardId={id}
-                  projectId={projectId}
-                  dashboardName={name}
-                  dashboardDescription={description}
-                />
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem className="w-full p-0">
-                <LockedEditDashboardButton
-                  dashboardId={id}
-                  projectId={projectId}
-                  dashboardName={name}
-                />
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem className="w-full p-0">
-              <CloneDashboardButton
-                dashboardId={id}
-                projectId={projectId}
-                owner={owner}
-              />
-            </DropdownMenuItem>
-            {owner === "PROJECT" ? (
-              <DropdownMenuItem
-                className="w-full p-0"
-                onSelect={(event) => {
-                  event.preventDefault();
-                }}
-              >
-                <div className={dashboardMenuButtonWrapperClassName}>
-                  <DeleteDashboardButton
-                    itemId={id}
-                    projectId={projectId}
-                    isTableAction
-                    className={dashboardMenuButtonClassName}
-                  />
-                </div>
-              </DropdownMenuItem>
-            ) : null}
-          </>
-        );
-      },
-    }),
   ] as LangfuseColumnDef<DashboardTableRow>[];
 
   return (
-    <DataTable
-      tableName="dashboards"
-      columns={dashboardColumns}
-      data={
-        dashboards.isPending
-          ? { isLoading: true, isError: false }
-          : dashboards.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: dashboards.error.message,
+    <CloneFirstDialogController
+      projectId={projectId}
+      dashboardId={selectedDashboard?.id ?? ""}
+      dashboardName={selectedDashboard?.name ?? "Dashboard"}
+    >
+      {({ openDialog: openCloneFirstDialog }) => (
+        <DialogController
+          closeOnInteractionOutside={false}
+          size="default"
+          renderContent={({ closeDialog }) =>
+            selectedDashboard ? (
+              <EditDialogDashboardContent
+                closeDialog={closeDialog}
+                projectId={projectId}
+                dashboardId={selectedDashboard.id}
+                initialName={selectedDashboard.name}
+                initialDescription={selectedDashboard.description}
+              />
+            ) : null
+          }
+        >
+          {({ openDialog: openEditDialog }) => (
+            <DialogController
+              closeOnInteractionOutside={false}
+              size="default"
+              renderContent={({ closeDialog }) =>
+                selectedDashboard ? (
+                  <DeleteDialogDashboardContent
+                    closeDialog={closeDialog}
+                    projectId={projectId}
+                    dashboardId={selectedDashboard.id}
+                  />
+                ) : null
               }
-            : {
-                isLoading: false,
-                isError: false,
-                data: safeExtract(dashboards.data, "dashboards", []),
-              }
-      }
-      orderBy={orderByState}
-      setOrderBy={setOrderByState}
-      pagination={{
-        totalCount: dashboards.data?.totalCount ?? null,
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      onRowClick={(row) => {
-        router.push(
-          `/project/${projectId}/dashboards/${encodeURIComponent(row.id)}`,
-        );
-      }}
-      cellPadding="comfortable"
-    />
+            >
+              {({ openDialog: openDeleteDialog }) => (
+                <DataTable
+                  tableName="dashboards"
+                  columns={[
+                    ...dashboardColumns,
+                    createDropdownTableColumn<DashboardTableRow, string>({
+                      id: "actions",
+                      accessorFn: (row) => row.id,
+                      header: "Actions",
+                      size: 70,
+                      renderMenu: (id, { row }) => {
+                        if (!id) return null;
+                        const dashboard = row.original;
+
+                        return (
+                          <>
+                            <DropdownMenuItem
+                              disabled={!hasAccess}
+                              onSelect={() => {
+                                setSelectedDashboard(dashboard);
+                                if (dashboard.owner === "PROJECT") {
+                                  openEditDialog();
+                                  return;
+                                }
+
+                                capture("dashboard:locked_edit_attempt", {
+                                  dashboard_id: dashboard.id,
+                                  attempt: "list_edit",
+                                  surface: "list",
+                                });
+                                openCloneFirstDialog();
+                              }}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="w-full p-0">
+                              <CloneDashboardButton
+                                dashboardId={dashboard.id}
+                                projectId={projectId}
+                                owner={dashboard.owner}
+                              />
+                            </DropdownMenuItem>
+                            {dashboard.owner === "PROJECT" ? (
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                disabled={!hasAccess}
+                                onSelect={() => {
+                                  setSelectedDashboard(dashboard);
+                                  capture(
+                                    "dashboard:delete_dashboard_form_open",
+                                  );
+                                  openDeleteDialog();
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            ) : null}
+                          </>
+                        );
+                      },
+                    }),
+                  ]}
+                  data={
+                    dashboards.isPending
+                      ? { isLoading: true, isError: false }
+                      : dashboards.isError
+                        ? {
+                            isLoading: false,
+                            isError: true,
+                            error: dashboards.error.message,
+                          }
+                        : {
+                            isLoading: false,
+                            isError: false,
+                            data: safeExtract(
+                              dashboards.data,
+                              "dashboards",
+                              [],
+                            ),
+                          }
+                  }
+                  orderBy={orderByState}
+                  setOrderBy={setOrderByState}
+                  pagination={{
+                    totalCount: dashboards.data?.totalCount ?? null,
+                    onChange: setPaginationState,
+                    state: paginationState,
+                  }}
+                  onRowClick={(row) => {
+                    router.push(
+                      `/project/${projectId}/dashboards/${encodeURIComponent(row.id)}`,
+                    );
+                  }}
+                  cellPadding="comfortable"
+                />
+              )}
+            </DialogController>
+          )}
+        </DialogController>
+      )}
+    </CloneFirstDialogController>
   );
 }
