@@ -75,7 +75,7 @@ export function TierAccordionItem({
         </div>
       </AccordionTrigger>
 
-      <AccordionContent className="space-y-4 px-4 pb-4">
+      <AccordionContent className="space-y-4 px-4">
         {/* Tier Name */}
         <FormField
           control={form.control}
