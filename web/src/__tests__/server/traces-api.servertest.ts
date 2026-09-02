@@ -7,9 +7,6 @@ import {
   getTraceById,
   createEvent,
   createOrgProjectAndApiKey,
-  type EventRecordInsertType,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createTracesCh,
   createEventsCh,
@@ -52,17 +49,18 @@ type ObservationEventData = {
   total_cost?: number;
 };
 
-// Helper to create observation/event data in the appropriate format
-// Handles time conversion internally: milliseconds -> microseconds for events table
 const createObservationOrEvent = (
   useEventsTable: boolean,
-  data: ObservationEventData & Partial<EventRecordInsertType>,
+  data: ObservationEventData & {
+    environment?: string;
+    user_id?: string | null;
+    session_id?: string | null;
+    trace_name?: string;
+  },
 ) => {
   const id = data.id ?? randomUUID();
-  const timeMultiplier = useEventsTable ? 1000 : 1; // microseconds vs milliseconds
 
   if (useEventsTable) {
-    // For events table: microseconds, requires span_id
     return createEvent({
       ...data,
       id,
@@ -70,13 +68,8 @@ const createObservationOrEvent = (
       parent_span_id: data.trace_id, // Observations have trace as parent
       type: data.type ?? "SPAN",
       level: data.level ?? "DEFAULT",
-      start_time: data.start_time * timeMultiplier, // Convert ms to microseconds
-      end_time:
-        data.end_time === null
-          ? null
-          : data.end_time
-            ? data.end_time * timeMultiplier
-            : null,
+      start_time: data.start_time,
+      end_time: data.end_time ?? null,
     });
   }
   // For observations table: milliseconds
@@ -159,7 +152,7 @@ const createTraceWithObservations = async (
       name: trace.name ?? "trace",
       trace_name: trace.name ?? "trace",
       type: "GENERATION", // Trace events are typically GENERATION type
-      start_time: trace.timestamp * 1000, // Convert ms to microseconds
+      start_time: trace.timestamp,
       end_time: null,
       environment: trace.environment ?? "default",
       version: trace.version ?? null,
