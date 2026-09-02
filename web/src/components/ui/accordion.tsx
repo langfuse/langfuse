@@ -71,16 +71,19 @@ type AccordionItemProps = Pick<
     children: React.ReactNode;
   };
 
-type AccordionProps = Pick<
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
-  | "children"
-  | "className"
-  | "collapsible"
-  | "defaultValue"
-  | "onValueChange"
-  | "type"
-  | "value"
->;
+type AccordionProps = Omit<
+  Pick<
+    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
+    | "children"
+    | "className"
+    | "collapsible"
+    | "defaultValue"
+    | "onValueChange"
+    | "type"
+    | "value"
+  >,
+  "className"
+> & { className?: "w-full" | "space-y-2" };
 
 function Accordion({ children, className, ...props }: AccordionProps) {
   return (
