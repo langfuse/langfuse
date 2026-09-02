@@ -12,7 +12,6 @@ import { createDropdownTableColumn } from "@/src/components/design-system/table/
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Copy, Edit, Trash2, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -34,76 +33,27 @@ type DashboardTableRow = {
   owner: "PROJECT" | "LANGFUSE";
 };
 
-const dashboardMenuButtonWrapperClassName = "w-full";
-const dashboardMenuButtonClassName = "w-full justify-start";
-
-function CloneDashboardButton({
-  dashboardId,
-  projectId,
-  owner,
-}: {
-  dashboardId: string;
-  projectId: string;
-  owner: DashboardTableRow["owner"];
-}) {
+export function DashboardTable() {
+  const projectId = useProjectIdFromURL() as string;
+  const { setDetailPageList } = useDetailPageLists();
+  const router = useRouter();
   const utils = api.useUtils();
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
   const capture = usePostHogClientCapture();
-
-  const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const [selectedDashboard, setSelectedDashboard] =
+    useState<DashboardTableRow | null>(null);
+  const cloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: () => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard", {
-        source: "list_clone_button",
-        dashboardId,
-        owner,
-      });
       showSuccessToast({
         title: "Dashboard cloned",
         description: "The dashboard has been cloned successfully",
       });
     },
-    onError: (e) => {
-      showErrorToast("Failed to clone dashboard", e.message);
+    onError: (error) => {
+      showErrorToast("Failed to clone dashboard", error.message);
     },
   });
-
-  const handleCloneDashboard = () => {
-    if (!projectId) {
-      console.error("Project ID is missing");
-      return;
-    }
-
-    mutCloneDashboard.mutateAsync({
-      projectId,
-      dashboardId,
-    });
-  };
-
-  return (
-    <div className={dashboardMenuButtonWrapperClassName}>
-      <Button
-        variant="ghost"
-        size="default"
-        className={dashboardMenuButtonClassName}
-        disabled={!hasAccess}
-        onClick={handleCloneDashboard}
-      >
-        <Copy className="mr-2 h-4 w-4" />
-        Clone
-      </Button>
-    </div>
-  );
-}
-
-export function DashboardTable() {
-  const projectId = useProjectIdFromURL() as string;
-  const { setDetailPageList } = useDetailPageLists();
-  const router = useRouter();
-  const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
-  const [selectedDashboard, setSelectedDashboard] =
-    useState<DashboardTableRow | null>(null);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -272,12 +222,28 @@ export function DashboardTable() {
                               <Edit className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="w-full p-0">
-                              <CloneDashboardButton
-                                dashboardId={dashboard.id}
-                                projectId={projectId}
-                                owner={dashboard.owner}
-                              />
+                            <DropdownMenuItem
+                              disabled={!hasAccess}
+                              onSelect={() => {
+                                cloneDashboard.mutate(
+                                  {
+                                    projectId,
+                                    dashboardId: dashboard.id,
+                                  },
+                                  {
+                                    onSuccess: () => {
+                                      capture("dashboard:clone_dashboard", {
+                                        source: "list_clone_button",
+                                        dashboardId: dashboard.id,
+                                        owner: dashboard.owner,
+                                      });
+                                    },
+                                  },
+                                );
+                              }}
+                            >
+                              <Copy className="mr-2 h-4 w-4" />
+                              Clone
                             </DropdownMenuItem>
                             {dashboard.owner === "PROJECT" ? (
                               <DropdownMenuItem
