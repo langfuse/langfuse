@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -75,7 +76,35 @@ type TabsListProps = {
   children: React.ReactNode;
 } & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
 
-const Tabs = TabsPrimitive.Root;
+type TabsRootProps = {
+  children?: React.ReactNode;
+  className?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  ref?: React.Ref<HTMLDivElement>;
+  value?: string;
+};
+
+function Tabs({
+  children,
+  className,
+  defaultValue,
+  onValueChange,
+  ref,
+  value,
+}: TabsRootProps) {
+  return (
+    <TabsPrimitive.Root
+      className={className}
+      defaultValue={defaultValue}
+      onValueChange={onValueChange}
+      ref={ref}
+      value={value}
+    >
+      {children}
+    </TabsPrimitive.Root>
+  );
+}
 
 function TabsList({
   "aria-label": ariaLabel,
