@@ -154,6 +154,7 @@ export default [
       "src/**/*.clienttest.{ts,tsx}",
       "src/**/*.servertest.{ts,tsx}",
       "src/**/*.stories.{ts,tsx}",
+      "src/components/layouts/**",
     ],
     rules: {
       "@repo/no-null-render": "error",

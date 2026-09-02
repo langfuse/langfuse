@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * Authenticated layout variant
  * Full application layout with sidebar, navigation, support drawer, and payment banner
