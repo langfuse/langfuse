@@ -29,7 +29,6 @@ const itemVariants = Object.keys({
   default: true,
   none: true,
   top: true,
-  card: true,
 } satisfies Record<ItemVariant, true>) as ItemVariant[];
 
 const contentSizes = Object.keys({
@@ -73,28 +72,6 @@ export const Start = meta.story({
           Additional settings stay collapsed until needed.
         </Accordion.Content>
       </Accordion.Item>
-    ),
-  },
-});
-
-export const Card = meta.story({
-  args: {
-    gap: "sm",
-    type: "multiple",
-    defaultValue: ["tier-1"],
-    children: (
-      <>
-        <Accordion.Item value="tier-1" variant="card">
-          <Accordion.Trigger variant="plain">Default tier</Accordion.Trigger>
-          <Accordion.Content>Base pricing for this model.</Accordion.Content>
-        </Accordion.Item>
-        <Accordion.Item value="tier-2" variant="card">
-          <Accordion.Trigger variant="plain">Volume tier</Accordion.Trigger>
-          <Accordion.Content>
-            Lower rates after a token threshold.
-          </Accordion.Content>
-        </Accordion.Item>
-      </>
     ),
   },
 });

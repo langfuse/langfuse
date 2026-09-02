@@ -49,7 +49,6 @@ const accordionItemVariants = cva("", {
       default: "border-b",
       none: "",
       top: "border-t",
-      card: "bg-muted/30 rounded-lg border",
     },
     inset: {
       none: "",
