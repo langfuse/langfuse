@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Accordion } from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,

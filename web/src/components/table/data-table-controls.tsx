@@ -35,7 +35,7 @@ import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { Accordion } from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,

@@ -1,6 +1,6 @@
 import type { DatasetItemDomain } from "@langfuse/shared";
 import DiffViewer from "@/src/components/DiffViewer";
-import { Accordion } from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { stringifyDatasetItemData } from "../utils/datasetItemUtils";
 
 type DatasetItemDiffViewProps = {

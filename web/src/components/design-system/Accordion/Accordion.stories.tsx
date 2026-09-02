@@ -1,8 +1,8 @@
 import React from "react";
 import { expect, userEvent, within } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
-import { Accordion } from "./accordion";
+import preview from "../../../../.storybook/preview";
+import { Accordion } from "./Accordion";
 
 type TriggerVariant = NonNullable<
   React.ComponentProps<typeof Accordion.Trigger>["variant"]

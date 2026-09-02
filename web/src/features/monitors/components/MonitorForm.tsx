@@ -8,7 +8,7 @@ import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Accordion } from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import {
   Card,
   CardContent,

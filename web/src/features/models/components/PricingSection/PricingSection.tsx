@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
-import { Accordion } from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { derivePriorities } from "@/src/features/models/fns/derivePriorities";
 import { makeUsageTypeKeys } from "@/src/features/models/fns/makeUsageTypeKeys";
 import { TierAccordionItem } from "./components/TierAccordionItem";
