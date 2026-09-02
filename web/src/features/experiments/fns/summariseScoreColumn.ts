@@ -54,7 +54,7 @@ const countValues = (aggregate: AggregatedScoreData) =>
  * The score read as a number, so two items can be ordered. A boolean's ordered
  * reading is its true-rate (false < true); a categorical has none.
  */
-const readOrderedScoreValue = (
+export const readOrderedScoreValue = (
   aggregate: AggregatedScoreData | null,
   dataType: ScoreColumnDataType,
 ): number | null => {
