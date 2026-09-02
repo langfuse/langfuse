@@ -3,9 +3,22 @@
 
 import * as React from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
+
+const accordionContentVariants = cva("", {
+  variants: {
+    size: {
+      default: "pt-0 pb-4",
+      compact: "px-3 pt-1 pb-1",
+    },
+  },
+  defaultVariants: {
+    size: "default",
+  },
+});
 
 const Accordion = AccordionPrimitive.Root;
 
@@ -47,15 +60,22 @@ type AccordionContentProps = Omit<
     "children" | "className"
   >,
   "children" | "className"
-> & {
-  children: React.ReactNode;
-  className?: "max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1";
-};
+> &
+  Pick<VariantProps<typeof accordionContentVariants>, "size"> & {
+    children: React.ReactNode;
+    className?: "max-h-[40dvh] overflow-x-auto";
+  };
 
-function AccordionContent({ children, className }: AccordionContentProps) {
+function AccordionContent({
+  children,
+  className,
+  size,
+}: AccordionContentProps) {
   return (
     <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
-      <div className={cn("pt-0 pb-4", className)}>{children}</div>
+      <div className={cn(accordionContentVariants({ size }), className)}>
+        {children}
+      </div>
     </AccordionPrimitive.Content>
   );
 }

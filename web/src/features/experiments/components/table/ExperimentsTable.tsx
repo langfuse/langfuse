@@ -885,7 +885,10 @@ export default function ExperimentsTable({
                     <span className="text-sm font-bold">Charts</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
+                <AccordionContent
+                  size="compact"
+                  className="max-h-[40dvh] overflow-x-auto"
+                >
                   <ExperimentChartsGrid
                     projectId={projectId}
                     experiments={chartExperiments}
