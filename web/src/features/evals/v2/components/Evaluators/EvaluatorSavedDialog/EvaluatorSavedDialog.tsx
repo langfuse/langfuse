@@ -110,12 +110,13 @@ export function EvaluatorSavedDialog({
                         )}
                       >
                         <div className="flex items-start gap-2">
-                          <RadioGroupItem
-                            id={id}
-                            value={option.value}
-                            aria-controls={contentId}
-                            className="mt-0.5"
-                          />
+                          <div className="mt-0.5">
+                            <RadioGroupItem
+                              id={id}
+                              value={option.value}
+                              aria-controls={contentId}
+                            />
+                          </div>
                           <div className="min-w-0 flex-1">
                             <label
                               htmlFor={id}

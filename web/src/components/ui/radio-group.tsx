@@ -22,7 +22,7 @@ RadioGroup.displayName = RadioGroupPrimitive.Root.displayName;
 type RadioGroupItemProps = Omit<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>,
   "className"
-> & { className?: "mt-0.5" };
+> & {};
 
 const RadioGroupItem = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Item>,
