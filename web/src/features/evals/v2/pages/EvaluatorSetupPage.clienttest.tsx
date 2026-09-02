@@ -56,6 +56,7 @@ describe("getCodeEvaluatorAssistantPrompt", () => {
     expect(prompt).toContain('traceId: "trace-1"');
     expect(prompt).toContain('startTime: "2026-09-02T07:30:00.000Z"');
     expect(prompt).toContain("test the updated evaluator");
+    expect(prompt).toContain("do not set silent mode");
   });
 
   it("does not claim a sample is selected when none is available", () => {
@@ -83,6 +84,7 @@ describe("startCodeEvaluatorAssistantHandoff", () => {
     await expect(
       startCodeEvaluatorAssistantHandoff({
         request: "Return zero for empty outputs",
+        conversationId: "conversation-1",
         sampleObservation: {
           observationId: "observation-1",
           traceId: "trace-1",
@@ -100,6 +102,7 @@ describe("startCodeEvaluatorAssistantHandoff", () => {
     expect(callOrder).toEqual(["persist", "submit"]);
     expect(submitToAssistant).toHaveBeenCalledWith(expect.any(String), {
       newConversation: true,
+      conversationId: "conversation-1",
       entryPoint: "code-evaluator-editor",
     });
   });
@@ -110,6 +113,7 @@ describe("startCodeEvaluatorAssistantHandoff", () => {
     await expect(
       startCodeEvaluatorAssistantHandoff({
         request: "Return zero for empty outputs",
+        conversationId: "conversation-1",
         openAssistant: () => true,
         persistEvaluator: async () => null,
         submitToAssistant,

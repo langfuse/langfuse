@@ -7,6 +7,7 @@ import {
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
+import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 
 export type InAppAgentTrpcInvalidationTarget =
   | "annotationQueues"
@@ -213,6 +214,7 @@ export type CompletedToolCall = {
   toolCallId: string;
   toolName: string;
   toolArguments?: unknown;
+  toolResultContent?: string;
   toolError?: unknown;
 };
 
@@ -247,7 +249,15 @@ export function getCompletedToolCalls(
   return Array.from(toolCalls.values()).flatMap((toolCall) => {
     const result = toolResults.get(toolCall.toolCallId);
     // No result message means the call never completed, so nothing was written.
-    return result ? [{ ...toolCall, toolError: result.error }] : [];
+    return result
+      ? [
+          {
+            ...toolCall,
+            toolResultContent: result.content,
+            toolError: result.error,
+          },
+        ]
+      : [];
   });
 }
 
@@ -261,11 +271,13 @@ export function performToolSideEffectsForCompletedToolCalls({
   toolCalls,
   handledToolCallIds,
   projectId,
+  conversationId,
   utils,
 }: {
   toolCalls: readonly CompletedToolCall[];
   handledToolCallIds: Set<string>;
   projectId: string;
+  conversationId: string | null;
   utils: ReturnType<typeof api.useUtils>;
 }) {
   const targets = new Set<InAppAgentTrpcInvalidationTarget>();
@@ -290,6 +302,25 @@ export function performToolSideEffectsForCompletedToolCalls({
       }
     }
 
+    if (toolCall.toolName === "langfuse_testEvaluator") {
+      const evaluatorId = getEvaluatorIdFromToolArguments(
+        toolCall.toolArguments,
+      );
+      const result = getEvaluatorTestResult(toolCall);
+      if (evaluatorId && result && conversationId) {
+        evaluatorAssistantTestResultStore.publish({
+          projectId,
+          evaluatorId,
+          conversationId,
+          observationId: getObservationIdFromToolArguments(
+            toolCall.toolArguments,
+          ),
+          toolCallId: toolCall.toolCallId,
+          result,
+        });
+      }
+    }
+
     for (const target of getInAppAgentTrpcInvalidationTargets(
       toolCall.toolName,
     )) {
@@ -308,19 +339,90 @@ export function performToolSideEffectsForCompletedToolCalls({
 }
 
 function getEvaluatorIdFromToolArguments(toolArguments: unknown) {
+  return getStringFromToolArguments(toolArguments, "evaluatorId");
+}
+
+function getObservationIdFromToolArguments(toolArguments: unknown) {
+  return getStringFromToolArguments(toolArguments, "observationId");
+}
+
+function getStringFromToolArguments(
+  toolArguments: unknown,
+  key: "evaluatorId" | "observationId",
+) {
   const parsedArguments =
     typeof toolArguments === "string"
       ? safeJsonParse(toolArguments)
       : toolArguments;
 
-  if (
-    typeof parsedArguments !== "object" ||
-    parsedArguments === null ||
-    !("evaluatorId" in parsedArguments) ||
-    typeof parsedArguments.evaluatorId !== "string"
-  ) {
+  if (typeof parsedArguments !== "object" || parsedArguments === null) {
     return null;
   }
 
-  return parsedArguments.evaluatorId;
+  const value = (parsedArguments as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
+}
+
+function getEvaluatorTestResult(toolCall: CompletedToolCall) {
+  if (toolCall.toolError) {
+    return { requestError: getToolErrorMessage(toolCall.toolError) };
+  }
+
+  return parseEvaluatorTestResultContent(toolCall.toolResultContent);
+}
+
+function parseEvaluatorTestResultContent(
+  content: unknown,
+  depth = 0,
+): Record<string, unknown> | null {
+  if (depth > 3) {
+    return null;
+  }
+
+  const parsed = typeof content === "string" ? safeJsonParse(content) : content;
+  if (typeof parsed !== "object" || parsed === null) {
+    return null;
+  }
+  const record = parsed as Record<string, unknown>;
+
+  if (typeof record.success === "boolean") {
+    return record;
+  }
+
+  if (record.output !== undefined) {
+    return parseEvaluatorTestResultContent(record.output, depth + 1);
+  }
+
+  if (Array.isArray(record.content)) {
+    const contentItems = record.content as unknown[];
+    const textContent: unknown = contentItems.find((item) => {
+      if (typeof item !== "object" || item === null) {
+        return false;
+      }
+      const text = (item as Record<string, unknown>).text;
+      return typeof text === "string";
+    });
+    if (textContent) {
+      return parseEvaluatorTestResultContent(
+        (textContent as Record<string, unknown>).text,
+        depth + 1,
+      );
+    }
+  }
+
+  return null;
+}
+
+function getToolErrorMessage(error: unknown) {
+  const parsed = typeof error === "string" ? safeJsonParse(error) : error;
+  if (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    "message" in parsed &&
+    typeof parsed.message === "string"
+  ) {
+    return parsed.message;
+  }
+
+  return typeof error === "string" ? error : "Evaluator test failed";
 }

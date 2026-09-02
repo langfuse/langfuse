@@ -62,6 +62,11 @@ import {
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
+import {
+  evaluatorAssistantTestResultStore,
+  useEvaluatorAssistantTestResult,
+} from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 
 type InitialEvaluator = {
   id: string;
@@ -139,7 +144,7 @@ After the update, test the updated evaluator against the sample observation sele
 - traceId: "${sampleObservation.traceId}"
 - startTime: "${sampleObservation.startTime}"
 
-Use the evaluator test tool with these references; do not substitute another observation.`
+Use the evaluator test tool with these references; do not substitute another observation and do not set silent mode so the result can be shown in the evaluator test panel.`
     : "";
 
   return `Update the code evaluator with evaluator ID "${evaluatorId}" for this request:
@@ -152,11 +157,13 @@ First load this evaluator and preserve its existing configuration unless the req
 export async function startCodeEvaluatorAssistantHandoff({
   request,
   sampleObservation,
+  conversationId,
   openAssistant,
   persistEvaluator,
   submitToAssistant,
 }: {
   request: string;
+  conversationId: string;
   sampleObservation?: {
     observationId: string;
     traceId: string;
@@ -168,6 +175,7 @@ export async function startCodeEvaluatorAssistantHandoff({
     prompt: string,
     options: {
       newConversation: true;
+      conversationId: string;
       entryPoint: "code-evaluator-editor";
     },
   ) => Promise<boolean>;
@@ -185,6 +193,7 @@ export async function startCodeEvaluatorAssistantHandoff({
     }),
     {
       newConversation: true,
+      conversationId,
       entryPoint: "code-evaluator-editor",
     },
   );
@@ -334,6 +343,11 @@ export function EvaluatorSetupPage(
     null,
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
+  const assistantTestResult = useEvaluatorAssistantTestResult(
+    projectId,
+    evaluatorId,
+  );
+  const handledAssistantTestCallIdRef = useRef<string | null>(null);
   const hasRequestedName = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -453,6 +467,31 @@ export function EvaluatorSetupPage(
   });
   const suggestName = api.evalsV2.suggestName.useMutation();
   const suggestDescription = api.evalsV2.suggestDescription.useMutation();
+
+  useEffect(() => {
+    if (
+      !assistantTestResult ||
+      handledAssistantTestCallIdRef.current === assistantTestResult.toolCallId
+    ) {
+      return;
+    }
+
+    handledAssistantTestCallIdRef.current = assistantTestResult.toolCallId;
+    const result = assistantTestResult.result;
+    if (result && typeof result === "object" && "executionTraceId" in result) {
+      setHasCompletedTestCall(true);
+    }
+    setLastTestRunCostUsd(
+      result &&
+        typeof result === "object" &&
+        "estimatedCostUsd" in result &&
+        typeof result.estimatedCostUsd === "number"
+        ? result.estimatedCostUsd
+        : null,
+    );
+    setRawResultOpen(false);
+    evaluatorSetupStore.getState().actions.setTestPanelOpen(true);
+  }, [assistantTestResult, evaluatorSetupStore]);
 
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
@@ -711,12 +750,15 @@ export function EvaluatorSetupPage(
   };
 
   const submitCodeEvaluatorAssistantRequest = async (request: string) => {
+    setTestResult(null);
+    const conversationId = createInAppAgentConversationId();
     const sampleObservation = getCodeEvaluatorAssistantSampleObservation(
       evaluatorSetupStore.getState().selectedObservation,
     );
     const handoff = await startCodeEvaluatorAssistantHandoff({
       request,
       sampleObservation,
+      conversationId,
       openAssistant: () => openAssistant("code_evaluator_editor"),
       persistEvaluator: async () => {
         const persistedEvaluatorId = await save("assistant");
@@ -725,6 +767,13 @@ export function EvaluatorSetupPage(
             "Couldn't save evaluator",
             "Review the code for validation errors, then try again.",
           );
+        } else {
+          evaluatorAssistantTestResultStore.expect({
+            projectId,
+            evaluatorId: persistedEvaluatorId,
+            conversationId,
+            observationId: sampleObservation?.observationId ?? null,
+          });
         }
         return persistedEvaluatorId;
       },
@@ -733,6 +782,7 @@ export function EvaluatorSetupPage(
     if (!handoff) return false;
 
     if (!handoff.started) {
+      evaluatorAssistantTestResultStore.clear(projectId, handoff.evaluatorId);
       showErrorToast(
         "Assistant didn't start",
         "The evaluator was saved. Open AI input and try again.",
@@ -763,6 +813,7 @@ export function EvaluatorSetupPage(
   };
 
   const runTest = () => {
+    evaluatorAssistantTestResultStore.clear(projectId, evaluatorId);
     const state = evaluatorSetupStore.getState();
     const { definition } = prepareEvaluatorDraft(state);
     const selectedObservation = state.selectedObservation;
@@ -847,8 +898,8 @@ export function EvaluatorSetupPage(
           }}
         />
       }
-      testResult={testResult}
-      testPending={testEvaluator.isPending}
+      testResult={assistantTestResult?.result ?? testResult}
+      testPending={!assistantTestResult && testEvaluator.isPending}
       rawResultOpen={rawResultOpen}
       onRawResultOpenChange={setRawResultOpen}
       onRunTest={runTest}
@@ -999,6 +1050,7 @@ export function EvaluatorSetupPage(
             });
           }}
           onRestoreVersion={(version) => {
+            evaluatorAssistantTestResultStore.clear(projectId, evaluatorId);
             restoreEvaluatorVersion({
               store: evaluatorSetupStore,
               version,

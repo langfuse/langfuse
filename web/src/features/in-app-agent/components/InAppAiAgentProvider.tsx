@@ -73,6 +73,7 @@ import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
+import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -327,6 +328,13 @@ function InAppAiAgentProviderInner({
   );
   const handledToolCallIdsRef = useRef(new Set<string>());
   const submitInFlightRef = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      evaluatorAssistantTestResultStore.clearProject(projectId);
+    },
+    [projectId],
+  );
 
   const conversationListQuery =
     api.inAppAgent.listConversations.useInfiniteQuery(
@@ -757,11 +765,17 @@ function InAppAiAgentProviderInner({
                 {
                   toolCallId,
                   ...toolCallMetadata,
+                  toolResultContent:
+                    typeof event.content === "string"
+                      ? String(event.content)
+                      : undefined,
                   toolError: event.error,
                 },
               ],
               handledToolCallIds: handledToolCallIdsRef.current,
               projectId,
+              conversationId:
+                backgroundSessionRef.current?.conversationId ?? null,
               utils,
             }).catch((error: unknown) => {
               console.error(
@@ -902,6 +916,7 @@ function InAppAiAgentProviderInner({
             toolCalls: getCompletedToolCalls(messages),
             handledToolCallIds: handledToolCallIdsRef.current,
             projectId,
+            conversationId,
             utils,
           }).catch((error: unknown) => {
             console.error(
@@ -1048,7 +1063,7 @@ function InAppAiAgentProviderInner({
       const startsNewConversation =
         options?.newConversation === true || !selectedConversationId;
       const conversationId = startsNewConversation
-        ? createInAppAgentConversationId()
+        ? (options?.conversationId ?? createInAppAgentConversationId())
         : selectedConversationId;
       const shouldRestorePersistedMessages =
         !startsNewConversation &&

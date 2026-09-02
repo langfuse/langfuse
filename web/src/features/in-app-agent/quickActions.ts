@@ -67,6 +67,8 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
 export type InAppAgentSubmitOptions = {
   /** Force a fresh conversation instead of appending to the selected one. */
   newConversation?: boolean;
+  /** Use a caller-generated id when starting a context-bound conversation. */
+  conversationId?: string;
   /** Which surface sent the message; PostHog only. Defaults to "chat". */
   entryPoint?:
     | "chat"
