@@ -141,17 +141,13 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       defaultHidden: true,
     }),
-    {
+    createTextTableColumn<ScoreConfigTableRow, boolean>({
       accessorKey: "isArchived",
-      id: "isArchived",
       header: "Status",
       size: 80,
       enableHiding: true,
-      cell: ({ row }) => {
-        const { isArchived } = row.original;
-        return isArchived ? "Archived" : "Active";
-      },
-    },
+      mapValue: (isArchived) => (isArchived ? "Archived" : "Active"),
+    }),
     {
       accessorKey: "action",
       header: "Action",

@@ -23,6 +23,7 @@ const DESIGN_COMPONENT_STORIES = [
   "LangfuseLogo/LangfuseLogo",
   "PasswordInput/PasswordInput",
   "Progress/Progress",
+  "RadioGroup/RadioGroup",
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",

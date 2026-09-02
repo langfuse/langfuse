@@ -36,8 +36,8 @@ export const CloudConfigSchema = z.object({
       // validate the uuid before persisting. Change the stored schema first,
       // writers second, if the id format ever loosens.
       organizationId: z.uuid(),
-      // CHB attached plan id (`data.id` on webhook events)
-      bundleId: z.string().nullish(),
+      // CHB attached plan id (`data.id` on webhook events, `id` on GET /attachedplan)
+      attachedPlanId: z.string().nullish(),
       // Validated against the shared plan-code enum so downstream resolution is
       // an exhaustive lookup. `.catch(null)` contains the damage if a code ever
       // drifts (CHB renames a tier, or ships one before we deploy support for
