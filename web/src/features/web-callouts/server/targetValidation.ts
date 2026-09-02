@@ -57,6 +57,9 @@ export const assertTargetBelongsToProject = async ({
       traceId: input.traceId,
       projectId: input.projectId,
       useEventsTable,
+      // The observation belongs to this trace, so the trace timestamp is a tight
+      // lower bound for its start_time and lets the lookup prune events_full.
+      startTimeLowerBound: trace?.timestamp,
     });
 
     if (!observation) {
@@ -120,17 +123,20 @@ const getObservationForProject = async ({
   traceId,
   projectId,
   useEventsTable,
+  startTimeLowerBound,
 }: {
   observationId: string;
   traceId: string;
   projectId: string;
   useEventsTable: boolean;
+  startTimeLowerBound?: Date;
 }) => {
   if (useEventsTable) {
     const observation = await tryGetObservationFromEvents({
       observationId,
       traceId,
       projectId,
+      startTimeLowerBound,
     });
     if (observation) return observation;
   }
@@ -139,11 +145,17 @@ const getObservationForProject = async ({
     observationId,
     traceId,
     projectId,
+    startTimeLowerBound,
   });
   if (observation) return observation;
 
   if (shouldTryEventsTableFallback(useEventsTable)) {
-    return tryGetObservationFromEvents({ observationId, traceId, projectId });
+    return tryGetObservationFromEvents({
+      observationId,
+      traceId,
+      projectId,
+      startTimeLowerBound,
+    });
   }
 
   return undefined;
@@ -204,10 +216,12 @@ const tryGetObservation = async ({
   observationId,
   traceId,
   projectId,
+  startTimeLowerBound,
 }: {
   observationId: string;
   traceId: string;
   projectId: string;
+  startTimeLowerBound?: Date;
 }) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Per customer requirement, web callouts should also work on v3.
@@ -215,6 +229,7 @@ const tryGetObservation = async ({
       id: observationId,
       projectId,
       traceId,
+      startTimeLowerBound,
       fetchWithInputOutput: false,
       renderingProps: {
         truncated: true,
@@ -230,16 +245,19 @@ const tryGetObservationFromEvents = async ({
   observationId,
   traceId,
   projectId,
+  startTimeLowerBound,
 }: {
   observationId: string;
   traceId: string;
   projectId: string;
+  startTimeLowerBound?: Date;
 }) => {
   try {
     return await getObservationByIdFromEventsTable({
       id: observationId,
       projectId,
       traceId,
+      startTimeLowerBound,
       fetchWithInputOutput: false,
       renderingProps: {
         truncated: true,
