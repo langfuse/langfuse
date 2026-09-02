@@ -404,18 +404,28 @@ async function persistAndPropagate(params: {
     traceException(error);
   }
 
-  auditLog({
-    session: {
-      user: { id: "clickhouse-webhook" },
+  // Post-commit as well: the state change stands, a missing audit row is
+  // surfaced rather than retried.
+  try {
+    await auditLog({
+      session: {
+        user: { id: "clickhouse-webhook" },
+        orgId: parsedOrg.id,
+      },
       orgId: parsedOrg.id,
-    },
-    orgId: parsedOrg.id,
-    resourceType: "organization",
-    resourceId: parsedOrg.id,
-    action: `BillingService.chb.${event.type}`,
-    before: parsedOrg.cloudConfig,
-    after: updatedCloudConfig,
-  });
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: `BillingService.chb.${event.type}`,
+      before: parsedOrg.cloudConfig,
+      after: updatedCloudConfig,
+    });
+  } catch (error) {
+    logger.error(
+      `[CHB Webhook] Failed to write the audit log for ${event.type} on org ${parsedOrg.id}`,
+      error,
+    );
+    traceException(error);
+  }
 
   return updatedCloudConfig;
 }

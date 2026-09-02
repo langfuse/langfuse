@@ -228,6 +228,10 @@ describe("chbWebhookHandler", () => {
     mocks.redisDel.mockResolvedValue(1);
     mocks.sendChbProjectEvent.mockResolvedValue(undefined);
     mocks.createDefaultSpendAlertsForPlan.mockResolvedValue(undefined);
+    // clearAllMocks keeps mockRejectedValue implementations, so every mock a
+    // test rejects has to be pinned back here or it leaks into the next test.
+    mocks.invalidateCachedOrgApiKeys.mockResolvedValue(undefined);
+    mocks.auditLog.mockResolvedValue(undefined);
   });
 
   const orgColumnsOfUpdate = () =>
@@ -413,5 +417,22 @@ describe("chbWebhookHandler", () => {
     expect(response.status).toBe(200);
     expect(mocks.redisDel).not.toHaveBeenCalled();
     expect(mocks.traceException).toHaveBeenCalled();
+  });
+
+  it("keeps a failed audit log write out of the retry path", async () => {
+    mocks.auditLog.mockRejectedValue(new Error("connection reset"));
+
+    const response = await chbWebhookHandler(
+      post(bundleCreated({ status: "active" })),
+    );
+
+    // Post-commit like the cache invalidation: the state change is applied,
+    // so the missing audit row is logged and paged rather than retried.
+    expect(response.status).toBe(200);
+    expect(mocks.auditLog).toHaveBeenCalledTimes(1);
+    expect(mocks.redisDel).not.toHaveBeenCalled();
+    expect(mocks.traceException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "connection reset" }),
+    );
   });
 });
