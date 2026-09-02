@@ -989,6 +989,7 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
       isLive: false,
+      emptyValue: "-",
       isLoading: (_value, { row }) => isMetricPending(row.original.id),
       getStatus: (level) =>
         level ? getObservationLevelStatus(level) : undefined,

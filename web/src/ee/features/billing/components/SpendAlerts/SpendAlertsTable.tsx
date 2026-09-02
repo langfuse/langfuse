@@ -85,6 +85,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
       accessorFn: (row) => row.triggeredAt,
       header: "Status",
       size: 110,
+      isLive: false,
       getStatus: (triggeredAt) => (triggeredAt ? "triggered" : "active"),
     }),
     {

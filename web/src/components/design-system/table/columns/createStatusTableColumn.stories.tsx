@@ -1,3 +1,5 @@
+import { type ReactNode } from "react";
+
 import preview from "../../../../../.storybook/preview";
 
 import {
@@ -14,10 +16,12 @@ function StatusTableColumnStory({
   data,
   isLive = true,
   isLoading,
+  emptyValue,
 }: {
   data: AsyncTableData<Row[]>;
   isLive?: boolean;
   isLoading?: (status: string | null | undefined) => boolean;
+  emptyValue?: ReactNode;
 }) {
   const columns = [
     createStatusTableColumn<Row, string>({
@@ -26,6 +30,7 @@ function StatusTableColumnStory({
       getStatus: (status) => status ?? undefined,
       isLive,
       isLoading,
+      emptyValue,
     }),
   ];
 
@@ -77,6 +82,7 @@ export const EmptyValue = meta.story({
       isError: false,
       data: [{ status: null }],
     },
+    emptyValue: "-",
   },
 });
 

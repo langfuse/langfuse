@@ -1,5 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -18,6 +19,7 @@ export function createStatusTableColumn<
   getStatus,
   isLive,
   isLoading,
+  emptyValue,
   ...options
 }: TableColumnOptions<TData, TValue> & {
   getStatus: (
@@ -29,6 +31,7 @@ export function createStatusTableColumn<
     value: TValue | null | undefined,
     context: CellContext<TData, TValue | null | undefined>,
   ) => boolean;
+  emptyValue?: ReactNode;
 }) {
   const loadingCell = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
 
@@ -41,7 +44,11 @@ export function createStatusTableColumn<
       }
 
       const status = getStatus(value, context);
-      return status ? <StatusBadge type={status} isLive={isLive} /> : null;
+      return status ? (
+        <StatusBadge type={status} isLive={isLive} />
+      ) : (
+        (emptyValue ?? null)
+      );
     },
   });
 }
