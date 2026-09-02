@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Redis } from "ioredis";
 
 vi.mock("../../env", () => ({
@@ -11,6 +11,7 @@ vi.mock("../../env", () => ({
 
 import { env } from "../../env";
 import { safeMultiGet, scanKeys, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 import {
   buildRedisErrorContext,
   formatRedisErrorMessage,
@@ -294,94 +295,36 @@ describe("redisQueueRetryOptions", () => {
   });
 
   describe("reconnectOnError", () => {
-    // Re-import per test so the module-level error dedupe state is fresh.
-    let options: typeof redisQueueRetryOptions;
-    let logger: {
-      warn: ReturnType<typeof vi.fn>;
-      debug: ReturnType<typeof vi.fn>;
-    };
-
-    beforeEach(async () => {
-      vi.resetModules();
-      const redisModule = await import("./redis.js");
-      options = redisModule.redisQueueRetryOptions;
-      const loggerModule = await import("../logger.js");
-      logger = {
-        warn: vi
-          .spyOn(loggerModule.logger, "warn")
-          .mockImplementation(() => loggerModule.logger),
-        debug: vi
-          .spyOn(loggerModule.logger, "debug")
-          .mockImplementation(() => loggerModule.logger),
-      };
-    });
-
     afterEach(() => {
-      vi.useRealTimers();
       vi.restoreAllMocks();
     });
 
-    it("logs a reconnect error and does not reconnect for ordinary errors", () => {
-      const result = options.reconnectOnError!(
+    it("logs ordinary connection errors and does not reconnect", () => {
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
         new Error("getaddrinfo ENOTFOUND langfuse-redis"),
       );
-      expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(result).toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
     });
 
-    it("collapses repeated identical errors within the interval", () => {
-      const err = new Error("getaddrinfo ENOTFOUND langfuse-redis");
-      options.reconnectOnError!(err);
-      options.reconnectOnError!(err);
-      options.reconnectOnError!(err);
-      expect(logger.warn).toHaveBeenCalledTimes(1);
-    });
-
-    it("logs the identical error again after the interval elapses", async () => {
-      vi.useFakeTimers();
-      const err = new Error("getaddrinfo ENOTFOUND langfuse-redis");
-      options.reconnectOnError!(err);
-      vi.setSystemTime(Date.now() + 60_001);
-      options.reconnectOnError!(err);
-      expect(logger.warn).toHaveBeenCalledTimes(2);
-    });
-
-    it("logs distinct error messages immediately", () => {
-      options.reconnectOnError!(
-        new Error("getaddrinfo ENOTFOUND langfuse-redis"),
-      );
-      options.reconnectOnError!(new Error("ECONNREFUSED 127.0.0.1:6379"));
-      expect(logger.warn).toHaveBeenCalledTimes(2);
-    });
-
-    it("suppresses alternating error messages, not just back-to-back repeats", () => {
-      // During a real outage with ~40 concurrent queue connections the same
-      // two errors can alternate (A-B-A-B). A single-slot dedupe would log
-      // every occurrence; per-message suppression collapses them.
-      const errA = new Error("getaddrinfo ENOTFOUND langfuse-redis");
-      const errB = new Error("ECONNREFUSED 127.0.0.1:6379");
-      options.reconnectOnError!(errA);
-      options.reconnectOnError!(errB);
-      options.reconnectOnError!(errA);
-      options.reconnectOnError!(errB);
-      options.reconnectOnError!(errA);
-      expect(logger.warn).toHaveBeenCalledTimes(2); // once per distinct message
-    });
-
-    it("returns 2 for READONLY errors and still logs", () => {
-      const result = options.reconnectOnError!(
+    it("returns 2 for READONLY errors so the command is retried after reconnect", () => {
+      vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
         new Error("READONLY You can't write against a read only replica."),
       );
       expect(result).toBe(2);
-      expect(logger.warn).toHaveBeenCalledTimes(1);
     });
 
-    it("treats MOVED redirects as debug and does not reconnect", () => {
-      const result = options.reconnectOnError!(
+    it("treats MOVED redirects as debug noise and does not reconnect", () => {
+      const debug = vi.spyOn(logger, "debug").mockImplementation(() => logger);
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
         new Error("MOVED 3999 127.0.0.1:6381"),
       );
-      expect(logger.debug).toHaveBeenCalledTimes(1);
       expect(result).toBe(false);
+      expect(debug).toHaveBeenCalledTimes(1);
+      expect(warn).not.toHaveBeenCalled();
     });
   });
 });

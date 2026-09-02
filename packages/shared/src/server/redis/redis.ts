@@ -34,48 +34,15 @@ const defaultRedisOptions: Partial<RedisOptions> = {
 
 const REDIS_SCAN_COUNT = 1000;
 
-// Logs the first occurrence of a reconnect error message, then suppresses
-// repeats of that same message for a while. During an outage every queue
-// connection fails with the same message in lockstep, and logging each
-// occurrence only adds noise; distinct messages are still logged immediately.
-// Suppression is keyed per distinct message so alternating errors (e.g.
-// ENOTFOUND / ECONNREFUSED flapping) do not defeat the dedupe.
-const reconnectErrorLogTimestamps = new Map<string, number>();
-const REDIS_RECONNECT_ERROR_LOG_INTERVAL_MS = 60_000;
-const REDIS_RECONNECT_ERROR_LOG_MAX_KEYS = 100;
-
-// Bounded housekeeping: once the map grows past the cap, drop expired entries
-// (and, if still full, everything older than the interval) so a rotating set
-// of unique error messages cannot grow it without bound.
-const pruneReconnectErrorLogTimestamps = (now: number) => {
-  if (reconnectErrorLogTimestamps.size < REDIS_RECONNECT_ERROR_LOG_MAX_KEYS) {
-    return;
-  }
-  for (const [message, at] of reconnectErrorLogTimestamps) {
-    if (now - at >= REDIS_RECONNECT_ERROR_LOG_INTERVAL_MS) {
-      reconnectErrorLogTimestamps.delete(message);
-    }
-  }
-  if (
-    reconnectErrorLogTimestamps.size >= REDIS_RECONNECT_ERROR_LOG_MAX_KEYS &&
-    !reconnectErrorLogTimestamps.has("")
-  ) {
-    // Last resort against unbounded growth under a pathological flood of
-    // unique messages within one interval: reset suppression entirely so the
-    // map stays bounded at the cost of extra log lines.
-    reconnectErrorLogTimestamps.clear();
-  }
-};
-
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     if (times >= 5) {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Waits at least 1s and at most 20s between retries,
-    // plus up to 50% jitter so the per-queue connections do not reconnect in
-    // lockstep when Redis becomes unreachable.
+    // Retries forever. Exponential base delay clamped to 1s–20s, plus up to
+    // 50% random jitter (so at most 30s), so the per-queue connections do not
+    // reconnect in lockstep when Redis becomes unreachable.
     const delay = Math.max(Math.min(Math.exp(times), 20000), 1000);
     return delay + Math.random() * delay * 0.5;
   },
@@ -87,16 +54,7 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
     }
 
     // Reconnects on READONLY errors and auto-retries the command.
-    const now = Date.now();
-    pruneReconnectErrorLogTimestamps(now);
-    const lastLoggedAt = reconnectErrorLogTimestamps.get(err.message);
-    if (
-      lastLoggedAt === undefined ||
-      now - lastLoggedAt >= REDIS_RECONNECT_ERROR_LOG_INTERVAL_MS
-    ) {
-      logger.warn(`Redis connection error: ${err.message}`);
-      reconnectErrorLogTimestamps.set(err.message, now);
-    }
+    logger.warn(`Redis connection error: ${err.message}`);
     return err.message.includes("READONLY") ? 2 : false;
   },
 };
