@@ -1,5 +1,3 @@
-import { type ReactNode } from "react";
-
 import preview from "../../../../../.storybook/preview";
 
 import {
@@ -10,26 +8,27 @@ import { createStatusTableColumn } from "./createStatusTableColumn";
 
 type Row = {
   status: string | null;
+  isStatusLoading?: boolean;
 };
 
 function StatusTableColumnStory({
   data,
   isLive = true,
-  isLoading,
   emptyValue,
 }: {
   data: AsyncTableData<Row[]>;
   isLive?: boolean;
-  isLoading?: (status: string | null | undefined) => boolean;
-  emptyValue?: ReactNode;
+  emptyValue?: string;
 }) {
   const columns = [
     createStatusTableColumn<Row, string>({
       accessorKey: "status",
       header: "Status",
-      getStatus: (status) => status ?? undefined,
+      getStatus: (status, { row }) =>
+        row.original.isStatusLoading
+          ? { type: "loading" }
+          : (status ?? undefined),
       isLive,
-      isLoading,
       emptyValue,
     }),
   ];
@@ -106,13 +105,16 @@ export const Loading = meta.story({
   },
 });
 
-export const RowLoading = meta.story({
+export const MappedValueLoading = meta.story({
+  name: "Mapped Value Loading",
   args: {
     data: {
       isLoading: false,
       isError: false,
-      data: [{ status: "pending-metrics" }, { status: "error" }],
+      data: [
+        { status: "pending-metrics", isStatusLoading: true },
+        { status: "error" },
+      ],
     },
-    isLoading: (status) => status === "pending-metrics",
   },
 });

@@ -1,6 +1,5 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type ReactNode } from "react";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -12,26 +11,23 @@ import {
   type TableColumnOptions,
 } from "./utils/createTableColumn";
 
+type StatusCell = Status | (string & {}) | { type: "loading" } | undefined;
+
 export function createStatusTableColumn<
   TData extends RowData,
   TValue = Status,
 >({
   getStatus,
   isLive,
-  isLoading,
   emptyValue,
   ...options
 }: TableColumnOptions<TData, TValue> & {
   getStatus: (
     value: TValue | null | undefined,
     context: CellContext<TData, TValue | null | undefined>,
-  ) => Status | (string & {}) | undefined;
+  ) => StatusCell;
   isLive?: boolean;
-  isLoading?: (
-    value: TValue | null | undefined,
-    context: CellContext<TData, TValue | null | undefined>,
-  ) => boolean;
-  emptyValue?: ReactNode;
+  emptyValue?: string;
 }) {
   const loadingCell = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
 
@@ -39,16 +35,12 @@ export function createStatusTableColumn<
     ...options,
     loadingCell,
     renderCell: (value, context) => {
-      if (isLoading?.(value, context)) {
-        return loadingCell;
-      }
-
       const status = getStatus(value, context);
-      return status ? (
-        <StatusBadge type={status} isLive={isLive} />
-      ) : (
-        (emptyValue ?? null)
-      );
+
+      if (status === undefined) return emptyValue ?? null;
+      if (typeof status !== "string") return loadingCell;
+
+      return <StatusBadge type={status} isLive={isLive} />;
     },
   });
 }

@@ -990,9 +990,12 @@ export default function TracesTable({
       enableSorting,
       isLive: false,
       emptyValue: "-",
-      isLoading: (_value, { row }) => isMetricPending(row.original.id),
-      getStatus: (level) =>
-        level ? getObservationLevelStatus(level) : undefined,
+      getStatus: (level, { row }) =>
+        isMetricPending(row.original.id)
+          ? { type: "loading" }
+          : level
+            ? getObservationLevelStatus(level)
+            : undefined,
     }),
     createTextTableColumn<TracesTableRow>({
       accessorKey: "version",
