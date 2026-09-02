@@ -499,14 +499,16 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             <EnvironmentBadge environment={trace.environment} />
             <ReleaseBadge release={trace.release} />
             <VersionBadge version={trace.version} />
-            <CostBadge
-              totalCost={aggregatedMetrics.totalCost}
-              costDetails={aggregatedMetrics.costDetails}
-            />
+            {aggregatedMetrics.totalCost != null &&
+              aggregatedMetrics.costDetails && (
+                <CostBadge
+                  totalCost={aggregatedMetrics.totalCost}
+                  costDetails={aggregatedMetrics.costDetails}
+                />
+              )}
             {aggregatedMetrics.hasGenerationLike &&
               aggregatedMetrics.usageDetails && (
                 <UsageBadge
-                  type="GENERATION"
                   inputUsage={aggregatedMetrics.inputUsage}
                   outputUsage={aggregatedMetrics.outputUsage}
                   totalUsage={aggregatedMetrics.totalUsage}

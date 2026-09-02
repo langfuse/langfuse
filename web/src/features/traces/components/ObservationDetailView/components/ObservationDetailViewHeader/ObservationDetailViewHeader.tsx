@@ -186,6 +186,11 @@ export const ObservationDetailViewHeader = memo(
       date: observation.startTime,
       accuracy: "millisecond",
     });
+    const displayedTotalCost = subtreeMetrics
+      ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+      : totalCost;
+    const displayedCostDetails =
+      subtreeMetrics?.costDetails ?? observation.costDetails;
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -714,55 +719,49 @@ export const ObservationDetailViewHeader = memo(
               />
               <EnvironmentBadge environment={observation.environment} />
               <ReleaseBadge release={observation.release} />
-              <CostBadge
-                totalCost={
-                  subtreeMetrics
-                    ? (treeNodeTotalCost?.toNumber() ??
-                      subtreeMetrics.totalCost)
-                    : totalCost
-                }
-                costDetails={
-                  subtreeMetrics?.costDetails ?? observation.costDetails
-                }
-                priceSource={
-                  isGenerationLike(observation.type) &&
-                  observation.internalModelId &&
-                  observation.model &&
-                  observation.usagePricingTierId &&
-                  observation.usagePricingTierName &&
-                  Object.keys(observation.providedCostDetails).length === 0 &&
-                  (!subtreeMetrics ||
-                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
-                    ? {
-                        projectId,
-                        modelId: observation.internalModelId,
-                        modelName: observation.model,
-                        pricingTierId: observation.usagePricingTierId,
-                        pricingTierName: observation.usagePricingTierName,
-                      }
-                    : undefined
-                }
-              />
-              {subtreeMetrics ? (
-                subtreeMetrics.hasGenerationLike &&
-                subtreeMetrics.usageDetails && (
-                  <UsageBadge
-                    type="GENERATION"
-                    inputUsage={subtreeMetrics.inputUsage}
-                    outputUsage={subtreeMetrics.outputUsage}
-                    totalUsage={subtreeMetrics.totalUsage}
-                    usageDetails={subtreeMetrics.usageDetails}
-                  />
-                )
-              ) : (
-                <UsageBadge
-                  type={observation.type}
-                  inputUsage={inputUsage}
-                  outputUsage={outputUsage}
-                  totalUsage={totalUsage}
-                  usageDetails={observation.usageDetails}
+              {displayedTotalCost != null && displayedCostDetails && (
+                <CostBadge
+                  totalCost={displayedTotalCost}
+                  costDetails={displayedCostDetails}
+                  priceSource={
+                    isGenerationLike(observation.type) &&
+                    observation.internalModelId &&
+                    observation.model &&
+                    observation.usagePricingTierId &&
+                    observation.usagePricingTierName &&
+                    Object.keys(observation.providedCostDetails).length === 0 &&
+                    (!subtreeMetrics ||
+                      treeNodeTotalCost?.eq(totalCost ?? 0) === true)
+                      ? {
+                          projectId,
+                          modelId: observation.internalModelId,
+                          modelName: observation.model,
+                          pricingTierId: observation.usagePricingTierId,
+                          pricingTierName: observation.usagePricingTierName,
+                        }
+                      : undefined
+                  }
                 />
               )}
+              {subtreeMetrics
+                ? subtreeMetrics.hasGenerationLike &&
+                  subtreeMetrics.usageDetails && (
+                    <UsageBadge
+                      inputUsage={subtreeMetrics.inputUsage}
+                      outputUsage={subtreeMetrics.outputUsage}
+                      totalUsage={subtreeMetrics.totalUsage}
+                      usageDetails={subtreeMetrics.usageDetails}
+                    />
+                  )
+                : isGenerationLike(observation.type) &&
+                  observation.usageDetails && (
+                    <UsageBadge
+                      inputUsage={inputUsage}
+                      outputUsage={outputUsage}
+                      totalUsage={totalUsage}
+                      usageDetails={observation.usageDetails}
+                    />
+                  )}
               <VersionBadge version={observation.version} />
               <ModelBadge
                 model={observation.model}
