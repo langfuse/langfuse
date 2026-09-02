@@ -16,11 +16,11 @@ const radioGroupVariants = cva("", {
   },
 });
 
-type RadioGroupProps = Omit<
+type RadioGroupProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
-  "className"
+  "children" | "defaultValue" | "onValueChange" | "value"
 > &
-  VariantProps<typeof radioGroupVariants>;
+  Pick<VariantProps<typeof radioGroupVariants>, "layout">;
 
 const RadioGroup = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
