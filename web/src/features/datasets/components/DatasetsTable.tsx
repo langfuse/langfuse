@@ -24,6 +24,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -348,20 +349,20 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 200,
     }),
-    {
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countItems",
       header: "Items",
-      id: "countItems",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countRuns",
       header: "Experiments",
-      id: "countRuns",
       enableHiding: true,
       size: 60,
-    },
+      formatter: (value) => String(value),
+    }),
     createDateTableColumn<DatasetTableRow>({
       accessorKey: "createdAt",
       header: "Created",

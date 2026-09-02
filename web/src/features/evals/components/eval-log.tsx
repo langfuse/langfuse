@@ -12,6 +12,7 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -104,9 +105,9 @@ export default function EvalLogTable({
       header: "End Time",
       enableHiding: true,
     }),
-    columnHelper.accessor("scoreName", {
+    createIdTableColumn<JobExecutionRow>({
+      accessorKey: "scoreName",
       header: "Score Name",
-      id: "scoreName",
       enableHiding: true,
     }),
     columnHelper.accessor("scoreValue", {
