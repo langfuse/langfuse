@@ -157,7 +157,7 @@ export interface ChartProps {
    * labels are hidden and the bars are entities rather than buckets — the
    * experiments strip, one bar per run. Colours and legend both come from
    * `prepareCategoryBars`, which also decides when there are too many bars for
-   * the bounded palette to identify any of them. (LFE-15711)
+   * the bounded palette to identify any of them.
    */
   colorBarsByCategory?: boolean;
   /**
@@ -167,7 +167,7 @@ export interface ChartProps {
    *
    * Off by default only because it is a visible change to the bar charts that
    * already ship without it (the score-analytics dashboard widget), which are
-   * out of scope here. Every vertical bar chart ought to have it. (LFE-15711)
+   * out of scope here. Every vertical bar chart ought to have it.
    */
   zeroBaseline?: boolean;
 }

@@ -112,7 +112,6 @@ const LEVEL_SORT_ORDER: ScoreLevel[] = ["obs", "trace", "experiment"];
  * entry, not a structural division, so the strip reads like the tracing tables'
  * level-agnostic score facets. A name recorded at two levels yields two
  * entries — each still plots exactly one level — sorted next to each other.
- * (LFE-15711)
  */
 export function buildMetricOptions(
   scoreFilterOptions: ScoreFilterOptions,

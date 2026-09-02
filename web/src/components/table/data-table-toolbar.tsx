@@ -163,7 +163,7 @@ interface DataTableToolbarProps<TData, TValue> {
    *  share the row with the right-aligned Columns/Export controls. */
   leadingControls?: React.ReactNode;
   /** Opt in to one "Table settings" popover for Columns + row height instead of
-   *  a button per control (LFE-15711). Off everywhere else while the merged
+   *  a button per control. Off everywhere else while the merged
    *  shape is validated on the experiments list; needs both controls, so a
    *  table that passes only one keeps its single button. */
   mergeSettingsIntoPopover?: boolean;

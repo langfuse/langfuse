@@ -27,6 +27,7 @@ import {
   BatchExportTableName,
   ActionId,
   BatchActionType,
+  EXPERIMENT_IO_TRUNCATE_LENGTH,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -302,13 +303,25 @@ const StackedOutputRow = ({
 /**
  * Whether an output is the expected one. Exact match after trimming — anything
  * looser would be guessing at what "close enough" means for the user's data.
+ *
+ * `null` when the answer is not knowable from what the table loaded: the values
+ * arrive truncated, so two that agree up to the cut may still differ past it.
+ * A verdict that can be wrong is worse than no verdict, so the caller shows
+ * nothing instead.
  */
 const matchesExpectedOutput = (
   output: string | null | undefined,
   expectedOutput: string | null | undefined,
-) =>
-  Boolean(output && expectedOutput) &&
-  output!.trim() === expectedOutput!.trim();
+): boolean | null => {
+  if (!output || !expectedOutput) return null;
+  const left = output.trim();
+  const right = expectedOutput.trim();
+  if (left !== right) return false;
+  const mayBeTruncated =
+    output.length >= EXPERIMENT_IO_TRUNCATE_LENGTH ||
+    expectedOutput.length >= EXPERIMENT_IO_TRUNCATE_LENGTH;
+  return mayBeTruncated ? null : true;
+};
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <Badge
@@ -319,6 +332,18 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
     {matches ? "match" : "differs"}
   </Badge>
 );
+
+/** The chip, or nothing when the loaded text cannot settle the question. */
+const ExpectedMatchVerdict = ({
+  output,
+  expectedOutput,
+}: {
+  output: string | null | undefined;
+  expectedOutput: string | null | undefined;
+}) => {
+  const matches = matchesExpectedOutput(output, expectedOutput);
+  return matches === null ? null : <ExpectedMatchChip matches={matches} />;
+};
 
 /**
  * Cell component that renders stacked output values for each experiment.
@@ -394,11 +419,9 @@ const StackedOutputCell = ({
                 singleLine={singleLine}
                 chip={
                   showExpectedLine ? (
-                    <ExpectedMatchChip
-                      matches={matchesExpectedOutput(
-                        out.output,
-                        expectedOutput,
-                      )}
+                    <ExpectedMatchVerdict
+                      output={out.output}
+                      expectedOutput={expectedOutput}
                     />
                   ) : undefined
                 }
@@ -522,7 +545,7 @@ export default function ExperimentItemsTable({
     {
       stateLocation: "url",
       loading: isFilterOptionsLoading,
-      // v4-only surface — drives `isV4` on filters:* analytics (LFE-10781).
+      // v4-only surface — drives `isV4` on filters:* analytics.
       isV4: true,
     },
   );
@@ -682,13 +705,30 @@ export default function ExperimentItemsTable({
     });
 
   // Running items without an expected output is common, so don't spend a column
-  // on it when nothing in view has one. Kept while IO loads so it doesn't flash.
-  const showExpectedOutput = useMemo(
-    () =>
-      ioLoading ||
-      (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
-    [ioLoading, items.rows],
+  // on it when nothing has one. Kept while IO loads so it doesn't flash.
+  //
+  // Whether the column exists is a property of the runs being compared, not of
+  // the page that happens to be loaded, so a page of items that all lack an
+  // expected output must not take the column away again. Latched per selection:
+  // once any page has shown one, the column stays until the selection changes.
+  const expectedOutputOnPage = useMemo(
+    () => (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    [items.rows],
   );
+  const experimentSelectionKey = useMemo(
+    () => allExperimentIds.join(","),
+    [allExperimentIds],
+  );
+  const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    if (expectedOutputOnPage) setExpectedOutputSeenFor(experimentSelectionKey);
+  }, [expectedOutputOnPage, experimentSelectionKey]);
+  const showExpectedOutput =
+    ioLoading ||
+    expectedOutputOnPage ||
+    expectedOutputSeenFor === experimentSelectionKey;
 
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
@@ -766,11 +806,13 @@ export default function ExperimentItemsTable({
 
   // The experiment a score column's header reads as "this experiment", and the
   // one it is compared against. Without an explicit baseline the first selected
-  // run stands in, matching how the cells pick their reference.
+  // run still stands in as "this experiment", but nothing is compared against
+  // it: the cells only draw a diff once there is an explicit baseline, so a
+  // header delta here would count movements no row in the table shows.
   const primaryExperimentId = baselineId ?? allExperimentIds[0];
-  const primaryComparisonId = allExperimentIds.find(
-    (id) => id !== primaryExperimentId,
-  );
+  const primaryComparisonId = hasBaseline
+    ? allExperimentIds.find((id) => id !== primaryExperimentId)
+    : undefined;
   const primaryComparisonName = useMemo(
     () =>
       selectedExperimentNames.find(
@@ -1376,19 +1418,23 @@ export default function ExperimentItemsTable({
     [observationScoreColumns, traceScoreColumns],
   );
 
-  // LFE-15711: score columns are now visible by default. A returning user has
-  // `false` persisted for every one of them from the previous default, so this
-  // one-time migration reaches them too — see `revealScoreColumns` for how a
-  // user who picked their own score columns is left alone.
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone. It is consumed once and for
+  // good, so it waits for the score columns to be known rather than running
+  // against an empty or half-loaded set.
   const columnVisibilityMigrations = useMemo(
     () => [
       {
         versionKey: `experimentItemsColumnVisibility-scoresVisible-v1-${projectId}`,
         apply: (visibility: VisibilityState) =>
-          revealScoreColumns(visibility, scoreColumnIds),
+          isFilterOptionsLoading
+            ? null
+            : revealScoreColumns(visibility, scoreColumnIds),
       },
     ],
-    [projectId, scoreColumnIds],
+    [projectId, scoreColumnIds, isFilterOptionsLoading],
   );
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -1398,7 +1444,7 @@ export default function ExperimentItemsTable({
       columnVisibilityMigrations,
     );
 
-  // LFE-15711: the score columns moved ahead of the metrics and ids so their
+  // the score columns moved ahead of the metrics and ids so their
   // headers' analysis needs no horizontal scroll. A returning user has the old
   // order persisted, so the new default only reaches him through a migration —
   // and only when that stored order is still a default, not one he arranged.

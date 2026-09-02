@@ -32,8 +32,11 @@ export function useExperimentComparisonAutoSelect({
     useLocalStorage<boolean>(AUTO_SELECT_COMPARISON_STORAGE_KEY, true);
   const { experimentNames, isLoading } = useExperimentNames({ projectId });
 
-  // At most one attempt per baseline: clearing the auto-selected comparison is
-  // an explicit empty selection and must not be undone on the next render.
+  // At most one attempt per baseline while mounted: clearing the auto-selected
+  // comparison must not be undone on the next render. It cannot outlive the
+  // mount — an empty selection drops `c` from the URL entirely, so a reload
+  // cannot tell "cleared" from "never chosen" and defaults again. The
+  // preference below is the durable way to opt out.
   const attemptedForBaselineRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export function useExperimentComparisonAutoSelect({
 
     attemptedForBaselineRef.current = baselineId;
 
-    // The URL already carries a choice, including a deliberate empty one.
+    // The URL already carries a choice.
     if (comparisonIds.length > 0) return;
     // Never guess across datasets: a run on another dataset scored other items.
     if (!baseline.datasetId) return;

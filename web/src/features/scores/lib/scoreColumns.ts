@@ -213,7 +213,6 @@ export const revealScoreColumns = (
  * What a score's data type means for how its values read. Spelled out because a
  * numeric score whose values happen to be 0 and 1 is otherwise indistinguishable
  * from a boolean one, and a user read her own data wrong because of it.
- * (LFE-15711)
  */
 export const getScoreDataTypeExplanation = (
   dataType: ScoreDataTypeType,
@@ -238,14 +237,15 @@ const SCORE_DATA_TYPE_ICONS = new Set(["#", "Ⓒ", "Ⓑ", "Aa"]);
 /**
  * Splits a header built by `createScoreColumns` into its data-type icon and the
  * rest of the label, so a surface that explains the type itself does not render
- * the bare glyph twice.
+ * the bare glyph twice. A CORRECTION carries no glyph, so the label is trimmed
+ * rather than left with the gap the missing icon would have filled.
  */
 export const splitScoreDataTypeIcon = (
   header: string,
 ): { icon?: string; label: string } => {
   const parts = header.split(" ");
   const iconIndex = parts.findIndex((part) => SCORE_DATA_TYPE_ICONS.has(part));
-  if (iconIndex === -1) return { label: header };
+  if (iconIndex === -1) return { label: header.trim() };
   return {
     icon: parts[iconIndex],
     label: [...parts.slice(0, iconIndex), ...parts.slice(iconIndex + 1)]
