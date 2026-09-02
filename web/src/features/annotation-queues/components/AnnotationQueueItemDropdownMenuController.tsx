@@ -6,7 +6,7 @@ import {
   AnnotationQueueItemMenuContent,
   type AnnotationQueueItemMenuQueue,
 } from "@/src/features/annotation-queues/components/AnnotationQueueItemMenuContent";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { type ReactNode, useCallback, useState } from "react";

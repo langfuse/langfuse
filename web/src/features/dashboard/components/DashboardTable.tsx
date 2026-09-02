@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -12,7 +13,6 @@ import { createDropdownTableColumn } from "@/src/components/design-system/table/
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Copy, Edit, Trash2, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";

@@ -1,5 +1,5 @@
 import { useEntitlementLimit } from "@/src/features/entitlements";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 
 /** Owns evaluator alert permissions, linked-alert loading, and creation limits. */

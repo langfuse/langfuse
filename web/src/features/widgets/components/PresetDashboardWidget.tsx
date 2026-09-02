@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useMemo } from "react";
 import {
   CopyIcon,
@@ -8,7 +9,6 @@ import {
 } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {

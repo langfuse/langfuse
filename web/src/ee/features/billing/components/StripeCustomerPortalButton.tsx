@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";

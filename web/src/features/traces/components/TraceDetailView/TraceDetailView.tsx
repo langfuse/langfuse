@@ -41,7 +41,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 

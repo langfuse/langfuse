@@ -1,3 +1,4 @@
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
@@ -12,7 +13,6 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
