@@ -215,6 +215,7 @@ const events = {
   ],
   dashboard: [
     "view",
+    "created",
     "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",

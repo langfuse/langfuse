@@ -13,6 +13,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
 
 export default function NewWidget() {
   const router = useRouter();
@@ -33,6 +34,8 @@ export default function NewWidget() {
         measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
         dimensionCount: variables.dimensions.length,
         filterCount: variables.filters.length,
+        hasDashboardContext: Boolean(dashboardId),
+        ...dashboardTemplateProps(dashboardId ?? ""),
       });
       showSuccessToast({
         title: "Widget created successfully",

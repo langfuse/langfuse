@@ -201,6 +201,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         dashboard_id: dashboardId,
         attempt,
         surface: "detail",
+        ...dashboardTemplateProps(dashboardId),
       });
       setCloneFirstState({
         open: true,

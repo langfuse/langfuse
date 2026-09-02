@@ -9,6 +9,7 @@ import { Label } from "@/src/components/ui/label";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function NewDashboard() {
   const router = useRouter();
@@ -23,17 +24,10 @@ export default function NewDashboard() {
     projectId,
     scope: "dashboards:CUD",
   });
+  const capture = usePostHogClientCapture();
 
   // Mutation for creating a new dashboard
   const createDashboard = api.dashboard.createDashboard.useMutation({
-    onSuccess: (data) => {
-      showSuccessToast({
-        title: "Dashboard created",
-        description: "Your new dashboard has been created successfully",
-      });
-      // Navigate to the newly created dashboard
-      router.push(`/project/${projectId}/dashboards/${data.id}`);
-    },
     onError: (error) => {
       showErrorToast("Error creating dashboard", error.message);
     },
@@ -41,15 +35,32 @@ export default function NewDashboard() {
 
   // Handle form submission
   const handleCreateDashboard = () => {
-    if (dashboardName.trim()) {
-      createDashboard.mutate({
+    if (!dashboardName.trim()) {
+      showErrorToast("Validation error", "Dashboard name is required");
+      return;
+    }
+
+    const hasDescription = Boolean(dashboardDescription.trim());
+    createDashboard.mutate(
+      {
         projectId,
         name: dashboardName,
         description: dashboardDescription,
-      });
-    } else {
-      showErrorToast("Validation error", "Dashboard name is required");
-    }
+      },
+      {
+        onSuccess: (data) => {
+          capture("dashboard:created", {
+            source: "new_form",
+            hasDescription,
+          });
+          showSuccessToast({
+            title: "Dashboard created",
+            description: "Your new dashboard has been created successfully",
+          });
+          router.push(`/project/${projectId}/dashboards/${data.id}`);
+        },
+      },
+    );
   };
 
   return (

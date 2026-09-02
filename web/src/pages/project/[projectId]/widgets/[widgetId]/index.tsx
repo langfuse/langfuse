@@ -9,6 +9,7 @@ import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
 
 export default function EditWidget() {
   const router = useRouter();
@@ -49,6 +50,8 @@ export default function EditWidget() {
         measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
         dimensionCount: variables.dimensions.length,
         filterCount: variables.filters.length,
+        hasDashboardContext: Boolean(dashboardId),
+        ...dashboardTemplateProps(dashboardId ?? ""),
       });
       showSuccessToast({
         title: "Widget updated successfully",
