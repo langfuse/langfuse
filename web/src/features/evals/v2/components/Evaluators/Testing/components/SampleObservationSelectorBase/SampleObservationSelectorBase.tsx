@@ -44,6 +44,7 @@ import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import {
   buildSampleQueryFilters,
+  removeInternalEvaluationEnvironmentColumnOptions,
   removeInternalEvaluationEnvironmentOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
@@ -290,11 +291,13 @@ export function SampleObservationSelectorBase(
     const supportsDatasetName = searchRegistry.fields.some(
       (field) => field.id === DATASET_NAME_COLUMN,
     );
-    const columnsWithOptions = experimentEvalFilterColsWithOptions(
-      options.filterOptions,
-      observationEvalFilterColsWithOptions(options.filterOptions, [
-        ...eventsEvalFilterColumns,
-      ]),
+    const columnsWithOptions = removeInternalEvaluationEnvironmentColumnOptions(
+      experimentEvalFilterColsWithOptions(
+        options.filterOptions,
+        observationEvalFilterColsWithOptions(options.filterOptions, [
+          ...eventsEvalFilterColumns,
+        ]),
+      ),
     ).filter(
       (column) => !supportsDatasetName || column.id !== "experimentDatasetId",
     );
