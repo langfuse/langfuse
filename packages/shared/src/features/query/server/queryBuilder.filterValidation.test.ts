@@ -290,9 +290,26 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain(
-        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
+      expect(query).toContain("scores_numeric.evaluator_id");
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers rule score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "ruleId",
+          operator: "any of",
+          value: ["rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
       );
+
+      expect(query).toContain("scores_numeric.evaluation_rule_id");
       expect(query).toContain("IN ({stringOptionsFilter");
     },
   );

@@ -38,6 +38,21 @@ describe("EventsAggregationQueryBuilder", () => {
       "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
     );
   });
+
+  it("promotes evaluator execution fields into the trace aggregation", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+    );
+    expect(query).toContain(
+      "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+    );
+  });
 });
 
 describe("EventsSessionAggregationQueryBuilder", () => {
