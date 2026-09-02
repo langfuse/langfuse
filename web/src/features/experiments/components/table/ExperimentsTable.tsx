@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
@@ -389,6 +389,13 @@ export default function ExperimentsTable({
   // Grammar search bar: an ADDITIONAL editor over the same FilterState the
   // facet sidebar edits. Score filtering stays in the sidebar here — see
   // experimentsSearchRegistry.
+  // Scoped to the facets this instance renders: a dataset-scoped page omits the
+  // Dataset facet, and a token for a stripped column would vanish silently.
+  const searchRegistry = useMemo(
+    () => experimentsFieldRegistry(filterConfig),
+    [filterConfig],
+  );
+
   const observedOptions = useMemo(
     () => toObservedOptions(filterOptions, isFilterOptionsPending),
     [filterOptions, isFilterOptionsPending],
@@ -411,7 +418,7 @@ export default function ExperimentsTable({
     setFilterState: setFiltersWrapper,
     setSearchQuery: noSearchLane,
     setSearchType: noSearchLane,
-    registry: EXPERIMENTS_FIELD_REGISTRY,
+    registry: searchRegistry,
   });
 
   const combinedFilterState = queryFilter.filterState.concat(
@@ -427,11 +434,19 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
+  // A dataset-name filter cannot be queried until the name -> id map lands.
+  const awaitsDatasetNames =
+    datasetIdByName.size === 0 &&
+    combinedFilterState.some(
+      (filter) => filter.column === "experimentDatasetName",
+    );
+
   const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
     projectId,
     filterState,
     orderByState,
     paginationState,
+    enabled: !awaitsDatasetNames,
   });
 
   useEffect(() => {
@@ -835,7 +850,7 @@ export default function ExperimentsTable({
               commit={searchBarCommit}
               observed={observedOptions}
               onApplyFilters={searchBarApplyFilters}
-              registry={EXPERIMENTS_FIELD_REGISTRY}
+              registry={searchRegistry}
             />
             {/* Toolbar spanning full width */}
             <DataTableToolbar
