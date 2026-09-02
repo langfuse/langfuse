@@ -354,9 +354,18 @@ export async function chbWebhookHandler(req: NextRequest) {
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
-/** Persist a new clickhouse block + org columns, then propagate: the
- * resolved plan and suspension flag are baked into the Redis-cached API-key
- * record, so every write ends with a cache invalidation. */
+/**
+ * Persist a new clickhouse block + org columns, then propagate: the resolved
+ * plan and suspension flag are baked into the Redis-cached API-key record, so
+ * every write ends with a cache invalidation.
+ *
+ * The organization update is the commit point. It persists this event's
+ * occurredAt as lastEventCreatedAt, after which the ordering guard drops any
+ * retry of the same event as already applied. Nothing that runs after it may
+ * fail the request: a 500 would ask CHB for a retry that can never reach that
+ * code again. Post-commit steps -- here and in the per-event handlers -- are
+ * best-effort: log, page, and let the request succeed.
+ */
 async function persistAndPropagate(params: {
   parsedOrg: ParsedOrganization;
   event: ChbWebhookEvent;
@@ -383,7 +392,17 @@ async function persistAndPropagate(params: {
     },
   });
 
-  await invalidateCachedOrgApiKeys(parsedOrg.id);
+  // Post-commit. Bounded: a stale cached plan expires with the API-key cache
+  // TTL.
+  try {
+    await invalidateCachedOrgApiKeys(parsedOrg.id);
+  } catch (error) {
+    logger.error(
+      `[CHB Webhook] Failed to invalidate cached API keys for org ${parsedOrg.id} after applying ${event.type}`,
+      error,
+    );
+    traceException(error);
+  }
 
   auditLog({
     session: {
@@ -479,7 +498,22 @@ async function handleBundleCreated(
 
   // Backfill-emit LANGFUSE_PROJECT_CREATED for all existing projects: projects
   // created before checkout would otherwise be invisible to CHB metering.
-  // Best-effort -- CHB's own backfill pipeline is the backstop.
+  // Post-commit and best-effort -- CHB's own backfill pipeline is the backstop.
+  try {
+    await backfillProjectEvents(parsedOrg, event.data.organizationId);
+  } catch (error) {
+    logger.error(
+      `[CHB Webhook] Project backfill failed for org ${parsedOrg.id}`,
+      error,
+    );
+    traceException(error);
+  }
+}
+
+async function backfillProjectEvents(
+  parsedOrg: ParsedOrganization,
+  chbOrganizationId: string,
+) {
   const projects = await prisma.project.findMany({
     where: { orgId: parsedOrg.id, deletedAt: null },
     select: { id: true },
@@ -488,7 +522,7 @@ async function handleBundleCreated(
     projects.map((project) =>
       sendChbProjectEvent({
         type: "LANGFUSE_PROJECT_CREATED",
-        chbOrganizationId: event.data.organizationId,
+        chbOrganizationId,
         projectId: project.id,
       }),
     ),

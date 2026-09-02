@@ -383,4 +383,35 @@ describe("chbWebhookHandler", () => {
     expect(response.status).toBe(200);
     expect(mocks.updateOrg).not.toHaveBeenCalled();
   });
+
+  it("keeps a failed project backfill out of the retry path", async () => {
+    mocks.findProjects.mockRejectedValue(new Error("connection reset"));
+
+    const response = await chbWebhookHandler(
+      post(bundleCreated({ status: "active" })),
+    );
+
+    // The bundle is already persisted, so the ordering guard would drop a
+    // retry as already applied; a 500 here only asks CHB for a retry that can
+    // never reach the backfill. Log and page instead.
+    expect(response.status).toBe(200);
+    expect(mocks.updateOrg).toHaveBeenCalledTimes(1);
+    expect(mocks.redisDel).not.toHaveBeenCalled();
+    expect(mocks.traceException).toHaveBeenCalled();
+  });
+
+  it("keeps a failed API-key cache invalidation out of the retry path", async () => {
+    mocks.invalidateCachedOrgApiKeys.mockRejectedValue(
+      new Error("connection reset"),
+    );
+
+    const response = await chbWebhookHandler(
+      post(bundleCreated({ status: "active" })),
+    );
+
+    // Same commit-point rule; the stale cache entry expires with its TTL.
+    expect(response.status).toBe(200);
+    expect(mocks.redisDel).not.toHaveBeenCalled();
+    expect(mocks.traceException).toHaveBeenCalled();
+  });
 });
