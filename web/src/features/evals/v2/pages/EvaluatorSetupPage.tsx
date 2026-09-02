@@ -51,7 +51,11 @@ import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evalu
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { getFirstCodeEvaluatorScoreDataType } from "@/src/features/evals/v2/fns/evaluators/getFirstCodeEvaluatorScoreDataType";
 import {
   getEvaluatorCreationAnalyticsProperties,
   getJudgePromptAnalyticsProperties,
@@ -164,6 +168,19 @@ export function EvaluatorSetupPage(
     projectId,
     scope: "evaluator:CUD",
   });
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "evaluator",
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+  });
+  const scoreDataType = initialEvaluator
+    ? initialEvaluator.definition.type === "LLM_AS_JUDGE"
+      ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
+          .dataType
+      : getFirstCodeEvaluatorScoreDataType(
+          initialEvaluator.definition.sourceCode,
+        )
+    : undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -676,6 +693,14 @@ export function EvaluatorSetupPage(
               evaluatorDefaultVariableMapping={
                 initialEvaluator.definition.variableMapping
               }
+            />
+            <EvaluatorAlertButton
+              scope="evaluator"
+              projectId={projectId}
+              evaluatorId={initialEvaluator.id}
+              evaluatorType={initialEvaluator.type}
+              scoreDataType={scoreDataType}
+              {...evaluatorAlerts}
             />
             <Button
               type="button"

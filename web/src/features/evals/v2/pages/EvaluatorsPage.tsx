@@ -36,6 +36,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -72,6 +73,7 @@ import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4Mi
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -170,6 +172,10 @@ export default function EvaluatorsPage() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "allEvaluators",
+    projectId,
+  });
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "overview",
@@ -617,9 +623,17 @@ export default function EvaluatorsPage() {
                       projectDefaultModel.connectionsPending ||
                       projectDefaultModel.update.isPending
                     }
+                    borderVariant="contrast"
                   />
                 </PopoverTrigger>
               </JudgeModelPicker>
+            )}
+            {showOnboarding ? null : (
+              <EvaluatorAlertButton
+                scope="allEvaluators"
+                projectId={projectId}
+                {...evaluatorAlerts}
+              />
             )}
             <Button onClick={() => setGalleryOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />

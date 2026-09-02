@@ -667,6 +667,10 @@ function FilterBuilderForm({
     const stringObjectSuggest =
       column?.type === "stringObject" &&
       columnsWithCustomSelect.includes(column.id);
+    const stringSuggest =
+      column?.type === "string" &&
+      columnsWithCustomSelect.includes(column.id) &&
+      column.options !== undefined;
     const columnLabel = column ? column.name : "Column";
     const columnsForPicker = getColumnOptionsForFilterRow(
       columns,
@@ -900,8 +904,11 @@ function FilterBuilderForm({
             {
               ...filter,
               operator: value as any,
-              // Ensure null filters always have empty string value
-              value: filter.type === "null" ? "" : (filter.value as any),
+              // Value-less operators keep an empty string for schema compatibility.
+              value:
+                filter.type === "null" || value === "is not empty"
+                  ? ""
+                  : (filter.value as any),
             },
             i,
           );
@@ -925,11 +932,23 @@ function FilterBuilderForm({
 
     const valueControl = keyPending ? (
       <Input disabled />
-    ) : stringObjectSuggest && filter.type === "stringObject" ? (
+    ) : filter.type === "string" &&
+      filter.operator === "is not empty" ? null : stringObjectSuggest &&
+      filter.type === "stringObject" ? (
       <SingleSelect
         title="Value"
         className="min-w-[100px]"
         options={(filter.key ? stringObjectValueOptions[filter.key] : []) ?? []}
+        value={filter.value ?? undefined}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        disabled={disabled}
+        isCustomSelectEnabled
+      />
+    ) : stringSuggest && filter.type === "string" ? (
+      <SingleSelect
+        title="Value"
+        className="min-w-[100px]"
+        options={column?.type === "string" ? (column.options ?? []) : []}
         value={filter.value ?? undefined}
         onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
         disabled={disabled}
