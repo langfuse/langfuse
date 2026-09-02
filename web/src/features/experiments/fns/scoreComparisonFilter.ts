@@ -12,7 +12,7 @@ export type ScoreComparisonOperator = "lower" | "higher" | "differs";
 /**
  * "Keep the items whose score is lower than the comparison experiment's" — the
  * one predicate the item filters could not express, because it is about a pair
- * of experiments rather than a column against a literal. (LFE-15711 C7)
+ * of experiments rather than a column against a literal.
  */
 export type ScoreComparisonFilter = {
   level: ScoreLevel;
@@ -26,8 +26,10 @@ export type ScoreComparisonFilter = {
 const OPERATORS: ScoreComparisonOperator[] = ["lower", "higher", "differs"];
 
 /**
- * `level:scoreKey:operator:experimentId`. Score keys are normalised to hold no
- * colon and experiment ids are uuids, so the separator is unambiguous.
+ * `level:scoreKey:operator:experimentId`, each field percent-encoded. A score
+ * key carries the score's name, which is user-supplied and may hold a colon or
+ * the pipe that separates several of these in the URL — an unescaped field
+ * would land in the wrong slot and the filter would silently vanish.
  */
 export const encodeScoreComparisonFilter = (
   filter: ScoreComparisonFilter,
@@ -37,14 +39,27 @@ export const encodeScoreComparisonFilter = (
     filter.scoreKey,
     filter.operator,
     filter.comparisonExperimentId,
-  ].join(":");
+  ]
+    .map(encodeURIComponent)
+    .join(":");
 
 export const decodeScoreComparisonFilter = (
   encoded: string | null | undefined,
 ): ScoreComparisonFilter | null => {
   if (!encoded) return null;
-  const [level, scoreKey, operator, comparisonExperimentId] =
-    encoded.split(":");
+  const parts = encoded.split(":");
+  if (parts.length !== 4) return null;
+  let level: string;
+  let scoreKey: string;
+  let operator: string;
+  let comparisonExperimentId: string;
+  try {
+    [level, scoreKey, operator, comparisonExperimentId] =
+      parts.map(decodeURIComponent);
+  } catch {
+    // A hand-edited or truncated URL can hold a malformed escape.
+    return null;
+  }
   if (level !== "observation" && level !== "trace") return null;
   if (!scoreKey || !comparisonExperimentId) return null;
   if (!OPERATORS.includes(operator as ScoreComparisonOperator)) return null;
@@ -126,14 +141,17 @@ export const scoreFieldForLevel = (level: ScoreLevel) =>
   level === "trace" ? ("traceScores" as const) : ("observationScores" as const);
 
 /**
- * Whether one item survives every active score comparison. A filter whose score
- * type is not known yet (the column definitions still loading) does not hide
- * rows.
+ * Whether one item survives every active score comparison. A filter that cannot
+ * be evaluated does not hide rows: its score type is not known yet (the column
+ * definitions are still loading), or its target is no longer one of the runs on
+ * screen. Reading either as "nothing matches" would empty the table, which
+ * looks like a broken page rather than a filter with nothing to point at.
  */
 export const rowPassesScoreComparisonFilters = ({
   filters,
   experiments,
   baselineExperimentId,
+  comparableExperimentIds,
   dataTypeFor,
 }: {
   filters: ScoreComparisonFilter[];
@@ -143,6 +161,8 @@ export const rowPassesScoreComparisonFilters = ({
     traceScores: Record<string, AggregatedScoreData>;
   }>;
   baselineExperimentId?: string;
+  /** The runs currently being compared, if the caller knows them. */
+  comparableExperimentIds?: readonly string[];
   dataTypeFor: (
     filter: ScoreComparisonFilter,
   ) => ScoreColumnDataType | undefined;
@@ -158,6 +178,14 @@ export const rowPassesScoreComparisonFilters = ({
   return filters.every((filter) => {
     const dataType = dataTypeFor(filter);
     if (!dataType) return true;
+    // The target was deselected, or is now the baseline it would be read
+    // against — either way there is no second run left to compare with.
+    if (filter.comparisonExperimentId === baselineExperimentId) return true;
+    if (
+      comparableExperimentIds &&
+      !comparableExperimentIds.includes(filter.comparisonExperimentId)
+    )
+      return true;
     return matchesScoreComparisonFilter({
       operator: filter.operator,
       dataType,

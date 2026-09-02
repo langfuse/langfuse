@@ -33,7 +33,7 @@ const ORDERED_OPERATORS: ScoreComparisonOperator[] = [
 ];
 
 /**
- * The score column's own way into the comparison filter (LFE-15711 C7): "show
+ * The score column's own way into the comparison filter: "show
  * only the items worse than <comparison> on this score", from the header of the
  * score in question, with the comparison to read against picked here rather than
  * assumed.

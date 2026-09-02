@@ -90,7 +90,7 @@ const MatrixCell = ({
  * The transpose of the grid: **scores as rows, experiments as columns**, every
  * cell the run's aggregate plus its move against the baseline column. Answers
  * "how did all my runs move on all my metrics" in one screen — what the deleted
- * Analytics tab was going to be. (LFE-15711 C8)
+ * Analytics tab was going to be.
  *
  * It needs no query of its own: the aggregates are the same ones the score
  * column headers compute, over the items already loaded for this page.

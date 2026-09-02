@@ -102,4 +102,30 @@ describe("score comparison filter URL state", () => {
     expect(decodeScoreComparisonFilter("session:key:lower:id")).toBeNull();
     expect(decodeScoreComparisonFilter("")).toBeNull();
   });
+
+  // The score key carries the score's name, which is user-supplied: a name
+  // holding the field separator or the one between several filters used to
+  // land in the wrong slot and drop the filter without a word.
+  it("round-trips a score name holding the separators", () => {
+    for (const scoreKey of [
+      "ratio:accuracy-EVAL-NUMERIC",
+      "either|or-EVAL-NUMERIC",
+      "a:b|c-EVAL-NUMERIC",
+    ]) {
+      const filter = {
+        level: "observation" as const,
+        scoreKey,
+        operator: "differs" as const,
+        comparisonExperimentId: "1b0a2c3d-4e5f",
+      };
+      const encoded = encodeScoreComparisonFilter(filter);
+      expect(encoded).not.toContain("|");
+      expect(encoded.split(":")).toHaveLength(4);
+      expect(decodeScoreComparisonFilter(encoded)).toEqual(filter);
+    }
+  });
+
+  it("rejects a malformed escape instead of throwing", () => {
+    expect(decodeScoreComparisonFilter("trace:%zz:lower:id")).toBeNull();
+  });
 });
