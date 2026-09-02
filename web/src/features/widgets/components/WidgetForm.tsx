@@ -887,7 +887,7 @@ export function WidgetForm({
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
             {isV4 && selectedView === "traces" && (
-              <Alert variant="warning-subtle" icon={AlertCircle}>
+              <Alert variant="warning" icon={AlertCircle}>
                 <Alert.Title>Traces view is not available in v4</Alert.Title>
                 <Alert.Description>
                   This widget uses the traces view which is not supported in v4.

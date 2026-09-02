@@ -11,7 +11,7 @@ export function NoModelConfiguredAlert({
 }: NoModelConfiguredAlertProps) {
   return (
     <div className="p-4">
-      <Alert variant="warning-subtle" icon={AlertCircle}>
+      <Alert variant="warning" icon={AlertCircle}>
         <Alert.Title>No Model Configured</Alert.Title>
         <Alert.Description>
           To use the playground, you need to configure a model first. Go to{" "}

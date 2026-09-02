@@ -17,8 +17,6 @@ const variants = Object.keys({
   destructive: true,
   info: true,
   warning: true,
-  "warning-light": true,
-  "warning-subtle": true,
 } satisfies Record<Variant, true>) as Variant[];
 
 const sizes = Object.keys({
