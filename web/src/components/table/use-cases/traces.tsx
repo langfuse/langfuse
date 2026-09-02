@@ -103,26 +103,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DeleteTraceDialogContent } from "@/src/features/traces/components/DeleteTraceDialogContent";
 
-function DeleteTraceMenuItem({
-  disabled,
-  openDeleteTraceDialog,
-  traceId,
-}: {
-  disabled: boolean;
-  openDeleteTraceDialog: (traceId: string) => void;
-  traceId: string;
-}) {
-  return (
-    <DropdownMenuItem
-      disabled={disabled}
-      onSelect={() => openDeleteTraceDialog(traceId)}
-    >
-      <Trash2 className="mr-2 h-4 w-4" />
-      Delete
-    </DropdownMenuItem>
-  );
-}
-
 export type TracesTableRow = {
   // Shown by default
   timestamp: Date;
@@ -1193,13 +1173,15 @@ function TracesTableInternal({
             isFixedPosition: true,
             renderMenu: (traceId) =>
               typeof traceId === "string" ? (
-                <DeleteTraceMenuItem
-                  traceId={traceId}
-                  openDeleteTraceDialog={openDeleteTraceDialog}
+                <DropdownMenuItem
                   disabled={
                     !hasTraceDeleteAccess || !hasTraceDeletionEntitlement
                   }
-                />
+                  onSelect={() => openDeleteTraceDialog(traceId)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
               ) : null,
           }),
         ]),
