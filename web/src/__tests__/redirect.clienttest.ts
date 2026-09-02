@@ -143,6 +143,14 @@ describe("getSafeRedirectPath", () => {
         );
         expect(getSafeRedirectPath("https:/evil.com")).toBe("/");
       });
+
+      it("should reject paths that normalize to protocol-relative", () => {
+        // `/x/..//evil.com` stays on the dummy origin, but pathname is
+        // `//evil.com`. Returning that would reopen the redirect.
+        expect(getSafeRedirectPath("/x/..//evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/..//evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/x/..//evil.com/path")).toBe("/");
+      });
     });
   });
 
@@ -192,6 +200,7 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("http://evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("javascript:alert(1)")).toBe("/my-app/");
       expect(getSafeRedirectPath("/\\evil.com")).toBe("/my-app/");
+      expect(getSafeRedirectPath("/x/..//evil.com")).toBe("/my-app/");
     });
 
     it("should not double-prepend basePath when path already includes it", () => {

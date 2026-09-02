@@ -86,6 +86,13 @@ export function getSafeRedirectPath(
 
   const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
 
+  // Dot-segment resolution can produce a protocol-relative path while
+  // staying on the dummy origin (`/x/..//evil.com` → `//evil.com`).
+  // Callers such as window.open and res.redirect treat that as off-site.
+  if (path.startsWith("//")) {
+    return safeDefault;
+  }
+
   // If basePath is configured, check if the path already starts with it
   // This prevents double-prepending when the path already includes the base path
   if (basePath && path.startsWith(basePath)) {
