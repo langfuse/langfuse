@@ -35,7 +35,10 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
-import { V4MigrationBanner } from "@/src/features/v4-migration/V4MigrationBanner";
+import {
+  V4MigrationBanner,
+  useV4MigrationBannerState,
+} from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -334,6 +337,7 @@ export const OrganizationProjectOverview = () => {
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
+  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
 
   if (organizations === undefined) {
     return "loading...";
@@ -389,7 +393,18 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {v4UpgradeUiEnabled ? <V4MigrationBanner /> : <AgentToolsBanner />}
+      {v4UpgradeUiEnabled ? (
+        v4MigrationBannerState.projectsNeedingMigration > 0 && (
+          <V4MigrationBanner
+            projectsNeedingMigration={
+              v4MigrationBannerState.projectsNeedingMigration
+            }
+            totalProjects={v4MigrationBannerState.totalProjects}
+          />
+        )
+      ) : (
+        <AgentToolsBanner />
+      )}
       {showOnboarding && <Onboarding />}
       {organizations
         .map((org) => {
