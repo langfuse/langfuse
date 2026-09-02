@@ -15,6 +15,7 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
+import { env } from "../env";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 
 export class WorkerManager {
@@ -109,11 +110,47 @@ export class WorkerManager {
     };
   }
 
-  public static async closeWorkers(): Promise<void> {
-    await Promise.all(
-      Object.values(WorkerManager.workers).map((worker) => worker.close()),
+  /**
+   * Closes every registered BullMQ worker, waiting for their active jobs.
+   * Resolves false when workers are still busy after `timeoutMs` so the caller
+   * can flush and exit before the orchestrator's stop timeout kills the
+   * process; the abandoned jobs are picked up again by stalled-job recovery.
+   */
+  public static async closeWorkers(
+    timeoutMs: number = env.LANGFUSE_SHUTDOWN_QUEUE_CLOSE_TIMEOUT_MS,
+  ): Promise<boolean> {
+    const pending = new Set(Object.keys(WorkerManager.workers));
+    const closeAll = Promise.all(
+      Object.entries(WorkerManager.workers).map(([queueName, worker]) =>
+        worker
+          .close()
+          .catch((error) => {
+            logger.error(`Failed to close worker for ${queueName}`, error);
+          })
+          .finally(() => {
+            pending.delete(queueName);
+          }),
+      ),
     );
+
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = await Promise.race([
+      closeAll.then(() => false),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(true), timeoutMs);
+      }),
+    ]);
+    clearTimeout(timer);
+
+    if (timedOut) {
+      logger.warn(
+        `Queue workers did not close within ${timeoutMs}ms, continuing shutdown with active jobs abandoned in: ${[...pending].join(", ")}`,
+      );
+      return false;
+    }
+
     logger.info("All workers have been closed.");
+    return true;
   }
 
   public static getWorker(queueName: QueueName): Worker | undefined {

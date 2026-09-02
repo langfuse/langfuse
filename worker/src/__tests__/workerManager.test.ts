@@ -1,11 +1,12 @@
 import { randomUUID } from "crypto";
 
 import { Queue, Worker } from "bullmq";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createNewRedisInstance,
   getQueuePrefix,
+  logger,
   QueueName,
   redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
@@ -167,5 +168,51 @@ describe("WorkerManager", () => {
         redis.disconnect();
       }
     }, 30_000);
+  });
+  describe("closeWorkers", () => {
+    type CloseableWorker = { close: () => Promise<void> };
+
+    const withWorkers = async (
+      workers: Record<string, CloseableWorker>,
+      run: () => Promise<void>,
+    ) => {
+      const target = WorkerManager as unknown as {
+        workers: Record<string, unknown>;
+      };
+      const original = target.workers;
+      target.workers = workers;
+      try {
+        await run();
+      } finally {
+        target.workers = original;
+      }
+    };
+
+    it("resolves true once every worker has closed", async () => {
+      await withWorkers(
+        { fast: { close: () => Promise.resolve() } },
+        async () => {
+          await expect(WorkerManager.closeWorkers(1_000)).resolves.toBe(true);
+        },
+      );
+    });
+
+    it("gives up on workers that do not close within the timeout so shutdown can continue", async () => {
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      try {
+        await withWorkers(
+          {
+            fast: { close: () => Promise.resolve() },
+            stuck: { close: () => new Promise<void>(() => {}) },
+          },
+          async () => {
+            await expect(WorkerManager.closeWorkers(50)).resolves.toBe(false);
+          },
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("stuck"));
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });
