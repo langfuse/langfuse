@@ -8,7 +8,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 
 const tabsTriggerVariants = cva(
-  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex items-center justify-center font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex items-center justify-center gap-1.5 font-bold leading-none whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -54,13 +54,7 @@ type TabsTriggerProps = Omit<
 > & {
   children: React.ReactNode;
   value: string;
-  className?:
-    | "w-full"
-    | "min-w-[100px]"
-    | "min-w-[100px] gap-1.5"
-    | "min-w-0 flex-1"
-    | "flex-1"
-    | "gap-1.5 leading-none";
+  className?: "w-full" | "min-w-[100px]" | "min-w-0 flex-1" | "flex-1";
 } & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant">;
 
 TabsList.displayName = TabsPrimitive.List.displayName;

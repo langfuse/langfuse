@@ -889,7 +889,7 @@ export const InnerEvaluatorForm = (props: {
                           <TabsTrigger
                             value="event"
                             disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px] gap-1.5"
+                            className="min-w-[100px]"
                           >
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
@@ -898,7 +898,7 @@ export const InnerEvaluatorForm = (props: {
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px] gap-1.5"
+                              className="min-w-[100px]"
                             >
                               <ListTree className="h-3.5 w-3.5" />
                               Traces
@@ -914,7 +914,7 @@ export const InnerEvaluatorForm = (props: {
                           <TabsTrigger
                             value="offline-experiment"
                             disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px] gap-1.5"
+                            className="min-w-[100px]"
                           >
                             <FlaskConical className="h-3.5 w-3.5" />
                             Experiments
@@ -969,7 +969,7 @@ export const InnerEvaluatorForm = (props: {
                     <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
                       <TabsTrigger
                         value="otel"
-                        className="min-w-[100px] gap-1.5"
+                        className="min-w-[100px]"
                         disabled={props.mode === "edit" || props.disabled}
                       >
                         <FlaskConical className="h-3.5 w-3.5" />
@@ -977,7 +977,7 @@ export const InnerEvaluatorForm = (props: {
                       </TabsTrigger>
                       <TabsTrigger
                         value="non-otel"
-                        className="min-w-[100px] gap-1.5"
+                        className="min-w-[100px]"
                         disabled={props.mode === "edit" || props.disabled}
                       >
                         <BetweenHorizonalStart className="h-3.5 w-3.5" />

@@ -27,7 +27,6 @@ export function EvaluatorCodeLanguageSelector({
       <TabsList className="bg-background **:data-[state=active]:bg-muted border">
         <TabsTrigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
-          className="gap-1.5 leading-none"
           disabled={disabled}
         >
           <SiPython className="h-3.5 w-3.5 shrink-0" />
@@ -35,7 +34,6 @@ export function EvaluatorCodeLanguageSelector({
         </TabsTrigger>
         <TabsTrigger
           value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
-          className="gap-1.5 leading-none"
           disabled={disabled}
         >
           <SiTypescript className="h-3.5 w-3.5 shrink-0" />
