@@ -885,17 +885,16 @@ export default function ExperimentsTable({
                     <span className="text-sm font-bold">Charts</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent
-                  size="compact"
-                  className="max-h-[40dvh] overflow-x-auto"
-                >
-                  <ExperimentChartsGrid
-                    projectId={projectId}
-                    experiments={chartExperiments}
-                    fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to}
-                    isExternalLoading={experiments.status === "loading"}
-                  />
+                <AccordionContent size="compact">
+                  <div className="max-h-[40dvh] overflow-x-auto">
+                    <ExperimentChartsGrid
+                      projectId={projectId}
+                      experiments={chartExperiments}
+                      fromTimestamp={tableDateRange.from}
+                      toTimestamp={tableDateRange.to}
+                      isExternalLoading={experiments.status === "loading"}
+                    />
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

@@ -54,28 +54,17 @@ const AccordionTrigger = React.forwardRef<
 ));
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
 
-type AccordionContentProps = Omit<
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>,
-    "children" | "className"
-  >,
-  "children" | "className"
-> &
-  Pick<VariantProps<typeof accordionContentVariants>, "size"> & {
-    children: React.ReactNode;
-    className?: "max-h-[40dvh] overflow-x-auto";
-  };
+type AccordionContentProps = Pick<
+  VariantProps<typeof accordionContentVariants>,
+  "size"
+> & {
+  children: React.ReactNode;
+};
 
-function AccordionContent({
-  children,
-  className,
-  size,
-}: AccordionContentProps) {
+function AccordionContent({ children, size }: AccordionContentProps) {
   return (
     <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
-      <div className={cn(accordionContentVariants({ size }), className)}>
-        {children}
-      </div>
+      <div className={accordionContentVariants({ size })}>{children}</div>
     </AccordionPrimitive.Content>
   );
 }
