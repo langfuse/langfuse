@@ -169,7 +169,7 @@ export function EvaluatorSetupPage(
   const capture = usePostHogClientCapture();
   const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
     EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
-    "builder",
+    "query",
   );
   const canReactivate = useHasProjectAccess({
     projectId,

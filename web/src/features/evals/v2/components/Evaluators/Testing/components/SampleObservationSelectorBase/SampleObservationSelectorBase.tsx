@@ -180,7 +180,7 @@ export function SampleObservationSelectorBase(
   const [filterMode, setFilterMode] =
     useLocalStorage<EvaluatorFilterExperience>(
       EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
-      "builder",
+      "query",
     );
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
