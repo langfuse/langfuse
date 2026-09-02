@@ -137,7 +137,7 @@ function InAppAgentQuickActionPicker({
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
       </p>
-      <span className="mt-4 w-full max-w-sm">
+      <div className="mt-4 w-full max-w-sm">
         <Tabs
           value={selectedContext}
           onValueChange={(value) => {
@@ -166,7 +166,7 @@ function InAppAgentQuickActionPicker({
             ))}
           </Tabs.List>
         </Tabs>
-      </span>
+      </div>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;

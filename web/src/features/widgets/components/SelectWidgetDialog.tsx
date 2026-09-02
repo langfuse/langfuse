@@ -225,70 +225,74 @@ export function SelectWidgetDialog({
                     </Tabs.Trigger>
                   )}
                 </Tabs.List>
-                <Tabs.Content value="project">
-                  <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                    {projectWidgets.map((widget) => (
-                      <WidgetRow
-                        key={widget.id}
-                        widget={widget as WidgetItem}
-                        onClick={() => selectWidget(widget as WidgetItem)}
-                      />
-                    ))}
-                    {projectWidgets.length === 0 ? (
-                      <div className="text-muted-foreground py-8 text-center text-sm">
-                        {hiddenWidgetsNote ??
-                          "No saved widgets in this project yet — build one with Custom Chart."}
-                      </div>
-                    ) : hiddenWidgetsNote ? (
-                      <div className="text-muted-foreground px-1 py-2 text-xs">
-                        {hiddenWidgetsNote}
-                      </div>
-                    ) : null}
-                  </div>
-                </Tabs.Content>
-                {onSelectPreset && (
-                  <Tabs.Content value="home-cards">
+                <div className="mt-2">
+                  <Tabs.Content value="project">
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                      {suggestedPresetIds.map((presetId) => {
-                        const meta = HOME_PRESET_METADATA[presetId];
-                        return (
-                          <button
-                            key={presetId}
-                            type="button"
-                            onClick={() => {
-                              capture("dashboard:widget_added", {
-                                kind: "home_preset",
-                                preset_id: presetId,
-                                dashboard_id: dashboardId,
-                              });
-                              onSelectPreset(presetId);
-                              onOpenChange(false);
-                            }}
-                            className={rowClassName}
-                          >
-                            <RowIllustration type={meta.illustration} />
-                            <div className="min-w-0 flex-1">
-                              <div
-                                className="truncate font-bold"
-                                title={meta.name}
-                              >
-                                {meta.name}
-                              </div>
-                              <div
-                                className="text-muted-foreground truncate text-xs"
-                                title={meta.description}
-                              >
-                                {meta.description}
-                              </div>
-                              <div className="text-muted-foreground/80 mt-0.5 text-xs">
-                                Home card · fixed configuration
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {projectWidgets.map((widget) => (
+                        <WidgetRow
+                          key={widget.id}
+                          widget={widget as WidgetItem}
+                          onClick={() => selectWidget(widget as WidgetItem)}
+                        />
+                      ))}
+                      {projectWidgets.length === 0 ? (
+                        <div className="text-muted-foreground py-8 text-center text-sm">
+                          {hiddenWidgetsNote ??
+                            "No saved widgets in this project yet — build one with Custom Chart."}
+                        </div>
+                      ) : hiddenWidgetsNote ? (
+                        <div className="text-muted-foreground px-1 py-2 text-xs">
+                          {hiddenWidgetsNote}
+                        </div>
+                      ) : null}
                     </div>
                   </Tabs.Content>
+                </div>
+                {onSelectPreset && (
+                  <div className="mt-2">
+                    <Tabs.Content value="home-cards">
+                      <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                        {suggestedPresetIds.map((presetId) => {
+                          const meta = HOME_PRESET_METADATA[presetId];
+                          return (
+                            <button
+                              key={presetId}
+                              type="button"
+                              onClick={() => {
+                                capture("dashboard:widget_added", {
+                                  kind: "home_preset",
+                                  preset_id: presetId,
+                                  dashboard_id: dashboardId,
+                                });
+                                onSelectPreset(presetId);
+                                onOpenChange(false);
+                              }}
+                              className={rowClassName}
+                            >
+                              <RowIllustration type={meta.illustration} />
+                              <div className="min-w-0 flex-1">
+                                <div
+                                  className="truncate font-bold"
+                                  title={meta.name}
+                                >
+                                  {meta.name}
+                                </div>
+                                <div
+                                  className="text-muted-foreground truncate text-xs"
+                                  title={meta.description}
+                                >
+                                  {meta.description}
+                                </div>
+                                <div className="text-muted-foreground/80 mt-0.5 text-xs">
+                                  Home card · fixed configuration
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </Tabs.Content>
+                  </div>
                 )}
               </Tabs>
             </div>

@@ -369,7 +369,7 @@ function ToolDefinitionRow({
       {isExpanded && (
         <div className="border-border bg-muted/30 relative border-t px-4 py-3">
           <div className="absolute top-1 right-4">
-            <span className="h-fit py-0.5">
+            <div className="h-fit py-0.5">
               <Tabs
                 value={currentView}
                 onValueChange={(value) =>
@@ -385,7 +385,7 @@ function ToolDefinitionRow({
                   </Tabs.Trigger>
                 </Tabs.List>
               </Tabs>
-            </span>
+            </div>
           </div>
 
           {currentView === "formatted" && (

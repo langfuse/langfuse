@@ -342,41 +342,45 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   </button>
                 </p>
               )}
-              <Tabs.Content value={PromptType.Text}>
-                <FormField
-                  control={form.control}
-                  name="textPrompt"
-                  render={({ field }) => (
-                    <>
-                      <FormControl>
-                        <PromptLinkingEditor
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          minHeight={200}
+              <div className="mt-2">
+                <Tabs.Content value={PromptType.Text}>
+                  <FormField
+                    control={form.control}
+                    name="textPrompt"
+                    render={({ field }) => (
+                      <>
+                        <FormControl>
+                          <PromptLinkingEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            minHeight={200}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </>
+                    )}
+                  />
+                </Tabs.Content>
+              </div>
+              <div className="mt-2">
+                <Tabs.Content value={PromptType.Chat}>
+                  <FormField
+                    control={form.control}
+                    name="chatPrompt"
+                    render={({ field }) => (
+                      <>
+                        <PromptChatMessages
+                          {...field}
+                          initialMessages={initialMessages}
+                          projectId={projectId}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </>
-                  )}
-                />
-              </Tabs.Content>
-              <Tabs.Content value={PromptType.Chat}>
-                <FormField
-                  control={form.control}
-                  name="chatPrompt"
-                  render={({ field }) => (
-                    <>
-                      <PromptChatMessages
-                        {...field}
-                        initialMessages={initialMessages}
-                        projectId={projectId}
-                      />
-                      <FormMessage />
-                    </>
-                  )}
-                />
-              </Tabs.Content>
+                        <FormMessage />
+                      </>
+                    )}
+                  />
+                </Tabs.Content>
+              </div>
             </Tabs>
           </FormItem>
           <PromptVariableListPreview variables={currentExtractedVariables} />

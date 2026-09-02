@@ -283,7 +283,7 @@ export function TraceDetailView({
               {(selectedTab === "log" ||
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
                 <>
-                  <span className="ml-auto h-fit px-2 py-0.5">
+                  <div className="ml-auto h-fit px-2 py-0.5">
                     <Tabs
                       value={
                         selectedTab === "log" &&
@@ -345,7 +345,7 @@ export function TraceDetailView({
                         )}
                       </Tabs.List>
                     </Tabs>
-                  </span>
+                  </div>
                   {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
                   {selectedViewTab === "json" &&
                     !(selectedTab === "log" && isLogViewVirtualized) && (

@@ -371,7 +371,7 @@ export function ConnectedObservationDetailView({
               {(selectedTab === "log" ||
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
                 <>
-                  <span className="ml-auto h-fit px-2 py-0.5">
+                  <div className="ml-auto h-fit px-2 py-0.5">
                     <Tabs
                       value={
                         selectedTab === "log" &&
@@ -434,7 +434,7 @@ export function ConnectedObservationDetailView({
                         )}
                       </Tabs.List>
                     </Tabs>
-                  </span>
+                  </div>
                   {selectedViewTab === "json" &&
                     !(selectedTab === "log" && isLogViewVirtualized) && (
                       <div className="mr-1 flex items-center gap-1.5">

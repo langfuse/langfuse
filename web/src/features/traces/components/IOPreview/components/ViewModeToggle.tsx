@@ -40,7 +40,7 @@ export function ViewModeToggle({
 
   return (
     <div className="flex w-full flex-row items-center justify-start gap-1.5">
-      <span className="h-fit py-0.5">
+      <div className="h-fit py-0.5">
         <Tabs
           ref={compensateScrollRef}
           value={selectedViewTab}
@@ -73,7 +73,7 @@ export function ViewModeToggle({
             </Tabs.Trigger>
           </Tabs.List>
         </Tabs>
-      </span>
+      </div>
       {selectedViewTab === "json" && (
         <div className="flex items-center gap-1.5">
           <Switch

@@ -155,7 +155,7 @@ function TabsContent({ children, value }: TabsContentProps) {
   return (
     <TabsPrimitive.Content
       value={value}
-      className="ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+      className="ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
     >
       {children}
     </TabsPrimitive.Content>

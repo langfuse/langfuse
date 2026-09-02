@@ -145,7 +145,7 @@ export function CustomMappingEditor({
     <div className="bg-muted/30 space-y-2 rounded-md border p-4">
       <div>
         <Label className="text-sm font-bold">Target</Label>
-        <span className="mt-2">
+        <div className="mt-2">
           <Tabs
             value={config.type}
             onValueChange={(v) => handleTypeChange(v as MappingTarget)}
@@ -155,7 +155,7 @@ export function CustomMappingEditor({
               <Tabs.Trigger value="keyValueMap">Key-value map</Tabs.Trigger>
             </Tabs.List>
           </Tabs>
-        </span>
+        </div>
       </div>
 
       {config.type === "root" && (

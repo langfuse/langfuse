@@ -789,7 +789,7 @@ export function CreateLLMApiKeyForm({
                           Select how Langfuse should authenticate to Bedrock.
                         </FormDescription>
                         <FormControl>
-                          <span className="w-full">
+                          <div className="w-full">
                             <Tabs
                               value={field.value}
                               onValueChange={(value) =>
@@ -811,7 +811,7 @@ export function CreateLLMApiKeyForm({
                                 </Tabs.Trigger>
                               </Tabs.List>
                             </Tabs>
-                          </span>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
