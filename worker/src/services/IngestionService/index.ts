@@ -620,8 +620,15 @@ export class IngestionService {
     } = params;
     if (scoreEventList.length === 0) return;
 
-    const timeSortedEvents =
-      IngestionService.toTimeSortedEventList(scoreEventList);
+    // Re-sending a score with the same id and timestamp is the documented way
+    // to overwrite it, so ties must keep arrival order for the later one to
+    // win. Score events are all creates, so no create-first rule is needed.
+    const timeSortedEvents = scoreEventList
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
 
     const minTimestamp = Math.min(
       ...timeSortedEvents.flatMap((e) =>
@@ -1231,18 +1238,36 @@ export class IngestionService {
   }
 
   private static toTimeSortedEventList<
-    T extends TraceEventType | ScoreEventType | ObservationEvent,
+    T extends TraceEventType | ObservationEvent,
   >(eventList: T[]): T[] {
-    return eventList.slice().sort((a, b) => {
-      const aTimestamp = new Date(a.timestamp).getTime();
-      const bTimestamp = new Date(b.timestamp).getTime();
+    // The merge folds this list left to right with a last-wins overwrite, so
+    // the winner for any group is whichever event sorts last. Events arrive in
+    // upload order (the queue processor lists files by upload time), captured
+    // here as the arrival index and used as the tie-break so the ordering is a
+    // total order rather than relying on the sort engine's handling of ties.
+    return eventList
+      .map((event, index) => ({ event, index }))
+      .sort((a, b) => {
+        const aTimestamp = new Date(a.event.timestamp).getTime();
+        const bTimestamp = new Date(b.event.timestamp).getTime();
+        if (aTimestamp !== bTimestamp) return aTimestamp - bTimestamp;
 
-      if (aTimestamp === bTimestamp) {
-        return a.type.includes("create") ? -1 : 1; // create events should come first
-      }
+        const aIsCreate = a.event.type.includes("create");
+        const bIsCreate = b.event.type.includes("create");
+        // Creates sort before updates, so an update at the same timestamp wins.
+        if (aIsCreate !== bIsCreate) return aIsCreate ? -1 : 1;
 
-      return aTimestamp - bTimestamp;
-    });
+        // Tied creates: the first-arriving one wins. OTel emits a root span's
+        // trace-create and a child span's trace-create carrying explicit
+        // update_current_trace() values at the same span start time; the child
+        // arrives first and its explicit fields must beat the root's derived
+        // ones. Placing the earlier arrival last makes it win the merge.
+        if (aIsCreate) return b.index - a.index;
+
+        // Tied updates: the last-arriving one wins.
+        return a.index - b.index;
+      })
+      .map(({ event }) => event);
   }
 
   private async getPrompt(

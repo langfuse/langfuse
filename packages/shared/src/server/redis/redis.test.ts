@@ -10,7 +10,8 @@ vi.mock("../../env", () => ({
 }));
 
 import { env } from "../../env";
-import { safeMultiGet, scanKeys } from "./redis";
+import { safeMultiGet, scanKeys, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 import {
   buildRedisErrorContext,
   formatRedisErrorMessage,
@@ -259,5 +260,71 @@ describe("formatRedisErrorMessage", () => {
     expect(formatRedisErrorMessage("Redis error", context)).toBe(
       "Redis error [connection-closed]: Connection is closed.",
     );
+  });
+});
+describe("redisQueueRetryOptions", () => {
+  const retryStrategy = redisQueueRetryOptions.retryStrategy as (
+    times: number,
+  ) => number;
+
+  describe("retryStrategy", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("keeps early retries at least 1s apart", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const delay = retryStrategy(1);
+      expect(delay).toBeGreaterThanOrEqual(1000);
+      expect(delay).toBeLessThan(1501);
+    });
+
+    it("caps the base delay at 20s before jitter", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0);
+      expect(retryStrategy(50)).toBe(20000);
+    });
+
+    it("applies jitter so concurrent connections do not retry in lockstep", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0);
+      const base = retryStrategy(8);
+      vi.spyOn(Math, "random").mockReturnValue(1);
+      const jittered = retryStrategy(8);
+      expect(jittered).toBeGreaterThan(base);
+      expect(jittered).toBeLessThanOrEqual(base * 1.5);
+    });
+  });
+
+  describe("reconnectOnError", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("logs ordinary connection errors and does not reconnect", () => {
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
+        new Error("getaddrinfo ENOTFOUND langfuse-redis"),
+      );
+      expect(result).toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns 2 for READONLY errors so the command is retried after reconnect", () => {
+      vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
+        new Error("READONLY You can't write against a read only replica."),
+      );
+      expect(result).toBe(2);
+    });
+
+    it("treats MOVED redirects as debug noise and does not reconnect", () => {
+      const debug = vi.spyOn(logger, "debug").mockImplementation(() => logger);
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
+        new Error("MOVED 3999 127.0.0.1:6381"),
+      );
+      expect(result).toBe(false);
+      expect(debug).toHaveBeenCalledTimes(1);
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 });

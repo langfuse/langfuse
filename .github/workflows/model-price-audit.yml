@@ -826,3 +826,24 @@ jobs:
           echo "Created or updated model price audit PR: $pr_url"
           echo "## Pull request" >> "$GITHUB_STEP_SUMMARY"
           echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
+
+  notify-slack-on-failure:
+    needs:
+      - audit
+      - publish
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ Model Price Audit Failed"
+          message: "❌ Model price audit failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

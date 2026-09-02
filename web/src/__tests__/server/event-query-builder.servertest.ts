@@ -241,8 +241,11 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       projectId: "test-project",
       filter: [
         {
+          // `contains` is truncation-unsafe (a match can sit past char 200),
+          // so it must force full-table routing — which is what this test
+          // asserts. A short `=`/`starts with` value stays on events_core.
           column: "metadata",
-          operator: "=",
+          operator: "contains",
           key: "region",
           value: "eu",
           type: "stringObject",
