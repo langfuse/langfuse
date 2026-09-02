@@ -193,6 +193,25 @@ export class BufferedStreamUploader {
   // per-row chunks and this runs on the worker's shared event loop.
   // Caller must pass byteLength <= currentBufferSize.
   private takeBytes(byteLength: number): Buffer {
+    // Single backing buffer: this is the loop that slices one oversized stream
+    // chunk into k = chunkSize / partSizeBytes parts. Re-concatenating and
+    // re-copying the shrinking leftover on each of those k calls would be
+    // O(chunkSize^2 / partSizeBytes) — the same synchronous event-loop stall
+    // this class avoids for many small chunks. Instead slice by view: copy
+    // only the emitted part (so the large source frees once this synchronous
+    // loop ends, rather than being pinned for the upload's retry lifetime) and
+    // carry the leftover as a zero-copy view. Cost stays O(chunkSize).
+    if (this.currentBuffer.length === 1) {
+      const buf = this.currentBuffer[0];
+      this.currentBufferSize -= byteLength;
+      if (byteLength === buf.byteLength) {
+        this.currentBuffer = [];
+        return buf;
+      }
+      this.currentBuffer = [buf.subarray(byteLength)];
+      return Buffer.from(buf.subarray(0, byteLength));
+    }
+
     const combined = Buffer.concat(this.currentBuffer);
     const remainderLength = combined.byteLength - byteLength;
     // Non-final parts are normally returned as a view into `combined`: no copy

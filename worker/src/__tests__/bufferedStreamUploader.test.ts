@@ -200,6 +200,40 @@ describe("BufferedStreamUploader", () => {
       }
     });
 
+    it("splits a single chunk spanning many parts without a quadratic slowdown", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const mock = createMockStrategy();
+        const partSizeBytes = 1024;
+        const numParts = 2000; // one ~2 MiB chunk sliced into 2000 parts
+        const uploader = new BufferedStreamUploader({
+          ...defaultParams(mock.strategy),
+          partSizeBytes,
+          maxConcurrentParts: 5,
+        });
+
+        // Re-concatenating/re-copying the shrinking leftover on each of the
+        // 2000 slices would be O(chunkSize^2) and blow the test timeout;
+        // view-based slicing keeps it O(chunkSize).
+        await uploader.upload(
+          streamFrom(["x".repeat(partSizeBytes * numParts)]),
+        );
+
+        const parts = [...mock.uploadedParts].sort(
+          (a, b) => a.partNumber - b.partNumber,
+        );
+        expect(parts).toHaveLength(numParts);
+        expect(parts.every((p) => p.data.byteLength === partSizeBytes)).toBe(
+          true,
+        );
+        expect(parts.reduce((sum, p) => sum + p.data.byteLength, 0)).toBe(
+          partSizeBytes * numParts,
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("floors a fractional partSizeBytes so Buffer.concat does not throw", async () => {
       const mock = createMockStrategy();
       const uploader = new BufferedStreamUploader({
