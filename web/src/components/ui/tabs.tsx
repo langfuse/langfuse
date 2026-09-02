@@ -76,7 +76,7 @@ type TabsListProps = {
   children: React.ReactNode;
 } & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
 type TabsRootProps = {
-  children?: React.ReactNode;
+  children: React.ReactNode;
   className?:
     | "mt-4 w-full max-w-sm"
     | "w-full"
