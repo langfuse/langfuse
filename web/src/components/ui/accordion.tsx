@@ -82,10 +82,21 @@ type AccordionItemProps = Pick<
     children: React.ReactNode;
   };
 
-type AccordionProps = Pick<
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
+type AccordionRootProps = React.ComponentPropsWithoutRef<
+  typeof AccordionPrimitive.Root
+>;
+
+type AccordionSingleProps = Pick<
+  Extract<AccordionRootProps, { type: "single" }>,
   "collapsible" | "defaultValue" | "onValueChange" | "type" | "value"
-> &
+>;
+
+type AccordionMultipleProps = Pick<
+  Extract<AccordionRootProps, { type: "multiple" }>,
+  "defaultValue" | "onValueChange" | "type" | "value"
+>;
+
+type AccordionProps = (AccordionSingleProps | AccordionMultipleProps) &
   Pick<VariantProps<typeof accordionVariants>, "gap"> & {
     children: React.ReactNode;
   };
