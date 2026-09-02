@@ -214,5 +214,27 @@ describe("WorkerManager", () => {
         warn.mockRestore();
       }
     });
+
+    it("reports a worker whose close() rejects instead of claiming a clean close", async () => {
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const error = vi.spyOn(logger, "error").mockImplementation(() => logger);
+      try {
+        await withWorkers(
+          {
+            fast: { close: () => Promise.resolve() },
+            broken: { close: () => Promise.reject(new Error("redis gone")) },
+          },
+          async () => {
+            await expect(WorkerManager.closeWorkers(1_000)).resolves.toBe(
+              false,
+            );
+          },
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("broken"));
+      } finally {
+        warn.mockRestore();
+        error.mockRestore();
+      }
+    });
   });
 });

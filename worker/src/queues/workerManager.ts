@@ -112,19 +112,22 @@ export class WorkerManager {
 
   /**
    * Closes every registered BullMQ worker, waiting for their active jobs.
-   * Resolves false when workers are still busy after `timeoutMs` so the caller
-   * can flush and exit before the orchestrator's stop timeout kills the
-   * process; the abandoned jobs are picked up again by stalled-job recovery.
+   * Resolves false when workers are still busy after `timeoutMs` or failed to
+   * close, so the caller can flush and exit before the orchestrator's stop
+   * timeout kills the process; the abandoned jobs are picked up again by
+   * stalled-job recovery.
    */
   public static async closeWorkers(
     timeoutMs: number = env.LANGFUSE_SHUTDOWN_QUEUE_CLOSE_TIMEOUT_MS,
   ): Promise<boolean> {
     const pending = new Set(Object.keys(WorkerManager.workers));
+    const failed = new Set<string>();
     const closeAll = Promise.all(
       Object.entries(WorkerManager.workers).map(([queueName, worker]) =>
         worker
           .close()
           .catch((error) => {
+            failed.add(queueName);
             logger.error(`Failed to close worker for ${queueName}`, error);
           })
           .finally(() => {
@@ -142,9 +145,17 @@ export class WorkerManager {
     ]);
     clearTimeout(timer);
 
+    const abandoned = [...new Set([...pending, ...failed])].join(", ");
     if (timedOut) {
       logger.warn(
-        `Queue workers did not close within ${timeoutMs}ms, continuing shutdown with active jobs abandoned in: ${[...pending].join(", ")}`,
+        `Queue workers did not close within ${timeoutMs}ms, continuing shutdown with active jobs abandoned in: ${abandoned}`,
+      );
+      return false;
+    }
+
+    if (failed.size > 0) {
+      logger.warn(
+        `Queue workers failed to close, continuing shutdown with active jobs abandoned in: ${abandoned}`,
       );
       return false;
     }

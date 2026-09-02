@@ -141,6 +141,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
       logger.error("Error terminating token count worker threads", error);
     }
 
+    phase = "freeing tokenizers";
     freeAllTokenizers();
     logger.info("All tokenizers are cleaned up from memory.");
 
