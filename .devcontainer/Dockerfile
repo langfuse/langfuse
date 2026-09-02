@@ -12,15 +12,17 @@ RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
 
 FROM mcr.microsoft.com/devcontainers/universal:2
 
-ARG NODE_VERSION=24.20.0
+ARG NODE_VERSION=24
 
-# Install the exact project runtime through the nvm environment provided by the
-# universal devcontainer image, then move its shared `current` link to that version.
+# Install the project runtime through the nvm environment provided by the
+# universal devcontainer image, then move its shared `current` link to the resolved version.
 RUN bash -c 'source /usr/local/share/nvm/nvm.sh \
     && nvm install "${NODE_VERSION}" \
     && nvm alias default "${NODE_VERSION}" \
-    && ln -sfn "/usr/local/share/nvm/versions/node/v${NODE_VERSION}" /usr/local/share/nvm/current \
-    && test "$(node --version)" = "v${NODE_VERSION}"'
+    && installed_node_version="$(nvm version "${NODE_VERSION}")" \
+    && ln -sfn "/usr/local/share/nvm/versions/node/${installed_node_version}" /usr/local/share/nvm/current \
+    && current_node_version="$(node --version)" \
+    && test "${current_node_version%%.*}" = "v${NODE_VERSION}"'
 
 # Install golang-migrate for database migrations
 COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate

@@ -23,10 +23,10 @@ ensure_env_defaults() {
   done < "$fallback_path"
 }
 
-required_node_version=24.20.0
-current_node_version="$(node -p 'process.versions.node' 2>/dev/null || echo 0.0.0)"
+required_node_major=24
+current_node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
 
-if [ "$current_node_version" != "$required_node_version" ]; then
+if [ "$current_node_major" != "$required_node_major" ]; then
   export DEBIAN_FRONTEND=noninteractive
 
   sudo apt-get update
@@ -40,7 +40,7 @@ if [ "$current_node_version" != "$required_node_version" ]; then
     | sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
 
   sudo apt-get update
-  sudo apt-get install -y "nodejs=${required_node_version}-1nodesource1"
+  sudo apt-get install -y nodejs
 
   # The orb image may have an older toolchain in /usr/local/bin, which takes
   # precedence over the NodeSource binaries in /usr/bin.
@@ -49,8 +49,8 @@ if [ "$current_node_version" != "$required_node_version" ]; then
   done
 fi
 
-if [ "$(node -p 'process.versions.node')" != "$required_node_version" ]; then
-  echo "Node.js $required_node_version is required."
+if [ "$(node -p 'process.versions.node.split(".")[0]')" != "$required_node_major" ]; then
+  echo "Node.js $required_node_major is required."
   exit 1
 fi
 

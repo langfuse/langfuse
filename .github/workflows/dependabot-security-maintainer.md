@@ -33,10 +33,6 @@ checkout:
 
 model: claude-opus-5?effort=medium
 
-runtimes:
-  node:
-    version: "24.20.0"
-
 engine:
   id: claude
   max-turns: 180

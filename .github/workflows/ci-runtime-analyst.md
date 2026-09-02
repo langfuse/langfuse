@@ -26,10 +26,6 @@ checkout:
 # above. Syntax per the model-alias spec: <model>?effort=<low|medium|high>.
 model: claude-opus-5?effort=medium
 
-runtimes:
-  node:
-    version: "24.20.0"
-
 engine:
   id: claude
   max-turns: 120
