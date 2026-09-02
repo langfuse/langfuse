@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

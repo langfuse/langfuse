@@ -21,7 +21,7 @@ import {
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";

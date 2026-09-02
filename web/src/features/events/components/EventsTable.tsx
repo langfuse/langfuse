@@ -1139,28 +1139,18 @@ export default function ObservationsEventsTable({
       size: 50,
       enableSorting,
     }),
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getEventsColumnName("name"),
       size: 150,
       enableSorting,
-      cell: ({ row }) => {
-        const value: EventsTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
-      id: "traceName",
       header: getEventsColumnName("traceName"),
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("traceName");
-        return value ?? undefined;
-      },
-    },
+    }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
       header: getEventsColumnName("input"),
@@ -1510,9 +1500,8 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "version",
-      id: "version",
       header: getEventsColumnName("version"),
       size: 100,
       headerTooltip: {
@@ -1522,10 +1511,9 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "release",
-      id: "release",
       header: getEventsColumnName("release"),
       size: 100,
       headerTooltip: {
@@ -1535,7 +1523,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "userId",
       id: "userId",

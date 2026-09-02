@@ -16,6 +16,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
@@ -30,7 +31,7 @@ import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -45,13 +46,19 @@ import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/co
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { getFirstCodeEvaluatorScoreDataType } from "@/src/features/evals/v2/fns/evaluators/getFirstCodeEvaluatorScoreDataType";
 import {
   getEvaluatorCreationAnalyticsProperties,
   getJudgePromptAnalyticsProperties,
@@ -160,10 +167,27 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
+    EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
+    "builder",
+  );
   const canReactivate = useHasProjectAccess({
     projectId,
     scope: "evaluator:CUD",
   });
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "evaluator",
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+  });
+  const scoreDataType = initialEvaluator
+    ? initialEvaluator.definition.type === "LLM_AS_JUDGE"
+      ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
+          .dataType
+      : getFirstCodeEvaluatorScoreDataType(
+          initialEvaluator.definition.sourceCode,
+        )
+    : undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -479,6 +503,7 @@ export function EvaluatorSetupPage(
         });
         capture("evaluators:update", {
           evaluatorType: state.type,
+          filterExperience,
           ...(definition.type === "LLM_AS_JUDGE"
             ? getJudgePromptAnalyticsProperties(definition.promptMessages)
             : {}),
@@ -500,9 +525,8 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
-      capture(
-        "evaluators:create",
-        getEvaluatorCreationAnalyticsProperties({
+      capture("evaluators:create", {
+        ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
           creationSource: props.creationSource,
           sourceCodeLanguage:
@@ -526,7 +550,8 @@ export function EvaluatorSetupPage(
                 }
               : undefined,
         }),
-      );
+        filterExperience,
+      });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {
@@ -676,6 +701,14 @@ export function EvaluatorSetupPage(
               evaluatorDefaultVariableMapping={
                 initialEvaluator.definition.variableMapping
               }
+            />
+            <EvaluatorAlertButton
+              scope="evaluator"
+              projectId={projectId}
+              evaluatorId={initialEvaluator.id}
+              evaluatorType={initialEvaluator.type}
+              scoreDataType={scoreDataType}
+              {...evaluatorAlerts}
             />
             <Button
               type="button"

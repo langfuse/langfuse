@@ -36,7 +36,7 @@ import {
 import router from "next/router";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";

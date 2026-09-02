@@ -59,7 +59,7 @@ import {
 // Re-exported so existing consumers (tests, session view) keep their path.
 export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.

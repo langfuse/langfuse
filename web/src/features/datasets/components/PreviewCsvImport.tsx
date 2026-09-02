@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

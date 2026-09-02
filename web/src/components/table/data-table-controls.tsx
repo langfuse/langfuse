@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
   createContext,

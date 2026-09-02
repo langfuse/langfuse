@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useRouter } from "next/router";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export function DeletePromptVersion({
   promptVersionId,

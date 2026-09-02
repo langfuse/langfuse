@@ -5,7 +5,7 @@ import {
   type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
