@@ -194,12 +194,20 @@ export class BufferedStreamUploader {
   // Caller must pass byteLength <= currentBufferSize.
   private takeBytes(byteLength: number): Buffer {
     const combined = Buffer.concat(this.currentBuffer);
-    const partData = combined.subarray(0, byteLength);
-    const remainder = combined.subarray(byteLength);
-    // Copy the leftover into its own allocation so `combined` (up to
-    // partSizeBytes) can be freed once the part upload releases `partData`.
+    const remainderLength = combined.byteLength - byteLength;
+    // Non-final parts are normally returned as a view into `combined`: no copy
+    // on the hot path, where `combined` is one part plus at most a trailing
+    // row. But a single oversized stream chunk makes `combined` several parts
+    // large, and a view would pin that whole buffer for the part upload's
+    // lifetime (including retry backoff). When at least one more part is left
+    // over, copy the slice so `combined` is freed as soon as this returns.
+    const partData =
+      remainderLength >= byteLength
+        ? Buffer.from(combined.subarray(0, byteLength))
+        : combined.subarray(0, byteLength);
+    // Copy the leftover into its own allocation for the same reason.
     this.currentBuffer =
-      remainder.byteLength > 0 ? [Buffer.from(remainder)] : [];
+      remainderLength > 0 ? [Buffer.from(combined.subarray(byteLength))] : [];
     this.currentBufferSize -= byteLength;
     return partData;
   }

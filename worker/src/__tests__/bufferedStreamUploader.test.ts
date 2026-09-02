@@ -166,6 +166,40 @@ describe("BufferedStreamUploader", () => {
       }
     });
 
+    it("returns an oversized chunk's non-final parts as their own allocation, not a view pinning the whole chunk", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const mock = createMockStrategy();
+        // Above Node's Buffer pool threshold so a copied slice gets a
+        // dedicated ArrayBuffer sized to the slice, while a subarray view
+        // would keep the full coalesced backing buffer.
+        const partSizeBytes = 8192;
+        const uploader = new BufferedStreamUploader({
+          ...defaultParams(mock.strategy),
+          partSizeBytes,
+        });
+
+        // One chunk spanning >2 parts: part 1 leaves >= a full part over.
+        await uploader.upload(
+          streamFrom(["x".repeat(partSizeBytes * 2 + 100)]),
+        );
+
+        const parts = [...mock.uploadedParts].sort(
+          (a, b) => a.partNumber - b.partNumber,
+        );
+        expect(parts.map((p) => p.data.byteLength)).toEqual([
+          partSizeBytes,
+          partSizeBytes,
+          100,
+        ]);
+        // Part 1 is copied, so its backing buffer is exactly the slice size
+        // rather than the full ~16 KiB coalesced chunk.
+        expect(parts[0].data.buffer.byteLength).toBe(partSizeBytes);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("floors a fractional partSizeBytes so Buffer.concat does not throw", async () => {
       const mock = createMockStrategy();
       const uploader = new BufferedStreamUploader({
