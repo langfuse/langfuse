@@ -1864,10 +1864,10 @@ function CategoricalSelectContent({
             }
           >
             <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
-              <TabsTrigger value="any of" className="h-5 px-1 text-xs">
+              <TabsTrigger value="any of" size="sm">
                 Any of
               </TabsTrigger>
-              <TabsTrigger value="all of" className="h-5 px-1 text-xs">
+              <TabsTrigger value="all of" size="sm">
                 All of
               </TabsTrigger>
               {/* Without a persisted selection, switching to "none of" is a
@@ -1882,7 +1882,8 @@ function CategoricalSelectContent({
                     <TabsTrigger
                       value="none of"
                       disabled={operator === undefined}
-                      className="h-5 w-full px-1 text-xs"
+                      size="sm"
+                      className="w-full"
                     >
                       None of
                     </TabsTrigger>
@@ -2509,10 +2510,10 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
         <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
-          <TabsTrigger value="select" className="h-5 px-2 text-xs">
+          <TabsTrigger value="select" size="sm">
             Select
           </TabsTrigger>
-          <TabsTrigger value="text" className="h-5 px-2 text-xs">
+          <TabsTrigger value="text" size="sm">
             Text
           </TabsTrigger>
         </TabsList>

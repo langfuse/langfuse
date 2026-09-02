@@ -8,7 +8,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 
 const tabsTriggerVariants = cva(
-  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex h-6 items-center justify-center px-2 py-0.5 text-sm font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex items-center justify-center font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -17,9 +17,14 @@ const tabsTriggerVariants = cva(
         underline:
           "rounded-none border-b-2 border-transparent bg-transparent text-muted-foreground shadow-none data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none",
       },
+      size: {
+        default: "h-6 px-2 py-0.5 text-sm",
+        sm: "h-5 px-1 text-xs",
+      },
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   },
 );
@@ -50,17 +55,13 @@ type TabsTriggerProps = Omit<
   children: React.ReactNode;
   value: string;
   className?:
-    | "h-5 px-1 text-xs"
-    | "h-5 w-full px-1 text-xs"
-    | "h-5 px-2 text-xs"
+    | "w-full"
     | "min-w-[100px]"
     | "min-w-[100px] gap-1.5"
-    | "h-7 min-w-0 flex-1 px-1 text-xs"
-    | "h-fit px-1 text-xs"
-    | "text-xs"
+    | "min-w-0 flex-1"
     | "flex-1"
     | "gap-1.5 leading-none";
-} & Pick<VariantProps<typeof tabsTriggerVariants>, "variant">;
+} & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant">;
 
 TabsList.displayName = TabsPrimitive.List.displayName;
 
@@ -68,6 +69,7 @@ function TabsTrigger({
   children,
   className,
   disabled,
+  size,
   title,
   value,
   variant,
@@ -77,7 +79,7 @@ function TabsTrigger({
       value={value}
       disabled={disabled}
       title={title}
-      className={cn(tabsTriggerVariants({ variant }), className)}
+      className={cn(tabsTriggerVariants({ size, variant }), className)}
     >
       {children}
     </TabsPrimitive.Trigger>

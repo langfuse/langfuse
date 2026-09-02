@@ -156,7 +156,8 @@ function InAppAgentQuickActionPicker({
               value={context}
               disabled={isDisabled}
               variant="underline"
-              className="h-7 min-w-0 flex-1 px-1 text-xs"
+              size="sm"
+              className="min-w-0 flex-1"
             >
               {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
             </TabsTrigger>

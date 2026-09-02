@@ -308,27 +308,17 @@ export function TraceDetailView({
                       {/* Log view never runs the normalized parser, so the
                           beta tab only renders on the preview tab. */}
                       {showPrettyBeta && selectedTab !== "log" && (
-                        <TabsTrigger
-                          value="pretty-beta"
-                          className="h-fit px-1 text-xs"
-                        >
+                        <TabsTrigger value="pretty-beta" size="sm">
                           Normalized (beta)
                         </TabsTrigger>
                       )}
-                      <TabsTrigger
-                        value="pretty"
-                        className="h-fit px-1 text-xs"
-                      >
+                      <TabsTrigger value="pretty" size="sm">
                         Formatted
                       </TabsTrigger>
                       {selectedTab === "log" && isLogViewVirtualized ? (
                         <HoverCard openDelay={200}>
                           <HoverCardTrigger asChild>
-                            <TabsTrigger
-                              value="json"
-                              className="h-fit px-1 text-xs"
-                              disabled
-                            >
+                            <TabsTrigger value="json" size="sm" disabled>
                               JSON
                             </TabsTrigger>
                           </HoverCardTrigger>
@@ -349,10 +339,7 @@ export function TraceDetailView({
                           </HoverCardContent>
                         </HoverCard>
                       ) : (
-                        <TabsTrigger
-                          value="json"
-                          className="h-fit px-1 text-xs"
-                        >
+                        <TabsTrigger value="json" size="sm">
                           JSON
                         </TabsTrigger>
                       )}

@@ -805,14 +805,11 @@ export function CreateLLMApiKeyForm({
                             >
                               <TabsTrigger
                                 value={AuthMethod.AccessKeys}
-                                className="text-xs"
+                                size="sm"
                               >
                                 AWS access keys
                               </TabsTrigger>
-                              <TabsTrigger
-                                value={AuthMethod.ApiKey}
-                                className="text-xs"
-                              >
+                              <TabsTrigger value={AuthMethod.ApiKey} size="sm">
                                 API key
                               </TabsTrigger>
                             </TabsList>

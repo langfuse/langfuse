@@ -51,11 +51,7 @@ export function ViewModeToggle({
             (prettyBetaDisabled ? (
               <HoverCard openDelay={200}>
                 <HoverCardTrigger asChild>
-                  <TabsTrigger
-                    value="pretty-beta"
-                    className="h-fit px-1 text-xs"
-                    disabled
-                  >
+                  <TabsTrigger value="pretty-beta" size="sm" disabled>
                     Normalized (beta)
                   </TabsTrigger>
                 </HoverCardTrigger>
@@ -65,14 +61,14 @@ export function ViewModeToggle({
                 </HoverCardContent>
               </HoverCard>
             ) : (
-              <TabsTrigger value="pretty-beta" className="h-fit px-1 text-xs">
+              <TabsTrigger value="pretty-beta" size="sm">
                 Normalized (beta)
               </TabsTrigger>
             ))}
-          <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+          <TabsTrigger value="pretty" size="sm">
             Formatted
           </TabsTrigger>
-          <TabsTrigger value="json" className="h-fit px-1 text-xs">
+          <TabsTrigger value="json" size="sm">
             JSON
           </TabsTrigger>
         </TabsList>

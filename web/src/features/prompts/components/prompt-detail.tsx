@@ -579,16 +579,10 @@ export const PromptDetail = ({
                       }}
                     >
                       <TabsList className="h-auto gap-1">
-                        <TabsTrigger
-                          value="resolved"
-                          className="h-fit px-1 text-xs"
-                        >
+                        <TabsTrigger value="resolved" size="sm">
                           Resolved prompt
                         </TabsTrigger>
-                        <TabsTrigger
-                          value="tagged"
-                          className="h-fit px-1 text-xs"
-                        >
+                        <TabsTrigger value="tagged" size="sm">
                           Tagged prompt
                         </TabsTrigger>
                       </TabsList>

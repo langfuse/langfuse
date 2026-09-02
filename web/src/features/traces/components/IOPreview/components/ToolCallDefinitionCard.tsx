@@ -377,10 +377,10 @@ function ToolDefinitionRow({
               }
             >
               <TabsList className="h-fit p-0.5">
-                <TabsTrigger value="formatted" className="h-fit px-1 text-xs">
+                <TabsTrigger value="formatted" size="sm">
                   Formatted
                 </TabsTrigger>
-                <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                <TabsTrigger value="json" size="sm">
                   JSON
                 </TabsTrigger>
               </TabsList>

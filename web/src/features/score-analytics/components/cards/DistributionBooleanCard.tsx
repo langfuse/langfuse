@@ -198,24 +198,16 @@ export function DistributionBooleanCard() {
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
               <TabsList className="h-7">
-                <TabsTrigger
-                  value="score1"
-                  title={score1FullLabel}
-                  className="h-5 px-2 text-xs"
-                >
+                <TabsTrigger value="score1" title={score1FullLabel} size="sm">
                   {truncateLabel(score1FullLabel)}
                 </TabsTrigger>
-                <TabsTrigger
-                  value="score2"
-                  title={score2FullLabel}
-                  className="h-5 px-2 text-xs"
-                >
+                <TabsTrigger value="score2" title={score2FullLabel} size="sm">
                   {truncateLabel(score2FullLabel)}
                 </TabsTrigger>
-                <TabsTrigger value="all" className="h-5 px-2 text-xs">
+                <TabsTrigger value="all" size="sm">
                   all
                 </TabsTrigger>
-                <TabsTrigger value="matched" className="h-5 px-2 text-xs">
+                <TabsTrigger value="matched" size="sm">
                   matched
                 </TabsTrigger>
               </TabsList>
