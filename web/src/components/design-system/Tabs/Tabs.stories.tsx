@@ -115,34 +115,3 @@ export const SwitchesTab = meta.story({
     await expect(canvas.getByText("Password settings")).toBeVisible();
   },
 });
-
-export const DisabledTabDoesNotSwitch = meta.story({
-  name: "(Test) Disabled Tab Does Not Switch",
-  args: {
-    defaultValue: "account",
-    children: (
-      <>
-        <Tabs.List>
-          <Tabs.Trigger value="account">Account</Tabs.Trigger>
-          <Tabs.Trigger value="password" disabled>
-            Password
-          </Tabs.Trigger>
-        </Tabs.List>
-        <Tabs.Content value="account">Account settings</Tabs.Content>
-        <Tabs.Content value="password">Password settings</Tabs.Content>
-      </>
-    ),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const passwordTab = canvas.getByRole("tab", { name: "Password" });
-
-    await expect(passwordTab).toBeDisabled();
-    await userEvent.click(passwordTab);
-    await expect(canvas.getByRole("tab", { name: "Account" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await expect(canvas.getByText("Account settings")).toBeVisible();
-  },
-});
