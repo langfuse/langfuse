@@ -688,7 +688,7 @@ export default function ExperimentsTable({
         description: "Average duration of the root span per experiment item.",
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
-      emptyCell: <NotRecordedMetric metric="latency" />,
+      emptyValue: <NotRecordedMetric metric="latency" />,
       getValue: (value) =>
         metricsLoading ? { type: "loading" } : (value ?? undefined),
     }),
@@ -698,7 +698,7 @@ export default function ExperimentsTable({
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
-      emptyCell: <NotRecordedMetric metric="cost" />,
+      emptyValue: <NotRecordedMetric metric="cost" />,
       // A run whose calls reported no usage or pricing sums to 0, which reads as
       // free rather than as missing.
       getValue: (value) =>

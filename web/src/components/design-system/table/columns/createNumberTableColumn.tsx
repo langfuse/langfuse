@@ -14,14 +14,12 @@ export function createNumberTableColumn<
   TValue extends number | bigint = number,
 >({
   emptyValue,
-  emptyCell,
   formatter,
   getValue,
   ...options
 }: TableColumnOptions<TData, TValue> & {
-  emptyValue?: string;
-  /** Rendered when there is no value; takes precedence over `emptyValue`. */
-  emptyCell?: ReactNode;
+  /** Rendered when there is no value. */
+  emptyValue?: ReactNode;
   formatter?: (
     value: TValue,
     context: CellContext<TData, TValue | null | undefined>,
@@ -37,7 +35,7 @@ export function createNumberTableColumn<
     ...options,
     loadingCell,
     renderCell: (value, context) => {
-      const empty = emptyCell ?? emptyValue ?? null;
+      const empty = emptyValue ?? null;
 
       if (!getValue) {
         if (value === null || value === undefined) return empty;
