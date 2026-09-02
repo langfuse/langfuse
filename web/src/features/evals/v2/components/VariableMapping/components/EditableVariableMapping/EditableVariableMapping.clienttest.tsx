@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { EditableVariableMapping } from "./EditableVariableMapping";
 
@@ -8,15 +8,18 @@ vi.mock("@/src/components/ui/media/MediaReferenceTag", () => ({
   }: {
     descriptor: { kind: string; mediaId?: string; contentType: string };
   }) => (
-    <span data-testid="resolved-media-tag">
+    <button type="button" data-media-tag="" data-testid="resolved-media-tag">
       {descriptor.kind}:{descriptor.mediaId}:{descriptor.contentType}
-    </span>
+    </button>
   ),
 }));
 
 const reference = "@@@langfuseMedia:type=image/png|id=media-1|source=bytes@@@";
 
-const renderMapping = (state: "preview" | "editing") =>
+const renderMapping = (
+  state: "preview" | "editing",
+  onActiveMappingChange = vi.fn(),
+) =>
   render(
     <EditableVariableMapping
       mappings={[
@@ -26,7 +29,7 @@ const renderMapping = (state: "preview" | "editing") =>
         },
       ]}
       activeMapping={{ variable: "input", state }}
-      onActiveMappingChange={vi.fn()}
+      onActiveMappingChange={onActiveMappingChange}
       onChangeField={vi.fn()}
       sourceObject={{ input: reference }}
       hasMatchingObservations
@@ -46,11 +49,25 @@ describe("EditableVariableMapping", () => {
     );
   });
 
+  it("does not enter editing when the mapped media trigger is used", () => {
+    const onActiveMappingChange = vi.fn();
+    renderMapping("preview", onActiveMappingChange);
+
+    const mediaTag = screen.getByTestId("resolved-media-tag");
+    fireEvent.click(mediaTag);
+    fireEvent.keyDown(mediaTag, { key: "Enter" });
+
+    expect(onActiveMappingChange).not.toHaveBeenCalled();
+  });
+
   it("resolves a Langfuse media reference in the sample data tree", () => {
     renderMapping("editing");
 
-    expect(screen.getByTestId("resolved-media-tag")).toHaveTextContent(
-      "langfuseRef:media-1:image/png",
-    );
+    const mediaTag = screen.getByTestId("resolved-media-tag");
+    expect(mediaTag).toHaveTextContent("langfuseRef:media-1:image/png");
+    expect(mediaTag.closest("[title]")).toBeNull();
+    expect(
+      mediaTag.closest("div")?.querySelector("button"),
+    ).not.toHaveAttribute("title");
   });
 });

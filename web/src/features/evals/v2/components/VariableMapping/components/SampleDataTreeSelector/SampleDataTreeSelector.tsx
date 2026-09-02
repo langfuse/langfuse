@@ -59,7 +59,6 @@ function MediaAwarePreview({
         "text-muted-foreground flex min-w-0 flex-1 items-baseline gap-0.5 overflow-hidden text-xs leading-4",
         directDescriptor && "self-center",
       )}
-      title={preview}
     >
       {segments.map((segment, index) =>
         segment.type === "media" ? (
@@ -182,7 +181,13 @@ function TreeRow({
             "flex min-w-0 cursor-pointer items-baseline gap-2 text-left",
             hasMedia ? "shrink-0" : "flex-1",
           )}
-          title={expandable ? preview : `Pull {{${variable}}} from here`}
+          title={
+            hasMedia
+              ? undefined
+              : expandable
+                ? preview
+                : `Pull {{${variable}}} from here`
+          }
         >
           {expandable ? (
             <ChevronDown

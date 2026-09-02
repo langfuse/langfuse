@@ -105,8 +105,22 @@ function MappingPreviewSurface({
       aria-label={`Change mapping for {{${variable}}}`}
       title={`Change mapping for {{${variable}}}`}
       className="hover:bg-muted/50 focus-visible:ring-ring cursor-pointer rounded-b-md transition-colors focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
-      onClick={onEdit}
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
+        onEdit();
+      }}
       onKeyDown={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onEdit();
