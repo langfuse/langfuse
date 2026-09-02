@@ -38,19 +38,21 @@ const TabsTrigger = React.forwardRef<
 ));
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
-const TabsContent = React.forwardRef<
-  React.ComponentRef<typeof TabsPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content
-    ref={ref}
-    className={cn(
-      "ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-      className,
-    )}
-    {...props}
-  />
-));
-TabsContent.displayName = TabsPrimitive.Content.displayName;
+function TabsContent({
+  children,
+  value,
+}: Pick<
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>,
+  "children" | "value"
+>) {
+  return (
+    <TabsPrimitive.Content
+      value={value}
+      className="ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+    >
+      {children}
+    </TabsPrimitive.Content>
+  );
+}
 
 export { Tabs, TabsList, TabsTrigger, TabsContent };
