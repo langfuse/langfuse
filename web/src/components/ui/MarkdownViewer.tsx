@@ -315,21 +315,19 @@ const markdownComponents: NonNullable<Options["components"]> = {
   ul({ children }) {
     if (isChecklist(children)) return <ul className="list-none">{children}</ul>;
 
-    return <ul className="list-inside list-disc">{children}</ul>;
+    // Nested items contain a block list after the label. list-outside
+    // plus left padding keeps the marker in the gutter beside that line.
+    return <ul className="list-outside list-disc pl-6">{children}</ul>;
   },
   ol({ children, start }) {
     return (
-      <ol start={start} className="list-inside list-decimal">
+      <ol start={start} className="list-outside list-decimal pl-6">
         {children}
       </ol>
     );
   },
   li({ children }) {
-    return (
-      <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
-        {transformListItemChildren(children)}
-      </li>
-    );
+    return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
     return <pre className="rounded p-2">{children}</pre>;
