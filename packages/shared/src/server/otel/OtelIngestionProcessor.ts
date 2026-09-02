@@ -28,7 +28,10 @@ import {
   sanitizeSdkMetricTagValue,
 } from "../";
 
-import { LangfuseOtelSpanAttributes } from "./attributes";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
@@ -671,6 +674,10 @@ export class OtelIngestionProcessor {
             return events;
           });
 
+        if (this.sdkName === AI_FEATURE_OTEL_SDK_NAME) {
+          this.denormalizeAiFeatureChildTraceNames(events);
+        }
+
         return events;
       } catch (error) {
         logger.error("Error processing OTEL spans to events:", {
@@ -681,6 +688,45 @@ export class OtelIngestionProcessor {
         throw error;
       }
     });
+  }
+
+  /**
+   * Copy the wrapping root's observation.traceName onto sibling events in the
+   * same batch that omitted langfuse.trace.name. That OTEL attribute is a
+   * trace-update signal; filling the events-table field keeps cost-by-trace-name
+   * filters working without rewriting the trace.
+   */
+  private denormalizeAiFeatureChildTraceNames(
+    events: Array<{
+      traceId?: string;
+      traceName?: string | null;
+      parentSpanId?: string | null;
+      isAppRoot?: boolean;
+    }>,
+  ): void {
+    const traceNameByTraceId = new Map<string, string>();
+
+    for (const event of events) {
+      if (!event.traceId || !event.traceName) {
+        continue;
+      }
+
+      const isRoot = !event.parentSpanId || event.isAppRoot === true;
+      if (isRoot) {
+        traceNameByTraceId.set(event.traceId, event.traceName);
+      }
+    }
+
+    for (const event of events) {
+      if (event.traceName || !event.traceId) {
+        continue;
+      }
+
+      const traceName = traceNameByTraceId.get(event.traceId);
+      if (traceName !== undefined) {
+        event.traceName = traceName;
+      }
+    }
   }
 
   /**
