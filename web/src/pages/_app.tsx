@@ -312,8 +312,20 @@ if (
   process.env.NEXT_MANUAL_SIG_HANDLE
 ) {
   const { shutdown } = await import("@/src/utils/shutdown");
-  prexit(async (signal) => {
-    console.log("Signal: ", signal);
-    return await shutdown(signal);
-  });
+  prexit(
+    [
+      "exit",
+      "beforeExit",
+      "uncaughtException",
+      "SIGTSTP",
+      "SIGQUIT",
+      "SIGHUP",
+      "SIGTERM",
+      "SIGINT",
+    ],
+    async (signal) => {
+      console.log("Signal: ", signal);
+      return await shutdown(signal);
+    },
+  );
 }

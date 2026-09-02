@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { Readable } from "stream";
+import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -260,6 +260,79 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
       "https://signed-read-url",
     );
     expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Source-stream errors on GCS uploads must reject the awaited upload instead
+ * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
+ * listens on the destination; `pipeline()` forwards source errors too.
+ */
+describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
+  it("rejects when the source stream fails without leaking process events", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    (
+      service as unknown as { bucket: { file: (name: string) => unknown } }
+    ).bucket = {
+      file: () => ({
+        createWriteStream: () => new PassThrough(),
+      }),
+    };
+
+    const unhandled: unknown[] = [];
+    const uncaught: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    const onUncaught = (err: unknown) => {
+      uncaught.push(err);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    process.on("uncaughtException", onUncaught);
+
+    try {
+      const source = new Readable({
+        read() {
+          this.destroy(new Error("source stream failed"));
+        },
+      });
+
+      await expect(
+        (
+          service as unknown as {
+            uploadFile(params: {
+              fileName: string;
+              fileType: string;
+              data: Readable;
+            }): Promise<void>;
+          }
+        ).uploadFile({
+          fileName: "export.json",
+          fileType: "application/json",
+          data: source,
+        }),
+      ).rejects.toThrow();
+
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(unhandled).toHaveLength(0);
+      expect(uncaught).toHaveLength(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      process.off("uncaughtException", onUncaught);
+    }
   });
 });
 

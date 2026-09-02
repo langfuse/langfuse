@@ -118,6 +118,9 @@ patchedDependencies:
   # "Could not find data for Group with id ...". Guard both (skip detached
   # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
   react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
+  # wrapSmithySend fire-and-forgets client.config.region(). Invalid regions
+  # reject that promise; without .catch() Node 24 treats it as fatal.
+  dd-trace@5.109.0: patches/dd-trace@5.109.0.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"

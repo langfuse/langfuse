@@ -70,6 +70,7 @@ packageExtensionsChecksum: sha256-QG4c9KJXY/TKGmHnbwxEePs/bdv0Wj8pLpBLp8HZH0Y=
 
 patchedDependencies:
   '@radix-ui/react-roving-focus@1.1.11': fb2bc2e96ad2c31dcb5860e509374a512fa08b1fade5805e3ae2dc72dcd68a0b
+  dd-trace@5.109.0: d37add28599923620323952e0ec58fcaab9138d21177059ff8cf16ff2bc2d33a
   next-auth@4.24.15: 298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d
   react-resizable-panels@4.8.0: 4b892c72909f6878974d9b325e85a5e369e3e676cef3d3eb563f822660218c60
 
@@ -363,7 +364,7 @@ importers:
         version: 3.6.0
       dd-trace:
         specifier: 5.109.0
-        version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        version: 5.109.0(patch_hash=d37add28599923620323952e0ec58fcaab9138d21177059ff8cf16ff2bc2d33a)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -730,7 +731,7 @@ importers:
         version: 3.6.0
       dd-trace:
         specifier: 5.109.0
-        version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        version: 5.109.0(patch_hash=d37add28599923620323952e0ec58fcaab9138d21177059ff8cf16ff2bc2d33a)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -1127,7 +1128,7 @@ importers:
         version: 5.6.0
       dd-trace:
         specifier: 5.109.0
-        version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        version: 5.109.0(patch_hash=d37add28599923620323952e0ec58fcaab9138d21177059ff8cf16ff2bc2d33a)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -18865,7 +18866,7 @@ snapshots:
 
   dc-polyfill@0.1.11: {}
 
-  dd-trace@5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0)):
+  dd-trace@5.109.0(patch_hash=d37add28599923620323952e0ec58fcaab9138d21177059ff8cf16ff2bc2d33a)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0)):
     dependencies:
       dc-polyfill: 0.1.11
       import-in-the-middle: 3.0.1

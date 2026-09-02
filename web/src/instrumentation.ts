@@ -10,6 +10,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs" && isInitLoadingEnabled) {
     console.log("Running init scripts...");
     await import("./observability.config");
+    const { installUnhandledRejectionCapture } =
+      await import("@langfuse/shared/src/server");
+    installUnhandledRejectionCapture();
     await import("./initialize");
   }
 }

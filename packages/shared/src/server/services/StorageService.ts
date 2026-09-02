@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -1131,19 +1132,8 @@ class GoogleCloudStorageService implements StorageService {
         await file.save(data, options);
         return;
       } else if (data instanceof Readable) {
-        return new Promise((resolve, reject) => {
-          const writeStream = file.createWriteStream(options);
-
-          data
-            .pipe(writeStream)
-            .on("error", (err: unknown) => {
-              reject(err);
-            })
-            .on("finish", () => {
-              resolve();
-            });
-          return;
-        });
+        await pipeline(data, file.createWriteStream(options));
+        return;
       }
 
       throw new Error("Unsupported data type. Must be Readable or string.");
