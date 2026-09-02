@@ -1,4 +1,4 @@
-import type { FilterState } from "@langfuse/shared";
+import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import {
@@ -15,6 +15,25 @@ export function buildSampleQueryFilters(
     ...INTERNAL_EVALUATION_ENVIRONMENT_FILTERS,
     ...additionalFilters,
   ];
+}
+
+export function removeInternalEvaluationEnvironmentColumnOptions(
+  columns: ColumnDefinition[],
+): ColumnDefinition[] {
+  const internalEnvironments = new Set<string>(
+    INTERNAL_EVALUATION_ENVIRONMENTS,
+  );
+  return columns.map((column) => {
+    if (column.id !== "environment" || column.type !== "stringOptions") {
+      return column;
+    }
+    return {
+      ...column,
+      options: column.options.filter(
+        ({ value }) => !internalEnvironments.has(value),
+      ),
+    };
+  });
 }
 
 export function removeInternalEvaluationEnvironmentOptions(

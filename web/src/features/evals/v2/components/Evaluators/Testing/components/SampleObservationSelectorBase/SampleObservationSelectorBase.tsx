@@ -15,36 +15,33 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   type FieldRegistry,
   EVENTS_FIELD_REGISTRY,
-  withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
-import {
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-} from "@/src/features/search-bar/lib/observed-options";
+import { observedScoreNamesFromOptions } from "@/src/features/search-bar/lib/observed-options";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
-import {
-  buildSampleQueryFilters,
-  removeInternalEvaluationEnvironmentOptions,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
+import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
+import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
+import { buildSampleQueryFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
 import {
-  DATASET_NAME_COLUMN,
-  addDatasetNameObservedOptions,
-} from "@/src/features/evals/v2/utils/datasetNameFilter";
+  type MapSampleObservedOptions,
+  useSampleObservationFilterOptions,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type SampleObservation =
@@ -152,9 +149,7 @@ export type SampleObservationSelectorBaseProps = {
   matchingDescription: string;
   matchingTooltip: string;
   formatCount: (count: number) => string;
-  mapObservedOptions: (
-    observed: ReturnType<typeof toObservedOptions>,
-  ) => ReturnType<typeof toObservedOptions>;
+  mapObservedOptions: MapSampleObservedOptions;
 };
 
 export function SampleObservationSelectorBase(
@@ -182,6 +177,11 @@ export function SampleObservationSelectorBase(
     mapObservedOptions,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
+  const [filterMode, setFilterMode] =
+    useLocalStorage<EvaluatorFilterExperience>(
+      EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
+      "builder",
+    );
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
     {
@@ -192,39 +192,6 @@ export function SampleObservationSelectorBase(
     },
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
-  const searchRegistry = useMemo(
-    () =>
-      withFieldOptions(
-        activeRegistry,
-        DATASET_NAME_COLUMN,
-        datasetOptions.map((dataset) => ({
-          value: dataset.id,
-          displayValue: dataset.name,
-        })),
-      ),
-    [activeRegistry, datasetOptions],
-  );
-  const reusableRuleFilters = useReusableRuleFilterPresets(
-    projectId,
-    searchRegistry,
-  );
-  const capture = usePostHogClientCapture();
-  const onQueryPresetPick = useCallback(
-    (presetId: string) => {
-      const preset = reusableRuleFilters.presets.find(
-        (candidate) => candidate.id === presetId,
-      );
-      if (!preset) return;
-      capture("evaluation_rules:filter_reused", {
-        tableName,
-        evaluatorCount: preset.evaluatorCount,
-        filterCount: preset.filterCount,
-        replacedFilterCount: filterState.length,
-        isV4: true,
-      });
-    },
-    [capture, filterState.length, reusableRuleFilters.presets, tableName],
-  );
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -252,25 +219,38 @@ export function SampleObservationSelectorBase(
     () => buildSampleQueryFilters(previewFilters),
     [previewFilters],
   );
-  const options = useEventsFilterOptions({
+  const options = useSampleObservationFilterOptions({
     projectId,
     startTimeFilter,
     refiningFilter,
-    includeApproxCount: true,
-    lazy: true,
-  });
-  const observed = useMemo(() => {
-    const visibleOptions = removeInternalEvaluationEnvironmentOptions(
-      toObservedOptions(options.filterOptions, options.isFilterOptionsPending),
-    );
-    const mapped = mapObservedOptions(visibleOptions);
-    return addDatasetNameObservedOptions(mapped, datasetOptions);
-  }, [
+    filterMode,
+    activeRegistry,
     datasetOptions,
     mapObservedOptions,
-    options.filterOptions,
-    options.isFilterOptionsPending,
-  ]);
+  });
+  const { searchRegistry, observed, builderColumns, queryOnlyColumnIds } =
+    options;
+  const reusableRuleFilters = useReusableRuleFilterPresets(
+    projectId,
+    searchRegistry,
+  );
+  const capture = usePostHogClientCapture();
+  const onQueryPresetPick = useCallback(
+    (presetId: string) => {
+      const preset = reusableRuleFilters.presets.find(
+        (candidate) => candidate.id === presetId,
+      );
+      if (!preset) return;
+      capture("evaluation_rules:filter_reused", {
+        tableName,
+        evaluatorCount: preset.evaluatorCount,
+        filterCount: preset.filterCount,
+        replacedFilterCount: filterState.length,
+        isV4: true,
+      });
+    },
+    [capture, filterState.length, reusableRuleFilters.presets, tableName],
+  );
   const search = useEventsSearchBar({
     projectId,
     tableName,
@@ -498,11 +478,21 @@ export function SampleObservationSelectorBase(
           meta={null}
           description={filterDescription}
           tooltip={filterTooltip}
-          trailing={null}
+          trailing={
+            <FilterModeToggle
+              mode={filterMode}
+              onChange={(mode) => {
+                if (mode === "builder" && searchQuery !== null) {
+                  search.applyFilters(filterState);
+                }
+                setFilterMode(mode);
+              }}
+            />
+          }
         />
         {datasets.isPending ? (
           <Skeleton className="h-10 w-full" />
-        ) : (
+        ) : filterMode === "query" ? (
           <EventsSearchBarRow
             projectId={projectId}
             tableName={tableName}
@@ -519,26 +509,35 @@ export function SampleObservationSelectorBase(
             aiScoreNames={aiScoreNames}
             className="p-0"
           />
+        ) : (
+          <ObservationFilterBuilder
+            columns={builderColumns}
+            filterState={filterState}
+            onChange={setFilters}
+            queryOnlyColumnIds={queryOnlyColumnIds}
+          />
         )}
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((example) => (
-            <Button
-              key={example.label}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex h-8 items-center gap-2 text-sm"
-              onClick={() => {
-                setFilters((current) =>
-                  toggleExampleFilters(current, [...example.filters]),
-                );
-              }}
-            >
-              <example.icon className="h-4 w-4" />
-              <span>{example.label}</span>
-            </Button>
-          ))}
-        </div>
+        {filterMode === "query" ? (
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map((example) => (
+              <Button
+                key={example.label}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex h-8 items-center gap-2 text-sm"
+                onClick={() => {
+                  setFilters((current) =>
+                    toggleExampleFilters(current, [...example.filters]),
+                  );
+                }}
+              >
+                <example.icon className="h-4 w-4" />
+                <span>{example.label}</span>
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="flex min-h-0 flex-col gap-2">
