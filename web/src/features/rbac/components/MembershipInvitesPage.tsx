@@ -10,6 +10,7 @@ import { type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Header from "@/src/components/layouts/header";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
@@ -100,15 +101,10 @@ export function MembershipInvitesPage({
       accessorKey: "orgRole",
       header: "Organization Role",
     }),
-    {
+    createDateTableColumn<InvitesTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Invited On",
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as InvitesTableRow["createdAt"];
-        return value ? new Date(value).toLocaleString() : undefined;
-      },
-    },
+    }),
     ...(projectId
       ? [
           createTextTableColumn<InvitesTableRow>({
