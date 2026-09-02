@@ -95,93 +95,34 @@ function CloneDashboardButton({
   );
 }
 
-function EditDashboardButton({
-  dashboardId,
-  projectId,
-  dashboardName,
-  dashboardDescription,
-}: {
+type EditDashboardTarget = {
   dashboardId: string;
-  projectId: string;
   dashboardName: string;
   dashboardDescription: string;
-}) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+};
 
-  return (
-    <div className={dashboardMenuButtonWrapperClassName}>
-      <Button
-        variant="ghost"
-        size="default"
-        className={dashboardMenuButtonClassName}
-        disabled={!hasAccess}
-        onClick={() => setIsDialogOpen(true)}
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </Button>
-
-      <EditDashboardDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        projectId={projectId}
-        dashboardId={dashboardId}
-        initialName={dashboardName}
-        initialDescription={dashboardDescription}
-      />
-    </div>
-  );
-}
-
-function LockedEditDashboardButton({
-  dashboardId,
-  projectId,
-  dashboardName,
-}: {
+type CloneFirstDashboardTarget = {
   dashboardId: string;
-  projectId: string;
   dashboardName: string;
-}) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
-  const capture = usePostHogClientCapture();
-
-  return (
-    <div className={dashboardMenuButtonWrapperClassName}>
-      <Button
-        variant="ghost"
-        size="default"
-        className={dashboardMenuButtonClassName}
-        disabled={!hasAccess}
-        onClick={() => {
-          capture("dashboard:locked_edit_attempt", {
-            dashboard_id: dashboardId,
-            attempt: "list_edit",
-            surface: "list",
-          });
-          setIsDialogOpen(true);
-        }}
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </Button>
-
-      <CloneFirstDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        projectId={projectId}
-        dashboardId={dashboardId}
-        dashboardName={dashboardName}
-      />
-    </div>
-  );
-}
+};
 
 export function DashboardTable() {
   const projectId = useProjectIdFromURL() as string;
   const { setDetailPageList } = useDetailPageLists();
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const hasEditAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+
+  // The edit dialogs live OUTSIDE the row actions menu: the menu unmounts its
+  // content when it closes, which used to take the freshly opened dialog with
+  // it (the dialog flashed and vanished as soon as the menu closed).
+  const [editDashboard, setEditDashboard] =
+    useState<EditDashboardTarget | null>(null);
+  const [cloneFirstDashboard, setCloneFirstDashboard] =
+    useState<CloneFirstDashboardTarget | null>(null);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -287,21 +228,38 @@ export function DashboardTable() {
         return (
           <>
             {owner === "PROJECT" ? (
-              <DropdownMenuItem className="w-full p-0">
-                <EditDashboardButton
-                  dashboardId={id}
-                  projectId={projectId}
-                  dashboardName={name}
-                  dashboardDescription={description}
-                />
+              <DropdownMenuItem
+                className="w-full"
+                disabled={!hasEditAccess}
+                onSelect={() =>
+                  setEditDashboard({
+                    dashboardId: id,
+                    dashboardName: name,
+                    dashboardDescription: description,
+                  })
+                }
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem className="w-full p-0">
-                <LockedEditDashboardButton
-                  dashboardId={id}
-                  projectId={projectId}
-                  dashboardName={name}
-                />
+              <DropdownMenuItem
+                className="w-full"
+                disabled={!hasEditAccess}
+                onSelect={() => {
+                  capture("dashboard:locked_edit_attempt", {
+                    dashboard_id: id,
+                    attempt: "list_edit",
+                    surface: "list",
+                  });
+                  setCloneFirstDashboard({
+                    dashboardId: id,
+                    dashboardName: name,
+                  });
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
               </DropdownMenuItem>
             )}
             <DropdownMenuItem className="w-full p-0">
@@ -335,37 +293,62 @@ export function DashboardTable() {
   ] as LangfuseColumnDef<DashboardTableRow>[];
 
   return (
-    <DataTable
-      tableName="dashboards"
-      columns={dashboardColumns}
-      data={
-        dashboards.isPending
-          ? { isLoading: true, isError: false }
-          : dashboards.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: dashboards.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: safeExtract(dashboards.data, "dashboards", []),
-              }
-      }
-      orderBy={orderByState}
-      setOrderBy={setOrderByState}
-      pagination={{
-        totalCount: dashboards.data?.totalCount ?? null,
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      onRowClick={(row) => {
-        router.push(
-          `/project/${projectId}/dashboards/${encodeURIComponent(row.id)}`,
-        );
-      }}
-      cellPadding="comfortable"
-    />
+    <>
+      <DataTable
+        tableName="dashboards"
+        columns={dashboardColumns}
+        data={
+          dashboards.isPending
+            ? { isLoading: true, isError: false }
+            : dashboards.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: dashboards.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(dashboards.data, "dashboards", []),
+                }
+        }
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
+        pagination={{
+          totalCount: dashboards.data?.totalCount ?? null,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        onRowClick={(row) => {
+          router.push(
+            `/project/${projectId}/dashboards/${encodeURIComponent(row.id)}`,
+          );
+        }}
+        cellPadding="comfortable"
+      />
+      {editDashboard ? (
+        <EditDashboardDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditDashboard(null);
+          }}
+          projectId={projectId}
+          dashboardId={editDashboard.dashboardId}
+          initialName={editDashboard.dashboardName}
+          initialDescription={editDashboard.dashboardDescription}
+        />
+      ) : null}
+      {cloneFirstDashboard ? (
+        <CloneFirstDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setCloneFirstDashboard(null);
+          }}
+          projectId={projectId}
+          dashboardId={cloneFirstDashboard.dashboardId}
+          dashboardName={cloneFirstDashboard.dashboardName}
+        />
+      ) : null}
+    </>
   );
 }
