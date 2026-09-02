@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
@@ -12,10 +11,7 @@ import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
 } from "@/src/features/in-app-agent/components/InAppAgentWindowShell";
-import {
-  useIsInAppAgentLauncherVisible,
-  useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 function DeleteConversationDialog({
@@ -65,7 +61,6 @@ function DeleteConversationDialog({
  * window unmounts and its geometry resets on every navigation.
  */
 export function InAppAgentWindowHost() {
-  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -121,12 +116,6 @@ export function InAppAgentWindowHost() {
 
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open]);
-
-  // Only `isInAppAgentLauncherVisible` gates the tree: the shell owns the `open` guard
-  // so the handheld drawer stays mounted and can animate itself closed.
-  if (!isInAppAgentLauncherVisible) {
-    return null;
-  }
 
   return (
     <DialogController<InAppAgentWindowConversation>

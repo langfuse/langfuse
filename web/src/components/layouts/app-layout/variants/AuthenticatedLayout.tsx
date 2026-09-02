@@ -39,6 +39,7 @@ import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
@@ -131,6 +132,7 @@ export function AuthenticatedLayout({
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
   const versionUpdatePrompt = useVersionUpdatePrompt();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
@@ -310,9 +312,9 @@ export function AuthenticatedLayout({
                   </Layer>
                   <CommandMenu mainNavigation={navigation.navigation} />
                   {/* Assistant window host lives here (not in PageHeader with
-                      its launcher button) so the open window and its geometry
-                      survive route changes. */}
-                  <InAppAgentWindowHost />
+                        its launcher button) so the open window and its geometry
+                        survive route changes. */}
+                  {isInAppAgentLauncherVisible && <InAppAgentWindowHost />}
                 </SidebarInset>
               </div>
               {hasFeaturePreviews ? (
