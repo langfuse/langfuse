@@ -27,8 +27,10 @@ type TabsTriggerProps = Omit<
     React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>,
     "children" | "className" | "disabled" | "title" | "value"
   >,
-  "className"
+  "children" | "className" | "value"
 > & {
+  children: React.ReactNode;
+  value: string;
   className?:
     | "h-5 px-1 text-xs"
     | "h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
