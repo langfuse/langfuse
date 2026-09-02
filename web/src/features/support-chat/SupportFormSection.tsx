@@ -7,15 +7,15 @@ import {
   MESSAGE_TYPES,
   SEVERITIES,
   SEVERITY_1,
+  SEVERITY_2,
   SEVERITY_3,
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
   SupportFormSchema,
-  isSeverityAllowedForPlan,
 } from "./formConstants";
 
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import { reportNonTrpcError } from "@/src/utils/api";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -51,20 +51,26 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEffect, useState } from "react";
 
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Trash2 } from "lucide-react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
-type SupportFormValues = z.output<typeof SupportFormSchema>;
+export type SupportFormValues = z.output<typeof SupportFormSchema>;
+
+export type SupportFormSectionProps = {
+  canSelectHighSeverity: boolean;
+  initialTopic: string;
+  showV4MigrationTopic: boolean;
+  onCancel: () => void;
+  onSuccess: () => void;
+  onSubmit: (values: SupportFormValues, files: File[]) => Promise<void>;
+  onFileError: (message: string) => void;
+};
 
 /**
  * File upload constraints - single source of truth for validation
@@ -169,21 +175,25 @@ function formatFileError(error: Error): string {
   return error.message || "File upload failed. Please try again.";
 }
 
+function isSeveritySelectable(
+  severity: string,
+  canSelectHighSeverity: boolean,
+): boolean {
+  if (severity === SEVERITY_1 || severity === SEVERITY_2) {
+    return canSelectHighSeverity;
+  }
+  return true;
+}
+
 export function SupportFormSection({
+  canSelectHighSeverity,
+  initialTopic,
+  showV4MigrationTopic,
   onCancel,
   onSuccess,
-}: {
-  onCancel: () => void;
-  onSuccess: () => void;
-}) {
-  const { organization, project } = useQueryProjectOrOrganization();
-
-  // The support drawer is mounted globally and reachable from pages without an
-  // org/project in the URL (home, setup, onboarding, account settings), where
-  // `organization` is null. Without an org context the plan is unknown, so
-  // Severity 1/2 are gated there. The server applies the same rule.
-  const effectivePlan = organization?.plan;
-
+  onSubmit,
+  onFileError,
+}: SupportFormSectionProps) {
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
 
@@ -197,10 +207,8 @@ export function SupportFormSection({
   // confirmation step.
   const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
-  const { initialTopic } = useSupportDrawer();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const productFeatureTopics = TopicGroups["Product Features"].filter(
-    (topic) => topic !== "V4 Migration" || v4UpgradeUiEnabled,
+    (topic) => topic !== "V4 Migration" || showV4MigrationTopic,
   );
 
   const form = useForm<SupportFormInput>({
@@ -208,7 +216,7 @@ export function SupportFormSection({
     defaultValues: {
       messageType: "Question" as MessageType,
       severity: SEVERITY_3,
-      topic: initialTopic ?? "",
+      topic: initialTopic,
       message: "",
       integrationType: "",
     },
@@ -217,7 +225,7 @@ export function SupportFormSection({
 
   const selectedTopic = form.watch("topic");
   const isProductFeatureTopic = TopicGroups["Product Features"].includes(
-    selectedTopic as any,
+    selectedTopic as (typeof TopicGroups)["Product Features"][number],
   );
 
   // The drawer is globally mounted, so a severity selected under one org's
@@ -228,72 +236,13 @@ export function SupportFormSection({
   useEffect(() => {
     if (
       selectedSeverity &&
-      !isSeverityAllowedForPlan(selectedSeverity, effectivePlan)
+      !isSeveritySelectable(selectedSeverity, canSelectHighSeverity)
     ) {
       form.setValue("severity", SEVERITY_3);
     }
-  }, [selectedSeverity, effectivePlan, form]);
+  }, [selectedSeverity, canSelectHighSeverity, form]);
 
-  const createSupportThread = api.supportRouter.createSupportThread.useMutation(
-    {
-      onSuccess: (data) => {
-        // Pylon is the only destination, so a failed issue means no ticket
-        // exists anywhere. Keep the form state (message, topic, severity,
-        // attachments) intact so the user can retry instead of wiping it.
-        if (data.pylonIssueFailed) {
-          showErrorToast(
-            "Support request was not sent",
-            "Please contact support@langfuse.com",
-          );
-          return;
-        }
-        form.reset({
-          messageType: "Question",
-          severity: SEVERITY_3,
-          topic: "",
-          message: "",
-        });
-        setWarnedShortOnce(false);
-        setFiles(undefined);
-        onSuccess();
-      },
-      onSettled: () => setIsSubmittingLocal(false),
-    },
-  );
-
-  async function uploadFilesToPylon(filesToUpload: File[]): Promise<string[]> {
-    const filePayloads = await Promise.all(
-      filesToUpload.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte),
-            "",
-          ),
-        );
-        return { fileName: file.name, fileBase64: base64 };
-      }),
-    );
-
-    const res = await fetch("/api/support/upload-attachments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ files: filePayloads }),
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(
-        (body as { error?: string }).error ??
-          "Failed to upload attachments to Pylon.",
-      );
-    }
-
-    const body = (await res.json()) as { attachment_urls: string[] };
-    return body.attachment_urls;
-  }
-
-  const onSubmit = async (values: SupportFormInput) => {
+  const handleFormSubmit = async (values: SupportFormInput) => {
     const parsed: SupportFormValues = SupportFormSchema.parse(values);
     const msgLen = (parsed.message ?? "").trim().length;
 
@@ -327,45 +276,28 @@ export function SupportFormSection({
         throw new Error(validation.error);
       }
 
-      // 1) Upload attachments to Pylon. This is the only attachment path, so
-      // do NOT swallow failures: let them propagate to the outer catch (which
-      // surfaces the error via form.setError) instead of silently dropping the
-      // user's files while still creating the thread.
-      let pylonAttachmentUrls: string[] = [];
-      if (files && files.length) {
-        pylonAttachmentUrls = await uploadFilesToPylon(files);
-      }
+      await onSubmit(parsed, files ?? []);
 
-      // 2) Create the support thread in Pylon
-      await createSupportThread.mutateAsync({
-        messageType: parsed.messageType,
-        severity: parsed.severity,
-        topic: parsed.topic as any,
-        integrationType: parsed.integrationType,
-        message: parsed.message,
-        url: window.location.href,
-        organizationId: organization?.id,
-        projectId: project?.id,
-        browserMetadata: {
-          userAgent: navigator.userAgent,
-          platform:
-            (
-              navigator as Navigator & {
-                userAgentData?: { platform?: string };
-              }
-            ).userAgentData?.platform ?? undefined,
-          language: navigator.language,
-          viewport: { w: window.innerWidth, h: window.innerHeight },
-        },
-        pylonAttachmentUrls,
+      form.reset({
+        messageType: "Question",
+        severity: SEVERITY_3,
+        topic: "",
+        message: "",
       });
-    } catch (err: any) {
+      setWarnedShortOnce(false);
+      setFiles(undefined);
+      onSuccess();
+    } catch (err: unknown) {
       reportNonTrpcError(err, "support");
-      setIsSubmittingLocal(false);
       form.setError("message", {
         type: "manual",
-        message: err?.message ?? "Failed to submit support request.",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to submit support request.",
       });
+    } finally {
+      setIsSubmittingLocal(false);
     }
   };
 
@@ -384,7 +316,7 @@ export function SupportFormSection({
 
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(handleFormSubmit)}
           className="flex flex-col gap-4"
         >
           {/* Message Type */}
@@ -438,7 +370,7 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       {SEVERITIES.map((s) =>
-                        isSeverityAllowedForPlan(s, effectivePlan) ? (
+                        isSeveritySelectable(s, canSelectHighSeverity) ? (
                           <SelectItem key={s} value={s}>
                             {s}
                           </SelectItem>
@@ -599,12 +531,7 @@ export function SupportFormSection({
                       })
                     }
                     onError={(error) => {
-                      const userMessage = formatFileError(error);
-                      showErrorToast(
-                        "File Upload Error",
-                        userMessage,
-                        "WARNING",
-                      );
+                      onFileError(formatFileError(error));
                     }}
                     src={files}
                     variant="compact"
