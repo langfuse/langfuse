@@ -51,8 +51,9 @@ type AccordionItemProps = Omit<
     React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
     "children" | "className" | "value"
   >,
-  "className"
+  "children" | "className"
 > & {
+  children: React.ReactNode;
   className?:
     | "px-2"
     | "border-b-0"
