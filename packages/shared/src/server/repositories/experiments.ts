@@ -1,3 +1,4 @@
+import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
@@ -1369,8 +1370,6 @@ export const getExperimentItemsFromEvents = async (
 // Batch IO Queries
 // ============================================================================
 
-const IO_TRUNCATE_LENGTH = 1000;
-
 /**
  * Output data for a single experiment.
  */
@@ -1392,7 +1391,7 @@ export type ExperimentItemBatchIO = {
 /**
  * Get batch IO data for experiment items.
  * Returns input/expectedOutput from base experiment, and output from all experiments.
- * All text fields are truncated to IO_TRUNCATE_LENGTH characters.
+ * All text fields are truncated to EXPERIMENT_IO_TRUNCATE_LENGTH characters.
  */
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
@@ -1438,7 +1437,7 @@ export const getExperimentItemsBatchIO = async (props: {
     query,
     params: {
       ...params,
-      truncateLength: IO_TRUNCATE_LENGTH,
+      truncateLength: EXPERIMENT_IO_TRUNCATE_LENGTH,
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",

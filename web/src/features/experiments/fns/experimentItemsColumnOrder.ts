@@ -1,5 +1,5 @@
 /**
- * The experiment items table's column order as it shipped before LFE-15711:
+ * The experiment items table's column order as it shipped previously:
  * the ids and the operational metrics held the space to the left of the fold,
  * so the score columns — and the aggregate analysis their headers now carry —
  * only appeared after a horizontal scroll.
@@ -37,7 +37,7 @@ const isUntouchedDefault = (order: string[]): boolean => {
 };
 
 /**
- * Let the score columns' new default slot reach returning users (LFE-15711 S11).
+ * Let the score columns' new default slot reach returning users.
  * The reconciliation in `useColumnOrder` never overrides a stored order, so
  * without this a new default only ever reaches new users — but a user who
  * arranged the columns himself is left alone.

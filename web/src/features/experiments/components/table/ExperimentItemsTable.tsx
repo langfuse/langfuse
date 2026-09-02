@@ -27,6 +27,7 @@ import {
   BatchExportTableName,
   ActionId,
   BatchActionType,
+  EXPERIMENT_IO_TRUNCATE_LENGTH,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -288,13 +289,25 @@ const StackedOutputRow = ({
 /**
  * Whether an output is the expected one. Exact match after trimming — anything
  * looser would be guessing at what "close enough" means for the user's data.
+ *
+ * `null` when the answer is not knowable from what the table loaded: the values
+ * arrive truncated, so two that agree up to the cut may still differ past it.
+ * A verdict that can be wrong is worse than no verdict, so the caller shows
+ * nothing instead.
  */
 const matchesExpectedOutput = (
   output: string | null | undefined,
   expectedOutput: string | null | undefined,
-) =>
-  Boolean(output && expectedOutput) &&
-  output!.trim() === expectedOutput!.trim();
+): boolean | null => {
+  if (!output || !expectedOutput) return null;
+  const left = output.trim();
+  const right = expectedOutput.trim();
+  if (left !== right) return false;
+  const mayBeTruncated =
+    output.length >= EXPERIMENT_IO_TRUNCATE_LENGTH ||
+    expectedOutput.length >= EXPERIMENT_IO_TRUNCATE_LENGTH;
+  return mayBeTruncated ? null : true;
+};
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <Badge
@@ -305,6 +318,18 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
     {matches ? "match" : "differs"}
   </Badge>
 );
+
+/** The chip, or nothing when the loaded text cannot settle the question. */
+const ExpectedMatchVerdict = ({
+  output,
+  expectedOutput,
+}: {
+  output: string | null | undefined;
+  expectedOutput: string | null | undefined;
+}) => {
+  const matches = matchesExpectedOutput(output, expectedOutput);
+  return matches === null ? null : <ExpectedMatchChip matches={matches} />;
+};
 
 /**
  * Cell component that renders stacked output values for each experiment.
@@ -380,11 +405,9 @@ const StackedOutputCell = ({
                 singleLine={singleLine}
                 chip={
                   showExpectedLine ? (
-                    <ExpectedMatchChip
-                      matches={matchesExpectedOutput(
-                        out.output,
-                        expectedOutput,
-                      )}
+                    <ExpectedMatchVerdict
+                      output={out.output}
+                      expectedOutput={expectedOutput}
                     />
                   ) : undefined
                 }
@@ -769,11 +792,13 @@ export default function ExperimentItemsTable({
 
   // The experiment a score column's header reads as "this experiment", and the
   // one it is compared against. Without an explicit baseline the first selected
-  // run stands in, matching how the cells pick their reference.
+  // run still stands in as "this experiment", but nothing is compared against
+  // it: the cells only draw a diff once there is an explicit baseline, so a
+  // header delta here would count movements no row in the table shows.
   const primaryExperimentId = baselineId ?? allExperimentIds[0];
-  const primaryComparisonId = allExperimentIds.find(
-    (id) => id !== primaryExperimentId,
-  );
+  const primaryComparisonId = hasBaseline
+    ? allExperimentIds.find((id) => id !== primaryExperimentId)
+    : undefined;
   const primaryComparisonName = useMemo(
     () =>
       selectedExperimentNames.find(
@@ -1332,7 +1357,7 @@ export default function ExperimentItemsTable({
       columnVisibilityMigrations,
     );
 
-  // LFE-15711: the score columns moved ahead of the metrics and ids so their
+  // the score columns moved ahead of the metrics and ids so their
   // headers' analysis needs no horizontal scroll. A returning user has the old
   // order persisted, so the new default only reaches him through a migration —
   // and only when that stored order is still a default, not one he arranged.

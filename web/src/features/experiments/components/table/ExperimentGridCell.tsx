@@ -431,14 +431,14 @@ const isMetadataFieldVisible = (
   key: (typeof METADATA_KEYS)[number],
 ) => columnVisibility[key] !== false;
 
-export const hasVisibleCellMetadata = (columnVisibility: VisibilityState) =>
+const hasVisibleCellMetadata = (columnVisibility: VisibilityState) =>
   METADATA_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
 
 /**
  * The item's identifiers, one hover away. They are the same on every row of a
  * run and the peek view already carries them, so they don't earn a line each in
  * a cell whose payload is the output — but they stay reachable here, including
- * the link out to the execution trace. (LFE-15711)
+ * the link out to the execution trace.
  */
 const CellIdentifiers = ({
   data,
