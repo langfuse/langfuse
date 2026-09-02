@@ -180,3 +180,25 @@ export const FillsWrappedTrigger = meta.story({
     ).toBeLessThan(1);
   },
 });
+
+export const KeepsUnwrappedTriggersContentWidth = meta.story({
+  name: "(Test) Keeps Unwrapped Triggers Content Width",
+  args: {
+    defaultValue: "short",
+    children: (
+      <Tabs.List variant="outline">
+        <Tabs.Trigger value="short">Python</Tabs.Trigger>
+        <Tabs.Trigger value="long">TypeScript</Tabs.Trigger>
+      </Tabs.List>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const shortTab = canvas.getByRole("tab", { name: "Python" });
+    const longTab = canvas.getByRole("tab", { name: "TypeScript" });
+
+    await expect(longTab.getBoundingClientRect().width).toBeGreaterThan(
+      shortTab.getBoundingClientRect().width,
+    );
+  },
+});
