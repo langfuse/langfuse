@@ -121,6 +121,7 @@ export function useFilteredNavigation(
       uiCustomization,
       isLangfuseCloud,
       hasActiveCloudIncident,
+      forceV3Experience,
       currentPath: router.asPath,
     }),
     [
@@ -132,6 +133,7 @@ export function useFilteredNavigation(
       router.asPath,
       isLangfuseCloud,
       hasActiveCloudIncident,
+      forceV3Experience,
     ],
   );
 

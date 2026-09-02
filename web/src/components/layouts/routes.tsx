@@ -69,6 +69,8 @@ export type Route = {
     projectId: string | undefined;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
+    canToggleV4: boolean;
+    forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
@@ -224,6 +226,9 @@ export const ROUTES: Route[] = [
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
+    // v4-upgrade users get this toggle inside the migration panel instead.
+    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
+      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
     menuNode: <V4SidebarToggle />,
   },
   {
