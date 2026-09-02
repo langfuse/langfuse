@@ -15,6 +15,7 @@ import {
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
   toClickhouseDateTime,
+  parseClickhouseUTCDateTimeFormat,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
@@ -904,7 +905,9 @@ export class IngestionService {
       payload: {
         projectId,
         traceId: entityId,
-        exactTimestamp: new Date(finalTraceRecord.timestamp),
+        exactTimestamp: parseClickhouseUTCDateTimeFormat(
+          finalTraceRecord.timestamp,
+        ),
         traceEnvironment: finalTraceRecord.environment,
       },
       id: randomUUID(),
