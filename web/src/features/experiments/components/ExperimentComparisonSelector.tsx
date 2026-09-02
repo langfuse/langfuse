@@ -105,7 +105,7 @@ export function ExperimentComparisonSelector({
 
   // How long is the list people choose from, and how many datasets are mixed
   // into it? Counted over the whole available list, not the filtered rows, so
-  // it describes the picker rather than the current search. (LFE-15720)
+  // it describes the picker rather than the current search.
   const isPickerOpenRef = useRef(false);
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -192,12 +192,20 @@ export function ExperimentComparisonSelector({
     // With no baseline yet there is no "current" dataset, so open the one
     // holding the most recent run instead of showing nothing but headers.
     const defaultExpandedKey = baselineDatasetKey ?? groups[0]?.datasetKey;
-    const result: ComparisonRow[] = [{ kind: "preference" }];
+    // The preference row is chrome, not a result: seeding it unconditionally
+    // would make the list never look empty, and the combobox's "no results"
+    // state — which keys off the row count — could never be reached.
+    const result: ComparisonRow[] =
+      groups.length > 0 ? [{ kind: "preference" }] : [];
 
     for (const group of groups) {
-      const isExpanded =
-        expandedOverrides[group.datasetKey] ??
-        (isSearchActive || group.datasetKey === defaultExpandedKey);
+      // While searching, every group with a match is open: `??` falls through
+      // only on nullish, so a group the user collapsed earlier would keep its
+      // explicit `false` and swallow the rows the search just found.
+      const isExpanded = isSearchActive
+        ? true
+        : (expandedOverrides[group.datasetKey] ??
+          group.datasetKey === defaultExpandedKey);
 
       result.push({
         kind: "group",
