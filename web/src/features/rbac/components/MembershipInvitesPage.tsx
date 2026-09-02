@@ -11,6 +11,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import Header from "@/src/components/layouts/header";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 export type InvitesTableRow = {
   email: string;
@@ -91,16 +92,14 @@ export function MembershipInvitesPage({
   });
 
   const columns: LangfuseColumnDef<InvitesTableRow>[] = [
-    {
+    createTextTableColumn<InvitesTableRow>({
       accessorKey: "email",
-      id: "email",
       header: "Email",
-    },
-    {
+    }),
+    createTextTableColumn<InvitesTableRow>({
       accessorKey: "orgRole",
-      id: "orgRole",
       header: "Organization Role",
-    },
+    }),
     {
       accessorKey: "createdAt",
       id: "createdAt",
@@ -112,11 +111,10 @@ export function MembershipInvitesPage({
     },
     ...(projectId
       ? [
-          {
+          createTextTableColumn<InvitesTableRow>({
             accessorKey: "projectRole",
-            id: "projectRole",
             header: "Project Role",
-          },
+          }),
         ]
       : []),
     createUserTableColumn<InvitesTableRow>({

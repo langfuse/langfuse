@@ -38,6 +38,7 @@ import { useEffect } from "react";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { env } from "@/src/env.mjs";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 
@@ -171,23 +172,16 @@ export function MembersTable({
         );
       },
     },
-    {
+    createTextTableColumn<MembersTableRow>({
       accessorKey: "email",
-      id: "email",
       header: "Email",
-    },
-    {
+    }),
+    createTextTableColumn<MembersTableRow, string[]>({
       accessorKey: "providers",
-      id: "providers",
       header: "SSO Provider",
       enableHiding: true,
-      cell: ({ row }) => {
-        const providers = row.getValue("providers") as string[];
-        if (providers.length === 0) return "-";
-
-        return providers.join(", ");
-      },
-    },
+      mapValue: (providers) => (providers?.length ? providers.join(", ") : "-"),
+    }),
     {
       accessorKey: "orgRole",
       id: "orgRole",
