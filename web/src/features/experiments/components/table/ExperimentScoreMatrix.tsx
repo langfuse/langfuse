@@ -192,6 +192,10 @@ export const ExperimentScoreMatrix = ({
         ? -1
         : Math.ceil(Number(pagination.totalCount) / pagination.state.pageSize),
     onPaginationChange: pagination.onChange,
+    // The page lives in the URL and the rows arrive per page, so TanStack's
+    // default reset-on-data-change would write page 1 back on every fetch and
+    // re-fetch from it. The data tables opt out for the same reason.
+    autoResetPageIndex: false,
     state: { pagination: pagination.state },
   });
 
