@@ -890,8 +890,8 @@ export const InnerEvaluatorForm = (props: {
                             <Tabs.Trigger
                               value="event"
                               disabled={props.disabled || props.mode === "edit"}
+                              icon={CircleDot}
                             >
-                              <CircleDot className="h-3.5 w-3.5" />
                               Observations
                             </Tabs.Trigger>
                           </span>
@@ -902,8 +902,8 @@ export const InnerEvaluatorForm = (props: {
                                 disabled={
                                   props.disabled || props.mode === "edit"
                                 }
+                                icon={ListTree}
                               >
-                                <ListTree className="h-3.5 w-3.5" />
                                 Traces
                                 <Badge
                                   variant="secondary"
@@ -919,8 +919,8 @@ export const InnerEvaluatorForm = (props: {
                             <Tabs.Trigger
                               value="offline-experiment"
                               disabled={props.disabled || props.mode === "edit"}
+                              icon={FlaskConical}
                             >
-                              <FlaskConical className="h-3.5 w-3.5" />
                               Experiments
                             </Tabs.Trigger>
                           </span>
@@ -976,8 +976,8 @@ export const InnerEvaluatorForm = (props: {
                         <Tabs.Trigger
                           value="otel"
                           disabled={props.mode === "edit" || props.disabled}
+                          icon={FlaskConical}
                         >
-                          <FlaskConical className="h-3.5 w-3.5" />
                           Experiment Runner SDK
                         </Tabs.Trigger>
                       </span>
@@ -985,8 +985,8 @@ export const InnerEvaluatorForm = (props: {
                         <Tabs.Trigger
                           value="non-otel"
                           disabled={props.mode === "edit" || props.disabled}
+                          icon={BetweenHorizonalStart}
                         >
-                          <BetweenHorizonalStart className="h-3.5 w-3.5" />
                           Low-level SDK methods
                           <Badge
                             variant="secondary"

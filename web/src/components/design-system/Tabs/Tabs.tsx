@@ -3,6 +3,7 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva, type VariantProps } from "class-variance-authority";
+import { type LucideIcon } from "lucide-react";
 
 const tabsListVariants = cva(
   "text-muted-foreground items-center justify-center",
@@ -127,6 +128,7 @@ function TabsList({
 type TabsTriggerProps = {
   children: React.ReactNode;
   disabled?: boolean;
+  icon?: LucideIcon;
   title?: string;
   value: string;
 } & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant">;
@@ -134,6 +136,7 @@ type TabsTriggerProps = {
 function TabsTrigger({
   children,
   disabled,
+  icon: Icon,
   size,
   title,
   value,
@@ -146,6 +149,7 @@ function TabsTrigger({
       title={title}
       className={tabsTriggerVariants({ size, variant })}
     >
+      {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}
       {children}
     </TabsPrimitive.Trigger>
   );

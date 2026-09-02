@@ -1,4 +1,5 @@
 import React from "react";
+import { KeyRound, User } from "lucide-react";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -81,6 +82,26 @@ export const FullWidth = meta.story({
   args: {
     defaultValue: "first",
     children: fullWidthChildren,
+  },
+});
+
+export const WithIcons = meta.story({
+  args: {
+    defaultValue: "account",
+    children: (
+      <>
+        <Tabs.List>
+          <Tabs.Trigger value="account" icon={User}>
+            Account
+          </Tabs.Trigger>
+          <Tabs.Trigger value="password" icon={KeyRound}>
+            Password
+          </Tabs.Trigger>
+        </Tabs.List>
+        <Tabs.Content value="account">Account settings</Tabs.Content>
+        <Tabs.Content value="password">Password settings</Tabs.Content>
+      </>
+    ),
   },
 });
 
