@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -70,7 +71,24 @@ type AccordionItemProps = Pick<
     children: React.ReactNode;
   };
 
-const Accordion = AccordionPrimitive.Root;
+type AccordionProps = Pick<
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
+  | "children"
+  | "className"
+  | "collapsible"
+  | "defaultValue"
+  | "onValueChange"
+  | "type"
+  | "value"
+>;
+
+function Accordion({ children, className, ...props }: AccordionProps) {
+  return (
+    <AccordionPrimitive.Root className={className} {...props}>
+      {children}
+    </AccordionPrimitive.Root>
+  );
+}
 
 function AccordionItem({
   children,
