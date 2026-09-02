@@ -28,7 +28,6 @@ const triggerVariants = Object.keys({
 const itemVariants = Object.keys({
   default: true,
   none: true,
-  top: true,
 } satisfies Record<ItemVariant, true>) as ItemVariant[];
 
 const contentSizes = Object.keys({

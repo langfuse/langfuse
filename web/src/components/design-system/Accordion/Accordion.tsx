@@ -48,7 +48,6 @@ const accordionItemVariants = cva("", {
     variant: {
       default: "border-b",
       none: "",
-      top: "border-t",
     },
     inset: {
       none: "",
