@@ -724,61 +724,62 @@ export function DataTableControls({
       onPointerDownCapture={noteFacetInteraction}
       onKeyDownCapture={noteFacetInteraction}
     >
-      <Accordion
-        type="multiple"
-        className="w-full"
-        value={queryFilter.expanded}
-        onValueChange={(next) => {
-          const prev = queryFilter.expanded;
-          queryFilter.onExpandedChange(next);
-          // One header click changes exactly one column. Expand-all, add
-          // filter, and AI apply call onExpandedChange directly and skip
-          // this handler, so they do not double-count as facet toggles.
-          const added = next.filter((column) => !prev.includes(column));
-          const removed = prev.filter((column) => !next.includes(column));
-          if (added.length + removed.length !== 1) return;
-          capture("filters:facet_toggled", {
-            tableName,
-            column: added[0] ?? removed[0],
-            expanded: added.length === 1,
-            layout,
-            isV4: queryFilter.isV4 ?? false,
-          });
-        }}
-      >
-        {/* ONE keyed child array — not two .map() slices: React can
-            only match keys within the same array, so a facet crossing
-            the promoted/rest boundary would REMOUNT (wiping input
-            focus and draft state) instead of moving.
+      <div className="w-full">
+        <Accordion
+          type="multiple"
+          value={queryFilter.expanded}
+          onValueChange={(next) => {
+            const prev = queryFilter.expanded;
+            queryFilter.onExpandedChange(next);
+            // One header click changes exactly one column. Expand-all, add
+            // filter, and AI apply call onExpandedChange directly and skip
+            // this handler, so they do not double-count as facet toggles.
+            const added = next.filter((column) => !prev.includes(column));
+            const removed = prev.filter((column) => !next.includes(column));
+            if (added.length + removed.length !== 1) return;
+            capture("filters:facet_toggled", {
+              tableName,
+              column: added[0] ?? removed[0],
+              expanded: added.length === 1,
+              layout,
+              isV4: queryFilter.isV4 ?? false,
+            });
+          }}
+        >
+          {/* ONE keyed child array — not two .map() slices: React can
+                      only match keys within the same array, so a facet crossing
+                      the promoted/rest boundary would REMOUNT (wiping input
+                      focus and draft state) instead of moving.
 
-            Every facet renders; a search only sets `hidden`
-            on the rows it excludes. The wrapper is always present for
-            the same reason the array is single: swapping the element
-            around a facet would remount it and lose its draft state. */}
-        {displayedFilters.flatMap((filter) => {
-          const nodes = [];
-          if (showPromotedSeparator && filter.column === firstCatalogColumn) {
+                      Every facet renders; a search only sets `hidden`
+                      on the rows it excludes. The wrapper is always present for
+                      the same reason the array is single: swapping the element
+                      around a facet would remount it and lose its draft state. */}
+          {displayedFilters.flatMap((filter) => {
+            const nodes = [];
+            if (showPromotedSeparator && filter.column === firstCatalogColumn) {
+              nodes.push(
+                // The one line that means something: the boundary
+                // between the active/added block and the catalog.
+                <div
+                  key="promoted-separator"
+                  className="border-border mx-2 my-2 border-t"
+                  aria-hidden
+                />,
+              );
+            }
             nodes.push(
-              // The one line that means something: the boundary
-              // between the active/added block and the catalog.
               <div
-                key="promoted-separator"
-                className="border-border mx-2 my-2 border-t"
-                aria-hidden
-              />,
+                key={filter.column}
+                hidden={!visibleColumns.has(filter.column)}
+              >
+                {renderFacet(filter)}
+              </div>,
             );
-          }
-          nodes.push(
-            <div
-              key={filter.column}
-              hidden={!visibleColumns.has(filter.column)}
-            >
-              {renderFacet(filter)}
-            </div>,
-          );
-          return nodes;
-        })}
-      </Accordion>
+            return nodes;
+          })}
+        </Accordion>
+      </div>
 
       {/* Nothing matched — including any facet currently filtering, which the
           query hides like the rest. */}

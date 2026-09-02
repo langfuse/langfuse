@@ -1,12 +1,9 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronDown } from "lucide-react";
-
-import { cn } from "@/src/utils/tailwind";
 
 const accordionVariants = cva("", {
   variants: {
@@ -100,15 +97,11 @@ type AccordionProps = Omit<
 > &
   Pick<VariantProps<typeof accordionVariants>, "gap"> & {
     children: React.ReactNode;
-    className?: "w-full";
   };
 
-function Accordion({ children, className, gap, ...props }: AccordionProps) {
+function Accordion({ children, gap, ...props }: AccordionProps) {
   return (
-    <AccordionPrimitive.Root
-      className={cn(accordionVariants({ gap }), className)}
-      {...props}
-    >
+    <AccordionPrimitive.Root className={accordionVariants({ gap })} {...props}>
       {children}
     </AccordionPrimitive.Root>
   );
