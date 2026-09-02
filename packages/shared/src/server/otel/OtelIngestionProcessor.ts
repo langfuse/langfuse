@@ -494,6 +494,8 @@ export class OtelIngestionProcessor {
                   spanAttributes,
                   span,
                 );
+                const evaluationFields =
+                  this.extractEvaluationFields(spanAttributes);
 
                 const spanContext = {
                   spanId,
@@ -657,6 +659,9 @@ export class OtelIngestionProcessor {
 
                   // Experiment fields
                   ...experimentFields,
+
+                  // Evaluator execution fields
+                  ...evaluationFields,
 
                   // Tool calling
                   toolDefinitions,
@@ -3496,6 +3501,34 @@ export class OtelIngestionProcessor {
         experimentItemMetadataFlattened.values.length > 0
           ? experimentItemMetadataFlattened.values
           : undefined,
+    };
+  }
+
+  private extractEvaluationFields(attributes: Record<string, unknown>) {
+    const evaluatorId = attributes[LangfuseOtelSpanAttributes.EVALUATOR_ID];
+    const evaluationRuleId =
+      attributes[LangfuseOtelSpanAttributes.EVALUATION_RULE_ID];
+    const evaluatorExecutionIsTest =
+      attributes[LangfuseOtelSpanAttributes.EVALUATOR_EXECUTION_IS_TEST];
+
+    if (
+      evaluatorId == null &&
+      evaluationRuleId == null &&
+      evaluatorExecutionIsTest == null
+    ) {
+      return { evaluationContext: undefined };
+    }
+
+    return {
+      evaluationContext: {
+        evaluatorId: evaluatorId ? String(evaluatorId) : undefined,
+        evaluationRuleId: evaluationRuleId
+          ? String(evaluationRuleId)
+          : undefined,
+        evaluatorExecutionIsTest:
+          evaluatorExecutionIsTest === true ||
+          evaluatorExecutionIsTest === "true",
+      },
     };
   }
 
