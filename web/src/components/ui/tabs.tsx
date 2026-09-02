@@ -21,6 +21,27 @@ const TabsList = React.forwardRef<
     {...props}
   />
 ));
+
+type TabsTriggerProps = Omit<
+  Pick<
+    React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>,
+    "children" | "className" | "disabled" | "title" | "value"
+  >,
+  "className"
+> & {
+  className?:
+    | "h-5 px-1 text-xs"
+    | "h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+    | "h-5 px-2 text-xs"
+    | "min-w-[100px]"
+    | "min-w-[100px] gap-1.5"
+    | "text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+    | "h-fit px-1 text-xs"
+    | "text-xs"
+    | "flex-1"
+    | "gap-1.5 leading-none";
+};
+
 TabsList.displayName = TabsPrimitive.List.displayName;
 
 function TabsTrigger({
@@ -29,10 +50,7 @@ function TabsTrigger({
   disabled,
   title,
   value,
-}: Pick<
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>,
-  "children" | "className" | "disabled" | "title" | "value"
->) {
+}: TabsTriggerProps) {
   return (
     <TabsPrimitive.Trigger
       value={value}
