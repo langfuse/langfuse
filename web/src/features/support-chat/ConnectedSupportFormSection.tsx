@@ -6,10 +6,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { isEnterpriseSupportPlan } from "./formConstants";
-import {
-  SupportFormSection,
-  type SupportFormValues,
-} from "./SupportFormSection";
+import { SupportForm, type SupportFormValues } from "./SupportForm";
 
 export function ConnectedSupportFormSection({
   onCancel,
@@ -64,7 +61,7 @@ export function ConnectedSupportFormSection({
 
   const handleSubmit = async (values: SupportFormValues, files: File[]) => {
     // Upload attachments to Pylon. This is the only attachment path, so
-    // do NOT swallow failures: let them propagate to SupportFormSection
+    // do NOT swallow failures: let them propagate to SupportForm
     // (which surfaces the error via form.setError) instead of silently
     // dropping the user's files while still creating the thread.
     let pylonAttachmentUrls: string[] = [];
@@ -108,16 +105,25 @@ export function ConnectedSupportFormSection({
   };
 
   return (
-    <SupportFormSection
-      canSelectHighSeverity={canSelectHighSeverity}
-      initialTopic={initialTopic ?? ""}
-      showV4MigrationTopic={showV4MigrationTopic}
-      onCancel={onCancel}
-      onSuccess={onSuccess}
-      onSubmit={handleSubmit}
-      onFileError={(message) =>
-        showErrorToast("File Upload Error", message, "WARNING")
-      }
-    />
+    <div className="mt-1 flex flex-col gap-3">
+      <div className="flex items-center gap-2 text-base font-bold">
+        E-Mail a Support Engineer
+      </div>
+      <p className="text-muted-foreground text-sm">
+        Details speed things up. The clearer your request, the quicker you get
+        the answer you need.
+      </p>
+      <SupportForm
+        canSelectHighSeverity={canSelectHighSeverity}
+        initialTopic={initialTopic ?? ""}
+        showV4MigrationTopic={showV4MigrationTopic}
+        onCancel={onCancel}
+        onSuccess={onSuccess}
+        onSubmit={handleSubmit}
+        onFileError={(message) =>
+          showErrorToast("File Upload Error", message, "WARNING")
+        }
+      />
+    </div>
   );
 }

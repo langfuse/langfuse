@@ -12,6 +12,7 @@ import {
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
+  type Topic,
   SupportFormSchema,
 } from "./formConstants";
 
@@ -62,9 +63,9 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
 type SupportFormInput = z.input<typeof SupportFormSchema>;
 export type SupportFormValues = z.output<typeof SupportFormSchema>;
 
-export type SupportFormSectionProps = {
+export type SupportFormProps = {
   canSelectHighSeverity: boolean;
-  initialTopic: string;
+  initialTopic: Topic | "";
   showV4MigrationTopic: boolean;
   onCancel: () => void;
   onSuccess: () => void;
@@ -185,7 +186,7 @@ function isSeveritySelectable(
   return true;
 }
 
-export function SupportFormSection({
+export function SupportForm({
   canSelectHighSeverity,
   initialTopic,
   showV4MigrationTopic,
@@ -193,7 +194,7 @@ export function SupportFormSection({
   onSuccess,
   onSubmit,
   onFileError,
-}: SupportFormSectionProps) {
+}: SupportFormProps) {
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
 
@@ -305,15 +306,7 @@ export function SupportFormSection({
     warnedShortOnce && (form.getValues("message") ?? "").trim().length < 50;
 
   return (
-    <div className="mt-1 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-base font-bold">
-        E-Mail a Support Engineer
-      </div>
-      <p className="text-muted-foreground text-sm">
-        Details speed things up. The clearer your request, the quicker you get
-        the answer you need.
-      </p>
-
+    <>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(handleFormSubmit)}
@@ -633,6 +626,6 @@ export function SupportFormSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

@@ -3,7 +3,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { SEVERITY_1, SEVERITY_3 } from "./formConstants";
-import { SupportFormSection } from "./SupportFormSection";
+import { SupportForm } from "./SupportForm";
 
 const defaultArgs = {
   canSelectHighSeverity: false,
@@ -13,13 +13,13 @@ const defaultArgs = {
   onSuccess: fn(),
   onSubmit: fn(async () => undefined),
   onFileError: fn(),
-} satisfies ComponentProps<typeof SupportFormSection>;
+} satisfies ComponentProps<typeof SupportForm>;
 
 const LONG_MESSAGE =
   "I need help understanding why my traces are missing spans after the latest deploy.";
 
 const meta = preview.meta({
-  component: SupportFormSection,
+  component: SupportForm,
 });
 
 export const Default = meta.story({
