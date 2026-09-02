@@ -31,19 +31,26 @@ const tabsTriggerVariants = cva(
 
 const Tabs = TabsPrimitive.Root;
 
-const TabsList = React.forwardRef<
-  React.ComponentRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      "bg-muted text-muted-foreground inline-flex h-8 items-center justify-center rounded-md p-1",
-      className,
-    )}
-    {...props}
-  />
-));
+function TabsList({
+  "aria-label": ariaLabel,
+  children,
+  className,
+}: Pick<
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>,
+  "aria-label" | "children" | "className"
+>) {
+  return (
+    <TabsPrimitive.List
+      aria-label={ariaLabel}
+      className={cn(
+        "bg-muted text-muted-foreground inline-flex h-8 items-center justify-center rounded-md p-1",
+        className,
+      )}
+    >
+      {children}
+    </TabsPrimitive.List>
+  );
+}
 
 type TabsTriggerProps = {
   children: React.ReactNode;
@@ -51,8 +58,6 @@ type TabsTriggerProps = {
   title?: string;
   value: string;
 } & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant">;
-
-TabsList.displayName = TabsPrimitive.List.displayName;
 
 function TabsTrigger({
   children,
