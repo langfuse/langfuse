@@ -3,20 +3,36 @@
 
 import * as React from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
+
+const radioGroupVariants = cva("", {
+  variants: {
+    layout: {
+      stack: "grid gap-2",
+      columns: "grid grid-cols-3 gap-2",
+    },
+  },
+  defaultVariants: {
+    layout: "stack",
+  },
+});
 
 type RadioGroupProps = Omit<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "className"
-> & { className?: "grid grid-cols-3 gap-2" };
+> &
+  VariantProps<typeof radioGroupVariants> & {
+    className?: "grid grid-cols-3 gap-2";
+  };
 
 const RadioGroup = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->(({ className, ...props }, ref) => {
+>(({ className, layout, ...props }, ref) => {
   return (
     <RadioGroupPrimitive.Root
-      className={cn("grid gap-2", className)}
+      className={cn(radioGroupVariants({ layout }), className)}
       {...props}
       ref={ref}
     />
