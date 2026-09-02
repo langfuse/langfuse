@@ -145,6 +145,7 @@ export type ObservationsTableRow = {
   id: string;
   traceName?: string;
   traceId?: string;
+  modelId?: string;
   version: string;
   timestamp?: Date;
   promptId?: string;
@@ -1034,14 +1035,13 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<ObservationsTableRow>({
       accessorKey: "modelId",
-      id: "modelId",
       header: "Model ID",
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     createTextTableColumn<ObservationsTableRow>({
       accessorKey: "version",
       header: "Version",

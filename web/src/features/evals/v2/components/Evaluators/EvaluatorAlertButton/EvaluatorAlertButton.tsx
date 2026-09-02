@@ -330,7 +330,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                 {alertCount}
               </Badge>
             ) : null}
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </Trigger>
       )}

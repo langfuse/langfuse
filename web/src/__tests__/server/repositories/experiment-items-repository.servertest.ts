@@ -18,7 +18,7 @@ import { type FilterCondition } from "@langfuse/shared";
  * Wraps createEvent with experiment defaults.
  */
 function createExperimentEvent(
-  params: Partial<EventRecordInsertType> & {
+  params: Parameters<typeof createEvent>[0] & {
     experimentId: string;
     experimentName: string;
     datasetId?: string;
