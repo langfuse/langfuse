@@ -503,6 +503,38 @@ jobs:
             cat "$RUNNER_TEMP/claude-model-price-audit.txt"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Discard pricing-only formatting changes
+        run: |
+          set -euo pipefail
+
+          base_pricing_file="$RUNNER_TEMP/default-model-prices-before-audit.json"
+          git show "HEAD:worker/src/constants/default-model-prices.json" > "$base_pricing_file"
+
+          BASE_PRICING_FILE="$base_pricing_file" node <<'NODE'
+          const fs = require("node:fs");
+
+          const base = JSON.parse(fs.readFileSync(process.env.BASE_PRICING_FILE, "utf8"));
+          const currentPath = "worker/src/constants/default-model-prices.json";
+          const current = JSON.parse(fs.readFileSync(currentPath, "utf8"));
+          const byModel = (entries) =>
+            new Map(entries.map((entry) => [entry.modelName.trim().toLowerCase(), JSON.stringify(entry)]));
+
+          const baseByModel = byModel(base);
+          const currentByModel = byModel(current);
+          const sameEntries =
+            baseByModel.size === currentByModel.size &&
+            [...baseByModel].every(
+              ([modelName, entry]) => currentByModel.get(modelName) === entry,
+            );
+
+          if (sameEntries && JSON.stringify(base) !== JSON.stringify(current)) {
+            fs.copyFileSync(process.env.BASE_PRICING_FILE, currentPath);
+            console.log(
+              "Discarded pricing JSON formatting or ordering changes without model-entry changes.",
+            );
+          }
+          NODE
+
       - name: Validate audit diff
         run: |
           set -euo pipefail
