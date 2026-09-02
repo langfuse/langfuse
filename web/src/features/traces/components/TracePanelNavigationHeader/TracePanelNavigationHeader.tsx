@@ -13,7 +13,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -94,7 +94,7 @@ function TracePanelNavigationHeaderExpanded({
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { roots, trace, observations } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -149,7 +149,7 @@ function TracePanelNavigationHeaderExpanded({
     useWatchedPromiseCallback(async () => {
       capture("trace_detail:download_button_click", analyticsDimensions);
       try {
-        if (!isBetaEnabled) {
+        if (!isV4) {
           downloadLegacyTraceAsJson({
             trace,
             observations,
@@ -174,7 +174,7 @@ function TracePanelNavigationHeaderExpanded({
             : "Failed to download trace JSON",
         );
       }
-    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
+    }, [isV4, observations, trace, capture, analyticsDimensions]);
 
   const isTimelineView = viewMode === "timeline";
 

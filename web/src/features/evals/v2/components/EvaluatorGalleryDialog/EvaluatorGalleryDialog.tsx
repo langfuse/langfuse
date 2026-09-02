@@ -11,12 +11,7 @@ import {
 import { EvaluatorGalleryView } from "@/src/features/evals/v2/components/EvaluatorGalleryView/EvaluatorGalleryView";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
-import {
-  EVALUATOR_GALLERY_ALL_SECTION_KEY,
-  EVALUATOR_GALLERY_EXPANDED_PROJECT_LIMIT,
-  EVALUATOR_GALLERY_PREVIEW_SIZE,
-  EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-} from "@/src/features/evals/v2/constants/evaluatorGallery";
+import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { api } from "@/src/utils/api";
@@ -44,44 +39,41 @@ export function EvaluatorGalleryDialog({
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const projectEvaluators = api.evalsV2.list.useQuery(
+  const projectEvaluators = api.evalsV2.listGallery.useInfiniteQuery(
     {
       projectId,
-      page: 1,
-      limit: expandedSections.has(EVALUATOR_GALLERY_PROJECT_SECTION_KEY)
-        ? EVALUATOR_GALLERY_EXPANDED_PROJECT_LIMIT
-        : EVALUATOR_GALLERY_PREVIEW_SIZE,
+      limit: 50,
       search: search.trim() || undefined,
     },
     {
       enabled: open && Boolean(projectId),
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
       placeholderData: (previous) => previous,
     },
   );
-  const customTemplates = (projectEvaluators.data?.evaluators ?? []).flatMap(
-    (evaluator) => {
-      const latest = evaluator.versions[0];
-      return latest
-        ? [
-            {
-              id: evaluator.id,
-              name: evaluator.name,
-              description: evaluator.description,
-              type: evaluator.type,
-              prompt: latest.prompt,
-              sourceCodeLanguage: latest.sourceCodeLanguage,
-              updatedAt: evaluator.updatedAt,
-              version: latest.version,
-              createdByUser: evaluator.createdByUser,
-            },
-          ]
-        : [];
-    },
-  );
+  const customTemplates = (
+    projectEvaluators.data?.pages.flatMap((page) => page.evaluators) ?? []
+  ).flatMap((evaluator) => {
+    const latest = evaluator.versions[0];
+    return latest
+      ? [
+          {
+            id: evaluator.id,
+            name: evaluator.name,
+            description: evaluator.description,
+            type: evaluator.type,
+            sourceCodeLanguage: latest.sourceCodeLanguage,
+            updatedAt: evaluator.updatedAt,
+            version: latest.version,
+            createdByUser: evaluator.createdByUser,
+          },
+        ]
+      : [];
+  });
   const { navigationItems, sections } = prepareEvaluatorGallery({
     customTemplates,
     customTemplateCount:
-      projectEvaluators.data?.totalItems ?? customTemplates.length,
+      projectEvaluators.data?.pages[0]?.totalItems ?? customTemplates.length,
     search,
   });
   const selectSection = (key: string) => {
@@ -154,6 +146,9 @@ export function EvaluatorGalleryDialog({
           onCreateFromScratch={handleCreateFromScratch}
           scrollContainerRef={scrollContainerRef}
           isLoading={projectEvaluators.isPending}
+          hasMoreProjectTemplates={projectEvaluators.hasNextPage}
+          isLoadingMoreProjectTemplates={projectEvaluators.isFetchingNextPage}
+          onLoadMoreProjectTemplates={projectEvaluators.fetchNextPage}
           errorMessage={
             projectEvaluators.isError
               ? projectEvaluators.error.message

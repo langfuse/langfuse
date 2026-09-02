@@ -2,7 +2,7 @@ import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
@@ -23,7 +23,7 @@ export function ControlledFeaturePreviewModal({
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -52,9 +52,9 @@ export function ControlledFeaturePreviewModal({
         authSession.data?.user?.featureFlags.modernSession === true ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       disabled:
-        !isBetaEnabled ||
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
+      warningReason: !isV4
         ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."

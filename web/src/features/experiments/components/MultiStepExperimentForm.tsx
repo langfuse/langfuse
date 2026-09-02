@@ -141,12 +141,12 @@ export const MultiStepExperimentForm = ({
 
   const hasEvalReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
 
   const hasEvaluatorReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evaluator:read",
   });
 
   const canReadEvaluators = useV2Evaluators
@@ -155,7 +155,7 @@ export const MultiStepExperimentForm = ({
 
   const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const form = useForm({

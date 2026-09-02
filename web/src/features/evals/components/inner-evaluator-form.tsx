@@ -1,5 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -106,7 +106,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
@@ -189,7 +189,7 @@ const ObservationsPreview = memo(
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
-    const { isBetaEnabled } = useV4Beta();
+    const { isV4 } = useReadPath();
 
     const dateRange = useMemo(() => {
       return {
@@ -241,7 +241,7 @@ const ObservationsPreview = memo(
             ) : (
               // Keep the evaluator preview isolated from the parent route's table state.
               <PeekTableStateProvider>
-                {isBetaEnabled ? (
+                {isV4 ? (
                   <EventsTable
                     projectId={projectId}
                     hideControls
@@ -351,7 +351,7 @@ export const InnerEvaluatorForm = (props: {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const isCodeEvalConfig =
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
@@ -381,7 +381,7 @@ export const InnerEvaluatorForm = (props: {
     datasetFilterOptions,
   } = useEvalConfigFilterOptions({
     projectId: props.projectId,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
     includeLegacyTraceOptions: showLegacyTargetOptions,
   });
 
@@ -560,7 +560,7 @@ export const InnerEvaluatorForm = (props: {
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
-    isExperimentTarget(watchedTarget) && isBetaEnabled;
+    isExperimentTarget(watchedTarget) && isV4;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
   const previewTableVisible = !props.disabled && !props.hidePreviewTable;
@@ -810,12 +810,12 @@ export const InnerEvaluatorForm = (props: {
     isCodeEvalConfig &&
     !props.disabled &&
     (isEventTarget(watchedTarget) ||
-      (isExperimentTarget(watchedTarget) && isBetaEnabled));
+      (isExperimentTarget(watchedTarget) && isV4));
   const shouldShowCodeEvalSourceLinkInSettingsCard =
     isCodeEvalConfig &&
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
-    !isBetaEnabled;
+    !isV4;
 
   const formBody = (
     <div
@@ -843,14 +843,13 @@ export const InnerEvaluatorForm = (props: {
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Unsupported filter detected</AlertTitle>
-              <AlertDescription>
+            <Alert variant="destructive" icon={AlertTriangle}>
+              <Alert.Title>Unsupported filter detected</Alert.Title>
+              <Alert.Description>
                 This evaluator has a filter that is not supported for
                 trace-level evaluators. It is effectively paused. Please remove
                 all filters and re-add them from scratch to resume execution.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           )}
           <div className="flex flex-col gap-4">
@@ -1250,10 +1249,10 @@ export const InnerEvaluatorForm = (props: {
                         {!props.disabled && !hasFilters && (
                           <div className="flex max-w-[500px] gap-1">
                             <AlertTriangle className="text-dark-yellow h-4 w-4" />
-                            <AlertDescription className="text-dark-yellow">
+                            <div className="text-dark-yellow text-sm [&_p]:leading-relaxed">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.
-                            </AlertDescription>
+                            </div>
                           </div>
                         )}
                         <FormMessage />
@@ -1269,7 +1268,7 @@ export const InnerEvaluatorForm = (props: {
                         is not the v4 user's experience — never show it there. */}
                     {shouldShowLegacyTracePreview(
                       form.watch("target"),
-                      isBetaEnabled,
+                      isV4,
                     ) && (
                       <TracesPreview
                         projectId={props.projectId}

@@ -20,7 +20,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import startCase from "lodash/startCase";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 
@@ -77,10 +77,10 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       <div>
         <Header title="API Keys" />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to view API keys for this {scope}.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );

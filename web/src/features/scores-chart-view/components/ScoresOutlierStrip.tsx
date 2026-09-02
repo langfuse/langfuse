@@ -60,7 +60,7 @@ export function ScoresOutlierStrip({
   fromTimestamp: Date;
   toTimestamp: Date;
   onSelectRange: (range: { from: Date; to: Date }) => void;
-  /** Must match the caller's own `isBetaEnabled` check — see `ScoresChartView`'s doc comment. */
+  /** Must match the caller's own `isV4` check — see `ScoresChartView`'s doc comment. */
   viewVersion: ViewVersion;
 }) {
   const capture = usePostHogClientCapture();
@@ -162,7 +162,7 @@ export function ScoresOutlierStrip({
       // change (drill-in, Back, preset hop) shows the skeleton instead.
       placeholderData: (prev, prevQuery) =>
         prev && isSameGridAsCurrent(prevQuery) ? prev : undefined,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );
@@ -174,7 +174,7 @@ export function ScoresOutlierStrip({
       // Same same-grid placeholder reuse as `countQuery` above.
       placeholderData: (prev, prevQuery) =>
         prev && isSameGridAsCurrent(prevQuery) ? prev : undefined,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );

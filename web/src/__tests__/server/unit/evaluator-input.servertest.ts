@@ -44,8 +44,57 @@ describe("MCP evaluator input", () => {
       type: "object",
       required: ["provider", "model"],
     });
+    expect(schema.properties?.outputDefinition).toMatchObject({
+      type: "object",
+      required: ["dataType", "reasoning", "score"],
+      properties: {
+        dataType: {
+          type: "string",
+          enum: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
+        },
+        reasoning: {
+          type: "object",
+          properties: {
+            description: { type: "string" },
+          },
+        },
+        score: {
+          type: "object",
+          properties: {
+            description: { type: "string" },
+            minValue: { type: "number" },
+            maxValue: { type: "number" },
+            categories: {
+              type: "array",
+              items: { type: "string" },
+            },
+            shouldAllowMultipleMatches: { type: "boolean" },
+          },
+        },
+      },
+    });
     expect(hasJsonSchemaComposition(schema)).toBe(false);
   });
+
+  it.each([undefined, "", "   "])(
+    "requires a non-empty prompt for LLM-as-a-judge evaluators",
+    (prompt) => {
+      const result = McpEvaluatorInput.safeParse({
+        ...llmEvaluatorInput,
+        prompt,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ["prompt"],
+            message: "Prompt is required for LLM-as-a-judge evaluators.",
+          }),
+        );
+      }
+    },
+  );
 
   it("derives a plain variable mapping schema from the shared schema", () => {
     expect(

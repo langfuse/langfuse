@@ -1,11 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Select,
   SelectContent,
@@ -22,7 +18,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -165,21 +161,11 @@ export function MembersTable({
         const { name, image } = row.getValue("user") as MembersTableRow["user"];
         return (
           <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {name
-                  ? name
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
+            <Avatar
+              size="md"
+              src={image ?? undefined}
+              displayName={name ?? "User"}
+            />
             <span>{name}</span>
           </div>
         );
@@ -426,10 +412,10 @@ export function MembersTable({
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
           You do not have permission to view members of this organization.
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     );
   }

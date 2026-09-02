@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
@@ -72,8 +72,8 @@ export function OrganizationFeaturePreviewsSettings({
   if (defaultsQuery.isError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Feature previews unavailable</AlertTitle>
-        <AlertDescription>{defaultsQuery.error.message}</AlertDescription>
+        <Alert.Title>Feature previews unavailable</Alert.Title>
+        <Alert.Description>{defaultsQuery.error.message}</Alert.Description>
       </Alert>
     );
   }
@@ -95,12 +95,14 @@ export function OrganizationFeaturePreviewsSettings({
 
       {experimentalFeaturesEnabled ? (
         <Alert>
-          <AlertTitle>Experimental features enabled deployment-wide</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>
+            Experimental features enabled deployment-wide
+          </Alert.Title>
+          <Alert.Description>
             Every preview on this page is enabled by the env variable
             LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not
             disable these previews.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       ) : null}
 
@@ -170,12 +172,12 @@ export function OrganizationFeaturePreviewsSettings({
           </AlertDialogHeader>
           {proposedChange?.enabled ? (
             <Alert>
-              <AlertTitle>Already enabled for you</AlertTitle>
-              <AlertDescription>
+              <Alert.Title>Already enabled for you</Alert.Title>
+              <Alert.Description>
                 This preview is already enabled in your personal Feature Preview
                 settings. Make sure you have tested it before enabling it for
                 the organization.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           ) : null}
           <AlertDialogFooter>

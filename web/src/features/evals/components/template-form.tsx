@@ -74,7 +74,7 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   useEvalCapabilities,
   type EvalCapabilities,
@@ -1022,32 +1022,30 @@ function CodeEvalSdkVersionCallout({
   }
 
   return (
-    <Alert
-      variant="default"
-      className="border-dark-yellow bg-light-yellow max-w-4xl"
-    >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
-      <AlertDescription>
-        <div className="flex flex-col gap-1">
-          <span className="text-foreground font-bold">
-            Please verify your SDK version
-          </span>
-          <span className="text-foreground text-sm">
-            Code evaluators require JS SDK v4+ or Python SDK v3+. You can create
-            this evaluator now, but it will only run once your project ingests
-            data with a compatible SDK.{" "}
-            <a
-              href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
-            >
-              Learn more
-            </a>
-            .
-          </span>
-        </div>
-      </AlertDescription>
-    </Alert>
+    <div className="w-full max-w-4xl">
+      <Alert variant="warning" icon={AlertTriangle}>
+        <Alert.Description>
+          <div className="flex flex-col gap-1">
+            <span className="text-foreground font-bold">
+              Please verify your SDK version
+            </span>
+            <span className="text-foreground text-sm">
+              Code evaluators require JS SDK v4+ or Python SDK v3+. You can
+              create this evaluator now, but it will only run once your project
+              ingests data with a compatible SDK.{" "}
+              <a
+                href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-blue font-bold hover:opacity-80"
+              >
+                Learn more
+              </a>
+              .
+            </span>
+          </div>
+        </Alert.Description>
+      </Alert>
+    </div>
   );
 }

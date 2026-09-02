@@ -35,7 +35,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp: Date;
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
 }) => {
