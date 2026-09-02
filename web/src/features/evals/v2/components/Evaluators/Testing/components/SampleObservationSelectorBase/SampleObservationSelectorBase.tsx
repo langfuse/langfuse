@@ -33,6 +33,10 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
+import {
+  buildSampleQueryFilters,
+  removeInternalEvaluationEnvironmentOptions,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
 import {
@@ -240,20 +244,25 @@ export function SampleObservationSelectorBase(
     [timeRange],
   );
   const effectiveFilters = useMemo(
-    () => [...previewFilters, ...timeFilters(timeRange)],
+    () => buildSampleQueryFilters(previewFilters, timeFilters(timeRange)),
     [previewFilters, timeRange],
+  );
+  const refiningFilter = useMemo(
+    () => buildSampleQueryFilters(previewFilters),
+    [previewFilters],
   );
   const options = useEventsFilterOptions({
     projectId,
     startTimeFilter,
-    refiningFilter: previewFilters,
+    refiningFilter,
     includeApproxCount: true,
     lazy: true,
   });
   const observed = useMemo(() => {
-    const mapped = mapObservedOptions(
+    const visibleOptions = removeInternalEvaluationEnvironmentOptions(
       toObservedOptions(options.filterOptions, options.isFilterOptionsPending),
     );
+    const mapped = mapObservedOptions(visibleOptions);
     return addDatasetNameObservedOptions(mapped, datasetOptions);
   }, [
     datasetOptions,
