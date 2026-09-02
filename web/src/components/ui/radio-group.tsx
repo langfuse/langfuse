@@ -19,9 +19,9 @@ const RadioGroup = React.forwardRef<
 });
 RadioGroup.displayName = RadioGroupPrimitive.Root.displayName;
 
-type RadioGroupItemProps = Omit<
+type RadioGroupItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>,
-  "className"
+  "aria-controls" | "disabled" | "id" | "value"
 >;
 
 const RadioGroupItem = React.forwardRef<
