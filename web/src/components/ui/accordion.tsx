@@ -46,16 +46,23 @@ const accordionContentVariants = cva("", {
   },
 });
 
+type AccordionItemProps = Omit<
+  Pick<
+    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
+    "children" | "className" | "value"
+  >,
+  "className"
+> & {
+  className?:
+    | "px-2"
+    | "border-b-0"
+    | "border-t"
+    | "bg-muted/30 rounded-lg border";
+};
+
 const Accordion = AccordionPrimitive.Root;
 
-function AccordionItem({
-  children,
-  className,
-  value,
-}: Pick<
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
-  "children" | "className" | "value"
->) {
+function AccordionItem({ children, className, value }: AccordionItemProps) {
   return (
     <AccordionPrimitive.Item
       className={cn("border-b", className)}
