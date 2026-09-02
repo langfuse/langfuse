@@ -29,16 +29,35 @@ const tabsTriggerVariants = cva(
   },
 );
 
+type TabsListProps = Omit<
+  Pick<
+    React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>,
+    "aria-label" | "children" | "className"
+  >,
+  "className"
+> & {
+  className?:
+    | "grid h-6 w-full grid-cols-3 p-0.5"
+    | "grid h-6 w-full grid-cols-2 p-0.5"
+    | "grid w-fit max-w-fit grid-flow-col gap-4"
+    | "flex h-auto w-full rounded-none border-b bg-transparent p-0"
+    | "h-auto gap-1"
+    | "grid h-auto w-full grid-cols-2 gap-1"
+    | "flex w-full"
+    | "h-7"
+    | "h-fit py-0.5"
+    | "grid w-full grid-cols-2"
+    | "h-fit p-0.5"
+    | "bg-background **:data-[state=active]:bg-muted border";
+};
+
 const Tabs = TabsPrimitive.Root;
 
 function TabsList({
   "aria-label": ariaLabel,
   children,
   className,
-}: Pick<
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>,
-  "aria-label" | "children" | "className"
->) {
+}: TabsListProps) {
   return (
     <TabsPrimitive.List
       aria-label={ariaLabel}
