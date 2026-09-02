@@ -17,6 +17,8 @@ const accordionTriggerVariants = cva(
           "justify-between py-4 hover:underline [&[data-state=open]>svg]:rotate-180",
         plain:
           "justify-between py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180",
+        section:
+          "justify-between pt-2 pb-1 hover:no-underline [&[data-state=open]>svg]:rotate-180",
         start:
           "justify-start gap-2 py-2 hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0",
       },
@@ -67,7 +69,7 @@ type AccordionTriggerProps = Omit<
 > &
   Pick<VariantProps<typeof accordionTriggerVariants>, "size" | "variant"> & {
     children: React.ReactNode;
-    className?: "px-3 pt-2 pb-1" | "px-4";
+    className?: "px-3" | "px-4";
   };
 
 function AccordionTrigger({
