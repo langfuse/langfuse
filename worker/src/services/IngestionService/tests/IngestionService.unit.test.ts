@@ -506,6 +506,31 @@ describe("IngestionService unit tests", () => {
     ).toEqual([second, first]);
   });
 
+  it("keeps the last-arriving of tied update events last so it wins the merge", () => {
+    const first = { timestamp: 1, type: "trace-update", id: "first" };
+    const second = { timestamp: 1, type: "trace-update", id: "second" };
+
+    expect(
+      (IngestionService as any).toTimeSortedEventList([first, second]),
+    ).toEqual([first, second]);
+  });
+
+  it("orders a mixed run of tied creates and updates deterministically", () => {
+    // Creates sort before updates so the update wins the merge, and among the
+    // tied creates the first-arriving one sorts last.
+    const firstCreate = { timestamp: 1, type: "trace-create", id: "c0" };
+    const update = { timestamp: 1, type: "trace-update", id: "u1" };
+    const secondCreate = { timestamp: 1, type: "trace-create", id: "c2" };
+
+    expect(
+      (IngestionService as any).toTimeSortedEventList([
+        firstCreate,
+        update,
+        secondCreate,
+      ]),
+    ).toEqual([secondCreate, firstCreate, update]);
+  });
+
   it("correctly convert Date to Clickhouse DateTime", async () => {
     const date = new Date("2024-10-12T12:13:14.123Z");
 
