@@ -621,7 +621,7 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, otel-worker=${{ matrix.deploy-mode != '-azure' }})
     env:
       NODE_ENV: test
     strategy:
@@ -693,6 +693,7 @@ jobs:
           # phase below reapplies the mode-specific config and prerendering.
           write_test_env .env.dev.example .env
           write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
+          echo "LANGFUSE_OTEL_INGESTION_USE_WORKER=${{ matrix.deploy-mode != '-azure' }}" >> .env.runtime
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
@@ -725,6 +726,8 @@ jobs:
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Build OTel ingestion worker
+        run: pnpm --filter web run build:otel-worker
       - name: Wait for dev containers
         run: |
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \

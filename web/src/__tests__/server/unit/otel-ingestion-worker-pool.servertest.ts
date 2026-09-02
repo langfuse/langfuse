@@ -1,11 +1,93 @@
-import { describe, expect, it } from "vitest";
+import { EventEmitter } from "node:events";
+import type { IncomingMessage } from "node:http";
+import { PassThrough } from "node:stream";
+
+import { describe, expect, it, vi } from "vitest";
+import type { NextApiResponse } from "next";
 
 import {
   acquireOtelIngestionWorker,
+  createOtelIngestionWorkerLease,
   getTransferableOtelBody,
 } from "@/src/server/otel/otelIngestionWorkerPool";
 
 describe("OTel ingestion worker pool", () => {
+  it("returns a cloneable JSON representation of a BullMQ job", async () => {
+    const toKey = (() => "job-key").bind({});
+    const originalJob = {
+      id: "job-id",
+      data: { type: "otel" },
+      toKey,
+    };
+    const processOtelIngestion = vi.fn().mockResolvedValue({
+      kind: "ok",
+      body: { toJSON: () => originalJob },
+    });
+    vi.doMock("@/src/server/otel/processOtelIngestion", () => ({
+      processOtelIngestion,
+    }));
+
+    try {
+      const { default: processOtelIngestionInWorker } =
+        await import("@/src/server/otel/otelIngestionWorker");
+      const result = await processOtelIngestionInWorker({
+        body: new Uint8Array(new ArrayBuffer(0)),
+        encodedBodyBytes: 0,
+        contentType: "application/json",
+        config: {
+          projectId: "project-id",
+          publicKey: "public-key",
+          sdkName: "test-sdk",
+          sdkVersion: "1.0.0",
+        },
+      });
+
+      expect(() => structuredClone(result)).not.toThrow();
+      expect(JSON.stringify(result.body)).toBe(JSON.stringify(originalJob));
+    } finally {
+      vi.doUnmock("@/src/server/otel/processOtelIngestion");
+      vi.resetModules();
+    }
+  });
+
+  it("resumes a paused request before reading a leased body", async () => {
+    const req = new PassThrough() as PassThrough &
+      IncomingMessage & {
+        headers: Record<string, string>;
+      };
+    req.headers = { "content-length": "4" };
+
+    const res = new EventEmitter() as EventEmitter & {
+      status: (statusCode: number) => void;
+      setHeader: (name: string, value: unknown) => void;
+    };
+    res.status = () => {};
+    res.setHeader = () => {};
+
+    const leaseResult = await createOtelIngestionWorkerLease(
+      req,
+      res as unknown as NextApiResponse,
+      "project-id",
+    );
+    if (!("lease" in leaseResult)) {
+      req.destroy();
+      throw new Error("Expected to acquire an OTel ingestion worker lease");
+    }
+
+    const bodyPromise = leaseResult.lease.readBody(4);
+    try {
+      expect(req.isPaused()).toBe(false);
+      req.end("body");
+      await expect(bodyPromise).resolves.toEqual({
+        body: Buffer.from("body"),
+      });
+    } finally {
+      req.emit("aborted");
+      await bodyPromise.catch(() => undefined);
+      req.destroy();
+    }
+  });
+
   it("admits one waiter and rejects a third request as busy", async () => {
     const firstController = new AbortController();
     const waiterController = new AbortController();

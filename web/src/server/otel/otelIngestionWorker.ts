@@ -31,7 +31,7 @@ export default function processOtelIngestionInWorker(
       "toJSON" in result.body &&
       typeof result.body.toJSON === "function"
     ) {
-      return { ...result, body: result.body.toJSON() };
+      return { ...result, body: JSON.parse(JSON.stringify(result.body)) };
     }
 
     return result;

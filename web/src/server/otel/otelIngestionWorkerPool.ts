@@ -1,18 +1,22 @@
 import { existsSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage } from "node:http";
 import path from "node:path";
 
 import Piscina from "piscina";
+import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
+import type { NextApiResponse } from "next";
 
 import type {
   OtelIngestionRequest,
   OtelIngestionResult,
 } from "./processOtelIngestion";
+import { readOtelRequestBody } from "./otelRequestBody";
 import type { OtelIngestionWorkerRequest } from "./otelIngestionWorker";
 
 let workerPool:
   | Piscina<OtelIngestionWorkerRequest, OtelIngestionResult>
   | undefined;
+let workerCompletionLogged = false;
 let workerActive = false;
 
 type OtelIngestionWorkerAdmission =
@@ -27,6 +31,7 @@ type WorkerWaiter = {
 };
 
 let workerWaiter: WorkerWaiter | undefined;
+const OTEL_REQUEST_BODY_READ_TIMEOUT_MS = 300_000;
 
 function getWorkerFilename(): string {
   const distDir = process.env.NEXT_DIST_DIR || ".next";
@@ -144,19 +149,22 @@ export function acquireOtelIngestionWorker(
 }
 
 export type OtelIngestionWorkerLease = {
+  readBody: (
+    maxBodyBytes: number,
+  ) => Promise<{ body: Buffer } | { response: unknown }>;
   run: (
     request: OtelIngestionRequest,
   ) => Promise<OtelIngestionResult | undefined>;
 };
 
 export type OtelIngestionWorkerLeaseResult =
-  | { kind: "acquired"; lease: OtelIngestionWorkerLease }
-  | { kind: "busy" }
-  | { kind: "aborted" };
+  | { lease: OtelIngestionWorkerLease }
+  | { response: unknown };
 
 export async function createOtelIngestionWorkerLease(
   req: IncomingMessage,
-  res: ServerResponse,
+  res: NextApiResponse,
+  projectId: string,
 ): Promise<OtelIngestionWorkerLeaseResult> {
   req.pause();
   const abortController = new AbortController();
@@ -182,25 +190,65 @@ export async function createOtelIngestionWorkerLease(
   const admission = await acquireOtelIngestionWorker(abortController.signal);
   if (admission.kind === "busy") {
     cleanup();
-    return admission;
+    res.setHeader("Retry-After", 1);
+    res.setHeader("Connection", "close");
+    res.status(503);
+    return { response: { error: "OTel ingestion worker is busy" } };
   }
   if (admission.kind === "aborted") {
     cleanup();
-    return admission;
+    return { response: {} };
   }
   if (abortController.signal.aborted) {
     admission.release();
     cleanup();
-    return { kind: "aborted" };
+    return { response: {} };
   }
   releaseWorker = admission.release;
   res.once("finish", cleanup);
 
   return {
-    kind: "acquired",
     lease: {
+      async readBody(maxBodyBytes) {
+        const bodyReadAbortController = new AbortController();
+        const bodyReadTimeout = setTimeout(
+          () => bodyReadAbortController.abort(),
+          OTEL_REQUEST_BODY_READ_TIMEOUT_MS,
+        );
+
+        try {
+          const bodyPromise = readOtelRequestBody(
+            req,
+            maxBodyBytes,
+            bodyReadAbortController.signal,
+          );
+          req.resume();
+          return {
+            body: await bodyPromise,
+          };
+        } catch (error) {
+          if (bodyReadAbortController.signal.aborted) {
+            logger.warn("OTel request body read timed out", {
+              projectId,
+              timeoutMs: OTEL_REQUEST_BODY_READ_TIMEOUT_MS,
+            });
+            res.status(408);
+            return { response: { error: "Request body read timed out" } };
+          }
+
+          throw error;
+        } finally {
+          clearTimeout(bodyReadTimeout);
+        }
+      },
       async run(request) {
         workerStarted = true;
+        if (request.config.ingestionVersion) {
+          getCurrentSpan()?.setAttribute(
+            "langfuse.ingestion.version",
+            request.config.ingestionVersion,
+          );
+        }
         try {
           return await processOtelIngestionInWorker(
             request,
@@ -235,14 +283,42 @@ export async function processOtelIngestionInWorker(
   request: OtelIngestionRequest,
   signal: AbortSignal,
 ): Promise<OtelIngestionResult> {
+  const decodedBodyBytes = request.body.byteLength;
   const body = getTransferableOtelBody(request.body);
   const workerRequest: OtelIngestionWorkerRequest = {
     ...request,
     body,
   };
 
-  return getWorkerPool().run(workerRequest, {
-    transferList: [body.buffer],
-    signal,
-  });
+  const pool = getWorkerPool();
+  const span = getCurrentSpan();
+  span?.setAttribute("langfuse.ingestion.otel.worker_used", true);
+  const startedAt = performance.now();
+
+  try {
+    const result = await pool.run(workerRequest, {
+      transferList: [body.buffer],
+      signal,
+    });
+    const durationMs = Math.round(performance.now() - startedAt);
+
+    if (!workerCompletionLogged) {
+      workerCompletionLogged = true;
+      logger.info("OTel ingestion worker completed first task", {
+        projectId: request.config.projectId,
+        encodedBodyBytes: request.encodedBodyBytes,
+        decodedBodyBytes,
+        durationMs,
+        resultKind: result.kind,
+        ...(result.kind === "http" ? { resultStatus: result.status } : {}),
+      });
+    }
+
+    return result;
+  } finally {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.worker_duration_ms",
+      Math.round(performance.now() - startedAt),
+    );
+  }
 }

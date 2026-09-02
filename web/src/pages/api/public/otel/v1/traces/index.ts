@@ -41,13 +41,30 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
+      const useWorker = env.LANGFUSE_OTEL_INGESTION_USE_WORKER === "true";
+      const workerLeaseResult = useWorker
+        ? await (
+            await import("@/src/server/otel/otelIngestionWorkerPool")
+          ).createOtelIngestionWorkerLease(req, res, auth.scope.projectId)
+        : undefined;
+      if (workerLeaseResult && "response" in workerLeaseResult) {
+        return workerLeaseResult.response;
+      }
+      const workerLease = workerLeaseResult?.lease;
+
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
       let body: Buffer;
       let encodedBodyBytes: number;
       let bodyFailureMessage = "Failed to read request body";
       try {
-        body = await readOtelRequestBody(req, maxBodyBytes);
+        const bodyReadResult = workerLease
+          ? await workerLease.readBody(maxBodyBytes)
+          : { body: await readOtelRequestBody(req, maxBodyBytes) };
+        if ("response" in bodyReadResult) {
+          return bodyReadResult.response;
+        }
+        body = bodyReadResult.body;
         encodedBodyBytes = body.byteLength;
 
         if (req.headers["content-encoding"]?.includes("gzip")) {
@@ -92,7 +109,7 @@ export default withMiddlewares({
         }
       }
 
-      const result = await processOtelIngestion({
+      const ingestionRequest = {
         body,
         contentType,
         encodedBodyBytes,
@@ -109,7 +126,13 @@ export default withMiddlewares({
           rejectionSdkName: req.headers["x-langfuse-sdk-name"],
           ingestionVersion,
         },
-      });
+      };
+      const result = workerLease
+        ? await workerLease.run(ingestionRequest)
+        : await processOtelIngestion(ingestionRequest);
+      if (!result) {
+        return {};
+      }
       if (result.kind === "http") {
         res.status(result.status);
         return result.body;
