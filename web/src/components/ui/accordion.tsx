@@ -41,13 +41,20 @@ const AccordionTrigger = React.forwardRef<
 ));
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
 
-function AccordionContent({
-  children,
-  className,
-}: Pick<
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>,
-  "children" | "className"
->) {
+type AccordionContentProps = Omit<
+  Pick<
+    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>,
+    "children" | "className"
+  >,
+  "className"
+> & {
+  className?:
+    | "space-y-6 px-1 pt-2"
+    | "max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1"
+    | "space-y-4 px-4 pb-4";
+};
+
+function AccordionContent({ children, className }: AccordionContentProps) {
   return (
     <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
       <div className={cn("pt-0 pb-4", className)}>{children}</div>
