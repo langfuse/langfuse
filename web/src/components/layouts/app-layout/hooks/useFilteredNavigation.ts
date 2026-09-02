@@ -21,6 +21,7 @@ import { applyNavigationFilters } from "../utils/navigationFilters";
 import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
+import { api } from "@/src/utils/api";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -89,6 +90,17 @@ export function useFilteredNavigation(
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { data: cloudStatus } = api.cloudStatus.getStatus.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    // Refresh status data every 5 minutes, keep response cached for 5 minutes.
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    enabled: isLangfuseCloud,
+  });
+  const hasActiveCloudIncident =
+    cloudStatus?.status === "degraded" || cloudStatus?.status === "downtime";
 
   const routerProjectId = router.query.projectId as string | undefined;
   const forceV3Experience = useForceV3Experience(routerProjectId);
@@ -108,6 +120,7 @@ export function useFilteredNavigation(
       entitlements,
       uiCustomization,
       isLangfuseCloud,
+      hasActiveCloudIncident,
       currentPath: router.asPath,
     }),
     [
@@ -118,6 +131,7 @@ export function useFilteredNavigation(
       uiCustomization,
       router.asPath,
       isLangfuseCloud,
+      hasActiveCloudIncident,
     ],
   );
 
