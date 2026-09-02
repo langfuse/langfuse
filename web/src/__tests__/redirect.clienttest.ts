@@ -122,6 +122,26 @@ describe("getSafeRedirectPath", () => {
         // Note: The function receives already-decoded input in real usage
         // since router.query.targetPath is already decoded by Next.js
       });
+
+      it("should block backslash protocol-relative URLs", () => {
+        // WHATWG URL parsing treats `\` as `/` for special schemes, so
+        // `/\evil.com` resolves as `https://evil.com/`.
+        expect(getSafeRedirectPath("/\\evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/\\evil.com/path")).toBe("/");
+        expect(getSafeRedirectPath("/\\\\evil.com")).toBe("/");
+        // Two leading backslashes are `//evil.com` after normalize.
+        expect(getSafeRedirectPath("\\\\evil.com")).toBe("/");
+        // Next.js already decodes query params; this is `%2F%5Cevil.com`.
+        expect(getSafeRedirectPath(decodeURIComponent("%2F%5Cevil.com"))).toBe(
+          "/",
+        );
+      });
+
+      it("should keep the backslash guard working after control-char strip", () => {
+        // Tab between slash and backslash: `/\t\evil.com` → strip →
+        // `/\evil.com` → normalize → `//evil.com` → safe default.
+        expect(getSafeRedirectPath("/\t\\evil.com")).toBe("/");
+      });
     });
   });
 
@@ -170,6 +190,7 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("//evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("http://evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("javascript:alert(1)")).toBe("/my-app/");
+      expect(getSafeRedirectPath("/\\evil.com")).toBe("/my-app/");
     });
 
     it("should not double-prepend basePath when path already includes it", () => {
@@ -219,6 +240,17 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("/path/with_underscores")).toBe(
         "/path/with_underscores",
       );
+    });
+
+    it("should normalize backslashes in otherwise-safe paths", () => {
+      // The value handed to router.replace / callbackUrl must be the
+      // same string the guard validated. Browsers treat `\` as `/`.
+      expect(getSafeRedirectPath("/project\\123")).toBe("/project/123");
+      expect(getSafeRedirectPath("/dashboard\\tab?view=traces")).toBe(
+        "/dashboard/tab?view=traces",
+      );
+      // A single leading backslash is a same-origin path after normalize.
+      expect(getSafeRedirectPath("\\dashboard")).toBe("/dashboard");
     });
 
     it("should handle paths with encoded characters", () => {

@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
  *
  * Security Requirements:
  * - Only allows relative paths starting with "/" (e.g., "/dashboard", "/project/123")
- * - Blocks protocol-relative URLs (e.g., "//evil.com")
+ * - Blocks protocol-relative URLs (e.g., "//evil.com", "/\\evil.com")
  * - Blocks absolute URLs (e.g., "http://evil.com", "https://evil.com")
  * - Blocks javascript: and data: URIs
  * - Automatically prepends NEXT_PUBLIC_BASE_PATH if configured
@@ -53,25 +53,31 @@ export function getSafeRedirectPath(
     return safeDefault;
   }
 
+  // WHATWG URL parsing treats `\` as `/` for special schemes (http, https),
+  // so `/\evil.com` is equivalent to `//evil.com` (protocol-relative).
+  // Normalize before the textual same-origin check so the guard sees what
+  // the browser will see, and return this value to callers.
+  const normalized = sanitized.replace(/\\/g, "/");
+
   // Only allow paths starting with "/" but not "//" (protocol-relative URLs)
   // This blocks:
-  // - Protocol-relative: "//evil.com"
+  // - Protocol-relative: "//evil.com", "/\evil.com"
   // - Absolute URLs: "http://evil.com", "https://evil.com"
   // - JavaScript URIs: "javascript:alert(1)"
   // - Data URIs: "data:text/html,..."
   // - Other schemes: "file://", "ftp://", etc.
-  if (!sanitized.startsWith("/") || sanitized.startsWith("//")) {
+  if (!normalized.startsWith("/") || normalized.startsWith("//")) {
     return safeDefault;
   }
 
   // If basePath is configured, check if the path already starts with it
   // This prevents double-prepending when the path already includes the base path
-  if (basePath && sanitized.startsWith(basePath)) {
-    return sanitized;
+  if (basePath && normalized.startsWith(basePath)) {
+    return normalized;
   }
 
   // Prepend basePath if configured
-  return basePath + sanitized;
+  return basePath + normalized;
 }
 
 /**
