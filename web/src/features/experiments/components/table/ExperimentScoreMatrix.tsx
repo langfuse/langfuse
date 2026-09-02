@@ -1,6 +1,15 @@
 import { useMemo } from "react";
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+  type OnChangeFn,
+  type PaginationState,
+  type Table as TanStackTable,
+} from "@tanstack/react-table";
 import { Badge } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
   Tooltip,
   TooltipContent,
@@ -29,6 +38,12 @@ import {
   type ExperimentItemsTableRow,
 } from "./types";
 import { cn } from "@/src/utils/tailwind";
+
+/**
+ * The pagination instance never renders cells, only counts rows, so it needs
+ * no column defs. Module-level so the reference stays stable across renders.
+ */
+const NO_COLUMNS: ColumnDef<ExperimentItemsTableRow>[] = [];
 
 /** One row of the matrix: a score column, read at its own level. */
 export type ScoreMatrixRow = {
@@ -93,18 +108,26 @@ const MatrixCell = ({
  * Analytics tab was going to be.
  *
  * It needs no query of its own: the aggregates are the same ones the score
- * column headers compute, over the items already loaded for this page.
+ * column headers compute, over the items already loaded for this page. Which
+ * page that is stays the user's choice — see `paginationTable`.
  */
 export const ExperimentScoreMatrix = ({
   rows,
   scoreRows,
   experiments,
   isLoading,
+  pagination,
 }: {
   rows: ExperimentItemsTableRow[];
   scoreRows: ScoreMatrixRow[];
   experiments: ScoreMatrixColumn[];
   isLoading: boolean;
+  pagination: {
+    totalCount: number | null;
+    onChange: OnChangeFn<PaginationState>;
+    state: PaginationState;
+    options?: number[];
+  };
 }) => {
   const baselineExperimentId = experiments.find(
     (exp) => exp.isBaseline,
@@ -154,6 +177,24 @@ export const ExperimentScoreMatrix = ({
     return byScore;
   }, [rows, scoreRows, experiments, baselineExperimentId]);
 
+  // The matrix aggregates the items on the page instead of listing them, so it
+  // has no table of its own to drive the pagination bar. A headless instance
+  // over the same rows and the same URL-held state does, which keeps the
+  // aggregate's window under the user's control rather than pinning it to
+  // whichever page was open first.
+  const paginationTable = useReactTable({
+    data: rows,
+    columns: NO_COLUMNS,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    pageCount:
+      pagination.totalCount === null
+        ? -1
+        : Math.ceil(Number(pagination.totalCount) / pagination.state.pageSize),
+    onPaginationChange: pagination.onChange,
+    state: { pagination: pagination.state },
+  });
+
   if (isLoading)
     return (
       <div className="flex flex-col gap-2 p-4">
@@ -163,16 +204,28 @@ export const ExperimentScoreMatrix = ({
       </div>
     );
 
+  const allExperimentIds = experiments.map((exp) => exp.experimentId);
+
+  // The empty state shares the footer, so the page controls stay reachable
+  // when the items on this page happen to carry none of the visible scores.
   if (scoreRows.length === 0)
     return (
-      <div className="flex flex-1 items-center justify-center p-4">
-        <span className="text-muted-foreground text-sm">
-          No score columns are visible for the items in view.
-        </span>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex flex-1 items-center justify-center p-4">
+          <span className="text-muted-foreground text-sm">
+            No score columns are visible for the items in view.
+          </span>
+        </div>
+        <MatrixFooter
+          scoreCount={0}
+          experimentCount={experiments.length}
+          itemCount={rows.length}
+          paginationTable={paginationTable}
+          paginationOptions={pagination.options}
+          isLoading={isLoading}
+        />
       </div>
     );
-
-  const allExperimentIds = experiments.map((exp) => exp.experimentId);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -273,13 +326,50 @@ export const ExperimentScoreMatrix = ({
           </tbody>
         </table>
       </div>
-      <div className="text-muted-foreground border-t px-2 py-1.5 text-[10px]">
-        {scoreRows.length} score{scoreRows.length === 1 ? "" : "s"} ×{" "}
-        {experiments.length} run{experiments.length === 1 ? "" : "s"},
-        aggregated over the {rows.length} item
-        {rows.length === 1 ? "" : "s"} loaded on this page. Deltas are measured
-        against the baseline column.
-      </div>
+      <MatrixFooter
+        scoreCount={scoreRows.length}
+        experimentCount={experiments.length}
+        itemCount={rows.length}
+        paginationTable={paginationTable}
+        paginationOptions={pagination.options}
+        isLoading={isLoading}
+      />
     </div>
   );
 };
+
+/**
+ * What the numbers above cover, and the control that changes it. The scope
+ * sentence and the page controls sit on one line deliberately: the aggregate
+ * is a window over the run, so reading it without seeing which window is
+ * selected invites the wrong conclusion.
+ */
+const MatrixFooter = ({
+  scoreCount,
+  experimentCount,
+  itemCount,
+  paginationTable,
+  paginationOptions,
+  isLoading,
+}: {
+  scoreCount: number;
+  experimentCount: number;
+  itemCount: number;
+  paginationTable: TanStackTable<ExperimentItemsTableRow>;
+  paginationOptions?: number[];
+  isLoading: boolean;
+}) => (
+  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-2 py-1.5">
+    <span className="text-muted-foreground text-[10px]">
+      {scoreCount} score{scoreCount === 1 ? "" : "s"} × {experimentCount} run
+      {experimentCount === 1 ? "" : "s"}, aggregated over the {itemCount} item
+      {itemCount === 1 ? "" : "s"} on this page. Deltas are measured against the
+      baseline column.
+    </span>
+    <DataTablePagination
+      table={paginationTable}
+      isLoading={isLoading}
+      paginationOptions={paginationOptions}
+    />
+  </div>
+);
