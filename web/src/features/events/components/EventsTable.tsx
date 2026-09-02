@@ -1492,14 +1492,13 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "modelId",
-      id: "modelId",
       header: getEventsColumnName("modelId"),
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     createTextTableColumn<EventsTableRow>({
       accessorKey: "version",
       header: getEventsColumnName("version"),
@@ -1524,22 +1523,20 @@ export default function ObservationsEventsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "userId",
-      id: "userId",
       header: getEventsColumnName("userId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "sessionId",
-      id: "sessionId",
       header: getEventsColumnName("sessionId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
