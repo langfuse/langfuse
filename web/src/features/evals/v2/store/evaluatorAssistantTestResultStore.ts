@@ -131,9 +131,11 @@ export function createEvaluatorAssistantTestResultStore({
     clear(projectId: string, evaluatorId: string) {
       clearKey(resultKey(projectId, evaluatorId));
     },
-    clearProject(projectId: string) {
-      for (const key of snapshot.keys()) {
-        if (key.startsWith(`${projectId}:`)) clearKey(key);
+    clearCompletedProjectResults(projectId: string) {
+      for (const [key, entry] of snapshot) {
+        if (key.startsWith(`${projectId}:`) && entry.toolCallId) {
+          clearKey(key);
+        }
       }
     },
   };

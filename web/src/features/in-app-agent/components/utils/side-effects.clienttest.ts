@@ -87,7 +87,14 @@ describe("in-app agent tool side effects", () => {
         id: "test-result",
         role: "tool",
         toolCallId: "test-evaluator-1",
-        content: JSON.stringify(result),
+        content: JSON.stringify({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result),
+            },
+          ],
+        }),
       },
     ] satisfies AgUiMessage[];
     const invalidate = vi.fn(() => Promise.resolve());

@@ -108,6 +108,32 @@ describe("evaluatorAssistantTestResultStore", () => {
     store.clear("project-1", "evaluator-1");
   });
 
+  it("keeps a pending handoff across project provider remounts", () => {
+    const store = createEvaluatorAssistantTestResultStore();
+    store.expect({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      conversationId: "conversation-1",
+      observationId: "observation-1",
+    });
+
+    store.clearCompletedProjectResults("project-1");
+    store.publish({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      conversationId: "conversation-1",
+      observationId: "observation-1",
+      toolCallId: "tool-call-after-remount",
+      result: { success: true, executionTraceId: "trace-1" },
+    });
+
+    expect(store.get("project-1", "evaluator-1")).toEqual({
+      toolCallId: "tool-call-after-remount",
+      result: { success: true, executionTraceId: "trace-1" },
+    });
+    store.clear("project-1", "evaluator-1");
+  });
+
   it("keeps the latest retry result from the expected conversation", () => {
     const store = createEvaluatorAssistantTestResultStore();
     store.expect({

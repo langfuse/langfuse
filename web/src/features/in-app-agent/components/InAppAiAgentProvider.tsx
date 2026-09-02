@@ -331,7 +331,7 @@ function InAppAiAgentProviderInner({
 
   useEffect(
     () => () => {
-      evaluatorAssistantTestResultStore.clearProject(projectId);
+      evaluatorAssistantTestResultStore.clearCompletedProjectResults(projectId);
     },
     [projectId],
   );
