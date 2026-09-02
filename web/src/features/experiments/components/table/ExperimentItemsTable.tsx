@@ -358,7 +358,7 @@ export default function ExperimentItemsTable({
     {
       stateLocation: "url",
       loading: isFilterOptionsLoading,
-      // v4-only surface — drives `isV4` on filters:* analytics (LFE-10781).
+      // v4-only surface — drives `isV4` on filters:* analytics.
       isV4: true,
     },
   );
@@ -518,13 +518,30 @@ export default function ExperimentItemsTable({
     });
 
   // Running items without an expected output is common, so don't spend a column
-  // on it when nothing in view has one. Kept while IO loads so it doesn't flash.
-  const showExpectedOutput = useMemo(
-    () =>
-      ioLoading ||
-      (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
-    [ioLoading, items.rows],
+  // on it when nothing has one. Kept while IO loads so it doesn't flash.
+  //
+  // Whether the column exists is a property of the runs being compared, not of
+  // the page that happens to be loaded, so a page of items that all lack an
+  // expected output must not take the column away again. Latched per selection:
+  // once any page has shown one, the column stays until the selection changes.
+  const expectedOutputOnPage = useMemo(
+    () => (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    [items.rows],
   );
+  const experimentSelectionKey = useMemo(
+    () => allExperimentIds.join(","),
+    [allExperimentIds],
+  );
+  const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    if (expectedOutputOnPage) setExpectedOutputSeenFor(experimentSelectionKey);
+  }, [expectedOutputOnPage, experimentSelectionKey]);
+  const showExpectedOutput =
+    ioLoading ||
+    expectedOutputOnPage ||
+    expectedOutputSeenFor === experimentSelectionKey;
 
   useEffect(() => {
     if (items.status === "success") {
@@ -977,19 +994,23 @@ export default function ExperimentItemsTable({
     [observationScoreColumns, traceScoreColumns],
   );
 
-  // LFE-15711: score columns are now visible by default. A returning user has
-  // `false` persisted for every one of them from the previous default, so this
-  // one-time migration reaches them too — see `revealScoreColumns` for how a
-  // user who picked their own score columns is left alone.
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone. It is consumed once and for
+  // good, so it waits for the score columns to be known rather than running
+  // against an empty or half-loaded set.
   const columnVisibilityMigrations = useMemo(
     () => [
       {
         versionKey: `experimentItemsColumnVisibility-scoresVisible-v1-${projectId}`,
         apply: (visibility: VisibilityState) =>
-          revealScoreColumns(visibility, scoreColumnIds),
+          isFilterOptionsLoading
+            ? null
+            : revealScoreColumns(visibility, scoreColumnIds),
       },
     ],
-    [projectId, scoreColumnIds],
+    [projectId, scoreColumnIds, isFilterOptionsLoading],
   );
 
   const [columnVisibility, setColumnVisibilityState] =

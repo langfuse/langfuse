@@ -166,7 +166,7 @@ const ChartComponent = ({
     // principle 8)
     // A caller that supplied its own empty state (a table strip) gets it for
     // any chart type: its band is too short for the default card, whatever the
-    // mark. (LFE-15711)
+    // mark.
     if (
       (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
       !isLoading &&

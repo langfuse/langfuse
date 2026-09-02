@@ -257,7 +257,7 @@ export function WidgetContent({
       // on an entity query the ENTITY *is* that category — so hand it over as
       // the dimension rather than the metric's name, which would collapse every
       // entity into one bar. Only when the query has no breakdown of its own:
-      // that breakdown is the real series (categorical scores). (LFE-15711)
+      // that breakdown is the real series (categorical scores).
       const entityIsCategory =
         !isTimeSeries &&
         item["entity_dimension"] !== undefined &&
@@ -301,7 +301,7 @@ export function WidgetContent({
     // falls back to first-metric DESC, which differs per chart). Order the
     // x-axis by the caller's entityDimensionLabelMap insertion order, so the
     // caller decides what left-to-right means (the experiments strip makes it
-    // chronological). Entities the map doesn't know sort last. (LFE-15711)
+    // chronological). Entities the map doesn't know sort last.
     if (
       chartType !== "PIVOT_TABLE" &&
       entityDimensionLabelMap &&
