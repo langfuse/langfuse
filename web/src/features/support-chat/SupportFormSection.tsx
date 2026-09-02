@@ -396,7 +396,7 @@ export function SupportFormSection({
                 <FormLabel>Message Type</FormLabel>
                 <FormControl>
                   <RadioGroup
-                    className="grid grid-cols-3 gap-2"
+                    layout="columns"
                     value={field.value ?? "Question"}
                     onValueChange={field.onChange}
                   >

@@ -1,10 +1,8 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/src/utils/tailwind";
 
 const radioGroupVariants = cva("", {
   variants: {
@@ -22,17 +20,15 @@ type RadioGroupProps = Omit<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "className"
 > &
-  VariantProps<typeof radioGroupVariants> & {
-    className?: "grid grid-cols-3 gap-2";
-  };
+  VariantProps<typeof radioGroupVariants>;
 
 const RadioGroup = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->(({ className, layout, ...props }, ref) => {
+>(({ layout, ...props }, ref) => {
   return (
     <RadioGroupPrimitive.Root
-      className={cn(radioGroupVariants({ layout }), className)}
+      className={radioGroupVariants({ layout })}
       {...props}
       ref={ref}
     />
