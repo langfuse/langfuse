@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -1863,13 +1863,13 @@ function CategoricalSelectContent({
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <TabsList layout="cols-3" size="sm">
-              <TabsTrigger value="any of" size="sm">
+            <Tabs.List layout="cols-3" size="sm">
+              <Tabs.Trigger value="any of" size="sm">
                 Any of
-              </TabsTrigger>
-              <TabsTrigger value="all of" size="sm">
+              </Tabs.Trigger>
+              <Tabs.Trigger value="all of" size="sm">
                 All of
-              </TabsTrigger>
+              </Tabs.Trigger>
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
                   would persist a vacuous filter — LFE-10717), which used to
@@ -1879,13 +1879,13 @@ function CategoricalSelectContent({
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
                   <span className="w-full min-w-0">
-                    <TabsTrigger
+                    <Tabs.Trigger
                       value="none of"
                       disabled={operator === undefined}
                       size="sm"
                     >
                       None of
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   </span>
                 </TooltipTrigger>
                 {operator === undefined && (
@@ -1895,7 +1895,7 @@ function CategoricalSelectContent({
                   </TooltipContent>
                 )}
               </Tooltip>
-            </TabsList>
+            </Tabs.List>
           </Tabs>
         </div>
       )}
@@ -2508,14 +2508,14 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <TabsList layout="cols-2" size="sm">
-          <TabsTrigger value="select" size="sm">
+        <Tabs.List layout="cols-2" size="sm">
+          <Tabs.Trigger value="select" size="sm">
             Select
-          </TabsTrigger>
-          <TabsTrigger value="text" size="sm">
+          </Tabs.Trigger>
+          <Tabs.Trigger value="text" size="sm">
             Text
-          </TabsTrigger>
-        </TabsList>
+          </Tabs.Trigger>
+        </Tabs.List>
       </Tabs>
     </div>
   );

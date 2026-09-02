@@ -14,7 +14,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -578,14 +578,14 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <TabsList layout="gap" size="auto">
-                        <TabsTrigger value="resolved" size="sm">
+                      <Tabs.List layout="gap" size="auto">
+                        <Tabs.Trigger value="resolved" size="sm">
                           Resolved prompt
-                        </TabsTrigger>
-                        <TabsTrigger value="tagged" size="sm">
+                        </Tabs.Trigger>
+                        <Tabs.Trigger value="tagged" size="sm">
                           Tagged prompt
-                        </TabsTrigger>
-                      </TabsList>
+                        </Tabs.Trigger>
+                      </Tabs.List>
                     </Tabs>
                   </div>
                 )}

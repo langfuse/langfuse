@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { type templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
 import {
   type CodeEvalSourceCodeLanguage,
@@ -113,31 +113,31 @@ export function EvalTemplateTypeSelector({
                 )
               }
             >
-              <TabsList layout="packed">
+              <Tabs.List layout="packed">
                 {mode === "all" ? (
                   <span className="min-w-[100px]">
-                    <TabsTrigger value={EvalTemplateType.LLM_AS_JUDGE}>
+                    <Tabs.Trigger value={EvalTemplateType.LLM_AS_JUDGE}>
                       LLM-as-judge
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   </span>
                 ) : null}
                 <span className="min-w-[100px]">
-                  <TabsTrigger
+                  <Tabs.Trigger
                     value={EvalTemplateSourceCodeLanguage.TYPESCRIPT}
                   >
                     TypeScript
-                  </TabsTrigger>
+                  </Tabs.Trigger>
                 </span>
                 {codeEvalCapabilities.supportedSourceCodeLanguages.includes(
                   EvalTemplateSourceCodeLanguage.PYTHON,
                 ) ? (
                   <span className="min-w-[100px]">
-                    <TabsTrigger value={EvalTemplateSourceCodeLanguage.PYTHON}>
+                    <Tabs.Trigger value={EvalTemplateSourceCodeLanguage.PYTHON}>
                       Python
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   </span>
                 ) : null}
-              </TabsList>
+              </Tabs.List>
             </Tabs>
           </FormControl>
           <FormMessage />

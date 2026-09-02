@@ -11,12 +11,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
@@ -220,17 +215,17 @@ export function SelectWidgetDialog({
                   capture("dashboard:add_widget_tab_switch", { tab })
                 }
               >
-                <TabsList>
-                  <TabsTrigger value="project">
+                <Tabs.List>
+                  <Tabs.Trigger value="project">
                     Your widgets ({projectWidgets.length})
-                  </TabsTrigger>
+                  </Tabs.Trigger>
                   {onSelectPreset && (
-                    <TabsTrigger value="home-cards">
+                    <Tabs.Trigger value="home-cards">
                       Home cards ({suggestedPresetIds.length})
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   )}
-                </TabsList>
-                <TabsContent value="project">
+                </Tabs.List>
+                <Tabs.Content value="project">
                   <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                     {projectWidgets.map((widget) => (
                       <WidgetRow
@@ -250,9 +245,9 @@ export function SelectWidgetDialog({
                       </div>
                     ) : null}
                   </div>
-                </TabsContent>
+                </Tabs.Content>
                 {onSelectPreset && (
-                  <TabsContent value="home-cards">
+                  <Tabs.Content value="home-cards">
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                       {suggestedPresetIds.map((presetId) => {
                         const meta = HOME_PRESET_METADATA[presetId];
@@ -293,7 +288,7 @@ export function SelectWidgetDialog({
                         );
                       })}
                     </div>
-                  </TabsContent>
+                  </Tabs.Content>
                 )}
               </Tabs>
             </div>

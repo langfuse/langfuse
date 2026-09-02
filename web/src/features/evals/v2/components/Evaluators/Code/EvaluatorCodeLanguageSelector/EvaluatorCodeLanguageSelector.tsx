@@ -4,7 +4,7 @@ import {
   type EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 
 /** Selects the runtime language for a code evaluator. */
@@ -24,15 +24,15 @@ export function EvaluatorCodeLanguageSelector({
         onValueChange(language as EvalTemplateSourceCodeLanguage)
       }
     >
-      <TabsList variant="outline">
-        <TabsTrigger
+      <Tabs.List variant="outline">
+        <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
           disabled={disabled}
         >
           <SiPython className="h-3.5 w-3.5 shrink-0" />
           {sourceCodeLanguageLabel(EvalTemplateSourceCodeLanguageEnum.PYTHON)}
-        </TabsTrigger>
-        <TabsTrigger
+        </Tabs.Trigger>
+        <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
           disabled={disabled}
         >
@@ -40,8 +40,8 @@ export function EvaluatorCodeLanguageSelector({
           {sourceCodeLanguageLabel(
             EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT,
           )}
-        </TabsTrigger>
-      </TabsList>
+        </Tabs.Trigger>
+      </Tabs.List>
     </Tabs>
   );
 }

@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
@@ -885,19 +885,19 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <TabsList layout="packed">
+                        <Tabs.List layout="packed">
                           <span className="min-w-[100px]">
-                            <TabsTrigger
+                            <Tabs.Trigger
                               value="event"
                               disabled={props.disabled || props.mode === "edit"}
                             >
                               <CircleDot className="h-3.5 w-3.5" />
                               Observations
-                            </TabsTrigger>
+                            </Tabs.Trigger>
                           </span>
                           {showLegacyTargetOptions && (
                             <span className="min-w-[100px]">
-                              <TabsTrigger
+                              <Tabs.Trigger
                                 value="trace"
                                 disabled={
                                   props.disabled || props.mode === "edit"
@@ -912,19 +912,19 @@ export const InnerEvaluatorForm = (props: {
                                 >
                                   Legacy
                                 </Badge>
-                              </TabsTrigger>
+                              </Tabs.Trigger>
                             </span>
                           )}
                           <span className="min-w-[100px]">
-                            <TabsTrigger
+                            <Tabs.Trigger
                               value="offline-experiment"
                               disabled={props.disabled || props.mode === "edit"}
                             >
                               <FlaskConical className="h-3.5 w-3.5" />
                               Experiments
-                            </TabsTrigger>
+                            </Tabs.Trigger>
                           </span>
-                        </TabsList>
+                        </Tabs.List>
                       </Tabs>
                     </FormControl>
                     <FormMessage />
@@ -971,18 +971,18 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <TabsList layout="packed">
+                    <Tabs.List layout="packed">
                       <span className="min-w-[100px]">
-                        <TabsTrigger
+                        <Tabs.Trigger
                           value="otel"
                           disabled={props.mode === "edit" || props.disabled}
                         >
                           <FlaskConical className="h-3.5 w-3.5" />
                           Experiment Runner SDK
-                        </TabsTrigger>
+                        </Tabs.Trigger>
                       </span>
                       <span className="min-w-[100px]">
-                        <TabsTrigger
+                        <Tabs.Trigger
                           value="non-otel"
                           disabled={props.mode === "edit" || props.disabled}
                         >
@@ -995,9 +995,9 @@ export const InnerEvaluatorForm = (props: {
                           >
                             Legacy
                           </Badge>
-                        </TabsTrigger>
+                        </Tabs.Trigger>
                       </span>
-                    </TabsList>
+                    </Tabs.List>
                   </Tabs>
                 </div>
               )}

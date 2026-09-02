@@ -83,7 +83,7 @@ type TabsRootProps = {
   | { defaultValue?: never; value: string }
 );
 
-function Tabs({
+function TabsRoot({
   children,
   defaultValue,
   onValueChange,
@@ -162,4 +162,10 @@ function TabsContent({ children, value }: TabsContentProps) {
   );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent };
+const Tabs = Object.assign(TabsRoot, {
+  List: TabsList,
+  Trigger: TabsTrigger,
+  Content: TabsContent,
+});
+
+export { Tabs };

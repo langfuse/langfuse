@@ -11,7 +11,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -304,23 +304,23 @@ export function TraceDetailView({
                         handleViewTabChange(value);
                       }}
                     >
-                      <TabsList size="sm">
+                      <Tabs.List size="sm">
                         {/* Log view never runs the normalized parser, so the
                           beta tab only renders on the preview tab. */}
                         {showPrettyBeta && selectedTab !== "log" && (
-                          <TabsTrigger value="pretty-beta" size="sm">
+                          <Tabs.Trigger value="pretty-beta" size="sm">
                             Normalized (beta)
-                          </TabsTrigger>
+                          </Tabs.Trigger>
                         )}
-                        <TabsTrigger value="pretty" size="sm">
+                        <Tabs.Trigger value="pretty" size="sm">
                           Formatted
-                        </TabsTrigger>
+                        </Tabs.Trigger>
                         {selectedTab === "log" && isLogViewVirtualized ? (
                           <HoverCard openDelay={200}>
                             <HoverCardTrigger asChild>
-                              <TabsTrigger value="json" size="sm" disabled>
+                              <Tabs.Trigger value="json" size="sm" disabled>
                                 JSON
-                              </TabsTrigger>
+                              </Tabs.Trigger>
                             </HoverCardTrigger>
                             <HoverCardContent
                               align="end"
@@ -339,11 +339,11 @@ export function TraceDetailView({
                             </HoverCardContent>
                           </HoverCard>
                         ) : (
-                          <TabsTrigger value="json" size="sm">
+                          <Tabs.Trigger value="json" size="sm">
                             JSON
-                          </TabsTrigger>
+                          </Tabs.Trigger>
                         )}
-                      </TabsList>
+                      </Tabs.List>
                     </Tabs>
                   </span>
                   {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}

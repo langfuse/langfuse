@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { Plus, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
@@ -150,10 +150,10 @@ export function CustomMappingEditor({
             value={config.type}
             onValueChange={(v) => handleTypeChange(v as MappingTarget)}
           >
-            <TabsList layout="cols-2">
-              <TabsTrigger value="root">Root</TabsTrigger>
-              <TabsTrigger value="keyValueMap">Key-value map</TabsTrigger>
-            </TabsList>
+            <Tabs.List layout="cols-2">
+              <Tabs.Trigger value="root">Root</Tabs.Trigger>
+              <Tabs.Trigger value="keyValueMap">Key-value map</Tabs.Trigger>
+            </Tabs.List>
           </Tabs>
         </span>
       </div>

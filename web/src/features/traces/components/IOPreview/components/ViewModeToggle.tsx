@@ -1,4 +1,4 @@
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import {
   HoverCard,
   HoverCardContent,
@@ -46,14 +46,14 @@ export function ViewModeToggle({
           value={selectedViewTab}
           onValueChange={handleViewTabChange}
         >
-          <TabsList size="sm">
+          <Tabs.List size="sm">
             {showPrettyBeta &&
               (prettyBetaDisabled ? (
                 <HoverCard openDelay={200}>
                   <HoverCardTrigger asChild>
-                    <TabsTrigger value="pretty-beta" size="sm" disabled>
+                    <Tabs.Trigger value="pretty-beta" size="sm" disabled>
                       Normalized (beta)
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   </HoverCardTrigger>
                   <HoverCardContent align="start" className="w-64 text-sm">
                     Shown with the standard parser for now — beta parsing is not
@@ -61,17 +61,17 @@ export function ViewModeToggle({
                   </HoverCardContent>
                 </HoverCard>
               ) : (
-                <TabsTrigger value="pretty-beta" size="sm">
+                <Tabs.Trigger value="pretty-beta" size="sm">
                   Normalized (beta)
-                </TabsTrigger>
+                </Tabs.Trigger>
               ))}
-            <TabsTrigger value="pretty" size="sm">
+            <Tabs.Trigger value="pretty" size="sm">
               Formatted
-            </TabsTrigger>
-            <TabsTrigger value="json" size="sm">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="json" size="sm">
               JSON
-            </TabsTrigger>
-          </TabsList>
+            </Tabs.Trigger>
+          </Tabs.List>
         </Tabs>
       </span>
       {selectedViewTab === "json" && (

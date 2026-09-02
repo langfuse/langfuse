@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionBooleanChart } from "../charts/ScoreDistributionBooleanChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
@@ -197,20 +197,20 @@ export function DistributionBooleanCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <TabsList size="sm">
-                <TabsTrigger value="score1" title={score1FullLabel} size="sm">
+              <Tabs.List size="sm">
+                <Tabs.Trigger value="score1" title={score1FullLabel} size="sm">
                   {truncateLabel(score1FullLabel)}
-                </TabsTrigger>
-                <TabsTrigger value="score2" title={score2FullLabel} size="sm">
+                </Tabs.Trigger>
+                <Tabs.Trigger value="score2" title={score2FullLabel} size="sm">
                   {truncateLabel(score2FullLabel)}
-                </TabsTrigger>
-                <TabsTrigger value="all" size="sm">
+                </Tabs.Trigger>
+                <Tabs.Trigger value="all" size="sm">
                   all
-                </TabsTrigger>
-                <TabsTrigger value="matched" size="sm">
+                </Tabs.Trigger>
+                <Tabs.Trigger value="matched" size="sm">
                   matched
-                </TabsTrigger>
-              </TabsList>
+                </Tabs.Trigger>
+              </Tabs.List>
             </Tabs>
           )}
         </div>

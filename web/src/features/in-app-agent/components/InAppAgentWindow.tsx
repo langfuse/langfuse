@@ -81,7 +81,7 @@ import {
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -146,7 +146,7 @@ function InAppAgentQuickActionPicker({
             }
           }}
         >
-          <TabsList
+          <Tabs.List
             aria-label="Quick action category"
             variant="underline"
             size="auto"
@@ -154,17 +154,17 @@ function InAppAgentQuickActionPicker({
           >
             {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
               <span key={context} className="min-w-0 flex-1">
-                <TabsTrigger
+                <Tabs.Trigger
                   value={context}
                   disabled={isDisabled}
                   variant="underline"
                   size="sm"
                 >
                   {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
-                </TabsTrigger>
+                </Tabs.Trigger>
               </span>
             ))}
-          </TabsList>
+          </Tabs.List>
         </Tabs>
       </span>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">

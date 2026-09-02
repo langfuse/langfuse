@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -796,20 +796,20 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <TabsList layout="cols-2-gap" size="auto">
-                                <TabsTrigger
+                              <Tabs.List layout="cols-2-gap" size="auto">
+                                <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
                                   size="sm"
                                 >
                                   AWS access keys
-                                </TabsTrigger>
-                                <TabsTrigger
+                                </Tabs.Trigger>
+                                <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
                                   size="sm"
                                 >
                                   API key
-                                </TabsTrigger>
-                              </TabsList>
+                                </Tabs.Trigger>
+                              </Tabs.List>
                             </Tabs>
                           </span>
                         </FormControl>

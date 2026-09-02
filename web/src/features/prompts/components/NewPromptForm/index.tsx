@@ -13,12 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -300,9 +295,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               }}
             >
               {!initialPrompt ? (
-                <TabsList layout="full">
+                <Tabs.List layout="full">
                   <span className="flex-1">
-                    <TabsTrigger
+                    <Tabs.Trigger
                       disabled={
                         Boolean(initialPromptVariant) &&
                         initialPromptVariant?.type !== PromptType.Text
@@ -310,10 +305,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       value={PromptType.Text}
                     >
                       {capitalize(PromptType.Text)}
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   </span>
                   <span className="flex-1">
-                    <TabsTrigger
+                    <Tabs.Trigger
                       disabled={
                         Boolean(initialPromptVariant) &&
                         initialPromptVariant?.type !== PromptType.Chat
@@ -321,9 +316,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       value={PromptType.Chat}
                     >
                       {capitalize(PromptType.Chat)}
-                    </TabsTrigger>
+                    </Tabs.Trigger>
                   </span>
-                </TabsList>
+                </Tabs.List>
               ) : null}
               {hadDraft && (
                 <p
@@ -347,7 +342,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   </button>
                 </p>
               )}
-              <TabsContent value={PromptType.Text}>
+              <Tabs.Content value={PromptType.Text}>
                 <FormField
                   control={form.control}
                   name="textPrompt"
@@ -365,8 +360,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     </>
                   )}
                 />
-              </TabsContent>
-              <TabsContent value={PromptType.Chat}>
+              </Tabs.Content>
+              <Tabs.Content value={PromptType.Chat}>
                 <FormField
                   control={form.control}
                   name="chatPrompt"
@@ -381,7 +376,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     </>
                   )}
                 />
-              </TabsContent>
+              </Tabs.Content>
             </Tabs>
           </FormItem>
           <PromptVariableListPreview variables={currentExtractedVariables} />

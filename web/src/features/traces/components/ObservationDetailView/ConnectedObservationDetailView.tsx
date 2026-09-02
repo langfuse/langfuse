@@ -26,7 +26,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/ui/tabs";
 import {
   TabsBar,
   TabsBarContent,
@@ -391,24 +391,24 @@ export function ConnectedObservationDetailView({
                         handleViewTabChange(value);
                       }}
                     >
-                      <TabsList size="sm">
+                      <Tabs.List size="sm">
                         {/* Log view never runs the normalized parser, so the
                           beta tab only renders on the preview tab. */}
                         {showPrettyBeta && selectedTab !== "log" && (
-                          <TabsTrigger value="pretty-beta" size="sm">
+                          <Tabs.Trigger value="pretty-beta" size="sm">
                             Normalized (beta)
-                          </TabsTrigger>
+                          </Tabs.Trigger>
                         )}
-                        <TabsTrigger value="pretty" size="sm">
+                        <Tabs.Trigger value="pretty" size="sm">
                           Formatted
-                        </TabsTrigger>
+                        </Tabs.Trigger>
                         {selectedTab === "log" && isLogViewVirtualized ? (
                           <HoverCard openDelay={200}>
                             <HoverCardTrigger asChild>
                               <span>
-                                <TabsTrigger value="json" size="sm" disabled>
+                                <Tabs.Trigger value="json" size="sm" disabled>
                                   JSON
-                                </TabsTrigger>
+                                </Tabs.Trigger>
                               </span>
                             </HoverCardTrigger>
                             <HoverCardContent
@@ -428,11 +428,11 @@ export function ConnectedObservationDetailView({
                             </HoverCardContent>
                           </HoverCard>
                         ) : (
-                          <TabsTrigger value="json" size="sm">
+                          <Tabs.Trigger value="json" size="sm">
                             JSON
-                          </TabsTrigger>
+                          </Tabs.Trigger>
                         )}
-                      </TabsList>
+                      </Tabs.List>
                     </Tabs>
                   </span>
                   {selectedViewTab === "json" &&
