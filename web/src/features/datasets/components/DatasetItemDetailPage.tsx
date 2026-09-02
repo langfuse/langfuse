@@ -60,10 +60,13 @@ export const DatasetItemDetailPage = ({
     (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
   );
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
   const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
@@ -71,6 +74,7 @@ export const DatasetItemDetailPage = ({
       datasetItemId: itemId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(datasetId) && Boolean(itemId),
       refetchOnWindowFocus: false, // breaks dirty form state
     },
   );

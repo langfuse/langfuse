@@ -1,4 +1,3 @@
-import { useRouter } from "next/router";
 import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";
@@ -12,15 +11,34 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 import { History, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 
-function DatasetItemContent() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
-  const itemId = router.query.itemId as string;
+export default function DatasetItemPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemContent
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+      itemId={route.params.itemId}
+    />
+  );
+}
 
+function DatasetItemContent({
+  projectId,
+  datasetId,
+  itemId,
+}: {
+  projectId: string;
+  datasetId: string;
+  itemId: string;
+}) {
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
@@ -39,6 +57,7 @@ function DatasetItemContent() {
       datasetItemId: itemId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(datasetId) && Boolean(itemId),
       refetchOnWindowFocus: false,
     },
   );
@@ -52,22 +71,34 @@ function DatasetItemContent() {
       version: selectedVersion!,
     },
     {
-      enabled: selectedVersion !== null,
+      enabled:
+        selectedVersion !== null &&
+        Boolean(projectId) &&
+        Boolean(datasetId) &&
+        Boolean(itemId),
     },
   );
 
   // Fetch dataset
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   // Fetch item version history for sidebar indicators
-  const itemVersionHistory = api.datasets.itemVersionHistory.useQuery({
-    projectId,
-    datasetId,
-    itemId,
-  });
+  const itemVersionHistory = api.datasets.itemVersionHistory.useQuery(
+    {
+      projectId,
+      datasetId,
+      itemId,
+    },
+    {
+      enabled: Boolean(projectId) && Boolean(datasetId) && Boolean(itemId),
+    },
+  );
 
   // Check if item was changed at selected version (enables diff toggle)
   // Use 1 second tolerance to account for potential timestamp precision issues
@@ -183,5 +214,3 @@ function DatasetItemContent() {
     </DatasetItemDetailPage>
   );
 }
-
-export default DatasetItemContent;
