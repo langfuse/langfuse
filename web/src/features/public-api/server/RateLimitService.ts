@@ -16,10 +16,12 @@ import {
   redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { type NextApiResponse } from "next";
+import { type NextApiRequest, type NextApiResponse } from "next";
+import { type PublicApiWriteResponse } from "@/src/features/public-api/server/writePublicApiResponse";
 import {
   createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
+  toStructuredPublicApiErrorBody,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
@@ -29,6 +31,8 @@ export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 export type RateLimitResponseOptions = {
   errorContract?: PublicApiErrorContract | undefined;
   upgradePath?: RateLimitUpgradePath | undefined;
+  req?: NextApiRequest;
+  writeResponse?: PublicApiWriteResponse;
 };
 
 export type RateLimitResponseOptionsInput =
@@ -217,10 +221,22 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  return sendStructuredPublicApiErrorResponse(
-    res,
-    createStructuredPublicApiRateLimitError(rateLimitRes, responseOptions),
+  const error = createStructuredPublicApiRateLimitError(
+    rateLimitRes,
+    responseOptions,
   );
+
+  if (responseOptions.writeResponse && responseOptions.req) {
+    responseOptions.writeResponse({
+      req: responseOptions.req,
+      res,
+      statusCode: error.httpCode,
+      body: toStructuredPublicApiErrorBody(error),
+    });
+    return;
+  }
+
+  return sendStructuredPublicApiErrorResponse(res, error);
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {

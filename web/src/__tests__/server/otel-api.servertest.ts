@@ -15,6 +15,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomBytes } from "crypto";
 import { env } from "@/src/env.mjs";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { decodeOtlpStatusMessage } from "@/src/server/otel/otlpResponse";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -433,6 +434,38 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     expect(response.status).toBe(200);
   });
 
+  it("should echo application/x-protobuf on protobuf success", async () => {
+    const ExportTraceServiceRequest =
+      $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+    const ExportTraceServiceResponse =
+      $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+    const requestBody = ExportTraceServiceRequest.encode(
+      ExportTraceServiceRequest.create({}),
+    ).finish();
+
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-protobuf",
+          Authorization: createBasicAuthHeader(
+            "pk-lf-1234567890",
+            "sk-lf-1234567890",
+          ),
+        },
+        body: requestBody,
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/x-protobuf");
+    const decoded = ExportTraceServiceResponse.decode(
+      new Uint8Array(await response.arrayBuffer()),
+    );
+    expect(decoded.partialSuccess).toBeNull();
+  });
+
   // Skipping for now, as this requires direct writes into the events table without dual write.
   it.skip("should correctly convert string usage_details to numbers and compute total", async () => {
     // This test verifies that usage_details values sent as strings are correctly
@@ -786,9 +819,12 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     );
 
     expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.error).toContain("traceId:absent");
-    expect(body.error).toContain("codex_otel.log_only");
+    expect(response.headers.get("content-type")).toBe("application/x-protobuf");
+    const body = decodeOtlpStatusMessage(
+      new Uint8Array(await response.arrayBuffer()),
+    );
+    expect(body.message).toContain("traceId:absent");
+    expect(body.message).toContain("codex_otel.log_only");
   });
 
   it("should transform deployment.environment to lowercase", async () => {
@@ -1023,6 +1059,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     );
     listPrefixes.add(minutePrefix());
     expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/x-protobuf");
 
     // The endpoint stages the decoded payload to S3 before responding, and
     // that file is what the ingestion worker and the ingestion masking

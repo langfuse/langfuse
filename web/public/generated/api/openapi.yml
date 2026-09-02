@@ -4717,6 +4717,9 @@ paths:
 
         - Implements `ExportTraceServiceRequest` message format
 
+        - Response `Content-Type` matches the request (`application/json` or
+        `application/x-protobuf`)
+
 
         **Documentation:**
 

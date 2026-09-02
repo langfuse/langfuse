@@ -23,6 +23,10 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import {
+  writePublicApiResponse,
+  type PublicApiWriteResponse,
+} from "@/src/features/public-api/server/writePublicApiResponse";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
@@ -61,6 +65,11 @@ export const LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
 type MiddlewareOptions = {
   errorContract?: PublicApiErrorContract;
   clickHouseResourceErrorMessage?: string;
+  /**
+   * When set, writes errors instead of `res.json`.
+   * Use this for routes whose wire format is not JSON (for example OTLP/HTTP).
+   */
+  writeResponse?: PublicApiWriteResponse;
 };
 
 const logBaseError = (error: BaseError) => {
@@ -113,6 +122,16 @@ export function withMiddlewares(
 
         return await finalHandlers[method](req, res);
       } catch (error) {
+        const sendError = (statusCode: number, body: unknown) => {
+          writePublicApiResponse({
+            req,
+            res,
+            statusCode,
+            body,
+            writeResponse: options?.writeResponse,
+          });
+        };
+
         if (error instanceof ClickHouseResourceError) {
           const errorMessage =
             options?.clickHouseResourceErrorMessage ??
@@ -132,7 +151,7 @@ export function withMiddlewares(
             );
           }
 
-          return res.status(422).json({
+          return sendError(422, {
             message: errorMessage,
             error: "Request timed out",
           });
@@ -166,7 +185,7 @@ export function withMiddlewares(
           if (error.httpCode >= 500 && error.httpCode < 600) {
             traceException(error);
           }
-          return res.status(error.httpCode).json({
+          return sendError(error.httpCode, {
             message: error.message,
             error: error.name,
           });
@@ -175,7 +194,7 @@ export function withMiddlewares(
         if (isPrismaException(error)) {
           logger.error(error);
           traceException(error);
-          return res.status(500).json({
+          return sendError(500, {
             message: "Internal Server Error",
             error: "An unknown error occurred",
           });
@@ -184,7 +203,7 @@ export function withMiddlewares(
         // Instanceof check fails here as shared package zod has different instances
         if (isZodError(error)) {
           logger.warn(error);
-          return res.status(400).json({
+          return sendError(400, {
             message: "Invalid request data",
             error: error.issues,
           });
@@ -192,7 +211,7 @@ export function withMiddlewares(
 
         logger.error(error);
         traceException(error);
-        return res.status(500).json({
+        return sendError(500, {
           message: "Internal Server Error",
           error:
             error instanceof Error

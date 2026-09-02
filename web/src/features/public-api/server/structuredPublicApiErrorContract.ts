@@ -36,7 +36,9 @@ type StructuredPublicApiErrorBody = {
 
 export { StructuredPublicApiError };
 
-function toBody(error: StructuredPublicApiError): StructuredPublicApiErrorBody {
+export function toStructuredPublicApiErrorBody(
+  error: StructuredPublicApiError,
+): StructuredPublicApiErrorBody {
   return {
     message: error.message,
     code: error.code,
@@ -58,7 +60,7 @@ export function sendStructuredPublicApiErrorResponse(
   res: NextApiResponse,
   error: StructuredPublicApiError,
 ) {
-  return res.status(error.httpCode).json(toBody(error));
+  return res.status(error.httpCode).json(toStructuredPublicApiErrorBody(error));
 }
 
 export function createStructuredPublicApiAuthError(params: {

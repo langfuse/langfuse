@@ -21,6 +21,10 @@ import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rate
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  writePublicApiResponse,
+  type PublicApiWriteResponse,
+} from "@/src/features/public-api/server/writePublicApiResponse";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createStructuredPublicApiAuthError,
@@ -88,6 +92,13 @@ export type AuthedProjectAPIRouteConfig<
   rejectInEventsOnlyMode?: boolean;
   /** Stamps a top-level `_deprecation` object onto responses. */
   deprecation?: ApiDeprecationInfo;
+  /**
+   * When set, writes the handler result instead of `res.json`.
+   * Use this for routes whose wire format is not JSON (for example OTLP/HTTP).
+   * `body` is the handler result, or `{ message: "OK" }` when the handler
+   * returns a falsy value.
+   */
+  writeResponse?: PublicApiWriteResponse;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -363,7 +374,13 @@ export const createAuthedProjectAPIRoute = <
           );
         }
 
-        res.status(503).json({ message: "Service Unavailable" });
+        writePublicApiResponse({
+          req,
+          res,
+          statusCode: 503,
+          body: { message: "Service Unavailable" },
+          writeResponse: routeConfig.writeResponse,
+        });
         return;
       }
 
@@ -377,7 +394,13 @@ export const createAuthedProjectAPIRoute = <
         );
       }
 
-      res.status(statusCode).json({ message });
+      writePublicApiResponse({
+        req,
+        res,
+        statusCode,
+        body: { message },
+        writeResponse: routeConfig.writeResponse,
+      });
 
       return;
     }
@@ -392,6 +415,8 @@ export const createAuthedProjectAPIRoute = <
       return rateLimitResponse.sendRestResponseIfLimited(res, {
         errorContract: routeConfig.errorContract,
         upgradePath: routeConfig.rateLimitUpgradePath,
+        req,
+        writeResponse: routeConfig.writeResponse,
       });
     }
 
@@ -471,15 +496,27 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res.status(
+      const statusCode =
         // Check whether status code was already set inside handler to non default value
         res.statusCode !== 200
           ? res.statusCode
-          : routeConfig.successStatusCode || 200,
-      );
+          : routeConfig.successStatusCode || 200;
+      const payload = response || { message: "OK" };
+
+      if (routeConfig.writeResponse) {
+        routeConfig.writeResponse({
+          req,
+          res,
+          body: payload,
+          statusCode,
+        });
+        return;
+      }
+
+      res.status(statusCode);
 
       try {
-        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
+        res.json(attachDeprecation(payload, deprecation));
       } catch (error) {
         if (isJsonStringTooLargeError(error)) {
           throw new PayloadTooLargeError();
