@@ -1863,7 +1863,7 @@ function CategoricalSelectContent({
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
+            <TabsList className="grid w-full grid-cols-3" size="sm">
               <TabsTrigger value="any of" size="sm">
                 Any of
               </TabsTrigger>
@@ -2508,7 +2508,7 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
+        <TabsList className="grid w-full grid-cols-2" size="sm">
           <TabsTrigger value="select" size="sm">
             Select
           </TabsTrigger>

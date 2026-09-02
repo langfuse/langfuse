@@ -376,7 +376,7 @@ function ToolDefinitionRow({
                 setCurrentView(value as "formatted" | "json")
               }
             >
-              <TabsList className="h-fit p-0.5">
+              <TabsList size="sm">
                 <TabsTrigger value="formatted" size="sm">
                   Formatted
                 </TabsTrigger>

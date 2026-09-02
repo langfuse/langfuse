@@ -391,7 +391,7 @@ export function ConnectedObservationDetailView({
                       handleViewTabChange(value);
                     }}
                   >
-                    <TabsList className="h-fit py-0.5">
+                    <TabsList size="sm">
                       {/* Log view never runs the normalized parser, so the
                           beta tab only renders on the preview tab. */}
                       {showPrettyBeta && selectedTab !== "log" && (

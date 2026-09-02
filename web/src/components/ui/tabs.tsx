@@ -8,7 +8,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 
 const tabsListVariants = cva(
-  "text-muted-foreground inline-flex h-8 items-center justify-center p-1",
+  "text-muted-foreground inline-flex items-center justify-center",
   {
     variants: {
       variant: {
@@ -17,9 +17,26 @@ const tabsListVariants = cva(
         outline:
           "bg-background rounded-md border **:data-[state=active]:bg-muted",
       },
+      size: {
+        default: "",
+        sm: "",
+        auto: "",
+      },
     },
+    compoundVariants: [
+      { variant: "default", size: "default", class: "h-8 p-1" },
+      { variant: "default", size: "sm", class: "h-6 p-0.5" },
+      { variant: "default", size: "auto", class: "h-auto p-1" },
+      { variant: "outline", size: "default", class: "h-8 p-1" },
+      { variant: "outline", size: "sm", class: "h-6 p-0.5" },
+      { variant: "outline", size: "auto", class: "h-auto p-1" },
+      { variant: "underline", size: "default", class: "h-auto p-0" },
+      { variant: "underline", size: "sm", class: "h-auto p-0" },
+      { variant: "underline", size: "auto", class: "h-auto p-0" },
+    ],
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   },
 );
@@ -50,18 +67,13 @@ type TabsListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
   className?:
-    | "grid h-6 w-full grid-cols-3 p-0.5"
-    | "grid h-6 w-full grid-cols-2 p-0.5"
-    | "grid w-fit max-w-fit grid-flow-col gap-4"
-    | "flex h-auto w-full p-0"
-    | "h-auto gap-1"
-    | "grid h-auto w-full grid-cols-2 gap-1"
-    | "flex w-full"
-    | "h-7"
-    | "h-fit py-0.5"
+    | "grid w-full grid-cols-3"
     | "grid w-full grid-cols-2"
-    | "h-fit p-0.5";
-} & Pick<VariantProps<typeof tabsListVariants>, "variant">;
+    | "grid w-fit max-w-fit grid-flow-col gap-4"
+    | "flex w-full"
+    | "gap-1"
+    | "grid w-full grid-cols-2 gap-1";
+} & Pick<VariantProps<typeof tabsListVariants>, "size" | "variant">;
 
 const Tabs = TabsPrimitive.Root;
 
@@ -69,12 +81,13 @@ function TabsList({
   "aria-label": ariaLabel,
   children,
   className,
+  size,
   variant,
 }: TabsListProps) {
   return (
     <TabsPrimitive.List
       aria-label={ariaLabel}
-      className={cn(tabsListVariants({ variant }), className)}
+      className={cn(tabsListVariants({ size, variant }), className)}
     >
       {children}
     </TabsPrimitive.List>

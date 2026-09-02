@@ -578,7 +578,7 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <TabsList className="h-auto gap-1">
+                      <TabsList className="gap-1" size="auto">
                         <TabsTrigger value="resolved" size="sm">
                           Resolved prompt
                         </TabsTrigger>

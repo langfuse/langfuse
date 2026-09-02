@@ -46,7 +46,7 @@ export function ViewModeToggle({
         value={selectedViewTab}
         onValueChange={handleViewTabChange}
       >
-        <TabsList className="h-fit p-0.5">
+        <TabsList size="sm">
           {showPrettyBeta &&
             (prettyBetaDisabled ? (
               <HoverCard openDelay={200}>

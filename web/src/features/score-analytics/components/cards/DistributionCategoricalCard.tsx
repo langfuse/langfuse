@@ -288,7 +288,7 @@ export function DistributionCategoricalCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <TabsList className="h-7">
+              <TabsList size="sm">
                 <TabsTrigger value="score1" title={score1FullLabel} size="sm">
                   {truncateLabel(score1FullLabel)}
                 </TabsTrigger>
