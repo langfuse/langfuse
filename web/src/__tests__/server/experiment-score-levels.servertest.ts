@@ -6,6 +6,8 @@ import {
   createScoresCh,
   getExperimentsFromEvents,
   getExperimentScoreOptions,
+  getExperimentItemsCountFromEvents,
+  getExperimentItemsFilterOptions,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { randomUUID } from "crypto";
@@ -75,7 +77,7 @@ const seedExperimentWithScore = async ({
     }),
   ]);
 
-  return { experimentId, experimentName };
+  return { experimentId, experimentName, spanId, traceId };
 };
 
 maybeEventTables("level-agnostic experiment score filters", () => {
@@ -266,5 +268,215 @@ maybeEventTables("level-agnostic experiment score filters", () => {
       "trace",
     ]);
     expect(options.score_name_levels_numeric[traceOnly]).toEqual(["trace"]);
+  });
+});
+
+maybeEventTables("level-agnostic experiment ITEM score filters", () => {
+  const filterFor = (
+    experimentId: string,
+    filters: FilterState,
+  ): { experimentId: string; filters: FilterState }[] => [
+    { experimentId, filters },
+  ];
+
+  it("qualifies an item whose score sits at either level", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const scoreName = `item-accuracy-${randomUUID().slice(0, 8)}`;
+
+    const observationLevel = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-obs-level",
+      startTimeMs,
+      level: "observation",
+      scoreName,
+      value: 0.9,
+    });
+    const traceLevel = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-trace-level",
+      startTimeMs,
+      level: "trace",
+      scoreName,
+      value: 0.9,
+    });
+    const belowThreshold = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-low-score",
+      startTimeMs,
+      level: "trace",
+      scoreName,
+      value: 0.1,
+    });
+
+    const above: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: scoreName,
+        operator: ">",
+        value: 0.5,
+      },
+    ];
+
+    // Each experiment holds exactly one item, so the count IS "did the item
+    // qualify" — separating the levels rather than relying on one mixed run.
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [observationLevel.experimentId],
+        filterByExperiment: filterFor(observationLevel.experimentId, above),
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [traceLevel.experimentId],
+        filterByExperiment: filterFor(traceLevel.experimentId, above),
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [belowThreshold.experimentId],
+        filterByExperiment: filterFor(belowThreshold.experimentId, above),
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("keeps qualifying through the legacy obs_scores_avg column", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const scoreName = `item-legacy-${randomUUID().slice(0, 8)}`;
+
+    const run = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-legacy-obs",
+      startTimeMs,
+      level: "observation",
+      scoreName,
+      value: 0.9,
+    });
+
+    // An unresolved column is dropped silently, which would let the item
+    // qualify for the wrong reason — so assert the threshold still bites.
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [run.experimentId],
+        filterByExperiment: filterFor(run.experimentId, [
+          {
+            type: "numberObject",
+            column: "obs_scores_avg",
+            key: scoreName,
+            operator: ">",
+            value: 0.5,
+          },
+        ]),
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [run.experimentId],
+        filterByExperiment: filterFor(run.experimentId, [
+          {
+            type: "numberObject",
+            column: "obs_scores_avg",
+            key: scoreName,
+            operator: ">",
+            value: 0.95,
+          },
+        ]),
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("excludes a categorical value at whichever level it sits", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const scoreName = `item-verdict-${randomUUID().slice(0, 8)}`;
+
+    const traceLevel = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-trace-verdict",
+      startTimeMs,
+      level: "trace",
+      scoreName,
+      value: 0,
+      stringValue: "bad",
+      dataType: "CATEGORICAL",
+    });
+    const kept = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-kept-verdict",
+      startTimeMs,
+      level: "observation",
+      scoreName,
+      value: 0,
+      stringValue: "good",
+      dataType: "CATEGORICAL",
+    });
+
+    const excludeBad: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: scoreName,
+        operator: "none of",
+        value: ["bad"],
+      },
+    ];
+
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [traceLevel.experimentId],
+        filterByExperiment: filterFor(traceLevel.experimentId, excludeBad),
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [kept.experimentId],
+        filterByExperiment: filterFor(kept.experimentId, excludeBad),
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it("offers each item score name once, tagged with its levels", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const bothLevels = `item-both-${randomUUID().slice(0, 8)}`;
+
+    const first = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-options-obs",
+      startTimeMs,
+      level: "observation",
+      scoreName: bothLevels,
+      value: 0.5,
+    });
+    const second = await seedExperimentWithScore({
+      projectId,
+      experimentName: "item-options-trace",
+      startTimeMs,
+      level: "trace",
+      scoreName: bothLevels,
+      value: 0.5,
+    });
+
+    const options = await getExperimentItemsFilterOptions({
+      projectId,
+      experimentIds: [first.experimentId, second.experimentId],
+    });
+
+    expect(options.scores_avg.filter((name) => name === bothLevels)).toEqual([
+      bothLevels,
+    ]);
+    expect(options.score_name_levels_numeric[bothLevels]).toEqual([
+      "observation",
+      "trace",
+    ]);
   });
 });

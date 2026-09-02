@@ -4,7 +4,6 @@
 import { cva } from "class-variance-authority";
 import { X } from "lucide-react";
 
-import { AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 
 const calloutVariants = cva("relative w-full rounded-lg border p-3", {
@@ -26,14 +25,17 @@ const contentVariants = cva("flex min-w-0 flex-1 flex-col gap-2", {
   },
 });
 
-const descriptionVariants = cva("ml-1 flex items-start gap-2", {
-  variants: {
-    align: {
-      top: null,
-      middle: "sm:items-center",
+const descriptionVariants = cva(
+  "ml-1 flex items-start gap-2 text-sm [&_p]:leading-relaxed",
+  {
+    variants: {
+      align: {
+        top: null,
+        middle: "sm:items-center",
+      },
     },
   },
-});
+);
 
 export type CalloutProps = {
   variant: "info" | "warning";
@@ -52,7 +54,7 @@ export function Callout({
 }: CalloutProps) {
   return (
     <div role="alert" className={calloutVariants({ variant })}>
-      <AlertDescription className={descriptionVariants({ align })}>
+      <div className={descriptionVariants({ align })}>
         <div
           className={`${contentVariants({ align })} sm:flex-row sm:justify-between`}
         >
@@ -72,7 +74,7 @@ export function Callout({
         >
           <X className="h-4 w-4" />
         </Button>
-      </AlertDescription>
+      </div>
     </div>
   );
 }

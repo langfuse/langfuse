@@ -15,7 +15,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
@@ -46,10 +46,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
       <div>
         <Header title="LLM Connections" />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to view LLM API keys for this project.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );

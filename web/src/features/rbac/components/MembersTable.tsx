@@ -18,7 +18,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -412,10 +412,10 @@ export function MembersTable({
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
           You do not have permission to view members of this organization.
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     );
   }
