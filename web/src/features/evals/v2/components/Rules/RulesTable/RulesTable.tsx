@@ -354,15 +354,14 @@ export function RulesTable({
             <RuleFilterPills filter={row.original.filter} />
           ),
       },
-      {
+      createNumberTableColumn<RuleTableRow>({
         accessorKey: "sampling",
-        id: "sampling",
         header: "Sampling",
         size: 100,
         enableHiding: true,
         enableSorting: true,
-        cell: ({ row }) => `${Math.round(row.original.sampling * 100)}%`,
-      },
+        formatter: (value) => `${Math.round(value * 100)}%`,
+      }),
       createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
         header: "Created by",

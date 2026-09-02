@@ -1,10 +1,22 @@
-import { usdFormatter } from "@/src/utils/numbers";
 import {
   type DatasetRunItemByRunRowData,
   type DatasetRunItemByItemRowData,
 } from "./types";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { isPresent } from "@langfuse/shared";
+
+const getRunItemTotalCost = (
+  item: EnrichedDatasetRunItem,
+): number | undefined => {
+  const observationCost = item.observation?.calculatedTotalCost;
+  if (isPresent(observationCost)) {
+    return observationCost.toNumber();
+  }
+  if (isPresent(item.trace?.totalCost)) {
+    return item.trace.totalCost;
+  }
+  return undefined;
+};
 
 export const convertRunItemToItemsByItemUiTableRow = (
   item: EnrichedDatasetRunItem,
@@ -20,11 +32,7 @@ export const convertRunItemToItemsByItemUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: isPresent(item.observation?.calculatedTotalCost)
-      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : isPresent(item.trace?.totalCost)
-        ? usdFormatter(item.trace.totalCost)
-        : undefined,
+    totalCost: getRunItemTotalCost(item),
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };
@@ -44,11 +52,7 @@ export const convertRunItemToItemsByRunUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: isPresent(item.observation?.calculatedTotalCost)
-      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : isPresent(item.trace?.totalCost)
-        ? usdFormatter(item.trace.totalCost)
-        : undefined,
+    totalCost: getRunItemTotalCost(item),
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };
