@@ -7,9 +7,6 @@ import { Accordion } from "./Accordion";
 type TriggerVariant = NonNullable<
   React.ComponentProps<typeof Accordion.Trigger>["variant"]
 >;
-type ContentSize = NonNullable<
-  React.ComponentProps<typeof Accordion.Content>["size"]
->;
 
 const meta = preview.meta({
   component: Accordion,
@@ -21,20 +18,19 @@ const triggerVariants = Object.keys({
   section: true,
 } satisfies Record<TriggerVariant, true>) as TriggerVariant[];
 
-const contentSizes = Object.keys({
-  default: true,
-  compact: true,
-} satisfies Record<ContentSize, true>) as ContentSize[];
-
 const defaultChildren = (
   <>
     <Accordion.Item value="item-1">
       <Accordion.Trigger>Item one</Accordion.Trigger>
-      <Accordion.Content>Content for item one.</Accordion.Content>
+      <Accordion.Content>
+        <div className="pb-4">Content for item one.</div>
+      </Accordion.Content>
     </Accordion.Item>
     <Accordion.Item value="item-2">
       <Accordion.Trigger>Item two</Accordion.Trigger>
-      <Accordion.Content>Content for item two.</Accordion.Content>
+      <Accordion.Content>
+        <div className="pb-4">Content for item two.</div>
+      </Accordion.Content>
     </Accordion.Item>
   </>
 );
@@ -66,18 +62,8 @@ export const VariantMatrix = meta.story({
           >
             <Accordion.Item value="item">
               <Accordion.Trigger variant={variant}>{variant}</Accordion.Trigger>
-              <Accordion.Content>Trigger variant {variant}</Accordion.Content>
-            </Accordion.Item>
-          </Accordion>
-        ))}
-      </div>
-      <div className="grid gap-4">
-        {contentSizes.map((size) => (
-          <Accordion key={size} type="single" collapsible defaultValue="item">
-            <Accordion.Item value="item">
-              <Accordion.Trigger>Content {size}</Accordion.Trigger>
-              <Accordion.Content size={size}>
-                Content size {size}
+              <Accordion.Content>
+                <div className="pb-4">Trigger variant {variant}</div>
               </Accordion.Content>
             </Accordion.Item>
           </Accordion>
@@ -95,7 +81,9 @@ export const ToggleItem = meta.story({
     children: (
       <Accordion.Item value="item-1">
         <Accordion.Trigger>Details</Accordion.Trigger>
-        <Accordion.Content>Hidden details</Accordion.Content>
+        <Accordion.Content>
+          <div className="pb-4">Hidden details</div>
+        </Accordion.Content>
       </Accordion.Item>
     ),
   },

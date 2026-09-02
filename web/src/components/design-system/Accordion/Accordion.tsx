@@ -53,18 +53,6 @@ const accordionItemVariants = cva("border-b", {
   },
 });
 
-const accordionContentVariants = cva("", {
-  variants: {
-    size: {
-      default: "pt-0 pb-4",
-      compact: "px-3 pt-1 pb-1",
-    },
-  },
-  defaultVariants: {
-    size: "default",
-  },
-});
-
 type AccordionItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
   "value"
@@ -131,17 +119,14 @@ function AccordionTrigger({ children, size, variant }: AccordionTriggerProps) {
   );
 }
 
-type AccordionContentProps = Pick<
-  VariantProps<typeof accordionContentVariants>,
-  "size"
-> & {
+type AccordionContentProps = {
   children: React.ReactNode;
 };
 
-function AccordionContent({ children, size }: AccordionContentProps) {
+function AccordionContent({ children }: AccordionContentProps) {
   return (
     <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
-      <div className={accordionContentVariants({ size })}>{children}</div>
+      {children}
     </AccordionPrimitive.Content>
   );
 }
