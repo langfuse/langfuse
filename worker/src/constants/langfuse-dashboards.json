@@ -629,7 +629,7 @@
       "updatedBy": null,
       "projectId": null,
       "name": "Latency Tracking",
-      "description": "Monitor latency metrics across traces and generations for performance optimization.",
+      "description": "Latency across traces and generations.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -646,12 +646,12 @@
     {
       "id": "cmawln8k700xqad07000k1q8b",
       "createdAt": "2025-05-20T14:18:27.223Z",
-      "updatedAt": "2026-09-02T00:00:00.000Z",
+      "updatedAt": "2026-09-02T00:00:01.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
       "name": "Usage Management",
-      "description": "Track usage metrics across traces, observations, and scores to manage resource allocation.",
+      "description": "Trace, observation, and score volume.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -671,12 +671,12 @@
     {
       "id": "cmawoi7yd00aqad07f3why08w",
       "createdAt": "2025-05-20T15:38:32.005Z",
-      "updatedAt": "2026-09-02T00:00:00.000Z",
+      "updatedAt": "2026-09-02T00:00:03.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
       "name": "Cost Tracking",
-      "description": "Review your LLM costs.",
+      "description": "LLM costs.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -697,12 +697,12 @@
     {
       "id": "cmtdm68000006ad07dzdb73zw",
       "createdAt": "2026-08-26T00:00:00.000Z",
-      "updatedAt": "2026-09-02T00:00:00.000Z",
+      "updatedAt": "2026-09-02T00:00:02.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
       "name": "Tool Usage",
-      "description": "Monitor agent tool usage: total tool calls, most-called tools, tool errors and latency, and observation type breakdowns.",
+      "description": "Tool calls, errors, and latency.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [

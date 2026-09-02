@@ -121,9 +121,14 @@ export class DashboardService {
             select: { name: true, email: true },
           },
         },
-        orderBy: orderBy
-          ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
-          : [{ updatedAt: "desc" }],
+        // Project-owned dashboards stay above Langfuse templates. The
+        // requested column (default updatedAt) still sorts inside each group.
+        orderBy: [
+          { projectId: { sort: "asc", nulls: "last" } },
+          orderBy
+            ? { [orderBy.column]: orderBy.order.toLowerCase() }
+            : { updatedAt: "desc" },
+        ],
         skip,
         take,
       }),

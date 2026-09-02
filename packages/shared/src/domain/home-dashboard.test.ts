@@ -23,6 +23,9 @@ describe("LANGFUSE_HOME_DASHBOARD", () => {
 
     expect(parsed.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
     expect(parsed.name).toBe("Home");
+    expect(parsed.description).toBe(
+      "Traces, costs, scores, usage, and latency.",
+    );
     expect(parsed.definition.widgets.length).toBeGreaterThan(0);
   });
 

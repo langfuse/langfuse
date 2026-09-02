@@ -63,4 +63,73 @@ describe("DashboardService listDashboards", () => {
     expect(byId[projectDashboard.id]?.createdByName).toBe("Ada Lovelace");
     expect(byId[langfuseDashboard.id]?.createdByName).toBe("Langfuse");
   });
+
+  it("lists project dashboards first, then templates by updatedAt", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const olderProject = await DashboardService.createDashboard(
+      projectId,
+      "Older project board",
+      "",
+    );
+    const newerProject = await DashboardService.createDashboard(
+      projectId,
+      "Newer project board",
+      "",
+    );
+    const olderTemplate = await prisma.dashboard.create({
+      data: {
+        name: "Older template",
+        description: "",
+        projectId: null,
+        definition: { widgets: [] },
+      },
+    });
+    const newerTemplate = await prisma.dashboard.create({
+      data: {
+        name: "Newer template",
+        description: "",
+        projectId: null,
+        definition: { widgets: [] },
+      },
+    });
+
+    await prisma.dashboard.update({
+      where: { id: olderProject.id },
+      data: { updatedAt: new Date("2020-01-01T00:00:00.000Z") },
+    });
+    await prisma.dashboard.update({
+      where: { id: newerProject.id },
+      data: { updatedAt: new Date("2021-01-01T00:00:00.000Z") },
+    });
+    await prisma.dashboard.update({
+      where: { id: olderTemplate.id },
+      data: { updatedAt: new Date("2026-08-01T00:00:00.000Z") },
+    });
+    await prisma.dashboard.update({
+      where: { id: newerTemplate.id },
+      data: { updatedAt: new Date("2026-09-02T00:00:00.000Z") },
+    });
+
+    const { dashboards } = await DashboardService.listDashboards({
+      projectId,
+      orderBy: { column: "updatedAt", order: "DESC" },
+    });
+    const listedIds = dashboards.map((dashboard) => dashboard.id);
+    const projectIds = new Set([olderProject.id, newerProject.id]);
+    const lastProjectIndex = listedIds.findLastIndex((id) =>
+      projectIds.has(id),
+    );
+    const firstTemplateIndex = listedIds.findIndex(
+      (id) => id === olderTemplate.id || id === newerTemplate.id,
+    );
+
+    expect(listedIds.indexOf(newerProject.id)).toBeLessThan(
+      listedIds.indexOf(olderProject.id),
+    );
+    expect(lastProjectIndex).toBeLessThan(firstTemplateIndex);
+    expect(listedIds.indexOf(newerTemplate.id)).toBeLessThan(
+      listedIds.indexOf(olderTemplate.id),
+    );
+  });
 });
