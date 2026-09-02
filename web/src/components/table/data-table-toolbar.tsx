@@ -145,9 +145,9 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
-  /** Analytics table identity (LFE-10781, widened to the generic table events in
-   * LFE-15720) for `filters:applied`/`filters:cleared`, `table:search_submit`,
-   * `table:row_height_switch_select` and `table:column_visibility_changed`.
+  /** Analytics table identity, for `filters:applied`/`filters:cleared`,
+   * `table:search_submit`, `table:row_height_switch_select` and
+   * `table:column_visibility_changed`.
    * Tables with a `viewConfig` supply it via `viewConfig.tableName`; every table
    * WITHOUT one must pass this — the `ToolbarTableIdentity` union below makes
    * that a type error rather than an "unknown" bucket in PostHog. */
@@ -180,7 +180,8 @@ interface DataTableToolbarProps<TData, TValue> {
  * events fire from inside it. One of the two sources has to be present:
  * a `viewConfig` (whose `tableName` is the saved-view table) or an explicit
  * `tableName`. Enforced in the type so no surface can silently report
- * `tableName: "unknown"` — the failure mode LFE-10781 shipped and had to fix.
+ * `tableName: "unknown"` — the failure mode the first version of these events
+ * shipped and had to fix.
  */
 type ToolbarTableIdentity =
   | { tableName: string }
@@ -262,7 +263,7 @@ export function DataTableToolbar<TData, TValue>({
 
   const capture = usePostHogClientCapture();
   // One definition of the two analytics dimensions for everything the toolbar
-  // emits (LFE-15720): an explicit `tableName` wins over the view's, and `isV4`
+  // emits: an explicit `tableName` wins over the view's, and `isV4`
   // falls back to the one surface that is v4 without saying so — the v4 events
   // table, which filters through the grammar bar rather than this toolbar.
   // The "unknown" fallback is unreachable — `ToolbarTableIdentity` requires one
