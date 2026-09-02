@@ -315,6 +315,16 @@ function stampTenancy<T extends object>(node: T): T {
   return node;
 }
 
+/**
+ * Re-stamp a tree after a later rewrite pass. Identity-based: a copied
+ * property is not a valid stamp. Dedup lowering (and any future rewrite)
+ * must call this on the node it returns, because a new root object is not
+ * the object the tenancy pass stamped.
+ */
+export function stampCompiledTree<T extends object>(node: T): T {
+  return stampTenancy(node);
+}
+
 export function assertTenancyStamped(node: RootOperationNode): void {
   if (!TENANCY_STAMPED.has(node)) {
     throw new QueryCompileError(

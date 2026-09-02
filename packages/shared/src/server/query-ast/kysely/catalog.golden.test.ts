@@ -144,6 +144,10 @@ const EXECUTABLE_TIER_5_7 = [
   "variant_events_unbounded",
   "variant_events_time_bounded",
   "variant_legacy_union",
+  "point_lookup_span",
+  "existence_any_event",
+  "group_by_count",
+  "window_rank",
 ];
 
 describeWithClickhouseLocal("catalog tier 5-7 execution", () => {

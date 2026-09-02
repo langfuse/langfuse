@@ -6,6 +6,7 @@ import {
 
 import type { ExecutionContext } from "../executionContext";
 import { ClickHouseQueryCompiler } from "./compiler";
+import { DedupLoweringPlugin } from "./dedup";
 import { TenancyInjectionPlugin, requireExecutionContext } from "./tenancy";
 import { validateTypeCompatibility } from "./typecheck";
 
@@ -27,11 +28,12 @@ export type ClickhouseCompilable = {
  * The choke point. Every query that should produce ClickHouse SQL goes
  * through here: the `ctx` parameter is required, so a caller cannot compile
  * without a tenancy scope — omitting it is a compile-time type error. Tenancy
- * is injected from that scope, and the dialect compiler refuses to emit SQL
- * unless the tree was identity-stamped by that pass (a copied property is not
- * enough). The runtime `requireExecutionContext` guard remains as
- * defense-in-depth for the one case the type cannot express (an empty
- * `projectId`) and for callers reaching this through an `any` boundary.
+ * is injected from that scope, shape-keyed dedup is lowered from the table
+ * registry, and the dialect compiler refuses to emit SQL unless the tree was
+ * identity-stamped by those passes (a copied property is not enough). The
+ * runtime `requireExecutionContext` guard remains as defense-in-depth for the
+ * one case the type cannot express (an empty `projectId`) and for callers
+ * reaching this through an `any` boundary.
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
@@ -40,6 +42,7 @@ export function compileClickhouseQuery(
   const scope = requireExecutionContext(ctx);
   const stamped = query
     .withPlugin(new TenancyInjectionPlugin(scope))
+    .withPlugin(new DedupLoweringPlugin())
     .toOperationNode();
   const compiler = new ClickHouseQueryCompiler();
   validateTypeCompatibility(stamped);

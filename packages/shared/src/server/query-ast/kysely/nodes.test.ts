@@ -71,8 +71,11 @@ describe("tenancy injection", () => {
       .where("project_id", "=", "proj-1");
 
     const { sql: compiled } = compileClickhouseQuery(qb, ctx);
-    const matches = compiled.match(/project_id/gi) ?? [];
-    expect(matches).toHaveLength(1);
+    // One WHERE predicate. `project_id` may also appear in an injected
+    // LIMIT 1 BY key; that is not a second filter.
+    const whereMatches = compiled.match(/where[\s\S]*?project_id/gi) ?? [];
+    expect(whereMatches).toHaveLength(1);
+    expect((compiled.match(/project_id\s*=/gi) ?? []).length).toBe(1);
   });
 
   it("rejects a raw-SQL table source as an unscoped escape hatch", () => {

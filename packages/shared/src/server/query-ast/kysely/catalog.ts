@@ -2,13 +2,7 @@ import type { SqlBool } from "kysely";
 
 import type { ClickhouseCompilable } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import {
-  arrayJoin,
-  limitBy,
-  mapKeys,
-  mapValues,
-  metadataValue,
-} from "./extensions";
+import { arrayJoin, mapKeys, mapValues, metadataValue } from "./extensions";
 
 type CatalogTier = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -135,8 +129,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 1,
     referenceSql: `
       SELECT environment, count(*) AS n
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM (
+        SELECT *
+        FROM events_core
+        WHERE project_id = {p1:String}
+        ORDER BY event_ts DESC
+        LIMIT 1 BY span_id, project_id
+      ) AS events_core
       GROUP BY environment
     `,
     build: () =>
@@ -210,6 +209,43 @@ export const CATALOG: CatalogEntry[] = [
         ),
   },
   {
+    // Floor point-lookup: equality on the identity column. Same LIMIT BY
+    // idiom as a list; the caller’s LIMIT 1 is preserved after it.
+    id: "point_lookup_span",
+    tier: 3,
+    referenceSql: `
+      SELECT span_id
+      FROM events_core
+      WHERE (project_id = {p1:String}) AND (span_id = {p2:String})
+      ORDER BY event_ts DESC
+      LIMIT 1 BY span_id, project_id
+      LIMIT {p3:Int64}
+    `,
+    build: () =>
+      db()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("span_id", "=", "span-1")
+        .limit(1),
+  },
+  {
+    // Floor existence: SELECT 1 LIMIT 1 must not grow a LIMIT BY — any
+    // surviving version is enough, and the extra sort would be wasted.
+    id: "existence_any_event",
+    tier: 3,
+    referenceSql: `
+      SELECT {p1:Int64} AS ok
+      FROM events_core
+      WHERE project_id = {p2:String}
+      LIMIT {p1:Int64}
+    `,
+    build: () =>
+      db()
+        .selectFrom("events_core")
+        .select((eb) => [eb.val(1).as("ok")])
+        .limit(1),
+  },
+  {
     id: "limit_by_dedup",
     tier: 3,
     referenceSql: `
@@ -219,20 +255,26 @@ export const CATALOG: CatalogEntry[] = [
       ORDER BY event_ts DESC
       LIMIT 1 BY span_id, project_id
     `,
+    // No `$call(limitBy)`: the lowering pass injects the clause from the
+    // events_core dedup spec. The reference SQL is the lowered form.
     build: () =>
       db()
         .selectFrom("events_core")
         .select(["span_id", "project_id"])
-        .orderBy("event_ts", "desc")
-        .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] })),
+        .orderBy("event_ts", "desc"),
   },
   {
     id: "window_rank",
     tier: 4,
     referenceSql: `
       SELECT span_id, rank() OVER (PARTITION BY trace_id ORDER BY start_time DESC) AS rk
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM (
+        SELECT *
+        FROM events_core
+        WHERE project_id = {p1:String}
+        ORDER BY event_ts DESC
+        LIMIT 1 BY span_id, project_id
+      ) AS events_core
     `,
     build: () =>
       db()
@@ -263,6 +305,8 @@ export const CATALOG: CatalogEntry[] = [
         FROM events_core AS inner
         WHERE (inner.project_id = {p1:String}) AND (inner.trace_id = e.trace_id)
       ))
+      ORDER BY e.event_ts DESC
+      LIMIT 1 BY e.span_id, e.project_id
     `,
     build: () =>
       db()
@@ -287,8 +331,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 6,
     referenceSql: `
       SELECT e.metadata_values[indexOf(e.metadata_names, {p1:String})] AS model, count(*) AS n
-      FROM events_core AS e
-      WHERE e.project_id = {p2:String}
+      FROM (
+        SELECT *
+        FROM events_core AS e
+        WHERE e.project_id = {p2:String}
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY e.span_id, e.project_id
+      ) AS e
       GROUP BY model
     `,
     build: () =>

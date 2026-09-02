@@ -50,9 +50,15 @@ is where tenancy is enforced:
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
-3. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
-   present, so `qb.compile()` without the plugin also fails.
-4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
+3. `DedupLoweringPlugin` classifies each single-table select against that
+   table's `dedup` spec and lowers the physical idiom (LIMIT 1 BY on row
+   reads; a wrapping subquery on aggregations). DISTINCT-only, existence, and
+   JOINs are left alone. The pass restamps the rewritten root.
+4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
+   present, so `qb.compile()` without the plugin also fails. Value binds take
+   their ClickHouse type from the compared column's registry entry when one is
+   in scope (`total_cost > 1` → `{p:Float64}`).
+5. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
    `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
    own keyword fragments (`asc`/`desc`) are not relations.
 

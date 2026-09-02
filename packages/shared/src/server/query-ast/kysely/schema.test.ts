@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { COLUMN_DATA_TYPES, TENANTED_TABLES } from "./schema";
+import {
+  COLUMN_BIND_TYPES,
+  COLUMN_DATA_TYPES,
+  DEDUP_SPECS,
+  TENANTED_TABLES,
+} from "./schema";
 import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
 
 describe("table registry derivation", () => {
@@ -25,6 +30,24 @@ describe("table registry derivation", () => {
     expect(COLUMN_DATA_TYPES.timestamp).toBe("date");
     expect(COLUMN_DATA_TYPES.metadata_names).toBe("array");
     expect(COLUMN_DATA_TYPES.cost_details).toBe("map");
+  });
+
+  it("derives ClickHouse bind types from the same column declarations", () => {
+    expect(COLUMN_BIND_TYPES.total_cost).toBe("Float64");
+    expect(COLUMN_BIND_TYPES.start_time).toBe("DateTime64(3)");
+    expect(COLUMN_BIND_TYPES.project_id).toBe("String");
+    expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
+  });
+
+  it("derives dedup facts only for versioned relations", () => {
+    expect(DEDUP_SPECS.events_core).toEqual({
+      key: ["span_id", "project_id"],
+      version: "event_ts",
+      strategy: "limitBy",
+    });
+    expect(DEDUP_SPECS.traces).toBeUndefined();
+    expect(DEDUP_SPECS.observations).toBeUndefined();
+    expect(DEDUP_SPECS.scores).toBeUndefined();
   });
 
   // The assertions themselves are compile-time (`tsc` is the test); this only
