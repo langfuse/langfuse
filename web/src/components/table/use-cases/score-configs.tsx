@@ -105,13 +105,12 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       header: "Name",
       enableHiding: true,
     }),
-    {
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "dataType",
-      id: "dataType",
       header: "Data Type",
       size: 80,
       enableHiding: true,
-    },
+    }),
     createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
       accessorFn: getConfigRange,

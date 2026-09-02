@@ -12,7 +12,7 @@ import {
 import { type views, type ViewVersion } from "@langfuse/shared/query";
 import { type z } from "zod";
 
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import {
   displayNameForFilterColumn,
@@ -269,17 +269,11 @@ const MetricsFilterView = ({
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Alert
-          variant="default"
-          className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-        >
-          <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-          <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-            Unsupported filters
-          </AlertTitle>
-          <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+        <Alert variant="warning" icon={AlertCircle}>
+          <Alert.Title>Unsupported filters</Alert.Title>
+          <Alert.Description>
             {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
       <InlineFilterBuilder

@@ -30,7 +30,7 @@ import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";

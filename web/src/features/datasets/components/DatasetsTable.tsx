@@ -30,7 +30,7 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   createDatasetsTableStore,
   toFolderRowId,

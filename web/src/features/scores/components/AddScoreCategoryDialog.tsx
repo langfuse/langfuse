@@ -14,7 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { type AnalyticsData } from "@/src/features/scores/types";
 
