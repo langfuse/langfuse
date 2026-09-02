@@ -6,8 +6,6 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronDown } from "lucide-react";
 
-import { cn } from "@/src/utils/tailwind";
-
 const accordionTriggerVariants = cva(
   "flex flex-1 items-center font-bold transition-all",
   {
@@ -42,9 +40,14 @@ const accordionItemVariants = cva("", {
       top: "border-t",
       card: "bg-muted/30 rounded-lg border",
     },
+    inset: {
+      none: "",
+      sm: "px-2",
+    },
   },
   defaultVariants: {
     variant: "default",
+    inset: "none",
   },
 });
 
@@ -67,22 +70,21 @@ type AccordionItemProps = Omit<
   >,
   "children" | "className"
 > &
-  Pick<VariantProps<typeof accordionItemVariants>, "variant"> & {
+  Pick<VariantProps<typeof accordionItemVariants>, "inset" | "variant"> & {
     children: React.ReactNode;
-    className?: "px-2";
   };
 
 const Accordion = AccordionPrimitive.Root;
 
 function AccordionItem({
   children,
-  className,
+  inset,
   value,
   variant,
 }: AccordionItemProps) {
   return (
     <AccordionPrimitive.Item
-      className={cn(accordionItemVariants({ variant }), className)}
+      className={accordionItemVariants({ inset, variant })}
       value={value}
     >
       {children}
