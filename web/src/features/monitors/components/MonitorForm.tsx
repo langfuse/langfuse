@@ -1,14 +1,14 @@
 /* eslint-disable @repo/no-style-props */
 import React, { useMemo, useRef } from "react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
-import { type LucideIcon, Plus } from "lucide-react";
+import { ChevronDown, type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import {
   Card,
   CardContent,
@@ -659,13 +659,16 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
-                <Accordion type="single" collapsible>
-                  <Accordion.Item value="advanced" variant="none">
-                    <Accordion.Trigger size="sm" variant="start">
-                      Advanced Options
-                    </Accordion.Trigger>
-                    <Accordion.Content>
-                      <div className="space-y-6 px-1 pt-2">
+                <AccordionPrimitive.Root type="single" collapsible>
+                  <AccordionPrimitive.Item value="advanced">
+                    <AccordionPrimitive.Header className="flex">
+                      <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        Advanced Options
+                      </AccordionPrimitive.Trigger>
+                    </AccordionPrimitive.Header>
+                    <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+                      <div className="space-y-6 px-1 pt-2 pb-4">
                         <FormField
                           control={form.control}
                           name="noData"
@@ -695,9 +698,9 @@ export const MonitorForm = ({
                           )}
                         />
                       </div>
-                    </Accordion.Content>
-                  </Accordion.Item>
-                </Accordion>
+                    </AccordionPrimitive.Content>
+                  </AccordionPrimitive.Item>
+                </AccordionPrimitive.Root>
               </Section>
 
               <Section title="Notifications" step={3} className="pb-2">
