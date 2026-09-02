@@ -36,7 +36,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { GitCompareArrows, LightbulbIcon } from "lucide-react";
+import { ChevronDown, GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -59,7 +59,7 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 import {
@@ -868,33 +868,36 @@ export default function ExperimentsTable({
 
           {/* Charts section - Collapsible Accordion */}
           {tableDateRange && (
-            <Accordion
+            <AccordionPrimitive.Root
               type="single"
               collapsible
               value={accordionValue}
               onValueChange={handleChartsAccordionChange}
             >
-              <Accordion.Item value="charts" variant="top">
-                <div className="px-3">
-                  <Accordion.Trigger variant="section">
+              <AccordionPrimitive.Item className="border-t" value="charts">
+                <AccordionPrimitive.Header className="flex">
+                  <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between px-3 pt-2 pb-1 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold">Charts</span>
                     </div>
-                  </Accordion.Trigger>
-                </div>
-                <Accordion.Content size="compact">
-                  <div className="max-h-[40dvh] overflow-x-auto">
-                    <ExperimentChartsGrid
-                      projectId={projectId}
-                      experiments={chartExperiments}
-                      fromTimestamp={tableDateRange.from}
-                      toTimestamp={tableDateRange.to}
-                      isExternalLoading={experiments.status === "loading"}
-                    />
+                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  </AccordionPrimitive.Trigger>
+                </AccordionPrimitive.Header>
+                <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+                  <div className="px-3 pt-1 pb-1">
+                    <div className="max-h-[40dvh] overflow-x-auto">
+                      <ExperimentChartsGrid
+                        projectId={projectId}
+                        experiments={chartExperiments}
+                        fromTimestamp={tableDateRange.from}
+                        toTimestamp={tableDateRange.to}
+                        isExternalLoading={experiments.status === "loading"}
+                      />
+                    </div>
                   </div>
-                </Accordion.Content>
-              </Accordion.Item>
-            </Accordion>
+                </AccordionPrimitive.Content>
+              </AccordionPrimitive.Item>
+            </AccordionPrimitive.Root>
           )}
 
           {/* Content area with sidebar and table */}
