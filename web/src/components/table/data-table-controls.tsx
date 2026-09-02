@@ -544,6 +544,7 @@ export function DataTableControls({
           onOnlyChange={filter.onOnlyChange}
           renderIcon={filter.renderIcon}
           renderOptionSuffix={filter.renderOptionSuffix}
+          getOptionTitle={filter.getOptionTitle}
           isActive={filter.isActive}
           onReset={filter.onReset}
           operator={filter.operator}
@@ -1291,6 +1292,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
   renderOptionSuffix?: (value: string) => React.ReactNode;
+  getOptionTitle?: (value: string, displayLabel: string) => string;
   operator?: "any of" | "all of" | "none of";
   onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
@@ -1592,6 +1594,7 @@ export function CategoricalFacet({
   onOnlyChange,
   renderIcon,
   renderOptionSuffix,
+  getOptionTitle,
   isActive,
   isDisabled,
   disabledReason,
@@ -1672,6 +1675,7 @@ export function CategoricalFacet({
             onOnlyChange={onOnlyChange}
             renderIcon={renderIcon}
             renderOptionSuffix={renderOptionSuffix}
+            getOptionTitle={getOptionTitle}
             operator={operator}
             onOperatorChange={onOperatorChange}
           />
@@ -1713,6 +1717,7 @@ function CategoricalSelectContent({
   onOnlyChange,
   renderIcon,
   renderOptionSuffix,
+  getOptionTitle,
   operator,
   onOperatorChange,
 }: Pick<
@@ -1727,6 +1732,7 @@ function CategoricalSelectContent({
   | "onOnlyChange"
   | "renderIcon"
   | "renderOptionSuffix"
+  | "getOptionTitle"
   | "operator"
   | "onOperatorChange"
 >) {
@@ -1809,6 +1815,7 @@ function CategoricalSelectContent({
         key={option}
         id={`${filterKey}-${option}`}
         label={displayLabel}
+        title={getOptionTitle?.(option, displayLabel)}
         icon={renderIcon?.(option)}
         suffix={renderOptionSuffix?.(option)}
         count={counts.get(option) || 0}
@@ -2630,6 +2637,7 @@ function TextFilterSection({
 interface FilterValueCheckboxProps {
   id: string;
   label: string;
+  title?: string;
   icon?: React.ReactNode;
   suffix?: React.ReactNode;
   count: number;
@@ -2643,6 +2651,7 @@ interface FilterValueCheckboxProps {
 function FilterValueCheckbox({
   id,
   label,
+  title,
   icon,
   suffix,
   count,
@@ -2657,7 +2666,7 @@ function FilterValueCheckbox({
 
   // Display placeholder for empty strings to ensure clickable area
   const displayLabel = label === "" ? "(empty)" : label;
-  const displayTitle = label === "" ? "(empty)" : label;
+  const displayTitle = title ?? (label === "" ? "(empty)" : label);
 
   return (
     <div

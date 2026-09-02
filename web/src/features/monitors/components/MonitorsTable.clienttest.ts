@@ -57,6 +57,18 @@ describe("getMonitorFilterConfig", () => {
       ),
     ).toBe(true);
   });
+
+  it("includes the evaluator ID in the option hover title", () => {
+    const evaluatorFacet = getMonitorFilterConfig(true).facets.find(
+      (facet) => facet.column === "evaluatorId" && facet.type === "categorical",
+    );
+
+    expect(
+      evaluatorFacet?.type === "categorical"
+        ? evaluatorFacet.getOptionTitle?.("evaluator-1", "Answer quality")
+        : undefined,
+    ).toBe("Answer quality (evaluator-1)");
+  });
 });
 
 describe("filterStateToListMonitorFilter", () => {

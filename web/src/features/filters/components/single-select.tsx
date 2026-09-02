@@ -30,6 +30,7 @@ export function SingleSelect({
   className,
   disabled,
   isCustomSelectEnabled = false,
+  showOptionValue = false,
 }: {
   /** title labels the search box and stands in as the empty-state placeholder. */
   title?: string;
@@ -40,6 +41,8 @@ export function SingleSelect({
   disabled?: boolean;
   /** isCustomSelectEnabled offers the typed search text as a custom value. */
   isCustomSelectEnabled?: boolean;
+  /** Shows the stable option value in muted brackets after its display label. */
+  showOptionValue?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -48,9 +51,35 @@ export function SingleSelect({
     () => options.find((option) => option.value === value),
     [options, value],
   );
+  const duplicateDisplayValues = useMemo(() => {
+    const counts = new Map<string, number>();
+    options.forEach((option) => {
+      if (option.displayValue) {
+        counts.set(
+          option.displayValue,
+          (counts.get(option.displayValue) ?? 0) + 1,
+        );
+      }
+    });
+    return new Set(
+      [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([displayValue]) => displayValue),
+    );
+  }, [options]);
+  const shouldShowOptionValue = (option: FilterOption | undefined) =>
+    Boolean(
+      showOptionValue &&
+      option?.displayValue &&
+      duplicateDisplayValues.has(option.displayValue),
+    );
   const hasValue = value !== undefined && value !== "";
   const isCustomValue = hasValue && selectedOption === undefined;
   const label = hasValue ? (selectedOption?.displayValue ?? value) : undefined;
+  const selectedTitle =
+    showOptionValue && selectedOption?.displayValue
+      ? `${selectedOption.displayValue} (${selectedOption.value})`
+      : (label ?? title);
 
   // Hoist the selected option to the top so it reads as current.
   const displayOptions = useMemo<FilterOption[]>(() => {
@@ -109,15 +138,41 @@ export function SingleSelect({
           )}
         >
           <span
-            className={cn("truncate", !hasValue && "text-muted-foreground")}
-            title={label ?? title}
+            className={cn(
+              "flex min-w-0 items-center gap-1",
+              !hasValue && "text-muted-foreground",
+            )}
+            title={selectedTitle}
           >
-            {label ?? title ?? "Select"}
+            <span
+              className={cn(
+                shouldShowOptionValue(selectedOption)
+                  ? "max-w-[calc(100%-3rem)] shrink-0 truncate"
+                  : "truncate",
+              )}
+              title={selectedTitle}
+            >
+              {label ?? title ?? "Select"}
+            </span>
+            {shouldShowOptionValue(selectedOption) ? (
+              <span
+                className="text-muted-foreground min-w-0 truncate font-normal"
+                title={selectedOption.value}
+              >
+                ({selectedOption.value})
+              </span>
+            ) : null}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="start">
+      <PopoverContent
+        className={cn(
+          "max-w-[calc(100vw-2rem)] p-0",
+          showOptionValue ? "w-[400px]" : "w-[200px]",
+        )}
+        align="start"
+      >
         <InputCommand shouldFilter={false}>
           <InputCommandInput
             placeholder={title}
@@ -137,6 +192,11 @@ export function SingleSelect({
               {filteredOptions.map((option) => {
                 const isSelected = option.value === value;
                 const displayValue = option.displayValue ?? option.value;
+                const showValue = shouldShowOptionValue(option);
+                const optionTitle =
+                  showOptionValue && option.displayValue
+                    ? `${displayValue} (${option.value})`
+                    : displayValue;
 
                 const commandItem = (
                   <InputCommandItem
@@ -160,10 +220,27 @@ export function SingleSelect({
                       )}
                     />
                     <div
-                      className="overflow-x-hidden text-ellipsis whitespace-nowrap"
-                      title={displayValue}
+                      className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+                      title={optionTitle}
                     >
-                      {displayValue}
+                      <span
+                        className={cn(
+                          showValue
+                            ? "max-w-[calc(100%-3rem)] shrink-0 truncate"
+                            : "truncate",
+                        )}
+                        title={optionTitle}
+                      >
+                        {displayValue}
+                      </span>
+                      {showValue ? (
+                        <span
+                          className="text-muted-foreground min-w-0 truncate font-normal"
+                          title={option.value}
+                        >
+                          ({option.value})
+                        </span>
+                      ) : null}
                     </div>
                     {option.count !== undefined ? (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">

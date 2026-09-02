@@ -73,4 +73,39 @@ describe("SingleSelect", () => {
 
     expect(onValueChange).toHaveBeenCalledWith("evaluator-1");
   });
+
+  it("shows stable option values only for duplicate display labels", () => {
+    render(
+      <SingleSelect
+        title="Evaluator"
+        value="evaluator-1"
+        options={[
+          { value: "evaluator-1", displayValue: "Answer quality" },
+          { value: "evaluator-2", displayValue: "Answer quality" },
+          { value: "evaluator-3", displayValue: "Hallucination" },
+        ]}
+        onValueChange={() => {}}
+        showOptionValue
+      />,
+    );
+
+    expect(screen.getByText("Answer quality")).toHaveClass("shrink-0");
+    expect(screen.getByText("(evaluator-1)")).toHaveClass(
+      "text-muted-foreground",
+      "font-normal",
+      "truncate",
+    );
+
+    open();
+    expect(screen.getAllByText("(evaluator-1)")).toHaveLength(2);
+    expect(screen.getByText("(evaluator-2)")).toBeInTheDocument();
+    expect(screen.queryByText("(evaluator-3)")).not.toBeInTheDocument();
+    expect(screen.getByText("Hallucination")).toHaveAttribute(
+      "title",
+      "Hallucination (evaluator-3)",
+    );
+    expect(screen.getByText("Hallucination").parentElement).toHaveClass(
+      "flex-1",
+    );
+  });
 });
