@@ -1,7 +1,8 @@
 services:
   clickhouse:
     # Upgrade from 24.3 to check behaviour on new events table.
-    # Unit tests still verify 24.3 behaviour using -azure and -redis-cluster configs.
+    # The -azure config still verifies 24.3 behaviour; -redis-cluster runs the
+    # newest supported ClickHouse.
     image: docker.io/clickhouse/clickhouse-server:25.12
     user: "101:101"
     container_name: ${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}

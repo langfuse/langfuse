@@ -21,6 +21,7 @@ import {
   traceException,
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -306,9 +307,9 @@ export const ingestionQueueProcessorBuilder = (
           event_id: job.data.payload.data.fileKey,
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           bucket_path: `${bucketPrefix}${fileName}`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
-          event_ts: new Date().getTime(),
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+          event_ts: toClickhouseDateTime(),
           is_deleted: 0,
         });
       }

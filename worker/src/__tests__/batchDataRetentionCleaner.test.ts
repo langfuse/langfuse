@@ -16,6 +16,7 @@ import {
   createScoresCh,
   createTraceScore,
   queryClickhouse,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
@@ -162,8 +163,8 @@ async function insertRetentionTestRows(
     format: "JSONEachRow",
     values: rows.map((row) => ({
       project_id: row.projectId,
-      start_time: row.startTime,
-      event_ts: Date.now(),
+      start_time: toClickhouseDateTime(row.startTime),
+      event_ts: toClickhouseDateTime(),
     })),
   });
 }

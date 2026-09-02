@@ -1759,7 +1759,9 @@ describe("MCP Read Tools", () => {
             projectId,
             traceId,
             name: `mcp-metrics-custom-limit-${index}-${nanoid()}`,
-            startTime: new Date(`2026-01-01T00:00:${index}.000Z`),
+            startTime: new Date(
+              `2026-01-01T00:00:${String(index).padStart(2, "0")}.000Z`,
+            ),
           }),
         ),
       );

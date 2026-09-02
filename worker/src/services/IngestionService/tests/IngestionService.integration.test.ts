@@ -139,7 +139,7 @@ describe("Ingestion end-to-end tests", () => {
     const secondSpanId = randomUUID();
     const wireStartTimeA = "2026-01-01T12:00:00.123456Z";
     const wireStartTimeB = "2026-01-01T12:00:00.123789Z";
-    const normalizedStartTime = Date.parse(wireStartTimeA) * 1000;
+    const normalizedStartTime = "2026-01-01 12:00:00.123";
 
     const eventRecords = await Promise.all(
       [
@@ -169,9 +169,6 @@ describe("Ingestion end-to-end tests", () => {
       normalizedStartTime,
       normalizedStartTime,
     ]);
-    expect(eventRecords.every((record) => record.start_time % 1000 === 0)).toBe(
-      true,
-    );
 
     eventRecords.forEach((record) => ingestionService.writeEventRecord(record));
     await clickhouseWriter.flushAll(true);
