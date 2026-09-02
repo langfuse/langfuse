@@ -1889,6 +1889,7 @@ export default function ExperimentItemsTable({
                   scoreRows={matrixScoreRows}
                   experiments={matrixExperiments}
                   isLoading={items.status === "loading" || isViewLoading}
+                  pagination={pagination}
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center">
