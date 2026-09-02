@@ -52,7 +52,7 @@ export const decomposeAggregateScoreKey = (
  * whether a score is present at all. Keyed by normalized score name and summed
  * across sources and data types, so a surface can prefer the best-recorded
  * score over whichever name sorts first. Client-side, from data already
- * fetched. (LFE-15711)
+ * fetched.
  */
 export const collectScoreNameCoverage = (
   aggregates: (ScoreAggregate | null | undefined)[],

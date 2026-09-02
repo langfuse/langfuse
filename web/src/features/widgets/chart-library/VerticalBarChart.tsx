@@ -98,7 +98,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
             niceTicks="auto"
             // Same treatment prepareTimeAxis gives a hidden categorical axis:
             // every tick drawn, label-less, on a slim axis. The category stays
-            // in the legend and the tooltip. (LFE-15711)
+            // in the legend and the tooltip.
             {...(hideXAxisLabels
               ? { interval: 0, tickFormatter: () => "", height: 8 }
               : {})}
@@ -112,7 +112,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
             niceTicks="auto"
             // `min(0, dataMin)` rather than a flat 0 so a negative series (a
             // delta) still fits, and the max keeps `"auto"`, which is what lets
-            // niceTicks round the top of the scale. (LFE-15711)
+            // niceTicks round the top of the scale.
             {...(zeroBaseline
               ? {
                   domain: [

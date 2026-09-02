@@ -47,7 +47,7 @@ const booleanOnlyScoreNames = (
  * that the experiments in view carry no scores — and only the score-options
  * query can assert it. Until it has, the strip must show its loading state:
  * reporting ready would put "Cost ($)" in the header of a project full of
- * scores. (LFE-15711)
+ * scores.
  */
 export function useExperimentStripMetric({
   projectId,
