@@ -76,11 +76,12 @@ type TabsListProps = {
 } & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
 type TabsRootProps = {
   children: React.ReactNode;
-  defaultValue?: string;
   onValueChange?: (value: string) => void;
   ref?: React.Ref<HTMLDivElement>;
-  value?: string;
-};
+} & (
+  | { defaultValue: string; value?: never }
+  | { defaultValue?: never; value: string }
+);
 
 function Tabs({
   children,
