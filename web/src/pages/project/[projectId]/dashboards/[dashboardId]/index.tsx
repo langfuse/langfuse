@@ -66,7 +66,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import {
   parsePastedWidget,
   toWidgetCreateFields,
@@ -1153,14 +1153,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     ],
   );
 
-  const scheduler = useDashboardQueryScheduler({
+  const schedulerStore = useDashboardQueryScheduler({
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
 
   return (
     <DashboardQuerySchedulerProvider
-      scheduler={scheduler}
+      store={schedulerStore}
       shouldBucketQueriesByTimeRange={!("from" in timeRange)}
     >
       <Page

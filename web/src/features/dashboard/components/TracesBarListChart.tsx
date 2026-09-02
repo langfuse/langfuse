@@ -8,7 +8,7 @@ import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
 
 // Cap on bars fetched and rendered; the top list scrolls within the tile when

@@ -7,39 +7,21 @@ import { hashKey, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import {
   createContext,
   type ReactNode,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useStore } from "zustand";
+import {
+  createDashboardQuerySchedulerStore,
+  type DashboardQuerySchedulerStore,
+} from "@/src/features/dashboard/stores/dashboardQuerySchedulerStore";
 import {
   useSSEDashboardQuery,
   type QueryProgress,
 } from "@/src/hooks/useSSEDashboardQuery";
-
-type SchedulerItemStatus = "queued" | "running" | "done";
-
-type SchedulerItem = {
-  id: string;
-  priority: number;
-  isEligible: boolean;
-  runKey: string;
-  status: SchedulerItemStatus;
-};
-
-export type DashboardQuerySchedulerApi = {
-  register: (
-    id: string,
-    priority: number,
-    isEligible?: boolean,
-    runKey?: string,
-  ) => void;
-  unregister: (id: string) => void;
-  canFetch: (id: string) => boolean;
-  markDone: (id: string) => void;
-};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SECOND_MS = 1000;
@@ -102,156 +84,42 @@ const parseIsoDateMs = (value: unknown): number | null => {
   return parsedMs;
 };
 
+/**
+ * Owns one per-mount scheduler store for a dashboard page: creates it lazily
+ * and syncs the two page-driven inputs (concurrency budget, reset key) into
+ * store actions. Scheduler state changes no longer re-render the page — the
+ * store notifies only the widgets whose slot changed.
+ */
 export const useDashboardQueryScheduler = ({
   maxConcurrent,
   resetKey,
 }: {
   maxConcurrent: number;
   resetKey?: string;
-}): DashboardQuerySchedulerApi => {
-  const itemsRef = useRef<Map<string, SchedulerItem>>(new Map());
-  const [_version, setVersion] = useState(0);
-  const previousResetKeyRef = useRef<string | undefined>(resetKey);
-
-  const syncQueue = useCallback(() => {
-    const items = itemsRef.current;
-    let runningCount = 0;
-    let changed = false;
-
-    for (const item of items.values()) {
-      if (item.status === "running") {
-        runningCount += 1;
-      }
-    }
-
-    const candidates = Array.from(items.values())
-      .filter((item) => item.status === "queued" && item.isEligible)
-      .sort((a, b) => a.priority - b.priority);
-
-    for (const candidate of candidates) {
-      if (runningCount >= maxConcurrent) break;
-      candidate.status = "running";
-      runningCount += 1;
-      changed = true;
-    }
-
-    if (changed) {
-      setVersion((value) => value + 1);
-    }
-  }, [maxConcurrent]);
-
-  const register = useCallback(
-    (id: string, priority: number, isEligible = true, runKey: string = id) => {
-      const existingItem = itemsRef.current.get(id);
-
-      if (!existingItem) {
-        itemsRef.current.set(id, {
-          id,
-          priority,
-          isEligible,
-          runKey,
-          status: "queued",
-        });
-        syncQueue();
-        return;
-      }
-
-      const didRunKeyChange = existingItem.runKey !== runKey;
-      const shouldRequeue = didRunKeyChange && existingItem.status === "done";
-      const didChange =
-        existingItem.priority !== priority ||
-        existingItem.isEligible !== isEligible ||
-        didRunKeyChange ||
-        shouldRequeue;
-
-      if (didChange) {
-        existingItem.priority = priority;
-        existingItem.isEligible = isEligible;
-        existingItem.runKey = runKey;
-        if (shouldRequeue) {
-          existingItem.status = "queued";
-        }
-        setVersion((value) => value + 1);
-      }
-
-      syncQueue();
-    },
-    [syncQueue],
+}): DashboardQuerySchedulerStore => {
+  const [store] = useState(() =>
+    createDashboardQuerySchedulerStore({ maxConcurrent }),
   );
-
-  const unregister = useCallback(
-    (id: string) => {
-      const existing = itemsRef.current.get(id);
-      if (!existing) return;
-
-      itemsRef.current.delete(id);
-      setVersion((value) => value + 1);
-
-      if (existing.status === "running") {
-        syncQueue();
-      }
-    },
-    [syncQueue],
-  );
-
-  const markDone = useCallback(
-    (id: string) => {
-      const item = itemsRef.current.get(id);
-      if (!item || item.status === "done") return;
-
-      item.status = "done";
-      setVersion((value) => value + 1);
-      syncQueue();
-    },
-    [syncQueue],
-  );
-
-  const resetQueue = useCallback(() => {
-    let changed = false;
-
-    for (const item of itemsRef.current.values()) {
-      if (item.status !== "queued") {
-        item.status = "queued";
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      setVersion((value) => value + 1);
-    }
-
-    syncQueue();
-  }, [syncQueue]);
-
-  const canFetch = useCallback((id: string) => {
-    const item = itemsRef.current.get(id);
-    if (!item) return false;
-    return item.status === "running";
-  }, []);
 
   useEffect(() => {
-    syncQueue();
-  }, [maxConcurrent, syncQueue]);
+    if (store.getState().maxConcurrent !== maxConcurrent) {
+      store.getState().actions.setMaxConcurrent(maxConcurrent);
+    }
+  }, [maxConcurrent, store]);
 
+  // Re-queue everything only when the key actually changes — never on mount.
+  const previousResetKeyRef = useRef<string | undefined>(resetKey);
   useEffect(() => {
     if (previousResetKeyRef.current === resetKey) return;
     previousResetKeyRef.current = resetKey;
-    resetQueue();
-  }, [resetKey, resetQueue]);
+    store.getState().actions.resetQueue();
+  }, [resetKey, store]);
 
-  return {
-    register,
-    unregister,
-    canFetch,
-    markDone,
-  };
+  return store;
 };
 
 type DashboardQuerySchedulerContextValue = {
-  scheduler: Pick<
-    DashboardQuerySchedulerApi,
-    "register" | "unregister" | "canFetch" | "markDone"
-  >;
+  store: DashboardQuerySchedulerStore;
   shouldBucketQueriesByTimeRange: boolean;
 };
 
@@ -259,31 +127,17 @@ const DashboardQuerySchedulerContext =
   createContext<DashboardQuerySchedulerContextValue | null>(null);
 
 export const DashboardQuerySchedulerProvider = ({
-  scheduler,
+  store,
   shouldBucketQueriesByTimeRange = false,
   children,
 }: {
-  scheduler: DashboardQuerySchedulerContextValue["scheduler"];
+  store: DashboardQuerySchedulerStore;
   shouldBucketQueriesByTimeRange?: boolean;
   children: ReactNode;
 }) => {
   const contextValue = useMemo(
-    () => ({
-      scheduler: {
-        register: scheduler.register,
-        unregister: scheduler.unregister,
-        canFetch: scheduler.canFetch,
-        markDone: scheduler.markDone,
-      },
-      shouldBucketQueriesByTimeRange,
-    }),
-    [
-      scheduler.register,
-      scheduler.unregister,
-      scheduler.canFetch,
-      scheduler.markDone,
-      shouldBucketQueriesByTimeRange,
-    ],
+    () => ({ store, shouldBucketQueriesByTimeRange }),
+    [store, shouldBucketQueriesByTimeRange],
   );
 
   return (
@@ -293,9 +147,15 @@ export const DashboardQuerySchedulerProvider = ({
   );
 };
 
-const useDashboardQuerySchedulerContext = () => {
-  return useContext(DashboardQuerySchedulerContext);
-};
+// Surfaces without a provider (e.g. a single widget embedded outside a
+// dashboard) share one unmanaged store with an unlimited budget: every
+// registration is promoted immediately, so `canFetch` is effectively true.
+// Because it is shared module-wide, provider-less consumers must use
+// queryIds unique per mounted instance — a collision would let one
+// consumer's unmount unregister the other's slot.
+const unmanagedSchedulerStore = createDashboardQuerySchedulerStore({
+  maxConcurrent: Number.POSITIVE_INFINITY,
+});
 
 type DashboardExecuteQueryInput = RouterInputs["dashboard"]["executeQuery"];
 type DashboardExecuteQueryOutput = RouterOutputs["dashboard"]["executeQuery"];
@@ -440,12 +300,10 @@ export const useScheduledDashboardExecuteQuery = (
   progress: QueryProgress | null;
   error: string | null;
 } => {
-  const context = useDashboardQuerySchedulerContext();
+  const context = useContext(DashboardQuerySchedulerContext);
   const utils = api.useUtils();
-  const scheduler = context?.scheduler;
-  const register = scheduler?.register;
-  const unregister = scheduler?.unregister;
-  const markDone = scheduler?.markDone;
+  const store = context?.store ?? unmanagedSchedulerStore;
+  const { actions } = store.getState();
   const shouldBucketQueriesByTimeRange =
     context?.shouldBucketQueriesByTimeRange ?? false;
   const cachePolicy = useMemo(
@@ -473,18 +331,21 @@ export const useScheduledDashboardExecuteQuery = (
   const { trpc, ...reactQueryOptions } = queryOptions;
 
   useEffect(() => {
-    if (!unregister) return;
     return () => {
-      unregister(queryId);
+      actions.unregister(queryId);
     };
-  }, [queryId, unregister]);
+  }, [queryId, actions]);
 
   useEffect(() => {
-    if (!register) return;
-    register(queryId, priority, enabled, effectiveRunKey);
-  }, [effectiveRunKey, enabled, priority, queryId, register]);
+    actions.register(queryId, priority, enabled, effectiveRunKey);
+  }, [effectiveRunKey, enabled, priority, queryId, actions]);
 
-  const canFetch = scheduler ? scheduler.canFetch(queryId) : true;
+  // Reactive slot subscription: only this widget re-renders when its slot
+  // opens — never the page or its siblings.
+  const canFetch = useStore(
+    store,
+    (state) => state.items[queryId]?.status === "running",
+  );
 
   // tRPC path (default)
   const trpcResult = useQuery<DashboardExecuteQueryOutput, Error>({
@@ -503,26 +364,34 @@ export const useScheduledDashboardExecuteQuery = (
     meta,
   });
 
-  // SSE path (opt-in)
+  // SSE path (opt-in) — same cache key as the tRPC path, so identical widgets
+  // share one stream and a transport flip reuses cached rows.
   const sseResult = useSSEDashboardQuery(input, {
     enabled: enabled && canFetch && useSSE,
-    inputKey: effectiveRunKey,
-    queryId,
+    queryKey: queryCacheKey,
+    staleTime:
+      typeof queryOptions.staleTime === "number"
+        ? queryOptions.staleTime
+        : cachePolicy.staleTime,
+    gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
+    meta,
   });
 
   const activeResult = useSSE ? sseResult : trpcResult;
 
+  // Release the scheduler slot whenever this query stops fetching for ANY
+  // reason — success, error, stall timeout, or abort. Holding a slot on a
+  // failed stream would freeze the whole dashboard at low concurrency.
   useEffect(() => {
-    if (!markDone) return;
     if (!enabled || !canFetch) return;
     if (activeResult.fetchStatus !== "idle") return;
     if (activeResult.isPending) return;
 
-    markDone(queryId);
+    actions.markDone(queryId);
   }, [
     canFetch,
     enabled,
-    markDone,
+    actions,
     queryId,
     activeResult.fetchStatus,
     activeResult.isPending,

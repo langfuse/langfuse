@@ -5,14 +5,14 @@
  * reset key changes (see `resetQueue`). The reset key must therefore depend
  * only on genuinely query-affecting params (time range, filters, environment)
  * and NOT on the set of widgets present — otherwise adding a widget re-runs
- * every sibling, which on the SSE path blanks already-rendered charts
- * (LFE-10986).
+ * every sibling, which on the SSE path blanks already-rendered charts.
  */
 import { act, renderHook } from "@testing-library/react";
 import {
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { type DashboardQuerySchedulerStore } from "@/src/features/dashboard/stores/dashboardQuerySchedulerStore";
 
 describe("getDashboardSchedulerResetKey", () => {
   const base = {
@@ -26,7 +26,7 @@ describe("getDashboardSchedulerResetKey", () => {
 
   it("is composed of only query-affecting params (never the widget set)", () => {
     // Pinning the exact composition guards against re-introducing the widget
-    // id list, which would re-queue every sibling on "Add Widget" (LFE-10986).
+    // id list, which would re-queue every sibling on "Add Widget".
     expect(getDashboardSchedulerResetKey(base)).toBe(
       "project-1|dashboard-1|2026-01-01T00:00:00.000Z|2026-01-08T00:00:00.000Z|[]|default",
     );
@@ -61,39 +61,43 @@ describe("getDashboardSchedulerResetKey", () => {
 });
 
 describe("useDashboardQueryScheduler", () => {
+  const canFetch = (store: DashboardQuerySchedulerStore, id: string) =>
+    store.getState().items[id]?.status === "running";
+
   // Characterizes `register`'s incremental behavior (a new id is inserted as
   // `queued` and scheduled without iterating existing items). This is the
-  // property the reset-key fix relies on — not itself a guard for LFE-10986
-  // (register never touched siblings, pre- or post-fix). The regression guard
-  // for the bug is the getDashboardSchedulerResetKey composition test above.
+  // property the reset-key contract relies on (register never touched
+  // siblings, pre- or post-fix). The regression guard for the add-a-widget
+  // bug is the getDashboardSchedulerResetKey composition test above.
   it("schedules a newly registered widget without touching done siblings", () => {
     const { result } = renderHook(() =>
       useDashboardQueryScheduler({ maxConcurrent: 2, resetKey: "k1" }),
     );
+    const { actions } = result.current.getState();
 
     act(() => {
-      result.current.register("w1", 1);
-      result.current.register("w2", 2);
+      actions.register("w1", 1);
+      actions.register("w2", 2);
     });
 
     // Both promoted (maxConcurrent = 2) then completed.
     act(() => {
-      result.current.markDone("w1");
-      result.current.markDone("w2");
+      actions.markDone("w1");
+      actions.markDone("w2");
     });
 
-    expect(result.current.canFetch("w1")).toBe(false);
-    expect(result.current.canFetch("w2")).toBe(false);
+    expect(canFetch(result.current, "w1")).toBe(false);
+    expect(canFetch(result.current, "w2")).toBe(false);
 
     // "Add Widget": a brand-new placement registers and schedules on its own.
     act(() => {
-      result.current.register("w3", 3);
+      actions.register("w3", 3);
     });
 
-    expect(result.current.canFetch("w3")).toBe(true);
+    expect(canFetch(result.current, "w3")).toBe(true);
     // The done siblings must stay done — never re-queued/re-run.
-    expect(result.current.canFetch("w1")).toBe(false);
-    expect(result.current.canFetch("w2")).toBe(false);
+    expect(canFetch(result.current, "w1")).toBe(false);
+    expect(canFetch(result.current, "w2")).toBe(false);
   });
 
   it("re-queues completed widgets when the reset key changes", () => {
@@ -102,19 +106,49 @@ describe("useDashboardQueryScheduler", () => {
         useDashboardQueryScheduler({ maxConcurrent: 5, resetKey }),
       { initialProps: { resetKey: "k1" } },
     );
+    const { actions } = result.current.getState();
 
     act(() => {
-      result.current.register("w1", 1);
+      actions.register("w1", 1);
     });
     act(() => {
-      result.current.markDone("w1");
+      actions.markDone("w1");
     });
 
-    expect(result.current.canFetch("w1")).toBe(false);
+    expect(canFetch(result.current, "w1")).toBe(false);
 
     // A genuine query-param change (new reset key) must refresh everything.
     rerender({ resetKey: "k2" });
 
-    expect(result.current.canFetch("w1")).toBe(true);
+    expect(canFetch(result.current, "w1")).toBe(true);
+  });
+
+  it("holds queued widgets until a running slot frees, in priority order", () => {
+    const { result } = renderHook(() =>
+      useDashboardQueryScheduler({ maxConcurrent: 1, resetKey: "k1" }),
+    );
+    const { actions } = result.current.getState();
+
+    act(() => {
+      actions.register("late", 10);
+      actions.register("early", 1);
+    });
+
+    // One slot: "late" grabbed it on registration; "early" waits.
+    expect(canFetch(result.current, "late")).toBe(true);
+    expect(canFetch(result.current, "early")).toBe(false);
+
+    // Slot frees on ANY completion path (done or unmount) — the waiter with
+    // the lowest priority value runs next.
+    act(() => {
+      actions.markDone("late");
+    });
+    expect(canFetch(result.current, "early")).toBe(true);
+
+    act(() => {
+      actions.register("next", 5);
+      actions.unregister("early");
+    });
+    expect(canFetch(result.current, "next")).toBe(true);
   });
 });

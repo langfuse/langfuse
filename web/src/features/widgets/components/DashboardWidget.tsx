@@ -63,7 +63,7 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
