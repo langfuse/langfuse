@@ -71,7 +71,7 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
-import { NotRecordedMetric } from "./NotRecordedMetric";
+import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   baselineChangedProps,
@@ -671,7 +671,8 @@ export default function ExperimentsTable({
         );
       },
     },
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "latency",
       accessorKey: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
@@ -680,21 +681,16 @@ export default function ExperimentsTable({
         description: "Average duration of the root span per experiment item.",
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
-      emptyValue: <NotRecordedMetric metric="latency" />,
-      getValue: (value) =>
-        metricsLoading ? { type: "loading" } : (value ?? undefined),
+      metricsLoading,
     }),
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "cost",
       accessorKey: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
-      emptyValue: <NotRecordedMetric metric="cost" />,
-      // A run whose calls reported no usage or pricing sums to 0, which reads as
-      // free rather than as missing.
-      getValue: (value) =>
-        metricsLoading ? { type: "loading" } : value || undefined,
+      metricsLoading,
     }),
     {
       accessorKey: "traceItemScores",
