@@ -169,10 +169,15 @@ export const ToggleItem = meta.story({
     const canvas = within(canvasElement);
     const trigger = canvas.getByRole("button", { name: "Details" });
 
-    await expect(canvas.getByText("Hidden details")).not.toBeVisible();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByText("Hidden details")).not.toBeInTheDocument();
+
     await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
     await expect(canvas.getByText("Hidden details")).toBeVisible();
+
     await userEvent.click(trigger);
-    await expect(canvas.getByText("Hidden details")).not.toBeVisible();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByText("Hidden details")).not.toBeInTheDocument();
   },
 });
