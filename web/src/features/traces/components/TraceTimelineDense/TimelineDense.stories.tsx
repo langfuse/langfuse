@@ -1934,6 +1934,66 @@ export const FitStaysAfterATimeOnlyBox = meta.story({
   },
 });
 
+/**
+ * Panning a hairline overview is not a time zoom. Show labels must stay, or
+ * Fit would snap the window back to the top of the tree instead of naming
+ * the rows you just scrolled to.
+ */
+export const ShowLabelsSurvivesAVerticalPan = meta.story({
+  name: "(Test) Show Labels Survives A Vertical Pan",
+  args: {
+    roots: manySpans(800),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const show = () =>
+      canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label="Show labels"]',
+      );
+
+    await expect(readout()).toContain("fitted");
+    await expect(show()).not.toBeNull();
+
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        deltaY: 240,
+      }),
+    );
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+    await expect(readout()).toMatch(/1\.0px rows/);
+    await expect(show()).not.toBeNull();
+    await expect(
+      canvasElement.querySelector('button[aria-label="Fit whole trace"]'),
+    ).toBeNull();
+
+    if (!show()) throw new Error("Show labels vanished after a vertical pan");
+    await userEvent.click(show()!);
+    await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
+    await expect(readout()).toContain("zoomed");
+  },
+});
+
 /** Collapse in the tree means collapse here: the same set, honoured. */
 export const CollapsedRowsAreNotDrawn = meta.story({
   name: "(Test) Collapsed Rows Are Not Drawn",

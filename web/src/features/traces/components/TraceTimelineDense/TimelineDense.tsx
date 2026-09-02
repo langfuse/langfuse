@@ -495,9 +495,12 @@ export function TimelineDense({
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const canShowLabels = canExpandRowsToReadable(current, limits);
-  // Only replace Fit at rest. A time-zoomed hairline still needs one click
-  // back to the whole trace; Show labels would keep that narrow clock.
-  const offerShowLabels = canShowLabels && fitted;
+  // Replace Fit only while the whole clock is still on screen. A time-zoomed
+  // hairline needs one click back to the overview; Show labels would keep
+  // that narrow clock. A vertical pan of the overview is not a time zoom —
+  // Show labels should still grow the rows from where you are.
+  const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
+  const offerShowLabels = canShowLabels && clockFits;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   /**
