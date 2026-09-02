@@ -21,6 +21,7 @@ import {
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { normalizeBlobStorageRegion } from "../../utils/stringChecks";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import {
@@ -763,12 +764,16 @@ class S3StorageService implements StorageService {
         : undefined;
 
     const requestHandler = createS3RequestHandler(params.connectionValidation);
+    const region =
+      params.region === undefined
+        ? undefined
+        : normalizeBlobStorageRegion(params.region);
 
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
-      region: params.region,
+      region,
       forcePathStyle: params.forcePathStyle,
       // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
@@ -780,7 +785,7 @@ class S3StorageService implements StorageService {
     addS3DiagnosticsMiddleware(this.client, {
       bucketName: params.bucketName,
       endpoint: params.endpoint,
-      region: params.region,
+      region,
       forcePathStyle: params.forcePathStyle,
     });
 
@@ -791,7 +796,7 @@ class S3StorageService implements StorageService {
       ? new S3Client({
           credentials,
           endpoint: params.externalEndpoint,
-          region: params.region,
+          region,
           forcePathStyle: params.forcePathStyle,
           requestChecksumCalculation: "WHEN_REQUIRED",
           responseChecksumValidation: "WHEN_REQUIRED",
