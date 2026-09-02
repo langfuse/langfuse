@@ -63,13 +63,19 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
 type SupportFormInput = z.input<typeof SupportFormSchema>;
 export type SupportFormValues = z.output<typeof SupportFormSchema>;
 
+/** `kept` leaves the draft intact after an expected, already-surfaced failure. */
+export type SupportFormSubmitStatus = "success" | "kept";
+
 export type SupportFormProps = {
   canSelectHighSeverity: boolean;
   initialTopic: Topic | "";
   showV4MigrationTopic: boolean;
   onCancel: () => void;
   onSuccess: () => void;
-  onSubmit: (values: SupportFormValues, files: File[]) => Promise<void>;
+  onSubmit: (
+    values: SupportFormValues,
+    files: File[],
+  ) => Promise<SupportFormSubmitStatus>;
   onFileError: (message: string) => void;
 };
 
@@ -277,7 +283,10 @@ export function SupportForm({
         throw new Error(validation.error);
       }
 
-      await onSubmit(parsed, files ?? []);
+      const status = await onSubmit(parsed, files ?? []);
+      if (status === "kept") {
+        return;
+      }
 
       form.reset({
         messageType: "Question",

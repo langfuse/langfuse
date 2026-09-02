@@ -6,7 +6,11 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { isEnterpriseSupportPlan } from "./formConstants";
-import { SupportForm, type SupportFormValues } from "./SupportForm";
+import {
+  SupportForm,
+  type SupportFormSubmitStatus,
+  type SupportFormValues,
+} from "./SupportForm";
 
 export function ConnectedSupportFormSection({
   onCancel,
@@ -59,7 +63,10 @@ export function ConnectedSupportFormSection({
     return body.attachment_urls;
   }
 
-  const handleSubmit = async (values: SupportFormValues, files: File[]) => {
+  const handleSubmit = async (
+    values: SupportFormValues,
+    files: File[],
+  ): Promise<SupportFormSubmitStatus> => {
     // Upload attachments to Pylon. This is the only attachment path, so
     // do NOT swallow failures: let them propagate to SupportForm
     // (which surfaces the error via form.setError) instead of silently
@@ -100,8 +107,10 @@ export function ConnectedSupportFormSection({
         "Support request was not sent",
         "Please contact support@langfuse.com",
       );
-      throw new Error("Please contact support@langfuse.com");
+      return "kept";
     }
+
+    return "success";
   };
 
   return (

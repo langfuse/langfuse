@@ -11,7 +11,7 @@ const defaultArgs = {
   showV4MigrationTopic: false,
   onCancel: fn(),
   onSuccess: fn(),
-  onSubmit: fn(async () => undefined),
+  onSubmit: fn(async () => "success" as const),
   onFileError: fn(),
 } satisfies ComponentProps<typeof SupportForm>;
 
@@ -82,7 +82,7 @@ export const SubmitsRequest = meta.story({
   name: "(Test) Submits request",
   args: {
     ...defaultArgs,
-    onSubmit: fn(async () => undefined),
+    onSubmit: fn(async () => "success" as const),
     onSuccess: fn(),
   },
   play: async ({ canvasElement, args }) => {
@@ -111,7 +111,7 @@ export const ConfirmsSeverity1 = meta.story({
   args: {
     ...defaultArgs,
     canSelectHighSeverity: true,
-    onSubmit: fn(async () => undefined),
+    onSubmit: fn(async () => "success" as const),
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -144,5 +144,26 @@ export const ConfirmsSeverity1 = meta.story({
       }),
       [],
     );
+  },
+});
+
+export const KeepsFormWhenSubmitIsKept = meta.story({
+  name: "(Test) Keeps form when submit is kept",
+  args: {
+    ...defaultArgs,
+    initialTopic: "Observability",
+    onSubmit: fn(async () => "kept" as const),
+    onSuccess: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(getMessageField(canvasElement), LONG_MESSAGE);
+    await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
+
+    await expect(args.onSubmit).toHaveBeenCalled();
+    await expect(args.onSuccess).not.toHaveBeenCalled();
+    await expect(getMessageField(canvasElement)).toHaveValue(LONG_MESSAGE);
+    await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
   },
 });
