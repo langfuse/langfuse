@@ -82,8 +82,11 @@ type AccordionProps = Omit<
     | "type"
     | "value"
   >,
-  "className"
-> & { className?: "w-full" | "space-y-2" };
+  "children" | "className"
+> & {
+  children: React.ReactNode;
+  className?: "w-full" | "space-y-2";
+};
 
 function Accordion({ children, className, ...props }: AccordionProps) {
   return (
