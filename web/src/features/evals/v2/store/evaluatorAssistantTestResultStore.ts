@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type EvaluatorAssistantTestResult = {
+type EvaluatorAssistantTestResult = {
   toolCallId: string;
   result: unknown;
 };
