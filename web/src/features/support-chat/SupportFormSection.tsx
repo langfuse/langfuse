@@ -27,7 +27,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { RadioGroup } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import {
   AlertDialog,
   AlertDialogAction,

@@ -1,5 +1,5 @@
 import { Label } from "@/src/components/ui/label";
-import { RadioGroup } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import type { MappingMode } from "../types";
 
 type MappingModeSelectorProps = {

@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
-import { RadioGroup } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
 enum CopySettings {

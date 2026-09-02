@@ -22,7 +22,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { RadioGroup } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { RadioGroup } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import {
   Tooltip,
   TooltipContent,
