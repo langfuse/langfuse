@@ -28,8 +28,6 @@ const accordionTriggerVariants = cva(
           "justify-between py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180",
         section:
           "justify-between pt-2 pb-1 hover:no-underline [&[data-state=open]>svg]:rotate-180",
-        start:
-          "justify-start gap-2 py-2 hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0",
       },
       size: {
         default: "",
@@ -43,19 +41,14 @@ const accordionTriggerVariants = cva(
   },
 );
 
-const accordionItemVariants = cva("", {
+const accordionItemVariants = cva("border-b", {
   variants: {
-    variant: {
-      default: "border-b",
-      none: "",
-    },
     inset: {
       none: "",
       sm: "px-2",
     },
   },
   defaultVariants: {
-    variant: "default",
     inset: "none",
   },
 });
@@ -76,7 +69,7 @@ type AccordionItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
   "value"
 > &
-  Pick<VariantProps<typeof accordionItemVariants>, "inset" | "variant"> & {
+  Pick<VariantProps<typeof accordionItemVariants>, "inset"> & {
     children: React.ReactNode;
   };
 
@@ -107,15 +100,10 @@ function AccordionRoot({ children, gap, ...props }: AccordionProps) {
   );
 }
 
-function AccordionItem({
-  children,
-  inset,
-  value,
-  variant,
-}: AccordionItemProps) {
+function AccordionItem({ children, inset, value }: AccordionItemProps) {
   return (
     <AccordionPrimitive.Item
-      className={accordionItemVariants({ inset, variant })}
+      className={accordionItemVariants({ inset })}
       value={value}
     >
       {children}

@@ -7,9 +7,6 @@ import { Accordion } from "./Accordion";
 type TriggerVariant = NonNullable<
   React.ComponentProps<typeof Accordion.Trigger>["variant"]
 >;
-type ItemVariant = NonNullable<
-  React.ComponentProps<typeof Accordion.Item>["variant"]
->;
 type ContentSize = NonNullable<
   React.ComponentProps<typeof Accordion.Content>["size"]
 >;
@@ -22,13 +19,7 @@ const triggerVariants = Object.keys({
   default: true,
   plain: true,
   section: true,
-  start: true,
 } satisfies Record<TriggerVariant, true>) as TriggerVariant[];
-
-const itemVariants = Object.keys({
-  default: true,
-  none: true,
-} satisfies Record<ItemVariant, true>) as ItemVariant[];
 
 const contentSizes = Object.keys({
   default: true,
@@ -57,24 +48,6 @@ export const Default = meta.story({
   },
 });
 
-export const Start = meta.story({
-  args: {
-    type: "single",
-    collapsible: true,
-    defaultValue: "advanced",
-    children: (
-      <Accordion.Item value="advanced" variant="none">
-        <Accordion.Trigger size="sm" variant="start">
-          Advanced Options
-        </Accordion.Trigger>
-        <Accordion.Content>
-          Additional settings stay collapsed until needed.
-        </Accordion.Content>
-      </Accordion.Item>
-    ),
-  },
-});
-
 export const VariantMatrix = meta.story({
   parameters: {
     controls: {
@@ -94,21 +67,6 @@ export const VariantMatrix = meta.story({
             <Accordion.Item value="item">
               <Accordion.Trigger variant={variant}>{variant}</Accordion.Trigger>
               <Accordion.Content>Trigger variant {variant}</Accordion.Content>
-            </Accordion.Item>
-          </Accordion>
-        ))}
-      </div>
-      <div className="grid gap-4">
-        {itemVariants.map((variant) => (
-          <Accordion
-            key={variant}
-            type="single"
-            collapsible
-            defaultValue="item"
-          >
-            <Accordion.Item value="item" variant={variant}>
-              <Accordion.Trigger>Item {variant}</Accordion.Trigger>
-              <Accordion.Content>Item variant {variant}</Accordion.Content>
             </Accordion.Item>
           </Accordion>
         ))}
