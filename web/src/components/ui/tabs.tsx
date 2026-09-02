@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -77,12 +76,6 @@ type TabsListProps = {
 } & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
 type TabsRootProps = {
   children: React.ReactNode;
-  className?:
-    | "mt-4 w-full max-w-sm"
-    | "w-full"
-    | "ml-auto h-fit px-2 py-0.5"
-    | "mt-2"
-    | "h-fit py-0.5";
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   ref?: React.Ref<HTMLDivElement>;
@@ -91,7 +84,6 @@ type TabsRootProps = {
 
 function Tabs({
   children,
-  className,
   defaultValue,
   onValueChange,
   ref,
@@ -99,7 +91,6 @@ function Tabs({
 }: TabsRootProps) {
   return (
     <TabsPrimitive.Root
-      className={className}
       defaultValue={defaultValue}
       onValueChange={onValueChange}
       ref={ref}

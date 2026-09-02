@@ -137,35 +137,36 @@ function InAppAgentQuickActionPicker({
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
       </p>
-      <Tabs
-        value={selectedContext}
-        className="mt-4 w-full max-w-sm"
-        onValueChange={(value) => {
-          if (isInAppAgentQuickActionContext(value)) {
-            setSelectedContext(value);
-          }
-        }}
-      >
-        <TabsList
-          aria-label="Quick action category"
-          variant="underline"
-          size="auto"
-          layout="full"
+      <span className="mt-4 w-full max-w-sm">
+        <Tabs
+          value={selectedContext}
+          onValueChange={(value) => {
+            if (isInAppAgentQuickActionContext(value)) {
+              setSelectedContext(value);
+            }
+          }}
         >
-          {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
-            <span key={context} className="min-w-0 flex-1">
-              <TabsTrigger
-                value={context}
-                disabled={isDisabled}
-                variant="underline"
-                size="sm"
-              >
-                {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
-              </TabsTrigger>
-            </span>
-          ))}
-        </TabsList>
-      </Tabs>
+          <TabsList
+            aria-label="Quick action category"
+            variant="underline"
+            size="auto"
+            layout="full"
+          >
+            {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
+              <span key={context} className="min-w-0 flex-1">
+                <TabsTrigger
+                  value={context}
+                  disabled={isDisabled}
+                  variant="underline"
+                  size="sm"
+                >
+                  {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+                </TabsTrigger>
+              </span>
+            ))}
+          </TabsList>
+        </Tabs>
+      </span>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;

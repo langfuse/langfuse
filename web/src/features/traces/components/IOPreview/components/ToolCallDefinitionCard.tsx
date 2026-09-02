@@ -369,22 +369,23 @@ function ToolDefinitionRow({
       {isExpanded && (
         <div className="border-border bg-muted/30 relative border-t px-4 py-3">
           <div className="absolute top-1 right-4">
-            <Tabs
-              className="h-fit py-0.5"
-              value={currentView}
-              onValueChange={(value) =>
-                setCurrentView(value as "formatted" | "json")
-              }
-            >
-              <TabsList size="sm">
-                <TabsTrigger value="formatted" size="sm">
-                  Formatted
-                </TabsTrigger>
-                <TabsTrigger value="json" size="sm">
-                  JSON
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <span className="h-fit py-0.5">
+              <Tabs
+                value={currentView}
+                onValueChange={(value) =>
+                  setCurrentView(value as "formatted" | "json")
+                }
+              >
+                <TabsList size="sm">
+                  <TabsTrigger value="formatted" size="sm">
+                    Formatted
+                  </TabsTrigger>
+                  <TabsTrigger value="json" size="sm">
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </span>
           </div>
 
           {currentView === "formatted" && (

@@ -789,25 +789,29 @@ export function CreateLLMApiKeyForm({
                           Select how Langfuse should authenticate to Bedrock.
                         </FormDescription>
                         <FormControl>
-                          <Tabs
-                            value={field.value}
-                            onValueChange={(value) =>
-                              field.onChange(value as BedrockAuthMethod)
-                            }
-                            className="w-full"
-                          >
-                            <TabsList layout="cols-2-gap" size="auto">
-                              <TabsTrigger
-                                value={AuthMethod.AccessKeys}
-                                size="sm"
-                              >
-                                AWS access keys
-                              </TabsTrigger>
-                              <TabsTrigger value={AuthMethod.ApiKey} size="sm">
-                                API key
-                              </TabsTrigger>
-                            </TabsList>
-                          </Tabs>
+                          <span className="w-full">
+                            <Tabs
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value as BedrockAuthMethod)
+                              }
+                            >
+                              <TabsList layout="cols-2-gap" size="auto">
+                                <TabsTrigger
+                                  value={AuthMethod.AccessKeys}
+                                  size="sm"
+                                >
+                                  AWS access keys
+                                </TabsTrigger>
+                                <TabsTrigger
+                                  value={AuthMethod.ApiKey}
+                                  size="sm"
+                                >
+                                  API key
+                                </TabsTrigger>
+                              </TabsList>
+                            </Tabs>
+                          </span>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
