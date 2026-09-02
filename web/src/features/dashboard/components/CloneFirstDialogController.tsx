@@ -40,12 +40,26 @@ export function CloneFirstDialogController({
 }: CloneFirstDialogControllerProps & {
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
+  const capture = usePostHogClientCapture();
+  const handleCancel = () => {
+    capture("dashboard:clone_first_cancelled", {
+      dashboard_id: props.dashboardId,
+      had_pending_change: Boolean(props.pendingDefinition),
+    });
+    props.onCancel?.();
+  };
+
   return (
     <DialogController
       closeOnInteractionOutside={false}
+      onDismiss={handleCancel}
       size="default"
       renderContent={({ closeDialog }) => (
-        <CloneFirstDialogContent {...props} closeDialog={closeDialog} />
+        <CloneFirstDialogContent
+          {...props}
+          closeDialog={closeDialog}
+          onCancel={handleCancel}
+        />
       )}
     >
       {({ openDialog }) => children({ openDialog })}
@@ -132,10 +146,6 @@ function CloneFirstDialogContent({
     // success); closing mid-flight would revert the grid and then surprise-
     // navigate.
     if (cloneDashboard.isPending) return;
-    capture("dashboard:clone_first_cancelled", {
-      dashboard_id: dashboardId,
-      had_pending_change: Boolean(pendingDefinition),
-    });
     onCancel?.();
     closeDialog();
   };
