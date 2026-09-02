@@ -1,5 +1,5 @@
 import React from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { Accordion } from "./Accordion";
@@ -178,6 +178,8 @@ export const ToggleItem = meta.story({
 
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
-    await expect(canvas.queryByText("Hidden details")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(canvas.queryByText("Hidden details")).not.toBeInTheDocument();
+    });
   },
 });
