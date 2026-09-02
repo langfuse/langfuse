@@ -18,7 +18,7 @@ import {
   getLatestEvaluatorRunCost,
   getRecentEvaluatorExecutionTraces,
   getRecentRuleExecutionTraces,
-  getTotalCostByEvaluatorTraceNames,
+  getTotalCostByEvaluatorIds,
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
@@ -79,12 +79,14 @@ describe("Clickhouse Events Repository Test", () => {
         createEvent({
           project_id: projectId,
           trace_name: evaluatorTraceName,
+          evaluator_id: evaluatorId,
           cost_details: { total: 1.5 },
         }),
         createEvent({
           project_id: projectId,
           start_time: eightDaysAgo,
           trace_name: evaluatorTraceName,
+          evaluator_id: evaluatorId,
           cost_details: { total: 20 },
         }),
         createEvent({
@@ -92,8 +94,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: testTraceId,
           trace_name: evaluatorTraceName,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
           cost_details: { total: 0.1 },
         }),
         createEvent({
@@ -106,8 +108,8 @@ describe("Clickhouse Events Repository Test", () => {
       ]);
 
       await expect(
-        getTotalCostByEvaluatorTraceNames(projectId, [evaluatorTraceName]),
-      ).resolves.toEqual([{ traceName: evaluatorTraceName, totalCost: 1.5 }]);
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
     });
 
     it("returns the latest evaluator trace cost", async () => {
@@ -125,8 +127,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           start_time: now,
           type: "SPAN",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0.1 },
         }),
         createEvent({
@@ -141,8 +142,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: earlierTestTraceId,
           start_time: oneHourAgo,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
           cost_details: { total: 1 },
         }),
         createEvent({
@@ -157,8 +158,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: staleTraceId,
           start_time: eightDaysAgo,
           type: "SPAN",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [staleEvaluatorId],
+          evaluator_id: staleEvaluatorId,
           cost_details: { total: 2 },
         }),
         createEvent({
@@ -192,16 +192,15 @@ describe("Clickhouse Events Repository Test", () => {
           trace_name: evaluatorTraceName,
           type: "SPAN",
           level: "ERROR",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0 },
         }),
         createEvent({
           project_id: projectId,
           trace_id: testTraceId,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
           cost_details: { total: 0 },
         }),
         createEvent({
@@ -211,8 +210,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: testTraceId,
           type: "SPAN",
           level: "ERROR",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0 },
         }),
         createEvent({
@@ -220,18 +218,17 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: untaggedTestTraceId,
           trace_name: "Test evaluator: Legacy code evaluator",
           type: "SPAN",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0 },
         }),
       ]);
 
       await expect(
-        getRecentEvaluatorExecutionTraces(projectId, [evaluatorTraceName]),
+        getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
       ).resolves.toEqual([
         expect.objectContaining({
           id: traceId,
-          traceName: evaluatorTraceName,
+          evaluatorId,
           level: "ERROR",
         }),
       ]);
