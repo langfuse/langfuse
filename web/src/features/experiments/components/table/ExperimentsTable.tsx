@@ -433,7 +433,7 @@ export default function ExperimentsTable({
     dataUpdatedAt,
     metricsLoading,
     isShowingMostRecent,
-    mostRecentLimit,
+    mostRecentCount,
   } = useExperimentsTableData({
     projectId,
     filterState,
@@ -947,7 +947,10 @@ export default function ExperimentsTable({
           {isShowingMostRecent && (
             <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
               No experiments started in the selected time range. Showing the{" "}
-              {mostRecentLimit} most recent runs instead.
+              {mostRecentCount === 1
+                ? "most recent run"
+                : `${mostRecentCount} most recent runs`}{" "}
+              instead.
             </div>
           )}
 
