@@ -4,11 +4,38 @@ import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluat
 import {
   applyEvaluatorSuggestion,
   getCodeEvaluatorAssistantPrompt,
+  getCodeEvaluatorAssistantSampleObservation,
   getEvaluatorVersionDefinition,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
   startCodeEvaluatorAssistantHandoff,
 } from "./EvaluatorSetupPage";
+
+describe("getCodeEvaluatorAssistantSampleObservation", () => {
+  it("normalizes valid sample references", () => {
+    expect(
+      getCodeEvaluatorAssistantSampleObservation({
+        id: " observation-1 ",
+        traceId: " trace-1 ",
+        startTime: new Date("2026-09-02T07:30:00.000Z"),
+      }),
+    ).toEqual({
+      observationId: "observation-1",
+      traceId: "trace-1",
+      startTime: "2026-09-02T07:30:00.000Z",
+    });
+  });
+
+  it("omits malformed sample references", () => {
+    expect(
+      getCodeEvaluatorAssistantSampleObservation({
+        id: "",
+        traceId: "trace-1",
+        startTime: new Date("invalid"),
+      }),
+    ).toBeNull();
+  });
+});
 
 describe("getCodeEvaluatorAssistantPrompt", () => {
   it("targets the persisted evaluator and selected sample by id", () => {

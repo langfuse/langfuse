@@ -86,6 +86,33 @@ export function applyEvaluatorSuggestion(
   return true;
 }
 
+export function getCodeEvaluatorAssistantSampleObservation(
+  observation: {
+    id: string;
+    traceId: string | null;
+    startTime: Date | null;
+  } | null,
+) {
+  const observationId = observation?.id.trim();
+  const traceId = observation?.traceId?.trim();
+  const startTime = observation?.startTime;
+
+  if (
+    !observationId ||
+    !traceId ||
+    !startTime ||
+    Number.isNaN(startTime.getTime())
+  ) {
+    return null;
+  }
+
+  return {
+    observationId,
+    traceId,
+    startTime: startTime.toISOString(),
+  };
+}
+
 export function getCodeEvaluatorAssistantPrompt({
   evaluatorId,
   request,
@@ -667,16 +694,9 @@ export function EvaluatorSetupPage(
   };
 
   const submitCodeEvaluatorAssistantRequest = async (request: string) => {
-    const selectedObservation =
-      evaluatorSetupStore.getState().selectedObservation;
-    const sampleObservation =
-      selectedObservation?.traceId && selectedObservation.startTime
-        ? {
-            observationId: selectedObservation.id,
-            traceId: selectedObservation.traceId,
-            startTime: selectedObservation.startTime.toISOString(),
-          }
-        : null;
+    const sampleObservation = getCodeEvaluatorAssistantSampleObservation(
+      evaluatorSetupStore.getState().selectedObservation,
+    );
     const handoff = await startCodeEvaluatorAssistantHandoff({
       request,
       sampleObservation,
