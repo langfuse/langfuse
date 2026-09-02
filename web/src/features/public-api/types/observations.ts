@@ -386,7 +386,7 @@ const APIObservationV2 = z
     metadata: z.any().optional(),
 
     // Model fields (field group: model)
-    providedModelName: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
     internalModelId: z.string().nullable().optional(),
     modelParameters: z.any().optional(),
 
