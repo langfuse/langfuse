@@ -97,6 +97,26 @@ const eventsView: RegistryUnderTest = {
     "(grouped)",
     'has "quote"',
   ],
+  sidebarFilters: [
+    [
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "verdict",
+        operator: "any of",
+        value: ["good"],
+      },
+    ],
+    [
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "nps",
+        operator: ">",
+        value: 5,
+      },
+    ],
+  ],
 };
 
 const evaluationRulesView: RegistryUnderTest = {
@@ -436,6 +456,27 @@ const sessionsView: RegistryUnderTest = {
   // Free text is rewritten onto `id`, not dropped, so the quoting/reserved-word
   // mirror still has to hold on this registry.
   freeTextValues: ["hello", "refund policy", "or", "and", "!important", "-foo"],
+  sidebarFilters: [
+    [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "accuracy",
+        operator: ">",
+        value: 0.5,
+      },
+    ],
+    // Trace scores are not offered here, so this one must stay sidebar-only.
+    [
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "nps",
+        operator: ">",
+        value: 5,
+      },
+    ],
+  ],
 };
 
 describe("search bar invariants — sessions registry", () => {
@@ -668,6 +709,55 @@ const experimentsView: RegistryUnderTest = {
   scoreContexts: [],
   fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
   freeTextValues: ["hello", "run 12", "or", "!important"],
+  // Scores stay in the sidebar on this view, and after the score unification
+  // they sit on the SAME canonical columns the bar's `scores.` path recognizes —
+  // so the serializer has to be told they are not the bar's to render.
+  sidebarFilters: [
+    [
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "verified_article_status",
+        operator: "any of",
+        value: ["none-verified"],
+      },
+    ],
+    [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "groundedness",
+        operator: ">",
+        value: 0.5,
+      },
+    ],
+    [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "in_force",
+        operator: "=",
+        value: true,
+      },
+    ],
+    // A filter the bar DOES own, alongside one it does not: the owned half must
+    // still render.
+    [
+      {
+        type: "stringOptions",
+        column: "experimentDatasetName",
+        operator: "any of",
+        value: ["legal-answer-quality"],
+      },
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "verified_article_status",
+        operator: "any of",
+        value: ["none-verified"],
+      },
+    ],
+  ],
 };
 
 describe("search bar invariants — experiments registry", () => {

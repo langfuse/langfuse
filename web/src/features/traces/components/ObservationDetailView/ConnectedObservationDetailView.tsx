@@ -10,7 +10,7 @@
  * Hooks:
  * - useViewPreferences() - for JSON view preference
  * - useState() - for tab selection
- * - useV4Beta() - for v4 mode detection (enables log tab)
+ * - useReadPath() - for v4 mode detection (enables log tab)
  *
  * Re-renders when:
  * - Observation prop changes (new observation selected)
@@ -56,7 +56,7 @@ import { api } from "@/src/utils/api";
 // Extracted components
 import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import {
   aggregateTraceMetrics,
@@ -86,7 +86,7 @@ export function ConnectedObservationDetailView({
   const utils = api.useUtils();
 
   // V4 beta mode and observations for log tab
-  const { isBetaEnabled: isV4Enabled } = useV4Beta();
+  const { isV4: isV4Enabled } = useReadPath();
   const {
     observations,
     roots,

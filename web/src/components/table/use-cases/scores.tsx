@@ -66,7 +66,7 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   ScoreTag,
   scoreLevelFromScore,
@@ -171,14 +171,14 @@ export default function ScoresTable({
     () => new Set<string>(hiddenColumns),
     [hiddenColumns],
   );
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
-  const useEventsBackedScores = isBetaEnabled;
+  const useEventsBackedScores = isV4;
   // Same derivation `WidgetForm.tsx`/`ChartScores` use (`activeVersion`/
   // `metricsVersion`) — the chart/outlier strip must read the same version
   // as the table's own data, or a non-beta project's trace/observation
   // breakdown would run against the events-backed view and come back empty.
-  const chartViewVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const chartViewVersion: ViewVersion = isV4 ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -240,7 +240,7 @@ export default function ScoresTable({
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: scoresFilterConfig.tableName,
-    isV4: isBetaEnabled,
+    isV4,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -668,7 +668,7 @@ export default function ScoresTable({
       defaultHidden: true,
       loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data) {
+        if (isV4 && !scoreMetrics.data) {
           return <Skeleton className="h-4 w-1/2" />;
         }
         const traceTags: string[] | undefined = row.getValue("traceTags");
@@ -721,7 +721,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (value) => {
-        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
         if (!value) return undefined;
 
         const filter = encodeURIComponent(
@@ -849,7 +849,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 100,
       getCell: (value) => {
-        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
         if (typeof value !== "string") return undefined;
 
         return {
@@ -881,9 +881,9 @@ export default function ScoresTable({
     }),
     createLinkTableColumn<ScoresTableRow>({
       accessorKey: "jobConfigurationId",
-      header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
+      header: isV4 ? "Evaluator" : "Eval Configuration ID",
       headerTooltip: {
-        description: isBetaEnabled
+        description: isV4
           ? "The evaluator associated with the score."
           : "The Job Configuration ID associated with the score.",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
@@ -893,7 +893,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (_, { row }) => {
-        if (isBetaEnabled) {
+        if (isV4) {
           const value = row.original.evaluatorId;
           if (typeof value !== "string") return undefined;
 
@@ -992,7 +992,7 @@ export default function ScoresTable({
 
   // Merge v4 metrics into table rows
   const enrichedScores = useMemo(() => {
-    if (!isBetaEnabled) {
+    if (!isV4) {
       return scoresV3.data?.scores.map(convertToTableRow);
     }
 
@@ -1038,7 +1038,7 @@ export default function ScoresTable({
       } satisfies ScoresTableRow;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores.data, scoreMetrics.data, isBetaEnabled]);
+  }, [scores.data, scoreMetrics.data, isV4]);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
@@ -1236,7 +1236,7 @@ export default function ScoresTable({
             expandPeek={expandScorePeek}
             itemType="TRACE"
             tableName={scoresFilterConfig.tableName}
-            isV4={isBetaEnabled}
+            isV4={isV4}
             projectId={projectId}
           />
         )}
