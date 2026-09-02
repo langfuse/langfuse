@@ -21,13 +21,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
 import {
@@ -35,7 +29,6 @@ import {
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
-import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
   LevelSymbols,
@@ -68,7 +61,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, Trash2 } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -105,6 +98,10 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { DialogController } from "@/src/components/ui/dialog";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { DeleteTraceDialogContent } from "@/src/features/traces/components/DeleteTraceDialogContent";
 
 export type TracesTableRow = {
   // Shown by default
@@ -164,7 +161,7 @@ export type TracesTableProps = {
   showControlsInPageHeader?: boolean;
 };
 
-export default function TracesTable({
+function TracesTableInternal({
   projectId,
   userId,
   omittedFilter = [],
@@ -173,8 +170,15 @@ export default function TracesTable({
   externalDateRange,
   limitRows,
   showControlsInPageHeader = false,
-}: TracesTableProps) {
+  openDeleteTraceDialog,
+}: TracesTableProps & {
+  openDeleteTraceDialog: (traceId: string) => void;
+}) {
   const peekContext = usePeekTableState();
+  const hasTraceDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:delete",
+  });
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
     [omittedFilter],
@@ -1169,12 +1173,14 @@ export default function TracesTable({
             isFixedPosition: true,
             renderMenu: (traceId) =>
               typeof traceId === "string" ? (
-                <DropdownMenuItem asChild>
-                  <DeleteTraceButton
-                    itemId={traceId}
-                    projectId={projectId}
-                    isTableAction
-                  />
+                <DropdownMenuItem
+                  disabled={
+                    !hasTraceDeleteAccess || !hasTraceDeletionEntitlement
+                  }
+                  onSelect={() => openDeleteTraceDialog(traceId)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
                 </DropdownMenuItem>
               ) : null,
           }),
@@ -1529,3 +1535,37 @@ const TracesDynamicCell = ({
     />
   );
 };
+
+export default function TracesTable(props: TracesTableProps) {
+  const [traceIdToDelete, setTraceIdToDelete] = useState<string | null>(null);
+  const capture = usePostHogClientCapture();
+
+  return (
+    <DialogController
+      closeOnInteractionOutside
+      size="default"
+      renderContent={({ closeDialog }) =>
+        traceIdToDelete ? (
+          <DeleteTraceDialogContent
+            closeDialog={closeDialog}
+            projectId={props.projectId}
+            traceId={traceIdToDelete}
+          />
+        ) : null
+      }
+    >
+      {({ openDialog }) => (
+        <TracesTableInternal
+          {...props}
+          openDeleteTraceDialog={(traceId) => {
+            capture("trace:delete_form_open", {
+              source: "table-single-row",
+            });
+            setTraceIdToDelete(traceId);
+            openDialog();
+          }}
+        />
+      )}
+    </DialogController>
+  );
+}
