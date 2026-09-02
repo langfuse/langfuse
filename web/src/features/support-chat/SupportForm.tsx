@@ -28,7 +28,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { RadioGroup } from "@/src/components/ui/radio-group";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -329,11 +328,7 @@ export function SupportForm({
               <FormItem>
                 <FormLabel>Message Type</FormLabel>
                 <FormControl>
-                  <RadioGroup
-                    className="grid grid-cols-3 gap-2"
-                    value={field.value ?? "Question"}
-                    onValueChange={field.onChange}
-                  >
+                  <div className="grid grid-cols-3 gap-2">
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
@@ -347,7 +342,7 @@ export function SupportForm({
                         </span>
                       </Button>
                     ))}
-                  </RadioGroup>
+                  </div>
                 </FormControl>
                 <FormDescription className="sr-only">
                   Choose the type of your message.
