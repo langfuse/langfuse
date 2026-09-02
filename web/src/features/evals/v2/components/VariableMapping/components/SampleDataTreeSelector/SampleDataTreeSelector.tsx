@@ -11,7 +11,7 @@ import {
   WILDCARD,
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
   splitStringByMediaReferences,
@@ -68,7 +68,7 @@ function MediaAwarePreview({
             data-tree-row-action=""
             className="inline-flex shrink-0 self-center"
           >
-            <MediaTag contentType={segment.descriptor.contentType} />
+            <MediaReferenceTag descriptor={segment.descriptor} />
           </span>
         ) : (
           <span

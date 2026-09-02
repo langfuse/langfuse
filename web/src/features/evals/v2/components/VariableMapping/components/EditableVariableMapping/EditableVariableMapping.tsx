@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 
-import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
   splitStringByMediaReferences,
@@ -72,10 +72,7 @@ function MappedValuePreview({ value }: { value: string }) {
         >
           {mediaSegments.map((segment, index) =>
             segment.type === "media" ? (
-              <MediaTag
-                key={index}
-                contentType={segment.descriptor.contentType}
-              />
+              <MediaReferenceTag key={index} descriptor={segment.descriptor} />
             ) : (
               <span key={index} className="break-words whitespace-pre-wrap">
                 {segment.value}
