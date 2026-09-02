@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -7,7 +6,6 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { GitCompareArrows, X } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
 import {
   describeScoreComparisonFilter,
   type ScoreComparisonFilter,
@@ -27,18 +25,14 @@ export type ScoreComparisonPill = {
 export const ScoreComparisonFilterPills = ({
   pills,
   onRemove,
-  className,
 }: {
   pills: ScoreComparisonPill[];
   onRemove: (filter: ScoreComparisonFilter) => void;
-  className?: string;
 }) => {
   if (pills.length === 0) return null;
 
   return (
-    <div
-      className={cn("flex flex-wrap items-center gap-1.5 px-2 py-2", className)}
-    >
+    <div className="flex flex-wrap items-center gap-1.5 border-b px-2 py-2">
       {pills.map(({ filter, scoreName, comparisonName }) => {
         const label = describeScoreComparisonFilter({
           operator: filter.operator,
