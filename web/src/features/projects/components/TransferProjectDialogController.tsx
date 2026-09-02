@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 
 import { Dialog } from "@/src/components/ui/dialog";
 import { TransferProjectDialogContent } from "@/src/features/projects/components/TransferProjectDialogContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,

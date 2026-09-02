@@ -35,7 +35,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";

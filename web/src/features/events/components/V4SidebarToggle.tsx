@@ -6,18 +6,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { setReadPath } from "@/src/features/events/actions/setReadPath";
+import { usePendingReadPath } from "@/src/features/events/stores/readPathToggleStore";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import {
   getV4PreviewDisabledRedirect,
   getV4PreviewEnabledRedirect,
 } from "@/src/features/events/lib/v4PreviewRedirect";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { api } from "@/src/utils/api";
 import { ZapIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import {
   singleRunToExperimentsUrl,
   toExperimentsResultsUrl,
@@ -37,31 +41,40 @@ function asArrayValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value : [value];
 }
 
+const INTRO_DIALOG_SEEN_KEY = "v4-beta-intro-dialog-seen";
+
 // Shared behavior for every V4 Preview toggle surface: session-backed state,
 // intro dialog on first enable, and the datasets/experiments URL translation
 // that keeps the current page valid after switching. `source` distinguishes
-// the surfaces in the shared v4_beta_toggled event.
+// the surfaces in the shared v4_beta_toggled event. The commit itself is the
+// shared `setReadPath` workflow; only the intro dialog lives here.
 function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
   const router = useRouter();
-  const {
-    isBetaEnabled,
-    canToggleV4,
-    setBetaEnabled,
-    enableWithIntro,
-    showIntroDialog,
-    confirmIntroDialog,
-    dismissIntroDialog,
-    isLoading,
-  } = useV4Beta();
+  const { isV4, canToggleV4 } = useReadPath();
+  const pendingReadPath = usePendingReadPath();
+  const { update: updateSession } = useSession();
+  const mutation = api.userAccount.setV4BetaEnabled.useMutation();
   const capture = usePostHogClientCapture();
 
-  const redirectAfterToggle = (enabled: boolean) => {
+  const [showIntroDialog, setShowIntroDialog] = useState(false);
+  const [pendingAfterToggle, setPendingAfterToggle] = useState<
+    (() => Promise<unknown> | void) | undefined
+  >();
+
+  // The pending intent wins while a toggle is committing, so the switch shows
+  // the value the user just chose — and snaps back if the commit fails.
+  const isChecked = pendingReadPath ? pendingReadPath === "v4" : isV4;
+  const isLoading = pendingReadPath !== null;
+
+  // Returns the navigation promise so the pending intent (disabled switch)
+  // holds until the redirect lands.
+  const redirectAfterToggle = (enabled: boolean): Promise<unknown> | void => {
     const projectId = asSingleValue(router.query.projectId);
     if (!projectId) return;
 
     if (!enabled) {
       const redirect = getV4PreviewDisabledRedirect(router.pathname, projectId);
-      if (redirect) router.push(redirect);
+      if (redirect) return router.push(redirect);
       return;
     }
 
@@ -70,8 +83,7 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
       projectId,
     );
     if (evaluatorRedirect) {
-      router.push(evaluatorRedirect);
-      return;
+      return router.push(evaluatorRedirect);
     }
 
     if (
@@ -80,7 +92,7 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
     ) {
       const runId = asSingleValue(router.query.runId);
       if (runId) {
-        router.push(singleRunToExperimentsUrl(projectId, runId));
+        return router.push(singleRunToExperimentsUrl(projectId, runId));
       }
       return;
     }
@@ -92,32 +104,58 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
     ) {
       const runIds = asArrayValue(router.query.runs);
       if (runIds.length > 0) {
-        router.push(toExperimentsResultsUrl(projectId, runIds));
+        return router.push(toExperimentsResultsUrl(projectId, runIds));
       }
     }
+  };
+
+  const commitToggle = (
+    enabled: boolean,
+    afterToggle?: () => Promise<unknown> | void,
+  ) => {
+    setReadPath(enabled ? "v4" : "v3", {
+      setV4BetaEnabled: (input) => mutation.mutateAsync(input),
+      updateSession,
+      onSuccess: () => {
+        capture("sidebar:v4_beta_toggled", { enabled, source });
+        return afterToggle ? afterToggle() : redirectAfterToggle(enabled);
+      },
+    });
   };
 
   // afterToggle, when given, replaces the default same-page URL translation
   // and runs only after the toggle actually committed (mutation + session
   // update done, intro dialog confirmed rather than dismissed).
-  const handleToggle = (enabled: boolean, afterToggle?: () => void) => {
-    const onSuccess = () => {
-      capture("sidebar:v4_beta_toggled", { enabled, source });
-      if (afterToggle) {
-        afterToggle();
-      } else {
-        redirectAfterToggle(enabled);
-      }
-    };
-    if (enabled) {
-      enableWithIntro({ onSuccess });
-    } else {
-      setBetaEnabled(false, { onSuccess });
+  const handleToggle = (
+    enabled: boolean,
+    afterToggle?: () => Promise<unknown> | void,
+  ) => {
+    if (
+      enabled &&
+      typeof window !== "undefined" &&
+      !localStorage.getItem(INTRO_DIALOG_SEEN_KEY)
+    ) {
+      setPendingAfterToggle(() => afterToggle);
+      setShowIntroDialog(true);
+      return;
     }
+    commitToggle(enabled, afterToggle);
+  };
+
+  const confirmIntroDialog = () => {
+    localStorage.setItem(INTRO_DIALOG_SEEN_KEY, "true");
+    setShowIntroDialog(false);
+    commitToggle(true, pendingAfterToggle);
+    setPendingAfterToggle(undefined);
+  };
+
+  const dismissIntroDialog = () => {
+    setShowIntroDialog(false);
+    setPendingAfterToggle(undefined);
   };
 
   return {
-    isBetaEnabled,
+    isChecked,
     canToggleV4,
     isLoading,
     handleToggle,
@@ -129,7 +167,7 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
 
 export function V4SidebarToggle() {
   const {
-    isBetaEnabled,
+    isChecked,
     canToggleV4,
     isLoading,
     handleToggle,
@@ -168,7 +206,7 @@ export function V4SidebarToggle() {
                 <Switch
                   id="v4-beta-toggle"
                   size="sm"
-                  checked={isBetaEnabled}
+                  checked={isChecked}
                   onCheckedChange={handleToggle}
                   disabled={isLoading}
                   aria-label="Toggle V4 Preview"
@@ -205,7 +243,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   const toggleId = useId();
   const descriptionId = useId();
   const {
-    isBetaEnabled,
+    isChecked,
     canToggleV4,
     isLoading,
     handleToggle,
@@ -232,7 +270,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
         <Switch
           id={toggleId}
           size="sm"
-          checked={isBetaEnabled}
+          checked={isChecked}
           onCheckedChange={handlePanelToggle}
           disabled={isLoading}
           aria-label="Toggle V4 Preview"

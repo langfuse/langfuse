@@ -29,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
@@ -54,6 +54,7 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 
@@ -375,13 +376,10 @@ export default function EvalsTemplateTable({
         );
       },
     }),
-    columnHelper.accessor("latestCreatedAt", {
+    createDateTableColumn<EvalsTemplateRow>({
+      accessorKey: "latestCreatedAt",
       header: "Last Edited",
-      id: "latestCreatedAt",
-      size: 80,
-      cell: (row) => {
-        return row.getValue()?.toLocaleDateString();
-      },
+      size: 150,
     }),
     createNumberTableColumn<EvalsTemplateRow>({
       accessorKey: "usageCount",

@@ -186,6 +186,7 @@ const events = {
     "empty_state_browse_library",
     "empty_state_detect_topics",
     "code_editor_mode_switch",
+    "alert_create_clicked",
   ],
   evaluation_rules: [
     "create",
@@ -246,7 +247,7 @@ const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
-  monitors: ["delete_form_open", "delete_monitor_button_click"],
+  monitors: ["create", "delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
