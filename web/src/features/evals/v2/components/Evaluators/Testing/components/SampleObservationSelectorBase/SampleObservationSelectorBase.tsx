@@ -16,7 +16,6 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
@@ -220,21 +219,17 @@ export function SampleObservationSelectorBase(
     () => buildSampleQueryFilters(previewFilters),
     [previewFilters],
   );
-  const options = useEventsFilterOptions({
+  const options = useSampleObservationFilterOptions({
     projectId,
     startTimeFilter,
     refiningFilter,
-    includeApproxCount: true,
-    lazy: filterMode === "query",
+    filterMode,
+    activeRegistry,
+    datasetOptions,
+    mapObservedOptions,
   });
   const { searchRegistry, observed, builderColumns, queryOnlyColumnIds } =
-    useSampleObservationFilterOptions({
-      activeRegistry,
-      datasetOptions,
-      filterOptions: options.filterOptions,
-      isFilterOptionsPending: options.isFilterOptionsPending,
-      mapObservedOptions,
-    });
+    options;
   const reusableRuleFilters = useReusableRuleFilterPresets(
     projectId,
     searchRegistry,

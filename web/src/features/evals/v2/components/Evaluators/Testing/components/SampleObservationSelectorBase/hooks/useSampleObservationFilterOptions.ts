@@ -4,9 +4,11 @@ import {
   experimentEvalFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
   type ColumnDefinition,
+  type FilterState,
+  type TimeFilter,
 } from "@langfuse/shared";
 
-import type { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   type FieldRegistry,
   withFieldOptions,
@@ -25,28 +27,52 @@ import {
   addDatasetNameObservedOptions,
   type DatasetFilterOption,
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 
 export type MapSampleObservedOptions = (
   observed: ObservedOptions | undefined,
 ) => ObservedOptions | undefined;
 
+const BUILDER_FILTER_OPTION_COLUMNS = [
+  "environment",
+  "name",
+  "traceTags",
+  "traceName",
+  "calledToolNames",
+  "experimentDatasetId",
+] satisfies NonNullable<
+  Parameters<typeof useEventsFilterOptions>[0]["columns"]
+>;
+
 type SampleObservationFilterOptionsProps = {
+  projectId: string;
+  startTimeFilter: TimeFilter[];
+  refiningFilter: FilterState;
+  filterMode: EvaluatorFilterExperience;
   datasetOptions: DatasetFilterOption[];
-  filterOptions: Partial<
-    ReturnType<typeof useEventsFilterOptions>["filterOptions"]
-  >;
-  isFilterOptionsPending: boolean;
   mapObservedOptions: MapSampleObservedOptions;
   activeRegistry: FieldRegistry;
 };
 
 export function useSampleObservationFilterOptions({
+  projectId,
+  startTimeFilter,
+  refiningFilter,
+  filterMode,
   datasetOptions,
-  filterOptions,
-  isFilterOptionsPending,
   mapObservedOptions,
   activeRegistry,
 }: SampleObservationFilterOptionsProps) {
+  const options = useEventsFilterOptions({
+    projectId,
+    startTimeFilter,
+    refiningFilter,
+    includeApproxCount: true,
+    lazy: filterMode === "query",
+    columns:
+      filterMode === "builder" ? BUILDER_FILTER_OPTION_COLUMNS : undefined,
+  });
+  const { filterOptions, isFilterOptionsPending } = options;
   const searchRegistry = useMemo(
     () =>
       withFieldOptions(
@@ -80,9 +106,10 @@ export function useSampleObservationFilterOptions({
     const columnsWithOptions = removeInternalEvaluationEnvironmentColumnOptions(
       experimentEvalFilterColsWithOptions(
         filterOptions,
-        observationEvalFilterColsWithOptions(filterOptions, [
-          ...eventsEvalFilterColumns,
-        ]),
+        observationEvalFilterColsWithOptions(
+          { ...filterOptions, tags: filterOptions.traceTags },
+          [...eventsEvalFilterColumns],
+        ),
       ),
     ).filter(
       (column) => !supportsDatasetName || column.id !== "experimentDatasetId",
@@ -113,5 +140,11 @@ export function useSampleObservationFilterOptions({
     [searchRegistry],
   );
 
-  return { searchRegistry, observed, builderColumns, queryOnlyColumnIds };
+  return {
+    ...options,
+    searchRegistry,
+    observed,
+    builderColumns,
+    queryOnlyColumnIds,
+  };
 }

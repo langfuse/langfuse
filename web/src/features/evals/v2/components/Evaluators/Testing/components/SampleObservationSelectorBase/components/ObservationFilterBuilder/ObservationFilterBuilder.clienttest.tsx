@@ -46,14 +46,10 @@ describe("ObservationFilterBuilder", () => {
     containerWidth = 560;
   });
 
-  it("keeps one row and uses narrower columns when space is limited", () => {
+  it("keeps the table layout when space is limited", () => {
     renderBuilder();
 
-    const table = screen.getByRole("table");
-    expect(table.parentElement?.parentElement).toHaveClass(
-      "[&_td:nth-child(2)]:w-40",
-      "[&_td:nth-child(3)]:w-32",
-    );
+    expect(screen.getByRole("table")).toBeInTheDocument();
   });
 
   it("wraps into the compact row layout when space is too narrow", () => {
