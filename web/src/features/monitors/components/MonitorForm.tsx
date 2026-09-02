@@ -669,35 +669,37 @@ export const MonitorForm = ({
                     <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                       Advanced Options
                     </AccordionTrigger>
-                    <AccordionContent className="space-y-6 px-1 pt-2">
-                      <FormField
-                        control={form.control}
-                        name="noData"
-                        render={({ field }) => (
-                          <FormItem>
-                            <NoDataField
-                              value={field.value as MonitorNoData}
-                              onChange={field.onChange}
-                              disabled={!hasAccess}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="renotify"
-                        render={({ field }) => (
-                          <FormItem>
-                            <RenotifyField
-                              value={field.value as MonitorRenotify}
-                              onChange={field.onChange}
-                              disabled={!hasAccess}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <AccordionContent>
+                      <div className="space-y-6 px-1 pt-2">
+                        <FormField
+                          control={form.control}
+                          name="noData"
+                          render={({ field }) => (
+                            <FormItem>
+                              <NoDataField
+                                value={field.value as MonitorNoData}
+                                onChange={field.onChange}
+                                disabled={!hasAccess}
+                              />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="renotify"
+                          render={({ field }) => (
+                            <FormItem>
+                              <RenotifyField
+                                value={field.value as MonitorRenotify}
+                                onChange={field.onChange}
+                                disabled={!hasAccess}
+                              />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>

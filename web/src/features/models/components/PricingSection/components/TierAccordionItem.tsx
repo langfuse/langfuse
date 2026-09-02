@@ -75,26 +75,28 @@ export function TierAccordionItem({
         </div>
       </AccordionTrigger>
 
-      <AccordionContent className="space-y-4 px-4">
-        {/* Tier Name */}
-        <FormField
-          control={form.control}
-          name={`pricingTiers.${index}.name`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tier Name</FormLabel>
-              <FormControl>
-                <Input {...field} disabled={isDefault} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <AccordionContent>
+        <div className="space-y-4 px-4">
+          {/* Tier Name */}
+          <FormField
+            control={form.control}
+            name={`pricingTiers.${index}.name`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tier Name</FormLabel>
+                <FormControl>
+                  <Input {...field} disabled={isDefault} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        {/* Conditions (only for non-default) */}
-        {!isDefault && <TierConditionsEditor tierIndex={index} form={form} />}
+          {/* Conditions (only for non-default) */}
+          {!isDefault && <TierConditionsEditor tierIndex={index} form={form} />}
 
-        {children}
+          {children}
+        </div>
       </AccordionContent>
     </AccordionItem>
   );

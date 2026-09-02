@@ -49,10 +49,7 @@ type AccordionContentProps = Omit<
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?:
-    | "space-y-6 px-1 pt-2"
-    | "max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1"
-    | "space-y-4 px-4";
+  className?: "max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1";
 };
 
 function AccordionContent({ children, className }: AccordionContentProps) {

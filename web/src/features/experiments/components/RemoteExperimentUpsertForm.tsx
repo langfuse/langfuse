@@ -386,128 +386,135 @@ export const RemoteExperimentUpsertForm = ({
                 <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                   Advanced Options
                 </AccordionTrigger>
-                <AccordionContent className="space-y-6 px-1 pt-2">
-                  <div>
-                    <FormLabel>Custom headers</FormLabel>
-                    <FormDescription className="mb-2">
-                      Optional headers to include in the request, e.g. for
-                      authenticating with your service. Secret header values are
-                      stored encrypted and shown masked.
-                    </FormDescription>
+                <AccordionContent>
+                  <div className="space-y-6 px-1 pt-2">
+                    <div>
+                      <FormLabel>Custom headers</FormLabel>
+                      <FormDescription className="mb-2">
+                        Optional headers to include in the request, e.g. for
+                        authenticating with your service. Secret header values
+                        are stored encrypted and shown masked.
+                      </FormDescription>
 
-                    {headerFields.map((field, index) => {
-                      const isSecret = form.watch(`headers.${index}.isSecret`);
-                      const displayValue = form.watch(
-                        `headers.${index}.displayValue`,
-                      );
+                      {headerFields.map((field, index) => {
+                        const isSecret = form.watch(
+                          `headers.${index}.isSecret`,
+                        );
+                        const displayValue = form.watch(
+                          `headers.${index}.displayValue`,
+                        );
 
-                      return (
-                        <div
-                          key={field.id}
-                          className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
-                        >
-                          <FormField
-                            control={form.control}
-                            name={`headers.${index}.name`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input placeholder="Header Name" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`headers.${index}.value`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input
-                                    placeholder={displayValue || "Value"}
-                                    {...field}
-                                    type={isSecret ? "password" : "text"}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() =>
-                              form.setValue(
-                                `headers.${index}.isSecret`,
-                                !isSecret,
-                              )
-                            }
-                            title={
-                              isSecret
-                                ? "Make header public"
-                                : "Make header secret"
-                            }
+                        return (
+                          <div
+                            key={field.id}
+                            className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
                           >
-                            {isSecret ? (
-                              <Lock className="h-4 w-4 text-orange-500" />
-                            ) : (
-                              <LockOpen className="text-muted-foreground h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeHeader(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
+                            <FormField
+                              control={form.control}
+                              name={`headers.${index}.name`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      placeholder="Header Name"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`headers.${index}.value`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={displayValue || "Value"}
+                                      {...field}
+                                      type={isSecret ? "password" : "text"}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                form.setValue(
+                                  `headers.${index}.isSecret`,
+                                  !isSecret,
+                                )
+                              }
+                              title={
+                                isSecret
+                                  ? "Make header public"
+                                  : "Make header secret"
+                              }
+                            >
+                              {isSecret ? (
+                                <Lock className="h-4 w-4 text-orange-500" />
+                              ) : (
+                                <LockOpen className="text-muted-foreground h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeHeader(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        );
+                      })}
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        appendHeader({
-                          name: "",
-                          value: "",
-                          isSecret: false,
-                          displayValue: "",
-                        })
-                      }
-                      className="mt-2"
-                    >
-                      <Plus className="mr-1 h-4 w-4" />
-                      Add Custom Header
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          appendHeader({
+                            name: "",
+                            value: "",
+                            isSecret: false,
+                            displayValue: "",
+                          })
+                        }
+                        className="mt-2"
+                      >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Add Custom Header
+                      </Button>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="enabled"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Enabled</FormLabel>
+                            <FormDescription>
+                              {field.value
+                                ? "Trigger is active. You can disable anytime to pause without losing your configuration."
+                                : "Trigger is paused. Enable to allow running remote experiments."}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
                   </div>
-
-                  <FormField
-                    control={form.control}
-                    name="enabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel>Enabled</FormLabel>
-                          <FormDescription>
-                            {field.value
-                              ? "Trigger is active. You can disable anytime to pause without losing your configuration."
-                              : "Trigger is paused. Enable to allow running remote experiments."}
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
