@@ -335,7 +335,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       const targetValue = !currentValue;
       // The event belongs to the click, not to the state updater: an updater
       // must be pure, and React invokes it twice under StrictMode — which
-      // double-counted every toggle. Same payload, emitted once. (LFE-15720)
+      // double-counted every toggle. Same payload, emitted once.
       const nextVisibility = { ...columnVisibility, [columnId]: targetValue };
       capture("table:column_visibility_changed", {
         selectedColumns: Object.keys(nextVisibility).filter(

@@ -349,7 +349,7 @@ export default function ExperimentItemsTable({
     {
       stateLocation: "url",
       loading: isFilterOptionsLoading,
-      // v4-only surface — drives `isV4` on filters:* analytics (LFE-10781).
+      // v4-only surface — drives `isV4` on filters:* analytics.
       isV4: true,
     },
   );
