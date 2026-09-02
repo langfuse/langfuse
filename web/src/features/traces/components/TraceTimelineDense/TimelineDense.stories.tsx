@@ -1787,7 +1787,7 @@ export const HoverDoesNotRecolourTheBar = meta.story({
 /** A control that can do nothing should say so rather than look broken. */
 export const FitIsDisabledWhenItWouldDoNothing = meta.story({
   name: "(Test) Fit Is Disabled When It Would Do Nothing",
-  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  args: { ...READABLE, roots: manySpans(12), onSelect: fn(), onHover: fn() },
   play: async ({ canvasElement }) => {
     const fit = () =>
       canvasElement.querySelector<HTMLButtonElement>(
@@ -1804,6 +1804,68 @@ export const FitIsDisabledWhenItWouldDoNothing = meta.story({
     if (!zoomIn) throw new Error("no zoom button");
     await userEvent.click(zoomIn);
     await waitFor(() => expect(fit()?.disabled).toBe(false));
+  },
+});
+
+/**
+ * A long trace fits as 1px rows — the whole clock, no names. The spent fit
+ * control used to sit there disabled, so there was no obvious way to get the
+ * labels back without also shrinking the duration. "Show labels" grows only
+ * the rows; Fit then takes you back to the overview.
+ */
+export const ShowLabelsKeepsTheWholeClock = meta.story({
+  name: "(Test) Show Labels Keeps The Whole Clock",
+  args: {
+    roots: manySpans(150),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const toolbar = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-toolbar"]',
+      );
+    const labels = () =>
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-metrics"]')
+        .length;
+
+    await expect(readout()).toContain("fitted");
+    await expect(readout()).toContain("4.0px rows");
+    await expect(labels()).toBe(0);
+
+    const show = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show labels"]',
+    );
+    if (!show) throw new Error("no show-labels button");
+    await expect(show.disabled).toBe(false);
+    await expect(toolbar()?.innerText.toLowerCase()).toContain("show labels");
+    await userEvent.click(show);
+
+    await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
+    await expect(readout()).toContain("zoomed");
+    await expect(labels()).toBeGreaterThan(0);
+
+    const fit = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Fit whole trace"]',
+    );
+    if (!fit) throw new Error("no fit button after expanding");
+    await expect(fit.disabled).toBe(false);
+    await userEvent.click(fit);
+
+    await waitFor(() => expect(readout()).toContain("fitted"));
+    await expect(readout()).toContain("4.0px rows");
+    await expect(labels()).toBe(0);
   },
 });
 
@@ -2017,7 +2079,7 @@ export const TheCursorMatchesTheGesture = meta.story({
  */
 export const TheToolbarDoesNotExplainItself = meta.story({
   name: "(Test) The Toolbar Does Not Explain Itself",
-  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  args: { ...READABLE, roots: manySpans(12), onSelect: fn(), onHover: fn() },
   play: async ({ canvasElement }) => {
     const toolbar = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-toolbar"]',

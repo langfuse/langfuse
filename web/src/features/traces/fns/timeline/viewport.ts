@@ -13,8 +13,11 @@
  *    `boxHeight / rows.count` — vertical zoom IS the visible row count, which is
  *    what makes "zoom until the rows are readable" a single number.
  *
- * Both axes clamp to content, so the viewport can never leave the trace, and a
- * single `factor` drives both — a map does not zoom one axis at a time.
+ * Both axes clamp to content, so the viewport can never leave the trace.
+ * Gesture zoom is usually one `factor` on both axes — a map does not zoom one
+ * axis at a time — except while rows are still too short to hold a label: then
+ * zooming in grows only the rows, so the whole duration stays on screen until
+ * the names come back.
  */
 
 import { clampView, type TimeSpan } from "./viewTransform";
@@ -33,6 +36,8 @@ export const MIN_ROW_HEIGHT = 1;
 export const MAX_ROW_HEIGHT = 40;
 /** The row height a human reads comfortably — what double-click aims for. */
 export const HUMAN_ROW_HEIGHT = 26;
+/** Shortest row that can hold a duration label and a name. */
+export const LABELLED_ROW_HEIGHT = 20;
 
 export type RowPresentation =
   /** Bar, duration label and name. */
@@ -45,7 +50,7 @@ export type RowPresentation =
 /** What a row can show follows from how tall it is, never the other way round. */
 export function presentationForRowHeight(rowHeight: number): RowPresentation {
   const height = Number.isFinite(rowHeight) ? rowHeight : 0;
-  if (height >= 20) return "labelled";
+  if (height >= LABELLED_ROW_HEIGHT) return "labelled";
   if (height >= 10) return "compact";
   return "hairline";
 }
@@ -143,37 +148,121 @@ export function clampViewport(
   };
 }
 
+export type ZoomAxes = "both" | "x" | "y";
+
 /**
- * Zoom both axes about a point in the box, given as ratios of its width and
- * height. `factor > 1` zooms in. The content under the anchor stays under it.
+ * Zoom about a point in the box, given as ratios of its width and height.
+ * `factor > 1` zooms in. The content under the anchor stays under it.
+ *
+ * `axes` defaults to both. `"y"` grows or shrinks only the rows, which is how
+ * a long trace can keep its full duration on screen while the labels return.
  */
 export function zoomViewport(
+  viewport: Viewport,
+  limits: ViewportLimits,
+  options: {
+    factor: number;
+    xRatio: number;
+    yRatio: number;
+    axes?: ZoomAxes;
+  },
+): Viewport {
+  const factor = finite(options.factor, 1);
+  if (factor <= 0) return clampViewport(viewport, limits);
+
+  const axes = options.axes ?? "both";
+  const zoomX = axes !== "y";
+  const zoomY = axes !== "x";
+  const xRatio = clamp(finite(options.xRatio, 0.5), 0, 1);
+  const yRatio = clamp(finite(options.yRatio, 0.5), 0, 1);
+
+  const anchorMs = viewport.time.start + viewport.time.duration * xRatio;
+  const timeDuration = zoomX
+    ? viewport.time.duration / factor
+    : viewport.time.duration;
+
+  const anchorRow = viewport.rows.start + viewport.rows.count * yRatio;
+  const rowsCount = zoomY ? viewport.rows.count / factor : viewport.rows.count;
+
+  return clampViewport(
+    {
+      time: {
+        start: zoomX ? anchorMs - timeDuration * xRatio : viewport.time.start,
+        duration: timeDuration,
+      },
+      rows: {
+        start: zoomY ? anchorRow - rowsCount * yRatio : viewport.rows.start,
+        count: rowsCount,
+      },
+    },
+    limits,
+  );
+}
+
+/**
+ * Grow rows until they can hold labels, without narrowing the time window.
+ *
+ * The resting fit of a long trace is 1px rows — the whole shape, no text. This
+ * is the other rest: the same clock, rows tall enough to name themselves, the
+ * rest of the tree panned to.
+ */
+export function expandRowsToReadable(
+  viewport: Viewport,
+  limits: ViewportLimits,
+  options: { yRatio?: number; targetRowHeight?: number } = {},
+): Viewport {
+  const from = clampViewport(viewport, limits);
+  const target = Math.max(
+    finite(options.targetRowHeight, HUMAN_ROW_HEIGHT),
+    LABELLED_ROW_HEIGHT,
+  );
+  const yRatio = clamp(finite(options.yRatio, 0), 0, 1);
+  const bounds = rowCountBounds(limits);
+  const boxHeight = Math.max(finite(limits.boxHeight, 0), 0);
+  const count = clamp(
+    boxHeight > 0 ? boxHeight / target : bounds.min,
+    bounds.min,
+    bounds.max,
+  );
+  const anchorRow = from.rows.start + from.rows.count * yRatio;
+  return clampViewport(
+    {
+      time: from.time,
+      rows: { start: anchorRow - count * yRatio, count },
+    },
+    limits,
+  );
+}
+
+/** Whether growing the rows (and keeping the clock) would reveal labels. */
+export function canExpandRowsToReadable(
+  viewport: Viewport,
+  limits: ViewportLimits,
+): boolean {
+  const height = rowHeightOf(viewport, limits.boxHeight);
+  if (height >= LABELLED_ROW_HEIGHT) return false;
+  const expanded = expandRowsToReadable(viewport, limits);
+  return rowHeightOf(expanded, limits.boxHeight) > height + 0.05;
+}
+
+/**
+ * Zoom in: grow rows first until labels fit, then zoom both axes.
+ * Zoom out: both axes (a full-width window only shrinks the rows).
+ */
+export function zoomViewportRevealLabels(
   viewport: Viewport,
   limits: ViewportLimits,
   options: { factor: number; xRatio: number; yRatio: number },
 ): Viewport {
   const factor = finite(options.factor, 1);
-  if (factor <= 0) return clampViewport(viewport, limits);
-
-  const xRatio = clamp(finite(options.xRatio, 0.5), 0, 1);
-  const yRatio = clamp(finite(options.yRatio, 0.5), 0, 1);
-
-  const anchorMs = viewport.time.start + viewport.time.duration * xRatio;
-  const timeDuration = viewport.time.duration / factor;
-
-  const anchorRow = viewport.rows.start + viewport.rows.count * yRatio;
-  const rowsCount = viewport.rows.count / factor;
-
-  return clampViewport(
-    {
-      time: {
-        start: anchorMs - timeDuration * xRatio,
-        duration: timeDuration,
-      },
-      rows: { start: anchorRow - rowsCount * yRatio, count: rowsCount },
-    },
-    limits,
-  );
+  if (factor <= 1) {
+    return zoomViewport(viewport, limits, options);
+  }
+  const height = rowHeightOf(viewport, limits.boxHeight);
+  if (height >= LABELLED_ROW_HEIGHT) {
+    return zoomViewport(viewport, limits, options);
+  }
+  return zoomViewport(viewport, limits, { ...options, axes: "y" });
 }
 
 /**

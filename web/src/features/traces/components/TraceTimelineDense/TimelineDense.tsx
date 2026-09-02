@@ -20,9 +20,11 @@
  *    phone or a peek panel, where there is not, the colour rail becomes the
  *    affordance and a hover or a tap floats the names over the chart.
  *  - Any wheel or two-finger scroll pans both axes; pinch and ⌘/ctrl + wheel zoom
- *    BOTH axes about the cursor, so the time window narrows and the rows grow
- *    together. Zoom is exponential in a zoom level and deltas accumulate per
- *    frame, as in mapping libraries — see the rate constants below.
+ *    about the cursor. While rows are still too short to hold a label, that zoom
+ *    grows only the rows — the whole duration stays on screen until the names
+ *    come back — and after that both axes move together. Zoom is exponential in
+ *    a zoom level and deltas accumulate per frame, as in mapping libraries — see
+ *    the rate constants below.
  *  - Drag pans both axes too, and drag draws a box to zoom into — the one
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
@@ -55,7 +57,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
-import { Scan, Minus, Plus } from "lucide-react";
+import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
@@ -80,6 +82,8 @@ import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
+  canExpandRowsToReadable,
+  expandRowsToReadable,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -94,7 +98,7 @@ import {
   rowIndexAtOffset,
   visibleRowRange,
   zoomToBox,
-  zoomViewport,
+  zoomViewportRevealLabels,
   type RowExtent,
   type Viewport,
 } from "../../fns/timeline/viewport";
@@ -490,6 +494,7 @@ export function TimelineDense({
       : 0;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
+  const canShowLabels = canExpandRowsToReadable(current, limits);
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   /**
@@ -665,7 +670,7 @@ export function TimelineDense({
     options: { factor: number; xRatio: number; yRatio: number },
   ) => {
     const { limits: live, extentOf: extent } = layoutRef.current;
-    const zoomed = zoomViewport(
+    const zoomed = zoomViewportRevealLabels(
       from ? clampViewport(from, live) : fitViewport(live),
       live,
       options,
@@ -815,6 +820,10 @@ export function TimelineDense({
     [cancelTween],
   );
 
+  const showLabels = () => {
+    flyTo(expandRowsToReadable(viewportRef.current, layoutRef.current.limits));
+  };
+
   const scheduleGesture = useCallback(() => {
     // Any gesture on the chart hands the space back: an expanded gutter is for
     // looking, and the moment you work in the chart it gets out of the way. It
@@ -827,8 +836,9 @@ export function TimelineDense({
 
   /**
    * Wheel and trackpad pinch on a non-passive listener, so the page never takes
-   * the gesture. Both zoom, like a map: a Mac pinch arrives as wheel + ctrlKey
-   * and needs no special case; shift or a horizontal wheel pans instead.
+   * the gesture. A Mac pinch arrives as wheel + ctrlKey and needs no special
+   * case; shift or a horizontal wheel pans instead. Pinch-zoom grows only the
+   * rows while labels are hidden, then both axes once they fit.
    */
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
@@ -1306,30 +1316,42 @@ export function TimelineDense({
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
-          onClick={() => zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
+          onClick={() =>
+            canShowLabels
+              ? showLabels()
+              : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
+          }
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
-        <ToolbarButton
-          label={fitted ? "Whole trace already fits" : "Fit whole trace"}
-          onClick={() => flyTo(fitViewport(limits))}
-          disabled={fitted}
-        >
-          {/* A viewfinder, not the diagonal arrows this used to wear: those read
-              as "fullscreen", so a control that was merely spent looked broken. */}
-          <Scan className="h-3 w-3" />
-        </ToolbarButton>
+        {canShowLabels ? (
+          <ToolbarButton label="Show labels" onClick={showLabels}>
+            <UnfoldVertical className="h-3 w-3" />
+          </ToolbarButton>
+        ) : (
+          <ToolbarButton
+            label={fitted ? "Whole trace already fits" : "Fit whole trace"}
+            onClick={() => flyTo(fitViewport(limits))}
+            disabled={fitted}
+          >
+            {/* A viewfinder, not the diagonal arrows this used to wear: those
+                read as "fullscreen", so a control that was merely spent looked
+                broken. */}
+            <Scan className="h-3 w-3" />
+          </ToolbarButton>
+        )}
         {/* Where you are, when you are somewhere — and nothing at all when the
-            whole trace is in view. This carried a list of gestures once. Every
-            way of interacting with this surface is one you would have tried:
-            drag, scroll, pinch, double-click, click. A caption explaining them
-            is a caption nobody reads, taking the room a state readout earns. */}
+            whole trace is in view. When labels are hidden at rest, the spent
+            fit control becomes "Show labels" and this caption says so: zoom is
+            how you get the names back, and that is not obvious from 1px rows. */}
         <span
           className="text-muted-foreground truncate"
           style={{ fontSize: "10px" }}
-          title={fitted ? undefined : windowHint}
+          title={
+            canShowLabels ? "Show labels" : fitted ? undefined : windowHint
+          }
         >
-          {fitted ? null : windowHint}
+          {canShowLabels ? "Show labels" : fitted ? null : windowHint}
         </span>
       </div>
 
