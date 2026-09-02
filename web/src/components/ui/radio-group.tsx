@@ -8,7 +8,7 @@ import { cn } from "@/src/utils/tailwind";
 type RadioGroupProps = Omit<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "className"
-> & { className?: "grid grid-cols-3 gap-2" | "flex flex-col space-y-1" };
+> & { className?: "grid grid-cols-3 gap-2" };
 
 const RadioGroup = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,

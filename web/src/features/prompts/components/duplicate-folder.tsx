@@ -165,7 +165,6 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                         {...field}
                         onValueChange={field.onChange}
                         defaultValue={field.value}
-                        className="flex flex-col space-y-1"
                       >
                         <FormItem className="flex items-center space-y-0 space-x-3">
                           <FormControl>
