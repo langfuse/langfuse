@@ -143,7 +143,7 @@ export function PricingSection({ form }: PricingSectionProps) {
         onValueChange={(open) =>
           setCollapsedTiers(tierIds.filter((id) => !open.includes(id)))
         }
-        className="space-y-2"
+        gap="sm"
       >
         {tiers.fields.map((field, index) => (
           <TierAccordionItem

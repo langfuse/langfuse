@@ -6,6 +6,20 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronDown } from "lucide-react";
 
+import { cn } from "@/src/utils/tailwind";
+
+const accordionVariants = cva("", {
+  variants: {
+    gap: {
+      none: "",
+      sm: "space-y-2",
+    },
+  },
+  defaultVariants: {
+    gap: "none",
+  },
+});
+
 const accordionTriggerVariants = cva(
   "flex flex-1 items-center font-bold transition-all",
   {
@@ -83,14 +97,18 @@ type AccordionProps = Omit<
     | "value"
   >,
   "children" | "className"
-> & {
-  children: React.ReactNode;
-  className?: "w-full" | "space-y-2";
-};
+> &
+  Pick<VariantProps<typeof accordionVariants>, "gap"> & {
+    children: React.ReactNode;
+    className?: "w-full";
+  };
 
-function Accordion({ children, className, ...props }: AccordionProps) {
+function Accordion({ children, className, gap, ...props }: AccordionProps) {
   return (
-    <AccordionPrimitive.Root className={className} {...props}>
+    <AccordionPrimitive.Root
+      className={cn(accordionVariants({ gap }), className)}
+      {...props}
+    >
       {children}
     </AccordionPrimitive.Root>
   );
