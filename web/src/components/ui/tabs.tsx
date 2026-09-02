@@ -7,6 +7,23 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
 
+const tabsListVariants = cva(
+  "text-muted-foreground inline-flex h-8 items-center justify-center p-1",
+  {
+    variants: {
+      variant: {
+        default: "bg-muted rounded-md",
+        underline: "rounded-none border-b bg-transparent",
+        outline:
+          "bg-background rounded-md border **:data-[state=active]:bg-muted",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const tabsTriggerVariants = cva(
   "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex items-center justify-center gap-1.5 font-bold leading-none whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
   {
@@ -36,16 +53,15 @@ type TabsListProps = {
     | "grid h-6 w-full grid-cols-3 p-0.5"
     | "grid h-6 w-full grid-cols-2 p-0.5"
     | "grid w-fit max-w-fit grid-flow-col gap-4"
-    | "flex h-auto w-full rounded-none border-b bg-transparent p-0"
+    | "flex h-auto w-full p-0"
     | "h-auto gap-1"
     | "grid h-auto w-full grid-cols-2 gap-1"
     | "flex w-full"
     | "h-7"
     | "h-fit py-0.5"
     | "grid w-full grid-cols-2"
-    | "h-fit p-0.5"
-    | "bg-background **:data-[state=active]:bg-muted border";
-};
+    | "h-fit p-0.5";
+} & Pick<VariantProps<typeof tabsListVariants>, "variant">;
 
 const Tabs = TabsPrimitive.Root;
 
@@ -53,14 +69,12 @@ function TabsList({
   "aria-label": ariaLabel,
   children,
   className,
+  variant,
 }: TabsListProps) {
   return (
     <TabsPrimitive.List
       aria-label={ariaLabel}
-      className={cn(
-        "bg-muted text-muted-foreground inline-flex h-8 items-center justify-center rounded-md p-1",
-        className,
-      )}
+      className={cn(tabsListVariants({ variant }), className)}
     >
       {children}
     </TabsPrimitive.List>

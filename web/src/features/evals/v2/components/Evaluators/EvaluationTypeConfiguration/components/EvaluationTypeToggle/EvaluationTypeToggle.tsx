@@ -18,7 +18,7 @@ export function EvaluationTypeToggle({
       value={value}
       onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
     >
-      <TabsList className="bg-background **:data-[state=active]:bg-muted border">
+      <TabsList variant="outline">
         {!disabled || value === EvalTemplateTypeEnum.LLM_AS_JUDGE ? (
           <TabsTrigger
             value={EvalTemplateTypeEnum.LLM_AS_JUDGE}

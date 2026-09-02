@@ -24,7 +24,7 @@ export function EvaluatorCodeLanguageSelector({
         onValueChange(language as EvalTemplateSourceCodeLanguage)
       }
     >
-      <TabsList className="bg-background **:data-[state=active]:bg-muted border">
+      <TabsList variant="outline">
         <TabsTrigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
           disabled={disabled}
