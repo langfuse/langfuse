@@ -48,17 +48,23 @@ const accordionContentVariants = cva("", {
 
 const Accordion = AccordionPrimitive.Root;
 
-const AccordionItem = React.forwardRef<
-  React.ComponentRef<typeof AccordionPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
->(({ className, ...props }, ref) => (
-  <AccordionPrimitive.Item
-    ref={ref}
-    className={cn("border-b", className)}
-    {...props}
-  />
-));
-AccordionItem.displayName = "AccordionItem";
+function AccordionItem({
+  children,
+  className,
+  value,
+}: Pick<
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
+  "children" | "className" | "value"
+>) {
+  return (
+    <AccordionPrimitive.Item
+      className={cn("border-b", className)}
+      value={value}
+    >
+      {children}
+    </AccordionPrimitive.Item>
+  );
+}
 
 type AccordionTriggerProps = Pick<
   VariantProps<typeof accordionTriggerVariants>,
