@@ -133,7 +133,7 @@ export function DashboardRowActions({
               </Trigger>
             )}
           </DropdownMenuController>
-          {dashboard.owner === "PROJECT" ? (
+          {dashboard.owner === "PROJECT" && editOpen ? (
             <EditDashboardDialog
               open={editOpen}
               onOpenChange={setEditOpen}
@@ -142,7 +142,8 @@ export function DashboardRowActions({
               initialName={dashboard.name}
               initialDescription={dashboard.description}
             />
-          ) : (
+          ) : null}
+          {dashboard.owner !== "PROJECT" && cloneFirstOpen ? (
             <CloneFirstDialog
               open={cloneFirstOpen}
               onOpenChange={setCloneFirstOpen}
@@ -150,7 +151,7 @@ export function DashboardRowActions({
               dashboardId={dashboard.id}
               dashboardName={dashboard.name}
             />
-          )}
+          ) : null}
         </div>
       )}
     </DeleteDashboardDialogController>

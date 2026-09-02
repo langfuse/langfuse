@@ -196,6 +196,36 @@ describe("DashboardRowActions", () => {
     ).toBeInTheDocument();
   });
 
+  it("remounts the edit dialog with the current dashboard name", () => {
+    const { rerender } = render(
+      <DashboardRowActions projectId="proj-1" dashboard={projectDashboard} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /edit/i }));
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("Support overview");
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    rerender(
+      <DashboardRowActions
+        projectId="proj-1"
+        dashboard={{
+          ...projectDashboard,
+          name: "Renamed dashboard",
+          description: "Updated description",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /edit/i }));
+
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("Renamed dashboard");
+    expect(screen.getByLabelText(/^description$/i)).toHaveValue(
+      "Updated description",
+    );
+  });
+
   it("omits delete for Langfuse-owned dashboards", () => {
     render(
       <DashboardRowActions
