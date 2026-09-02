@@ -21,6 +21,7 @@ const listVariants = Object.keys({
 
 const listSizes = Object.keys({
   default: true,
+  md: true,
   sm: true,
   auto: true,
 } satisfies Record<ListSize, true>) as ListSize[];

@@ -16,6 +16,7 @@ const tabsListVariants = cva(
       },
       size: {
         default: "",
+        md: "",
         sm: "",
         auto: "",
       },
@@ -31,12 +32,15 @@ const tabsListVariants = cva(
     },
     compoundVariants: [
       { variant: "default", size: "default", class: "h-8 p-1" },
+      { variant: "default", size: "md", class: "h-7 p-1" },
       { variant: "default", size: "sm", class: "h-6 p-0.5" },
       { variant: "default", size: "auto", class: "h-auto p-1" },
       { variant: "outline", size: "default", class: "h-8 p-1" },
+      { variant: "outline", size: "md", class: "h-7 p-1" },
       { variant: "outline", size: "sm", class: "h-6 p-0.5" },
       { variant: "outline", size: "auto", class: "h-auto p-1" },
       { variant: "underline", size: "default", class: "h-auto p-0" },
+      { variant: "underline", size: "md", class: "h-auto p-0" },
       { variant: "underline", size: "sm", class: "h-auto p-0" },
       { variant: "underline", size: "auto", class: "h-auto p-0" },
     ],

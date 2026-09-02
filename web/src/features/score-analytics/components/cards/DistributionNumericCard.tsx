@@ -225,7 +225,7 @@ export function DistributionNumericCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <Tabs.List size="sm">
+              <Tabs.List size="md">
                 <Tabs.Trigger value="score1" title={score1FullLabel} size="sm">
                   {truncateLabel(score1FullLabel)}
                 </Tabs.Trigger>

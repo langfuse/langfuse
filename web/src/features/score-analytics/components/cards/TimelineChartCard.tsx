@@ -287,7 +287,7 @@ export function TimelineChartCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as TimelineTab)}
             >
-              <Tabs.List size="sm">
+              <Tabs.List size="md">
                 <Tabs.Trigger value="score1" title={score1FullLabel} size="sm">
                   {truncateLabel(score1FullLabel)}
                 </Tabs.Trigger>
