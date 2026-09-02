@@ -2,11 +2,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/ui/accordion";
 import {
   FormControl,
   FormField,
@@ -49,9 +45,9 @@ export function TierAccordionItem({
   });
 
   return (
-    <AccordionItem value={tier.id} variant="card">
+    <Accordion.Item value={tier.id} variant="card">
       <div className="px-4">
-        <AccordionTrigger variant="plain">
+        <Accordion.Trigger variant="plain">
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-bold">{name ?? tier.name}</span>
@@ -74,10 +70,10 @@ export function TierAccordionItem({
               </Button>
             )}
           </div>
-        </AccordionTrigger>
+        </Accordion.Trigger>
       </div>
 
-      <AccordionContent>
+      <Accordion.Content>
         <div className="space-y-4 px-4">
           {/* Tier Name */}
           <FormField
@@ -99,7 +95,7 @@ export function TierAccordionItem({
 
           {children}
         </div>
-      </AccordionContent>
-    </AccordionItem>
+      </Accordion.Content>
+    </Accordion.Item>
   );
 }

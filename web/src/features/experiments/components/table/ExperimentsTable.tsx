@@ -59,12 +59,7 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/ui/accordion";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 import {
@@ -879,15 +874,15 @@ export default function ExperimentsTable({
               value={accordionValue}
               onValueChange={handleChartsAccordionChange}
             >
-              <AccordionItem value="charts" variant="top">
+              <Accordion.Item value="charts" variant="top">
                 <div className="px-3">
-                  <AccordionTrigger variant="section">
+                  <Accordion.Trigger variant="section">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold">Charts</span>
                     </div>
-                  </AccordionTrigger>
+                  </Accordion.Trigger>
                 </div>
-                <AccordionContent size="compact">
+                <Accordion.Content size="compact">
                   <div className="max-h-[40dvh] overflow-x-auto">
                     <ExperimentChartsGrid
                       projectId={projectId}
@@ -897,8 +892,8 @@ export default function ExperimentsTable({
                       isExternalLoading={experiments.status === "loading"}
                     />
                   </div>
-                </AccordionContent>
-              </AccordionItem>
+                </Accordion.Content>
+              </Accordion.Item>
             </Accordion>
           )}
 

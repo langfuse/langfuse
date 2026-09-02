@@ -90,7 +90,7 @@ type AccordionProps = Pick<
     children: React.ReactNode;
   };
 
-function Accordion({ children, gap, ...props }: AccordionProps) {
+function AccordionRoot({ children, gap, ...props }: AccordionProps) {
   return (
     <AccordionPrimitive.Root className={accordionVariants({ gap })} {...props}>
       {children}
@@ -149,4 +149,10 @@ function AccordionContent({ children, size }: AccordionContentProps) {
   );
 }
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };
+const Accordion = Object.assign(AccordionRoot, {
+  Item: AccordionItem,
+  Trigger: AccordionTrigger,
+  Content: AccordionContent,
+});
+
+export { Accordion };

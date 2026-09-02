@@ -3,12 +3,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Lock, LockOpen, Plus, X } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/ui/accordion";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -382,11 +377,11 @@ export const RemoteExperimentUpsertForm = ({
             />
 
             <Accordion type="single" collapsible>
-              <AccordionItem value="advanced" variant="none">
-                <AccordionTrigger size="sm" variant="start">
+              <Accordion.Item value="advanced" variant="none">
+                <Accordion.Trigger size="sm" variant="start">
                   Advanced Options
-                </AccordionTrigger>
-                <AccordionContent>
+                </Accordion.Trigger>
+                <Accordion.Content>
                   <div className="space-y-6 px-1 pt-2">
                     <div>
                       <FormLabel>Custom headers</FormLabel>
@@ -515,8 +510,8 @@ export const RemoteExperimentUpsertForm = ({
                       )}
                     />
                   </div>
-                </AccordionContent>
-              </AccordionItem>
+                </Accordion.Content>
+              </Accordion.Item>
             </Accordion>
           </DialogBody>
 

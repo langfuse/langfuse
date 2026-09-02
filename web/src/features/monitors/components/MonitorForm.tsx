@@ -8,12 +8,7 @@ import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/ui/accordion";
 import {
   Card,
   CardContent,
@@ -665,11 +660,11 @@ export const MonitorForm = ({
                   )}
                 />
                 <Accordion type="single" collapsible>
-                  <AccordionItem value="advanced" variant="none">
-                    <AccordionTrigger size="sm" variant="start">
+                  <Accordion.Item value="advanced" variant="none">
+                    <Accordion.Trigger size="sm" variant="start">
                       Advanced Options
-                    </AccordionTrigger>
-                    <AccordionContent>
+                    </Accordion.Trigger>
+                    <Accordion.Content>
                       <div className="space-y-6 px-1 pt-2">
                         <FormField
                           control={form.control}
@@ -700,8 +695,8 @@ export const MonitorForm = ({
                           )}
                         />
                       </div>
-                    </AccordionContent>
-                  </AccordionItem>
+                    </Accordion.Content>
+                  </Accordion.Item>
                 </Accordion>
               </Section>
 
