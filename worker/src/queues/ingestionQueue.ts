@@ -228,7 +228,7 @@ export const ingestionQueueProcessorBuilder = (
       const firstS3WriteTime =
         eventFiles
           .map((fileRef) => fileRef.createdAt)
-          .sort()
+          .sort((a, b) => a.getTime() - b.getTime())
           .shift() ?? new Date();
 
       if (events.length === 0) {
