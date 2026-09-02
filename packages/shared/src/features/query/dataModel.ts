@@ -13,6 +13,7 @@ import {
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -371,29 +372,24 @@ export const eventsTracesView: ViewDeclarationType = {
 
 const createEvaluatorDimensions = (
   tableAlias: string,
-): DimensionsDeclarationType => {
-  const metadataValue = (key: EvalExecutionMetadataKey) =>
-    `arrayElement(${tableAlias}.metadata_values, indexOf(${tableAlias}.metadata_names, '${key}'))`;
-
-  return {
-    evaluatorId: {
-      sql: `coalesce(nullIf(${metadataValue(EvalExecutionMetadataKey.EVALUATOR_ID)}, ''), ${metadataValue(EvalExecutionMetadataKey.EVALUATION_RULE_ID)})`,
-      alias: "evaluatorId",
-      type: "string",
-      description:
-        "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
-      highCardinality: true,
-      uiHidden: true,
-    },
-    isEvaluatorTest: {
-      sql: `toBool(${metadataValue(EvalExecutionMetadataKey.EVALUATOR_TEST)} = 'true')`,
-      alias: "isEvaluatorTest",
-      type: "boolean",
-      description: "Whether this row belongs to an evaluator test run.",
-      uiHidden: true,
-    },
-  };
-};
+): DimensionsDeclarationType => ({
+  evaluatorId: {
+    sql: `coalesce(nullIf(${tableAlias}.evaluator_id, ''), ${tableAlias}.evaluation_rule_id)`,
+    alias: "evaluatorId",
+    type: "string",
+    description:
+      "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
+    highCardinality: true,
+    uiHidden: true,
+  },
+  isEvaluatorTest: {
+    sql: `${tableAlias}.evaluator_execution_is_test`,
+    alias: "isEvaluatorTest",
+    type: "boolean",
+    description: "Whether this row belongs to an evaluator test run.",
+    uiHidden: true,
+  },
+});
 
 export const observationsView: ViewDeclarationType = {
   name: "observations",
