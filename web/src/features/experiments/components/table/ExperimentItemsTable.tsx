@@ -711,6 +711,16 @@ export default function ExperimentItemsTable({
     () => allExperimentIds.join(","),
     [allExperimentIds],
   );
+  // The selection arrives as a fresh array on every render, so anything that
+  // reaches a hook dependency has to come off the key, which is stable by
+  // value. `rows` below is one of those: it feeds the effect that publishes the
+  // peek navigation list, and publishing re-renders every consumer of that
+  // provider — this table included. Depending on the array identity there
+  // leaves the two re-triggering each other for as long as the page is open.
+  const comparableExperimentIds = useMemo(
+    () => (experimentSelectionKey ? experimentSelectionKey.split(",") : []),
+    [experimentSelectionKey],
+  );
   const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
     string | null
   >(null);
@@ -1600,7 +1610,7 @@ export default function ExperimentItemsTable({
           filters: scoreComparisonFilters,
           experiments: row.experiments,
           baselineExperimentId: primaryExperimentId,
-          comparableExperimentIds: allExperimentIds,
+          comparableExperimentIds,
           dataTypeFor: scoreDataTypeFor,
         }),
       ),
@@ -1608,7 +1618,7 @@ export default function ExperimentItemsTable({
       unfilteredRows,
       scoreComparisonFilters,
       primaryExperimentId,
-      allExperimentIds,
+      comparableExperimentIds,
       scoreDataTypeFor,
     ],
   );
