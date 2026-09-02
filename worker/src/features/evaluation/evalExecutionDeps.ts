@@ -26,6 +26,9 @@ type StructuredOutputSchema = z.ZodObject<{
   score: z.ZodType;
 }>;
 
+const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
+  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
+
 /**
  * Result of fetching model configuration.
  */
@@ -248,12 +251,14 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           adapter,
         });
 
-      // Keep the evaluator contract unchanged, but avoid exposing the
-      // overloaded `reasoning` field name to the model.
-      const modelFacingStructuredOutputSchema = z.object({
-        scoreExplanation: params.structuredOutputSchema.shape.reasoning,
-        score: params.structuredOutputSchema.shape.score,
-      });
+      // Keep the evaluator contract unchanged while the model-facing schema
+      // resolves custom output instructions into the supported fields.
+      const modelFacingStructuredOutputSchema = z
+        .object({
+          scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+          score: params.structuredOutputSchema.shape.score,
+        })
+        .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
 
       // llmaj egress: provider-bound messages (including base64-expanded inline
       // media) plus schema, uncompressed.

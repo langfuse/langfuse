@@ -73,7 +73,8 @@ export type FieldRegistry = {
     | "evaluationRules"
     | "evaluatorSamples"
     | "ruleSamples"
-    | "sessions";
+    | "sessions"
+    | "experiments";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
@@ -148,12 +149,13 @@ export function fieldRegistryFromColumns(
     // `*Object` columns and the categorical score column are keyed dot-paths
     // (`metadata.<key>`, `scores.<name>`), never plain fields — a derived
     // `score_categories` field would lower to a keyless categoryOptions filter
-    // the backend cannot answer. They stay in `columns` so the reverse adapter
-    // still resolves them.
+    // the backend cannot answer. That holds whether or not this view exposes
+    // the `scores.` namespace: a view whose sidebar owns score filters still
+    // has the column in its facets, and it is sidebar-only, not a bare field.
+    // They stay in `columns` so the reverse adapter still resolves them.
     .filter(
       (column) =>
-        !column.type.endsWith("Object") &&
-        !(scores && isKeyedScoreColumn(column.id)),
+        !column.type.endsWith("Object") && !isKeyedScoreColumn(column.id),
     )
     .map((column): FieldDef => {
       const fieldOverlay = overlay.fields?.[column.id];

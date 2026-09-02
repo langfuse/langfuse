@@ -13,6 +13,7 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -95,6 +96,26 @@ const eventsView: RegistryUnderTest = {
     "key:value",
     "(grouped)",
     'has "quote"',
+  ],
+  sidebarFilters: [
+    [
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "verdict",
+        operator: "any of",
+        value: ["good"],
+      },
+    ],
+    [
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "nps",
+        operator: ">",
+        value: 5,
+      },
+    ],
   ],
 };
 
@@ -435,6 +456,27 @@ const sessionsView: RegistryUnderTest = {
   // Free text is rewritten onto `id`, not dropped, so the quoting/reserved-word
   // mirror still has to hold on this registry.
   freeTextValues: ["hello", "refund policy", "or", "and", "!important", "-foo"],
+  sidebarFilters: [
+    [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "accuracy",
+        operator: ">",
+        value: 0.5,
+      },
+    ],
+    // Trace scores are not offered here, so this one must stay sidebar-only.
+    [
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "nps",
+        operator: ">",
+        value: 5,
+      },
+    ],
+  ],
 };
 
 describe("search bar invariants — sessions registry", () => {
@@ -657,5 +699,143 @@ describe("search bar invariants — sessions registry", () => {
 
     // Opt-in: a view that has not asked for recents gets none, valid or not.
     expect(RULE_FIELD_REGISTRY.recentSearches).toBe(false);
+  });
+});
+
+const experimentsView: RegistryUnderTest = {
+  name: "experiments",
+  registry: EXPERIMENTS_FIELD_REGISTRY,
+  extraKeys: ["metadata.owner", 'metadata."my key"'],
+  scoreContexts: [],
+  fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
+  freeTextValues: ["hello", "run 12", "or", "!important"],
+  // Scores stay in the sidebar on this view, and after the score unification
+  // they sit on the SAME canonical columns the bar's `scores.` path recognizes —
+  // so the serializer has to be told they are not the bar's to render.
+  sidebarFilters: [
+    [
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "verified_article_status",
+        operator: "any of",
+        value: ["none-verified"],
+      },
+    ],
+    [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "groundedness",
+        operator: ">",
+        value: 0.5,
+      },
+    ],
+    [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "in_force",
+        operator: "=",
+        value: true,
+      },
+    ],
+    // A filter the bar DOES own, alongside one it does not: the owned half must
+    // still render.
+    [
+      {
+        type: "stringOptions",
+        column: "experimentDatasetName",
+        operator: "any of",
+        value: ["legal-answer-quality"],
+      },
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "verified_article_status",
+        operator: "any of",
+        value: ["none-verified"],
+      },
+    ],
+  ],
+};
+
+describe("search bar invariants — experiments registry", () => {
+  it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
+    const failures = runSearchBarInvariants(experimentsView);
+    expect(
+      failures,
+      failures.length === 0
+        ? "ok"
+        : `\n${failures
+            .slice(0, 25)
+            .map((f) => `  [${f.invariant}] ${f.case} — ${f.detail}`)
+            .join(
+              "\n",
+            )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
+    ).toEqual([]);
+  });
+
+  it("exposes only the sidebar facets whose columns are actually filterable", () => {
+    expect(EXPERIMENTS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
+      "experimentDatasetName",
+      "name",
+    ]);
+    // `dataset:` filters by the readable, unique name; the id column stays
+    // filterable for old saved views but is not offered here.
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("dataset")).toMatchObject({
+      type: "field",
+      field: { id: "experimentDatasetName" },
+    });
+    expect(
+      EXPERIMENTS_FIELD_REGISTRY.resolveField("experimentDatasetId"),
+    ).toBeNull();
+  });
+
+  it("keeps score dot-paths closed until the columns are unified", () => {
+    // The adapter lowers `scores.<name>` onto the canonical scores_avg /
+    // score_categories / score_booleans columns. Experiments names its score
+    // columns obs_* / trace_*, so an open `scores.` here would emit a filter on
+    // a column this view does not have.
+    expect(
+      EXPERIMENTS_FIELD_REGISTRY.resolveField("scores.groundedness"),
+    ).toBeNull();
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("traceScores.x")).toBeNull();
+    // Metadata is unaffected — that column exists under its canonical name.
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("metadata.owner")).toEqual({
+      type: "metadata",
+      key: "owner",
+    });
+  });
+
+  it("rewrites a bare word onto the experiment name", () => {
+    const committed = planCommit(
+      "refund eval",
+      undefined,
+      EXPERIMENTS_FIELD_REGISTRY,
+    );
+    expect(committed).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "refund eval",
+        },
+      ],
+    });
+  });
+
+  it("keeps the run metrics out — the backend silently drops them", () => {
+    // itemCount / errorCount / totalCost / latencyAvg have ColumnDefinitions for
+    // display and sorting but no UiColumnMapping, and the repository partitions
+    // filters by allow-list, discarding anything in neither group. A field here
+    // would render a pill and change nothing.
+    for (const id of ["itemCount", "errorCount", "totalCost", "latencyAvg"]) {
+      expect(EXPERIMENTS_FIELD_REGISTRY.resolveField(id)).toBeNull();
+    }
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("cost")).toBeNull();
   });
 });
