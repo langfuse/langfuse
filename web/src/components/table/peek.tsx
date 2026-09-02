@@ -16,7 +16,6 @@ import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -32,7 +31,7 @@ type PeekViewItemType = Extract<
  * Options to control peek event behavior.
  * Ignore close events from certain clickable elements to ensure integrity of table row actions.
  */
-export type PeekEventControlOptions = {
+type PeekEventControlOptions = {
   ignoredSelectors?: string[];
 };
 
@@ -59,6 +58,10 @@ export type DataTablePeekViewProps = {
   expandPeek?: (openInNewTab: boolean) => void;
   /** Additional peek event options */
   peekEventOptions?: PeekEventControlOptions;
+  /** Analytics table identity for peek:* events. Forward from the owning table. */
+  tableName: string;
+  /** Surface dimension at the moment of the action. */
+  isV4: boolean;
 };
 
 type TablePeekViewProps = Pick<
@@ -73,6 +76,8 @@ type TablePeekViewProps = Pick<
   // longer rendered.
   | "expandPeek"
   | "peekEventOptions"
+  | "tableName"
+  | "isV4"
 > & {
   title?: string;
   /**
@@ -156,10 +161,9 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children, footer } = props;
+  const { title, children, footer, tableName, isV4 } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
   const itemId = router.query.peek as string | undefined;
   const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
   // Handheld, not width-only: a phone in landscape is wider than `md` but is
@@ -184,6 +188,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         isExpanded: expanded,
         routePattern: router.pathname,
         isV4,
+        tableName,
       });
       if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
       else params.delete(PEEK_VIEW_PARAM);
@@ -196,7 +201,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         { shallow: true },
       );
     },
-    [router, capture, isV4],
+    [router, capture, isV4, tableName],
   );
 
   const panel = usePeekPanelState({
@@ -211,9 +216,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           trigger,
           routePattern: router.pathname,
           isV4,
+          tableName,
         });
       },
-      [capture, router.pathname, isV4],
+      [capture, router.pathname, isV4, tableName],
     ),
   });
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];

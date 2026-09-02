@@ -4,6 +4,9 @@ import {
   createTracesCh,
   createObservationsCh,
   createEventsCh,
+  convertCallsToArrays,
+  convertDefinitionsToMap,
+  extractToolsFromObservation,
   ObservationRecordInsertType,
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
@@ -57,6 +60,8 @@ type DemoObs = {
   /** time-to-first-token in ms — generations only */
   ttft?: number;
   modelParameters?: Record<string, unknown>;
+  level?: "DEFAULT" | "WARNING" | "ERROR";
+  statusMessage?: string;
 };
 
 const CUSTOMER_MESSAGE =
@@ -87,7 +92,7 @@ const PLAN: DemoObs[] = [
     type: "AGENT",
     name: "support-copilot",
     start: 0,
-    end: 11052,
+    end: 11752,
     input: { message: CUSTOMER_MESSAGE, customer_id: "cus_LqT4v8" },
     output: {
       reply: FINAL_REPLY,
@@ -140,12 +145,71 @@ const PLAN: DemoObs[] = [
     },
   },
   {
+    key: "plan-context",
+    parentKey: "root",
+    type: "GENERATION",
+    name: "plan-context",
+    start: 826,
+    end: 1510,
+    model: "gpt-5.4-mini",
+    usage: [648, 57],
+    ttft: 171,
+    modelParameters: { temperature: 0, max_tokens: 256, tool_choice: "auto" },
+    input: {
+      messages: [
+        {
+          role: "system",
+          content:
+            "Decide which context sources to load for this support request. " +
+            "Call every relevant tool in parallel.",
+        },
+        {
+          role: "user",
+          content:
+            '{"intent":"billing.duplicate_charge","customer_id":"cus_LqT4v8"}',
+        },
+      ],
+    },
+    // Three PARALLEL tool calls in one response — the undercount shape from
+    // the linked report: counting observations sees 1, summing toolCalls sees 3.
+    output: {
+      content: null,
+      tool_calls: [
+        {
+          id: "call_ctx01",
+          type: "function",
+          function: {
+            name: "crm_get_customer",
+            arguments: '{"customer_id":"cus_LqT4v8"}',
+          },
+        },
+        {
+          id: "call_ctx02",
+          type: "function",
+          function: {
+            name: "billing_list_invoices",
+            arguments:
+              '{"customer_id":"cus_LqT4v8","period":"2026-06..2026-07"}',
+          },
+        },
+        {
+          id: "call_ctx03",
+          type: "function",
+          function: {
+            name: "tickets_search",
+            arguments: '{"query":"duplicate charge cus_LqT4v8","limit":5}',
+          },
+        },
+      ],
+    },
+  },
+  {
     key: "load-context",
     parentKey: "root",
     type: "SPAN",
     name: "load-context",
-    start: 858,
-    end: 1512,
+    start: 1558,
+    end: 2212,
     input: { customer_id: "cus_LqT4v8" },
     output: { sources: ["crm", "billing", "tickets"], cache_hit: false },
   },
@@ -154,8 +218,8 @@ const PLAN: DemoObs[] = [
     parentKey: "load-context",
     type: "TOOL",
     name: "crm.get-customer",
-    start: 881,
-    end: 1129,
+    start: 1581,
+    end: 1829,
     input: { customer_id: "cus_LqT4v8" },
     output: {
       name: "Maya Chen",
@@ -173,8 +237,8 @@ const PLAN: DemoObs[] = [
     parentKey: "load-context",
     type: "TOOL",
     name: "billing.list-invoices",
-    start: 886,
-    end: 1494,
+    start: 1586,
+    end: 2194,
     input: { customer_id: "cus_LqT4v8", period: "2026-06..2026-07" },
     output: {
       invoices: [
@@ -199,8 +263,8 @@ const PLAN: DemoObs[] = [
     parentKey: "load-context",
     type: "TOOL",
     name: "tickets.search",
-    start: 893,
-    end: 1263,
+    start: 1593,
+    end: 1963,
     input: { query: "duplicate charge cus_LqT4v8", limit: 5 },
     output: {
       hits: 1,
@@ -221,8 +285,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 1561,
-    end: 3389,
+    start: 2261,
+    end: 4089,
     model: "gpt-5.4",
     usage: [1846, 94],
     ttft: 243,
@@ -264,8 +328,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "stripe.find-charges",
-    start: 3441,
-    end: 4118,
+    start: 4141,
+    end: 4818,
     input: { customer_id: "cus_LqT4v8", period: "2026-07", amount_usd: 49 },
     output: {
       charges: [
@@ -294,8 +358,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 4172,
-    end: 5924,
+    start: 4872,
+    end: 6624,
     model: "gpt-5.4",
     usage: [2413, 72],
     ttft: 212,
@@ -337,8 +401,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "stripe.create-refund",
-    start: 5978,
-    end: 6893,
+    start: 6678,
+    end: 7593,
     input: {
       charge_id: "ch_3PqK9b",
       reason: "duplicate",
@@ -358,8 +422,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 6947,
-    end: 8731,
+    start: 7647,
+    end: 9431,
     model: "gpt-5.4",
     usage: [2987, 141],
     ttft: 264,
@@ -392,8 +456,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "draft-response",
-    start: 8790,
-    end: 10377,
+    start: 9490,
+    end: 11077,
     model: "gpt-5.4",
     usage: [1312, 187],
     ttft: 231,
@@ -423,8 +487,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GUARDRAIL",
     name: "guardrail.output",
-    start: 10426,
-    end: 10557,
+    start: 11126,
+    end: 11257,
     input: { text: FINAL_REPLY, checks: ["policy", "tone", "pii"] },
     output: { verdict: "pass", tone: "empathetic", policy_violations: [] },
     metadata: { provider: "internal", policy: "support-v2" },
@@ -434,13 +498,133 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "zendesk.send-reply",
-    start: 10609,
-    end: 10881,
+    start: 11309,
+    end: 11581,
     input: { thread_id: "thread_7Hf3kX", body: FINAL_REPLY },
     output: { message_id: "msg_9uTb4w", status: "sent" },
     metadata: { provider: "zendesk" },
   },
 ];
+
+/**
+ * --fail variant: the first refund attempt hits a Stripe idempotency
+ * conflict (ERROR-level TOOL) and the agent retries with a fresh key —
+ * one extra ReAct turn, one extra tool call. Feeds the tool-error and
+ * retry shapes on the agent dashboard.
+ */
+const FAILURE_SHIFT_MS = 1666;
+const FAILURE_NODES: DemoObs[] = [
+  {
+    key: "refund-fail",
+    parentKey: "root",
+    type: "TOOL",
+    name: "stripe.create-refund",
+    start: 6678,
+    end: 7167,
+    level: "ERROR",
+    statusMessage: "Stripe error 409: idempotency_key conflict",
+    input: {
+      charge_id: "ch_3PqK9b",
+      reason: "duplicate",
+      idempotency_key: "refund-cus_LqT4v8-20260709",
+    },
+    output: {
+      error: {
+        type: "idempotency_error",
+        code: 409,
+        message:
+          "Keys for idempotent requests can only be used with the same " +
+          "parameters they were first used with.",
+      },
+    },
+    metadata: { provider: "stripe", api_version: "2026-06-01" },
+  },
+  {
+    key: "llm-retry",
+    parentKey: "root",
+    type: "GENERATION",
+    name: "llm.chat",
+    start: 7221,
+    end: 8291,
+    model: "gpt-5.4",
+    usage: [2653, 68],
+    ttft: 219,
+    modelParameters: {
+      temperature: 0.3,
+      max_tokens: 1024,
+      tool_choice: "auto",
+    },
+    input: {
+      messages: [
+        { role: "system", content: AGENT_SYSTEM_PROMPT },
+        {
+          role: "tool",
+          tool_call_id: "call_xT19vB",
+          content:
+            '{"error":{"type":"idempotency_error","code":409,' +
+            '"message":"Keys for idempotent requests can only be used with ' +
+            'the same parameters they were first used with."}}',
+        },
+      ],
+    },
+    output: {
+      content: null,
+      tool_calls: [
+        {
+          id: "call_rT44xC",
+          type: "function",
+          function: {
+            name: "stripe_create_refund",
+            arguments:
+              '{"charge_id":"ch_3PqK9b","reason":"duplicate",' +
+              '"idempotency_key":"refund-cus_LqT4v8-20260709-r2"}',
+          },
+        },
+      ],
+    },
+  },
+];
+
+/**
+ * buildPlan returns the happy-path PLAN, or a --fail variant. Failures
+ * alternate by seed so the tool-error widgets show more than one tool:
+ * - "refund": failed refund attempt + retry turn spliced in (shifts the tail)
+ * - "tickets": tickets.search returns a fast Zendesk 502 (same timings; the
+ *   agent proceeds without prior-ticket context)
+ */
+function buildPlan(fail: boolean, failTarget: "refund" | "tickets"): DemoObs[] {
+  if (!fail) return PLAN;
+  if (failTarget === "tickets") {
+    return PLAN.map((p) =>
+      p.key === "tickets"
+        ? {
+            ...p,
+            level: "ERROR" as const,
+            statusMessage: "Zendesk 502: upstream search unavailable",
+            output: {
+              error: {
+                type: "upstream_error",
+                code: 502,
+                message: "Search backend unavailable, request not retried.",
+              },
+            },
+          }
+        : p,
+    );
+  }
+  const refundIndex = PLAN.findIndex((p) => p.key === "refund");
+  return [
+    ...PLAN.slice(0, refundIndex).map((p) =>
+      p.key === "root" ? { ...p, end: p.end + FAILURE_SHIFT_MS } : p,
+    ),
+    ...FAILURE_NODES,
+    ...PLAN.slice(refundIndex).map((p) => ({
+      ...p,
+      start: p.start + FAILURE_SHIFT_MS,
+      end: p.end + FAILURE_SHIFT_MS,
+    })),
+  ];
+}
 
 const run = async (
   ctx: ScenarioContext,
@@ -448,13 +632,27 @@ const run = async (
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const withV4 = params["v4"] as boolean;
+  const fail = params["fail"] as boolean;
+  const daysAgo = Number(params["days-ago"] ?? 0);
+  const seedNum = Number(params["seed"] ?? 42);
+  const plan = buildPlan(fail, seedNum % 2 === 0 ? "refund" : "tickets");
 
   // The prefix IS the trace id (no "-trace" suffix): the id shows in the
   // trace header, so a demo seeded with a hex-looking prefix (e.g.
   // --id-prefix 0198f2ab41c7e93d) reads like a production trace on camera.
   const traceId = ctx.idPrefix;
   const sessionId = `${ctx.idPrefix}-thread`;
-  const traceTimestamp = utcDayStartMs();
+  // Deterministic business-hours offset so multi-day seeds don't stack every
+  // trace at midnight UTC (varies by seed and day, 08:xx-17:xx).
+  const intradayMs =
+    ((8 + ((seedNum * 7 + daysAgo * 5) % 10)) * 60 + ((seedNum * 13) % 60)) *
+    60_000;
+  const traceTimestamp = utcDayStartMs() - daysAgo * 86_400_000 + intradayMs;
+  // Seed-keyed whole-trace duration scale (0.75x-1.35x): uniform scaling keeps
+  // parent/child containment intact while making latency charts vary across
+  // seeded runs instead of drawing flat lines.
+  const latencyScale = 0.75 + ((seedNum * 37) % 61) / 100;
+  const scaleMs = (offsetMs: number) => Math.round(offsetMs * latencyScale);
 
   if (ctx.dryRun) {
     return {
@@ -467,8 +665,8 @@ const run = async (
       sessionIds: [sessionId],
       counts: {
         traces: 1,
-        observations: PLAN.length,
-        events: withV4 ? PLAN.length + 1 : 0,
+        observations: plan.length,
+        events: withV4 ? plan.length + 1 : 0,
       },
       verified: {},
       links: [
@@ -480,7 +678,7 @@ const run = async (
     };
   }
 
-  const root = PLAN[0];
+  const root = plan[0];
   const trace = createTrace({
     id: traceId,
     project_id: ctx.projectId,
@@ -507,16 +705,29 @@ const run = async (
   });
 
   const keyToId = new Map<string, string>(
-    PLAN.map((p, i) => [p.key, `${ctx.idPrefix}-obs-${i}`]),
+    plan.map((p, i) => [p.key, `${ctx.idPrefix}-obs-${i}`]),
   );
 
-  const observations: ObservationRecordInsertType[] = PLAN.map((p) => {
+  const observations: ObservationRecordInsertType[] = plan.map((p) => {
     const prices = p.model ? MODEL_PRICES[p.model] : null;
     const [usageInput, usageOutput] = p.usage ?? [0, 0];
     const inputCost = prices ? usageInput * prices.input : 0;
     const outputCost = prices ? usageOutput * prices.output : 0;
 
+    // Direct ClickHouse writes bypass ingestion, so run the same tool
+    // extraction the ingestion pipeline applies — otherwise the tool_calls /
+    // tool_call_names columns (dashboard tool-call measures) stay empty even
+    // though the generation outputs contain OpenAI-style tool_calls.
+    const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+      p.input,
+      p.output,
+    );
+    const toolCallArrays = convertCallsToArrays(toolArguments);
+
     return createObservation({
+      tool_definitions: convertDefinitionsToMap(toolDefinitions),
+      tool_calls: toolCallArrays.tool_calls,
+      tool_call_names: toolCallArrays.tool_call_names,
       id: keyToId.get(p.key)!,
       trace_id: traceId,
       project_id: ctx.projectId,
@@ -525,12 +736,14 @@ const run = async (
       parent_observation_id:
         p.parentKey === null ? null : (keyToId.get(p.parentKey) ?? null),
       name: p.name,
-      start_time: traceTimestamp + p.start,
-      end_time: traceTimestamp + p.end,
+      start_time: traceTimestamp + scaleMs(p.start),
+      end_time: traceTimestamp + scaleMs(p.end),
       completion_start_time:
-        p.ttft !== undefined ? traceTimestamp + p.start + p.ttft : null,
-      level: "DEFAULT",
-      status_message: null,
+        p.ttft !== undefined
+          ? traceTimestamp + scaleMs(p.start) + scaleMs(p.ttft)
+          : null,
+      level: p.level ?? "DEFAULT",
+      status_message: p.statusMessage ?? null,
       version: null,
       input: p.input !== undefined ? JSON.stringify(p.input) : null,
       output: p.output !== undefined ? JSON.stringify(p.output) : null,
@@ -671,6 +884,20 @@ export const supportAgentScenario: ScenarioDefinition = {
       type: "boolean",
       default: false,
       description: "also mirror into v4 events_full/events_core",
+    },
+    {
+      flag: "days-ago",
+      type: "number",
+      default: 0,
+      description:
+        "anchor the trace N days in the past (deterministic business-hours time-of-day) — run once per day to spread demo data over a date range",
+    },
+    {
+      flag: "fail",
+      type: "boolean",
+      default: false,
+      description:
+        "failing-tool variant: the first refund attempt errors (ERROR-level TOOL, Stripe 409) and the agent retries — one extra ReAct turn and tool call",
     },
   ],
   run,

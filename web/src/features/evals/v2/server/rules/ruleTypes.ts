@@ -31,6 +31,12 @@ export const ListRulesSchema = z.object({
   projectId: z.string(),
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
+  orderBy: z
+    .object({
+      column: z.enum(["name", "enabled", "sampling", "createdAt", "updatedAt"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
@@ -64,7 +70,10 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z
     .enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT])
-    .default(EvalTargetObject.EVENT),
+    .default(EvalTargetObject.EVENT)
+    .describe(
+      "Deprecated: modern rules are event rules and experiment scope is expressed through filters.",
+    ),
   enabled: z.boolean(),
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
 });
@@ -87,6 +96,7 @@ export const SetRuleEnabledSchema = RuleIdSchema.extend({
 export const RuleAssignmentSchema = RuleIdSchema.extend({
   evaluatorId: z.string(),
   variableMapping: observationVariableMappingList.nullable(),
+  enableRule: z.boolean().optional(),
 });
 
 export const RuleAssignmentIdSchema = RuleIdSchema.extend({
@@ -108,7 +118,6 @@ const FilteredRuleSelectionSchema = z.object({
   projectId: z.string(),
   isBatchAction: z.literal(true),
   search: z.string().trim().max(200).optional(),
-  enabled: z.boolean().optional(),
   filter: ListRulesSchema.shape.filter,
 });
 

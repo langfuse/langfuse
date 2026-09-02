@@ -16,16 +16,21 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
-import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  type ColumnDefinition,
+  type SingleValueOption,
+} from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
 
-export type FieldKind = "text" | "number" | "datetime" | "boolean";
-export type SyncMode = "exactOption" | "arrayOption" | "textSearch";
+type FieldKind = "text" | "number" | "datetime" | "boolean";
+type SyncMode = "exactOption" | "arrayOption" | "textSearch";
 
 export type FieldDef = {
-  /** Canonical field id; also the filter `column` sent to the API. */
+  /** Canonical query field id; defaults to the FilterState column unless
+   * `filterColumn` maps a display-oriented field to canonical storage. */
   id: string;
   /** Lowercase aliases accepted by the grammar (canonical id always works too). */
   aliases: string[];
@@ -52,17 +57,53 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Canonical FilterState column emitted for this display-oriented field. */
+  filterColumn?: string;
+  /** Display/query value → canonical FilterState value for labeled options. */
+  filterValueByDisplayValue?: ReadonlyMap<string, string>;
+  /** Canonical FilterState value → display/query value for labeled options. */
+  displayValueByFilterValue?: ReadonlyMap<string, string>;
   /** Nullable-only columns participate in `has:` but are not direct filters. */
   directFilter?: boolean;
 };
 
 export type FieldRegistry = {
-  id: "events" | "evaluationRules";
+  id:
+    | "events"
+    | "evaluationRules"
+    | "evaluatorSamples"
+    | "ruleSamples"
+    | "sessions"
+    | "experiments";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
   metadata: boolean;
   scores: boolean;
+  /** Trace-level `traceScores.<name>` paths. Views whose backend has no
+   *  trace-score columns (sessions) keep observation scores without them. */
+  traceScores: boolean;
+  /** Field a bare word searches on a view with no full-text lane. Sessions has
+   *  no searchQuery, but `id contains` is its most-applied filter by far, so a
+   *  bare word means that instead of being rejected. Null = reject. */
+  defaultTextField: string | null;
+  /** Placeholder examples. Written per view, never derived from field ids: the
+   *  events examples advertise `latency:`/`level:` on a view that has neither. */
+  searchExamples: readonly string[];
+  /**
+   * Offer the project's recent searches on the empty bar. Off by default: the
+   * store is per PROJECT, not per view, so a view opts in and only the recents
+   * that are valid against its own registry are offered.
+   */
+  recentSearches: boolean;
+  /**
+   * Whether this view has its OWN branch in `buildFilterSystemPrompt`. False
+   * hides Ask AI: the fallback prompt is the events one — events prose, events
+   * worked examples — so a view without its own branch would be handed a
+   * correct field catalog wrapped in instructions steering the model at columns
+   * it does not have. Write the branch, then flip this.
+   */
+  aiFilterPrompt: boolean;
   aiContextFields: readonly AIContextField[];
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
@@ -93,12 +134,29 @@ export function fieldRegistryFromColumns(
     fields?: Readonly<Record<string, FieldOverlay>>;
     metadata?: boolean;
     scores?: boolean;
+    /** Defaults to `scores`. */
+    traceScores?: boolean;
     allowFreeText?: boolean;
+    defaultTextField?: string;
+    searchExamples?: readonly string[];
+    recentSearches?: boolean;
+    aiFilterPrompt?: boolean;
     aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
+  const scores = overlay.scores ?? false;
   const fields = columns
-    .filter((column) => !column.type.endsWith("Object"))
+    // `*Object` columns and the categorical score column are keyed dot-paths
+    // (`metadata.<key>`, `scores.<name>`), never plain fields — a derived
+    // `score_categories` field would lower to a keyless categoryOptions filter
+    // the backend cannot answer. That holds whether or not this view exposes
+    // the `scores.` namespace: a view whose sidebar owns score filters still
+    // has the column in its facets, and it is sidebar-only, not a bare field.
+    // They stay in `columns` so the reverse adapter still resolves them.
+    .filter(
+      (column) =>
+        !column.type.endsWith("Object") && !isKeyedScoreColumn(column.id),
+    )
     .map((column): FieldDef => {
       const fieldOverlay = overlay.fields?.[column.id];
       const kind: FieldKind =
@@ -123,6 +181,9 @@ export function fieldRegistryFromColumns(
         nullable: column.nullable,
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
+        filterColumn: fieldOverlay?.filterColumn,
+        filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
+        displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
         negatedLabel: fieldOverlay?.negatedLabel,
       };
@@ -133,9 +194,81 @@ export function fieldRegistryFromColumns(
     fields,
     columns,
     metadata: overlay.metadata ?? false,
-    scores: overlay.scores ?? false,
+    scores,
+    traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
+    defaultTextField: overlay.defaultTextField ?? null,
+    searchExamples: overlay.searchExamples ?? [],
+    recentSearches: overlay.recentSearches ?? false,
+    aiFilterPrompt: overlay.aiFilterPrompt ?? false,
     aiContextFields: overlay.aiContextFields ?? [],
+  });
+}
+
+export function extendFieldRegistryWithColumns(
+  registry: FieldRegistry,
+  columns: readonly ColumnDefinition[],
+  fieldOverlays?: Readonly<Record<string, FieldOverlay>>,
+): FieldRegistry {
+  const addedFields = fieldRegistryFromColumns(columns, {
+    id: registry.id,
+    fields: fieldOverlays,
+  }).fields;
+
+  return createFieldRegistry({
+    id: registry.id,
+    fields: [...registry.fields, ...addedFields],
+    columns: [...registry.columns, ...columns],
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
+export function withFieldOptions(
+  registry: FieldRegistry,
+  fieldId: string,
+  options: readonly SingleValueOption[],
+): FieldRegistry {
+  const filterValueByDisplayValue = new Map(
+    options.map((option) => [
+      option.displayValue ?? option.value,
+      option.value,
+    ]),
+  );
+  const displayValueByFilterValue = new Map(
+    options.map((option) => [
+      option.value,
+      option.displayValue ?? option.value,
+    ]),
+  );
+  return createFieldRegistry({
+    id: registry.id,
+    fields: registry.fields.map((field) =>
+      field.id === fieldId
+        ? {
+            ...field,
+            filterValueByDisplayValue,
+            displayValueByFilterValue,
+          }
+        : field,
+    ),
+    columns: registry.columns,
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
   });
 }
 
@@ -153,7 +286,7 @@ export const FIELDS: FieldDef[] = [
   { id: "ingestionSource", aliases: ["ingestionsource", "ingestion_source", "source"], kind: "text", syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Level", description: "Observation level" },
+  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Status", description: "Observation status" },
   { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
@@ -165,9 +298,11 @@ export const FIELDS: FieldDef[] = [
   { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", label: "Time to first token", description: "Time to first token in seconds", unit: "s", nullable: true },
   { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", label: "Tokens per second", description: "Output tokens per second", unit: "tok/s", nullable: true },
   { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", label: "Input token count", description: "Input token count", nullable: true },
+  { id: "cachedInputTokens", aliases: ["cachedinputtokens", "cached_input_tokens", "cachedtokens", "cached_tokens"], kind: "number", syncMode: "textSearch", label: "Cached input token count", description: "Cache-read input token count", nullable: true },
   { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", label: "Output token count", description: "Output token count", nullable: true },
   { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", label: "Total token count", description: "Total token count", nullable: true },
   { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", label: "Input cost", description: "Input cost in USD", unit: "$", nullable: true },
+  { id: "cachedInputCost", aliases: ["cachedinputcost", "cached_input_cost", "cachedcost", "cached_cost"], kind: "number", syncMode: "textSearch", label: "Cached input cost", description: "Cache-read input cost in USD", unit: "$", nullable: true },
   { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", label: "Output cost", description: "Output cost in USD", unit: "$", nullable: true },
   { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", label: "Total cost", description: "Total cost in USD", unit: "$", nullable: true },
   { id: "version", aliases: [], kind: "text", syncMode: "exactOption", label: "Version", description: "Version tag", nullable: true },
@@ -191,7 +326,7 @@ export const FIELDS: FieldDef[] = [
   { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
 ];
 
-export const METADATA_PREFIX = "metadata.";
+const METADATA_PREFIX = "metadata.";
 
 // Score dot-paths. Lowercased prefixes accepted by the grammar; the
 // canonical spellings are `scores.<name>` and `traceScores.<name>`.
@@ -201,7 +336,7 @@ const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 // Pseudo-fields: not columns — `has:<field>` lowers to a null filter. (The
 // former `content:` pseudo-field has been removed: a bare query now searches
 // input + output by default, and `input:`/`output:` narrow to one column.)
-export const HAS_KEY = "has";
+const HAS_KEY = "has";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
@@ -217,6 +352,15 @@ export const SCORE_COLUMNS = {
   },
 } as const;
 
+const KEYED_SCORE_COLUMNS: ReadonlySet<string> = new Set([
+  ...Object.values(SCORE_COLUMNS.observation),
+  ...Object.values(SCORE_COLUMNS.trace),
+]);
+
+function isKeyedScoreColumn(column: string): boolean {
+  return KEYED_SCORE_COLUMNS.has(column);
+}
+
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "metadata"; key: string }
@@ -229,7 +373,12 @@ function createFieldRegistry({
   columns,
   metadata,
   scores,
+  traceScores,
   allowFreeText,
+  defaultTextField,
+  searchExamples,
+  recentSearches,
+  aiFilterPrompt,
   aiContextFields,
 }: {
   id: FieldRegistry["id"];
@@ -237,7 +386,12 @@ function createFieldRegistry({
   columns: readonly ColumnDefinition[];
   metadata: boolean;
   scores: boolean;
+  traceScores: boolean;
   allowFreeText: boolean;
+  defaultTextField: string | null;
+  searchExamples: readonly string[];
+  recentSearches: boolean;
+  aiFilterPrompt: boolean;
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
   const byName = new Map<string, FieldDef>();
@@ -254,6 +408,11 @@ function createFieldRegistry({
       columnIds.set(alias.toLowerCase(), column.id);
     }
   }
+  for (const field of fields) {
+    if (field.filterColumn) {
+      columnIds.set(field.filterColumn.toLowerCase(), field.id);
+    }
+  }
 
   const registry: FieldRegistry = {
     id,
@@ -262,6 +421,11 @@ function createFieldRegistry({
     allowFreeText,
     metadata,
     scores,
+    traceScores,
+    defaultTextField,
+    searchExamples,
+    recentSearches,
+    aiFilterPrompt,
     aiContextFields,
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
@@ -270,9 +434,8 @@ function createFieldRegistry({
       const lower = value.toLowerCase();
       return (
         (metadata && lower === METADATA_PREFIX) ||
-        (scores &&
-          (SCORE_PREFIXES.includes(lower) ||
-            TRACE_SCORE_PREFIXES.includes(lower)))
+        (scores && SCORE_PREFIXES.includes(lower)) ||
+        (traceScores && TRACE_SCORE_PREFIXES.includes(lower))
       );
     },
     columnIdOf: (column) => columnIds.get(column.toLowerCase()) ?? null,
@@ -286,7 +449,17 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   columns: eventsTableCols,
   metadata: true,
   scores: true,
+  traceScores: true,
   allowFreeText: true,
+  defaultTextField: null,
+  searchExamples: [
+    "level:ERROR",
+    "-env:dev",
+    "latency:>2",
+    "scores.accuracy:>0.8",
+  ],
+  recentSearches: true,
+  aiFilterPrompt: true,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
     { observedOptionsKey: "level", promptLabel: "level" },
@@ -336,13 +509,15 @@ function resolveFromRegistry(
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
   }
-  if (registry.scores) {
+  if (registry.traceScores) {
     for (const prefix of TRACE_SCORE_PREFIXES) {
       if (lower.startsWith(prefix)) {
         const key = unquote(name.slice(prefix.length)).value;
         return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
       }
     }
+  }
+  if (registry.scores) {
     for (const prefix of SCORE_PREFIXES) {
       if (lower.startsWith(prefix)) {
         const key = unquote(name.slice(prefix.length)).value;
@@ -380,13 +555,6 @@ export function isDanglingDotPrefix(
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): boolean {
   return registry.isDanglingDotPrefix(value);
-}
-
-/** Fields that can be unset — the value domain of `has:` / `-has:`. */
-export function nullableFields(
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): readonly FieldDef[] {
-  return registry.nullableFields();
 }
 
 // ---- operator validity ----
@@ -455,6 +623,9 @@ export function operatorIssue(
       const f = ref.field;
       if (f.directFilter === false) {
         return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
+      }
+      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+        return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
       }
       if (f.kind === "number") {
         if (op === "~" || op === "^" || op === "$") {
@@ -535,7 +706,7 @@ export function negationIssue(
   return null;
 }
 
-export function refName(ref: FieldRef): string {
+function refName(ref: FieldRef): string {
   switch (ref.type) {
     case "field":
       return ref.field.id;

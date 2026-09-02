@@ -50,14 +50,14 @@ Quality is **bimodal and driven by the model** (`claude-3-haiku`), not the
 plumbing. Specific prompts are accurate; terse/refine prompts fall back to the
 prompt's few-shot example.
 
-| Sev | Finding | Repro |
-| --- | --- | --- |
-| 🔴 Major | **Refine silently corrupts existing filters on terse instructions.** The model regurgitates the prompt's few-shot example and ignores both the request and the visible refine context. | From `level:ERROR` + last-hour, "only in production" → `environment:production` + `latency:>5` (hallucinated) + `startTime:>24h` (wrong window); `level:ERROR` **dropped**. Reproduced with "also only errors" too. |
-| 🔴 Major | **Blind to the project's data** (no knowledge of actual metadata keys / observed values). | "routing queue should be membership-support" → `traceName:membership-support` (should be `metadata.routing.queue:*membership-support*`). |
-| 🟠 Mod | **Focus dropped after a generation.** `disabled={pending}` blurs the input to `<body>` and it's never refocused; after a failed/empty generation, Esc no longer cancels and you must re-click to retype. | After a failed generate, `document.activeElement === body`. |
-| 🟠 Mod | **Datetime pills are cryptic.** "last hour" renders as `startTime:>"2026-06-23T11:12:37.255Z"` (ms-precision ISO). Bar-wide rendering issue, surfaced by AI. | — |
-| 🟡 Minor | Refine context shows as a flat grey monospace string (truncates), not the colored pills used elsewhere. | — |
-| 🟡 Minor | Discoverability — "Ask AI" is a small muted button while the placeholder pushes the DSL; no cue that the AI produced the pills. | — |
+| Sev      | Finding                                                                                                                                                                                                  | Repro                                                                                                                                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔴 Major | **Refine silently corrupts existing filters on terse instructions.** The model regurgitates the prompt's few-shot example and ignores both the request and the visible refine context.                   | From `level:ERROR` + last-hour, "only in production" → `environment:production` + `latency:>5` (hallucinated) + `startTime:>24h` (wrong window); `level:ERROR` **dropped**. Reproduced with "also only errors" too. |
+| 🔴 Major | **Blind to the project's data** (no knowledge of actual metadata keys / observed values).                                                                                                                | "routing queue should be membership-support" → `traceName:membership-support` (should be `metadata.routing.queue:*membership-support*`).                                                                            |
+| 🟠 Mod   | **Focus dropped after a generation.** `disabled={pending}` blurs the input to `<body>` and it's never refocused; after a failed/empty generation, Esc no longer cancels and you must re-click to retype. | After a failed generate, `document.activeElement === body`.                                                                                                                                                         |
+| 🟠 Mod   | **Datetime pills are cryptic.** "last hour" renders as `startTime:>"2026-06-23T11:12:37.255Z"` (ms-precision ISO). Bar-wide rendering issue, surfaced by AI.                                             | —                                                                                                                                                                                                                   |
+| 🟡 Minor | Refine context shows as a flat grey monospace string (truncates), not the colored pills used elsewhere.                                                                                                  | —                                                                                                                                                                                                                   |
+| 🟡 Minor | Discoverability — "Ask AI" is a small muted button while the placeholder pushes the DSL; no cue that the AI produced the pills.                                                                          | —                                                                                                                                                                                                                   |
 
 **Works well (keep):** specific builds are accurate ("errors in the last hour",
 "user alice slower than 10s", multi-filter); results are transparent editable
@@ -76,21 +76,21 @@ stable across runs.**
 preserving context). Since prod runs Opus 4.8, the MVP prompt is good as-is; no
 tuning needed to ship.
 
-| Scenario | Prompt (+ refine ctx) | Expected cols | Opus 4.8 |
-| --- | --- | --- | --- |
-| build | errors in the last hour | level, startTime | ✅ |
-| build | slow traces in production | latency, environment | ✅ |
-| build | failed traces from user alice | level, userId | ✅ |
-| build | traces tagged billing | traceTags | ✅ |
-| build | accuracy score below 0.8 | scores_avg | ✅ |
-| build | output mentions refund | output | ✅ |
-| build | root observations only | isRootObservation | ✅ |
-| build | expensive gpt-4 calls over $0.5 | totalCost, providedModelName | ✅ |
-| refine (add) | `level:ERROR startTime:>…` + "also only in production" | level, startTime, environment | ✅ preserved + added |
-| refine (remove) | `latency:>2` + "drop latency, show only errors" | level | ✅ removed + added |
-| refine (change) | `environment:production` + "make it staging instead" | environment | ✅ value changed |
-| edge | gibberish | (none) | ✅ empty |
-| **gap** | routing queue is membership-support | metadata.routing.queue | ❌ guesses traceName/sessionId |
+| Scenario        | Prompt (+ refine ctx)                                  | Expected cols                 | Opus 4.8                       |
+| --------------- | ------------------------------------------------------ | ----------------------------- | ------------------------------ |
+| build           | errors in the last hour                                | level, startTime              | ✅                             |
+| build           | slow traces in production                              | latency, environment          | ✅                             |
+| build           | failed traces from user alice                          | level, userId                 | ✅                             |
+| build           | traces tagged billing                                  | traceTags                     | ✅                             |
+| build           | accuracy score below 0.8                               | scores_avg                    | ✅                             |
+| build           | output mentions refund                                 | output                        | ✅                             |
+| build           | root observations only                                 | isRootObservation             | ✅                             |
+| build           | expensive gpt-4 calls over $0.5                        | totalCost, providedModelName  | ✅                             |
+| refine (add)    | `level:ERROR startTime:>…` + "also only in production" | level, startTime, environment | ✅ preserved + added           |
+| refine (remove) | `latency:>2` + "drop latency, show only errors"        | level                         | ✅ removed + added             |
+| refine (change) | `environment:production` + "make it staging instead"   | environment                   | ✅ value changed               |
+| edge            | gibberish                                              | (none)                        | ✅ empty                       |
+| **gap**         | routing queue is membership-support                    | metadata.routing.queue        | ❌ guesses traceName/sessionId |
 
 The one failure was the **data-awareness gap**: the model didn't know the
 project's metadata keys (or actual `type`/name values), so it guessed a column.
@@ -101,30 +101,30 @@ sampled from the visible rows) + the current result count — built on the clien
 from already-loaded `filterOptions` + visible rows (`lib/ai-context.ts`), capped
 for cost. Re-validated on Opus 4.8 with that context:
 
-| Prompt | Before | After (with context) |
-| --- | --- | --- |
-| only support chat sessions | `type:chat` → 0 rows | `traceName:SupportChatSession` ✅ |
+| Prompt                              | Before                        | After (with context)                           |
+| ----------------------------------- | ----------------------------- | ---------------------------------------------- |
+| only support chat sessions          | `type:chat` → 0 rows          | `traceName:SupportChatSession` ✅              |
 | routing queue is membership-support | `traceName:…` / `sessionId:…` | `metadata.routing.queue:membership-support` ✅ |
-| errors in the last hour (control) | ✅ | still ✅ |
+| errors in the last hour (control)   | ✅                            | still ✅                                       |
 
 The scenario set above is the seed for the Piece-2 eval dataset. Remaining
-Piece-2 work: a sample of visible-row *content* (input/output) for even richer
+Piece-2 work: a sample of visible-row _content_ (input/output) for even richer
 grounding, and the full managed-prompt + dataset/eval loop.
 
 ### Full-surface capability coverage (also in the MVP)
 
 The prompt was expanded to teach the **whole** v4 grammar — not just simple
 column matches — and to be **brave with metadata**. Validated on Opus 4.8 with
-*variations* (not the verbatim examples), 7/7:
+_variations_ (not the verbatim examples), 7/7:
 
-| Request | Generated |
-| --- | --- |
-| filter to the acme tenant | `metadata.tenant:acme` |
-| mention 'password reset' in the response | `output:"password reset"` |
-| where the sentiment is positive | `scores.sentiment:positive` |
-| traces missing a user id | `-has:userId` |
-| exclude debug and warning levels | `-level:(DEBUG OR WARNING)` |
-| tagged with both experiment and baseline | `traceTags:(experiment AND baseline)` |
+| Request                                              | Generated                                                                  |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| filter to the acme tenant                            | `metadata.tenant:acme`                                                     |
+| mention 'password reset' in the response             | `output:"password reset"`                                                  |
+| where the sentiment is positive                      | `scores.sentiment:positive`                                                |
+| traces missing a user id                             | `-has:userId`                                                              |
+| exclude debug and warning levels                     | `-level:(DEBUG OR WARNING)`                                                |
+| tagged with both experiment and baseline             | `traceTags:(experiment AND baseline)`                                      |
 | expensive claude calls in staging that aren't errors | `providedModelName:claude totalCost:>0.5 environment:staging -level:ERROR` |
 
 So the generator now reaches into metadata, content (input/output) search,
@@ -176,7 +176,7 @@ Don't choose between "registry-derived in code" and "managed in Langfuse" —
 The endpoint fetches the prompt by label, compiles with those variables, and
 **links the prompt version to every trace** (`prompt:` in `traceSinkParams`, as
 the v3 path already does). This is the lynchpin: it makes the example and the
-refine instruction *versioned data we can A/B*, which is precisely where the
+refine instruction _versioned data we can A/B_, which is precisely where the
 leakage lives.
 
 ## 6. The dogfood loop
@@ -208,11 +208,13 @@ case).
 ## 7. TODO
 
 **Phase 0 — enrich tracing (small, parallelizable)**
+
 - [ ] Add to each trace: mode (build/refine), `currentQuery`, parsed filters,
       `droppedCount`, applied-vs-empty; tag traces.
 - [ ] Confirm traces land in the AI-features project and are queryable by env.
 
 **Phase 1 — prompt → Prompt Management (hybrid)**
+
 - [ ] Create managed prompt `search-bar-filter` (chat) in the AI-features project
       with the variables above; seed it from the current in-code prompt.
 - [ ] Refactor `buildFilterPrompt.ts` → `buildFilterVariables()` (catalog from
@@ -222,6 +224,7 @@ case).
       fetch fails.
 
 **Phase 2 — eval harness + baseline**
+
 - [ ] Build the `search-bar-filter-evals` dataset (seed cases incl. the failures).
 - [ ] Implement the deterministic scorer (reuse `parseGeneratedFilters` +
       `filterStateToQueryText`): exact-set, F1, `context_preserved`.
@@ -229,6 +232,7 @@ case).
       current prompt+model before changing anything.
 
 **Phase 3 — tune with data**
+
 - [ ] Iterate prompt versions: de-sticky / abstract the few-shot example;
       strengthen "preserve current filters; change only what's asked" for refine.
 - [ ] Add `{{observedContext}}` (metadata keys + observed values); ablate to prove
@@ -239,10 +243,12 @@ case).
       silent loss is visible.
 
 **Phase 4 — close the loop (ongoing)**
+
 - [ ] Curate failing production traces into the dataset.
 - [ ] Online implicit-feedback score (kept vs cleared/edited within N seconds).
 
 **Quick UX fixes (independent of the eval loop)**
+
 - [ ] Restore focus after a generation (don't leave the input blurred to body).
 - [ ] Render the refine context as read-only pills, not a flat truncated string.
 - [ ] Friendlier datetime pill rendering (bar-wide; separate workstream).

@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
 import { getJudgeModelProviderAdapters } from "@/src/features/evals/v2/judgeModel";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -70,6 +70,7 @@ export function useProjectDefaultModel({
             utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId }),
             utils.evalsV2.list.invalidate({ projectId }),
             utils.evalsV2.options.invalidate({ projectId }),
+            utils.evalsV2.filterOptions.invalidate({ projectId }),
           ]);
           capture("evaluators:default_model_update", {
             source,

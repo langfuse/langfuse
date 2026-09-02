@@ -13,15 +13,22 @@ import {
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
-import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import {
+  gunzipOtelRequestBody,
+  handleOtelRequestBodyTooLarge,
+  OtelRequestBodyTooLargeError,
+  readOtelRequestBody,
+} from "@/src/server/otel/otelRequestBody";
 
 export const config = {
   api: {
     bodyParser: false,
   },
 };
+
+const OTEL_REQUEST_BODY_WARNING_BYTES = 16 * 1024 * 1024;
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -40,32 +47,32 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
-      let body: Buffer;
-      try {
-        body = await new Promise((resolve, reject) => {
-          let data: any[] = [];
-          req.on("data", (chunk) => data.push(chunk));
-          req.on("end", () => resolve(Buffer.concat(data)));
-          req.on("error", reject);
-        });
-      } catch (e) {
-        logger.error(`Failed to read request body`, e);
-        res.status(400);
-        return { error: "Failed to read request body" };
-      }
+      const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
-      if (req.headers["content-encoding"]?.includes("gzip")) {
-        try {
-          body = await new Promise((resolve, reject) => {
-            gunzip(new Uint8Array(body), (err, result) =>
-              err ? reject(err) : resolve(result),
-            );
-          });
-        } catch (e) {
-          logger.error(`Failed to decompress request body`, e);
-          res.status(400);
-          return { error: "Failed to decompress request body" };
+      let body: Buffer;
+      let encodedBodyBytes: number;
+      let bodyFailureMessage = "Failed to read request body";
+      try {
+        body = await readOtelRequestBody(req, maxBodyBytes);
+        encodedBodyBytes = body.byteLength;
+
+        if (req.headers["content-encoding"]?.includes("gzip")) {
+          bodyFailureMessage = "Failed to decompress request body";
+          body = await gunzipOtelRequestBody(body, maxBodyBytes);
         }
+      } catch (error) {
+        if (error instanceof OtelRequestBodyTooLargeError) {
+          return handleOtelRequestBodyTooLarge(
+            error,
+            req,
+            res,
+            auth.scope.projectId,
+          );
+        }
+
+        logger.error(bodyFailureMessage, error);
+        res.status(400);
+        return { error: bodyFailureMessage };
       }
 
       let resourceSpans: any;
@@ -235,9 +242,17 @@ export default withMiddlewares({
         };
       }
 
-      // Warn on oversized OTEL request bodies (16MB threshold)
-      const bodyBytes = body.byteLength;
-      if (bodyBytes > 16 * 1024 * 1024) {
+      // Warn on oversized OTEL request bodies (16MB threshold). Keep one
+      // warning per accepted request, even when both encoded and decoded sizes
+      // cross the threshold.
+      // Keep the encoded size available after optional decompression so the
+      // warning can identify requests that would cross an encoded-only
+      // threshold as well as requests that are large after decompression.
+      const decodedBodyBytes = body.byteLength;
+      if (
+        encodedBodyBytes > OTEL_REQUEST_BODY_WARNING_BYTES ||
+        decodedBodyBytes > OTEL_REQUEST_BODY_WARNING_BYTES
+      ) {
         let spanCount = 0;
         for (const rs of resourceSpans) {
           for (const ss of rs?.scopeSpans ?? []) {
@@ -246,7 +261,10 @@ export default withMiddlewares({
         }
         logger.warn("OTEL request body exceeds 16MB", {
           projectId: auth.scope.projectId,
-          bodyBytes,
+          // Keep bodyBytes as the decoded-size field for existing queries.
+          bodyBytes: decodedBodyBytes,
+          decodedBodyBytes,
+          encodedBodyBytes,
           spanCount,
         });
       }

@@ -67,6 +67,7 @@ const authProviders: PageProps["authProviders"] = {
   auth0: false,
   clickhouseCloud: false,
   cognito: false,
+  jumpcloud: false,
   keycloak: false,
   workos: false,
   wordpress: false,
@@ -150,10 +151,7 @@ describe("sign-in page NextAuth error classification", () => {
     },
   );
 
-  it("treats an undefined signIn() result as an expected transport blip", async () => {
-    signInMock.mockResolvedValue(undefined);
-    renderSignIn();
-
+  const submitCredentials = () => {
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "jane@example.com" },
     });
@@ -161,6 +159,12 @@ describe("sign-in page NextAuth error classification", () => {
       target: { value: "password123" },
     });
     fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+  };
+
+  it("treats an undefined signIn() result as an expected transport blip", async () => {
+    signInMock.mockResolvedValue(undefined);
+    renderSignIn();
+    submitCredentials();
 
     await waitFor(() => {
       expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
@@ -174,6 +178,41 @@ describe("sign-in page NextAuth error classification", () => {
     ).toBeInTheDocument();
   });
 
+  it("treats next-auth's missing data.url TypeError as expected", async () => {
+    signInMock.mockRejectedValue(
+      new TypeError("URL constructor: undefined is not a valid URL."),
+    );
+    renderSignIn();
+    submitCredentials();
+
+    await waitFor(() => {
+      expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    });
+    expect(addBreadcrumbMock.mock.calls[0]![0].category).toBe(
+      "auth.signIn.credentials",
+    );
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/An unexpected error occurred/),
+    ).toBeInTheDocument();
+  });
+
+  it("still captures an unknown TypeError from signIn()", async () => {
+    signInMock.mockRejectedValue(
+      new TypeError("Cannot read properties of undefined (reading 'ok')"),
+    );
+    renderSignIn();
+    submitCredentials();
+
+    await waitFor(() => {
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(captureExceptionMock.mock.calls[0]![1].tags.area).toBe(
+      "auth.signIn.credentials",
+    );
+    expect(addBreadcrumbMock).not.toHaveBeenCalled();
+  });
+
   it("renders without crashing when props are missing (fallback providers)", () => {
     renderSignIn({
       authProviders: undefined as unknown as PageProps["authProviders"],
@@ -181,5 +220,51 @@ describe("sign-in page NextAuth error classification", () => {
 
     expect(screen.getByText("Sign in to your account")).toBeInTheDocument();
     expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sign-in page JumpCloud provider button", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    signInMock.mockResolvedValue(undefined);
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("does not render a JumpCloud button when the provider is disabled", () => {
+    renderSignIn();
+
+    expect(
+      screen.queryByRole("button", { name: /JumpCloud/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a JumpCloud button and signs in with the jumpcloud provider", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        jumpcloud: true,
+      },
+    });
+
+    const button = screen.getByRole("button", { name: /JumpCloud/ });
+    fireEvent.click(button);
+
+    expect(signInMock).toHaveBeenCalledWith("jumpcloud");
+  });
+
+  it("still renders JumpCloud when username/password auth is disabled", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        credentials: false,
+        jumpcloud: true,
+      },
+    });
+
+    expect(
+      screen.getByRole("button", { name: /JumpCloud/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
   });
 });

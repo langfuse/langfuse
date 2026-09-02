@@ -6,13 +6,16 @@ import { TRPCError } from "@trpc/server";
 import {
   type ChatMessage,
   ChatMessageType,
-  LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
+import {
+  getInAppAgentModelConfig,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
@@ -73,11 +76,10 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           });
         }
 
-        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+        if (!getInAppAgentModelConfig()) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+            message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
           });
         }
 
@@ -130,8 +132,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
-                environment:
-                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "natural-language-filter",
                 projectId: ctx.session.projectId,
                 traceName: "natural-language-filter",

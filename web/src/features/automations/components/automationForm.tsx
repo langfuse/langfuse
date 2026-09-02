@@ -43,7 +43,7 @@ import {
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -51,7 +51,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "lucide-react";
 
@@ -68,6 +68,7 @@ const githubDispatchSchema = z.object({
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),
+  originalUrl: z.string().optional(),
 });
 
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
@@ -339,10 +340,9 @@ const PromptTriggerFields = ({
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
-  <Alert>
-    <Info className="h-4 w-4" />
-    <AlertTitle>How Alerts Connect</AlertTitle>
-    <AlertDescription>
+  <Alert icon={Info}>
+    <Alert.Title>How Alerts Connect</Alert.Title>
+    <Alert.Description>
       Add this automation to an alert from the{" "}
       <Link
         href={`/project/${projectId}/alerts/new`}
@@ -351,7 +351,7 @@ const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
         create alerts page
       </Link>
       .
-    </AlertDescription>
+    </Alert.Description>
   </Alert>
 );
 
@@ -499,6 +499,7 @@ export const AutomationForm = ({
           githubToken: githubDefaults.githubDispatch.githubToken || "",
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
+          originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
       };
     }
@@ -811,15 +812,25 @@ export const AutomationForm = ({
               automation?.trigger.id &&
               automation?.action.id && (
                 <div>
-                  <DeleteAutomationButton
+                  <DeleteAutomationDialogController
                     projectId={projectId}
                     automationId={automation.id}
-                    variant="button"
                     onSuccess={() => {
-                      utils.automations.invalidate();
                       router.push(`/project/${projectId}/settings/automations`);
                     }}
-                  />
+                  >
+                    {({ disabled, openDialog }) => (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-light-red flex items-center"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        <span className="text-dark-red">Delete</span>
+                      </Button>
+                    )}
+                  </DeleteAutomationDialogController>
                 </div>
               )}
             <div className="grow"></div>

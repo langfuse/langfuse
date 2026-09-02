@@ -45,6 +45,18 @@ Pushing updates it; closing the PR tears it down.
   shared seed identity is `demo@langfuse.com` / `password`, with API keys
   `pk-lf-1234567890` / `sk-lf-1234567890` — shared and synthetic, so never
   treat a preview as private.
+- **Open it from Linear** — on any Linear issue linked to the PR, the preview
+  sits behind the issue's **Preview** shortcut. Linear builds that shortcut by
+  parsing the PR description and bot comments for markdown links whose label
+  ends in "preview", so both preview surfaces label their link that way
+  (`pr-<N> app preview`, `pr-<N> storybook preview`) — keep that suffix when
+  editing either comment, or the shortcut disappears. A bare URL is not
+  matched.
+- **Read captured email** — each preview has an in-namespace Mailpit SMTP
+  sink (invites, password reset, batch-export, spend alerts, mentions). It
+  does not send real mail. The UI is not public; port-forward it:
+  `kubectl -n langfuse-pr-<N> port-forward svc/preview-mailpit 8025:8025`
+  then open `http://localhost:8025`.
 - **Know where you are** — every preview page shows a top strip linking back
   to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,

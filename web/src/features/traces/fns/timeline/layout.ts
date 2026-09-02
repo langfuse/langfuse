@@ -62,7 +62,7 @@ export type LayoutNode = {
   children: LayoutNode[];
 };
 
-export type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
+type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
   node: TNode;
   depth: number;
   treeLines: boolean[];
@@ -71,7 +71,7 @@ export type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
   isCollapsed: boolean;
 };
 
-export type LabelPlacement = "inside" | "after" | "before" | "hidden";
+type LabelPlacement = "inside" | "after" | "before" | "hidden";
 
 export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
   /** The input node, carried through so callers keep their own richer type. */
@@ -108,9 +108,9 @@ export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
   endMs: number;
 };
 
-export type Tick = { realMs: number; x: number; label: string };
+type Tick = { realMs: number; x: number; label: string };
 
-export type GapMarker = {
+type GapMarker = {
   x: number;
   width: number;
   durationMs: number;
@@ -173,9 +173,9 @@ const MAX_TICKS = 64;
 const MIN_TICK_GAP_PX = 56;
 const TICK_LABEL_PADDING_PX = 16;
 /** The tick line itself — a `border-l`, which the label is positioned inside of. */
-export const TICK_LINE_PX = 1;
+const TICK_LINE_PX = 1;
 /** The gap between that line and its label. */
-export const TICK_LABEL_GAP_PX = 4;
+const TICK_LABEL_GAP_PX = 4;
 /**
  * What a label costs to the right of its tick's `x`: the line, then the gap.
  * Derived rather than written down, and exported, because the renderer positions
@@ -188,7 +188,7 @@ export const TICK_LABEL_GAP_PX = 4;
  * then gets truncated by its clamp. A reservation that does not match the render
  * is wrong even when it errs safely, because nothing says which way it errs next.
  */
-export const TICK_LABEL_INSET_PX = TICK_LINE_PX + TICK_LABEL_GAP_PX;
+const TICK_LABEL_INSET_PX = TICK_LINE_PX + TICK_LABEL_GAP_PX;
 
 // Nice tick steps in ms. Above a minute they land on time-nice boundaries so
 // hour-scale traces get clean labels instead of "1500s".

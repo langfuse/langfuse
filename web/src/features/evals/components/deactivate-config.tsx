@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { EvaluatorStatus } from "@/src/features/evals/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useState } from "react";
@@ -25,7 +25,10 @@ export function DeactivateEvalConfig({
   onStatusChange?: () => void;
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
   const { allowLegacy } = useEvalCapabilities(projectId);
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();

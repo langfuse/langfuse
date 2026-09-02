@@ -11,7 +11,7 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
@@ -66,18 +66,20 @@ export function CodeEvalTestRunCard({
   disabled?: boolean;
   enableExecutionTracePeek?: boolean;
 }) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const isSupportedTarget = isCodeEvalTestTarget(target);
   const canPreview = isSupportedTarget && !disabled;
   const previewPointer = useFirstEvalPreviewPointer({
     target,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
   });
   const peekNavigationProps = usePeekNavigation({
     // traceId: not written here, but cleared (and preferred by the trace
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evalTemplates",
+    isV4,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
     },
@@ -162,7 +164,7 @@ export function CodeEvalTestRunCard({
                   observationId,
                   traceId,
                   startTime: timestamp,
-                  shouldReadFromObservationsTable: !isBetaEnabled,
+                  shouldReadFromObservationsTable: !isV4,
                 });
               }}
             >

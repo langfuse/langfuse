@@ -1,10 +1,10 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { type ParsedUrlQuery } from "querystring";
 
-export type TabDefinition = {
+type TabDefinition = {
   value: string;
   label: string;
   href?: string;
@@ -55,6 +55,22 @@ export const PageTabs = ({
             tab.className,
           );
 
+          if (tab.href) {
+            return (
+              <Link
+                key={tab.value}
+                href={{
+                  pathname: tab.href ?? "",
+                  query: tab.querySelector?.(router.query),
+                }}
+                className={tabClassName}
+                onClick={tab.onClick}
+              >
+                {tab.label}
+              </Link>
+            );
+          }
+
           if (tab.onClick) {
             return (
               <button
@@ -69,18 +85,7 @@ export const PageTabs = ({
             );
           }
 
-          return (
-            <Link
-              key={tab.value}
-              href={{
-                pathname: tab.href ?? "",
-                query: tab.querySelector?.(router.query),
-              }}
-              className={tabClassName}
-            >
-              {tab.label}
-            </Link>
-          );
+          return null;
         })}
       </div>
     </div>

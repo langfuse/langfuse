@@ -11,25 +11,25 @@ const llmAsJudgeValuePropositions: ValueProposition[] = [
     title: "Automate evaluations",
     description:
       "Use LLM-as-a-judge to automatically evaluate your traces without manual review",
-    icon: <Bot className="h-4 w-4" />,
+    icon: Bot,
   },
   {
     title: "Measure quality",
     description:
       "Create custom evaluation criteria to measure the quality of your LLM outputs",
-    icon: <Gauge className="h-4 w-4" />,
+    icon: Gauge,
   },
   {
     title: "Scale efficiently",
     description:
       "Evaluate thousands of traces automatically with customizable sampling rates",
-    icon: <Zap className="h-4 w-4" />,
+    icon: Zap,
   },
   {
     title: "Track performance",
     description:
       "Monitor evaluation metrics over time to identify trends and improvements",
-    icon: <BarChart4 className="h-4 w-4" />,
+    icon: BarChart4,
   },
 ];
 

@@ -18,7 +18,7 @@ import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/Creat
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -69,7 +69,7 @@ export function EvaluatorSavedDialogContainer({
     evaluator.hasCompletedTestCall ?? false,
   );
   const missingCostTestRequest = useRef<Promise<void> | null>(null);
-  const rules = api.evalsV2.rules.list.useQuery(
+  const activeRules = api.evalsV2.rules.list.useQuery(
     {
       projectId,
       page: 1,
@@ -79,13 +79,27 @@ export function EvaluatorSavedDialogContainer({
     },
     { enabled: dialogPhase === "saved" },
   );
+  const inactiveRules = api.evalsV2.rules.list.useQuery(
+    {
+      projectId,
+      page: 1,
+      limit: 100,
+      enabled: false,
+      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+    },
+    { enabled: dialogPhase === "saved" },
+  );
   const availableRules = useMemo(
     () =>
-      [...(rules.data?.rules ?? [])].sort(
+      [
+        ...(activeRules.data?.rules ?? []),
+        ...(inactiveRules.data?.rules ?? []),
+      ].sort(
         (left, right) => right.assignments.length - left.assignments.length,
       ),
-    [rules.data?.rules],
+    [activeRules.data?.rules, inactiveRules.data?.rules],
   );
+  const rulesPending = activeRules.isPending || inactiveRules.isPending;
   const {
     supportedFilters: supportedRuleFilters,
     unsupportedReasons: unsupportedRuleFilterReasons,
@@ -126,6 +140,7 @@ export function EvaluatorSavedDialogContainer({
       ruleId: rule.id,
       evaluatorId: evaluator.id,
       variableMapping: null,
+      enableRule: !rule.enabled,
     });
     capture("evaluation_rules:attach_evaluator", {
       evaluatorCount: 1,
@@ -285,7 +300,7 @@ export function EvaluatorSavedDialogContainer({
     if (
       mode !== "different-scope" ||
       selectedRuleId !== undefined ||
-      rules.isPending
+      rulesPending
     ) {
       return;
     }
@@ -296,13 +311,7 @@ export function EvaluatorSavedDialogContainer({
     } else {
       setSelectedRuleId(null);
     }
-  }, [
-    availableRules,
-    mode,
-    rules.isPending,
-    selectExistingRule,
-    selectedRuleId,
-  ]);
+  }, [availableRules, mode, rulesPending, selectExistingRule, selectedRuleId]);
 
   const handleModeChange = (nextMode: EvaluatorSavedMode) => {
     estimateRequestId.current += 1;
@@ -314,7 +323,7 @@ export function EvaluatorSavedDialogContainer({
       return;
     }
     setSelectedRuleId(
-      nextMode === "different-scope" && !rules.isPending ? null : undefined,
+      nextMode === "different-scope" && !rulesPending ? null : undefined,
     );
     setIsEstimating(false);
     if (nextMode === "test-filters") {
@@ -349,7 +358,7 @@ export function EvaluatorSavedDialogContainer({
       onOpenChange={setRulePickerOpen}
       disabledRules={[]}
       availableRules={availableRules}
-      loading={rules.isPending}
+      loading={rulesPending}
       onSelectAvailableRule={selectExistingRule}
       onCreateRule={selectNewRule}
     >
@@ -395,7 +404,7 @@ export function EvaluatorSavedDialogContainer({
             />
             {selectedRule.assignments.length > 0 ? (
               <p className="text-muted-foreground text-sm">
-                Already running on this rule:{" "}
+                Already attached to:{" "}
                 {selectedRule.assignments
                   .map(({ evaluator }) => evaluator.name)
                   .join(", ")}

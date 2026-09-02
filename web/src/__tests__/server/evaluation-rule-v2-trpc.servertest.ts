@@ -125,7 +125,8 @@ function ruleInput(evaluatorId?: string) {
 
 describe("evaluation rule v2 tRPC", () => {
   it("supports the rule lifecycle", async () => {
-    const created = await caller.evalsV2.rules.create(ruleInput());
+    const evaluator = await createEvaluator("Transport evaluator");
+    const created = await caller.evalsV2.rules.create(ruleInput(evaluator.id));
     const updated = await caller.evalsV2.rules.update({
       projectId,
       ruleId: created.id,
@@ -252,12 +253,15 @@ describe("evaluation rule v2 tRPC", () => {
     ).resolves.toBe(0);
   });
 
-  it("supports attaching and detaching an evaluator", async () => {
+  it("supports attaching with activation and detaching an evaluator", async () => {
     const [first, second] = await Promise.all([
       createEvaluator("First transport evaluator"),
       createEvaluator("Second transport evaluator"),
     ]);
-    const rule = await caller.evalsV2.rules.create(ruleInput(first.id));
+    const rule = await caller.evalsV2.rules.create({
+      ...ruleInput(first.id),
+      enabled: false,
+    });
     const attached = await caller.evalsV2.rules.attach({
       projectId,
       ruleId: rule.id,
@@ -265,8 +269,10 @@ describe("evaluation rule v2 tRPC", () => {
       variableMapping: [
         { templateVariable: "output", selectedColumnId: "input" },
       ],
+      enableRule: true,
     });
 
+    expect(attached.enabled).toBe(true);
     expect(attached.assignments).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ evaluatorId: second.id }),

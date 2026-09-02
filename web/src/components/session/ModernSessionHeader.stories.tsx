@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { sessionHeaderVisibilityStorageKey } from "@/src/components/session/sessionHeaderVisibility";
 
 const scores = [
   {
@@ -327,6 +328,83 @@ export const TestCompactsTokenCounts = meta.story({
     await expect(tokenPill).toHaveAttribute(
       "title",
       "tokens 648,714 → 6,697 (Σ 655,411)",
+    );
+  },
+});
+
+export const TestHidesAndRevealsDetails = meta.story({
+  name: "(Test) Hides and reveals details",
+  args: {
+    ...defaultArgs,
+    projectId: "project-header-visibility-story",
+  },
+  play: async ({ canvasElement }) => {
+    const storageKey = sessionHeaderVisibilityStorageKey(
+      "project-header-visibility-story",
+    );
+    const storedValue = JSON.stringify([]);
+    localStorage.setItem(storageKey, storedValue);
+    window.dispatchEvent(
+      new CustomEvent("localStorageChange", {
+        detail: { key: storageKey, newValue: storedValue },
+      }),
+    );
+
+    const canvas = within(canvasElement);
+    const hideTraceDetail = await canvas.findByRole("button", {
+      name: "Hide trace and span counts in session header",
+    });
+    const visibleTraceDetail = hideTraceDetail.closest(
+      "[data-overflow-visible-item='true']",
+    );
+    await expect(visibleTraceDetail).toBeInTheDocument();
+    hideTraceDetail.focus();
+    await waitFor(() => expect(hideTraceDetail).toBeVisible());
+    await expect(
+      hideTraceDetail.getBoundingClientRect().width,
+    ).toBeGreaterThanOrEqual(24);
+    await expect(
+      hideTraceDetail.getBoundingClientRect().height,
+    ).toBeGreaterThanOrEqual(24);
+    await userEvent.click(hideTraceDetail);
+    await expect(
+      canvas.queryByRole("button", {
+        name: "Hide trace and span counts in session header",
+      }),
+    ).not.toBeInTheDocument();
+    await expect(
+      JSON.parse(localStorage.getItem(storageKey) ?? "[]"),
+    ).toContain("traces");
+
+    const overflowButton = canvas.getByRole("button", {
+      name: /show \d+ hidden session details/i,
+    });
+    await waitFor(() => expect(overflowButton).toHaveFocus());
+    await userEvent.click(overflowButton);
+    const body = within(canvasElement.ownerDocument.body);
+    const overflowSearchInput = await body.findByRole("textbox", {
+      name: "Search session details",
+    });
+    const showTraceDetail = await body.findByRole("button", {
+      name: "Show trace and span counts in session header",
+    });
+    showTraceDetail.focus();
+    await waitFor(() => expect(showTraceDetail).toBeVisible());
+    await userEvent.click(showTraceDetail);
+
+    await expect(
+      canvas.getByRole("button", {
+        name: "Hide trace and span counts in session header",
+      }),
+    ).toBeInTheDocument();
+    await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));
+    const metadataEditorButton = canvas.getByRole("button", {
+      name: "Add metadata JSONPath",
+    });
+    await waitFor(() =>
+      expect([overflowSearchInput, metadataEditorButton]).toContain(
+        canvasElement.ownerDocument.activeElement,
+      ),
     );
   },
 });

@@ -7,7 +7,6 @@ import {
   getTraceById,
   createEvent,
   createOrgProjectAndApiKey,
-  type EventRecordInsertType,
   createObservationsCh,
   createTracesCh,
   createEventsCh,
@@ -50,17 +49,18 @@ type ObservationEventData = {
   total_cost?: number;
 };
 
-// Helper to create observation/event data in the appropriate format
-// Handles time conversion internally: milliseconds -> microseconds for events table
 const createObservationOrEvent = (
   useEventsTable: boolean,
-  data: ObservationEventData & Partial<EventRecordInsertType>,
+  data: ObservationEventData & {
+    environment?: string;
+    user_id?: string | null;
+    session_id?: string | null;
+    trace_name?: string;
+  },
 ) => {
   const id = data.id ?? randomUUID();
-  const timeMultiplier = useEventsTable ? 1000 : 1; // microseconds vs milliseconds
 
   if (useEventsTable) {
-    // For events table: microseconds, requires span_id
     return createEvent({
       ...data,
       id,
@@ -68,13 +68,8 @@ const createObservationOrEvent = (
       parent_span_id: data.trace_id, // Observations have trace as parent
       type: data.type ?? "SPAN",
       level: data.level ?? "DEFAULT",
-      start_time: data.start_time * timeMultiplier, // Convert ms to microseconds
-      end_time:
-        data.end_time === null
-          ? null
-          : data.end_time
-            ? data.end_time * timeMultiplier
-            : null,
+      start_time: data.start_time,
+      end_time: data.end_time ?? null,
     });
   }
   // For observations table: milliseconds
@@ -157,7 +152,7 @@ const createTraceWithObservations = async (
       name: trace.name ?? "trace",
       trace_name: trace.name ?? "trace",
       type: "GENERATION", // Trace events are typically GENERATION type
-      start_time: trace.timestamp * 1000, // Convert ms to microseconds
+      start_time: trace.timestamp,
       end_time: null,
       environment: trace.environment ?? "default",
       version: trace.version ?? null,
@@ -2440,6 +2435,101 @@ describe("/api/public/traces API Endpoint", () => {
     if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
       runTestSuite(true); // Events table
     }
+  });
+
+  describe("data-access-days enforcement", () => {
+    it("intersects advanced timestamp filters with the Hobby access floor", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldTrace = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+      });
+      const recentTrace = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      await createTracesCh([oldTrace, recentTrace]);
+
+      const filter = encodeURIComponent(
+        JSON.stringify([
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(
+              Date.now() - 365 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        ]),
+      );
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${filter}`,
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((trace) => trace.id)).toContain(
+        recentTrace.id,
+      );
+      expect(response.body.data.map((trace) => trace.id)).not.toContain(
+        oldTrace.id,
+      );
+    });
+
+    it("preserves stricter from and to bounds alongside advanced filters", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const beforeFrom = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      });
+      const withinRange = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
+      });
+      const afterTo = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      await createTracesCh([beforeFrom, withinRange, afterTo]);
+
+      const filter = encodeURIComponent(
+        JSON.stringify([
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(
+              Date.now() - 365 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        ]),
+      );
+      const fromTimestamp = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const toTimestamp = new Date(
+        Date.now() - 2 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}&filter=${filter}`,
+        undefined,
+        fixture.auth,
+      );
+      const ids = response.body.data.map((trace) => trace.id);
+
+      expect(ids).toContain(withinRange.id);
+      expect(ids).not.toContain(beforeFrom.id);
+      expect(ids).not.toContain(afterTo.id);
+    });
   });
 
   describe.skip("GET /api/public/traces env var controls", () => {

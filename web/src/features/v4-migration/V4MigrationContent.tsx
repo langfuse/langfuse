@@ -27,7 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -52,7 +52,7 @@ import {
   type MigrationCountState,
   type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -66,6 +66,11 @@ import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import {
+  getApiMigrationGuidance,
+  getCodingAgentName,
+  type MigrationSdkName,
+} from "@/src/features/v4-migration/apiMigrationGuidance";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -74,6 +79,8 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Headline form of the deadline; the year is noise in a title.
+const V4_MIGRATION_DEADLINE_SHORT = "November 16";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -202,12 +209,14 @@ function ExternalLink({
   children,
   className,
   analytics,
+  ariaLabel,
 }: {
   href: string;
   children: ReactNode;
   className?: string;
   /** Which guidance link in which section — for section_link_clicked. */
   analytics?: { section: string; link: string };
+  ariaLabel?: string;
 }) {
   const capture = usePostHogClientCapture();
   return (
@@ -216,6 +225,7 @@ function ExternalLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn("underline", className)}
+      aria-label={ariaLabel}
       onClick={
         analytics
           ? () => capture("v4_migration:section_link_clicked", analytics)
@@ -868,7 +878,19 @@ export function V4MigrationApisSection({
   defaultOpen,
 }: {
   state: MigrationCountState;
-  usage: { endpoint: string; count: number; lastSeen: string }[];
+  usage: {
+    endpoint: string;
+    count: number;
+    lastSeen: string;
+    callers?: {
+      sdkName?: MigrationSdkName;
+      sdkVersion?: string;
+      userAgent?: string;
+      isOther?: true;
+      count: number;
+      lastSeen: string;
+    }[];
+  }[];
   defaultOpen?: boolean;
 }) {
   return (
@@ -896,44 +918,165 @@ export function V4MigrationApisSection({
       ) : usage.length > 0 ? (
         <>
           <p className="text-muted-foreground mb-2 text-sm">
-            You&apos;ve called these deprecated endpoints in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. Counts refresh about every 15
-            minutes and can lag live traffic. They stop working soon; the{" "}
+            You&apos;ve recently called deprecated endpoints that will stop
+            working after the migration deadline. Please check the{" "}
             <ExternalLink
               href={DEPRECATED_API_MIGRATION_URL}
               analytics={{ section: "apis", link: "deprecated_api_docs" }}
             >
               migration guide
-            </ExternalLink>{" "}
-            maps each endpoint to its replacement.
+            </ExternalLink>
           </p>
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-3">
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
+              const callers = row.callers ?? [];
+              const hasKnownCallers = callers.some((caller) => !caller.isOther);
+              const publicApiPrefix = "/api/public/";
+              const publicApiPrefixStart =
+                row.endpoint.indexOf(publicApiPrefix);
+              const publicApiPrefixEnd =
+                publicApiPrefixStart < 0
+                  ? 0
+                  : publicApiPrefixStart + publicApiPrefix.length;
 
               return (
-                <div
-                  key={row.endpoint}
-                  className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
-                >
-                  <ExternalLink
-                    href={DEPRECATED_API_MIGRATION_URL}
-                    className="text-sm"
-                    analytics={{
-                      section: "apis",
-                      link: "deprecated_api_docs",
-                    }}
-                  >
-                    {row.endpoint}
-                  </ExternalLink>
-                  <span
-                    className="text-muted-foreground text-sm whitespace-nowrap"
-                    title={`Last seen at ${row.lastSeen}`}
-                  >
-                    {numberFormatter(roundedCount, 0)}{" "}
-                    {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
-                    {formatCompactRelativeTime(new Date(row.lastSeen))}
-                  </span>
+                <div key={row.endpoint} className="rounded-md border p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <ExternalLink
+                      href={DEPRECATED_API_MIGRATION_URL}
+                      className="text-sm"
+                      analytics={{
+                        section: "apis",
+                        link: "deprecated_api_docs",
+                      }}
+                      ariaLabel={row.endpoint}
+                    >
+                      {row.endpoint.slice(0, publicApiPrefixEnd)}
+                      <span className="font-bold">
+                        {row.endpoint.slice(publicApiPrefixEnd)}
+                      </span>
+                    </ExternalLink>
+                    {!hasKnownCallers ? (
+                      <span
+                        className="text-muted-foreground text-sm whitespace-nowrap"
+                        title={`Last seen at ${row.lastSeen}`}
+                      >
+                        {numberFormatter(roundedCount, 0)}{" "}
+                        {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
+                        {formatCompactRelativeTime(new Date(row.lastSeen))}
+                      </span>
+                    ) : null}
+                  </div>
+                  {hasKnownCallers ? (
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {callers.map((caller, index) => {
+                        const codingAgent = getCodingAgentName(
+                          caller.userAgent,
+                        );
+                        const guidance = getApiMigrationGuidance(
+                          row.endpoint,
+                          caller.sdkName,
+                          caller.sdkVersion,
+                        );
+                        const callerName = caller.isOther
+                          ? "Unknown callers"
+                          : caller.sdkName
+                            ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
+                            : codingAgent
+                              ? codingAgent
+                              : caller.userAgent || "Unknown caller";
+                        const callerCount = Math.max(
+                          1,
+                          Math.round(caller.count),
+                        );
+
+                        return (
+                          <li
+                            key={`${callerName}-${index}`}
+                            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
+                          >
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                              <div className="text-muted-foreground flex items-center gap-1.5">
+                                <span aria-hidden="true">⚠️</span>
+                                <MonoValue>{callerName}</MonoValue>
+                              </div>
+                              <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
+                                <span>
+                                  {numberFormatter(callerCount, 0)}{" "}
+                                  {callerCount === 1 ? "call" : "calls"} · last
+                                  seen{" "}
+                                  {formatCompactRelativeTime(
+                                    new Date(caller.lastSeen),
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            {codingAgent && !caller.sdkName ? (
+                              <p className="text-muted-foreground mt-1 pl-5 text-xs">
+                                This looks like traffic from a coding agent. If
+                                the call was only exploratory and is not part of
+                                a running service, you may not need to migrate
+                                application code.{" "}
+                                <ExternalLink
+                                  href={DEPRECATED_API_MIGRATION_URL}
+                                  analytics={{
+                                    section: "apis",
+                                    link: "deprecated_api_caller_docs",
+                                  }}
+                                >
+                                  See docs.
+                                </ExternalLink>
+                              </p>
+                            ) : guidance.currentMethod &&
+                              guidance.replacementMethod ? (
+                              <p className="text-muted-foreground mt-1 pl-5 text-xs">
+                                Replace{" "}
+                                <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
+                                with{" "}
+                                <MonoValue>
+                                  {guidance.replacementMethod}
+                                </MonoValue>
+                                {guidance.requiresUpgrade &&
+                                guidance.minimumVersion ? (
+                                  <>
+                                    . First upgrade to SDK version{" "}
+                                    <MonoValue>
+                                      {guidance.minimumVersion} or newer
+                                    </MonoValue>
+                                  </>
+                                ) : null}
+                                .{" "}
+                                <ExternalLink
+                                  href={DEPRECATED_API_MIGRATION_URL}
+                                  analytics={{
+                                    section: "apis",
+                                    link: "deprecated_api_caller_docs",
+                                  }}
+                                >
+                                  See docs.
+                                </ExternalLink>
+                              </p>
+                            ) : (
+                              <p className="text-muted-foreground mt-1 pl-5 text-xs">
+                                Migrate calls to{" "}
+                                <MonoValue>{guidance.replacement}</MonoValue>.{" "}
+                                <ExternalLink
+                                  href={DEPRECATED_API_MIGRATION_URL}
+                                  analytics={{
+                                    section: "apis",
+                                    link: "deprecated_api_caller_docs",
+                                  }}
+                                >
+                                  See docs.
+                                </ExternalLink>
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
                 </div>
               );
             })}
@@ -1066,14 +1209,26 @@ export function V4MigrationDocsLink() {
   );
 }
 
+/**
+ * Headline for the migration surfaces. It names the compatibility deadline
+ * rather than a version: the app shell already shows a v4 build number, so a
+ * "upgrade to v4" title reads as a contradiction to users whose integrations,
+ * not their deployment, are the thing left to update.
+ */
+export function useV4MigrationTitle(): string {
+  return useHasV4MigrationDeadline()
+    ? `Ensure compatibility after ${V4_MIGRATION_DEADLINE_SHORT}`
+    : "Ensure compatibility";
+}
+
 export function V4MigrationDeadlineNote() {
   const hasDeadline = useHasV4MigrationDeadline();
 
   if (!hasDeadline) {
     return (
       <p>
-        Some features may stop working without an upgrade once your
-        administrator disables the legacy mode.
+        Some features may stop working if you don&apos;t update integrations
+        before your administrator disables the legacy mode.
       </p>
     );
   }
@@ -1087,7 +1242,7 @@ export function V4MigrationDeadlineNote() {
       >
         {V4_MIGRATION_DEADLINE}
       </ExternalLink>{" "}
-      some features may stop working without a v4 upgrade.
+      some features may stop working if you don&apos;t update integrations.
     </p>
   );
 }
@@ -1107,6 +1262,7 @@ export function V4MigrationHeaderContent({
   readiness?: ProjectMigrationReadiness;
 }) {
   const actionNeeded = readiness === "action-needed";
+  const title = useV4MigrationTitle();
 
   return (
     <>
@@ -1116,7 +1272,7 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
+        <p className="min-w-0 text-lg font-bold">{title}</p>
       </div>
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
@@ -1159,7 +1315,7 @@ export function V4MigrationHeaderContent({
           </ExternalLink>
           .
           {actionNeeded
-            ? " Complete the action items below to switch this project over."
+            ? " Complete the action items below to avoid disruption."
             : ""}{" "}
           <V4MigrationDocsLink />
         </p>
@@ -1339,12 +1495,12 @@ export function V4MigrationDetailsContent({
     projectId,
     enabled: Boolean(projectId),
   });
-  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const { canToggleV4, isV4 } = useReadPath();
   // Evidence links target the v4 events table; with the v4 preview off the
   // route renders the v3 observations table, which cannot express the
   // ingestionApiKey filter — the link would open an unfiltered table. Keep
   // the key as plain text there instead of a misleading link.
-  const evidenceProjectId = isBetaEnabled ? projectId : undefined;
+  const evidenceProjectId = isV4 ? projectId : undefined;
 
   // PostHog is the external system here: the panel's checks resolve
   // asynchronously after open, so the "how much work was shown" event can

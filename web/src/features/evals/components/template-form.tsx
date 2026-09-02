@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,7 +36,7 @@ import {
 import router from "next/router";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -73,7 +74,7 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   useEvalCapabilities,
   type EvalCapabilities,
@@ -319,13 +320,9 @@ const InnerEvalTemplateForm = (props: {
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
-  const categoriesError = form.formState.errors.categories;
-  const categoriesErrorMessage =
-    typeof categoriesError?.message === "string"
-      ? categoriesError.message
-      : typeof categoriesError?.root?.message === "string"
-        ? categoriesError.root.message
-        : undefined;
+  const hasCategoriesArrayError = hasArrayLevelFieldError(
+    form.formState.errors.categories,
+  );
 
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
@@ -916,11 +913,7 @@ const InnerEvalTemplateForm = (props: {
                           </FormItem>
                         )}
                       />
-                      {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-bold">
-                          {categoriesErrorMessage}
-                        </p>
-                      ) : null}
+                      {hasCategoriesArrayError ? <FormMessage /> : null}
                     </FormItem>
                   )}
                 />
@@ -1029,32 +1022,30 @@ function CodeEvalSdkVersionCallout({
   }
 
   return (
-    <Alert
-      variant="default"
-      className="border-dark-yellow bg-light-yellow max-w-4xl"
-    >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
-      <AlertDescription>
-        <div className="flex flex-col gap-1">
-          <span className="text-foreground font-bold">
-            Please verify your SDK version
-          </span>
-          <span className="text-foreground text-sm">
-            Code evaluators require JS SDK v4+ or Python SDK v3+. You can create
-            this evaluator now, but it will only run once your project ingests
-            data with a compatible SDK.{" "}
-            <a
-              href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
-            >
-              Learn more
-            </a>
-            .
-          </span>
-        </div>
-      </AlertDescription>
-    </Alert>
+    <div className="w-full max-w-4xl">
+      <Alert variant="warning" icon={AlertTriangle}>
+        <Alert.Description>
+          <div className="flex flex-col gap-1">
+            <span className="text-foreground font-bold">
+              Please verify your SDK version
+            </span>
+            <span className="text-foreground text-sm">
+              Code evaluators require JS SDK v4+ or Python SDK v3+. You can
+              create this evaluator now, but it will only run once your project
+              ingests data with a compatible SDK.{" "}
+              <a
+                href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-blue font-bold hover:opacity-80"
+              >
+                Learn more
+              </a>
+              .
+            </span>
+          </div>
+        </Alert.Description>
+      </Alert>
+    </div>
   );
 }

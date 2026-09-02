@@ -10,6 +10,7 @@ const envMock = vi.hoisted(() => ({
 vi.mock("../../env", () => envMock);
 
 import {
+  resolveClickHouseJsonBadUnicodeEscapeMode,
   isClickHouseVersionInBand,
   parseClickHouseVersion,
   resolveClickHouseCompatibility,
@@ -69,6 +70,9 @@ describe("resolveClickHouseCompatibility", () => {
     ["26.7.1.1334", noCompatibilitySettings],
     ["26.7.2.0", disableTopKThroughJoin],
     ["26.7.2.11", noCompatibilitySettings],
+    ["26.7.99.9999", noCompatibilitySettings],
+    ["26.8.0.0", noCompatibilitySettings],
+    ["26.8.1.2041", noCompatibilitySettings],
   ])("resolves automatic settings for %s", (version, expectedSettings) => {
     expect(resolveClickHouseCompatibility({ version }).settings).toEqual(
       expectedSettings,
@@ -106,6 +110,30 @@ describe("resolveClickHouseCompatibility", () => {
           CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "false",
         },
       }).settings,
-    ).toEqual(disableLazyMaterialization);
+    ).toEqual({
+      ...disableLazyMaterialization,
+    });
   });
+});
+
+describe("resolveClickHouseJsonBadUnicodeEscapeMode", () => {
+  it.each([
+    ["24.3.0.0", undefined, "v3.225.4", "sanitize"],
+    ["24.4.0.0", "auto", "v3.225.4", "no_throw"],
+    [null, "auto", "v3.225.4", "sanitize"],
+    ["24.3.0.0", "no_throw", "v3.225.4", "no_throw"],
+    ["25.12.0.0", "sanitize", "v4.17.0", "sanitize"],
+    ["24.3.0.0", undefined, "v4.17.0", "no_throw"],
+  ] as const)(
+    "resolves %s / %s / %s to %s",
+    (version, configuredMode, applicationVersion, expected) => {
+      expect(
+        resolveClickHouseJsonBadUnicodeEscapeMode({
+          version,
+          configuredMode,
+          applicationVersion,
+        }),
+      ).toBe(expected);
+    },
+  );
 });

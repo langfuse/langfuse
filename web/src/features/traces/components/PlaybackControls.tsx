@@ -30,7 +30,7 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
@@ -54,7 +54,7 @@ const RING_C = 2 * Math.PI * RING_R;
  * transport pop-in after first load. An actively-placed playhead keeps its
  * controls regardless.
  */
-export function useHasPlayback(): boolean {
+function useHasPlayback(): boolean {
   const { traceDuration } = useTraceData();
   const { isGraphViewAvailable, isLoading: isGraphDataLoading } =
     useTraceGraphData();

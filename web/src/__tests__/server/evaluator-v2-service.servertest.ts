@@ -6,6 +6,7 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type * as EnvModule from "@/src/env.mjs";
 import type * as EvaluatorPreflightModule from "@/src/features/evals/server/evaluator-preflight";
 import type * as TestEvaluatorModule from "@/src/features/evals/v2/server/evaluators/testEvaluator";
@@ -29,25 +30,23 @@ import {
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import {
   type CreateEvaluatorInput,
-  type EvaluatorDefinition,
+  type NormalizedEvaluatorDefinition,
   EvaluatorVersionsSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
   getRecentEvaluatorExecutionTraces: vi.fn(),
+  getTotalCostByEvaluatorIds: vi.fn(),
+  invalidateProjectEvalConfigCaches: vi.fn(),
   assertEvaluatorConfigurationValid: vi.fn(),
   getEvaluatorDefinitionPreflightError: vi.fn(),
   testEvaluator: vi.fn(),
   env: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: "test-small-model",
-    LANGFUSE_AWS_BEDROCK_MODEL: "test-model",
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
   } as {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: string | undefined;
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: string | undefined;
-    LANGFUSE_AWS_BEDROCK_MODEL: string | undefined;
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy" | "dual" | "events_only";
   },
 }));
@@ -56,6 +55,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   generateLangfuseAIText: mocks.generateLangfuseAIText,
   getRecentEvaluatorExecutionTraces: mocks.getRecentEvaluatorExecutionTraces,
+  getTotalCostByEvaluatorIds: mocks.getTotalCostByEvaluatorIds,
+  invalidateProjectEvalConfigCaches: mocks.invalidateProjectEvalConfigCaches,
 }));
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
@@ -63,8 +64,6 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   return {
     env: Object.assign(mocks.env, actual.env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
-      LANGFUSE_AWS_BEDROCK_SMALL_MODEL: "test-small-model",
-      LANGFUSE_AWS_BEDROCK_MODEL: "test-model",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
     }),
   };
@@ -103,14 +102,14 @@ let otherProjectId = "";
 const llmInput = (
   name: string,
 ): CreateEvaluatorInput & {
-  definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
+  definition: Extract<NormalizedEvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 } => ({
   projectId,
   name,
   description: "Initial description",
   definition: {
     type: "LLM_AS_JUDGE",
-    prompt: "Judge {{output}}",
+    promptMessages: [{ role: "user", content: "Judge {{output}}" }],
     provider: null,
     model: null,
     modelParams: null,
@@ -119,7 +118,6 @@ const llmInput = (
       { templateVariable: "output", selectedColumnId: "output" },
     ],
     outputDefinition: {
-      version: 2,
       dataType: "NUMERIC",
       score: { description: "Quality" },
       reasoning: { description: "Reasoning" },
@@ -128,6 +126,27 @@ const llmInput = (
 });
 
 const createService = () => new EvaluatorService(prisma, async () => undefined);
+
+// Langfuse AI availability resolves the model through the shared env, so drive
+// it there rather than through the web env mock.
+const originalSharedAiModel = {
+  model: sharedEnv.LANGFUSE_AI_MODEL,
+  smallModel: sharedEnv.LANGFUSE_AI_SMALL_MODEL,
+  provider: sharedEnv.LANGFUSE_AI_PROVIDER,
+  apiKey: sharedEnv.LANGFUSE_AI_API_KEY,
+};
+
+const setSharedAiModel = (params: {
+  model: string | undefined;
+  smallModel: string | undefined;
+}) => {
+  Object.assign(sharedEnv, {
+    LANGFUSE_AI_PROVIDER: "bedrock",
+    LANGFUSE_AI_API_KEY: undefined,
+    LANGFUSE_AI_MODEL: params.model,
+    LANGFUSE_AI_SMALL_MODEL: params.smallModel,
+  });
+};
 
 beforeAll(async () => {
   const [first, second] = await Promise.all([
@@ -147,15 +166,16 @@ beforeAll(async () => {
 beforeEach(() => {
   mocks.generateLangfuseAIText.mockReset();
   mocks.getRecentEvaluatorExecutionTraces.mockReset();
+  mocks.getTotalCostByEvaluatorIds.mockReset();
+  mocks.invalidateProjectEvalConfigCaches.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockResolvedValue(undefined);
   mocks.getEvaluatorDefinitionPreflightError.mockReset();
   mocks.getEvaluatorDefinitionPreflightError.mockResolvedValue(null);
   mocks.testEvaluator.mockReset();
   mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
-  mocks.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "test-small-model";
-  mocks.env.LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
   mocks.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+  setSharedAiModel({ model: "test-model", smallModel: "test-small-model" });
 });
 
 afterEach(async () => {
@@ -168,6 +188,12 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  Object.assign(sharedEnv, {
+    LANGFUSE_AI_MODEL: originalSharedAiModel.model,
+    LANGFUSE_AI_SMALL_MODEL: originalSharedAiModel.smallModel,
+    LANGFUSE_AI_PROVIDER: originalSharedAiModel.provider,
+    LANGFUSE_AI_API_KEY: originalSharedAiModel.apiKey,
+  });
   await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
 });
 
@@ -210,20 +236,67 @@ describe("EvaluatorService", () => {
   it("creates an evaluator with version one and rejects cross-project reads", async () => {
     const service = createService();
     const evaluatorId = crypto.randomUUID();
-    const created = await service.create(
-      { ...llmInput("Create evaluator"), evaluatorId },
-      null,
-    );
+    const input = llmInput("Create evaluator");
+    input.definition.promptMessages = [
+      { role: "system", content: "Judge carefully" },
+      { role: "user", content: "Judge {{output}}" },
+    ];
+    const created = await service.create({ ...input, evaluatorId }, null);
 
+    expect(created.versions[0]).not.toHaveProperty("prompt");
     expect(created).toMatchObject({
       id: evaluatorId,
       projectId,
       name: "Create evaluator",
-      versions: [expect.objectContaining({ version: 1 })],
+      versions: [
+        expect.objectContaining({
+          version: 1,
+          promptMessages: input.definition.promptMessages,
+        }),
+      ],
+    });
+    const fetched = await service.get(projectId, created.id);
+    expect(fetched.versions[0]).not.toHaveProperty("prompt");
+    expect(fetched).toMatchObject({
+      id: created.id,
+      versions: [
+        expect.objectContaining({
+          promptMessages: input.definition.promptMessages,
+        }),
+      ],
+    });
+
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: created.id },
+      data: { promptMessages: Prisma.DbNull },
     });
     await expect(service.get(projectId, created.id)).resolves.toMatchObject({
-      id: created.id,
+      versions: [
+        expect.objectContaining({
+          promptMessages: [
+            {
+              role: "user",
+              content: input.definition.promptMessages
+                .map(({ content }) => content)
+                .join("\n\n"),
+            },
+          ],
+        }),
+      ],
     });
+
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: created.id },
+      data: { prompt: "   ", promptMessages: Prisma.DbNull },
+    });
+    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
+      versions: [
+        expect.objectContaining({
+          promptMessages: [{ role: "user", content: "No prompt provided" }],
+        }),
+      ],
+    });
+
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
     );
@@ -469,6 +542,88 @@ describe("EvaluatorService", () => {
         "Evaluator paused: no valid evaluation model is configured. Update the evaluator template or default evaluation model, then reactivate it.",
       versions: [expect.objectContaining({ version: 2 })],
     });
+
+    mocks.invalidateProjectEvalConfigCaches.mockClear();
+    const recovered = await service.patch(
+      {
+        projectId,
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          provider: "openai",
+          model: "available-model",
+        },
+      },
+      null,
+    );
+    expect(recovered).toMatchObject({
+      id: evaluator.id,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+      versions: [expect.objectContaining({ version: 3 })],
+    });
+    expect(mocks.invalidateProjectEvalConfigCaches).toHaveBeenCalledWith(
+      projectId,
+    );
+
+    await prisma.evaluator.update({
+      where: { id: evaluator.id },
+      data: {
+        blockedAt: new Date(),
+        blockReason: "LLM_CONNECTION_AUTH_INVALID",
+        blockMessage: "Authentication failed",
+      },
+    });
+    const stillBlocked = await service.patch(
+      {
+        projectId,
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          promptMessages: [
+            { role: "user", content: "Updated prompt: {{output}}" },
+          ],
+          provider: "openai",
+          model: "available-model",
+        },
+      },
+      null,
+    );
+    expect(stillBlocked).toMatchObject({
+      blockedAt: expect.any(Date),
+      blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      blockMessage: "Authentication failed",
+    });
+
+    await prisma.evaluator.update({
+      where: { id: evaluator.id },
+      data: {
+        blockedAt: new Date(),
+        blockReason: null,
+        blockMessage: "Legacy pause without a reason",
+      },
+    });
+    const legacyPause = await service.patch(
+      {
+        projectId,
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          promptMessages: [
+            { role: "user", content: "Another updated prompt: {{output}}" },
+          ],
+          provider: "openai",
+          model: "available-model",
+        },
+      },
+      null,
+    );
+    expect(legacyPause).toMatchObject({
+      blockedAt: expect.any(Date),
+      blockReason: null,
+      blockMessage: "Legacy pause without a reason",
+    });
   });
 
   it("reactivates a blocked evaluator only after its model test succeeds", async () => {
@@ -545,7 +700,12 @@ describe("EvaluatorService", () => {
         description: "Changed only metadata",
         definition: {
           ...input.definition,
-          prompt: "Judge {{output}} strictly",
+          promptMessages: [
+            {
+              role: "user" as const,
+              content: "Judge {{output}} strictly",
+            },
+          ],
         },
       },
       null,
@@ -588,11 +748,18 @@ describe("EvaluatorService", () => {
     ).rejects.toThrow("Evaluator not found");
   });
 
-  it("rejects prompt changes that make existing rule mappings incomplete", async () => {
+  it("changes the prompt without validating or rewriting rule mappings", async () => {
     const service = createService();
     const input = llmInput("Assigned evaluator update");
     const created = await service.create(input, null);
-    await prisma.evaluationRule.create({
+    const staleMapping = [
+      { templateVariable: "output", selectedColumnId: "output" },
+      {
+        templateVariable: "item_metadata",
+        selectedColumnId: "experimentItemMetadata",
+      },
+    ];
+    const rule = await prisma.evaluationRule.create({
       data: {
         projectId,
         name: "Assigned rule",
@@ -605,22 +772,26 @@ describe("EvaluatorService", () => {
           create: {
             projectId,
             evaluatorId: created.id,
-            variableMapping: input.definition
-              .variableMapping as Prisma.InputJsonValue,
+            variableMapping: staleMapping as Prisma.InputJsonValue,
           },
         },
       },
     });
 
+    // The override maps a variable the new prompt drops and misses one it adds.
     await expect(
       service.update(
         {
           ...input,
           evaluatorId: created.id,
-          name: "Invalid renamed evaluator",
           definition: {
             ...input.definition,
-            prompt: "Judge {{input}} and {{output}}",
+            promptMessages: [
+              {
+                role: "user",
+                content: "Judge {{input}} and {{output}}",
+              },
+            ],
             vars: ["input", "output"],
             variableMapping: [
               { templateVariable: "input", selectedColumnId: "input" },
@@ -630,12 +801,15 @@ describe("EvaluatorService", () => {
         },
         null,
       ),
-    ).rejects.toThrow("Missing mappings for evaluator variables: input");
-
-    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
-      name: input.name,
-      versions: [expect.objectContaining({ version: 1 })],
+    ).resolves.toMatchObject({
+      versions: [expect.objectContaining({ version: 2 })],
     });
+
+    const assignment =
+      await prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+        where: { evaluationRuleId: rule.id, evaluatorId: created.id },
+      });
+    expect(assignment.variableMapping).toEqual(staleMapping);
   });
 
   it("returns a retryable conflict when an evaluator version advances concurrently", async () => {
@@ -649,14 +823,20 @@ describe("EvaluatorService", () => {
           tx,
           evaluatorId: created.id,
           version: 2,
-          definition: input.definition,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+          },
           createdByUserId: null,
         });
         await evaluatorRepository.appendEvaluatorVersion({
           tx,
           evaluatorId: created.id,
           version: 2,
-          definition: input.definition,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+          },
           createdByUserId: null,
         });
       }),
@@ -702,11 +882,21 @@ describe("EvaluatorService", () => {
       }),
     ).resolves.toEqual({ score: 1 });
 
-    expect(mocks.testEvaluator).toHaveBeenCalledTimes(2);
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
+        definition: llmInput("Test evaluator").definition,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    expect(mocks.testEvaluator).toHaveBeenCalledTimes(3);
     expect(mocks.testEvaluator).toHaveBeenCalledWith(
       expect.objectContaining({
         orgId,
         evaluatorId: newEvaluatorId,
+        includeEvaluatorLink: false,
         ...observation,
       }),
     );
@@ -714,6 +904,16 @@ describe("EvaluatorService", () => {
       expect.objectContaining({
         orgId,
         evaluatorId: evaluator.id,
+        includeEvaluatorLink: true,
+        ...observation,
+      }),
+    );
+    expect(mocks.testEvaluator).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        orgId,
+        evaluatorId: expect.any(String),
+        includeEvaluatorLink: false,
         ...observation,
       }),
     );
@@ -732,6 +932,51 @@ describe("EvaluatorService", () => {
     ).rejects.toThrow("Evaluator not found");
   });
 
+  it("tests the latest version of a saved evaluator", async () => {
+    mocks.testEvaluator.mockResolvedValue({ score: 1 });
+    const service = createService();
+    const evaluator = await service.create(llmInput("Saved evaluator"), null);
+    const latestDefinition = {
+      ...llmInput("Saved evaluator").definition,
+      promptMessages: [
+        { role: "user" as const, content: "Judge the latest {{output}}" },
+      ],
+    };
+    await service.update(
+      {
+        ...llmInput("Saved evaluator"),
+        evaluatorId: evaluator.id,
+        definition: latestDefinition,
+      },
+      null,
+    );
+
+    const observation = {
+      observationId: "test-observation-id",
+      traceId: "test-trace-id",
+      startTime: new Date("2026-08-11T00:00:00.000Z"),
+      shouldReadFromObservationsTable: false,
+    };
+
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
+        evaluatorId: evaluator.id,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    expect(mocks.testEvaluator).toHaveBeenCalledWith({
+      orgId,
+      projectId,
+      evaluatorId: evaluator.id,
+      definition: latestDefinition,
+      includeEvaluatorLink: true,
+      ...observation,
+    });
+  });
+
   it("suggests a safe name and silently returns null when unavailable", async () => {
     mocks.generateLangfuseAIText
       .mockResolvedValueOnce('  "Concise quality judge"  ')
@@ -742,7 +987,7 @@ describe("EvaluatorService", () => {
     const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge quality",
+      promptMessages: [{ role: "user" as const, content: "Judge quality" }],
     };
 
     await expect(
@@ -775,7 +1020,7 @@ describe("EvaluatorService", () => {
     ).resolves.toBeNull();
 
     mocks.generateLangfuseAIText.mockClear();
-    mocks.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
+    setSharedAiModel({ model: "test-model", smallModel: undefined });
     mocks.generateLangfuseAIText.mockResolvedValueOnce("Main model fallback");
     await expect(
       service.suggestName({ projectId, userId: null, definition }),
@@ -785,13 +1030,13 @@ describe("EvaluatorService", () => {
     );
 
     mocks.generateLangfuseAIText.mockClear();
-    mocks.env.LANGFUSE_AWS_BEDROCK_MODEL = undefined;
+    setSharedAiModel({ model: undefined, smallModel: undefined });
     await expect(
       service.suggestName({ projectId, userId: null, definition }),
     ).resolves.toBeNull();
     expect(mocks.generateLangfuseAIText).not.toHaveBeenCalled();
 
-    mocks.env.LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    setSharedAiModel({ model: "test-model", smallModel: undefined });
     await expect(
       service.suggestName({
         projectId: otherProjectId,
@@ -809,7 +1054,7 @@ describe("EvaluatorService", () => {
     const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge quality",
+      promptMessages: [{ role: "user" as const, content: "Judge quality" }],
     };
 
     await expect(
@@ -943,66 +1188,62 @@ describe("EvaluatorService", () => {
     );
   });
 
-  it("returns recent traces by evaluator execution name", async () => {
+  it("returns recent traces by evaluator id", async () => {
     const service = createService();
-    const [firstEvaluator, secondEvaluator, otherEvaluator] = await Promise.all(
-      [
-        service.create(llmInput("First execution evaluator"), null),
-        service.create(llmInput("Second execution evaluator"), null),
-        service.create(
-          {
-            ...llmInput("Other project execution evaluator"),
-            projectId: otherProjectId,
-          },
-          null,
-        ),
-      ],
-    );
+    const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];
     mocks.getRecentEvaluatorExecutionTraces.mockResolvedValue([
       ...[7, 6, 5, 4, 3].map((day) => ({
         id: `first-${day}`,
-        traceName: "Execute evaluator: First execution evaluator",
+        evaluatorId: evaluatorIds[0],
         level: "WARNING",
         timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
       })),
       ...[4, 3, 2, 1].map((day) => ({
         id: `second-${day}`,
-        traceName: "Execute evaluator: Second execution evaluator",
+        evaluatorId: evaluatorIds[1],
         level: "DEFAULT",
         timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
       })),
     ]);
-    const result = await service.listRecent({
-      projectId,
-      evaluatorIds: [firstEvaluator.id, secondEvaluator.id, otherEvaluator.id],
-    });
+
+    const result = await service.listRecent({ projectId, evaluatorIds });
 
     expect(mocks.getRecentEvaluatorExecutionTraces).toHaveBeenCalledWith(
       projectId,
-      expect.any(Array),
+      evaluatorIds,
     );
-    expect(mocks.getRecentEvaluatorExecutionTraces).toHaveBeenCalledTimes(1);
-    expect(
-      new Set(mocks.getRecentEvaluatorExecutionTraces.mock.calls[0]?.[1]),
-    ).toEqual(
-      new Set([
-        "Execute evaluator: First execution evaluator",
-        "Execute evaluator: Second execution evaluator",
-      ]),
-    );
-    expect(result[firstEvaluator.id]?.map(({ id }) => id)).toEqual([
+    expect(result[evaluatorIds[0]]?.map(({ id }) => id)).toEqual([
       "first-7",
       "first-6",
       "first-5",
       "first-4",
       "first-3",
     ]);
-    expect(result[secondEvaluator.id]?.map(({ id }) => id)).toEqual([
+    expect(result[evaluatorIds[1]]?.map(({ id }) => id)).toEqual([
       "second-4",
       "second-3",
       "second-2",
       "second-1",
     ]);
-    expect(result[otherEvaluator.id]).toEqual([]);
+  });
+
+  it("returns total costs by evaluator id", async () => {
+    const service = createService();
+    const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];
+    mocks.getTotalCostByEvaluatorIds.mockResolvedValue([
+      { evaluatorId: evaluatorIds[0], totalCost: 1.5 },
+      { evaluatorId: evaluatorIds[1], totalCost: 2.5 },
+    ]);
+
+    await expect(
+      service.getTotalCosts({ projectId, evaluatorIds }),
+    ).resolves.toEqual({
+      [evaluatorIds[0]]: 1.5,
+      [evaluatorIds[1]]: 2.5,
+    });
+    expect(mocks.getTotalCostByEvaluatorIds).toHaveBeenCalledWith(
+      projectId,
+      evaluatorIds,
+    );
   });
 });

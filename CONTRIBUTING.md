@@ -185,9 +185,11 @@ PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
 Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
-`http://localhost:3000`), proof of the fix for user-visible changes
-(screenshot, video, or before/after), and one PR comment on what a reviewer
-should doubt.
+`http://localhost:3000`), and proof of the fix for user-visible changes
+posted on the GitHub PR (screenshot, video, or before/after — not only in
+chat). Cursor agents that comment as Cursor may also leave one PR comment
+with that proof plus what a reviewer should doubt; Claude Code and other
+tools that comment as the human author must not.
 Prefer one or two human actions at a time; if you need more, keep each
 point simple and super readable. Preview data and any attached artifacts
 must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
@@ -548,6 +550,8 @@ To export the respective `openapi.yml` files which power the online API referenc
 ```sh
 pnpm run openapi:export
 ```
+
+Commit the updated files under `web/public/generated/`. CI re-runs this export on PRs that touch `fern/**` or the served specs and fails if they drift (`pnpm run openapi:check`).
 
 This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 

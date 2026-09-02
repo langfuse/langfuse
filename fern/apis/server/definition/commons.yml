@@ -313,7 +313,7 @@ types:
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
-      providedModelName:
+      model:
         type: optional<nullable<string>>
         docs: The model name as provided by the user
       internalModelId:
@@ -878,6 +878,27 @@ types:
       - model_parameters
       - metadata
 
+  PricingTierConditionInput:
+    docs: Condition input for matching a pricing tier.
+    discriminated: false
+    union:
+      - PricingTierUsageConditionInput
+      - PricingTierAttributeCondition
+
+  PricingTierUsageConditionInput:
+    docs: Input condition that sums usage details whose keys match a regex.
+    properties:
+      usageDetailPattern:
+        docs: Regex pattern matched against usage detail keys.
+        type: string
+      operator: PricingTierOperator
+      value:
+        docs: Numeric threshold for the summed matching usage values.
+        type: double
+      caseSensitive:
+        docs: Whether the usage-detail regex is case-sensitive. Defaults to false.
+        type: optional<boolean>
+
   PricingTier:
     docs: |
       Pricing tier definition with conditional pricing based on usage thresholds or observation attributes.
@@ -973,8 +994,8 @@ types:
           - Must have priority=0
           - Must have empty conditions array (conditions=[])
 
-          The default tier acts as a fallback when no conditional tiers match.
-        type: boolean
+          The default tier acts as a fallback when no conditional tiers match. Defaults to false when omitted.
+        type: optional<boolean>
       priority:
         docs: |
           Priority for tier matching evaluation. Lower numbers = higher priority (evaluated first).
@@ -990,7 +1011,7 @@ types:
           Conditional tiers should define one or more conditions that specify when this tier's pricing applies.
 
           Conditions can compare summed matching usage details to a numeric threshold, or exactly match a top-level model parameter or metadata value.
-        type: list<PricingTierCondition>
+        type: list<PricingTierConditionInput>
       prices:
         docs: |
           Prices (USD) by usage type for this tier. At least one price must be defined.

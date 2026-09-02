@@ -19,13 +19,13 @@ const statusBadgeVariants = cva(
 
 const statusCategories = {
   active: ["production", "live", "active", "public"],
-  pending: ["pending", "waiting", "queued", "running"],
+  pending: ["pending", "waiting", "queued", "running", "processing"],
   delayed: ["delayed"],
-  inactive: ["disabled", "inactive"],
+  inactive: ["disabled", "inactive", "archived", "cancelled", "debug"],
   paused: ["paused"],
   completed: ["completed", "done", "finished"],
-  error: ["error", "failed"],
-  partial: ["partial"],
+  error: ["error", "failed", "triggered"],
+  partial: ["partial", "warning"],
 } as const;
 
 export type Status =

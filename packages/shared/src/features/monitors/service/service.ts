@@ -28,6 +28,10 @@ import {
   type SessionContext,
   type UpdateMonitor,
 } from "./types";
+import {
+  evaluatorFilterMatchesSql,
+  findMonitorIdsLinkedToEvaluators,
+} from "./evaluatorFilterMatching";
 
 /**
  * MonitorService manages all of the Monitors that produce MonitorAlerts on
@@ -161,7 +165,20 @@ export class MonitorService {
   ): Promise<{ monitors: Monitor[]; totalCount: number }> {
     const skip =
       input.page && input.limit ? (input.page - 1) * input.limit : undefined;
-    const where = toPrismaWhere(input.projectId, input.filter);
+    const evaluatorFilter = input.filter?.find(
+      (filter) => filter.column === "evaluatorId",
+    );
+    const evaluatorMonitorIds = evaluatorFilter
+      ? await findMonitorIdsLinkedToEvaluators(prisma, {
+          projectId: input.projectId,
+          evaluatorIds: evaluatorFilter.value,
+        })
+      : undefined;
+    const where = toPrismaWhere(
+      input.projectId,
+      input.filter,
+      evaluatorMonitorIds,
+    );
 
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
@@ -179,15 +196,36 @@ export class MonitorService {
   public static async getFilterOptions(
     _session: SessionContext,
     input: GetMonitorFilterOptions,
-  ): Promise<{ tags: { value: string }[] }> {
-    const rows = await prisma.$queryRaw<{ value: string }[]>`
-      SELECT tags.tag AS value
-      FROM monitors, UNNEST(monitors.tags) AS tags(tag)
-      WHERE monitors.project_id = ${input.projectId}
-      GROUP BY tags.tag
-      ORDER BY tags.tag ASC;
-    `;
-    return { tags: rows };
+  ): Promise<{
+    tags: { value: string }[];
+    evaluators: { value: string; displayValue: string }[];
+  }> {
+    const evaluatorFilterMatch = evaluatorFilterMatchesSql(
+      Prisma.raw("filter_row"),
+      Prisma.raw("e.id"),
+    );
+    const [tags, evaluators] = await Promise.all([
+      prisma.$queryRaw<{ value: string }[]>`
+        SELECT tags.tag AS value
+        FROM monitors, UNNEST(monitors.tags) AS tags(tag)
+        WHERE monitors.project_id = ${input.projectId}
+        GROUP BY tags.tag
+        ORDER BY tags.tag ASC;
+      `,
+      prisma.$queryRaw<{ value: string; displayValue: string }[]>`
+        SELECT DISTINCT
+          e.id AS value,
+          e.name AS "displayValue"
+        FROM monitors AS m
+        CROSS JOIN LATERAL jsonb_array_elements(m.filters) AS filter_row
+        JOIN evaluators AS e
+          ON e.project_id = m.project_id
+          AND ${evaluatorFilterMatch}
+        WHERE m.project_id = ${input.projectId}
+        ORDER BY "displayValue" ASC, value ASC;
+      `,
+    ]);
+    return { tags, evaluators };
   }
 
   public static async delete(

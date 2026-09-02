@@ -13,7 +13,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 
 /**
@@ -76,6 +76,9 @@ export function CloneFirstDialog({
         source: "clone_first_dialog",
         set_as_home: setAsHome,
         had_pending_change: Boolean(pendingDefinition),
+        dashboardId,
+        // The clone-first flow only exists for locked Langfuse-owned dashboards.
+        owner: "LANGFUSE",
       });
       showSuccessToast({
         title: "Editable copy created",

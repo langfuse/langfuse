@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,7 @@ import {
   getSuggestedHomePresetIds,
   HOME_PRESET_METADATA,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
 
@@ -138,8 +138,8 @@ export function SelectWidgetDialog({
   // Suggestions obey the same view allowlist the widget editor uses for new
   // definitions, so v4 users are never offered a v3 trace-based widget.
   // Legacy trace widgets stay listed and editable under /widgets. (LFE-14444)
-  const { isBetaEnabled, isInitializing } = useV4Beta();
-  const suggestedVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const { isV4, isResolved } = useReadPath();
+  const suggestedVersion: ViewVersion = isV4 ? "v2" : "v1";
   const allProjectWidgets = widgets.data?.widgets ?? [];
   const projectWidgets = allProjectWidgets.filter((widget) =>
     isSuggestedWidgetView(widget.view, suggestedVersion),
@@ -173,9 +173,9 @@ export function SelectWidgetDialog({
         </DialogHeader>
 
         <DialogBody>
-          {/* isInitializing: an unresolved session reads as v1, which would
+          {/* !isResolved: an unresolved session reads as v3, which would
               briefly offer the unfiltered list to a v4 user. */}
-          {widgets.isPending || isInitializing ? (
+          {widgets.isPending || !isResolved ? (
             <div className="py-8 text-center">Loading widgets...</div>
           ) : widgets.isError ? (
             <div className="text-destructive py-8 text-center">
@@ -261,6 +261,11 @@ export function SelectWidgetDialog({
                             key={presetId}
                             type="button"
                             onClick={() => {
+                              capture("dashboard:widget_added", {
+                                kind: "home_preset",
+                                preset_id: presetId,
+                                dashboard_id: dashboardId,
+                              });
                               onSelectPreset(presetId);
                               onOpenChange(false);
                             }}

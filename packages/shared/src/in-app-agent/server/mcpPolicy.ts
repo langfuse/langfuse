@@ -1,8 +1,15 @@
+import { EventType } from "@ag-ui/core";
+import { z } from "zod";
+
 import type { ProjectScope } from "../../features/rbac/projectAccessRights";
 import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
 import { Role } from "../../db";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
-import { z } from "zod";
+import {
+  buildInAppAgentToolApprovalEvent,
+  type InAppAgentToolApprovalSource,
+} from "../approvalEvents";
+import type { AgUiCustomEvent, AgUiEvent } from "../schema";
 
 type InAppAgentMcpToolApproval = "auto" | "approval";
 
@@ -127,63 +134,67 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listEvaluators: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
   },
   listManagedEvaluatorTemplates: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
   },
   getEvaluator: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
+  },
+  testEvaluator: {
+    approval: "approval",
+    availability: { scope: "evaluator:CUD" },
   },
   createEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   updateEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   deleteEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   listEvaluationRules: {
     approval: "auto",
-    availability: { scope: "evalJob:read" },
+    availability: { scope: "evaluationRule:read" },
   },
   getEvaluationRule: {
     approval: "auto",
-    availability: { scope: "evalJob:read" },
+    availability: { scope: "evaluationRule:read" },
   },
   createEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   updateEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   attachEvaluatorToEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   detachEvaluatorFromEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   deleteEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   listExperiments: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   listExperimentItems: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   submitFeedback: {
     approval: "approval",
@@ -356,6 +367,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteDashboardPlacement: {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
+  },
+  getV4MigrationData: {
+    approval: "auto",
+    availability: { scope: "project:read" },
   },
 } satisfies Record<string, InAppAgentMcpToolPolicy>;
 
@@ -566,16 +581,95 @@ function isInAppAgentAutoApprovedToolName(
   toolName: string,
   policy: InAppAgentToolPolicy,
 ): boolean {
+  const source = getInAppAgentToolApprovalSource({
+    toolName,
+    policy,
+    toolCallId: "",
+  });
+
+  return source !== undefined && source !== "human";
+}
+
+export function getInAppAgentToolApprovalSource(params: {
+  toolName: string;
+  policy: InAppAgentToolPolicy;
+  toolCallId: string;
+  humanApprovedToolCallId?: string;
+}): InAppAgentToolApprovalSource | undefined {
   if (
-    toolName.startsWith("langfuseDocs_") ||
-    IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES.has(toolName)
+    params.humanApprovedToolCallId &&
+    params.toolCallId === params.humanApprovedToolCallId
   ) {
-    return true;
+    return "human";
   }
 
-  const registryToolName = getInAppAgentRegistryToolName(toolName);
+  if (
+    params.toolName.startsWith("langfuseDocs_") ||
+    IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES.has(params.toolName)
+  ) {
+    return "auto";
+  }
 
-  return (
-    registryToolName !== undefined && policy.autoApproved.has(registryToolName)
-  );
+  const registryToolName = getInAppAgentRegistryToolName(params.toolName);
+
+  if (
+    registryToolName === undefined ||
+    !params.policy.autoApproved.has(registryToolName)
+  ) {
+    return undefined;
+  }
+
+  return IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[registryToolName].approval ===
+    "auto"
+    ? "auto"
+    : "conversation_grant";
+}
+
+export function buildInAppAgentToolApprovalSidecar(params: {
+  toolCallId: string;
+  toolName: string;
+  policy: InAppAgentToolPolicy;
+  humanApprovedToolCallId?: string;
+}): AgUiCustomEvent | undefined {
+  const source = getInAppAgentToolApprovalSource(params);
+
+  if (!source) {
+    return undefined;
+  }
+
+  return buildInAppAgentToolApprovalEvent({
+    toolCallId: params.toolCallId,
+    toolName: params.toolName,
+    source,
+  });
+}
+
+export function withInAppAgentToolApprovalSidecars(params: {
+  events: readonly AgUiEvent[];
+  policy: InAppAgentToolPolicy;
+  humanApprovedToolCallId?: string;
+}): AgUiEvent[] {
+  return params.events.flatMap((event) => {
+    if (event.type !== EventType.TOOL_CALL_START) {
+      return [event];
+    }
+
+    const toolCallId =
+      typeof event.toolCallId === "string" ? event.toolCallId : undefined;
+    const toolName =
+      typeof event.toolCallName === "string" ? event.toolCallName : undefined;
+
+    if (!toolCallId || !toolName) {
+      return [event];
+    }
+
+    const sidecar = buildInAppAgentToolApprovalSidecar({
+      toolCallId,
+      toolName,
+      policy: params.policy,
+      humanApprovedToolCallId: params.humanApprovedToolCallId,
+    });
+
+    return sidecar ? [event, sidecar] : [event];
+  });
 }

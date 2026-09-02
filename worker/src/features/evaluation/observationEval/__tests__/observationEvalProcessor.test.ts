@@ -99,6 +99,9 @@ const mockEvalExecutionResult = {
   ],
   executionTraceId: "trace-123",
   metadata: {},
+  evaluationContext: {
+    evaluatorExecutionIsTest: false,
+  },
 };
 
 describe("processObservationEval", () => {
@@ -181,6 +184,31 @@ describe("processObservationEval", () => {
     (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
       mockEvalExecutionResult,
     );
+  });
+
+  it.each([
+    JobExecutionStatus.CANCELLED,
+    JobExecutionStatus.ERROR,
+    JobExecutionStatus.COMPLETED,
+  ])("skips an already terminal %s execution", async (status) => {
+    (prisma.jobExecution.findFirst as Mock).mockResolvedValue(
+      createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status,
+      }),
+    );
+
+    const outcome = await processObservationEval({
+      event: baseEvent,
+      executionType: EvalTemplateType.LLM_AS_JUDGE,
+      deps: createMockProcessorDeps(),
+    });
+
+    expect(outcome).toBe("skipped");
+    expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    expect(executeCodeBasedEvaluation).not.toHaveBeenCalled();
+    expect(prisma.jobExecution.update).not.toHaveBeenCalled();
   });
 
   describe("v2 execution resolution", () => {
@@ -298,12 +326,14 @@ describe("processObservationEval", () => {
           }),
           template: expect.objectContaining({ id: version.id }),
           executionMetadata: expect.objectContaining({
-            evaluation_rule_id: rule.id,
-            job_configuration_id: rule.id,
             evaluation_rule_assignment_id: assignment.id,
-            evaluator_id: evaluator.id,
             evaluator_version_id: version.id,
           }),
+          evaluationContext: {
+            evaluatorId: evaluator.id,
+            evaluationRuleId: rule.id,
+            evaluatorExecutionIsTest: false,
+          },
           // Pausing targets the evaluator, not the rule it ran for.
           evaluatorId: evaluator.id,
         }),
@@ -467,9 +497,13 @@ describe("processObservationEval", () => {
         expect.objectContaining({
           config: expect.objectContaining({ id: evaluator.id }),
           executionMetadata: expect.objectContaining({
-            evaluator_id: evaluator.id,
             evaluator_version_id: version.id,
           }),
+          evaluationContext: {
+            evaluatorId: evaluator.id,
+            evaluationRuleId: evaluator.id,
+            evaluatorExecutionIsTest: false,
+          },
         }),
       );
     });
@@ -544,10 +578,11 @@ describe("processObservationEval", () => {
         expect.objectContaining({
           evaluatorId: evaluator.id,
           config: expect.objectContaining({ id: legacyConfig.id }),
-          executionMetadata: expect.objectContaining({
-            evaluation_rule_id: legacyConfig.id,
-            evaluator_id: evaluator.id,
-          }),
+          evaluationContext: {
+            evaluatorId: evaluator.id,
+            evaluationRuleId: legacyConfig.id,
+            evaluatorExecutionIsTest: false,
+          },
         }),
       );
     });
