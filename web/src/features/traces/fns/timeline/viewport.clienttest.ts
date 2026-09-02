@@ -129,12 +129,12 @@ describe("viewport", () => {
 
     const labelled = expandRowsToReadable(fitted, limits);
     const both = zoomViewportRevealLabels(labelled, limits, {
-      factor: 2,
+      factor: 1.2,
       xRatio: 0.5,
       yRatio: 0.5,
     });
-    expect(both.time.duration).toBeCloseTo(labelled.time.duration / 2, 6);
-    expect(both.rows.count).toBeCloseTo(labelled.rows.count / 2, 6);
+    expect(both.time.duration).toBeCloseTo(labelled.time.duration / 1.2, 6);
+    expect(both.rows.count).toBeCloseTo(labelled.rows.count / 1.2, 6);
 
     // Zooming out from the hairline is a no-op on time (already full) and
     // cannot shrink the rows below the floor.
