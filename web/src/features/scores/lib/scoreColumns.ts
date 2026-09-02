@@ -1,5 +1,7 @@
 import { type VisibilityState } from "@tanstack/react-table";
 import {
+  ScoreDataTypeArray,
+  ScoreSourceArray,
   type ScoreAggregate,
   type FilterCondition,
   type ScoreDataTypeType,
@@ -188,6 +190,24 @@ export const withPresentScoreKeys = <T extends { key: string }>(
     : scoreColumns;
 
 /**
+ * Recognises a persisted score-column id without knowing which level prefixes
+ * a table uses. Score columns are keyed `<name>-<SOURCE>-<DATATYPE>`, some
+ * levels behind a prefix (`Trace-…`). Score names have their `-` and `.`
+ * normalised to `_`, and both trailing segments come from closed enums, so the
+ * suffix identifies a score column while ordinary column ids (`itemCount`,
+ * `startTime`) never match.
+ */
+const isScoreColumnId = (columnId: string): boolean => {
+  const segments = columnId.split("-");
+  if (segments.length < 3) return false;
+  const [source, dataType] = segments.slice(-2);
+  return (
+    (ScoreSourceArray as readonly string[]).includes(source) &&
+    (ScoreDataTypeArray as readonly string[]).includes(dataType)
+  );
+};
+
+/**
  * One-time transform that opts a returning user into score columns being
  * visible by default. Their stored visibility state already holds `false` for
  * every score column from the previous default, so changing `defaultHidden`
@@ -196,16 +216,30 @@ export const withPresentScoreKeys = <T extends { key: string }>(
  * their layout is left untouched. Returns `null` while no score column is known
  * yet (they arrive with the score-column query) so the migration is retried
  * instead of being consumed against an empty column set.
+ *
+ * `scoreColumnIds` only covers the page in view, while this runs once and for
+ * good, so every score column the stored state already holds is revealed too.
+ * Otherwise a score first met on a later page would keep its stale `false`
+ * forever. A column the user has never seen carries no stored entry and picks
+ * up the new default on its own. Hiding score columns that are empty for the
+ * rows in view is a separate, per-result-set decision — `withPresentScoreKeys`
+ * makes it, and widening the reveal does not disturb it.
  */
 export const revealScoreColumns = (
   visibility: VisibilityState,
   scoreColumnIds: string[],
 ): VisibilityState | null => {
   if (scoreColumnIds.length === 0) return null;
-  if (scoreColumnIds.some((id) => visibility[id])) return visibility;
+  const revealedIds = Array.from(
+    new Set([
+      ...scoreColumnIds,
+      ...Object.keys(visibility).filter(isScoreColumnId),
+    ]),
+  );
+  if (revealedIds.some((id) => visibility[id])) return visibility;
   return {
     ...visibility,
-    ...Object.fromEntries(scoreColumnIds.map((id) => [id, true])),
+    ...Object.fromEntries(revealedIds.map((id) => [id, true])),
   };
 };
 
