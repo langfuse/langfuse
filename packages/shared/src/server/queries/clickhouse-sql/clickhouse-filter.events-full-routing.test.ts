@@ -59,6 +59,16 @@ describe("metadataFilterIsEventsCoreSafe", () => {
     },
   );
 
+  // Fail-safe default: the classifier is an allow-list, so any operator not
+  // explicitly whitelisted must route to events_full. `!=` and `any of` are
+  // ClickhouseOperator members that are not on the allow-list.
+  it.each(["!=", "any of"] as const)(
+    "routes non-allow-listed `%s` to events_full by default",
+    (operator) => {
+      expect(metadataFilterIsEventsCoreSafe(operator, "x")).toBe(false);
+    },
+  );
+
   it("keeps numeric metadata comparisons on events_core", () => {
     expect(metadataFilterIsEventsCoreSafe("=", 42)).toBe(true);
     expect(metadataFilterIsEventsCoreSafe(">", 42)).toBe(true);
