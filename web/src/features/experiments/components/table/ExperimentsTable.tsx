@@ -113,7 +113,6 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
   return next;
 };
 
-/** The table's score column groups, by the score level each one holds. */
 /**
  * Owns every consumer of the selection state (action menu, compare navigation,
  * run-evaluator dialog) so checkbox clicks re-render only this menu and the
@@ -743,19 +742,30 @@ export default function ExperimentsTable({
     ],
   );
 
-  // LFE-15711: score columns are now visible by default. A returning user has
-  // `false` persisted for every one of them from the previous default, so this
-  // one-time migration reaches them too — see `revealScoreColumns` for how a
-  // user who picked their own score columns is left alone.
+  // Each score level loads from its own query, so the union above is partial
+  // until all three have settled. The migration below is consumed once and for
+  // good, so running it early would reveal whichever level answered first and
+  // leave the other two hidden permanently.
+  const areScoreColumnsSettled =
+    !isTraceItemScoreLoading &&
+    !isObservationItemScoreLoading &&
+    !isExperimentScoreColumnLoading;
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone.
   const columnVisibilityMigrations = useMemo(
     () => [
       {
         versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
         apply: (visibility: VisibilityState) =>
-          revealScoreColumns(visibility, scoreColumnIds),
+          areScoreColumnsSettled
+            ? revealScoreColumns(visibility, scoreColumnIds)
+            : null,
       },
     ],
-    [projectId, scoreColumnIds],
+    [projectId, scoreColumnIds, areScoreColumnsSettled],
   );
 
   const [columnVisibility, setColumnVisibilityState] =
