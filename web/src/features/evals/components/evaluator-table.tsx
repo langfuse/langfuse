@@ -1,4 +1,3 @@
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
@@ -49,6 +48,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
@@ -209,20 +209,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("status", {
+    createStatusTableColumn<EvaluatorDataRow, string>({
+      accessorKey: "status",
       header: "Status",
-      id: "status",
       enableSorting: true,
       size: 80,
-      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
-      cell: (row) => {
-        const status = row.getValue();
-        return (
-          <div className={status === "FINISHED" ? "pl-3" : undefined}>
-            <StatusBadge type={status.toLowerCase()} />
-          </div>
-        );
-      },
+      getStatus: (status) => status?.toLowerCase(),
     }),
     createNumberTableColumn<EvaluatorDataRow>({
       accessorKey: "totalCost",

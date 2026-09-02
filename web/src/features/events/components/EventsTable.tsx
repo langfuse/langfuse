@@ -46,12 +46,13 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
-import { getLevelColors } from "@/src/components/level-colors";
+import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -1183,9 +1184,8 @@ export default function ObservationsEventsTable({
       singleLine: rowHeight === "s",
       enableHiding: true,
     }),
-    {
+    createStatusTableColumn<EventsTableRow, ObservationLevelType>({
       accessorKey: "level",
-      id: "level",
       header: getEventsColumnName("level"),
       size: 100,
       headerTooltip: {
@@ -1194,22 +1194,11 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: ObservationLevelType | undefined = row.getValue("level");
-        return value ? (
-          <span
-            className={cn(
-              "rounded-sm p-0.5 text-xs",
-              getLevelColors(value).bg,
-              getLevelColors(value).text,
-            )}
-          >
-            {value}
-          </span>
-        ) : undefined;
-      },
       enableSorting,
-    },
+      isLive: false,
+      getStatus: (level) =>
+        level ? getObservationLevelStatus(level) : undefined,
+    }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
       header: getEventsColumnName("statusMessage"),
