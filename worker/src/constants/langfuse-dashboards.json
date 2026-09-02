@@ -624,12 +624,12 @@
     {
       "id": "cmawk4ywj00jmad072jn7s0ru",
       "createdAt": "2025-05-20T13:36:15.283Z",
-      "updatedAt": "2025-05-20T15:56:46.000Z",
+      "updatedAt": "2026-09-02T00:00:00.001Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
-      "name": "Langfuse Latency Dashboard",
-      "description": "Monitor latency metrics across traces and generations for performance optimization.",
+      "name": "Latency Tracking",
+      "description": "Latency across traces and generations.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -646,12 +646,12 @@
     {
       "id": "cmawln8k700xqad07000k1q8b",
       "createdAt": "2025-05-20T14:18:27.223Z",
-      "updatedAt": "2025-05-20T15:56:46.000Z",
+      "updatedAt": "2026-09-02T00:00:01.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
-      "name": "Langfuse Usage Management",
-      "description": "Track usage metrics across traces, observations, and scores to manage resource allocation.",
+      "name": "Usage Management",
+      "description": "Trace, observation, and score volume.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -671,12 +671,12 @@
     {
       "id": "cmawoi7yd00aqad07f3why08w",
       "createdAt": "2025-05-20T15:38:32.005Z",
-      "updatedAt": "2025-05-20T16:09:56.618Z",
+      "updatedAt": "2026-09-02T00:00:03.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
-      "name": "Langfuse Cost Dashboard",
-      "description": "Review your LLM costs.",
+      "name": "Cost Tracking",
+      "description": "LLM costs.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -697,12 +697,12 @@
     {
       "id": "cmtdm68000006ad07dzdb73zw",
       "createdAt": "2026-08-26T00:00:00.000Z",
-      "updatedAt": "2026-08-26T13:00:00.000Z",
+      "updatedAt": "2026-09-02T00:00:02.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
-      "name": "Langfuse Agent Dashboard",
-      "description": "Monitor agent tool usage: total tool calls, most-called tools, tool errors and latency, and observation type breakdowns.",
+      "name": "Tool Usage",
+      "description": "Tool calls, errors, and latency.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [

@@ -135,6 +135,7 @@ export const DashboardDomainSchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
   createdBy: z.string().nullable(),
+  createdByName: z.string().nullable().optional(),
   updatedBy: z.string().nullable(),
   projectId: z.string().nullable(),
   name: z.string(),

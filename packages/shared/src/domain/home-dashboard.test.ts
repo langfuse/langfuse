@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   HOME_DASHBOARD_PRESET_IDS,
+  HOME_DASHBOARD_TOOL_WIDGET_IDS,
   LANGFUSE_HOME_DASHBOARD,
   LANGFUSE_HOME_DASHBOARD_ID,
 } from "./home-dashboard";
 import { DashboardDomainSchema } from "../server/services/DashboardService/types";
+
+const HOME_TOOL_WIDGET_IDS = Object.values(HOME_DASHBOARD_TOOL_WIDGET_IDS);
 
 describe("LANGFUSE_HOME_DASHBOARD", () => {
   it("parses through DashboardDomainSchema the way the worker upsert consumes it", () => {
@@ -19,10 +22,11 @@ describe("LANGFUSE_HOME_DASHBOARD", () => {
     });
 
     expect(parsed.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
-    expect(parsed.definition.widgets.length).toBeGreaterThan(0);
-    expect(parsed.definition.widgets.every((w) => w.type === "preset")).toBe(
-      true,
+    expect(parsed.name).toBe("Home");
+    expect(parsed.description).toBe(
+      "Traces, costs, scores, usage, and latency.",
     );
+    expect(parsed.definition.widgets.length).toBeGreaterThan(0);
   });
 
   it("places every registered preset exactly once", () => {
@@ -39,6 +43,40 @@ describe("LANGFUSE_HOME_DASHBOARD", () => {
       (w) => w.id,
     );
     expect(new Set(placementIds).size).toBe(placementIds.length);
+  });
+
+  it("places the three tool widgets after the overview row", () => {
+    const toolWidgets = LANGFUSE_HOME_DASHBOARD.definition.widgets.filter(
+      (w) => w.type === "widget",
+    );
+
+    expect(toolWidgets.map((w) => w.widgetId).sort()).toEqual(
+      [...HOME_TOOL_WIDGET_IDS].sort(),
+    );
+    expect(toolWidgets.every((w) => w.y === 5 && w.y_size === 5)).toBe(true);
+    expect(
+      toolWidgets.map((w) => ({
+        widgetId: w.widgetId,
+        x: w.x,
+        x_size: w.x_size,
+      })),
+    ).toEqual([
+      {
+        widgetId: HOME_DASHBOARD_TOOL_WIDGET_IDS.totalToolCalls,
+        x: 0,
+        x_size: 3,
+      },
+      {
+        widgetId: HOME_DASHBOARD_TOOL_WIDGET_IDS.top20CalledTools,
+        x: 3,
+        x_size: 5,
+      },
+      {
+        widgetId: HOME_DASHBOARD_TOOL_WIDGET_IDS.p95ToolLatency,
+        x: 8,
+        x_size: 4,
+      },
+    ]);
   });
 
   it("fits the 12-column grid without overlapping tiles", () => {

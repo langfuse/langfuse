@@ -30,6 +30,7 @@ export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
 export * from "./domain/home-dashboard";
+export * from "./domain/dashboard-templates";
 
 // llm api
 export * from "./server/llm/types";

@@ -32,6 +32,7 @@ import {
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
 
 export type WidgetItem = {
   id: string;
@@ -116,6 +117,7 @@ export function SelectWidgetDialog({
     if (open && !openCapturedRef.current) {
       capture("dashboard:add_widget_dialog_open", {
         dashboard_id: dashboardId,
+        ...dashboardTemplateProps(dashboardId),
       });
     }
     openCapturedRef.current = open;
@@ -156,10 +158,12 @@ export function SelectWidgetDialog({
   const selectWidget = (widget: WidgetItem) => {
     capture("dashboard:widget_added", {
       kind: "project_widget",
+      widgetOwner: "PROJECT",
       widget_id: widget.id,
       chart_type: widget.chartType,
       view: widget.view,
       dashboard_id: dashboardId,
+      ...dashboardTemplateProps(dashboardId),
     });
     onSelectWidget(widget);
     onOpenChange(false);
@@ -192,6 +196,7 @@ export function SelectWidgetDialog({
                   capture("dashboard:new_widget_form_open", {
                     source: "add_widget_dialog",
                     dashboard_id: dashboardId,
+                    ...dashboardTemplateProps(dashboardId),
                   });
                   router.push(
                     `/project/${projectId}/widgets/new?dashboardId=${dashboardId}`,
@@ -263,8 +268,10 @@ export function SelectWidgetDialog({
                             onClick={() => {
                               capture("dashboard:widget_added", {
                                 kind: "home_preset",
+                                widgetOwner: "LANGFUSE",
                                 preset_id: presetId,
                                 dashboard_id: dashboardId,
+                                ...dashboardTemplateProps(dashboardId),
                               });
                               onSelectPreset(presetId);
                               onOpenChange(false);

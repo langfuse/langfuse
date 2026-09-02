@@ -66,6 +66,7 @@ import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
 import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
@@ -515,6 +516,7 @@ export function DashboardWidget({
         source_widget_id: placement.widgetId,
         new_widget_id: data.widgetId,
         dashboard_id: dashboardId,
+        ...dashboardTemplateProps(dashboardId),
       });
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(

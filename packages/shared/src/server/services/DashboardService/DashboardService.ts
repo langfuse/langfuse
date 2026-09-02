@@ -116,9 +116,19 @@ export class DashboardService {
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
         where,
-        orderBy: orderBy
-          ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
-          : [{ updatedAt: "desc" }],
+        include: {
+          createdByUser: {
+            select: { name: true, email: true },
+          },
+        },
+        // Project-owned dashboards stay above Langfuse templates. The
+        // requested column (default updatedAt) still sorts inside each group.
+        orderBy: [
+          { projectId: { sort: "asc", nulls: "last" } },
+          orderBy
+            ? { [orderBy.column]: orderBy.order.toLowerCase() }
+            : { updatedAt: "desc" },
+        ],
         skip,
         take,
       }),
@@ -131,6 +141,10 @@ export class DashboardService {
       DashboardDomainSchema.parse({
         ...dashboard,
         owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+        createdByName:
+          dashboard.createdByUser?.name ??
+          dashboard.createdByUser?.email ??
+          (dashboard.projectId ? null : "Langfuse"),
       }),
     );
 

@@ -6,15 +6,13 @@ import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createColumnHelper } from "@tanstack/react-table";
-import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Copy, Edit, User as UserIcon } from "lucide-react";
+import { Copy, Edit } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -23,6 +21,11 @@ import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
 import { useRouter } from "next/router";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
+import { formatDashboardModified } from "@/src/features/dashboard/utils/formatDashboardModified";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 type DashboardTableRow = {
   id: string;
@@ -30,6 +33,7 @@ type DashboardTableRow = {
   description: string;
   createdAt: Date;
   updatedAt: Date;
+  createdByName?: string | null;
   owner: "PROJECT" | "LANGFUSE";
 };
 
@@ -56,6 +60,7 @@ function CloneDashboardButton({
         source: "list_clone_button",
         dashboardId,
         owner,
+        ...dashboardTemplateProps(dashboardId),
       });
       showSuccessToast({
         title: "Dashboard cloned",
@@ -219,7 +224,6 @@ export function DashboardTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashboards.isSuccess, dashboards.data]);
 
-  const columnHelper = createColumnHelper<DashboardTableRow>();
   const dashboardColumns = [
     createLinkTableColumn<DashboardTableRow>({
       accessorKey: "name",
@@ -245,36 +249,35 @@ export function DashboardTable() {
       header: "Description",
       size: 300,
     }),
-    columnHelper.display({
-      id: "ownerTag",
-      header: "Owner",
-      size: 80,
-      cell: (row) => {
-        return row.row.original.owner === "LANGFUSE" ? (
-          <span className="flex gap-1 px-2 py-0.5 text-xs">
-            <span role="img" aria-label="Langfuse">
-              🪢
+    createUserTableColumn<DashboardTableRow, { name: string }>({
+      accessorFn: (row) =>
+        row.createdByName ? { name: row.createdByName } : undefined,
+      id: "createdByName",
+      header: "Created by",
+      size: 150,
+      variant: "text",
+      emptyValue: "API",
+    }),
+    createTableColumn<DashboardTableRow, Date>({
+      accessorKey: "updatedAt",
+      header: "Modified",
+      enableSorting: true,
+      size: 160,
+      loadingCell: <Skeleton className="h-8 w-2/3" />,
+      renderCell: (_value, { row }) => {
+        const { updatedRelative, createdAbsolute } = formatDashboardModified(
+          row.original.updatedAt,
+          row.original.createdAt,
+        );
+        return (
+          <div className="flex flex-col">
+            <span>{updatedRelative}</span>
+            <span className="text-muted-foreground text-xs">
+              {createdAbsolute}
             </span>
-            Langfuse
-          </span>
-        ) : (
-          <span className="flex gap-1 px-2 py-0.5 text-xs">
-            <UserIcon className="h-3 w-3" /> Project
-          </span>
+          </div>
         );
       },
-    }),
-    createDateTableColumn<DashboardTableRow>({
-      accessorKey: "createdAt",
-      header: "Created At",
-      enableSorting: true,
-      size: 150,
-    }),
-    createDateTableColumn<DashboardTableRow>({
-      accessorKey: "updatedAt",
-      header: "Updated At",
-      enableSorting: true,
-      size: 150,
     }),
     createDropdownTableColumn<DashboardTableRow, string>({
       id: "actions",
