@@ -8,7 +8,7 @@ import {
   subDays,
 } from "date-fns";
 
-export const CONVERSATION_HISTORY_GROUP_IDS = [
+const CONVERSATION_HISTORY_GROUP_IDS = [
   "today",
   "yesterday",
   "this-week",
@@ -16,10 +16,10 @@ export const CONVERSATION_HISTORY_GROUP_IDS = [
   "older",
 ] as const;
 
-export type ConversationHistoryGroupId =
+type ConversationHistoryGroupId =
   (typeof CONVERSATION_HISTORY_GROUP_IDS)[number];
 
-export const CONVERSATION_HISTORY_GROUP_LABELS: Record<
+const CONVERSATION_HISTORY_GROUP_LABELS: Record<
   ConversationHistoryGroupId,
   string
 > = {
@@ -36,7 +36,7 @@ export type ConversationHistoryGroup<T> = {
   items: T[];
 };
 
-export function getConversationHistoryGroup(
+function getConversationHistoryGroup(
   updatedAt: Date,
   now: Date = new Date(),
 ): ConversationHistoryGroupId {

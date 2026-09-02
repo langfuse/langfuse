@@ -1,4 +1,4 @@
-export const MAX_COMPOSER_TEXTAREA_HEIGHT_PX = 160;
+const MAX_COMPOSER_TEXTAREA_HEIGHT_PX = 160;
 
 /**
  * Size the composer to its content, up to the CSS max. Skip when the field
