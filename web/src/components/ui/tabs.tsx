@@ -29,13 +29,9 @@ const tabsTriggerVariants = cva(
   },
 );
 
-type TabsListProps = Omit<
-  Pick<
-    React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>,
-    "aria-label" | "children" | "className"
-  >,
-  "className"
-> & {
+type TabsListProps = {
+  "aria-label"?: string;
+  children: React.ReactNode;
   className?:
     | "grid h-6 w-full grid-cols-3 p-0.5"
     | "grid h-6 w-full grid-cols-2 p-0.5"
