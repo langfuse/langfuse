@@ -37,6 +37,7 @@ import {
 const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
   getRecentEvaluatorExecutionTraces: vi.fn(),
+  getTotalCostByEvaluatorIds: vi.fn(),
   invalidateProjectEvalConfigCaches: vi.fn(),
   assertEvaluatorConfigurationValid: vi.fn(),
   getEvaluatorDefinitionPreflightError: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   generateLangfuseAIText: mocks.generateLangfuseAIText,
   getRecentEvaluatorExecutionTraces: mocks.getRecentEvaluatorExecutionTraces,
+  getTotalCostByEvaluatorIds: mocks.getTotalCostByEvaluatorIds,
   invalidateProjectEvalConfigCaches: mocks.invalidateProjectEvalConfigCaches,
 }));
 
@@ -164,6 +166,7 @@ beforeAll(async () => {
 beforeEach(() => {
   mocks.generateLangfuseAIText.mockReset();
   mocks.getRecentEvaluatorExecutionTraces.mockReset();
+  mocks.getTotalCostByEvaluatorIds.mockReset();
   mocks.invalidateProjectEvalConfigCaches.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockResolvedValue(undefined);
@@ -1185,66 +1188,62 @@ describe("EvaluatorService", () => {
     );
   });
 
-  it("returns recent traces by evaluator execution name", async () => {
+  it("returns recent traces by evaluator id", async () => {
     const service = createService();
-    const [firstEvaluator, secondEvaluator, otherEvaluator] = await Promise.all(
-      [
-        service.create(llmInput("First execution evaluator"), null),
-        service.create(llmInput("Second execution evaluator"), null),
-        service.create(
-          {
-            ...llmInput("Other project execution evaluator"),
-            projectId: otherProjectId,
-          },
-          null,
-        ),
-      ],
-    );
+    const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];
     mocks.getRecentEvaluatorExecutionTraces.mockResolvedValue([
       ...[7, 6, 5, 4, 3].map((day) => ({
         id: `first-${day}`,
-        traceName: "Execute evaluator: First execution evaluator",
+        evaluatorId: evaluatorIds[0],
         level: "WARNING",
         timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
       })),
       ...[4, 3, 2, 1].map((day) => ({
         id: `second-${day}`,
-        traceName: "Execute evaluator: Second execution evaluator",
+        evaluatorId: evaluatorIds[1],
         level: "DEFAULT",
         timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
       })),
     ]);
-    const result = await service.listRecent({
-      projectId,
-      evaluatorIds: [firstEvaluator.id, secondEvaluator.id, otherEvaluator.id],
-    });
+
+    const result = await service.listRecent({ projectId, evaluatorIds });
 
     expect(mocks.getRecentEvaluatorExecutionTraces).toHaveBeenCalledWith(
       projectId,
-      expect.any(Array),
+      evaluatorIds,
     );
-    expect(mocks.getRecentEvaluatorExecutionTraces).toHaveBeenCalledTimes(1);
-    expect(
-      new Set(mocks.getRecentEvaluatorExecutionTraces.mock.calls[0]?.[1]),
-    ).toEqual(
-      new Set([
-        "Execute evaluator: First execution evaluator",
-        "Execute evaluator: Second execution evaluator",
-      ]),
-    );
-    expect(result[firstEvaluator.id]?.map(({ id }) => id)).toEqual([
+    expect(result[evaluatorIds[0]]?.map(({ id }) => id)).toEqual([
       "first-7",
       "first-6",
       "first-5",
       "first-4",
       "first-3",
     ]);
-    expect(result[secondEvaluator.id]?.map(({ id }) => id)).toEqual([
+    expect(result[evaluatorIds[1]]?.map(({ id }) => id)).toEqual([
       "second-4",
       "second-3",
       "second-2",
       "second-1",
     ]);
-    expect(result[otherEvaluator.id]).toEqual([]);
+  });
+
+  it("returns total costs by evaluator id", async () => {
+    const service = createService();
+    const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];
+    mocks.getTotalCostByEvaluatorIds.mockResolvedValue([
+      { evaluatorId: evaluatorIds[0], totalCost: 1.5 },
+      { evaluatorId: evaluatorIds[1], totalCost: 2.5 },
+    ]);
+
+    await expect(
+      service.getTotalCosts({ projectId, evaluatorIds }),
+    ).resolves.toEqual({
+      [evaluatorIds[0]]: 1.5,
+      [evaluatorIds[1]]: 2.5,
+    });
+    expect(mocks.getTotalCostByEvaluatorIds).toHaveBeenCalledWith(
+      projectId,
+      evaluatorIds,
+    );
   });
 });
