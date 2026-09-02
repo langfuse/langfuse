@@ -2,36 +2,18 @@
 
 import * as React from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
-import { cva, type VariantProps } from "class-variance-authority";
-
-const radioGroupVariants = cva("", {
-  variants: {
-    layout: {
-      stack: "grid gap-2",
-      columns: "grid grid-cols-3 gap-2",
-    },
-  },
-  defaultVariants: {
-    layout: "stack",
-  },
-});
 
 type RadioGroupProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "children" | "defaultValue" | "onValueChange" | "value"
-> &
-  Pick<VariantProps<typeof radioGroupVariants>, "layout">;
+>;
 
 const RadioGroupRoot = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->(({ layout, ...props }, ref) => {
+>((props, ref) => {
   return (
-    <RadioGroupPrimitive.Root
-      className={radioGroupVariants({ layout })}
-      {...props}
-      ref={ref}
-    />
+    <RadioGroupPrimitive.Root className="grid gap-2" {...props} ref={ref} />
   );
 });
 RadioGroupRoot.displayName = RadioGroupPrimitive.Root.displayName;

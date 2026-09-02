@@ -1,10 +1,7 @@
-import React from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { RadioGroup } from "./RadioGroup";
-
-type Layout = NonNullable<React.ComponentProps<typeof RadioGroup>["layout"]>;
 
 const meta = preview.meta({
   component: RadioGroup,
@@ -18,11 +15,6 @@ const options = [
   { value: "banana", label: "Banana" },
   { value: "cherry", label: "Cherry" },
 ] as const;
-
-const layouts = Object.keys({
-  stack: true,
-  columns: true,
-} satisfies Record<Layout, true>) as Layout[];
 
 function LabeledItems({
   disabled = false,
@@ -63,34 +55,6 @@ export const Disabled = meta.story({
     children: <LabeledItems disabled idPrefix="disabled" />,
     defaultValue: "apple",
   },
-});
-
-export const Columns = meta.story({
-  args: {
-    children: <LabeledItems idPrefix="columns" />,
-    defaultValue: "apple",
-    layout: "columns",
-  },
-});
-
-export const VariantMatrix = meta.story({
-  parameters: {
-    controls: {
-      disable: true,
-    },
-  },
-  render: () => (
-    <div className="grid gap-6">
-      {layouts.map((layout) => (
-        <div key={layout} className="grid gap-2">
-          <div className="text-sm">{layout}</div>
-          <RadioGroup defaultValue="apple" layout={layout} onValueChange={fn()}>
-            <LabeledItems idPrefix={`matrix-${layout}`} />
-          </RadioGroup>
-        </div>
-      ))}
-    </div>
-  ),
 });
 
 export const TestSelectsOption = meta.story({
