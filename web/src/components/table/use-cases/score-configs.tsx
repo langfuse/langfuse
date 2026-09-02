@@ -22,6 +22,7 @@ import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -141,17 +142,14 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       defaultHidden: true,
     }),
-    {
+    createStatusTableColumn<ScoreConfigTableRow, boolean>({
       accessorKey: "isArchived",
-      id: "isArchived",
       header: "Status",
       size: 80,
       enableHiding: true,
-      cell: ({ row }) => {
-        const { isArchived } = row.original;
-        return isArchived ? "Archived" : "Active";
-      },
-    },
+      isLive: false,
+      getStatus: (isArchived) => (isArchived ? "archived" : "active"),
+    }),
     {
       accessorKey: "action",
       header: "Action",

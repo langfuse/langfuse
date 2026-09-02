@@ -10,6 +10,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
@@ -37,10 +38,9 @@ import {
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
-  getLevelColors,
   LevelSymbols,
+  getObservationLevelStatus,
 } from "@/src/components/level-colors";
-import { cn } from "@/src/utils/tailwind";
 import {
   detailPageListKeys,
   useDetailPageLists,
@@ -981,35 +981,18 @@ export default function TracesTable({
       getValue: (value, { row }) =>
         isMetricPending(row.original.id) ? { type: "loading" } : (value ?? 0n),
     }),
-    {
+    createStatusTableColumn<TracesTableRow, ObservationLevelType>({
       accessorKey: "level",
-      id: "level",
       header: "Status",
       size: 75,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["level"] = row.getValue("level");
-        if (isMetricPending(row.original.id)) {
-          return <Skeleton className="h-4 w-1/2" />;
-        }
-        return value ? (
-          <span
-            className={cn(
-              "rounded-sm p-0.5 text-xs",
-              getLevelColors(value).bg,
-              getLevelColors(value).text,
-            )}
-          >
-            {value}
-          </span>
-        ) : (
-          <span>-</span>
-        );
-      },
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
+      isLive: false,
+      isLoading: (_value, { row }) => isMetricPending(row.original.id),
+      getStatus: (level) =>
+        level ? getObservationLevelStatus(level) : undefined,
+    }),
     createTextTableColumn<TracesTableRow>({
       accessorKey: "version",
       header: "Version",

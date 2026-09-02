@@ -13,9 +13,11 @@ type Row = {
 function StatusTableColumnStory({
   data,
   isLive = true,
+  isLoading,
 }: {
   data: AsyncTableData<Row[]>;
   isLive?: boolean;
+  isLoading?: (status: string | null | undefined) => boolean;
 }) {
   const columns = [
     createStatusTableColumn<Row, string>({
@@ -23,6 +25,7 @@ function StatusTableColumnStory({
       header: "Status",
       getStatus: (status) => status ?? undefined,
       isLive,
+      isLoading,
     }),
   ];
 
@@ -94,5 +97,16 @@ export const Loading = meta.story({
       isLoading: true,
       isError: false,
     },
+  },
+});
+
+export const RowLoading = meta.story({
+  args: {
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ status: "pending-metrics" }, { status: "error" }],
+    },
+    isLoading: (status) => status === "pending-metrics",
   },
 });

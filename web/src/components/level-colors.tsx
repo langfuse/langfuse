@@ -2,6 +2,19 @@ import type React from "react";
 import { type ObservationLevelType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
+export const observationLevelToStatus = {
+  ERROR: "error",
+  WARNING: "warning",
+  DEBUG: "debug",
+  DEFAULT: "default",
+} as const satisfies Record<ObservationLevelType, string>;
+
+export function getObservationLevelStatus(level: string): string {
+  return Object.hasOwn(observationLevelToStatus, level)
+    ? observationLevelToStatus[level as ObservationLevelType]
+    : level;
+}
+
 export const LevelColors = {
   DEFAULT: { text: "", bg: "" },
   DEBUG: { text: "text-muted-foreground", bg: "bg-tertiary" },

@@ -1,6 +1,11 @@
 // @vitest-environment node
 
-import { getLevelColors, LevelColors } from "@/src/components/level-colors";
+import {
+  getLevelColors,
+  getObservationLevelStatus,
+  LevelColors,
+  observationLevelToStatus,
+} from "@/src/components/level-colors";
 
 describe("getLevelColors", () => {
   it("returns the correct style for each known level", () => {
@@ -48,5 +53,19 @@ describe("getLevelColors", () => {
       expect(typeof colors.bg).toBe("string");
       expect(typeof colors.text).toBe("string");
     }
+  });
+});
+
+describe("observationLevelToStatus", () => {
+  it("maps every known observation level to a status token", () => {
+    expect(observationLevelToStatus.DEFAULT).toBe("default");
+    expect(observationLevelToStatus.DEBUG).toBe("debug");
+    expect(observationLevelToStatus.WARNING).toBe("warning");
+    expect(observationLevelToStatus.ERROR).toBe("error");
+  });
+
+  it("passes through unknown levels so StatusBadge can render them", () => {
+    expect(getObservationLevelStatus("ERROR")).toBe("error");
+    expect(getObservationLevelStatus("INFO")).toBe("INFO");
   });
 });

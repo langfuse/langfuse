@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Badge } from "@/src/components/ui/badge";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { Edit, Trash2 } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -12,6 +11,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { costFormatter } from "@/src/utils/numbers";
 
@@ -80,17 +80,13 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
       size: 140,
       formatter: costFormatter,
     }),
-    {
-      accessorKey: "status",
+    createStatusTableColumn<AlertRow, Date>({
       id: "status",
+      accessorFn: (row) => row.triggeredAt,
       header: "Status",
       size: 110,
-      cell: ({ row }) => (
-        <Badge variant={row.original.triggeredAt ? "destructive" : "secondary"}>
-          {row.original.triggeredAt ? "Triggered" : "Active"}
-        </Badge>
-      ),
-    },
+      getStatus: (triggeredAt) => (triggeredAt ? "triggered" : "active"),
+    }),
     {
       accessorKey: "lastTriggered",
       id: "lastTriggered",

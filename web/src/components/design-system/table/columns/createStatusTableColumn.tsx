@@ -17,6 +17,7 @@ export function createStatusTableColumn<
 >({
   getStatus,
   isLive,
+  isLoading,
   ...options
 }: TableColumnOptions<TData, TValue> & {
   getStatus: (
@@ -24,11 +25,21 @@ export function createStatusTableColumn<
     context: CellContext<TData, TValue | null | undefined>,
   ) => Status | (string & {}) | undefined;
   isLive?: boolean;
+  isLoading?: (
+    value: TValue | null | undefined,
+    context: CellContext<TData, TValue | null | undefined>,
+  ) => boolean;
 }) {
+  const loadingCell = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
+
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+    loadingCell,
     renderCell: (value, context) => {
+      if (isLoading?.(value, context)) {
+        return loadingCell;
+      }
+
       const status = getStatus(value, context);
       return status ? <StatusBadge type={status} isLive={isLive} /> : null;
     },
