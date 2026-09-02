@@ -82,18 +82,9 @@ type AccordionItemProps = Pick<
     children: React.ReactNode;
   };
 
-type AccordionProps = Omit<
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
-    | "children"
-    | "className"
-    | "collapsible"
-    | "defaultValue"
-    | "onValueChange"
-    | "type"
-    | "value"
-  >,
-  "children" | "className"
+type AccordionProps = Pick<
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
+  "collapsible" | "defaultValue" | "onValueChange" | "type" | "value"
 > &
   Pick<VariantProps<typeof accordionVariants>, "gap"> & {
     children: React.ReactNode;
