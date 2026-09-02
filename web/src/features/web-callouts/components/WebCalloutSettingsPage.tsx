@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -144,10 +144,10 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
     return (
       <div>
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to manage integrations for this project.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );

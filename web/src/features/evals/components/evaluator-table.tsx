@@ -22,7 +22,7 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { ExternalLinkIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
@@ -46,18 +46,15 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import {
-  TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -126,7 +123,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
   // Deprecated evaluators are read-only where new legacy setups are not
   // allowed (cloud); self-hosted deployments keep editing them.
   const { allowLegacy } = useEvalCapabilities(projectId);
@@ -188,7 +188,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
         return (
           <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
-            <TableIdOrName value={scoreName} className="min-w-[4px] flex-1" />
+            <div className="min-w-[4px] flex-1">
+              <IdTableCell value={scoreName} />
+            </div>
             {row.row.original.isLegacy ? (
               <span className="ml-auto justify-self-end">
                 {v4UpgradeUiEnabled ? (
@@ -212,7 +214,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "status",
       enableSorting: true,
       size: 80,
-      loadingCell: <TableBadgeLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: (row) => {
         const status = row.getValue();
         return (
@@ -284,8 +286,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 200,
       loadingCell: (
         <div className="flex items-center gap-2">
-          <TableTextLoadingCell className="w-32" />
-          <TableBadgeLoadingCell className="w-6" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-5 w-6 shrink-0 rounded-sm" />
         </div>
       ),
       cell: ({ row }) => {
@@ -293,7 +295,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
-            <TableIdOrName value={template.name} />
+            <IdTableCell value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
             </div>
@@ -301,14 +303,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("createdAt", {
-      id: "createdAt",
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "createdAt",
       header: "Created At",
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.accessor("updatedAt", {
-      id: "updatedAt",
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "updatedAt",
       header: "Updated At",
       enableSorting: true,
       size: 150,
@@ -354,23 +356,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         return <EvaluatorFilterCell filterState={newFilterState} />;
       },
     }),
-    columnHelper.accessor("id", {
+    createIdTableColumn<EvaluatorDataRow>({
+      accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 100,
       enableSorting: false,
       enableHiding: true,
-      cell: (row) => {
-        const id = row.getValue();
-        return id ? <TableIdOrName value={id} /> : undefined;
-      },
     }),
     columnHelper.accessor("actions", {
       header: "Actions",
       id: "actions",
       enableSorting: false,
       size: 100,
-      loadingCell: <TableIconButtonLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-5 shrink-0 rounded-full" />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (

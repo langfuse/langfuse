@@ -34,16 +34,20 @@ import {
   type TracingSearchType,
   type ScoreAggregate,
   buildTracePath,
+  getCachedInputCost,
+  getCachedInputMetric,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -81,7 +85,6 @@ import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -1109,7 +1112,7 @@ export default function ObservationsEventsTable({
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       },
     },
   ];
@@ -1136,28 +1139,18 @@ export default function ObservationsEventsTable({
       size: 50,
       enableSorting,
     }),
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getEventsColumnName("name"),
       size: 150,
       enableSorting,
-      cell: ({ row }) => {
-        const value: EventsTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
-      id: "traceName",
       header: getEventsColumnName("traceName"),
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("traceName");
-        return value ?? undefined;
-      },
-    },
+    }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
       header: getEventsColumnName("input"),
@@ -1275,54 +1268,41 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.inputCost, row.type),
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputCost(row.costDetails),
+          id: "cachedInputCost",
+          header: getEventsColumnName("cachedInputCost"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => usdFormatter(value),
+          emptyValue: "-",
+        }),
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.outputCost, row.type),
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     createNumberTableColumn<EventsTableRow>({
@@ -1369,7 +1349,7 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
@@ -1386,7 +1366,7 @@ export default function ObservationsEventsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          formatter: String,
+          formatter: (value) => String(value),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
@@ -1396,6 +1376,16 @@ export default function ObservationsEventsTable({
           accessorFn: (row) => row.usage.inputUsage,
           header: getEventsColumnName("inputTokens"),
           size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputMetric(row.usageDetails),
+          id: "cachedInputTokens",
+          header: getEventsColumnName("cachedInputTokens"),
+          size: 140,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -1444,9 +1434,8 @@ export default function ObservationsEventsTable({
         );
       },
     },
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "promptName",
-      id: "promptName",
       header: getEventsColumnName("promptName"),
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
@@ -1455,13 +1444,14 @@ export default function ObservationsEventsTable({
       size: 200,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
+      getValue: (_value, { row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableIdOrName value={value} />;
+        return promptName && promptVersion
+          ? `${promptName} (v${promptVersion})`
+          : undefined;
       },
-    },
+    }),
     createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
@@ -1482,7 +1472,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -1494,21 +1484,14 @@ export default function ObservationsEventsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       header: getEventsColumnName("traceId"),
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       enableSorting,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "modelId",
       id: "modelId",
@@ -1517,9 +1500,8 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "version",
-      id: "version",
       header: getEventsColumnName("version"),
       size: 100,
       headerTooltip: {
@@ -1529,10 +1511,9 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "release",
-      id: "release",
       header: getEventsColumnName("release"),
       size: 100,
       headerTooltip: {
@@ -1542,7 +1523,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "userId",
       id: "userId",

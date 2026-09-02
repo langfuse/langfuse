@@ -24,12 +24,12 @@ export default function EvaluatorsPage() {
   );
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
 
   // Fetch counts of evaluator configs and templates

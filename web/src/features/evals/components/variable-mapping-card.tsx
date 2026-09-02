@@ -49,13 +49,13 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
-import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   type EvalPreviewPointer,
   buildEvalPreviewNavigationPath,
@@ -94,7 +94,7 @@ export const VariableMappingCard = ({
   const [selectedPreviewPointer, setSelectedPreviewPointer] =
     useState<EvalPreviewPointer>();
   const router = useRouter();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const peekId =
     typeof router.query.peek === "string" ? router.query.peek : undefined;
   const isPeekView = Boolean(peekId);
@@ -102,9 +102,9 @@ export const VariableMappingCard = ({
   // The trace preview reads the legacy traces table, which is not the v4
   // user's experience — never offer it there.
   const shouldShowPreviewForTarget =
-    shouldShowLegacyTracePreview(target, isBetaEnabled) ||
+    shouldShowLegacyTracePreview(target, isV4) ||
     isEventTarget(target) ||
-    (isExperimentTarget(target) && isBetaEnabled);
+    (isExperimentTarget(target) && isV4);
 
   const { fields } = useFieldArray({
     control: form.control,
@@ -162,7 +162,7 @@ export const VariableMappingCard = ({
     shouldShowPreviewForTarget && !disabled && !shouldDisablePreviewForNonOtel;
   const previewNavigationListKey = getEvalPreviewDetailPageListKey(
     target,
-    isBetaEnabled,
+    isV4,
   );
   const evalPreviewBasePath = hideAdvancedSettings
     ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
@@ -247,7 +247,7 @@ export const VariableMappingCard = ({
           )}
         </div>
       </div>
-      {shouldShowLegacyTracePreview(form.watch("target"), isBetaEnabled) &&
+      {shouldShowLegacyTracePreview(form.watch("target"), isV4) &&
         !disabled && (
           <FormDescription>
             Preview of the evaluation prompt with the variables replaced with
@@ -323,16 +323,13 @@ export const VariableMappingCard = ({
                   )}
                 >
                   {disabled && !syncStatus.inSync && (
-                    <Alert className="text-sm" variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle className="text-base">
-                        Variable mapping is out of sync
-                      </AlertTitle>
-                      <AlertDescription>
+                    <Alert variant="destructive" icon={AlertCircle}>
+                      <Alert.Title>Variable mapping is out of sync</Alert.Title>
+                      <Alert.Description>
                         The template has {syncStatus.added.length} new
                         variable(s) and {syncStatus.removed.length} removed
                         variable(s). Toggle Edit Mode to update the mapping.
-                      </AlertDescription>
+                      </Alert.Description>
                     </Alert>
                   )}
                   {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)

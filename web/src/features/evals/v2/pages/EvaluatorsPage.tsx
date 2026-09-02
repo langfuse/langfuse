@@ -32,7 +32,7 @@ import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -270,7 +270,7 @@ export default function EvaluatorsPage() {
     filterState.length === 0;
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evalJobExecution:read",
   });
   const defaultModelConnection = projectDefaultModel.connections.find(
     ({ provider }) => provider === projectDefaultModel.defaultModel?.provider,
@@ -494,7 +494,6 @@ export default function EvaluatorsPage() {
                     row.original.id,
                     row.original.name,
                     row.original.type,
-                    row.original.assignedRuleIds,
                   ),
                 )
               }
@@ -599,6 +598,10 @@ export default function EvaluatorsPage() {
                 }}
                 onConfigureProviders={projectDefaultModel.openProviderSettings}
                 onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
+                hasModelConfiguration={Boolean(
+                  defaultModelConfig &&
+                  Object.keys(defaultModelConfig.modelParams).length > 0,
+                )}
               >
                 <PopoverTrigger asChild>
                   <JudgeModelPickerTrigger

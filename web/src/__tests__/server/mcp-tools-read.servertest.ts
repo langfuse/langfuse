@@ -214,7 +214,7 @@ const createLlmEvaluatorForMcpReadTest = async (
       name,
       type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
-      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+      outputDefinition: mcpEvalOutputDefinition,
     },
     setup.context,
   )) as { id: string; name: string };

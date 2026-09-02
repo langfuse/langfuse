@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import { Link2, Plus, Unlink } from "lucide-react";
 import { useRouter } from "next/router";
@@ -18,8 +19,7 @@ import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -117,7 +117,7 @@ function EvaluatorRuleRelationshipsSheet({
   const isEstimating = activationConfirmation.estimate.status === "estimating";
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
   const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery(
     { projectId, evaluatorId },
@@ -182,7 +182,7 @@ function EvaluatorRuleRelationshipsSheet({
             <SheetDescription>
               {assignments.isPending
                 ? "Loading attached rules…"
-                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to another rule or remove an existing connection.`}
+                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to a rule to run the evaluator on incoming observations.`}
             </SheetDescription>
           </SheetHeader>
 

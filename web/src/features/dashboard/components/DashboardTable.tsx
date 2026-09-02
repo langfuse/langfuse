@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -8,21 +9,16 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { Copy, Edit, MoreVertical, User as UserIcon } from "lucide-react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Copy, Edit, User as UserIcon } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
@@ -36,6 +32,9 @@ type DashboardTableRow = {
   updatedAt: Date;
   owner: "PROJECT" | "LANGFUSE";
 };
+
+const dashboardMenuButtonWrapperClassName = "w-full";
+const dashboardMenuButtonClassName = "w-full justify-start";
 
 function CloneDashboardButton({
   dashboardId,
@@ -81,15 +80,18 @@ function CloneDashboardButton({
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="default"
-      disabled={!hasAccess}
-      onClick={handleCloneDashboard}
-    >
-      <Copy className="mr-2 h-4 w-4" />
-      Clone
-    </Button>
+    <div className={dashboardMenuButtonWrapperClassName}>
+      <Button
+        variant="ghost"
+        size="default"
+        className={dashboardMenuButtonClassName}
+        disabled={!hasAccess}
+        onClick={handleCloneDashboard}
+      >
+        <Copy className="mr-2 h-4 w-4" />
+        Clone
+      </Button>
+    </div>
   );
 }
 
@@ -108,10 +110,11 @@ function EditDashboardButton({
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
 
   return (
-    <>
+    <div className={dashboardMenuButtonWrapperClassName}>
       <Button
         variant="ghost"
         size="default"
+        className={dashboardMenuButtonClassName}
         disabled={!hasAccess}
         onClick={() => setIsDialogOpen(true)}
       >
@@ -127,7 +130,7 @@ function EditDashboardButton({
         initialName={dashboardName}
         initialDescription={dashboardDescription}
       />
-    </>
+    </div>
   );
 }
 
@@ -145,10 +148,11 @@ function LockedEditDashboardButton({
   const capture = usePostHogClientCapture();
 
   return (
-    <>
+    <div className={dashboardMenuButtonWrapperClassName}>
       <Button
         variant="ghost"
         size="default"
+        className={dashboardMenuButtonClassName}
         disabled={!hasAccess}
         onClick={() => {
           capture("dashboard:locked_edit_attempt", {
@@ -170,7 +174,7 @@ function LockedEditDashboardButton({
         dashboardId={dashboardId}
         dashboardName={dashboardName}
       />
-    </>
+    </div>
   );
 }
 
@@ -272,61 +276,59 @@ export function DashboardTable() {
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.display({
+    createDropdownTableColumn<DashboardTableRow, string>({
       id: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 70,
-      cell: (row) => {
-        const id = row.row.original.id;
-        const name = row.row.original.name;
-        const description = row.row.original.description;
-        const owner = row.row.original.owner;
+      renderMenu: (id, { row }) => {
+        if (!id) return null;
+        const { name, description, owner } = row.original;
         return (
-          <div onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="xs" variant="ghost">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                {owner === "PROJECT" ? (
-                  <DropdownMenuItem asChild>
-                    <EditDashboardButton
-                      dashboardId={id}
-                      projectId={projectId}
-                      dashboardName={name}
-                      dashboardDescription={description}
-                    />
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem asChild>
-                    <LockedEditDashboardButton
-                      dashboardId={id}
-                      projectId={projectId}
-                      dashboardName={name}
-                    />
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem asChild>
-                  <CloneDashboardButton
-                    dashboardId={id}
+          <>
+            {owner === "PROJECT" ? (
+              <DropdownMenuItem className="w-full p-0">
+                <EditDashboardButton
+                  dashboardId={id}
+                  projectId={projectId}
+                  dashboardName={name}
+                  dashboardDescription={description}
+                />
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem className="w-full p-0">
+                <LockedEditDashboardButton
+                  dashboardId={id}
+                  projectId={projectId}
+                  dashboardName={name}
+                />
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem className="w-full p-0">
+              <CloneDashboardButton
+                dashboardId={id}
+                projectId={projectId}
+                owner={owner}
+              />
+            </DropdownMenuItem>
+            {owner === "PROJECT" ? (
+              <DropdownMenuItem
+                className="w-full p-0"
+                onSelect={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                <div className={dashboardMenuButtonWrapperClassName}>
+                  <DeleteDashboardButton
+                    itemId={id}
                     projectId={projectId}
-                    owner={owner}
+                    isTableAction
+                    className={dashboardMenuButtonClassName}
                   />
-                </DropdownMenuItem>
-                {owner === "PROJECT" && (
-                  <DropdownMenuItem asChild>
-                    <DeleteDashboardButton
-                      itemId={id}
-                      projectId={projectId}
-                      isTableAction
-                    />
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                </div>
+              </DropdownMenuItem>
+            ) : null}
+          </>
         );
       },
     }),

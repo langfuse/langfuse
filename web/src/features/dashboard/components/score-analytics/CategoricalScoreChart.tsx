@@ -23,7 +23,7 @@ export function CategoricalScoreChart(props: {
   fromTimestamp: Date;
   toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {

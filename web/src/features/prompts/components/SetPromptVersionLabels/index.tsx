@@ -23,7 +23,7 @@ import {
   type Prompt,
 } from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import { cn } from "@/src/utils/tailwind";

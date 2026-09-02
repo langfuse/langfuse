@@ -30,7 +30,7 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   /** Shared hover-sync group so this chart joins the dashboard crosshair. */
   syncId?: string;

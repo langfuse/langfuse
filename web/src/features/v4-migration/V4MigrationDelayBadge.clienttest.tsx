@@ -121,7 +121,7 @@ const mocks = vi.hoisted(() => ({
   } as V4MigrationSdkState,
   v4UpgradeUiEnabled: true,
   forceV3: false,
-  isBetaEnabled: false,
+  isV4: false,
   projectId: "project-1",
   openMigrationPanel: vi.fn(),
   capture: vi.fn(),
@@ -136,8 +136,8 @@ vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
   useForceV3Experience: () => mocks.forceV3,
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({ isBetaEnabled: mocks.isBetaEnabled }),
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({ isV4: mocks.isV4 }),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -199,7 +199,7 @@ describe("V4MigrationDelayBadge", () => {
     vi.clearAllMocks();
     mocks.v4UpgradeUiEnabled = true;
     mocks.forceV3 = false;
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
     mocks.projectId = "project-1";
     setSdk("latest", [makeSdkUsageSeries({})]);
   });
@@ -286,7 +286,7 @@ describe("V4MigrationDelayBadge", () => {
   it("stays hidden for forced-v3 projects while they view v3", () => {
     // On v3 views the legacy tables are real-time — no delay to announce.
     mocks.forceV3 = true;
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
     setSdk("legacy", [outdatedSdkSeries()]);
     render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
@@ -294,7 +294,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("opens the partner FAQ instead of the panel for forced-v3 projects on v4", () => {
     mocks.forceV3 = true;
-    mocks.isBetaEnabled = true;
+    mocks.isV4 = true;
     setSdk("legacy", [outdatedSdkSeries()]);
     const windowOpen = vi.spyOn(window, "open").mockImplementation(() => null);
 

@@ -83,6 +83,7 @@ import {
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
+  getDatasetExperimentMetricsFromEvents,
   getDatasetVersionForRun,
   escapeSqlLikePattern,
   fetchWithSecureRedirects,
@@ -490,31 +491,40 @@ export const datasetRouter = createTRPCRouter({
 
       if (input.datasetIds.length === 0) return { metrics: [] };
 
-      // Get dataset runs metrics
-      const runsMetrics = await ctx.prisma.$queryRaw<
-        Array<{
-          id: string;
-          countDatasetRuns: number;
-          lastRunAt: Date | null;
-        }>
-      >`
-        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
-        FROM datasets d
-        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
-        WHERE d.project_id = ${input.projectId}
-        AND d.id IN (${Prisma.join(input.datasetIds)})
-        GROUP BY d.id
-      `;
-
-      // Get dataset items count for all datasets
-      const itemsCounts = await getDatasetItemsCountGrouped({
-        projectId: input.projectId,
-        datasetIds: input.datasetIds,
-      });
+      const [runsMetrics, itemsCounts] = await Promise.all([
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+          ? getDatasetExperimentMetricsFromEvents({
+              projectId: input.projectId,
+              datasetIds: input.datasetIds,
+            })
+          : ctx.prisma.$queryRaw<
+              Array<{
+                datasetId: string;
+                countDatasetRuns: bigint;
+                lastRunAt: Date | null;
+              }>
+            >`
+                SELECT d.id AS "datasetId", COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+                FROM datasets d
+                LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+                WHERE d.project_id = ${input.projectId}
+                AND d.id IN (${Prisma.join(input.datasetIds)})
+                GROUP BY d.id
+              `.then((rows) =>
+              rows.map((row) => ({
+                ...row,
+                countDatasetRuns: Number(row.countDatasetRuns),
+              })),
+            ),
+        getDatasetItemsCountGrouped({
+          projectId: input.projectId,
+          datasetIds: input.datasetIds,
+        }),
+      ]);
 
       // Merge the metrics
       const metrics = input.datasetIds.map((datasetId) => {
-        const runsMetric = runsMetrics.find((m) => m.id === datasetId);
+        const runsMetric = runsMetrics.find((m) => m.datasetId === datasetId);
         const itemsCount = itemsCounts.find((m) => m.datasetId === datasetId);
 
         return {

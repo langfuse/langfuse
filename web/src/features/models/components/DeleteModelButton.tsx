@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -8,8 +9,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { type GetModelResult } from "@/src/features/models/validation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 
 export const DeleteModelButton = ({

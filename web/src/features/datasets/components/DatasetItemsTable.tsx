@@ -1,18 +1,15 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { Archive, Edit, ListTree, Trash2 } from "lucide-react";
 import {
   datasetItemFilterColumns,
   DatasetStatus,
@@ -26,7 +23,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
@@ -234,83 +231,75 @@ export function DatasetItemsTable({
       enableHiding: true,
       singleLine: rowHeight === "s",
     }),
-    {
+    createDropdownTableColumn<RowData, string>({
       id: "actions",
-      accessorKey: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 70,
-      cell: ({ row }) => {
-        const id: string = row.getValue("id");
-        const status: DatasetStatus = row.getValue("status");
+      renderMenu: (id, { row }) => {
+        if (!id) return null;
+        const status = row.original.status;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                disabled={!hasAccess || !!selectedVersion}
-                onClick={() => {
-                  setSelectedItemForEdit(id);
-                  setEditDialogOpen(true);
-                }}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!hasAccess || !!selectedVersion}
-                onClick={() => {
-                  capture("dataset_item:archive_toggle", {
-                    status:
-                      status === DatasetStatus.ARCHIVED
-                        ? "unarchived"
-                        : "archived",
-                  });
-                  mutUpdate.mutate({
+          <>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={!hasAccess || !!selectedVersion}
+              onClick={() => {
+                setSelectedItemForEdit(id);
+                setEditDialogOpen(true);
+              }}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!hasAccess || !!selectedVersion}
+              onClick={() => {
+                capture("dataset_item:archive_toggle", {
+                  status:
+                    status === DatasetStatus.ARCHIVED
+                      ? "unarchived"
+                      : "archived",
+                });
+                mutUpdate.mutate({
+                  projectId: projectId,
+                  datasetId: datasetId,
+                  datasetItemId: id,
+                  status:
+                    status === DatasetStatus.ARCHIVED
+                      ? DatasetStatus.ACTIVE
+                      : DatasetStatus.ARCHIVED,
+                });
+              }}
+            >
+              <Archive className="mr-2 h-4 w-4" />
+              {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!hasAccess || !!selectedVersion}
+              className="text-destructive"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
+                  )
+                ) {
+                  capture("dataset_item:delete");
+                  mutDelete.mutate({
                     projectId: projectId,
                     datasetId: datasetId,
                     datasetItemId: id,
-                    status:
-                      status === DatasetStatus.ARCHIVED
-                        ? DatasetStatus.ACTIVE
-                        : DatasetStatus.ARCHIVED,
                   });
-                }}
-              >
-                <Archive className="mr-2 h-4 w-4" />
-                {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!hasAccess || !!selectedVersion}
-                className="text-destructive"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
-                    )
-                  ) {
-                    capture("dataset_item:delete");
-                    mutDelete.mutate({
-                      projectId: projectId,
-                      datasetId: datasetId,
-                      datasetItemId: id,
-                    });
-                  }
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                }
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
         );
       },
-    },
+    }),
   ];
 
   const convertToTableRow = (

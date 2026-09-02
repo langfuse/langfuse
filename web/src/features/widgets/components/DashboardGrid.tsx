@@ -8,6 +8,7 @@ import {
   type PresetPlacement,
 } from "../components/PresetDashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef } from "react";
 
@@ -71,6 +72,7 @@ export function DashboardGrid({
   canEdit,
   dashboardId,
   projectId,
+  readPath,
   dateRange,
   filterState,
   onDeleteWidget,
@@ -86,6 +88,8 @@ export function DashboardGrid({
   canEdit: boolean;
   dashboardId: string;
   projectId: string;
+  /** Resolved by the page controller — widgets must not guess the version. */
+  readPath: ResolvedReadPath;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
@@ -168,6 +172,7 @@ export function DashboardGrid({
       <PresetDashboardWidget
         dashboardId={dashboardId}
         projectId={projectId}
+        readPath={readPath}
         placement={widget}
         dateRange={dateRange}
         filterState={filterState}
@@ -182,6 +187,7 @@ export function DashboardGrid({
       <DashboardWidget
         dashboardId={dashboardId}
         projectId={projectId}
+        readPath={readPath}
         placement={widget}
         dateRange={dateRange}
         filterState={filterState}

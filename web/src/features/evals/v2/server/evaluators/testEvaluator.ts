@@ -3,7 +3,8 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
-  buildEvalExecutionMetadata,
+  buildEvalExecutionData,
+  compileLangfuseMediaMessages,
   createW3CTraceId,
   DefaultEvalModelService,
   createLLMOutput,
@@ -19,13 +20,18 @@ import {
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
-import type { EvaluatorDefinition } from "./evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  extractEvaluatorPromptVariables,
+} from "./evaluatorValidation";
 
 export async function testEvaluator(params: {
   orgId: string;
   projectId: string;
   evaluatorId: string;
-  definition: EvaluatorDefinition;
+  includeEvaluatorLink?: boolean;
+  definition: NormalizedEvaluatorDefinition;
   observationId: string;
   traceId: string;
   startTime: Date;
@@ -39,17 +45,27 @@ export async function testEvaluator(params: {
     startTime: params.startTime,
     shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
   });
-  const variableMapping =
-    params.definition.type === "CODE"
-      ? getCodeEvalVariableMapping()
-      : observationVariableMappingList.parse(params.definition.variableMapping);
+  let variableMapping;
+  if (params.definition.type === "CODE") {
+    variableMapping = getCodeEvalVariableMapping();
+  } else {
+    const llmVariableMapping = params.definition.variableMapping ?? [];
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: extractEvaluatorPromptVariables(
+        params.definition.promptMessages,
+      ),
+      variableMapping: llmVariableMapping,
+    });
+    variableMapping = observationVariableMappingList.parse(llmVariableMapping);
+  }
   const variables = extractObservationVariables({
     observation,
     variableMapping,
   });
-  const metadata = buildEvalExecutionMetadata({
+  const executionData = buildEvalExecutionData({
     type: "TEST",
-    evaluatorId: params.evaluatorId,
+    evaluatorId:
+      params.includeEvaluatorLink === false ? null : params.evaluatorId,
     targetTraceId: params.traceId,
     targetObservationId: params.observationId,
   });
@@ -62,14 +78,14 @@ export async function testEvaluator(params: {
           evaluatorId: params.evaluatorId,
           definition: params.definition,
           variables,
-          metadata,
+          ...executionData,
         })
       : await testLlmEvaluator({
           projectId: params.projectId,
           evaluatorId: params.evaluatorId,
           definition: params.definition,
           variables,
-          metadata,
+          ...executionData,
         });
 
   return { ...result, durationMs: Date.now() - startedAt };
@@ -78,9 +94,12 @@ export async function testEvaluator(params: {
 async function testLlmEvaluator(params: {
   projectId: string;
   evaluatorId: string;
-  definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
+  definition: Extract<NormalizedEvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
   variables: ExtractedVariable[];
-  metadata: ReturnType<typeof buildEvalExecutionMetadata>;
+  executionMetadata: Record<string, string>;
+  evaluationContext: ReturnType<
+    typeof buildEvalExecutionData
+  >["evaluationContext"];
 }) {
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
     params.projectId,
@@ -96,7 +115,7 @@ async function testLlmEvaluator(params: {
   let estimatedCostUsd: number | null = null;
   try {
     const execution = await executeLlmEvaluator({
-      templatePrompt: params.definition.prompt,
+      promptMessages: params.definition.promptMessages,
       variables: params.variables,
       outputDefinition: params.definition.outputDefinition,
       callLlm: async ({
@@ -105,17 +124,27 @@ async function testLlmEvaluator(params: {
         interpolatedPrompt: prompt,
       }) => {
         interpolatedPrompt = prompt;
-        const result = await generateLLMText({
-          ...mapLegacyLLMCompletionParams({
-            connection: modelConfig.config.apiKey,
+        const modelParams = {
+          provider: modelConfig.config.provider,
+          model: modelConfig.config.model,
+          adapter: modelConfig.config.apiKey.adapter,
+          ...modelConfig.config.modelParams,
+        };
+        const llmParams = mapLegacyLLMCompletionParams({
+          connection: modelConfig.config.apiKey,
+          messages,
+          modelParams,
+        });
+        const { providerMessages, traceMessages } =
+          await compileLangfuseMediaMessages({
+            projectId: params.projectId,
             messages,
-            modelParams: {
-              provider: modelConfig.config.provider,
-              model: modelConfig.config.model,
-              adapter: modelConfig.config.apiKey.adapter,
-              ...modelConfig.config.modelParams,
-            },
-          }),
+            adapter: modelConfig.config.apiKey.adapter,
+          });
+        const result = await generateLLMText({
+          ...llmParams,
+          messages: providerMessages,
+          traceInput: traceMessages,
           output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
           maxRetries: 1,
           trace: {
@@ -123,7 +152,8 @@ async function testLlmEvaluator(params: {
             traceId: executionTraceId,
             traceName: "Test evaluator",
             environment: LangfuseInternalTraceEnvironment.LLMJudge,
-            metadata: params.metadata,
+            metadata: params.executionMetadata,
+            evaluationContext: params.evaluationContext,
           },
         });
         estimatedCostUsd = await calculateTestRunCost({
@@ -197,9 +227,12 @@ async function testCodeEvaluator(params: {
   orgId: string;
   projectId: string;
   evaluatorId: string;
-  definition: Extract<EvaluatorDefinition, { type: "CODE" }>;
+  definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
-  metadata: ReturnType<typeof buildEvalExecutionMetadata>;
+  executionMetadata: Record<string, string>;
+  evaluationContext: ReturnType<
+    typeof buildEvalExecutionData
+  >["evaluationContext"];
 }) {
   const dispatcher = resolveConfiguredCodeEvalDispatcher();
   if (!dispatcher) {
@@ -210,7 +243,6 @@ async function testCodeEvaluator(params: {
   }
 
   const executionTraceId = createW3CTraceId();
-
   return runCodeBasedEvaluationDispatch({
     dispatcher,
     organizationId: params.orgId,
@@ -221,6 +253,7 @@ async function testCodeEvaluator(params: {
     version: params.definition,
     extractedVariables: params.variables,
     traceName: "Test evaluator",
-    metadata: params.metadata,
+    metadata: params.executionMetadata,
+    evaluationContext: params.evaluationContext,
   });
 }

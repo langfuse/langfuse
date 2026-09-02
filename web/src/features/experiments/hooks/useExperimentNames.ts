@@ -24,7 +24,9 @@ export function useExperimentNames({
     {
       projectId,
     },
-    { enabled: hasExperimentsReadAccess },
+    // `projectId` arrives with `router.query` after hydration; without it in
+    // the guard the query can fire with `undefined` and zod rejects it.
+    { enabled: Boolean(projectId) && hasExperimentsReadAccess },
   );
 
   const sortedExperimentNames = data?.experimentNames.sort((a, b) =>

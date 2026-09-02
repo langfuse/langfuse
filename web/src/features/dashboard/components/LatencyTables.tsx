@@ -176,7 +176,7 @@ export const LatencyTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const { title, nameHeader, buildQuery } = LATENCY_TABLE_KINDS[kind];

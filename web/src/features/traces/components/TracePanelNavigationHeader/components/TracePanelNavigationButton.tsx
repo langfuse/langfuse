@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
 interface TracePanelNavigationButtonProps {

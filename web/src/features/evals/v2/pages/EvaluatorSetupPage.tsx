@@ -25,12 +25,12 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -54,6 +54,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 import {
   getEvaluatorCreationAnalyticsProperties,
+  getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 
@@ -62,7 +63,7 @@ type InitialEvaluator = {
   name: string;
   description: string | null;
   type: EvalTemplateType;
-  definition: EvaluatorDefinition;
+  definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
@@ -86,7 +87,7 @@ export function applyEvaluatorSuggestion(
 
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
-): EvaluatorDefinition {
+): NormalizedEvaluatorDefinition {
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -96,13 +97,13 @@ export function getEvaluatorVersionDefinition(
   }
 
   type LlmEvaluatorDefinition = Extract<
-    EvaluatorDefinition,
+    NormalizedEvaluatorDefinition,
     { type: "LLM_AS_JUDGE" }
   >;
 
   return {
     type: version.type,
-    prompt: version.prompt ?? "",
+    promptMessages: version.promptMessages!,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams,
@@ -161,7 +162,7 @@ export function EvaluatorSetupPage(
   const capture = usePostHogClientCapture();
   const canReactivate = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
@@ -266,7 +267,8 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-    prompt: version.prompt,
+    promptMessages:
+      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],
@@ -333,7 +335,7 @@ export function EvaluatorSetupPage(
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
     return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, prompt: state.prompt }
+      ? { type: state.type, promptMessages: state.promptMessages }
       : { type: state.type, sourceCode: state.sourceCode };
   };
 
@@ -475,7 +477,12 @@ export function EvaluatorSetupPage(
           description,
           definition,
         });
-        capture("evaluators:update", { evaluatorType: state.type });
+        capture("evaluators:update", {
+          evaluatorType: state.type,
+          ...(definition.type === "LLM_AS_JUDGE"
+            ? getJudgePromptAnalyticsProperties(definition.promptMessages)
+            : {}),
+        });
         showSuccessToast({
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
@@ -503,6 +510,10 @@ export function EvaluatorSetupPage(
           variableMapping:
             definition.type === "LLM_AS_JUDGE"
               ? definition.variableMapping
+              : undefined,
+          promptMessages:
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.promptMessages
               : undefined,
           evaluatorConfig:
             state.type === "LLM_AS_JUDGE"
@@ -669,6 +680,7 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
+              title="View version history"
               onClick={() => {
                 capture("evaluators:version_history_interaction", {
                   action: "open",

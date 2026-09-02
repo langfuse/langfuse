@@ -1,6 +1,6 @@
-import { Drawer } from "@/src/components/ui/drawer";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { Drawer } from "@/src/components/ui/drawer";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type AnalyticsData,
   type ScoreTarget,

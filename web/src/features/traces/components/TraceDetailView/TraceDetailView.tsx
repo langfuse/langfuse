@@ -43,6 +43,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
@@ -100,16 +101,33 @@ export function TraceDetailView({
     isAnnotationMode,
   } = useViewPreferences();
 
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
+
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
+  // Both formatted variants share the pretty layout; JSON views differ.
+  const isPrettyLikeView =
+    currentView === "pretty" || currentView === "pretty-beta";
 
+  // A persisted "pretty-beta" preference clamps to "pretty" when the beta
+  // tab is unavailable, so the highlighted tab matches the rendered parser.
   const selectedViewTab =
-    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+    jsonViewPreference === "pretty-beta"
+      ? showPrettyBeta
+        ? "pretty-beta"
+        : "pretty"
+      : jsonViewPreference === "pretty"
+        ? "pretty"
+        : ("json" as const);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
-      if (tab === "pretty") {
-        setJsonViewPreference("pretty");
+      if (tab === "pretty" || tab === "pretty-beta") {
+        setJsonViewPreference(tab);
       } else {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
@@ -268,7 +286,9 @@ export function TraceDetailView({
                   <Tabs
                     className="ml-auto h-fit px-2 py-0.5"
                     value={
-                      selectedTab === "log" && isLogViewVirtualized
+                      selectedTab === "log" &&
+                      (isLogViewVirtualized ||
+                        selectedViewTab === "pretty-beta")
                         ? "pretty"
                         : selectedViewTab
                     }
@@ -285,6 +305,16 @@ export function TraceDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
+                      {/* Log view never runs the normalized parser, so the
+                          beta tab only renders on the preview tab. */}
+                      {showPrettyBeta && selectedTab !== "log" && (
+                        <TabsTrigger
+                          value="pretty-beta"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Normalized (beta)
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger
                         value="pretty"
                         className="h-fit px-1 text-xs"
@@ -364,12 +394,12 @@ export function TraceDetailView({
             {trace.tags.length > 0 && (
               <>
                 <div
-                  className={`px-2 pt-2 text-sm font-bold ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
                 >
                   Tags
                 </div>
                 <div
-                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
                 >
                   <TagList selectedTags={trace.tags} isLoading={false} />
                 </div>

@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ReactNode, useState } from "react";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
@@ -11,8 +12,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CreatePromptSchema } from "@langfuse/shared";
 import { z } from "zod";
 

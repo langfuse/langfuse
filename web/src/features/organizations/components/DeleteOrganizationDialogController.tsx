@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { DeleteOrganizationDialogContent } from "@/src/features/organizations/components/DeleteOrganizationDialogContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
