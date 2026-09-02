@@ -14,7 +14,7 @@ export const BASE_CHART_IDS = {
 
 /**
  * The level tag shown next to a score name in the metric dropdown, in the
- * vocabulary the tracing tables' score pickers use (`ScoreTag`). (LFE-15711)
+ * vocabulary the tracing tables' score pickers use (`ScoreTag`).
  */
 export const SCORE_LEVEL_TAGS: Record<ScoreLevel, ScoreTagLevel> = {
   obs: "observation",
@@ -79,7 +79,7 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   // Bars, not a line: the axis is a set of discrete experiments, so a segment
   // drawn between two of them claims a continuity that does not exist. A bar
   // also makes a metric that only some runs recorded read as absent rather
-  // than as a long line across every other run. (LFE-15711)
+  // than as a long line across every other run.
   chartType: "VERTICAL_BAR",
   chartConfig: { type: "VERTICAL_BAR" },
   timeDimension: null,
@@ -118,8 +118,12 @@ export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
 > = {
   obs: { field: "experimentName" },
   // A trace-level score has no observation, so the experiment has to be read
-  // off the scored trace's root event rather than off the observation.
-  trace: { field: "traceExperimentName" },
+  // off the scored trace's root event rather than off the observation. Keyed by
+  // id, not name: an experiment name is unique only within its dataset, and
+  // this table is project-wide, so two identically named runs from different
+  // datasets would group into one bucket — one bar carrying the aggregate of
+  // both, the other run gone from the chart.
+  trace: { field: "traceExperimentId" },
   experiment: { field: "datasetRunId" },
 };
 

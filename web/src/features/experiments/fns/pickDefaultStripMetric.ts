@@ -40,7 +40,7 @@ const valueKindOf = (
  *
  * Coverage is unknown until the row metrics land; until then the order falls
  * through to the name. A user's explicit pick always wins — see
- * `useExperimentStripMetric`. (LFE-15711)
+ * `useExperimentStripMetric`.
  */
 export function pickDefaultStripMetric(
   options: MetricOption[],

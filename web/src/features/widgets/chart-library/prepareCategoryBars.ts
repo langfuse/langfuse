@@ -11,7 +11,7 @@ import { seriesColor } from "@/src/features/widgets/chart-library/TimeSeriesLege
  */
 export const CATEGORY_COLOR_LIMIT = 8;
 
-export type CategoryBarRow = DataPoint & { fill?: string };
+type CategoryBarRow = DataPoint & { fill?: string };
 
 export type CategoryBarLegendItem = { category: string; color: string };
 
@@ -37,7 +37,7 @@ export type CategoryBars = {
  * Colour is keyed by a category's FIRST appearance, not by row index, so two
  * rows of the same category always share a colour.
  *
- * Pure and side-effect free — see ARCHITECTURE.md. (LFE-15711)
+ * Pure and side-effect free — see ARCHITECTURE.md.
  */
 export function prepareCategoryBars(data: DataPoint[]): CategoryBars {
   const order = new Map<string, number>();
