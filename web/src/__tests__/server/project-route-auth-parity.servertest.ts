@@ -324,10 +324,7 @@ describe("project-route auth parity", () => {
     expect(matrices.shadow).toEqual(matrices.legacy);
   });
 
-  // enforce is not yet byte-identical to legacy: an org key over bearer returns
-  // 403 (authenticated, then denied) where legacy special-cases it to 401.
-  // Convert to `it` once the seam matches legacy.
-  it.fails("enforce is not yet byte-identical to legacy", () => {
+  it("enforce is byte-identical to legacy", () => {
     expect(matrices.enforce).toEqual(matrices.legacy);
   });
 

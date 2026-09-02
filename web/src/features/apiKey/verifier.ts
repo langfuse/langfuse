@@ -129,6 +129,9 @@ export class Verifier {
     const found = await this.apiKeyRepo.findByPublicKey(token);
     if (!found.success) return found;
     if (!found.apiKey) return null;
+    // Public-key (bearer) auth is project-scoped score ingest only; an org key
+    // must authenticate with its secret over basic or private bearer.
+    if (found.apiKey.scope !== "PROJECT") return null;
     return { success: true, authorization: "publicKey", apiKey: found.apiKey };
   }
 }

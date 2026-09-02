@@ -143,6 +143,16 @@ describe("Bearer chains admin then private then public", () => {
       apiKey: key,
     });
   });
+  it("rejects an org-scoped key presented as a public-key bearer", async () => {
+    const key = apiKey({ scope: "ORGANIZATION", projectId: null });
+    const store = stubStore({
+      findByPublicKey: vi.fn(async () => lookup(key)),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer pk-lf-1"),
+    );
+    expect(result.success).toBe(false);
+  });
   it("a NULL-hash key is Basic-only, not Bearer-private", async () => {
     const key = apiKey({ fastHashedSecretKey: null });
     const store = stubStore({
