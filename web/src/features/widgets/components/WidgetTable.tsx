@@ -29,7 +29,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useRouter } from "next/router";

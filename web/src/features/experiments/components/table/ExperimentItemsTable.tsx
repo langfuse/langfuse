@@ -28,7 +28,7 @@ import {
   BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,

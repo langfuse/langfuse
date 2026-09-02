@@ -72,7 +72,7 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,

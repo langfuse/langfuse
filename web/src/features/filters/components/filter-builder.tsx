@@ -57,7 +57,7 @@ import {
   getSessionPositionInTraceFilterMode,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   InputCommand,
   InputCommandEmpty,

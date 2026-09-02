@@ -44,7 +44,7 @@ import {
   addDatasetNameObservedOptions,
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
