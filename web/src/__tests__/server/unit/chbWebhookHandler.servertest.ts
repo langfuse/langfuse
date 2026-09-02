@@ -71,101 +71,115 @@ vi.spyOn(logger, "info").mockImplementation((() => {}) as never);
 
 const SECRET = "test-signing-secret";
 
-const sign = (rawBody: string, timestamp: string, secret: string = SECRET) =>
+const hmacHex = (rawBody: string, timestamp: string, secret: string = SECRET) =>
   crypto
     .createHmac("sha256", secret)
     .update(`${timestamp}.${rawBody}`)
     .digest("hex");
 
+/** `X-CHB-Signature` as the control-plane dispatcher emits it: `t=` first, then
+ * one `v1=` per signing key it currently holds (two during a rotation). */
+const signatureHeader = (
+  rawBody: string,
+  timestamp: string,
+  secrets: string[] = [SECRET],
+) =>
+  [
+    `t=${timestamp}`,
+    ...secrets.map((secret) => `v1=${hmacHex(rawBody, timestamp, secret)}`),
+  ].join(",");
+
 describe("verifyChbSignature", () => {
   const nowMs = 1_753_200_000_000; // fixed reference time
   const timestamp = String(Math.floor(nowMs / 1000));
-  const rawBody = JSON.stringify({ id: "evt_1", type: "bundle.created" });
+  const rawBody = JSON.stringify({ eventId: "evt_1", type: "bundle.created" });
 
-  it("accepts a valid signature within the skew window", () => {
-    const result = verifyChbSignature({
-      rawBody,
-      signature: sign(rawBody, timestamp),
-      timestamp,
+  const verify = (header: string | null, body: string = rawBody) =>
+    verifyChbSignature({
+      rawBody: body,
+      signatureHeader: header,
       secret: SECRET,
       nowMs,
     });
-    expect(result).toEqual({ valid: true });
+
+  it("accepts a valid signature within the skew window", () => {
+    expect(verify(signatureHeader(rawBody, timestamp))).toEqual({
+      valid: true,
+    });
+  });
+
+  it("accepts the request when any v1 signature matches during a key rotation", () => {
+    // The dispatcher signs with every key it holds; we hold only one of them.
+    expect(
+      verify(signatureHeader(rawBody, timestamp, ["retired-secret", SECRET])),
+    ).toEqual({ valid: true });
+    expect(
+      verify(signatureHeader(rawBody, timestamp, [SECRET, "next-secret"])),
+    ).toEqual({ valid: true });
+  });
+
+  it("rejects when none of several v1 signatures matches", () => {
+    const result = verify(
+      signatureHeader(rawBody, timestamp, ["retired-secret", "next-secret"]),
+    );
+    expect(result).toEqual({ valid: false, reason: "signature mismatch" });
   });
 
   it("rejects a tampered body", () => {
-    const result = verifyChbSignature({
-      rawBody: rawBody + "tampered",
-      signature: sign(rawBody, timestamp),
-      timestamp,
-      secret: SECRET,
-      nowMs,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe("signature mismatch");
+    const result = verify(
+      signatureHeader(rawBody, timestamp),
+      rawBody + "tampered",
+    );
+    expect(result).toEqual({ valid: false, reason: "signature mismatch" });
   });
 
   it("rejects a signature made with the wrong secret", () => {
-    const result = verifyChbSignature({
-      rawBody,
-      signature: sign(rawBody, timestamp, "other-secret"),
-      timestamp,
-      secret: SECRET,
-      nowMs,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe("signature mismatch");
+    const result = verify(
+      signatureHeader(rawBody, timestamp, ["other-secret"]),
+    );
+    expect(result).toEqual({ valid: false, reason: "signature mismatch" });
   });
 
   it("rejects a timestamp outside the 5 minute skew window", () => {
-    const staleTimestamp = String(Math.floor(nowMs / 1000) - 6 * 60);
-    const result = verifyChbSignature({
-      rawBody,
-      signature: sign(rawBody, staleTimestamp),
-      timestamp: staleTimestamp,
-      secret: SECRET,
-      nowMs,
+    const stale = String(Math.floor(nowMs / 1000) - 6 * 60);
+    const result = verify(signatureHeader(rawBody, stale));
+    expect(result).toEqual({
+      valid: false,
+      reason: "timestamp outside allowed clock skew",
     });
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe("timestamp outside allowed clock skew");
   });
 
-  it("rejects a signed timestamp different from the header timestamp", () => {
-    const result = verifyChbSignature({
-      rawBody,
-      signature: sign(rawBody, String(Math.floor(nowMs / 1000) - 30)),
-      timestamp,
-      secret: SECRET,
-      nowMs,
+  it("rejects a signature computed over a different timestamp than the header carries", () => {
+    const signedOver = String(Math.floor(nowMs / 1000) - 30);
+    const header = `t=${timestamp},v1=${hmacHex(rawBody, signedOver)}`;
+    expect(verify(header)).toEqual({
+      valid: false,
+      reason: "signature mismatch",
     });
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe("signature mismatch");
+  });
+
+  it("rejects a missing header", () => {
+    expect(verify(null)).toEqual({
+      valid: false,
+      reason: "missing signature header",
+    });
   });
 
   it.each([
-    ["missing signature", null, timestamp],
-    ["missing timestamp", sign(rawBody, timestamp), null],
-  ])("rejects %s", (_label, signature, ts) => {
-    const result = verifyChbSignature({
-      rawBody,
-      signature,
-      timestamp: ts,
-      secret: SECRET,
-      nowMs,
+    ["no t= element", `v1=${hmacHex(rawBody, timestamp)}`],
+    ["no v1= element", `t=${timestamp}`],
+    ["a bare signature", hmacHex(rawBody, timestamp)],
+    ["an empty value", ""],
+  ])("rejects a header with %s", (_label, header) => {
+    expect(verify(header)).toEqual({
+      valid: false,
+      reason: "malformed signature header",
     });
-    expect(result.valid).toBe(false);
   });
 
   it("rejects a malformed timestamp", () => {
-    const result = verifyChbSignature({
-      rawBody,
-      signature: sign(rawBody, "not-a-number"),
-      timestamp: "not-a-number",
-      secret: SECRET,
-      nowMs,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe("malformed timestamp");
+    const result = verify(signatureHeader(rawBody, "not-a-number"));
+    expect(result).toEqual({ valid: false, reason: "malformed timestamp" });
   });
 });
 
@@ -185,19 +199,16 @@ describe("chbWebhookHandler", () => {
     return new NextRequest("http://localhost/api/billing/clickhouse-webhook", {
       method: "POST",
       body: rawBody,
-      headers: {
-        "chb-signature": sign(rawBody, timestamp),
-        "chb-timestamp": timestamp,
-      },
+      headers: { "x-chb-signature": signatureHeader(rawBody, timestamp) },
     });
   };
 
   const bundleCreated = (payment?: Record<string, unknown>) => ({
-    id: "evt_1",
+    eventId: "evt_1",
     type: "bundle.created",
-    createdAt: "2026-07-01T00:00:00Z",
-    organizationId: CHB_ORG_ID,
+    occurredAt: "2026-07-01T00:00:00Z",
     data: {
+      organizationId: CHB_ORG_ID,
       bundleId: "bundle_1",
       planCode: "pro",
       startDate: "2026-07-01T00:00:00Z",
@@ -307,6 +318,63 @@ describe("chbWebhookHandler", () => {
 
   it("ignores an org that belongs to another region", async () => {
     mocks.findOrg.mockResolvedValue(null);
+
+    const response = await chbWebhookHandler(
+      post(bundleCreated({ status: "active" })),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateOrg).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request without the signature header", async () => {
+    const response = await chbWebhookHandler(
+      new NextRequest("http://localhost/api/billing/clickhouse-webhook", {
+        method: "POST",
+        body: JSON.stringify(bundleCreated({ status: "active" })),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      message: "Webhook error: missing signature header",
+    });
+    // Nothing downstream runs on an unverified body, not even the dedupe claim.
+    expect(mocks.redisSet).not.toHaveBeenCalled();
+  });
+
+  it("rejects an envelope without data.organizationId", async () => {
+    const event = bundleCreated({ status: "active" });
+    const response = await chbWebhookHandler(
+      post({ ...event, data: { ...event.data, organizationId: undefined } }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      message: "Webhook error: invalid payload",
+    });
+    expect(mocks.findOrg).not.toHaveBeenCalled();
+  });
+
+  it("persists data.organizationId and occurredAt on the clickhouse block", async () => {
+    await chbWebhookHandler(post(bundleCreated({ status: "active" })));
+
+    expect(orgColumnsOfUpdate().cloudConfig).toMatchObject({
+      clickhouse: {
+        organizationId: CHB_ORG_ID,
+        bundleId: "bundle_1",
+        lastEventCreatedAt: "2026-07-01T00:00:00Z",
+      },
+    });
+  });
+
+  it("drops an event that occurred at or before the last applied one", async () => {
+    mocks.findOrg.mockResolvedValue(
+      orgRow({
+        organizationId: CHB_ORG_ID,
+        lastEventCreatedAt: "2026-07-01T00:00:00Z",
+      }),
+    );
 
     const response = await chbWebhookHandler(
       post(bundleCreated({ status: "active" })),
