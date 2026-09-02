@@ -16,6 +16,7 @@ import {
   LANGFUSE_HOME_DASHBOARD_ID,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
 import { Button } from "@/src/components/ui/button";
 import {
   PlusIcon,
@@ -168,7 +169,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   useEffect(() => {
     if (!dashboardOwner || viewedDashboardRef.current === dashboardId) return;
     viewedDashboardRef.current = dashboardId;
-    capture("dashboard:view", { dashboardId, owner: dashboardOwner });
+    capture("dashboard:view", {
+      dashboardId,
+      owner: dashboardOwner,
+      ...dashboardTemplateProps(dashboardId),
+    });
   }, [capture, dashboardId, dashboardOwner]);
 
   // Access for cloning (independent of dashboard owner)
@@ -1101,7 +1106,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const mutateCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard", { source: "detail_clone_button" });
+      capture("dashboard:clone_dashboard", {
+        source: "detail_clone_button",
+        dashboardId,
+        owner: dashboardOwner,
+        ...dashboardTemplateProps(dashboardId),
+      });
       // Redirect to new dashboard
       if (data?.id) {
         router.replace(
@@ -1293,6 +1303,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         capture("dashboard:home_dashboard_set_default", {
                           dashboard_id: dashboardId,
                           source: "detail_menu",
+                          ...dashboardTemplateProps(dashboardId),
                         });
                         setHomeDashboard.mutate({
                           projectId,

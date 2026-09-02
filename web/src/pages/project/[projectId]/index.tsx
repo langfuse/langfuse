@@ -10,6 +10,7 @@ import {
   type ColumnDefinition,
   type FilterState,
 } from "@langfuse/shared";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -183,7 +184,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     : (homeDashboard.data?.dashboard ?? null);
   const dashboardId =
     displayedDashboard?.id ?? peekId ?? LANGFUSE_HOME_DASHBOARD_ID;
-  const dashboardName = displayedDashboard?.name ?? "Langfuse Home";
+  const dashboardName = displayedDashboard?.name ?? "Home";
   const dashboardOwner = displayedDashboard?.owner ?? "LANGFUSE";
   // Show a loading state until the home resolution (or peek fetch) settles —
   // rendering the curated fallback early would flash the wrong layout and
@@ -221,6 +222,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       dashboard_owner: displayedDashboard.owner,
       is_peek: Boolean(peekId),
       is_curated_default: !peekId && !homeDashboard.data?.homeDashboardId,
+      ...dashboardTemplateProps(displayedDashboard.id),
     });
   }, [
     displayedDashboard,
@@ -319,6 +321,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   capture("dashboard:home_dashboard_peeked", {
                     dashboard_id: id,
                     is_default: id === appliedDefaultId,
+                    ...dashboardTemplateProps(id),
                   });
                   setPeekId(id === appliedDefaultId ? null : id);
                 }}
@@ -333,6 +336,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                     capture("dashboard:home_dashboard_set_default", {
                       dashboard_id: dashboardId,
                       source: "home_selector",
+                      ...dashboardTemplateProps(dashboardId),
                     });
                     setHomeDashboard.mutate({
                       projectId,

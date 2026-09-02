@@ -116,6 +116,11 @@ export class DashboardService {
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
         where,
+        include: {
+          createdByUser: {
+            select: { name: true, email: true },
+          },
+        },
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
           : [{ updatedAt: "desc" }],
@@ -131,6 +136,10 @@ export class DashboardService {
       DashboardDomainSchema.parse({
         ...dashboard,
         owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+        createdByName:
+          dashboard.createdByUser?.name ??
+          dashboard.createdByUser?.email ??
+          (dashboard.projectId ? null : "Langfuse"),
       }),
     );
 

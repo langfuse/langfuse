@@ -7,7 +7,6 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
-import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -23,6 +22,11 @@ import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
 import { useRouter } from "next/router";
+import { dashboardTemplateProps } from "@/src/features/dashboard/utils/dashboardTemplateProps";
+import { formatDashboardModified } from "@/src/features/dashboard/utils/formatDashboardModified";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 type DashboardTableRow = {
   id: string;
@@ -30,6 +34,7 @@ type DashboardTableRow = {
   description: string;
   createdAt: Date;
   updatedAt: Date;
+  createdByName?: string | null;
   owner: "PROJECT" | "LANGFUSE";
 };
 
@@ -56,6 +61,7 @@ function CloneDashboardButton({
         source: "list_clone_button",
         dashboardId,
         owner,
+        ...dashboardTemplateProps(dashboardId),
       });
       showSuccessToast({
         title: "Dashboard cloned",
@@ -264,17 +270,35 @@ export function DashboardTable() {
         );
       },
     }),
-    createDateTableColumn<DashboardTableRow>({
-      accessorKey: "createdAt",
-      header: "Created At",
-      enableSorting: true,
+    createUserTableColumn<DashboardTableRow, { name: string }>({
+      accessorFn: (row) =>
+        row.createdByName ? { name: row.createdByName } : undefined,
+      id: "createdByName",
+      header: "Created by",
       size: 150,
+      variant: "text",
+      emptyValue: "API",
     }),
-    createDateTableColumn<DashboardTableRow>({
+    createTableColumn<DashboardTableRow, Date>({
       accessorKey: "updatedAt",
-      header: "Updated At",
+      header: "Modified",
       enableSorting: true,
-      size: 150,
+      size: 160,
+      loadingCell: <Skeleton className="h-8 w-2/3" />,
+      renderCell: (_value, { row }) => {
+        const { updatedRelative, createdAbsolute } = formatDashboardModified(
+          row.original.updatedAt,
+          row.original.createdAt,
+        );
+        return (
+          <div className="flex flex-col">
+            <span>{updatedRelative}</span>
+            <span className="text-muted-foreground text-xs">
+              {createdAbsolute}
+            </span>
+          </div>
+        );
+      },
     }),
     createDropdownTableColumn<DashboardTableRow, string>({
       id: "actions",

@@ -14,4 +14,20 @@ describe("langfuse template dashboards", () => {
     });
     expect(widget?.description).not.toMatch(/observations that called/i);
   });
+
+  it("uses the short template dashboard titles", () => {
+    const titles = Object.fromEntries(
+      langfuseDashboards.dashboards.map((dashboard) => [
+        dashboard.id,
+        dashboard.name,
+      ]),
+    );
+
+    expect(titles).toMatchObject({
+      cmawoi7yd00aqad07f3why08w: "Cost Tracking",
+      cmawk4ywj00jmad072jn7s0ru: "Latency Tracking",
+      cmawln8k700xqad07000k1q8b: "Usage Management",
+      cmtdm68000006ad07dzdb73zw: "Tool Usage",
+    });
+  });
 });
