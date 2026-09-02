@@ -5,9 +5,10 @@ import * as React from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { cn } from "@/src/utils/tailwind";
 
-type RadioGroupProps = React.ComponentPropsWithoutRef<
-  typeof RadioGroupPrimitive.Root
->;
+type RadioGroupProps = Omit<
+  React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
+  "className"
+> & { className?: "grid grid-cols-3 gap-2" | "flex flex-col space-y-1" };
 
 const RadioGroup = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
