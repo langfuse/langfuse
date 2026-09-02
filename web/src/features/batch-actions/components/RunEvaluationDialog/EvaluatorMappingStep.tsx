@@ -6,8 +6,8 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import {
   EvaluatorAssignmentsEditor,
   type RuleEvaluatorOption,
-  type RuleSetupStore,
 } from "@/src/features/evals";
+import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
 export function EvaluatorMappingStep({
   store,
