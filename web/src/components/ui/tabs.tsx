@@ -33,7 +33,7 @@ type TabsTriggerProps = Omit<
   value: string;
   className?:
     | "h-5 px-1 text-xs"
-    | "h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+    | "h-5 w-full px-1 text-xs"
     | "h-5 px-2 text-xs"
     | "min-w-[100px]"
     | "min-w-[100px] gap-1.5"
@@ -59,7 +59,7 @@ function TabsTrigger({
       disabled={disabled}
       title={title}
       className={cn(
-        "ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex h-6 items-center justify-center rounded-sm px-2 py-0.5 text-sm font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-xs",
+        "ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex h-6 items-center justify-center rounded-sm px-2 py-0.5 text-sm font-bold whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=active]:shadow-xs",
         className,
       )}
     >

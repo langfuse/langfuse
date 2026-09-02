@@ -1882,7 +1882,7 @@ function CategoricalSelectContent({
                     <TabsTrigger
                       value="none of"
                       disabled={operator === undefined}
-                      className="h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-5 w-full px-1 text-xs"
                     >
                       None of
                     </TabsTrigger>
