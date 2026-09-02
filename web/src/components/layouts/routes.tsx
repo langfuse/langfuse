@@ -68,6 +68,7 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     isLangfuseCloud: boolean;
+    hasActiveCloudIncident: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
@@ -214,6 +215,8 @@ export const ROUTES: Route[] = [
     title: "Cloud Status",
     section: RouteSection.Secondary,
     pathname: "",
+    show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
+      isLangfuseCloud && hasActiveCloudIncident,
     menuNode: <CloudStatusMenu />,
   },
   {
