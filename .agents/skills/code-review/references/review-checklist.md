@@ -6,11 +6,32 @@ This is the canonical shared review checklist for Langfuse.
 
 ### ClickHouse
 
-- ClickHouse migrations in the `packages/shared/clickhouse/migrations/clustered` directory should include `ON CLUSTER default` and should use `Replicated` merge tree table types.
-  - E.g. `ReplacingMergeTree` is likely an error while `ReplicatedReplacingMergeTree` would be correct in most cases.
-- ClickHouse migrations in the `packages/shared/clickhouse/migrations/unclustered` directory must not include `ON CLUSTER` statements and must not use `Replicated` merge tree table types.
-- Migrations in `packages/shared/clickhouse/migrations/clustered` should match their counterparts in `packages/shared/clickhouse/migrations/unclustered` aside from the restrictions listed above.
-- Every metadata `ALTER` (`ADD`/`DROP`/`MODIFY COLUMN`, `ADD`/`DROP INDEX`) in a `clustered` migration must end with `SETTINGS alter_sync = 2`, including files that contain only one `ALTER` — the race is across migration files, not within one. `alter_sync` defaults to `1`, so without it the statement returns once the initiating replica has bumped the table's metadata version, and the next migration file's first `ALTER` on that table can hit a replica still on the old version, aborting the run with `code 517 … Looks like this replica doesn't catchup with latest ALTER query updates`. `SETTINGS mutations_sync = 2` does not substitute for it: that setting governs when mutations finish, not metadata propagation. The `unclustered` counterpart runs against plain `MergeTree` and does not need (and should not duplicate) either setting.
+- `packages/shared/clickhouse/migrations/canonical` is the single canonical
+  migration-template tree for both deployment modes. Every cluster-aware DDL
+  position must use `{CLICKHOUSE_CLUSTER_CLAUSE}` instead of a literal
+  `ON CLUSTER` clause.
+- Use `{CLICKHOUSE_REPLICATION_PREFIX}` only for a table engine that should be
+  replicated in clustered mode and plain in unclustered mode. Do not apply it
+  globally: some tables intentionally use a plain engine in both modes.
+- Every metadata `ALTER` (`ADD`/`DROP`/`MODIFY COLUMN`, `ADD`/`DROP INDEX`) in a
+  new migration must add
+  `{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2}`, including files that
+  contain only one `ALTER` — the race is across migration files, not within
+  one. Mutation-generating statements use
+  `{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS mutations_sync = 2}`. `alter_sync`
+  defaults to `1`, so without it the statement returns once the initiating
+  replica has bumped the table's metadata version, and the next migration
+  file's first `ALTER` on that table can hit a replica still on the old
+  version, aborting the run with `code 517` because the replica metadata
+  version is behind the common metadata version. `mutations_sync` does not
+  substitute for `alter_sync`: it governs mutation completion, not metadata
+  propagation. The renderer omits these fragments in unclustered mode. Do not
+  retrofit these settings into already-shipped migrations solely for
+  consistency; preserve historical output unless a forward fix deliberately
+  changes it.
+- Run `prepareMigrations.test.ts` when migrations or their renderer change. It
+  must render both modes with no unresolved tokens and keep both historical
+  outputs byte-for-byte unchanged.
 - Migrations must not use `CREATE OR REPLACE VIEW` (nor `CREATE OR REPLACE TABLE` / `EXCHANGE TABLES`): the atomic replace requires `renameat2`, which fails on NFS-backed self-hosted deployments such as ClickHouse-on-EFS (GitHub issue #14906). Plain views are redefined with `DROP VIEW IF EXISTS <name>;` followed by `CREATE VIEW <name> AS ...` in the same migration file — the migration runner enables `x-multi-statement=true`, and every statement should stay idempotent (`IF EXISTS` / `IF NOT EXISTS`) so a dirty migration can be re-run.
 - Materialized views must never be dropped and recreated while their source table receives inserts — rows written between `DROP` and `CREATE` are silently and permanently missing from the target table. Redefine the SELECT with `ALTER TABLE <mv> MODIFY QUERY ...` instead, altering the target table(s) first when columns change.
 - For rationale and full patterns, see "Langfuse-Specific Rules" in the [`clickhouse-best-practices`](../../clickhouse-best-practices/SKILL.md) skill.

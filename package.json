@@ -19,6 +19,8 @@
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
+    "ch:migrations:materialize": "pnpm --filter @langfuse/shared run ch:migrations:materialize",
+    "ch:migrations:clean": "pnpm --filter @langfuse/shared run ch:migrations:clean",
     "nuke": "bash ./scripts/nuke.sh",
     "scan:client-bundle": "node scripts/scan-client-bundle.mjs web/.next/static",
     "seed": "pnpm --filter=shared run seed:scenario",
