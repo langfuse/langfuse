@@ -343,18 +343,6 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   </Badge>
 );
 
-/** The chip, or nothing when the loaded text cannot settle the question. */
-const ExpectedMatchVerdict = ({
-  output,
-  expectedOutput,
-}: {
-  output: string | null | undefined;
-  expectedOutput: string | null | undefined;
-}) => {
-  const matches = matchesExpectedOutput(output, expectedOutput);
-  return matches === null ? null : <ExpectedMatchChip matches={matches} />;
-};
-
 /**
  * Cell component that renders stacked output values for each experiment.
  */
@@ -412,6 +400,10 @@ const StackedOutputCell = ({
           experimentId,
           colorExperimentIds ?? allExperimentIds,
         );
+        // null when the loaded text cannot settle the question, so no chip.
+        const expectedMatch = showExpectedLine
+          ? matchesExpectedOutput(out?.output, expectedOutput)
+          : null;
         return (
           <div
             key={experimentId}
@@ -428,12 +420,9 @@ const StackedOutputCell = ({
                 markerClass={colorStyles.markerClass}
                 singleLine={singleLine}
                 chip={
-                  showExpectedLine ? (
-                    <ExpectedMatchVerdict
-                      output={out.output}
-                      expectedOutput={expectedOutput}
-                    />
-                  ) : undefined
+                  expectedMatch === null ? undefined : (
+                    <ExpectedMatchChip matches={expectedMatch} />
+                  )
                 }
               />
             ) : (
@@ -1001,43 +990,45 @@ export default function ExperimentItemsTable({
                     summary={summary}
                     comparisonName={primaryComparisonName}
                     filterMenu={
-                      <ScoreColumnFilterMenu
-                        targets={comparisonTargets}
-                        hasOrder={dataType !== "CATEGORICAL"}
-                        active={activeComparisonFilter}
-                        onSelect={(operator, comparisonExperimentId) => {
-                          if (!key) return;
-                          const nextFilter = {
-                            level,
-                            scoreKey: key,
-                            operator,
-                            comparisonExperimentId,
-                          };
-                          captureScoreComparisonFilter({
-                            filter: nextFilter,
-                            dataType,
-                            source: "header_menu",
-                          });
-                          setScoreComparisonFilter(nextFilter);
-                        }}
-                        onClear={() =>
-                          activeComparisonFilter &&
-                          removeScoreComparisonFilter(activeComparisonFilter)
-                        }
-                      >
-                        {({ Trigger }) => (
-                          // The header cell sorts on click, so opening the menu
-                          // must not also reorder the table.
-                          <Trigger
-                            asChild
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <ScoreColumnFilterMenuTrigger
-                              isActive={Boolean(activeComparisonFilter)}
-                            />
-                          </Trigger>
-                        )}
-                      </ScoreColumnFilterMenu>
+                      comparisonTargets.length === 0 ? undefined : (
+                        <ScoreColumnFilterMenu
+                          targets={comparisonTargets}
+                          hasOrder={dataType !== "CATEGORICAL"}
+                          active={activeComparisonFilter}
+                          onSelect={(operator, comparisonExperimentId) => {
+                            if (!key) return;
+                            const nextFilter = {
+                              level,
+                              scoreKey: key,
+                              operator,
+                              comparisonExperimentId,
+                            };
+                            captureScoreComparisonFilter({
+                              filter: nextFilter,
+                              dataType,
+                              source: "header_menu",
+                            });
+                            setScoreComparisonFilter(nextFilter);
+                          }}
+                          onClear={() =>
+                            activeComparisonFilter &&
+                            removeScoreComparisonFilter(activeComparisonFilter)
+                          }
+                        >
+                          {({ Trigger }) => (
+                            // The header cell sorts on click, so opening the menu
+                            // must not also reorder the table.
+                            <Trigger
+                              asChild
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <ScoreColumnFilterMenuTrigger
+                                isActive={Boolean(activeComparisonFilter)}
+                              />
+                            </Trigger>
+                          )}
+                        </ScoreColumnFilterMenu>
+                      )
                     }
                   />
                 ),
@@ -1928,10 +1919,12 @@ export default function ExperimentItemsTable({
         )}
 
         {/* Score comparison filters — evaluated over the loaded page */}
-        <ScoreComparisonFilterPills
-          pills={scoreComparisonPills}
-          onRemove={removeScoreComparisonFilter}
-        />
+        {scoreComparisonPills.length > 0 && (
+          <ScoreComparisonFilterPills
+            pills={scoreComparisonPills}
+            onRemove={removeScoreComparisonFilter}
+          />
+        )}
 
         {/* Filter Pills with Experiment Targeting */}
         {filtersByExperiment.length > 0 && (

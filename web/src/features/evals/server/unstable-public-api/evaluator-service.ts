@@ -25,8 +25,10 @@ import {
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { createStructuredPublicApiError } from "@/src/features/public-api";
-import type { PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
-import { PUBLIC_EVALUATOR_TYPE_CODE } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import {
+  type PostUnstableEvaluatorBodyParsedType,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+} from "@/src/features/public-api/server";
 import {
   toApiEvaluator,
   toStoredOutputDefinition,

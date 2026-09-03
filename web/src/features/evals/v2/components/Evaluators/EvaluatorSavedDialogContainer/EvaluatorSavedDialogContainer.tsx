@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import {
   EvalTemplateType,
   EvalTargetObject,

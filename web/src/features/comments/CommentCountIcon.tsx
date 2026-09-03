@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 // LFE-7628: general comment counts use the square speech bubble, matching the
 // CommentDrawerController, to stay distinct from per-score comment indicators.
 import { MessageSquareMore } from "lucide-react";

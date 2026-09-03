@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
