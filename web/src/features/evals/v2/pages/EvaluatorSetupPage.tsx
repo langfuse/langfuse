@@ -127,6 +127,24 @@ export function getCodeEvaluatorAssistantSampleObservation(
   };
 }
 
+export async function navigateToEvaluatorDetail({
+  projectId,
+  evaluatorId,
+  prefetchEvaluator,
+  prefetchRoute,
+  replace,
+}: {
+  projectId: string;
+  evaluatorId: string;
+  prefetchEvaluator: () => Promise<unknown>;
+  prefetchRoute: (path: string) => Promise<unknown>;
+  replace: (path: string) => Promise<unknown>;
+}) {
+  const path = `/project/${projectId}/evals/${evaluatorId}`;
+  await Promise.allSettled([prefetchEvaluator(), prefetchRoute(path)]);
+  await replace(path);
+}
+
 export function getCodeEvaluatorAssistantPrompt({
   evaluatorId,
   request,
@@ -295,7 +313,7 @@ export function EvaluatorSetupPage(
     projectId,
     evaluatorId: initialEvaluator?.id ?? null,
   });
-  const scoreDataType = initialEvaluator
+  const initialScoreDataType = initialEvaluator
     ? initialEvaluator.definition.type === "LLM_AS_JUDGE"
       ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
           .dataType
@@ -303,6 +321,19 @@ export function EvaluatorSetupPage(
           initialEvaluator.definition.sourceCode,
         )
     : undefined;
+  const [persistedEvaluatorUi, setPersistedEvaluatorUi] = useState(() =>
+    initialEvaluator
+      ? {
+          name: initialEvaluator.name,
+          type: initialEvaluator.type,
+          defaultVariableMapping: initialEvaluator.definition.variableMapping,
+          scoreDataType: initialScoreDataType,
+          blockedAt: initialEvaluator.blockedAt,
+          blockReason: initialEvaluator.blockReason,
+          blockMessage: initialEvaluator.blockMessage,
+        }
+      : null,
+  );
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -474,6 +505,16 @@ export function EvaluatorSetupPage(
         description:
           "The model test succeeded and the evaluator is active again.",
       });
+      setPersistedEvaluatorUi((current) =>
+        current
+          ? {
+              ...current,
+              blockedAt: null,
+              blockReason: null,
+              blockMessage: null,
+            }
+          : current,
+      );
       if (initialEvaluator) {
         await utils.evalsV2.get.invalidate({
           projectId,
@@ -710,6 +751,18 @@ export function EvaluatorSetupPage(
           description,
           definition,
         });
+        setPersistedEvaluatorUi({
+          name,
+          type: state.type,
+          defaultVariableMapping: definition.variableMapping,
+          scoreDataType:
+            state.type === "LLM_AS_JUDGE"
+              ? state.scoreOutput.dataType
+              : getFirstCodeEvaluatorScoreDataType(state.sourceCode),
+          blockedAt: evaluator.blockedAt,
+          blockReason: evaluator.blockReason,
+          blockMessage: evaluator.blockMessage,
+        });
         capture("evaluators:update", {
           evaluatorType: state.type,
           filterExperience,
@@ -724,10 +777,13 @@ export function EvaluatorSetupPage(
           });
         }
         initialSnapshot.current = getCurrentSnapshot(state);
-        await utils.evalsV2.filterOptions.invalidate({ projectId });
-        if (!isAssistantHandoff) {
-          await router.push(`/project/${projectId}/evals/${evaluator.id}`);
-        }
+        await Promise.all([
+          utils.evalsV2.filterOptions.invalidate({ projectId }),
+          utils.evalsV2.versions.invalidate({
+            projectId,
+            evaluatorId: evaluator.id,
+          }),
+        ]);
         return evaluator.id;
       }
 
@@ -772,7 +828,17 @@ export function EvaluatorSetupPage(
         return evaluator.id;
       }
       if (!shouldOfferRuleAttachment(evaluator)) {
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        await navigateToEvaluatorDetail({
+          projectId,
+          evaluatorId: evaluator.id,
+          prefetchEvaluator: () =>
+            utils.evalsV2.get.prefetch({
+              projectId,
+              evaluatorId: evaluator.id,
+            }),
+          prefetchRoute: (path) => router.prefetch(path),
+          replace: (path) => router.replace(path),
+        });
         return evaluator.id;
       }
       setSavedEvaluator({
@@ -842,9 +908,17 @@ export function EvaluatorSetupPage(
     }
 
     if (props.mode === "create") {
-      await router.replace(
-        `/project/${projectId}/evals/${handoff.evaluatorId}`,
-      );
+      await navigateToEvaluatorDetail({
+        projectId,
+        evaluatorId: handoff.evaluatorId,
+        prefetchEvaluator: () =>
+          utils.evalsV2.get.prefetch({
+            projectId,
+            evaluatorId: handoff.evaluatorId,
+          }),
+        prefetchRoute: (path) => router.prefetch(path),
+        replace: (path) => router.replace(path),
+      });
     }
 
     return handoff.started;
@@ -968,49 +1042,50 @@ export function EvaluatorSetupPage(
         breadcrumb: [
           { name: "Evaluators", href: `/project/${projectId}/evals` },
         ],
-        actionButtonsRight: initialEvaluator ? (
-          <div className="flex gap-2">
-            <EvaluatorRuleRelationships
-              projectId={projectId}
-              evaluatorId={initialEvaluator.id}
-              evaluatorName={initialEvaluator.name}
-              evaluatorType={initialEvaluator.type}
-              evaluatorDefaultVariableMapping={
-                initialEvaluator.definition.variableMapping
-              }
-            />
-            <EvaluatorAlertButton
-              scope="evaluator"
-              projectId={projectId}
-              evaluatorId={initialEvaluator.id}
-              evaluatorType={initialEvaluator.type}
-              scoreDataType={scoreDataType}
-              {...evaluatorAlerts}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              title="View version history"
-              onClick={() => {
-                capture("evaluators:version_history_interaction", {
-                  action: "open",
-                });
-                setHistoryOpen(true);
-              }}
-            >
-              <History className="mr-2 h-4 w-4" />
-              Version history
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              title="Delete evaluator"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="text-destructive h-4 w-4" />
-            </Button>
-          </div>
-        ) : undefined,
+        actionButtonsRight:
+          initialEvaluator && persistedEvaluatorUi ? (
+            <div className="flex gap-2">
+              <EvaluatorRuleRelationships
+                projectId={projectId}
+                evaluatorId={initialEvaluator.id}
+                evaluatorName={persistedEvaluatorUi.name}
+                evaluatorType={persistedEvaluatorUi.type}
+                evaluatorDefaultVariableMapping={
+                  persistedEvaluatorUi.defaultVariableMapping
+                }
+              />
+              <EvaluatorAlertButton
+                scope="evaluator"
+                projectId={projectId}
+                evaluatorId={initialEvaluator.id}
+                evaluatorType={persistedEvaluatorUi.type}
+                scoreDataType={persistedEvaluatorUi.scoreDataType}
+                {...evaluatorAlerts}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                title="View version history"
+                onClick={() => {
+                  capture("evaluators:version_history_interaction", {
+                    action: "open",
+                  });
+                  setHistoryOpen(true);
+                }}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Version history
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                title="Delete evaluator"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="text-destructive h-4 w-4" />
+              </Button>
+            </div>
+          ) : undefined,
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
@@ -1018,23 +1093,24 @@ export function EvaluatorSetupPage(
           timeRange={timeRange}
           setTimeRange={setTimeRange}
         />
-        {initialEvaluator?.blockedAt ? (
+        {persistedEvaluatorUi?.blockedAt ? (
           <div className="mx-3 mt-3">
             <EvaluatorBlockedBanner
               projectId={projectId}
-              blockedAt={initialEvaluator.blockedAt}
-              blockReason={initialEvaluator.blockReason}
-              blockMessage={initialEvaluator.blockMessage}
+              blockedAt={persistedEvaluatorUi.blockedAt}
+              blockReason={persistedEvaluatorUi.blockReason}
+              blockMessage={persistedEvaluatorUi.blockMessage}
               canReactivate={canReactivate}
               reactivationPending={reactivate.isPending}
               onReactivate={() => {
                 capture("evaluators:reactivate", {
                   blockReason:
-                    initialEvaluator.blockReason ?? "EVAL_MODEL_CONFIG_INVALID",
+                    persistedEvaluatorUi.blockReason ??
+                    "EVAL_MODEL_CONFIG_INVALID",
                 });
                 reactivate.mutate({
                   projectId,
-                  evaluatorId: initialEvaluator.id,
+                  evaluatorId,
                 });
               }}
             />
@@ -1091,7 +1167,7 @@ export function EvaluatorSetupPage(
         <EvaluatorVersionHistorySheet
           open={historyOpen}
           onOpenChange={setHistoryOpen}
-          evaluatorName={initialEvaluator.name}
+          evaluatorName={persistedEvaluatorUi?.name ?? initialEvaluator.name}
           versions={versions}
           currentVersionId={versions[0]?.id ?? ""}
           defaultModel={projectDefaultModel.defaultModel}
