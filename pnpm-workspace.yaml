@@ -22,6 +22,8 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+# Keep pnpm itself out of the workspace lockfile's dependency graph.
+pmOnFail: ignore
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 # minimumReleaseAgeExclude:
@@ -123,6 +125,15 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # Temporary exact exceptions for the pnpm 12 migration.
+  - '@pnpm/exe.darwin-arm64@12.3.1'
+  - '@pnpm/exe.darwin-x64@12.3.1'
+  - '@pnpm/exe.linux-arm64@12.3.1'
+  - '@pnpm/exe.linux-arm64-musl@12.3.1'
+  - '@pnpm/exe.linux-x64@12.3.1'
+  - '@pnpm/exe.linux-x64-musl@12.3.1'
+  - '@pnpm/exe.win32-arm64@12.3.1'
+  - '@pnpm/exe.win32-x64@12.3.1'
   - '@next/env@16.3.3'
   - '@next/eslint-plugin-next@16.3.3'
   - '@next/swc-darwin-arm64@16.3.3'
@@ -134,4 +145,5 @@ minimumReleaseAgeExclude:
   - '@next/swc-win32-arm64-msvc@16.3.3'
   - '@next/swc-win32-x64-msvc@16.3.3'
   - next@16.3.3
+  - pnpm@12.3.1
   - qs@6.16.0
