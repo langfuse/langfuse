@@ -115,7 +115,9 @@ export const ExpandToolCall = meta.story({
   args: ToolCall.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: /Tool call:/i }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: /search_documentation/i }),
+    );
     await expect(canvas.getByText("call-search-1")).toBeVisible();
   },
 });

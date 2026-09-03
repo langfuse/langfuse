@@ -42,8 +42,8 @@ const observation = {
   name: "Generate answer",
   type: "GENERATION",
   startTime: new Date("2026-01-01T12:00:00.000Z"),
-  input: [{ role: "user", content: "How does it work?" }],
-  output: {
+  input: JSON.stringify([{ role: "user", content: "How does it work?" }]),
+  output: JSON.stringify({
     role: "assistant",
     content: "It uses normalized messages.",
     tool_calls: [
@@ -53,8 +53,9 @@ const observation = {
         function: { name: "search", arguments: '{"query":"parser"}' },
       },
     ],
-  },
+  }),
   metadata: {},
+  latency: 1,
   inputTruncated: false,
   outputTruncated: false,
   metadataTruncated: false,
@@ -72,10 +73,10 @@ const renderTimeline = ({
   render(
     <SessionConversationTimeline
       trace={trace}
+      turnNumber={1}
       state={{
         type: "loaded",
         observations: [timelineObservation],
-        hasMoreObservations: false,
       }}
       showSystemPrompt={showSystemPrompt}
       onOpenTrace={vi.fn()}
@@ -87,16 +88,20 @@ describe("SessionConversationTimeline", () => {
   it("renders observation messages produced by the normalized parser", () => {
     renderTimeline();
 
-    expect(screen.getByText("User")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /turn 1.*trace-1/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Generate answer/i }),
+    ).not.toHaveClass("sr-only");
     expect(screen.getByText("How does it work?")).toBeInTheDocument();
-    expect(screen.getByText("Assistant")).toBeInTheDocument();
     expect(
       screen.getByText("It uses normalized messages."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Tool call: search")).toBeInTheDocument();
+    expect(screen.getByText("search")).toBeInTheDocument();
   });
 
-  it("renders each normalized part type without projecting to ChatML", () => {
+  it("renders supported normalized parts without tool results", () => {
     render(
       <SessionTimelineMessage
         message={{
@@ -118,7 +123,7 @@ describe("SessionConversationTimeline", () => {
     );
 
     expect(screen.getByText("Reasoning")).toBeInTheDocument();
-    expect(screen.getByText("Tool result: search")).toBeInTheDocument();
+    expect(screen.queryByText("search")).not.toBeInTheDocument();
     expect(screen.getByText('{"confidence":0.9}')).toBeInTheDocument();
     expect(screen.getByText(/citation/)).toBeInTheDocument();
   });
@@ -147,7 +152,7 @@ describe("SessionConversationTimeline", () => {
     renderTimeline({
       timelineObservation: {
         ...observation,
-        input: [{ role: "system", content: "Secret prompt" }],
+        input: JSON.stringify([{ role: "system", content: "Secret prompt" }]),
         output: null,
       },
       showSystemPrompt: false,
@@ -172,8 +177,8 @@ describe("SessionConversationTimeline", () => {
     renderTimeline({
       timelineObservation: {
         ...observation,
-        input: 0,
-        output: false,
+        input: "0",
+        output: "false",
         outputTruncated: true,
       },
     });

@@ -25,11 +25,11 @@ const observations = [
     name: "Generate answer",
     type: "GENERATION",
     startTime: new Date("2026-01-01T12:00:00.000Z"),
-    input: [
+    input: JSON.stringify([
       { role: "system", content: "Answer using the product documentation." },
       { role: "user", content: "How does normalized I/O work?" },
-    ],
-    output: {
+    ]),
+    output: JSON.stringify({
       role: "assistant",
       content:
         "Normalized I/O converts provider-specific payloads into one canonical message stream.",
@@ -43,8 +43,9 @@ const observations = [
           },
         },
       ],
-    },
+    }),
     metadata: {},
+    latency: 1.84,
     inputTruncated: false,
     outputTruncated: false,
     metadataTruncated: false,
@@ -54,13 +55,14 @@ const observations = [
     name: "Search documentation",
     type: "TOOL",
     startTime: new Date("2026-01-01T12:00:01.000Z"),
-    input: {
+    input: JSON.stringify({
       role: "tool",
       tool_call_id: "call-search-1",
       content: { matches: 3 },
-    },
+    }),
     output: null,
     metadata: {},
+    latency: 0.42,
     inputTruncated: false,
     outputTruncated: false,
     metadataTruncated: false,
@@ -69,10 +71,10 @@ const observations = [
 
 const loadedArgs = {
   trace,
+  turnNumber: 1,
   state: {
     type: "loaded",
     observations,
-    hasMoreObservations: false,
   },
   showSystemPrompt: true,
   onOpenTrace: fn(),
@@ -131,15 +133,7 @@ export const TruncatedObservation = meta.story({
           outputTruncated: true,
         },
       ],
-      hasMoreObservations: false,
     },
-  },
-});
-
-export const MoreObservations = meta.story({
-  args: {
-    ...loadedArgs,
-    state: { ...loadedArgs.state, hasMoreObservations: true },
   },
 });
 

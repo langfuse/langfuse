@@ -14,7 +14,7 @@ import {
   type ModernSessionSidebarFilterControls,
   type ModernSessionSidebarTrace,
 } from "@/src/components/session/ModernSessionSidebar";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 
 const MODERN_SESSION_OVERSCAN = 5;
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
@@ -175,6 +175,10 @@ export function ModernSession({
     string,
     NonNullable<ModernSessionSidebarTrace["observations"]>
   >();
+  const timelineObservationsByTraceId = new Map<
+    string,
+    RouterOutputs["events"]["all"]["observations"]
+  >();
   const observationIdsByTraceId = new Map<string, Set<string>>();
   const traceIdsWithMatchingTraceLevelIO = new Set<string>();
   for (const query of observationQueries) {
@@ -198,6 +202,9 @@ export function ModernSession({
         );
       }
       const observations = observationsByTraceId.get(observation.traceId);
+      const timelineObservations = timelineObservationsByTraceId.get(
+        observation.traceId,
+      );
       const row = {
         id: observation.id,
         name: observation.name,
@@ -206,6 +213,10 @@ export function ModernSession({
       };
       if (observations) observations.push(row);
       else observationsByTraceId.set(observation.traceId, [row]);
+      if (timelineObservations) timelineObservations.push(observation);
+      else {
+        timelineObservationsByTraceId.set(observation.traceId, [observation]);
+      }
     }
   }
 
@@ -310,6 +321,9 @@ export function ModernSession({
     setSearch(nextSearch);
     debouncedSetSearchQuery(nextSearch.trim());
   };
+  const sidebarTraceById = new Map(
+    sidebarTraces.map((sidebarTrace) => [sidebarTrace.trace.id, sidebarTrace]),
+  );
 
   const toggleTraceExpanded = (traceId: string) => {
     setCollapsedTraceIds((current) => {
@@ -433,12 +447,20 @@ export function ModernSession({
             {virtualItems.map((virtualItem) => {
               const trace = traces[virtualItem.index];
               if (!trace) return null;
+              const sidebarTrace = sidebarTraceById.get(trace.id);
+              const timelineObservations =
+                sidebarTrace?.observations === null
+                  ? null
+                  : sidebarTrace?.observations === undefined
+                    ? undefined
+                    : (timelineObservationsByTraceId.get(trace.id) ?? []);
 
               const content = (
                 <ConnectedSessionConversationTimeline
                   trace={trace}
+                  turnNumber={virtualItem.index + 1}
                   projectId={projectId}
-                  sessionId={sessionId}
+                  observations={timelineObservations}
                   openPeek={openPeek}
                   filterState={filterState}
                   viewLabel={viewLabel}

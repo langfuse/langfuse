@@ -4,15 +4,25 @@ import {
   type NormalizedMessage,
 } from "@langfuse/shared/src/utils/normalized-io";
 
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { type RouterOutputs } from "@/src/utils/api";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 
-type SessionObservation =
-  RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
+type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
+type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
+type SessionObservation = Omit<
+  EventObservation,
+  "input" | "output" | "metadata"
+> &
+  Pick<EventObservationIO, "input" | "output" | "metadata"> & {
+    inputTruncated?: boolean;
+    outputTruncated?: boolean;
+    metadataTruncated?: boolean;
+  };
 
 type SessionConversationTimelineState =
   | { type: "loading" }
@@ -21,7 +31,6 @@ type SessionConversationTimelineState =
   | {
       type: "loaded";
       observations: readonly SessionObservation[];
-      hasMoreObservations: boolean;
     };
 
 const toPreviewText = (value: unknown) =>
@@ -102,34 +111,44 @@ function SessionTimelineObservation({
   const visibleMessages =
     parsed.type === "loaded"
       ? parsed.messages.filter(
-          (message) => showSystemPrompt || message.role !== "system",
+          (message) =>
+            (showSystemPrompt || message.role !== "system") &&
+            message.parts.some((part) => part.type !== "tool-result"),
         )
       : [];
+  const hasTimelineContent =
+    parsed.type === "loaded" &&
+    parsed.messages.some((message) =>
+      message.parts.some((part) => part.type !== "tool-result"),
+    );
 
   return (
     <section
       data-session-observation-id={observation.id}
-      className="grid scroll-mt-16 gap-3 md:grid-cols-[8rem_minmax(0,1fr)]"
+      className="flex scroll-mt-16 flex-col gap-3"
     >
       <button
         type="button"
         onClick={onOpenInTraceView}
-        className="group flex min-w-0 items-start gap-2 text-left md:flex-col md:gap-1"
+        className="group -ml-1 flex min-w-0 items-center gap-2 self-start rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <ItemBadge type={observation.type ?? "EVENT"} isSmall />
-          <span
-            className="truncate text-xs font-bold group-hover:underline"
-            title={observation.name ?? "Observation"}
-          >
-            {observation.name ?? "Observation"}
-          </span>
+        {renderFilterIcon(observation.type ?? "EVENT")}
+        <span
+          className="min-w-0 truncate text-xs font-bold group-hover:underline"
+          title={observation.name ?? observation.id}
+        >
+          {observation.name ?? observation.id}
         </span>
+        {observation.latency !== null && observation.type !== "EVENT" ? (
+          <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
+            {formatIntervalSeconds(observation.latency)}
+          </span>
+        ) : null}
         <time className="text-muted-foreground shrink-0 font-mono text-[10px]">
           {observation.startTime.toLocaleTimeString()}
         </time>
       </button>
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-3">
         {observation.metadataTruncated && !isTruncated ? (
           <p className="text-muted-foreground text-xs">
             Metadata was omitted because it is too large. Messages are parsed
@@ -150,18 +169,18 @@ function SessionTimelineObservation({
               Open trace
             </Button>
           </div>
-        ) : visibleMessages.length === 0 ? (
-          <div className="text-muted-foreground rounded-lg border border-dashed p-3 text-xs">
-            No conversational content
-          </div>
-        ) : (
+        ) : visibleMessages.length > 0 ? (
           visibleMessages.map((message, index) => (
             <SessionTimelineMessage
               key={message.id ?? `${message.source}-${message.role}-${index}`}
               message={message}
             />
           ))
-        )}
+        ) : parsed.messages.length === 0 || hasTimelineContent ? (
+          <div className="text-muted-foreground rounded-lg border border-dashed p-3 text-xs">
+            No conversational content
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -169,42 +188,31 @@ function SessionTimelineObservation({
 
 export function SessionConversationTimeline({
   trace,
+  turnNumber,
   state,
   showSystemPrompt,
   onOpenTrace,
   onOpenObservation,
 }: {
   trace: EventSessionTrace;
+  turnNumber: number;
   state: SessionConversationTimelineState;
   showSystemPrompt: boolean;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
 }) {
   return (
-    <div className="px-4 pb-12 sm:px-6 lg:px-10">
-      <div className="bg-card/95 sticky top-0 z-10 -mx-4 mb-5 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+    <div className="px-4 pb-14 sm:px-6 lg:px-10">
+      <div className="mb-6 flex items-center gap-4 pt-5">
         <button
           type="button"
-          className="group flex min-w-0 items-center gap-2 text-left"
+          className="text-muted-foreground hover:text-foreground ph-no-capture shrink-0 font-mono text-xs transition-colors"
           onClick={onOpenTrace}
+          title={`${trace.name ?? "Trace"} (${trace.id})`}
         >
-          <ItemBadge type="TRACE" isSmall />
-          <span
-            className="truncate text-sm font-bold group-hover:underline"
-            title={trace.name ?? "Trace"}
-          >
-            {trace.name ?? "Trace"}
-          </span>
-          <span
-            className="text-muted-foreground hidden truncate font-mono text-[10px] xl:inline"
-            title={trace.id}
-          >
-            {trace.id}
-          </span>
+          turn {turnNumber} · {trace.id}
         </button>
-        <time className="text-muted-foreground shrink-0 text-xs">
-          {trace.timestamp.toLocaleString()}
-        </time>
+        <div className="border-border min-w-0 flex-1 border-t border-dashed" />
       </div>
 
       {state.type === "loading" ? (
@@ -218,7 +226,7 @@ export function SessionConversationTimeline({
           {state.message}
         </div>
       ) : (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-5">
           {state.observations.map((observation) => (
             <SessionTimelineObservation
               key={observation.id}
@@ -227,15 +235,6 @@ export function SessionConversationTimeline({
               onOpenInTraceView={() => onOpenObservation(observation.id)}
             />
           ))}
-          {state.hasMoreObservations ? (
-            <button
-              type="button"
-              className="text-primary self-start text-xs underline underline-offset-2"
-              onClick={onOpenTrace}
-            >
-              Open the trace to see remaining observations
-            </button>
-          ) : null}
         </div>
       )}
     </div>
