@@ -3,11 +3,11 @@ import type { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import type {
-  GetCommentV1Query,
-  GetCommentsV1Query,
-  PostCommentsV1Body,
-} from "@/src/features/public-api/types/comments";
+import {
+  type GetCommentV1Query,
+  type GetCommentsV1Query,
+  type PostCommentsV1Body,
+} from "@/src/features/public-api/server";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 

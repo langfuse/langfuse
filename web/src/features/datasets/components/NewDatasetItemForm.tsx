@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
@@ -21,7 +21,7 @@ import {
   useCallback,
   type RefObject,
 } from "react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";

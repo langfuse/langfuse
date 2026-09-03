@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { PlusCircle } from "lucide-react";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";

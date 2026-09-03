@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
 import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
