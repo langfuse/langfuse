@@ -16,9 +16,11 @@ FROM mcr.microsoft.com/devcontainers/universal:6-noble
 COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
 
 # Activate the repo's pinned pnpm through a Corepack release compatible with pnpm 12.
+# Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
+ARG NODE_USE_ENV_PROXY
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && NODE_USE_ENV_PROXY=1 corepack prepare pnpm@11.22.0 --activate
+    && corepack prepare pnpm@11.22.0 --activate
 
 # Install Clickhouse
 RUN curl https://clickhouse.com/ | sh && \
