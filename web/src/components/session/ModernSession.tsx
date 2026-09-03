@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
-import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
+import { SessionConversationTimelineTurn } from "@/src/components/session/SessionConversationTimeline";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
@@ -32,11 +32,9 @@ type ModernSessionProps = {
   sessionMinTimestamp: Date;
   sessionMaxTimestamp: Date;
   openPeek: OpenPeek;
-  traceCommentCounts: Map<string, number> | undefined;
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
-  showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
   onFilterObservationByName: (
@@ -52,11 +50,9 @@ export function ModernSession({
   sessionMinTimestamp,
   sessionMaxTimestamp,
   openPeek,
-  traceCommentCounts,
   filterState,
   filterMeasurementKey,
   viewLabel,
-  showInlineToolCalls,
   showSystemPrompt,
   sidebarFilterControls,
   onFilterObservationByName,
@@ -439,17 +435,13 @@ export function ModernSession({
               if (!trace) return null;
 
               const content = (
-                <LazySessionTraceEventsRow
+                <SessionConversationTimelineTurn
                   trace={trace}
                   projectId={projectId}
                   sessionId={sessionId}
                   openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts}
-                  index={virtualItem.index}
                   filterState={filterState}
                   viewLabel={viewLabel}
-                  surface="modern"
-                  contentMode={showInlineToolCalls ? "all" : "conversation"}
                   showSystemPrompt={showSystemPrompt}
                 />
               );
@@ -458,7 +450,7 @@ export function ModernSession({
                 <SessionVirtualizedRow
                   key={virtualItem.key}
                   itemKey={String(virtualItem.key)}
-                  measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
+                  measurementKey={`${String(virtualItem.key)}:${showSystemPrompt}:${filterMeasurementKey}`}
                   source="modern"
                   virtualItem={virtualItem}
                   virtualizer={virtualizer}

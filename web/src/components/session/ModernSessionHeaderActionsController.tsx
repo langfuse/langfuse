@@ -20,22 +20,14 @@ export function ModernSessionHeaderActionsController({
   projectId,
   sessionId,
   isPublic,
-  showCorrections,
-  showInlineToolCalls,
   showSystemPrompt,
-  onShowCorrectionsChange,
-  onShowInlineToolCallsChange,
   onShowSystemPromptChange,
   children,
 }: {
   projectId: string;
   sessionId: string;
   isPublic: boolean;
-  showCorrections: boolean;
-  showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
-  onShowCorrectionsChange: (isEnabled: boolean) => void;
-  onShowInlineToolCallsChange: (isEnabled: boolean) => void;
   onShowSystemPromptChange: (isEnabled: boolean) => void;
   children: ReactNode;
 }) {
@@ -81,24 +73,6 @@ export function ModernSessionHeaderActionsController({
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>Display</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            <DropdownMenuCheckboxItem
-              checked={showCorrections}
-              onClick={(event) => {
-                event.preventDefault();
-                onShowCorrectionsChange(!showCorrections);
-              }}
-            >
-              Show corrections
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={showInlineToolCalls}
-              onClick={(event) => {
-                event.preventDefault();
-                onShowInlineToolCallsChange(!showInlineToolCalls);
-              }}
-            >
-              Show tool calls
-            </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={showSystemPrompt}
               onClick={(event) => {
