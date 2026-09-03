@@ -216,7 +216,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const costObservationCount = getBatchEvalCostObservationCount({
     displayCount,
     sourceTable,
-    experimentCount: experimentItemsExperimentCount,
   });
   const mappingRunDisabledReason =
     selectedCount === 0
@@ -386,7 +385,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 }))}
                 hideCount={sourceTable !== SourceTable.EVENTS}
                 sourceTable={sourceTable}
-                experimentCount={experimentItemsExperimentCount}
               />
             )}
           </DialogBody>

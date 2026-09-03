@@ -36,12 +36,11 @@ describe("getBatchEvalCostObservationCount", () => {
     ).toBe(12);
   });
 
-  it("multiplies experiment items by the experiment count", () => {
+  it("uses the already-expanded observation count for experiment items", () => {
     expect(
       getBatchEvalCostObservationCount({
-        displayCount: 4,
+        displayCount: 12,
         sourceTable: BatchEvalSourceTable.EXPERIMENT_ITEMS,
-        experimentCount: 3,
       }),
     ).toBe(12);
   });

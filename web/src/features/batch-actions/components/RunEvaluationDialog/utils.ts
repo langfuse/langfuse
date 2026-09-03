@@ -87,21 +87,17 @@ export function renderPromptPreviewFromObservation(params: {
 /**
  * Observations this batch will score, or null when the count cannot be known
  * up front (experiment-scoped runs).
+ *
+ * `displayCount` is already the observation count for experiment items:
+ * callers expand selected rows / select-all totals across experiments.
  */
 export function getBatchEvalCostObservationCount(params: {
   displayCount: number;
   sourceTable: BatchEvalSourceTable;
-  experimentCount?: number;
 }): number | null {
-  const { displayCount, sourceTable, experimentCount } = params;
+  const { displayCount, sourceTable } = params;
   if (sourceTable === BatchEvalSourceTable.EXPERIMENTS) {
     return null;
-  }
-  if (
-    sourceTable === BatchEvalSourceTable.EXPERIMENT_ITEMS &&
-    experimentCount
-  ) {
-    return displayCount * experimentCount;
   }
   return displayCount;
 }

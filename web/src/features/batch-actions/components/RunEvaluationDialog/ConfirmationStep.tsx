@@ -11,23 +11,14 @@ type ConfirmationStepProps = {
   evaluators: Array<{ id: string; name: string }>;
   hideCount: boolean;
   sourceTable: BatchEvalSourceTable;
-  experimentCount?: number;
 };
 
 export function ConfirmationStep(props: ConfirmationStepProps) {
-  const {
-    projectId,
-    displayCount,
-    evaluators,
-    hideCount,
-    sourceTable,
-    experimentCount,
-  } = props;
+  const { projectId, displayCount, evaluators, hideCount, sourceTable } = props;
 
   const effectiveObservationCount = getBatchEvalCostObservationCount({
     displayCount,
     sourceTable,
-    experimentCount,
   });
 
   return (
