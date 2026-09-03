@@ -164,9 +164,8 @@ langfuse/
 - Client-bundle soundness: CI scans every prod web build
   (`pnpm run scan:client-bundle`) for minifier-dropped bindings and Node-only
   globals leaking into browser chunks — the SWC dropped-binding class ships
-  runtime-only `ReferenceError`s that dev builds and type checks cannot see
-  (LFE-10645). On failure, `scripts/scan-client-bundle.mjs`'s header explains
-  the canonical fix.
+  runtime-only `ReferenceError`s that dev builds and type checks cannot see. On
+  failure, `scripts/scan-client-bundle.mjs`'s header explains the canonical fix.
 
 End your turn with evidence, not claims: quote each check's summary line —
 e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
