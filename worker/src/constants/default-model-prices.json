@@ -46,7 +46,27 @@
           "output": 17e-6,
           "cache_read_input_tokens": 2.125e-6
         }
+      },
+      {
+        "id": "b9854a5c92dc496b997d99d20_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 4.25e-06,
+          "input_cached_tokens": 2.125e-06,
+          "input_cache_read": 2.125e-06,
+          "output": 1.7e-05
+        }
       }
+    
     ]
   },
   {
@@ -90,7 +110,25 @@
           "input": 8.75e-6,
           "output": 26.25e-6
         }
+      },
+      {
+        "id": "b9854a5c92dc496b997d99d21_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 8.75e-06,
+          "output": 2.625e-05
+        }
       }
+    
     ]
   },
   {
@@ -1651,7 +1689,27 @@
           "input_cache_read": 0.125e-6,
           "cache_read_input_tokens": 0.125e-6
         }
+      },
+      {
+        "id": "clyrjp56f0000t0mzapoocd7u_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 2.5e-07,
+          "output": 1e-06,
+          "input_cached_tokens": 1.25e-07,
+          "input_cache_read": 1.25e-07
+        }
       }
+    
     ]
   },
   {
@@ -1701,7 +1759,27 @@
           "output": 1e-6,
           "cache_read_input_tokens": 0.125e-6
         }
+      },
+      {
+        "id": "clyrjpbe20000t0mzcbwc42rg_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 2.5e-07,
+          "input_cached_tokens": 1.25e-07,
+          "input_cache_read": 1.25e-07,
+          "output": 1e-06
+        }
       }
+    
     ]
   },
   {
@@ -1751,7 +1829,27 @@
           "output": 17e-6,
           "cache_read_input_tokens": 2.125e-6
         }
+      },
+      {
+        "id": "clzjr85f70000ymmzg7hqffra_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 4.25e-06,
+          "input_cached_tokens": 2.125e-06,
+          "input_cache_read": 2.125e-06,
+          "output": 1.7e-05
+        }
       }
+    
     ]
   },
   {
@@ -2043,7 +2141,27 @@
           "output": 17e-6,
           "cache_read_input_tokens": 2.125e-6
         }
+      },
+      {
+        "id": "cm48akqgo000008ldbia24qg0_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 4.25e-06,
+          "input_cached_tokens": 2.125e-06,
+          "input_cache_read": 2.125e-06,
+          "output": 1.7e-05
+        }
       }
+    
     ]
   },
   {
@@ -2437,7 +2555,28 @@
           "output": 14e-6,
           "cache_read_input_tokens": 0.875e-6
         }
+      },
+      {
+        "id": "cm7nusn643377tvmzh27m33kl_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 3.5e-06,
+          "input_cached_tokens": 8.75e-07,
+          "input_cached_text_tokens": 8.75e-07,
+          "input_cache_read": 8.75e-07,
+          "output": 1.4e-05
+        }
       }
+    
     ]
   },
   {
@@ -2489,7 +2628,28 @@
           "output": 14e-6,
           "cache_read_input_tokens": 0.875e-6
         }
+      },
+      {
+        "id": "cm7qahw732891bpmzy45r3x70_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 3.5e-06,
+          "input_cached_tokens": 8.75e-07,
+          "input_cached_text_tokens": 8.75e-07,
+          "input_cache_read": 8.75e-07,
+          "output": 1.4e-05
+        }
       }
+    
     ]
   },
   {
@@ -2541,7 +2701,28 @@
           "output": 2.8e-6,
           "cache_read_input_tokens": 0.175e-6
         }
+      },
+      {
+        "id": "cm7sglt825463kxnza72p6v81_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 7e-07,
+          "input_cached_tokens": 1.75e-07,
+          "input_cached_text_tokens": 1.75e-07,
+          "input_cache_read": 1.75e-07,
+          "output": 2.8e-06
+        }
       }
+    
     ]
   },
   {
@@ -2593,7 +2774,28 @@
           "output": 0.8e-6,
           "cache_read_input_tokens": 0.05e-6
         }
+      },
+      {
+        "id": "cm7vxpz967124dhjtb95w8f92_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 2e-07,
+          "input_cached_tokens": 5e-08,
+          "input_cached_text_tokens": 5e-08,
+          "input_cache_read": 5e-08,
+          "output": 8e-07
+        }
       }
+    
     ]
   },
   {
@@ -2667,7 +2869,29 @@
           "cache_read_input_tokens": 0.25e-6,
           "reasoning_tokens": 4e-6
         }
+      },
+      {
+        "id": "cm7wmny967124dhjtb95w8f81_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 3.5e-06,
+          "input_cached_tokens": 8.75e-07,
+          "input_cache_read": 8.75e-07,
+          "output": 1.4e-05,
+          "output_reasoning_tokens": 1.4e-05,
+          "output_reasoning": 1.4e-05
+        }
       }
+    
     ]
   },
   {
@@ -2741,7 +2965,29 @@
           "cache_read_input_tokens": 0.25e-6,
           "reasoning_tokens": 4e-6
         }
+      },
+      {
+        "id": "cm7wopq3327124dhjtb95w8f81_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 3.5e-06,
+          "input_cached_tokens": 8.75e-07,
+          "input_cache_read": 8.75e-07,
+          "output": 1.4e-05,
+          "output_reasoning_tokens": 1.4e-05,
+          "output_reasoning": 1.4e-05
+        }
       }
+    
     ]
   },
   {
@@ -2815,7 +3061,29 @@
           "cache_read_input_tokens": 0.138e-6,
           "reasoning_tokens": 2.2e-6
         }
+      },
+      {
+        "id": "cm7wqrs1327124dhjtb95w8f81_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 2e-06,
+          "input_cached_tokens": 5e-07,
+          "input_cache_read": 5e-07,
+          "output": 8e-06,
+          "output_reasoning_tokens": 8e-06,
+          "output_reasoning": 8e-06
+        }
       }
+    
     ]
   },
   {
@@ -2889,7 +3157,29 @@
           "cache_read_input_tokens": 0.138e-6,
           "reasoning_tokens": 2.2e-6
         }
+      },
+      {
+        "id": "cm7zqrs1327124dhjtb95w8f82_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 2e-06,
+          "input_cached_tokens": 5e-07,
+          "input_cache_read": 5e-07,
+          "output": 8e-06,
+          "output_reasoning_tokens": 8e-06,
+          "output_reasoning": 8e-06
+        }
       }
+    
     ]
   },
   {
@@ -2981,7 +3271,28 @@
           "output": 0.8e-6,
           "cache_read_input_tokens": 0.05e-6
         }
+      },
+      {
+        "id": "cm7zxrs1327124dhjtb95w8f45_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 2e-07,
+          "input_cached_tokens": 5e-08,
+          "input_cached_text_tokens": 5e-08,
+          "input_cache_read": 5e-08,
+          "output": 8e-07
+        }
       }
+    
     ]
   },
   {
@@ -3033,7 +3344,28 @@
           "output": 2.8e-6,
           "cache_read_input_tokens": 0.175e-6
         }
+      },
+      {
+        "id": "cm7zzrs1327124dhjtb95w8p96_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 7e-07,
+          "input_cached_tokens": 1.75e-07,
+          "input_cached_text_tokens": 1.75e-07,
+          "input_cache_read": 1.75e-07,
+          "output": 2.8e-06
+        }
       }
+    
     ]
   },
   {
@@ -3581,7 +3913,29 @@
           "cache_read_input_tokens": 0.0125e-6,
           "reasoning_tokens": 1e-6
         }
+      },
+      {
+        "id": "3d6a975a-a42d-4ea2-a3ec-4ae567d5a364_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 4.5e-07,
+          "input_cached_tokens": 4.5e-08,
+          "output": 3.6e-06,
+          "input_cache_read": 4.5e-08,
+          "output_reasoning_tokens": 3.6e-06,
+          "output_reasoning": 3.6e-06
+        }
       }
+    
     ]
   },
   {
@@ -3661,7 +4015,29 @@
           "cache_read_input_tokens": 0.0125e-6,
           "reasoning_tokens": 1e-6
         }
+      },
+      {
+        "id": "03b83894-7172-4e1e-8e8b-37d792484efd_tier_priority",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "service_tier",
+            "operator": "gte",
+            "value": 1
+          }
+        ],
+        "prices": {
+          "input": 4.5e-07,
+          "input_cached_tokens": 4.5e-08,
+          "output": 3.6e-06,
+          "input_cache_read": 4.5e-08,
+          "output_reasoning_tokens": 3.6e-06,
+          "output_reasoning": 3.6e-06
+        }
       }
+    
     ]
   },
   {
