@@ -11,7 +11,7 @@ import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { useActiveObservationIds } from "@/src/features/traces/contexts/PlayheadContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 

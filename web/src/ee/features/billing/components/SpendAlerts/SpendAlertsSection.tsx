@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 interface SpendAlertsSectionProps {

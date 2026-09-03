@@ -4,12 +4,14 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  throwIfNoOrganizationAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   QueueJobs,

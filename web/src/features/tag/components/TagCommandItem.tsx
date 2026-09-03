@@ -1,6 +1,6 @@
 import { InputCommandItem } from "@/src/components/ui/input-command";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 type TagCommandItemProps = {

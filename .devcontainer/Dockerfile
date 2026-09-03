@@ -10,7 +10,7 @@ ENV CGO_ENABLED=0 \
 RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
     github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
-FROM mcr.microsoft.com/devcontainers/universal:2
+FROM mcr.microsoft.com/devcontainers/universal:6-noble
 
 # Install golang-migrate for database migrations
 COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
