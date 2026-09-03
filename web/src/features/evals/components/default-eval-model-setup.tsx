@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-style-props */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";

@@ -31,15 +31,51 @@ Next, check if there are dependent props that could be combined into a discrimin
 
 Lastly, tighten the interface by using the `sweepy` cli's `narrow-props` command. COMMIT.
 
-## Step 3: Audit the changes
+## Step 3: Audit composite components
+
+If the component belongs to a composite API, identify all publicly exported members of that API, such as `Avatar`, `AvatarImage`, and `AvatarFallback`.
+
+Clean every member before changing the composite API:
+
+1. Keep the existing exports and composition syntax intact.
+2. Complete Steps 1 and 2 for each member, working from leaf components to the root component.
+3. Audit and update that member's callsites before moving to the next member.
+4. Do not evaluate collapsing the API until every member has been cleaned.
+
+Afterward, audit all callsites to decide whether the composition is meaningful.
+
+Collapse the API only when:
+
+- The members always represent one fixed domain concept.
+- Callers do not meaningfully control their structure, order, or lifecycle.
+- Usage differences can be expressed clearly through a small set of semantic parent props.
+- Collapsing preserves behavior, semantics, accessibility, event handling, and required ref access.
+
+If these conditions hold, replace the composite API with one component and update all callsites. COMMIT.
+
+Keep the composite API when callers meaningfully:
+
+- Reorder, omit, repeat, or insert children.
+- Configure child-specific behavior.
+- Attach handlers or refs to individual members.
+- Use the members as extension points.
+- Collapsing would make heavy use of slots or render props.
+
+Component files may export only a single component. When keeping a composite
+API, use `Object.assign` to expose subcomponents through the exported component,
+such as `Alert.Title` and `Alert.Description`, instead of separate component
+exports such as `AlertTitle` and `AlertDescription`. Update all callsites.
+COMMIT.
+
+## Step 4: Audit the changes
 
 Audit the changes and check if the updated callsites are still valid in terms of positioning & HTML semantics. If there are any issues, present the user with options on how to resolve them.
 
-## Step 4: Document the component
+## Step 5: Document the component
 
 Create a storybook story for the component if it does not exist. Check the repository for guidance like a skill or documentation around this first. COMMIT.
 
-## Step 5: Final report
+## Step 6: Final report
 
 After all the above steps have been completed, re-check the component against the [react-component-guidelines](../../react-component-guidelines/SKILL.md), then provide a report to the user. Include the changes that were made and the remaining violations, if any.
 For every callsite of the component that was updated, provide a detailed guide on how to view the changes in the application.

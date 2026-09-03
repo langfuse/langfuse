@@ -3,7 +3,14 @@ import { z } from "zod";
 // Make sure to update the InMemoryFilterService if you add new filter types
 export const filterOperators = {
   datetime: [">", "<", ">=", "<="],
-  string: ["=", "contains", "does not contain", "starts with", "ends with"],
+  string: [
+    "=",
+    "contains",
+    "does not contain",
+    "starts with",
+    "ends with",
+    "is not empty",
+  ],
   stringOptions: ["any of", "none of"],
   categoryOptions: ["any of", "none of"],
   arrayOptions: ["any of", "none of", "all of"],
@@ -71,7 +78,7 @@ export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
   key: z.string(), // eg metadata --> "environment"
-  operator: z.enum(filterOperators.string),
+  operator: z.enum(filterOperators.stringObject),
   value: z.string(),
 });
 export const numberObjectFilter = z.object({
