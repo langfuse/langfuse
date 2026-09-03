@@ -21,7 +21,7 @@ import {
 } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";

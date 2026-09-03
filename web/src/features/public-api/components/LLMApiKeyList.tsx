@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";
@@ -12,8 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";

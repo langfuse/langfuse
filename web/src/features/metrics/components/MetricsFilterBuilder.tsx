@@ -91,8 +91,30 @@ export const MetricsFilterBuilder = ({
   version,
   ...props
 }: MetricsFilterFetcherProps & { version: ViewVersion }) => {
-  if (version === "v1") return <MetricsFilterBuilderV1 {...props} />;
-  return <MetricsFilterBuilderV2 {...props} />;
+  const evaluatorOptions = api.evalsV2.options.useQuery(
+    { projectId: props.projectId, limit: 100 },
+    v2FilterOptionsQueryConfig,
+  );
+  const evaluatorNameOptions =
+    evaluatorOptions.data?.map(({ id, name }) => ({
+      value: id,
+      displayValue: name,
+    })) ?? [];
+
+  if (version === "v1") {
+    return (
+      <MetricsFilterBuilderV1
+        {...props}
+        evaluatorOptions={evaluatorNameOptions}
+      />
+    );
+  }
+  return (
+    <MetricsFilterBuilderV2
+      {...props}
+      evaluatorOptions={evaluatorNameOptions}
+    />
+  );
 };
 
 /** MetricsFilterDateRange is the preview/lookback window used to scope filter-value discovery. */
@@ -107,6 +129,11 @@ type MetricsFilterFetcherProps = {
   onChange: (filters: FilterState) => void;
 };
 
+type MetricsFilterFetcherWithEvaluatorOptionsProps =
+  MetricsFilterFetcherProps & {
+    evaluatorOptions: SingleValueOption[];
+  };
+
 /** MetricsFilterBuilderV1 loads the v1 (traces + generations + project) filter options and renders the filter view. */
 const MetricsFilterBuilderV1 = ({
   view,
@@ -114,7 +141,8 @@ const MetricsFilterBuilderV1 = ({
   dateRange,
   filters,
   onChange,
-}: MetricsFilterFetcherProps) => {
+  evaluatorOptions,
+}: MetricsFilterFetcherWithEvaluatorOptionsProps) => {
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
@@ -143,6 +171,7 @@ const MetricsFilterBuilderV1 = ({
     traceFilterOptions: traceFilterOptions.data,
     generationsFilterOptions: generationsFilterOptions.data,
     environmentFilterOptions: environmentFilterOptions.data,
+    evaluatorOptions,
   });
 
   return (
@@ -163,7 +192,8 @@ const MetricsFilterBuilderV2 = ({
   dateRange,
   filters,
   onChange,
-}: MetricsFilterFetcherProps) => {
+  evaluatorOptions,
+}: MetricsFilterFetcherWithEvaluatorOptionsProps) => {
   const startTimeFilter = metricsFilterTimeFilter("startTime", dateRange);
 
   const eventsFilterOptions = api.events.filterOptions.useQuery(
@@ -187,6 +217,7 @@ const MetricsFilterBuilderV2 = ({
     filterOptions: eventsFilterOptions.data,
     slowFilterOptions: slowEventsFilterOptions.data,
     datasets: datasets.data,
+    evaluatorOptions,
     metadataKeys: eventsFilterOptions.data?.metadataKeys?.map(
       (row) => row.value,
     ),
@@ -286,6 +317,7 @@ const buildV1FilterColumnsParams = ({
   traceFilterOptions,
   generationsFilterOptions,
   environmentFilterOptions,
+  evaluatorOptions = [],
 }: {
   view: MetricsFilterFetcherProps["view"];
   traceFilterOptions: RouterOutputs["traces"]["filterOptions"] | undefined;
@@ -295,6 +327,7 @@ const buildV1FilterColumnsParams = ({
   environmentFilterOptions:
     | RouterOutputs["projects"]["environmentFilterOptions"]
     | undefined;
+  evaluatorOptions?: SingleValueOption[];
 }): GetMetricsFilterColumnsParams => ({
   selectedView: view,
   viewVersion: "v1",
@@ -320,6 +353,7 @@ const buildV1FilterColumnsParams = ({
   releaseOptions: [],
   scoreNameOptions: [],
   experimentIdOptions: [],
+  evaluatorOptions,
   metadataKeyOptions: [],
 });
 
@@ -329,12 +363,14 @@ const buildV2FilterColumnsParams = ({
   filterOptions,
   slowFilterOptions,
   datasets,
+  evaluatorOptions = [],
   metadataKeys,
 }: {
   view: z.infer<typeof views>;
   filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
   slowFilterOptions?: RouterOutputs["events"]["filterOptions"];
   datasets: Array<{ id: string; name: string }> | undefined;
+  evaluatorOptions?: SingleValueOption[];
   metadataKeys?: string[];
 }): GetMetricsFilterColumnsParams => {
   const datasetIds = new Set(
@@ -365,6 +401,7 @@ const buildV2FilterColumnsParams = ({
     experimentIdOptions: normalizeSingleValueOptions(
       filterOptions?.experimentId,
     ),
+    evaluatorOptions,
     metadataKeyOptions: metadataKeys ?? [],
   };
 };

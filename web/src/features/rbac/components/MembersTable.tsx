@@ -31,6 +31,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
@@ -38,6 +39,7 @@ import { useEffect } from "react";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { env } from "@/src/env.mjs";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 
@@ -171,23 +173,16 @@ export function MembersTable({
         );
       },
     },
-    {
+    createTextTableColumn<MembersTableRow>({
       accessorKey: "email",
-      id: "email",
       header: "Email",
-    },
-    {
+    }),
+    createTextTableColumn<MembersTableRow, string[]>({
       accessorKey: "providers",
-      id: "providers",
       header: "SSO Provider",
       enableHiding: true,
-      cell: ({ row }) => {
-        const providers = row.getValue("providers") as string[];
-        if (providers.length === 0) return "-";
-
-        return providers.join(", ");
-      },
-    },
+      mapValue: (providers) => (providers?.length ? providers.join(", ") : "-"),
+    }),
     {
       accessorKey: "orgRole",
       id: "orgRole",
@@ -324,17 +319,12 @@ export function MembersTable({
           },
         ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
-    {
+    createDateTableColumn<MembersTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Member Since",
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as MembersTableRow["createdAt"];
-        return value ? new Date(value).toLocaleString() : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "meta",
       id: "meta",

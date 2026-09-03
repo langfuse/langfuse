@@ -58,8 +58,8 @@ import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 import {
@@ -67,7 +67,7 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
@@ -356,6 +356,7 @@ export default function ExperimentsTable({
     loading: isFilterOptionsPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
+    // v4-only surface — drives `isV4` on filters:* analytics.
     isV4: true,
   });
 

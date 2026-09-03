@@ -16,7 +16,7 @@ import type {
   RuleEvaluatorOption,
 } from "@/src/features/evals/v2/types/rules";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";

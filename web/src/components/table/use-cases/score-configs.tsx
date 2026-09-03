@@ -21,6 +21,8 @@ import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -36,8 +38,8 @@ type ScoreConfigTableRow = {
   id: string;
   name: string;
   dataType: ScoreConfigDataType;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   range: {
     maxValue?: number | null;
     minValue?: number | null;
@@ -105,13 +107,12 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       header: "Name",
       enableHiding: true,
     }),
-    {
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "dataType",
-      id: "dataType",
       header: "Data Type",
       size: 80,
       enableHiding: true,
-    },
+    }),
     createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
       accessorFn: getConfigRange,
@@ -128,31 +129,25 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
+    createIdTableColumn<ScoreConfigTableRow>({
       accessorKey: "id",
-      id: "id",
       header: "Config ID",
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createDateTableColumn<ScoreConfigTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Created At",
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<ScoreConfigTableRow, boolean>({
       accessorKey: "isArchived",
-      id: "isArchived",
       header: "Status",
       size: 80,
       enableHiding: true,
-      cell: ({ row }) => {
-        const { isArchived } = row.original;
-        return isArchived ? "Archived" : "Active";
-      },
-    },
+      mapValue: (isArchived) => (isArchived ? "Archived" : "Active"),
+    }),
     {
       accessorKey: "action",
       header: "Action",
@@ -294,8 +289,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                       name: config.name,
                       dataType: config.dataType,
                       description: config.description,
-                      createdAt: config.createdAt.toLocaleString(),
-                      updatedAt: config.updatedAt.toLocaleString(),
+                      createdAt: config.createdAt,
+                      updatedAt: config.updatedAt,
                       range: {
                         maxValue: config.maxValue,
                         minValue: config.minValue,

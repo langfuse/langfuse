@@ -10,7 +10,7 @@ import { monitorFilterConfig } from "@/src/features/filters/config/monitors-conf
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { MonitorsOnboarding } from "@/src/features/monitors/components/MonitorsOnboarding";
 import { MonitorsTable } from "@/src/features/monitors/components/MonitorsTable";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 

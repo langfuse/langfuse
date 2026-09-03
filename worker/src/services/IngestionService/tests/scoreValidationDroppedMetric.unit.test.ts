@@ -198,12 +198,9 @@ describe("score validation drop metric", () => {
 
   it("does not emit for unexpected errors — those reject the batch instead of dropping it", async () => {
     const { ingestionService, addToQueue } = createService();
-    vi.spyOn(
-      ingestionService as any,
-      "getMillisecondTimestamp",
-    ).mockImplementation(() => {
-      throw new Error("unexpected timestamp failure");
-    });
+    mocks.validateAndInflateScoreOverride = () => {
+      throw new Error("unexpected score validation failure");
+    };
 
     await expect(
       processScores(ingestionService, [validScoreEvent()]),

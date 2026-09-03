@@ -22,7 +22,7 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, LucideIcon> = {
   [SystemTableViewPresetCategory.SlowCalls]: Timer,
