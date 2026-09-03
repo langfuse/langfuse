@@ -1,9 +1,6 @@
-import Link from "next/link";
-import { ExternalLink, Plus } from "lucide-react";
 import { useStore } from "zustand";
 import type { ReactNode } from "react";
 
-import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -28,7 +25,6 @@ export function EvaluatorMappingStep({
   search,
   onSearchChange,
   sampleObject,
-  createEvaluatorHref,
   costObservationCount,
 }: {
   projectId: string;
@@ -40,7 +36,6 @@ export function EvaluatorMappingStep({
   search: string;
   onSearchChange: (value: string) => void;
   sampleObject: Record<string, unknown> | null;
-  createEvaluatorHref: string;
   costObservationCount: number | null;
 }) {
   if (costObservationCount == null) {
@@ -54,7 +49,6 @@ export function EvaluatorMappingStep({
         search={search}
         onSearchChange={onSearchChange}
         sampleObject={sampleObject}
-        createEvaluatorHref={createEvaluatorHref}
         costEstimates={[]}
         estimatingEvaluatorIds={[]}
         footerTrailing={
@@ -78,7 +72,6 @@ export function EvaluatorMappingStep({
       search={search}
       onSearchChange={onSearchChange}
       sampleObject={sampleObject}
-      createEvaluatorHref={createEvaluatorHref}
       costObservationCount={costObservationCount}
     />
   );
@@ -94,7 +87,6 @@ function EvaluatorMappingStepWithCosts({
   search,
   onSearchChange,
   sampleObject,
-  createEvaluatorHref,
   costObservationCount,
 }: {
   projectId: string;
@@ -106,7 +98,6 @@ function EvaluatorMappingStepWithCosts({
   search: string;
   onSearchChange: (value: string) => void;
   sampleObject: Record<string, unknown> | null;
-  createEvaluatorHref: string;
   costObservationCount: number;
 }) {
   const assignments = useStore(store, (state) => state.assignments);
@@ -162,7 +153,6 @@ function EvaluatorMappingStepWithCosts({
       search={search}
       onSearchChange={onSearchChange}
       sampleObject={sampleObject}
-      createEvaluatorHref={createEvaluatorHref}
       costEstimates={costEstimate.estimates}
       estimatingEvaluatorIds={costEstimate.estimatingEvaluatorIds}
       footerTrailing={footerTrailing}
@@ -180,7 +170,6 @@ function EvaluatorMappingEditor({
   search,
   onSearchChange,
   sampleObject,
-  createEvaluatorHref,
   costEstimates,
   estimatingEvaluatorIds,
   footerTrailing,
@@ -194,7 +183,6 @@ function EvaluatorMappingEditor({
   search: string;
   onSearchChange: (value: string) => void;
   sampleObject: Record<string, unknown> | null;
-  createEvaluatorHref: string;
   costEstimates: RuleCostEstimate[];
   estimatingEvaluatorIds: string[];
   footerTrailing: ReactNode;
@@ -233,18 +221,6 @@ function EvaluatorMappingEditor({
           </>
         )}
       </div>
-      <Button variant="outline" size="default" className="h-9 w-full" asChild>
-        <Link
-          href={createEvaluatorHref}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Create new Evaluator (opens in a new tab)"
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          Create new Evaluator
-          <ExternalLink className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </Button>
     </div>
   );
 }

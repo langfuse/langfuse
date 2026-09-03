@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useStore } from "zustand";
 import {
   type BatchActionQuery,
@@ -26,7 +27,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
   EvaluatorSelectionStep,
   type BatchEvaluator,
@@ -371,7 +372,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                     debouncedMappingSearch(value);
                   }}
                   sampleObject={sampleObject}
-                  createEvaluatorHref={createEvaluatorHref}
                   costObservationCount={costObservationCount}
                 />
               ) : (
@@ -387,7 +387,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   evaluatorSearchQuery={evaluatorSearchQuery}
                   onSearchQueryChange={setEvaluatorSearchQuery}
                   onToggleEvaluator={toggleEvaluatorSelection}
-                  createEvaluatorHref={createEvaluatorHref}
                 />
               )
             ) : (
@@ -418,35 +417,57 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               <div />
             )}
 
-            {showMappingEditor ? (
-              <MappingRunButton
-                disabledReason={mappingRunDisabledReason}
-                selectedCount={selectedCount}
-                loading={runEvaluationMutation.isPending}
-                onClick={onSubmit}
-              />
-            ) : step === "select-evaluator" ? (
-              <Button
-                onClick={() => setStep("confirm")}
-                disabled={isExperiencePending || selectedCount === 0}
-              >
-                Continue{" "}
-                {selectedCount > 0
-                  ? `with ${selectedCount} evaluator(s)`
-                  : null}
-              </Button>
-            ) : (
-              <Button
-                onClick={onSubmit}
-                loading={runEvaluationMutation.isPending}
-              >
-                Run Evaluation
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {step !== "confirm" ? (
+                <CreateEvaluatorButton href={createEvaluatorHref} />
+              ) : null}
+              {showMappingEditor ? (
+                <MappingRunButton
+                  disabledReason={mappingRunDisabledReason}
+                  selectedCount={selectedCount}
+                  loading={runEvaluationMutation.isPending}
+                  onClick={onSubmit}
+                />
+              ) : step === "select-evaluator" ? (
+                <Button
+                  onClick={() => setStep("confirm")}
+                  disabled={isExperiencePending || selectedCount === 0}
+                >
+                  Continue{" "}
+                  {selectedCount > 0
+                    ? `with ${selectedCount} evaluator(s)`
+                    : null}
+                </Button>
+              ) : (
+                <Button
+                  onClick={onSubmit}
+                  loading={runEvaluationMutation.isPending}
+                >
+                  Run Evaluation
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function CreateEvaluatorButton({ href }: { href: string }) {
+  return (
+    <Button variant="secondary" className="gap-1.5" asChild>
+      <Link
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Create new Evaluator (opens in a new tab)"
+      >
+        <Plus className="size-4 shrink-0" aria-hidden="true" />
+        Create new Evaluator
+        <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+      </Link>
+    </Button>
   );
 }
 
