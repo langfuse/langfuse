@@ -173,6 +173,28 @@ e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
 `Tests  12 passed (12)` (vitest) — say which checks you skipped and why,
 never report unverified work as done, and never end with work pending.
 
+A check that passed is not always a check that ran:
+
+- `lint` and `typecheck` are cached turbo tasks, and worktrees share one cache
+  (`using shared worktree cache` on every run), so a pass can be a replay of
+  another branch's result. `Tasks: 1 successful, 1 total` prints identically
+  either way — quote the `Cached:` line too. To force execution, use
+  `pnpm exec turbo run lint --force`; `--no-cache` does not do this, it only
+  stops the write (`turbo run lint --help`).
+- `web` and `packages/shared` lint with `--max-warnings 0`, so one eslint
+  *warning* fails the branch.
+- `@langfuse/shared` resolves to its built `dist`. Root `pnpm run typecheck`
+  orders that build for you (`turbo.json`: `typecheck.dependsOn` includes
+  `^build`), but a filtered `pnpm --filter=web run typecheck` does not — after
+  switching a worktree between branches, run
+  `pnpm --filter=shared run db:generate && pnpm --filter=shared run build`
+  first, or typecheck reports on the previous branch's source.
+- `pnpm exec knip` is a required check in `pipeline.yml` with no `package.json`
+  script, so it is easy to never run locally. Unused files and exports under
+  `web/**`, `packages/shared/**` and `worker/**` fail it.
+- No check loads a page. A rendering change is not verified until somebody opens
+  the surface it touches and looks at it.
+
 ## Generated Files
 
 Do not hand-edit generated or build artifacts:
