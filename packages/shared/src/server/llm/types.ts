@@ -251,6 +251,7 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  OrcaRouter = "orcarouter",
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -459,6 +460,19 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
+/**
+ * Default models exposed for the OrcaRouter adapter. OrcaRouter is an
+ * OpenAI-compatible chat gateway that routes model IDs through its own
+ * namespace (`orcarouter/auto` and the `orcarouter/fusion` family).
+ */
+export const orcarouterModels = [
+  "orcarouter/auto",
+  "orcarouter/fusion",
+  "orcarouter/fusion-flash",
+  "orcarouter/fusion-mini",
+] as const;
+
+export type OrcaRouterModel = (typeof orcarouterModels)[number];
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
@@ -466,6 +480,7 @@ export const supportedModels = {
   [LLMAdapter.OpenAI]: openAIModels,
   [LLMAdapter.VertexAI]: vertexAIModels,
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
+  [LLMAdapter.OrcaRouter]: orcarouterModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
 } as const;

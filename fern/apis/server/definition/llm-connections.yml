@@ -122,3 +122,5 @@ types:
         name: GoogleVertexAI
       - value: google-ai-studio
         name: GoogleAIStudio
+      - value: orcarouter
+        name: OrcaRouter

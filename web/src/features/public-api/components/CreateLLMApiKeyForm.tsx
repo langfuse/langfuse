@@ -302,6 +302,8 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
+      case LLMAdapter.OrcaRouter:
+        return "https://api.orcarouter.ai/v1";
       default:
         return "";
     }
@@ -387,7 +389,8 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.OpenAI ||
     adapter === LLMAdapter.Anthropic ||
     adapter === LLMAdapter.VertexAI ||
-    adapter === LLMAdapter.GoogleAIStudio;
+    adapter === LLMAdapter.GoogleAIStudio ||
+    adapter === LLMAdapter.OrcaRouter;
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -1260,6 +1263,11 @@ export function CreateLLMApiKeyForm({
                               (excluding /v1/messages)
                             </span>
                           )}
+                          {currentAdapter === LLMAdapter.OrcaRouter && (
+                            <span>
+                              OrcaRouter default: https://api.orcarouter.ai/v1
+                            </span>
+                          )}
                         </FormDescription>
 
                         <FormControl>
@@ -1325,9 +1333,11 @@ export function CreateLLMApiKeyForm({
                   )}
 
                   {/* Extra Headers */}
-                  {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
-                    currentAdapter,
-                  ) && renderExtraHeadersField()}
+                  {[
+                    LLMAdapter.OpenAI,
+                    LLMAdapter.Anthropic,
+                    LLMAdapter.OrcaRouter,
+                  ].includes(currentAdapter) && renderExtraHeadersField()}
 
                   {/* With default models */}
                   <FormField

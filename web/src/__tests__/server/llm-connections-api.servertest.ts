@@ -400,6 +400,48 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.extraHeaderKeys).toEqual([]);
     });
 
+    it("should create an OrcaRouter connection with its gateway adapter", async () => {
+      const createData = {
+        provider: generateUniqueProvider("orcarouter"),
+        adapter: LLMAdapter.OrcaRouter,
+        secretKey: "sk-orca-test",
+        baseURL: TEST_PUBLIC_LLM_BASE_URL,
+        customModels: ["orcarouter/auto"],
+        withDefaultModels: true,
+        extraHeaders: {
+          "X-Gateway-Trace": "enabled",
+        },
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        createData,
+        auth,
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body.provider).toBe(createData.provider);
+      expect(response.body.adapter).toBe(LLMAdapter.OrcaRouter);
+      expect(response.body.baseURL).toBe(TEST_PUBLIC_LLM_BASE_URL);
+      expect(response.body.customModels).toEqual(["orcarouter/auto"]);
+      expect(response.body.withDefaultModels).toBe(true);
+      expect(response.body.extraHeaderKeys).toEqual(["X-Gateway-Trace"]);
+      expect(response.body.config).toBeNull();
+
+      const dbConnection = await prisma.llmApiKeys.findUnique({
+        where: {
+          projectId_provider: {
+            projectId,
+            provider: createData.provider,
+          },
+        },
+      });
+      expect(dbConnection?.adapter).toBe(LLMAdapter.OrcaRouter);
+    });
+
     it("should reject creating a connection with a localhost baseURL", async () => {
       const response = await makeAPICall<{ message: string }>(
         "PUT",
