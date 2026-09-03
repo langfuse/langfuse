@@ -796,7 +796,7 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="cols-2-gap" size="auto">
+                              <Tabs.List layout="full" gap="sm" size="auto">
                                 <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
                                   size="sm"

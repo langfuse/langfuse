@@ -1863,7 +1863,7 @@ function CategoricalSelectContent({
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <Tabs.List layout="cols-3" size="sm">
+            <Tabs.List layout="full" size="sm">
               <Tabs.Trigger value="any of" size="sm" label="Any of" />
               <Tabs.Trigger value="all of" size="sm" label="All of" />
               {/* Without a persisted selection, switching to "none of" is a
@@ -2503,7 +2503,7 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <Tabs.List layout="cols-2" size="sm">
+        <Tabs.List layout="full" size="sm">
           <Tabs.Trigger value="select" size="sm" label="Select" />
           <Tabs.Trigger value="text" size="sm" label="Text" />
         </Tabs.List>

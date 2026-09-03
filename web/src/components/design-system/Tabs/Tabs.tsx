@@ -23,12 +23,13 @@ const tabsListVariants = cva(
       },
       layout: {
         default: "inline-flex",
-        full: "flex w-full",
-        "cols-2": "grid w-full grid-cols-2",
-        "cols-2-gap": "grid w-full grid-cols-2 gap-1",
-        "cols-3": "grid w-full grid-cols-3",
-        packed: "grid w-fit max-w-fit grid-flow-col gap-4",
-        gap: "inline-flex gap-1",
+        full: "grid w-full auto-cols-fr grid-flow-col",
+        packed: "inline-flex",
+      },
+      gap: {
+        none: "",
+        sm: "gap-1",
+        lg: "gap-4",
       },
     },
     compoundVariants: [
@@ -49,6 +50,7 @@ const tabsListVariants = cva(
       variant: "default",
       size: "default",
       layout: "default",
+      gap: "none",
     },
   },
 );
@@ -79,7 +81,10 @@ const tabsTriggerVariants = cva(
 type TabsListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
-} & Pick<VariantProps<typeof tabsListVariants>, "layout" | "size" | "variant">;
+} & Pick<
+  VariantProps<typeof tabsListVariants>,
+  "gap" | "layout" | "size" | "variant"
+>;
 type TabsRootProps = {
   children: React.ReactNode;
   onValueChange?: (value: string) => void;
@@ -111,6 +116,7 @@ function TabsRoot({
 function TabsList({
   "aria-label": ariaLabel,
   children,
+  gap,
   layout,
   size,
   variant,
@@ -118,7 +124,7 @@ function TabsList({
   return (
     <TabsPrimitive.List
       aria-label={ariaLabel}
-      className={tabsListVariants({ layout, size, variant })}
+      className={tabsListVariants({ gap, layout, size, variant })}
     >
       {children}
     </TabsPrimitive.List>
