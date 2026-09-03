@@ -282,10 +282,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         >
                           <ListPlus className="h-4 w-4" />
                           <span className="text-sm">Add to queue</span>
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="menu"
-                          />
+                          {totalCount > 0 && (
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="menu"
+                            />
+                          )}
                         </Button>
                       )}
                     </AnnotationQueueItemDropdownMenuController>
@@ -430,10 +432,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     >
                       <span className="relative mr-1 text-xs">
                         <ChevronDown className="h-3 w-3" />
-                        <AnnotationQueueItemCountBadge
-                          totalCount={totalCount}
-                          layout="toolbar"
-                        />
+                        {totalCount > 0 && (
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="toolbar"
+                          />
+                        )}
                       </span>
                     </Button>
                   )}
