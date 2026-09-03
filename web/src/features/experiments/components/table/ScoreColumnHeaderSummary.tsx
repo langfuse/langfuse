@@ -84,6 +84,12 @@ export const ScoreColumnHeaderSummary = ({
 }) => {
   const { baseline, comparison, delta, movement } = summary;
   const { icon, label: nameLabel } = splitScoreDataTypeIcon(label);
+  // A zero delta says nothing a reader cannot see from the two aggregates, so
+  // it does not earn a line; the movement counts still might.
+  const deltaToShow = delta !== null && delta !== 0 ? delta : null;
+  const hasMovementCounts = Boolean(
+    movement && (movement.improved || movement.regressed || movement.changed),
+  );
 
   return (
     // The filter menu sits outside the hover-card trigger so its own popover is
@@ -98,50 +104,74 @@ export const ScoreColumnHeaderSummary = ({
                 {nameLabel}
               </span>
             </span>
+            {/* The values: this column's aggregate, and the one it moved from.
+              The item count is deliberately NOT here — of the numbers competing
+              for these two lines it is the least valuable, it already has a
+              labelled row in the hover, and giving it up is what leaves the
+              movement counts room to stay beside their delta. */}
             <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
               {baseline ? (
                 <>
-                  <span className="text-foreground font-bold">
+                  {/* `truncate`: each aggregate is one value, so it moves to
+                    the next line whole rather than breaking in the middle of
+                    itself — a categorical's `mostly-grounded 9/11` is long
+                    enough to do that. And if one value alone is wider than the
+                    column, it ends in an ellipsis: a value that stops with no
+                    mark reads as the whole value. */}
+                  <span
+                    className="text-foreground min-w-0 truncate font-bold"
+                    title={formatScoreColumnAggregate(baseline)}
+                  >
                     {formatScoreColumnAggregate(baseline)}
                   </span>
-                  {baseline.kind !== "distribution" && (
-                    <span>· {baseline.count}</span>
+                  {comparison && (
+                    <span
+                      className="min-w-0 truncate"
+                      title={`vs ${formatScoreColumnAggregate(comparison)}`}
+                    >
+                      vs {formatScoreColumnAggregate(comparison)}
+                    </span>
                   )}
                 </>
               ) : (
                 <span>no values</span>
               )}
             </span>
-            {movement && (
-              <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
-                {comparison && (
-                  <span>vs {formatScoreColumnAggregate(comparison)}</span>
-                )}
-                {delta !== null && delta !== 0 && (
+            {/* The movement: how far, and how many items moved which way. One
+              line that does not wrap — a count is only readable as a movement
+              next to the delta it belongs to, and the reviewer's complaint was
+              exactly this pair coming apart across lines. It is short enough to
+              hold at any width a column can be dragged to; what gives way
+              instead is the line above, which drops whole values rather than
+              clipping one (half a number reads as a number).
+
+              The not-scored count is deliberately not here either — it is
+              accounted for in the hover. */}
+            {(deltaToShow !== null || hasMovementCounts) && (
+              <span className="text-muted-foreground flex items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
+                {deltaToShow !== null && (
                   <DiffLabel
                     diff={{
                       type: "NUMERIC",
-                      absoluteDifference: Math.abs(delta),
-                      direction: delta > 0 ? "+" : "-",
+                      absoluteDifference: Math.abs(deltaToShow),
+                      direction: deltaToShow > 0 ? "+" : "-",
                     }}
                     formatValue={formatScoreValue}
                   />
                 )}
-                {movement.improved > 0 && (
+                {movement && movement.improved > 0 && (
                   <span className="text-dark-green font-bold">
                     ↗{movement.improved}
                   </span>
                 )}
-                {movement.regressed > 0 && (
+                {movement && movement.regressed > 0 && (
                   <span className="text-dark-red font-bold">
                     ↘{movement.regressed}
                   </span>
                 )}
-                {movement.changed > 0 && <span>↻{movement.changed}</span>}
-                {/* The not-scored count is deliberately NOT here. It is the
-                  least-used of the four numbers and it is what pushed this
-                  line onto a second row, which is what made the summary read
-                  as busy. It stays accounted for, in the hover. */}
+                {movement && movement.changed > 0 && (
+                  <span>↻{movement.changed}</span>
+                )}
               </span>
             )}
           </div>
