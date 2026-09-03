@@ -157,9 +157,10 @@ export const ScoreColumnHeaderSummary = ({
             {/* The movement: how far, and how many items moved which way.
               One line that does not wrap — a count is only readable as a
               movement next to the delta it belongs to. The delta keeps its
-              full width; the counts are what give way, as an ellipsis, so a
-              narrow column clips them here instead of bleeding over the
-              header beside it — the hover card carries every count in full.
+              full width; the counts are what give way, whole and marked with
+              an ellipsis, so a narrow column drops them here instead of
+              bleeding over the header beside it — the hover card carries every
+              count in full.
 
               The not-scored count is deliberately not here either — it is
               accounted for in the hover card. */}
@@ -176,22 +177,25 @@ export const ScoreColumnHeaderSummary = ({
                   />
                 )}
                 {hasMovementCounts && (
+                  // Not a flex row: `text-overflow` only applies to a block
+                  // box's inline content, and it is what drops a count whole
+                  // and marks it, instead of clipping `↘141` into `↘1`.
                   <span
-                    className="flex min-w-0 items-center gap-x-1 truncate"
+                    className="min-w-0 truncate"
                     title={movementCountsTitle}
                   >
                     {movement && movement.improved > 0 && (
-                      <span className="text-dark-green font-bold">
+                      <span className="text-dark-green pr-1 font-bold">
                         ↗{movement.improved}
                       </span>
                     )}
                     {movement && movement.regressed > 0 && (
-                      <span className="text-dark-red font-bold">
+                      <span className="text-dark-red pr-1 font-bold">
                         ↘{movement.regressed}
                       </span>
                     )}
                     {movement && movement.changed > 0 && (
-                      <span>↻{movement.changed}</span>
+                      <span className="pr-1">↻{movement.changed}</span>
                     )}
                   </span>
                 )}
