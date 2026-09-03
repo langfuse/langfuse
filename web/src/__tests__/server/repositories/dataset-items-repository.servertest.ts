@@ -852,6 +852,41 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(item.input).toEqual({ key: "value" });
     });
 
+    it("does not re-coerce a carried-over string field on a status-only update (#15342)", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Public API semantics: the value is already decoded, so the bare
+      // string "123456" is stored as a string rather than the number 123456.
+      const created = await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: "123456",
+        normalizeOpts: {},
+        validateOpts: { normalizeUndefinedToNull: true },
+      });
+      expect(created.input).toBe("123456");
+
+      // Archive toggle from the UI hits updateDatasetItem, which supplies only
+      // status and always sets parseJsonStrings. The omitted input is filled
+      // from the existing, already-decoded value and must not be parsed again.
+      const updated = await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        status: "ARCHIVED",
+        normalizeOpts: { parseJsonStrings: true },
+        validateOpts: { normalizeUndefinedToNull: false },
+      });
+
+      expect(updated.status).toBe("ARCHIVED");
+      expect(updated.input).toBe("123456");
+    });
+
     it("should create new version on update with same ID", async () => {
       const datasetId = v4();
       const itemId = v4();
