@@ -4,7 +4,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { useQueryProject } from "@/src/features/projects/hooks";

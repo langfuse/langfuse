@@ -17,9 +17,9 @@ export function NumericScoreHistogram(props: {
   source: ScoreSourceType;
   dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   globalFilterState: FilterState;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
 }) {
-  const version = props.metricsVersion ?? "v1";
+  const version = props.metricsVersion;
   const histogram = api.dashboard.scoreHistogram.useQuery(
     {
       projectId: props.projectId,

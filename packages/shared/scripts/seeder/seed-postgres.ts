@@ -19,6 +19,7 @@ import {
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
 import {
+  DEFAULT_SEED_API_KEY,
   EVAL_TRACE_COUNT,
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
@@ -204,10 +205,8 @@ async function main() {
   });
 
   const seedApiKey = {
-    id: "seed-api-key",
-    secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890", // eslint-disable-line turbo/no-undeclared-env-vars
-    public: "pk-lf-1234567890",
-    note: "seeded key",
+    ...DEFAULT_SEED_API_KEY,
+    secret: process.env.SEED_SECRET_KEY ?? DEFAULT_SEED_API_KEY.secret, // eslint-disable-line turbo/no-undeclared-env-vars
   };
 
   if (!(await prisma.apiKey.findUnique({ where: { id: seedApiKey.id } }))) {

@@ -24,7 +24,7 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { buildEvalExecutionMetadata } from "@langfuse/shared/src/server";
+import { buildEvalExecutionData } from "@langfuse/shared/src/server";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -233,7 +233,7 @@ export async function processObservationEval(
     extractedVariables,
     hasExperimentContext: Boolean(observationData.experiment_id),
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    executionMetadata: buildEvalExecutionMetadata({
+    ...buildEvalExecutionData({
       type: "JOB",
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
@@ -358,9 +358,16 @@ async function resolveObservationEvalExecution(params: {
       where: { id: evaluatorId, projectId, type: executionType },
       include: evaluatorInclude,
     });
-    return evaluator
-      ? buildV2Execution({ rule: null, assignment: null, evaluator })
-      : { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    if (!evaluator) {
+      return { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    }
+    // Ruleless batch runs have no assignment row. A mapping on the queue
+    // payload is the override; omitting it inherits the version mapping.
+    const assignment =
+      event.variableMapping !== undefined
+        ? { variableMapping: event.variableMapping }
+        : null;
+    return buildV2Execution({ rule: null, assignment, evaluator });
   }
 
   // The assignment is what authorizes this execution — it is the (rule,
@@ -403,7 +410,7 @@ const evaluatorInclude = {
 } satisfies Prisma.EvaluatorInclude;
 
 function normalizeEvalTemplate(
-  template: EvalTemplate,
+  template: EvalTemplate & { promptMessages?: unknown },
   executionType: ObservationEvalExecutionType,
 ): EvalTemplateWithType {
   switch (executionType) {
@@ -460,10 +467,10 @@ type ResolvedEvaluationRule = Prisma.EvaluationRuleGetPayload<object>;
  */
 function buildV2Execution(params: {
   rule: ResolvedEvaluationRule | null;
-  assignment: Pick<
-    Prisma.EvaluationRuleEvaluatorAssignmentGetPayload<object>,
-    "id" | "variableMapping"
-  > | null;
+  assignment: {
+    id?: string;
+    variableMapping: Prisma.JsonValue;
+  } | null;
   evaluator: ResolvedEvaluator;
 }) {
   const { rule, assignment, evaluator } = params;
@@ -508,6 +515,7 @@ function buildV2Execution(params: {
     name: evaluator.name,
     version: version.version,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -517,7 +525,7 @@ function buildV2Execution(params: {
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-  } satisfies EvalTemplate;
+  };
 
   return {
     type: "v2" as const,

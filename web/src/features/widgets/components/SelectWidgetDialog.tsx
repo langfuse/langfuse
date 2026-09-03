@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +11,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
@@ -29,7 +24,7 @@ import {
   getSuggestedHomePresetIds,
   HOME_PRESET_METADATA,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
 
@@ -138,8 +133,8 @@ export function SelectWidgetDialog({
   // Suggestions obey the same view allowlist the widget editor uses for new
   // definitions, so v4 users are never offered a v3 trace-based widget.
   // Legacy trace widgets stay listed and editable under /widgets. (LFE-14444)
-  const { isBetaEnabled, isInitializing } = useV4Beta();
-  const suggestedVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const { isV4, isResolved } = useReadPath();
+  const suggestedVersion: ViewVersion = isV4 ? "v2" : "v1";
   const allProjectWidgets = widgets.data?.widgets ?? [];
   const projectWidgets = allProjectWidgets.filter((widget) =>
     isSuggestedWidgetView(widget.view, suggestedVersion),
@@ -173,9 +168,9 @@ export function SelectWidgetDialog({
         </DialogHeader>
 
         <DialogBody>
-          {/* isInitializing: an unresolved session reads as v1, which would
+          {/* !isResolved: an unresolved session reads as v3, which would
               briefly offer the unfiltered list to a v4 user. */}
-          {widgets.isPending || isInitializing ? (
+          {widgets.isPending || !isResolved ? (
             <div className="py-8 text-center">Loading widgets...</div>
           ) : widgets.isError ? (
             <div className="text-destructive py-8 text-center">
@@ -220,80 +215,86 @@ export function SelectWidgetDialog({
                   capture("dashboard:add_widget_tab_switch", { tab })
                 }
               >
-                <TabsList>
-                  <TabsTrigger value="project">
-                    Your widgets ({projectWidgets.length})
-                  </TabsTrigger>
+                <Tabs.List>
+                  <Tabs.Trigger
+                    value="project"
+                    label={`Your widgets (${projectWidgets.length})`}
+                  />
                   {onSelectPreset && (
-                    <TabsTrigger value="home-cards">
-                      Home cards ({suggestedPresetIds.length})
-                    </TabsTrigger>
+                    <Tabs.Trigger
+                      value="home-cards"
+                      label={`Home cards (${suggestedPresetIds.length})`}
+                    />
                   )}
-                </TabsList>
-                <TabsContent value="project">
-                  <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                    {projectWidgets.map((widget) => (
-                      <WidgetRow
-                        key={widget.id}
-                        widget={widget as WidgetItem}
-                        onClick={() => selectWidget(widget as WidgetItem)}
-                      />
-                    ))}
-                    {projectWidgets.length === 0 ? (
-                      <div className="text-muted-foreground py-8 text-center text-sm">
-                        {hiddenWidgetsNote ??
-                          "No saved widgets in this project yet — build one with Custom Chart."}
-                      </div>
-                    ) : hiddenWidgetsNote ? (
-                      <div className="text-muted-foreground px-1 py-2 text-xs">
-                        {hiddenWidgetsNote}
-                      </div>
-                    ) : null}
-                  </div>
-                </TabsContent>
-                {onSelectPreset && (
-                  <TabsContent value="home-cards">
+                </Tabs.List>
+                <div className="mt-2">
+                  <Tabs.Content value="project">
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                      {suggestedPresetIds.map((presetId) => {
-                        const meta = HOME_PRESET_METADATA[presetId];
-                        return (
-                          <button
-                            key={presetId}
-                            type="button"
-                            onClick={() => {
-                              capture("dashboard:widget_added", {
-                                kind: "home_preset",
-                                preset_id: presetId,
-                                dashboard_id: dashboardId,
-                              });
-                              onSelectPreset(presetId);
-                              onOpenChange(false);
-                            }}
-                            className={rowClassName}
-                          >
-                            <RowIllustration type={meta.illustration} />
-                            <div className="min-w-0 flex-1">
-                              <div
-                                className="truncate font-bold"
-                                title={meta.name}
-                              >
-                                {meta.name}
-                              </div>
-                              <div
-                                className="text-muted-foreground truncate text-xs"
-                                title={meta.description}
-                              >
-                                {meta.description}
-                              </div>
-                              <div className="text-muted-foreground/80 mt-0.5 text-xs">
-                                Home card · fixed configuration
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {projectWidgets.map((widget) => (
+                        <WidgetRow
+                          key={widget.id}
+                          widget={widget as WidgetItem}
+                          onClick={() => selectWidget(widget as WidgetItem)}
+                        />
+                      ))}
+                      {projectWidgets.length === 0 ? (
+                        <div className="text-muted-foreground py-8 text-center text-sm">
+                          {hiddenWidgetsNote ??
+                            "No saved widgets in this project yet — build one with Custom Chart."}
+                        </div>
+                      ) : hiddenWidgetsNote ? (
+                        <div className="text-muted-foreground px-1 py-2 text-xs">
+                          {hiddenWidgetsNote}
+                        </div>
+                      ) : null}
                     </div>
-                  </TabsContent>
+                  </Tabs.Content>
+                </div>
+                {onSelectPreset && (
+                  <div className="mt-2">
+                    <Tabs.Content value="home-cards">
+                      <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                        {suggestedPresetIds.map((presetId) => {
+                          const meta = HOME_PRESET_METADATA[presetId];
+                          return (
+                            <button
+                              key={presetId}
+                              type="button"
+                              onClick={() => {
+                                capture("dashboard:widget_added", {
+                                  kind: "home_preset",
+                                  preset_id: presetId,
+                                  dashboard_id: dashboardId,
+                                });
+                                onSelectPreset(presetId);
+                                onOpenChange(false);
+                              }}
+                              className={rowClassName}
+                            >
+                              <RowIllustration type={meta.illustration} />
+                              <div className="min-w-0 flex-1">
+                                <div
+                                  className="truncate font-bold"
+                                  title={meta.name}
+                                >
+                                  {meta.name}
+                                </div>
+                                <div
+                                  className="text-muted-foreground truncate text-xs"
+                                  title={meta.description}
+                                >
+                                  {meta.description}
+                                </div>
+                                <div className="text-muted-foreground/80 mt-0.5 text-xs">
+                                  Home card · fixed configuration
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </Tabs.Content>
+                  </div>
                 )}
               </Tabs>
             </div>

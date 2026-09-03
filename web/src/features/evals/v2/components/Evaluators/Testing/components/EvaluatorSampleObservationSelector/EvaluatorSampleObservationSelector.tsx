@@ -10,6 +10,7 @@ import {
   SampleObservationSelectorBase,
   type SampleObservation,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 
 const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
@@ -85,7 +86,7 @@ export function EvaluatorSampleObservationSelector({
       onFilterStateChange={onFilterStateChange}
       previewFilters={filterState}
       tableName="evaluator-sample-observations"
-      registry={undefined}
+      registry={EVALUATOR_FIELD_REGISTRY}
       selectedObservationId={selectedObservationId}
       onSelect={onSelect}
       onOpenTrace={onOpenTrace}

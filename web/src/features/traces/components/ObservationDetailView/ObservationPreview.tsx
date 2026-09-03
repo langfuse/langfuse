@@ -34,12 +34,12 @@ export function ObservationPreview({
       {tags && tags.length > 0 ? (
         <>
           <div
-            className={`px-2 pt-2 text-sm font-bold ${currentView && currentView !== "pretty" ? "shrink-0" : ""}`}
+            className={`px-2 pt-2 text-sm font-bold ${currentView && currentView !== "pretty" && currentView !== "pretty-beta" ? "shrink-0" : ""}`}
           >
             Tags
           </div>
           <div
-            className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView && currentView !== "pretty" ? "shrink-0" : ""}`}
+            className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView && currentView !== "pretty" && currentView !== "pretty-beta" ? "shrink-0" : ""}`}
           >
             <TagList selectedTags={tags} isLoading={false} />
           </div>

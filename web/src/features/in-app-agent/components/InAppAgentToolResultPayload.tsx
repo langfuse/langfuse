@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";

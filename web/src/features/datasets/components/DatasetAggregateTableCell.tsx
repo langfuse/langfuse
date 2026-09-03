@@ -12,7 +12,7 @@ import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
 import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
@@ -23,7 +23,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const DatasetAggregateCellContent = ({
   projectId,

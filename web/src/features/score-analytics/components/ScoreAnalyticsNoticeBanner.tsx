@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Clock, Info } from "lucide-react";
 import { useScoreAnalytics } from "./ScoreAnalyticsProvider";
 import { useState, useEffect } from "react";

@@ -16,7 +16,7 @@ export type DatasetRunItemByItemRowData = {
   // scores holds grouped column with individual scores
   scores: ScoreAggregate;
   latency?: number;
-  totalCost?: string;
+  totalCost?: number;
 };
 
 export type DatasetRunItemByRunRowData = {
@@ -36,5 +36,5 @@ export type DatasetRunItemByRunRowData = {
   // scores holds grouped column with individual scores
   scores: ScoreAggregate;
   latency?: number;
-  totalCost?: string;
+  totalCost?: number;
 };

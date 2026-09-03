@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { env } from "@/src/env.mjs";
 
 export const CloudPrivacyNotice = ({ action }: { action: string }) =>

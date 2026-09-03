@@ -2,7 +2,7 @@ import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/se
 import {
   CreateAnnotationQueueBody,
   CreateAnnotationQueueResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

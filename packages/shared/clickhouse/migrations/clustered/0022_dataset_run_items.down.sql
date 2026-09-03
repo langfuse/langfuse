@@ -1,1 +1,0 @@
-DROP TABLE dataset_run_items ON CLUSTER default;

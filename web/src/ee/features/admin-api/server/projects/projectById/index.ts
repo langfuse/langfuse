@@ -11,7 +11,7 @@ import { randomUUID } from "crypto";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 

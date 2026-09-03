@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * InlineCommentBubble - floating button shown when text is selected in JSON view
  *

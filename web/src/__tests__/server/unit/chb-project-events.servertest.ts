@@ -6,7 +6,7 @@ const EVENT_BUS_ARN =
 
 const mocks = vi.hoisted(() => ({
   env: {
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu" as string | undefined,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" as string | undefined,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       "arn:aws:events:eu-central-1:720474339533:event-bus/control-plane-events" as
         | string
@@ -92,6 +92,7 @@ const waitFor = (assertion: () => void) =>
 describe("chbProjectEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
     mocks.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN = EVENT_BUS_ARN;
     mocks.send.mockResolvedValue({ FailedEntryCount: 0 });
     mocks.findProjects.mockResolvedValue([]);
@@ -117,11 +118,42 @@ describe("chbProjectEvents", () => {
     expect(entry.Source).toBe("langfuse");
     // The event carries CHB's organization id, not ours -- CHB's registry is
     // keyed by its own org id.
-    expect(JSON.parse(entry.Detail)).toMatchObject({
+    const detail = JSON.parse(entry.Detail);
+    expect(detail).toMatchObject({
       type: "LANGFUSE_PROJECT_CREATED",
       organizationId: CHB_ORG_ID,
       projectId: PROJECT_ID,
-      regionId: "eu",
+      // Where this deployment runs: the provider region it lives in plus our
+      // own cell name, lowercased.
+      cloudProvider: "aws",
+      region: "eu-west-1",
+      cell: "eu",
+    });
+    expect(detail).not.toHaveProperty("regionId");
+  });
+
+  // CHB locates a deployment by provider region plus cell, not by our cell
+  // name alone. HIPAA and US share us-west-2, so the cell is what still tells
+  // them apart.
+  it.each([
+    ["US", "us-west-2", "us"],
+    ["EU", "eu-west-1", "eu"],
+    ["HIPAA", "us-west-2", "hipaa"],
+    ["JP", "ap-northeast-1", "jp"],
+    ["STAGING", "eu-west-1", "staging"],
+  ])("locates cell %s in %s", async (cloudRegion, awsRegion, cell) => {
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+
+    await sendChbProjectEvent({
+      type: "LANGFUSE_PROJECT_CREATED",
+      chbOrganizationId: CHB_ORG_ID,
+      projectId: PROJECT_ID,
+    });
+
+    expect(publishedDetails()[0]).toMatchObject({
+      cloudProvider: "aws",
+      region: awsRegion,
+      cell,
     });
   });
 

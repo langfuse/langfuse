@@ -68,9 +68,11 @@ const MEASURE_COLUMNS = new Set([
   "latency",
   "timeToFirstToken",
   "inputTokens",
+  "cachedInputTokens",
   "outputTokens",
   "totalTokens",
   "inputCost",
+  "cachedInputCost",
   "outputCost",
   "totalCost",
 ]);

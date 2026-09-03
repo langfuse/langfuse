@@ -1,4 +1,4 @@
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -40,6 +40,9 @@ export function ExperimentOverviewPanel({
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const metadata = experiment?.metadata ?? {};
+  const preparedStartTime = buildLocalIsoDatePresentation({
+    date: experiment?.startTime,
+  });
   const provider = metadata.provider;
   const model = metadata.model;
   const pullRequestUrl = metadata["langfuse.pr_url"];
@@ -141,7 +144,11 @@ export function ExperimentOverviewPanel({
               )}
 
               <ExperimentOverviewField label="Start Time">
-                <LocalIsoDate date={experiment.startTime} />
+                {preparedStartTime ? (
+                  <span title={preparedStartTime.title}>
+                    {preparedStartTime.display}
+                  </span>
+                ) : null}
               </ExperimentOverviewField>
 
               {safePullRequestUrl && (

@@ -1,0 +1,62 @@
+# Re-export the served OpenAPI specs and fail when web/public/generated/**
+# drifts from fern/. `fern-api export` is local (no FERN_TOKEN), so this can
+# run on fork PRs. `sdk-api-spec.yml` still owns `fern-api generate` + SDK
+# sync and stays post-merge because that path needs Fern credentials.
+name: OpenAPI Export Check
+
+on:
+  pull_request:
+    paths:
+      - "fern/**"
+      - "web/public/generated/**"
+      - "web/scripts/openapi/**"
+      - "scripts/openapi/**"
+      - ".github/workflows/openapi-export-check.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "fern/**"
+      - "web/public/generated/**"
+      - "web/scripts/openapi/**"
+      - "scripts/openapi/**"
+      - ".github/workflows/openapi-export-check.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: openapi-export-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-openapi-export:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Assert helper rejects drifted specs
+        run: bash scripts/openapi/assert-generated-current.test.sh
+
+      - name: Install pnpm
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Export OpenAPI specs and fail on drift
+        run: pnpm run openapi:check

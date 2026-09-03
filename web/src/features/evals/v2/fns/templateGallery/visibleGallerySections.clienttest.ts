@@ -19,7 +19,7 @@ const template = {
   maintainer: "langfuse",
   evaluator: {
     type: "LLM_AS_JUDGE",
-    prompt: "Rate relevance.",
+    promptMessages: [{ role: "user", content: "Rate relevance." }],
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
       dataType: "NUMERIC",
@@ -40,7 +40,6 @@ const customSection = {
       id: "evaluator-1",
       name: "Project exact match",
       type: "CODE",
-      prompt: null,
       updatedAt: new Date("2026-08-11T10:00:00.000Z"),
       version: 1,
     },

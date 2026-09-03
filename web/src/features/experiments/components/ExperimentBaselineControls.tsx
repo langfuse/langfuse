@@ -3,7 +3,7 @@ import { Combobox } from "@/src/components/ui/combobox";
 import { X } from "lucide-react";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {

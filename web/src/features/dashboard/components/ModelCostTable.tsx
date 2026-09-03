@@ -10,7 +10,7 @@ import { TotalMetric } from "./TotalMetric";
 import { truncate } from "@/src/utils/string";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
 
 export const ModelCostTable = ({
@@ -29,7 +29,7 @@ export const ModelCostTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const modelCostQuery: QueryType = {

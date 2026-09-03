@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
@@ -14,7 +15,7 @@ import {
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 
 const JobExecutionCounts = ({
@@ -140,14 +141,13 @@ export const EvaluatorDetail = () => {
         <div className="flex h-full flex-col overflow-hidden">
           {filterValidation && !filterValidation.isValid && (
             <div className="mx-3 mt-3">
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Unsupported filters</AlertTitle>
-                <AlertDescription>
+              <Alert variant="destructive" icon={AlertTriangle}>
+                <Alert.Title>Unsupported filters</Alert.Title>
+                <Alert.Description>
                   This evaluator contains deprecated or unsupported filters. The
                   filters must be removed. Until the filters are removed, the
                   evaluator is paused and will not be run.{" "}
-                </AlertDescription>
+                </Alert.Description>
               </Alert>
             </div>
           )}

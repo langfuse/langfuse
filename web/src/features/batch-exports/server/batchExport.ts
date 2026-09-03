@@ -6,10 +6,7 @@ import {
   hasEntitlement,
   throwIfNoEntitlement,
 } from "@/src/features/entitlements/server/hasEntitlement";
-import {
-  hasProjectAccess,
-  throwIfNoProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   type AuthedSession,
   createTRPCRouter,

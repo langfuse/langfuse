@@ -5,6 +5,7 @@ import {
   createEventsCh,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getDatasetExperimentMetricsFromEvents,
   getExperimentMetricsFromEvents,
   getExperimentItemsFilterOptions,
   getExperimentNamesFromEvents,
@@ -37,6 +38,85 @@ describe("Clickhouse Experiment Repository Test", () => {
       });
 
       expect(count).toBe(0);
+    });
+
+    it("should return experiment count and latest start time per dataset", async () => {
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const experimentId1 = randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentId3 = randomUUID();
+      const olderStart = new Date("2026-08-27T10:00:00.000Z");
+      const latestStart = new Date("2026-08-29T12:00:00.000Z");
+
+      const makeEvent = ({
+        datasetId,
+        experimentId,
+        startTime,
+      }: {
+        datasetId: string;
+        experimentId: string;
+        startTime: Date;
+      }) => {
+        const spanId = randomUUID();
+        return createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentId,
+          experiment_name: `experiment-${experimentId}`,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: spanId,
+          start_time: startTime.getTime() * 1000,
+        });
+      };
+
+      await createEventsCh([
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId1,
+          startTime: olderStart,
+        }),
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId2,
+          startTime: latestStart,
+        }),
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId2,
+          startTime: new Date(latestStart.getTime() + 60_000),
+        }),
+        makeEvent({
+          datasetId: datasetId2,
+          experimentId: experimentId3,
+          startTime: olderStart,
+        }),
+      ]);
+
+      const result = await getDatasetExperimentMetricsFromEvents({
+        projectId,
+        datasetIds: [datasetId1, datasetId2],
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            datasetId: datasetId1,
+            countDatasetRuns: 2,
+            lastRunAt: latestStart,
+          },
+          {
+            datasetId: datasetId2,
+            countDatasetRuns: 1,
+            lastRunAt: olderStart,
+          },
+        ]),
+      );
     });
 
     it("should return one experiment row with two item rows", async () => {
@@ -1300,6 +1380,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         experimentIds: [],
       });
 
+      // The per-level lists stay the source (the charts read them); the
+      // level-agnostic set and its level maps are the projection the three
+      // score facets offer.
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
@@ -1309,6 +1392,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_score_categories: [],
         trace_score_booleans: [],
         trace_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
       });
     });
 
@@ -1318,6 +1408,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         experimentIds: [randomUUID()],
       });
 
+      // The per-level lists stay the source (the charts read them); the
+      // level-agnostic set and its level maps are the projection the three
+      // score facets offer.
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
@@ -1327,6 +1420,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_score_categories: [],
         trace_score_booleans: [],
         trace_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
       });
     });
 
@@ -1659,13 +1759,20 @@ describe("Clickhouse Experiment Repository Test", () => {
         obs_scores_avg: [],
         obs_score_categories: [],
         obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_columns: [],
         experiment_scores_avg: [],
         experiment_score_categories: [],
         experiment_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
       });
-      expect(result).not.toHaveProperty("trace_scores_avg");
-      expect(result).not.toHaveProperty("trace_score_categories");
-      expect(result).not.toHaveProperty("trace_score_columns");
     });
 
     it("should return experiment-run score filter options", async () => {

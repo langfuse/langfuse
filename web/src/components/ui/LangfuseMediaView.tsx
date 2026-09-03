@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";

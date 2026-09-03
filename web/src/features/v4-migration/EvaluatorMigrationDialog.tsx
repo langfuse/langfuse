@@ -14,9 +14,9 @@ import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
 

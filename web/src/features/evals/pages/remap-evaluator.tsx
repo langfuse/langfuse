@@ -8,7 +8,7 @@ import {
   isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -26,7 +26,7 @@ import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
@@ -35,7 +35,7 @@ import {
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =
@@ -113,7 +113,7 @@ export default function RemapEvaluatorPage() {
     await router.push(`/project/${projectId}/evals${filterQuery}`);
   };
 
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isV4: isV4BetaEnabled } = useReadPath();
 
   // Map old config to new config with modern target
   // Only copy scoreName - filters and variable mapping will be initialized fresh
@@ -256,9 +256,9 @@ export default function RemapEvaluatorPage() {
             </div>
           ) : !oldConfig || !evalTemplate ? (
             <Alert variant="destructive">
-              <AlertDescription>
+              <Alert.Description>
                 Failed to load eval configuration or template.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           ) : (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2px_minmax(0,1fr)] items-start">

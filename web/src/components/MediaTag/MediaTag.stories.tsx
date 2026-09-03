@@ -145,6 +145,18 @@ export const TruncatedMimeTypePreview = meta.story({
   },
 });
 
+export const InlineWithText = meta.story({
+  render: () => (
+    <pre className="font-sans text-sm leading-5">
+      {'"media": "'}
+      <span className="inline-flex">
+        <MediaTag contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+      </span>
+      {'"}]}'}
+    </pre>
+  ),
+});
+
 export const OfficeFormats = meta.story({
   render: () => (
     <div className="flex flex-wrap items-center gap-3">

@@ -13,8 +13,9 @@ const STATUS_MESSAGE_CLASS_NAMES: Record<
   ObservationStatusMessage["level"],
   string
 > = {
-  ERROR: "border-dark-red bg-light-red",
-  WARNING: "border-dark-yellow/40 bg-light-yellow",
+  ERROR:
+    "border-dark-red/30 bg-light-red/50 dark:border-dark-red/20 dark:bg-light-red/35",
+  WARNING: "border-dark-yellow/40 bg-light-yellow/80",
   DEBUG: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
   DEFAULT: "bg-card",
 };

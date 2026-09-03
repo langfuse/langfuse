@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";

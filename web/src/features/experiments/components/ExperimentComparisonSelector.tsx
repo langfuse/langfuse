@@ -4,7 +4,7 @@ import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   comparisonChangedProps,
   comparisonPickerOpenedProps,

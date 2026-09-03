@@ -14,7 +14,7 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -23,7 +23,7 @@ export function CategoricalScoreChart(props: {
   fromTimestamp: Date;
   toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {

@@ -2,6 +2,9 @@ import { beforeEach, expect, describe, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyObservationFieldOverflow: vi.fn(),
+  validateAndInflateScoreOverride: undefined as
+    | ((...args: unknown[]) => unknown)
+    | undefined,
 }));
 
 vi.mock(
@@ -10,6 +13,20 @@ vi.mock(
     applyObservationFieldOverflow: mocks.applyObservationFieldOverflow,
   }),
 );
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...actual,
+    validateAndInflateScore: (...args: unknown[]) =>
+      mocks.validateAndInflateScoreOverride
+        ? mocks.validateAndInflateScoreOverride(...args)
+        : (actual.validateAndInflateScore as (...a: unknown[]) => unknown)(
+            ...args,
+          ),
+  };
+});
 
 import { IngestionService } from "../../IngestionService";
 import {
@@ -26,6 +43,7 @@ describe("IngestionService unit tests", () => {
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
+    mocks.validateAndInflateScoreOverride = undefined;
   });
 
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
@@ -155,6 +173,103 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.usage_details).toEqual({ total: 3 });
     expect(eventRecord.provided_cost_details).toEqual({ total: 0.03 });
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
+  });
+
+  it("keeps legacy evaluator metadata for ClickHouse defaults", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "evaluator",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-08-03T00:00:00.000Z",
+        endTimeISO: "2026-08-03T00:00:01.000Z",
+        metadata: {
+          dispatcher_name: "test-dispatcher",
+          evaluator_id: "evaluator-1",
+          evaluation_rule_id: "rule-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.evaluator_id).toBeUndefined();
+    expect(eventRecord.evaluation_rule_id).toBeUndefined();
+    expect(eventRecord.evaluator_execution_is_test).toBeUndefined();
+    expect(eventRecord.metadata_names).toEqual([
+      "dispatcher_name",
+      "evaluator_id",
+      "evaluation_rule_id",
+      "job_configuration_id",
+      "evaluator_test",
+    ]);
+    expect(eventRecord.metadata_values).toEqual([
+      "test-dispatcher",
+      "evaluator-1",
+      "rule-1",
+      "legacy-rule-1",
+      "true",
+    ]);
+  });
+
+  it("persists evaluation context in dedicated columns without removing metadata", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "evaluator",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-08-03T00:00:00.000Z",
+        endTimeISO: "2026-08-03T00:00:01.000Z",
+        metadata: {
+          evaluator_id: "legacy-evaluator-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+        evaluationContext: {
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "rule-1",
+          evaluatorExecutionIsTest: false,
+        },
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.evaluator_id).toBe("evaluator-1");
+    expect(eventRecord.evaluation_rule_id).toBe("rule-1");
+    expect(eventRecord.evaluator_execution_is_test).toBe(false);
+    expect(eventRecord.metadata_names).toEqual([
+      "evaluator_id",
+      "job_configuration_id",
+      "evaluator_test",
+    ]);
+    expect(eventRecord.metadata_values).toEqual([
+      "legacy-evaluator-1",
+      "legacy-rule-1",
+      "true",
+    ]);
   });
 
   it("preserves non-JSON model parameter strings on direct events", async () => {
@@ -380,6 +495,42 @@ describe("IngestionService unit tests", () => {
     expect(sortedEventList).not.toBe(records); // Ensure that the original array is not mutated
   });
 
+  it("puts the first-arriving of tied create events last so it wins the merge", () => {
+    // OTel stamps a root span's trace-create and a child span's trace update
+    // with the same start time; the child arrives first and must win.
+    const first = { timestamp: 1, type: "trace-create", id: "first" };
+    const second = { timestamp: 1, type: "trace-create", id: "second" };
+
+    expect(
+      (IngestionService as any).toTimeSortedEventList([first, second]),
+    ).toEqual([second, first]);
+  });
+
+  it("keeps the last-arriving of tied update events last so it wins the merge", () => {
+    const first = { timestamp: 1, type: "trace-update", id: "first" };
+    const second = { timestamp: 1, type: "trace-update", id: "second" };
+
+    expect(
+      (IngestionService as any).toTimeSortedEventList([first, second]),
+    ).toEqual([first, second]);
+  });
+
+  it("orders a mixed run of tied creates and updates deterministically", () => {
+    // Creates sort before updates so the update wins the merge, and among the
+    // tied creates the first-arriving one sorts last.
+    const firstCreate = { timestamp: 1, type: "trace-create", id: "c0" };
+    const update = { timestamp: 1, type: "trace-update", id: "u1" };
+    const secondCreate = { timestamp: 1, type: "trace-create", id: "c2" };
+
+    expect(
+      (IngestionService as any).toTimeSortedEventList([
+        firstCreate,
+        update,
+        secondCreate,
+      ]),
+    ).toEqual([secondCreate, firstCreate, update]);
+  });
+
   it("correctly convert Date to Clickhouse DateTime", async () => {
     const date = new Date("2024-10-12T12:13:14.123Z");
 
@@ -495,6 +646,187 @@ describe("IngestionService unit tests", () => {
     expect(addToQueue).not.toHaveBeenCalled();
   });
 
+  it("persists evaluator identifiers after the score JSON round-trip", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    const scoreEvent = JSON.parse(
+      JSON.stringify({
+        id: "event-id",
+        timestamp,
+        type: "score-create",
+        body: {
+          id: "score-id",
+          dataType: "NUMERIC",
+          name: "quality",
+          value: 1,
+          source: "EVAL",
+          traceId: "trace-id",
+          environment: "default",
+          metadata: {
+            job_execution_id: "job-1",
+            evaluator_id: "legacy-evaluator-1",
+            evaluation_rule_id: "legacy-rule-1",
+            job_configuration_id: "legacy-job-configuration-1",
+            evaluator_test: "true",
+          },
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "rule-1",
+        },
+      }),
+    ) as ScoreEventType;
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [scoreEvent],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).toHaveBeenCalledWith(
+      TableName.Scores,
+      expect.objectContaining({
+        evaluator_id: "evaluator-1",
+        evaluation_rule_id: "rule-1",
+        metadata: {
+          job_execution_id: "job-1",
+          evaluator_id: "legacy-evaluator-1",
+          evaluation_rule_id: "legacy-rule-1",
+          job_configuration_id: "legacy-job-configuration-1",
+          evaluator_test: "true",
+        },
+      }),
+    );
+  });
+
+  it("keeps legacy score metadata for ClickHouse defaults", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [
+        {
+          id: "event-id",
+          timestamp,
+          type: "score-create",
+          body: {
+            id: "score-id",
+            dataType: "NUMERIC",
+            name: "quality",
+            value: 1,
+            source: "EVAL",
+            traceId: "trace-id",
+            environment: "default",
+            metadata: {
+              job_execution_id: "job-1",
+              evaluator_id: "evaluator-1",
+              job_configuration_id: "legacy-rule-1",
+              evaluator_test: "true",
+            },
+          },
+        },
+      ] satisfies ScoreEventType[],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).toHaveBeenCalledWith(
+      TableName.Scores,
+      expect.objectContaining({
+        evaluator_id: undefined,
+        evaluation_rule_id: undefined,
+        metadata: {
+          job_execution_id: "job-1",
+          evaluator_id: "evaluator-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+      }),
+    );
+  });
+
+  it("preserves evaluator identifiers when a later score update omits them", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue({
+      ...createTraceScore({
+        id: "score-id",
+        project_id: "project-id",
+        trace_id: "trace-id",
+        timestamp: new Date(timestamp).getTime(),
+      }),
+      evaluator_id: "evaluator-1",
+      evaluation_rule_id: "rule-1",
+    });
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [
+        {
+          id: "event-id",
+          timestamp,
+          type: "score-update",
+          body: {
+            id: "score-id",
+            comment: "updated",
+          },
+        } as ScoreEventType,
+      ],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).toHaveBeenCalledWith(
+      TableName.Scores,
+      expect.objectContaining({
+        evaluator_id: "evaluator-1",
+        evaluation_rule_id: "rule-1",
+      }),
+    );
+  });
+
   it("does not silently reject score batches with unexpected record errors", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
@@ -524,12 +856,9 @@ describe("IngestionService unit tests", () => {
     vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
       null,
     );
-    vi.spyOn(
-      ingestionService as any,
-      "getMillisecondTimestamp",
-    ).mockImplementation(() => {
-      throw new Error("unexpected timestamp failure");
-    });
+    mocks.validateAndInflateScoreOverride = () => {
+      throw new Error("unexpected score validation failure");
+    };
 
     await expect(
       (ingestionService as any).processScoreEventList({
@@ -582,12 +911,9 @@ describe("IngestionService unit tests", () => {
         timestamp: new Date(timestamp).getTime(),
       }),
     );
-    vi.spyOn(
-      ingestionService as any,
-      "getMillisecondTimestamp",
-    ).mockImplementation(() => {
-      throw new Error("unexpected timestamp failure");
-    });
+    mocks.validateAndInflateScoreOverride = () => {
+      throw new Error("unexpected score validation failure");
+    };
 
     await expect(
       (ingestionService as any).processScoreEventList({
@@ -604,5 +930,72 @@ describe("IngestionService unit tests", () => {
     ).rejects.toThrow("Unexpected error(s) validating score batch");
 
     expect(addToQueue).not.toHaveBeenCalled();
+  });
+
+  it("keeps the last-arriving event when score events share a timestamp", async () => {
+    // Re-sending the full score with the same id, name, and timestamp is the
+    // documented way to overwrite it, so the events tie on timestamp and
+    // arrival order has to decide the winner.
+    const timestamp = "2026-08-31T12:00:00.000Z";
+    const buildEvent = (id: string, value: string): ScoreEventType => ({
+      id,
+      timestamp,
+      type: "score-create",
+      body: {
+        id: "score-id",
+        name: "quality",
+        dataType: "TEXT",
+        source: "API",
+        sessionId: "session-id",
+        environment: "default",
+        value,
+      },
+    });
+    const first = buildEvent("event-first", "first");
+    const second = buildEvent("event-second", "second");
+
+    const mergeAndReadValue = async (events: ScoreEventType[]) => {
+      const addToQueue = vi.fn();
+      const ingestionService = new IngestionService(
+        {} as any,
+        {} as any,
+        { addToQueue } as any,
+        {} as any,
+      );
+      vi.spyOn(
+        ingestionService as any,
+        "getClickhouseRecord",
+      ).mockResolvedValue(null);
+
+      await ingestionService.mergeAndWrite({
+        eventType: "score",
+        projectId: "project-id",
+        entityId: "score-id",
+        createdAtTimestamp: new Date(timestamp),
+        events,
+        forwardToEventsTable: false,
+        attribution: {
+          ingestionApiKey: "pk-lf-unit-test",
+          ingestionSdkName: "langfuse-test",
+          ingestionSdkVersion: "0.0.0",
+        },
+      });
+
+      expect(addToQueue).toHaveBeenCalledWith(
+        TableName.Scores,
+        expect.anything(),
+      );
+      return addToQueue.mock.calls[0]?.[1].string_value;
+    };
+
+    for (const events of [
+      [first, second],
+      [second, first],
+    ]) {
+      await expect(
+        mergeAndReadValue(events),
+        `arrival order ${events.map((e) => e.id).join(", ")}`,
+      ).resolves.toBe(events.at(-1)?.body.value);
+    }
   });
 });

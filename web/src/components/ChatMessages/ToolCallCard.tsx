@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-margin-on-root-elements */
 import { type LLMToolCall } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 

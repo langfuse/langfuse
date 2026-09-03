@@ -26,7 +26,7 @@ import {
   EncodedObservationsCursorV2,
   EncodedObservationsCursorV2String,
   encodeCursor,
-} from "@/src/features/public-api/types/observations";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";

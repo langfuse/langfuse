@@ -1,3 +1,0 @@
-ALTER TABLE traces ON CLUSTER default ADD COLUMN environment LowCardinality(String) DEFAULT 'default' AFTER project_id SETTINGS alter_sync = 2;
-ALTER TABLE observations ON CLUSTER default ADD COLUMN environment LowCardinality(String) DEFAULT 'default' AFTER project_id SETTINGS alter_sync = 2;
-ALTER TABLE scores ON CLUSTER default ADD COLUMN environment LowCardinality(String) DEFAULT 'default' AFTER project_id SETTINGS alter_sync = 2;

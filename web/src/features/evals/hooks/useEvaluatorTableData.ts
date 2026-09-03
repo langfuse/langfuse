@@ -18,8 +18,8 @@ import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 export type EvaluatorDataRow = {
   id: string;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   maintainer: string;
   rawStatus: string;
   template?: {
@@ -109,8 +109,8 @@ export const useEvaluatorTableData = ({
           id: jobConfig.id,
           status,
           rawStatus: jobConfig.status,
-          createdAt: jobConfig.createdAt.toLocaleString(),
-          updatedAt: jobConfig.updatedAt.toLocaleString(),
+          createdAt: jobConfig.createdAt,
+          updatedAt: jobConfig.updatedAt,
           template: jobConfig.evalTemplate
             ? {
                 id: jobConfig.evalTemplate.id,

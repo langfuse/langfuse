@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type EvalTemplate, type EvalTargetObject } from "@langfuse/shared";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import { type PartialConfig } from "@/src/features/evals/types";

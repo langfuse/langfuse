@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
@@ -20,9 +21,11 @@
  *    phone or a peek panel, where there is not, the colour rail becomes the
  *    affordance and a hover or a tap floats the names over the chart.
  *  - Any wheel or two-finger scroll pans both axes; pinch and ⌘/ctrl + wheel zoom
- *    BOTH axes about the cursor, so the time window narrows and the rows grow
- *    together. Zoom is exponential in a zoom level and deltas accumulate per
- *    frame, as in mapping libraries — see the rate constants below.
+ *    about the cursor. While rows are still too short to hold a label, that zoom
+ *    grows only the rows — the whole duration stays on screen until the names
+ *    come back — and after that both axes move together. Zoom is exponential in
+ *    a zoom level and deltas accumulate per frame, as in mapping libraries — see
+ *    the rate constants below.
  *  - Drag pans both axes too, and drag draws a box to zoom into — the one
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
@@ -55,7 +58,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
-import { Scan, Minus, Plus } from "lucide-react";
+import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
@@ -80,6 +83,8 @@ import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
+  canExpandRowsToReadable,
+  expandRowsToReadable,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -94,7 +99,7 @@ import {
   rowIndexAtOffset,
   visibleRowRange,
   zoomToBox,
-  zoomViewport,
+  zoomViewportRevealLabels,
   type RowExtent,
   type Viewport,
 } from "../../fns/timeline/viewport";
@@ -387,6 +392,10 @@ export function TimelineDense({
   // A manual override lives until you touch the chart again, which is what
   // "expand to look, then get out of my way" means in practice.
   const [override, setOverride] = useState<GutterMode | null>(null);
+  // An explicit "Show labels" is the other ask: keep the names on screen even
+  // when a gesture would have handed the gutter back, and even when auto would
+  // rather keep the lane. Fit or a rail collapse lets go.
+  const [labelsPinned, setLabelsPinned] = useState(false);
   // Desktop peek: hovering the left edge opens it, moving into the chart closes
   // it again. No click to look, no click to get out of the way.
   const [peeking, setPeeking] = useState(false);
@@ -436,9 +445,16 @@ export function TimelineDense({
    */
   const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
   const wantedGutter = Math.min(Math.max(contentWidth * 0.38, 96), 168);
-  const asked = override === "expanded" || gutterMode === "expanded";
-  const wantsOpen =
-    override === "collapsed" ? false : asked || gutterMode === "auto";
+  const asked =
+    labelsPinned || override === "expanded" || gutterMode === "expanded";
+  // An explicit "Show labels" pin wins over a leftover rail-collapse
+  // override; otherwise the names stay a peek overlay and never take
+  // the gutter the user just asked for.
+  const wantsOpen = labelsPinned
+    ? true
+    : override === "collapsed"
+      ? false
+      : asked || gutterMode === "auto";
   const gutterFits =
     contentWidth - wantedGutter >=
     (asked ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
@@ -485,11 +501,22 @@ export function TimelineDense({
   // an explicit ask still gets the names where they could not fit beside the
   // chart.
   const peekWidth =
-    canShowNames && !committedOpen && (peeking || override === "expanded")
+    canShowNames &&
+    !committedOpen &&
+    (peeking || labelsPinned || override === "expanded")
       ? wantedGutter
       : 0;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
+  const canShowLabels = canExpandRowsToReadable(current, limits);
+  const labelsShowing = committedOpen || (labelsPinned && peekWidth > 0);
+  // Replace Fit only while the whole clock is still on screen AND names are
+  // missing. Rows can be too short, or the pane too narrow to volunteer a
+  // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
+  const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
+  const offerShowLabels =
+    clockFits && !labelsShowing && (canShowLabels || canShowNames);
+  const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   /**
@@ -665,7 +692,7 @@ export function TimelineDense({
     options: { factor: number; xRatio: number; yRatio: number },
   ) => {
     const { limits: live, extentOf: extent } = layoutRef.current;
-    const zoomed = zoomViewport(
+    const zoomed = zoomViewportRevealLabels(
       from ? clampViewport(from, live) : fitViewport(live),
       live,
       options,
@@ -815,6 +842,19 @@ export function TimelineDense({
     [cancelTween],
   );
 
+  const showLabels = () => {
+    const { limits: live, extentOf } = layoutRef.current;
+    setLabelsPinned(true);
+    setOverride(null);
+    flyTo(
+      anchorTimeToRows(
+        expandRowsToReadable(viewportRef.current, live),
+        live,
+        extentOf,
+      ),
+    );
+  };
+
   const scheduleGesture = useCallback(() => {
     // Any gesture on the chart hands the space back: an expanded gutter is for
     // looking, and the moment you work in the chart it gets out of the way. It
@@ -827,8 +867,9 @@ export function TimelineDense({
 
   /**
    * Wheel and trackpad pinch on a non-passive listener, so the page never takes
-   * the gesture. Both zoom, like a map: a Mac pinch arrives as wheel + ctrlKey
-   * and needs no special case; shift or a horizontal wheel pans instead.
+   * the gesture. A Mac pinch arrives as wheel + ctrlKey and needs no special
+   * case; shift or a horizontal wheel pans instead. Pinch-zoom grows only the
+   * rows while labels are hidden, then both axes once they fit.
    */
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
@@ -922,7 +963,14 @@ export function TimelineDense({
       canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
-      setOverride(isOpen ? "collapsed" : "expanded");
+      // Peek overlays never become committedOpen (the pane is too narrow
+      // to give the gutter a lane). Toggle on the held-open state so a
+      // second tap can dismiss a peek the first tap — or Show labels —
+      // just opened.
+      const namesHeldOpen =
+        committedOpen || labelsPinned || override === "expanded";
+      setLabelsPinned(!namesHeldOpen);
+      setOverride(namesHeldOpen ? "collapsed" : "expanded");
       // This tap is spent on the toggle, so it is not half of a double-tap:
       // opening and closing the names inside the double-tap window otherwise read
       // as one, and flew the viewport to whatever row the second tap landed on.
@@ -1306,31 +1354,48 @@ export function TimelineDense({
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
-          onClick={() => zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
+          onClick={() =>
+            offerShowLabels
+              ? showLabels()
+              : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
+          }
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
-        <ToolbarButton
-          label={fitted ? "Whole trace already fits" : "Fit whole trace"}
-          onClick={() => flyTo(fitViewport(limits))}
-          disabled={fitted}
-        >
-          {/* A viewfinder, not the diagonal arrows this used to wear: those read
-              as "fullscreen", so a control that was merely spent looked broken. */}
-          <Scan className="h-3 w-3" />
-        </ToolbarButton>
+        {offerShowLabels ? (
+          <ToolbarButton label="Show labels" onClick={showLabels}>
+            <UnfoldVertical className="h-3 w-3" />
+            <span className="pr-0.5" style={{ fontSize: "10px" }}>
+              Show labels
+            </span>
+          </ToolbarButton>
+        ) : (
+          <ToolbarButton
+            label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
+            onClick={() => {
+              setLabelsPinned(false);
+              setOverride(null);
+              flyTo(fitViewport(limits));
+            }}
+            disabled={fitSpent}
+          >
+            {/* A viewfinder, not the diagonal arrows this used to wear: those
+                read as "fullscreen", so a control that was merely spent looked
+                broken. */}
+            <Scan className="h-3 w-3" />
+          </ToolbarButton>
+        )}
         {/* Where you are, when you are somewhere — and nothing at all when the
-            whole trace is in view. This carried a list of gestures once. Every
-            way of interacting with this surface is one you would have tried:
-            drag, scroll, pinch, double-click, click. A caption explaining them
-            is a caption nobody reads, taking the room a state readout earns. */}
-        <span
-          className="text-muted-foreground truncate"
-          style={{ fontSize: "10px" }}
-          title={fitted ? undefined : windowHint}
-        >
-          {fitted ? null : windowHint}
-        </span>
+            whole trace is in view. */}
+        {!offerShowLabels && !fitted ? (
+          <span
+            className="text-muted-foreground truncate"
+            style={{ fontSize: "10px" }}
+            title={windowHint}
+          >
+            {windowHint}
+          </span>
+        ) : null}
       </div>
 
       {/* The axis doubles as the scrub track: press to place the playhead, drag
@@ -1910,7 +1975,7 @@ function ToolbarButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded disabled:pointer-events-none disabled:opacity-40"
+      className="hover:bg-muted flex h-4 min-w-4 shrink-0 items-center justify-center gap-0.5 rounded px-0.5 disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>

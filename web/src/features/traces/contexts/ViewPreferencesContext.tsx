@@ -26,8 +26,13 @@ export type LogViewMode = "chronological" | "tree-order";
 /** Log view tree visualization style (only applies in tree-order mode) */
 export type LogViewTreeStyle = "flat" | "indented";
 
-/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta) */
-export type JsonViewPreference = "pretty" | "json" | "json-beta";
+/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta).
+ * "pretty-beta" is the admin-only normalized-parser formatted view. */
+export type JsonViewPreference =
+  | "pretty"
+  | "pretty-beta"
+  | "json"
+  | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
 type TraceRenderContext = "fullscreen" | "peek" | "annotation";

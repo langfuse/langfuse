@@ -71,6 +71,14 @@ export const scoresTableCols: ColumnDefinition[] = [
     options: [],
   },
   {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    // ClickHouse-only virtual column; see mapScoresTable.ts.
+    internal: "",
+    options: [],
+  },
+  {
     name: "Metadata",
     id: "metadata",
     type: "stringObject",

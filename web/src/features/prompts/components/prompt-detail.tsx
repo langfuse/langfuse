@@ -14,7 +14,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -36,7 +36,7 @@ import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playgroun
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import LegacyGenerations from "@/src/components/table/use-cases/observations";
 import EventsTable from "@/src/features/events/components/EventsTable";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   ChevronDown,
   FlaskConical,
@@ -46,10 +46,10 @@ import {
   Plus,
   Terminal,
 } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   Dialog,
   DialogContent,
@@ -57,7 +57,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
 import {
@@ -124,7 +124,7 @@ export const PromptDetail = ({
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   const promptName =
     promptNameProp ||
@@ -547,7 +547,7 @@ export const PromptDetail = ({
               className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
-                {isBetaEnabled ? (
+                {isV4 ? (
                   <EventsTable
                     projectId={prompt.projectId}
                     promptName={prompt.name}
@@ -578,20 +578,18 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <TabsList className="h-auto gap-1">
-                        <TabsTrigger
+                      <Tabs.List gap="sm" size="auto">
+                        <Tabs.Trigger
                           value="resolved"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Resolved prompt
-                        </TabsTrigger>
-                        <TabsTrigger
+                          size="sm"
+                          label="Resolved prompt"
+                        />
+                        <Tabs.Trigger
                           value="tagged"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Tagged prompt
-                        </TabsTrigger>
-                      </TabsList>
+                          size="sm"
+                          label="Tagged prompt"
+                        />
+                      </Tabs.List>
                     </Tabs>
                   </div>
                 )}

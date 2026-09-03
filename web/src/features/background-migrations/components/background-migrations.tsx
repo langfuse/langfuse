@@ -8,23 +8,22 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { RotateCcw } from "lucide-react";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
 
   const columns = [
-    {
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "name",
-      id: "name",
       enableColumnFilter: false,
       header: "Name",
-    },
-    {
+    }),
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "script",
-      id: "script",
       enableColumnFilter: false,
       header: "Script",
-    },
+    }),
     {
       accessorKey: "args",
       id: "args",
@@ -48,19 +47,17 @@ export default function BackgroundMigrationsTable() {
       size: 80,
       enableSorting: false,
     }),
-    {
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "failedReason",
-      id: "failedReason",
       enableColumnFilter: false,
       header: "Failed Reason",
-    },
-    {
+    }),
+    createTextTableColumn<BackgroundMigration, BackgroundMigration["state"]>({
       accessorKey: "state",
-      id: "state",
       enableColumnFilter: false,
       header: "State",
-      cell: (row) => JSON.stringify(row.getValue()),
-    },
+      mapValue: (value) => JSON.stringify(value),
+    }),
     {
       id: "actions",
       header: "Actions",

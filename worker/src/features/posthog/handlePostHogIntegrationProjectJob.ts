@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   buildAnalyticsRedirectOptions,
+  hostnameForLog,
   rethrowIfOutboundValidationFailure,
 } from "../analyticsIntegrationEgress";
 import {
@@ -291,7 +292,7 @@ export const handlePostHogIntegrationProjectJob = async (
       await validateWebhookURL(postHogIntegration.posthogHostName);
     } catch (error) {
       logger.error(
-        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${hostnameForLog(postHogIntegration.posthogHostName)}. Error: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new Error(
         `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -517,7 +518,7 @@ export const handlePostHogIntegrationProjectJob = async (
     await notifyPostHogExportFailed(
       projectId,
       postHogIntegration.project.name,
-      postHogIntegration.posthogHostName,
+      hostnameForLog(postHogIntegration.posthogHostName),
     );
     return;
   }

@@ -1,4 +1,5 @@
 import type {
+  EvaluatorPromptMessage,
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
 } from "@langfuse/shared";
@@ -9,12 +10,22 @@ export type EvaluatorCreationSource =
   | { type: "custom" }
   | { type: "scratch" };
 
+export function getJudgePromptAnalyticsProperties(
+  promptMessages: Array<Pick<EvaluatorPromptMessage, "role">>,
+) {
+  return {
+    promptMessageCount: promptMessages.length,
+    promptMessageRoles: [...new Set(promptMessages.map(({ role }) => role))],
+  };
+}
+
 export function getEvaluatorCreationAnalyticsProperties({
   evaluatorType,
   creationSource,
   evaluatorConfig,
   sourceCodeLanguage,
   variableMapping,
+  promptMessages,
 }: {
   evaluatorType: EvalTemplateType;
   creationSource: EvaluatorCreationSource;
@@ -29,6 +40,7 @@ export function getEvaluatorCreationAnalyticsProperties({
     selectedColumnId: string | null;
     jsonSelector?: string | null;
   }>;
+  promptMessages?: Array<Pick<EvaluatorPromptMessage, "role">>;
 }) {
   const configProperties = evaluatorConfig
     ? {
@@ -52,6 +64,9 @@ export function getEvaluatorCreationAnalyticsProperties({
         ],
       }
     : {};
+  const promptProperties = promptMessages
+    ? getJudgePromptAnalyticsProperties(promptMessages)
+    : {};
 
   if (creationSource.type === "managed") {
     return {
@@ -61,6 +76,7 @@ export function getEvaluatorCreationAnalyticsProperties({
       isFromScratch: false,
       ...configProperties,
       ...variableMappingProperties,
+      ...promptProperties,
       ...(sourceCodeLanguage ? { sourceCodeLanguage } : {}),
     };
   }
@@ -71,6 +87,7 @@ export function getEvaluatorCreationAnalyticsProperties({
     isFromScratch: creationSource.type === "scratch",
     ...configProperties,
     ...variableMappingProperties,
+    ...promptProperties,
     ...(sourceCodeLanguage ? { sourceCodeLanguage } : {}),
   };
 }

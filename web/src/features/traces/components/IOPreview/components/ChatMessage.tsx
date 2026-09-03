@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";

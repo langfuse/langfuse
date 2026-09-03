@@ -1,0 +1,2 @@
+ALTER TABLE events_full {CLICKHOUSE_CLUSTER_CLAUSE} ADD INDEX IF NOT EXISTS idx_ngram_metadata_values arrayStringConcat(metadata_values) TYPE ngrambf_v1(4, 32000, 3, 0) GRANULARITY 2 SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
+ALTER TABLE events_core {CLICKHOUSE_CLUSTER_CLAUSE} ADD INDEX IF NOT EXISTS idx_ngram_metadata_values arrayStringConcat(metadata_values) TYPE ngrambf_v1(4, 32000, 3, 0) GRANULARITY 2 SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};

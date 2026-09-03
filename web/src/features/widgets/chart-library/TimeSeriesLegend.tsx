@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type ChartConfig } from "@/src/components/ui/chart";
 import {

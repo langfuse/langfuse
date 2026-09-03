@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { Check, Pencil, TriangleAlert } from "lucide-react";

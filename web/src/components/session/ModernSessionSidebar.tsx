@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-margin-on-root-elements */
 import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -173,14 +173,19 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 /**
  * Owns dialog open state while callers retain trigger and content presentation.
- * Use the supplied Trigger to preserve Radix behavior.
+ * Prefer Trigger for direct user actions so Radix can provide trigger semantics,
+ * keyboard behavior, and focus restoration. Use openDialog when the dialog must
+ * open indirectly.
  */
 type DialogControllerProps = {
   children: (control: {
     isOpen: boolean;
+    openDialog: () => void;
     Trigger: typeof DialogTrigger;
   }) => React.ReactNode;
   closeOnInteractionOutside: boolean;
+  onBeforeClose?: () => boolean;
+  onDismiss?: () => void;
   renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
 };
@@ -188,19 +193,39 @@ type DialogControllerProps = {
 const DialogController = ({
   children,
   closeOnInteractionOutside,
+  onBeforeClose,
+  onDismiss,
   renderContent,
   size,
 }: DialogControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const closeDialog = () => {
+    if (onBeforeClose?.() === false) return false;
+    setIsOpen(false);
+    return true;
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, Trigger: DialogTrigger })}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (open) {
+          setIsOpen(true);
+          return;
+        }
+        if (closeDialog()) onDismiss?.();
+      }}
+    >
+      {children({
+        isOpen,
+        openDialog: () => setIsOpen(true),
+        Trigger: DialogTrigger,
+      })}
       <DialogContent
         size={size}
         closeOnInteractionOutside={closeOnInteractionOutside}
       >
-        {renderContent({ closeDialog: () => setIsOpen(false) })}
+        {renderContent({ closeDialog })}
       </DialogContent>
     </Dialog>
   );

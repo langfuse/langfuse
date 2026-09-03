@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useDebounce } from "@/src/hooks/useDebounce";

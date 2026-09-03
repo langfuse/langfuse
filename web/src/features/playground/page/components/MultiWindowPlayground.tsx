@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider, usePlaygroundContext } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";

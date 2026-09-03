@@ -8,6 +8,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export default function EditWidget() {
   const router = useRouter();
@@ -20,6 +21,9 @@ export default function EditWidget() {
   // Fetch the widget details
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  // The form derives its view/version declaration from the read path at
+  // mount — an unresolved session would seed a v4 user's editor as v3.
+  const { isResolved } = useReadPath();
   const { data: widgetData, isLoading: isWidgetLoading } =
     api.dashboardWidgets.get.useQuery(
       {
@@ -95,7 +99,7 @@ export default function EditWidget() {
         },
       }}
     >
-      {!isWidgetLoading && widgetData ? (
+      {!isWidgetLoading && widgetData && isResolved ? (
         <WidgetForm
           // Remount when the edited widget changes so its loaded values seed
           // the form defaults once, rather than syncing via an effect.

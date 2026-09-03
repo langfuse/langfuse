@@ -10,8 +10,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 RUN npm install turbo@2.10.5 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-RUN corepack prepare pnpm@11.22.0 --activate
+# Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
+ARG NODE_USE_ENV_PROXY
+RUN npm install --global corepack@0.36.0 \
+    && corepack enable \
+    && corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
@@ -120,6 +123,12 @@ ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
+
+# Keep the documented direct golang-migrate recovery paths available in the
+# production image while maintaining canonical/ as the only authored tree.
+RUN set -eu; \
+    node ./packages/shared/clickhouse/scripts/prepare-migrations.mjs materialize ./packages/shared/clickhouse/migrations; \
+    chmod 755 ./packages/shared/clickhouse/migrations/clustered ./packages/shared/clickhouse/migrations/unclustered
 
 # remove middleware.ts if it exists - not needed in self-hosted environments
 RUN rm -f ./web/src/middleware.ts

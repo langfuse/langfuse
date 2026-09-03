@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   Collapsible,

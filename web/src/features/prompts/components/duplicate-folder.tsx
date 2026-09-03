@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {
@@ -22,14 +22,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Copy } from "lucide-react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 enum CopySettings {
@@ -162,14 +162,13 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                     <FormLabel>Version settings</FormLabel>
                     <FormControl>
                       <RadioGroup
-                        {...field}
+                        value={field.value}
                         onValueChange={field.onChange}
                         defaultValue={field.value}
-                        className="flex flex-col space-y-1"
                       >
                         <FormItem className="flex items-center space-y-0 space-x-3">
                           <FormControl>
-                            <RadioGroupItem value={CopySettings.LATEST_ONLY} />
+                            <RadioGroup.Item value={CopySettings.LATEST_ONLY} />
                           </FormControl>
                           <FormLabel className="font-normal">
                             Copy only the latest version of each prompt
@@ -177,7 +176,9 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                         </FormItem>
                         <FormItem className="flex items-center space-y-0 space-x-3">
                           <FormControl>
-                            <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
+                            <RadioGroup.Item
+                              value={CopySettings.ALL_VERSIONS}
+                            />
                           </FormControl>
                           <FormLabel className="font-normal">
                             Copy all versions and labels

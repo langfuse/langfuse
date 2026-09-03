@@ -14,7 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
   type ObservationReturnTypeWithMetadata,
@@ -207,7 +207,7 @@ export function useParsedObservation({
   startTime,
   baseObservation,
 }: UseParsedObservationParams) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Step 1a: Fetch raw observation data from observations table (beta OFF)
   const observationQuery = api.observations.byId.useQuery(
@@ -218,7 +218,7 @@ export function useParsedObservation({
       startTime,
     },
     {
-      enabled: !isBetaEnabled,
+      enabled: !isV4,
       staleTime: 5 * 60 * 1000, // 5 minutes
     },
   );
@@ -235,14 +235,14 @@ export function useParsedObservation({
     },
     {
       ...sendAsPostOption,
-      enabled: isBetaEnabled,
+      enabled: isV4,
       staleTime: 5 * 60 * 1000, // 5 minutes
       select: (data) => data[0], // Extract single result from batch
     },
   );
 
   const mergedObservation = useMemo<ParsedObservationResult>(() => {
-    if (isBetaEnabled) {
+    if (isV4) {
       if (baseObservation && eventsQuery.data) {
         return {
           ...baseObservation,
@@ -257,20 +257,20 @@ export function useParsedObservation({
     }
     // Beta OFF: return full observation from observations table
     return observationQuery.data;
-  }, [isBetaEnabled, baseObservation, eventsQuery.data, observationQuery.data]);
+  }, [isV4, baseObservation, eventsQuery.data, observationQuery.data]);
 
   // TODO: remove when going into prod
   // Log warning if baseObservation missing when beta ON (helps catch issues in testing)
   useEffect(() => {
-    if (isBetaEnabled && eventsQuery.data && !baseObservation) {
+    if (isV4 && eventsQuery.data && !baseObservation) {
       console.warn(
         "[useParsedObservation] baseObservation missing - JumpToPlaygroundButton may not work correctly",
         { observationId },
       );
     }
-  }, [isBetaEnabled, eventsQuery.data, baseObservation, observationId]);
+  }, [isV4, eventsQuery.data, baseObservation, observationId]);
 
-  const isLoadingRaw = isBetaEnabled
+  const isLoadingRaw = isV4
     ? eventsQuery.isLoading
     : observationQuery.isLoading;
 

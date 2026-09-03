@@ -584,6 +584,7 @@ describe("unstable public eval adapters", () => {
                 version: 1,
                 createdByUserId: null,
                 prompt: "Always return a score of 1",
+                promptMessages: null,
                 partner: null,
                 model: null,
                 provider: null,

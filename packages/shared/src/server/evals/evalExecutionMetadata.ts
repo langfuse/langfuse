@@ -1,6 +1,9 @@
-import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
+import {
+  EvalExecutionMetadataKey,
+  type EvalExecutionContext,
+} from "../../features/evals/evalExecutionMetadata";
 
-export function buildEvalExecutionMetadata(
+export function buildEvalExecutionData(
   params:
     | {
         type: "TEST";
@@ -21,7 +24,9 @@ export function buildEvalExecutionMetadata(
         targetDatasetItemId: string | null;
       },
 ) {
-  const metadata =
+  // Keep old workers and legacy trace/observation sinks compatible during the
+  // v4 rollout. This metadata transport can be removed in v5.
+  const executionMetadata =
     params.type === "TEST"
       ? {
           [EvalExecutionMetadataKey.EVALUATOR_ID]: params.evaluatorId,
@@ -46,9 +51,9 @@ export function buildEvalExecutionMetadata(
                   params.assignmentId,
               }
             : {}),
-          [EvalExecutionMetadataKey.EVALUATOR_ID]: params.evaluatorId,
           [EvalExecutionMetadataKey.EVALUATOR_VERSION_ID]:
             params.evaluatorVersionId,
+          [EvalExecutionMetadataKey.EVALUATOR_ID]: params.evaluatorId,
           [EvalExecutionMetadataKey.TARGET_TRACE_ID]: params.targetTraceId,
           [EvalExecutionMetadataKey.TARGET_OBSERVATION_ID]:
             params.targetObservationId,
@@ -56,7 +61,23 @@ export function buildEvalExecutionMetadata(
             params.targetDatasetItemId,
         };
 
-  return Object.fromEntries(
-    Object.entries(metadata).filter(([, value]) => value != null),
-  ) as Record<string, string>;
+  const evaluationContext: EvalExecutionContext =
+    params.type === "TEST"
+      ? {
+          evaluatorId: params.evaluatorId ?? undefined,
+          evaluatorExecutionIsTest: true,
+        }
+      : {
+          evaluatorId: params.evaluatorId,
+          evaluationRuleId:
+            params.evaluationRuleId ?? params.jobConfigurationId,
+          evaluatorExecutionIsTest: false,
+        };
+
+  return {
+    executionMetadata: Object.fromEntries(
+      Object.entries(executionMetadata).filter(([, value]) => value != null),
+    ) as Record<string, string>,
+    evaluationContext,
+  };
 }

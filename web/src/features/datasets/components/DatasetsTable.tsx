@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -24,12 +25,14 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   createDatasetsTableStore,
   toFolderRowId,
@@ -40,7 +43,7 @@ import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { Pen, Trash } from "lucide-react";
 
 type DatasetTableRow = {
@@ -341,32 +344,26 @@ export function DatasetsTable(props: { projectId: string }) {
         };
       },
     }),
-    {
+    createTextTableColumn<DatasetTableRow>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: DatasetTableRow["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
-    {
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countItems",
       header: "Items",
-      id: "countItems",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countRuns",
       header: "Experiments",
-      id: "countRuns",
       enableHiding: true,
       size: 60,
-    },
+      formatter: (value) => String(value),
+    }),
     createDateTableColumn<DatasetTableRow>({
       accessorKey: "createdAt",
       header: "Created",

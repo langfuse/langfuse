@@ -12,7 +12,9 @@ x-redis-cluster-healthcheck: &redis-cluster-healthcheck
 
 services:
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:25.12
+    # Latest ClickHouse in the CI matrix. Used to catch parser/settings
+    # regressions such as DateTime64 unquoted-number scaling on 26.8+.
+    image: docker.io/clickhouse/clickhouse-server:26.8
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default

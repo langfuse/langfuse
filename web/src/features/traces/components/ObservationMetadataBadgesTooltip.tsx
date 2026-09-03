@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * Tooltip-based metadata badges for ObservationDetailView
  * These badges use BreakdownTooltip to show detailed cost/usage information

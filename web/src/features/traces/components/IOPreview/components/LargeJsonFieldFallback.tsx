@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /** How much of the raw payload the preview head shows. Bounded regardless of
  *  payload size — the full value is reachable via download or the other views. */

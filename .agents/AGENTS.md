@@ -87,8 +87,9 @@ langfuse/
 - High-signal shared entry points:
   - Domain models: `packages/shared/src/domain/{observations,traces,scores}.ts`
   - Postgres schema: `packages/shared/prisma/schema.prisma`
-  - ClickHouse migrations:
-    `packages/shared/clickhouse/migrations/{clustered,unclustered}/*.sql`
+  - Canonical ClickHouse migration templates (rendered for clustered and
+    unclustered installs):
+    `packages/shared/clickhouse/migrations/canonical/*.sql`
 - Architecture principles live in `.agents/ARCHITECTURE_PRINCIPLES.md`.
 
 ## Core Commands
@@ -157,7 +158,8 @@ langfuse/
   regressions.
 - Public API contracts in `web/src/pages/api/public/**`,
   `web/src/features/public-api/types/**`, or `fern/apis/**`: `pnpm run lint`,
-  targeted server API tests, and Fern update/regeneration.
+  targeted server API tests, Fern update/regeneration, and
+  `pnpm run openapi:check`.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
 - Client-bundle soundness: CI scans every prod web build

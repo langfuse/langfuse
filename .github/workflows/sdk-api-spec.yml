@@ -33,9 +33,10 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
-          version: 11.22.0
+          install: false
+          cache: false
 
       # Keep this secret-bearing job cache-cold to avoid exposing Fern
       # credentials to potentially poisoned shared package-manager state.
@@ -159,7 +160,6 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@11.22.0 --activate
           pnpm install
           pnpm format
 

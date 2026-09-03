@@ -1,3 +1,4 @@
+import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
@@ -21,7 +22,6 @@ import {
   eventsExperimentsForItems,
   eventsExperiments,
   eventsExperimentsAggregation,
-  eventsScoresAggregation,
   eventsTracesScoresAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -35,6 +35,20 @@ import {
   experimentScoreAggCols,
   experimentOrderByCols,
 } from "../tableMappings/mapExperimentTable";
+
+import {
+  toAgnosticScoreFilterOptions,
+  type AgnosticScoreFilterOptions,
+  type ProcessedScoreFilterOptions,
+  type ScoreColumnDefinition,
+} from "./experimentScoreOptions";
+
+export {
+  toAgnosticScoreFilterOptions,
+  type AgnosticScoreFilterOptions,
+  type ScoreColumnDefinition,
+  type ScoreNameLevels,
+} from "./experimentScoreOptions";
 
 export type ExperimentEventsDataReturnType = {
   experiment_id: string;
@@ -54,14 +68,87 @@ export type ExperimentMetricsReturnType = {
   latency_avg: number | null;
 };
 
+type DatasetExperimentMetricsReturnType = {
+  experiment_dataset_id: string;
+  count_dataset_runs: string;
+  last_run_at: string;
+};
+
+export const getDatasetExperimentMetricsFromEvents = async (props: {
+  projectId: string;
+  datasetIds: string[];
+}) => {
+  if (props.datasetIds.length === 0) {
+    return [];
+  }
+
+  const experimentsQuery = eventsExperimentsAggregation({
+    projectId: props.projectId,
+    fieldSet: "count",
+  })
+    .selectRaw(
+      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
+      "min(e.start_time) AS start_time",
+    )
+    .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
+      datasetIds: props.datasetIds,
+    })
+    .buildWithParams();
+
+  const rows = await queryClickhouse<DatasetExperimentMetricsReturnType>({
+    query: `
+      SELECT
+        experiment_dataset_id,
+        count() AS count_dataset_runs,
+        max(start_time) AS last_run_at
+      FROM (${experimentsQuery.query}) experiments
+      GROUP BY experiment_dataset_id
+    `,
+    params: experimentsQuery.params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    datasetId: row.experiment_dataset_id,
+    countDatasetRuns: Number(row.count_dataset_runs),
+    lastRunAt: parseClickhouseUTCDateTimeFormat(row.last_run_at),
+  }));
+};
+
+/**
+ * One experiment-score CTE, aggregated into the arrays the score filters read
+ * as a HAVING.
+ *
+ * `level: "any"` is the level-agnostic mode: a score matches whether it was
+ * recorded on an observation or on the trace, which is what users mean by
+ * "groundedness is low" — they neither know nor care which level carried it.
+ *
+ * The level stays in the inner GROUP BY so the arrays hold ONE ENTRY PER
+ * (name, level). That is load-bearing twice over, because the filters compile
+ * to array-existence checks:
+ *   - a comparison matches if EITHER level satisfies it (the OR semantics),
+ *     where a merged average would instead test the mean of two different
+ *     measurements;
+ *   - an exclusion matches only when NO entry does, which is "at neither
+ *     level" — De Morgan, without composing two predicates.
+ */
 const experimentScoreCTE = (params: {
   projectId: string;
   startTimeFrom?: string | null;
-  level: "observation" | "trace";
+  level: "observation" | "trace" | "any";
   eventKeysCTE: CTEWithSchema;
   filters: FilterList;
 }) => {
-  const prefix = params.level === "observation" ? "obs" : "trace";
+  // The agnostic arrays carry the canonical column names the level-agnostic
+  // filters target; the trace-only mode keeps its prefix so legacy
+  // `trace_*` filters still resolve against a trace-only aggregate.
+  const prefix =
+    params.level === "any"
+      ? ""
+      : params.level === "observation"
+        ? "obs_"
+        : "trace_";
 
   const joinedEventScores = new CTEQueryBuilder()
     .withCTE("event_keys", {
@@ -94,6 +181,9 @@ const experimentScoreCTE = (params: {
       "us.name",
       "us.data_type",
       "us.string_value",
+      // The level discriminator — see the header. Grouped but not selected: the
+      // tuples only need to be distinct per level, not to name it.
+      "us.observation_id IS NULL",
     )
     .buildWithParams();
 
@@ -113,12 +203,91 @@ const experimentScoreCTE = (params: {
     .select(
       "s.project_id AS project_id",
       "s.experiment_id AS experiment_id",
-      `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg`,
-      `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}_score_categories`,
-      `${scoreBooleansAggregation("s.")} AS ${prefix}_score_booleans`,
+      `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}scores_avg`,
+      `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}score_categories`,
+      `${scoreBooleansAggregation("s.")} AS ${prefix}score_booleans`,
     )
     .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())
+    .buildWithParams();
+};
+
+/**
+ * Per-item score arrays that span BOTH levels: scores recorded on the item's
+ * root span and scores recorded on its trace. Keyed by the root span id, which
+ * is unique per (experiment, item) - so a join on it scopes to one experiment's
+ * run of that item without any experiment predicate of its own.
+ *
+ * The level is kept in the inner GROUP BY, giving one array entry per
+ * (name, level). Score filters compile to array-existence checks, so a positive
+ * filter then matches at either level and its negation means "at neither" - the
+ * same trick the runs aggregate uses.
+ */
+const experimentItemScoreCTE = (params: {
+  projectId: string;
+  startTimeFrom?: string | null;
+  itemRootsCTE: CTEWithSchema;
+}) => {
+  const joinedItemScores = new CTEQueryBuilder()
+    .withCTE("item_roots", {
+      ...params.itemRootsCTE,
+    })
+    .withCTE("unit_scores", {
+      ...buildScoresCTE({
+        projectId: params.projectId,
+        startTimeFrom: params.startTimeFrom,
+        level: "any",
+      }),
+    })
+    .from("item_roots", "ir")
+    .innerJoin(
+      "unit_scores",
+      "us",
+      // Observation-level scores count only when they sit on the item's ROOT
+      // span (the pre-existing scope); trace-level ones carry no observation.
+      "ON us.project_id = ir.project_id AND us.trace_id = ir.trace_id AND (us.observation_id = ir.root_span_id OR us.observation_id IS NULL)",
+    )
+    .select(
+      "ir.project_id AS project_id",
+      "ir.root_span_id AS root_span_id",
+      "us.name AS name",
+      "us.data_type AS data_type",
+      "us.string_value AS string_value",
+      "avg(us.avg_value) AS item_avg",
+    )
+    .groupBy(
+      "ir.project_id",
+      "ir.root_span_id",
+      "us.name",
+      "us.data_type",
+      "us.string_value",
+      // The level discriminator - see the header. Grouped but not selected: the
+      // tuples only need to be distinct per level, not to name it.
+      "us.observation_id IS NULL",
+    )
+    .buildWithParams();
+
+  return new CTEQueryBuilder()
+    .withCTE("item_scores", {
+      ...joinedItemScores,
+      schema: [
+        "project_id",
+        "root_span_id",
+        "name",
+        "data_type",
+        "string_value",
+        "item_avg",
+      ],
+    })
+    .from("item_scores", "sc")
+    .select(
+      "sc.project_id AS project_id",
+      "sc.root_span_id AS root_span_id",
+      "groupArrayIf(tuple(sc.name, sc.item_avg, sc.data_type, sc.string_value), sc.data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg",
+      "groupArrayIf(concat(sc.name, ':', sc.string_value), sc.data_type = 'CATEGORICAL' AND notEmpty(sc.string_value)) AS score_categories",
+      `${scoreBooleansAggregation("sc.")} AS score_booleans`,
+    )
+    .groupBy("sc.project_id", "sc.root_span_id")
     .buildWithParams();
 };
 
@@ -221,8 +390,11 @@ const getExperimentsFromEventsGeneric = async <T>(
   const preAggFilterState = filter.filter((f) =>
     experimentPreAggCols.some((col) => col.uiTableId === f.column),
   );
+  // Alias-aware: the legacy `obs_*` ids reach the agnostic columns as aliases,
+  // and matching only on uiTableId would drop them on the floor (this partition
+  // silently discards anything it does not recognise).
   const scoreAggFilterState = filter.filter((f) =>
-    experimentScoreAggCols.some((col) => col.uiTableId === f.column),
+    experimentScoreAggCols.some((col) => matchesUiColumnMapping(col, f.column)),
   );
 
   const preAggFilters = new FilterList(
@@ -253,10 +425,8 @@ const getExperimentsFromEventsGeneric = async <T>(
       "trace_score_booleans",
     ].includes(f.field),
   );
-  const hasObsScoreFilter = scoreAggFilters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
-      f.field,
-    ),
+  const hasAgnosticScoreFilter = scoreAggFilters.some((f) =>
+    ["scores_avg", "score_categories", "score_booleans"].includes(f.field),
   );
 
   const experimentIds = experimentIdFilter?.values;
@@ -274,10 +444,10 @@ const getExperimentsFromEventsGeneric = async <T>(
     experimentIds,
   })
     .applyFilters(preAggFilters)
-    .when(hasObsScoreFilter, (b) => {
+    .when(hasAgnosticScoreFilter, (b) => {
       return b
         .withCTE(
-          "matching_obs_experiments",
+          "matching_agnostic_experiments",
           experimentScoreCTE({
             projectId,
             startTimeFrom,
@@ -286,18 +456,16 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              [
-                "obs_scores_avg",
-                "obs_score_categories",
-                "obs_score_booleans",
-              ].includes(f.field),
+              ["scores_avg", "score_categories", "score_booleans"].includes(
+                f.field,
+              ),
             ),
-            level: "observation",
+            level: "any",
           }),
         )
         .innerJoin(
-          "matching_obs_experiments AS moe",
-          "ON moe.project_id = e.project_id AND moe.experiment_id = e.experiment_id",
+          "matching_agnostic_experiments AS mae",
+          "ON mae.project_id = e.project_id AND mae.experiment_id = e.experiment_id",
         );
     })
     .when(hasTraceScoreFilter, (b) => {
@@ -570,19 +738,6 @@ const buildScoreFilterOptionsQuery = (params: {
   return queryBuilder.buildWithParams();
 };
 
-export type ScoreColumnDefinition = {
-  name: string;
-  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
-  source: string;
-};
-
-type ProcessedScoreFilterOptions = {
-  numeric: string[];
-  boolean: string[];
-  categorical: Array<{ label: string; values: string[] }>;
-  scoreColumns: ScoreColumnDefinition[];
-};
-
 const processScoreFilterOptionsResults = (
   rows: ScoreFilterOptionsRow[],
 ): ProcessedScoreFilterOptions => {
@@ -636,6 +791,7 @@ type ExperimentItemScoreOptionsByLevel = {
 
 type ExperimentScoreOptionsByLevel = {
   observation: ProcessedScoreFilterOptions;
+  trace: ProcessedScoreFilterOptions;
   experiment: ProcessedScoreFilterOptions;
 };
 
@@ -687,16 +843,18 @@ const getExperimentItemScoreOptionsByLevel = async ({
 
 export const getExperimentItemsFilterOptions = async (
   props: ExperimentItemsFilterOptionsInput,
-): Promise<{
-  obs_scores_avg: string[];
-  obs_score_categories: Array<{ label: string; values: string[] }>;
-  obs_score_booleans: string[];
-  obs_score_columns: ScoreColumnDefinition[];
-  trace_scores_avg: string[];
-  trace_score_categories: Array<{ label: string; values: string[] }>;
-  trace_score_booleans: string[];
-  trace_score_columns: ScoreColumnDefinition[];
-}> => {
+): Promise<
+  AgnosticScoreFilterOptions & {
+    obs_scores_avg: string[];
+    obs_score_categories: Array<{ label: string; values: string[] }>;
+    obs_score_booleans: string[];
+    obs_score_columns: ScoreColumnDefinition[];
+    trace_scores_avg: string[];
+    trace_score_categories: Array<{ label: string; values: string[] }>;
+    trace_score_booleans: string[];
+    trace_score_columns: ScoreColumnDefinition[];
+  }
+> => {
   const { observation, trace } =
     await getExperimentItemScoreOptionsByLevel(props);
 
@@ -709,6 +867,7 @@ export const getExperimentItemsFilterOptions = async (
     trace_score_categories: trace.categorical,
     trace_score_booleans: trace.boolean,
     trace_score_columns: trace.scoreColumns,
+    ...toAgnosticScoreFilterOptions(observation, trace),
   };
 };
 
@@ -721,6 +880,7 @@ const getExperimentScoreOptionsByLevel = async ({
   if (uniqueExperimentIds.length === 0) {
     return {
       observation: emptyScoreFilterOptions(),
+      trace: emptyScoreFilterOptions(),
       experiment: emptyScoreFilterOptions(),
     };
   }
@@ -731,15 +891,29 @@ const getExperimentScoreOptionsByLevel = async ({
     level: "observation",
   });
 
+  // Trace-level names are half of what the level-agnostic facets offer; without
+  // this a score recorded on the trace was never even suggested.
+  const traceQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "trace",
+  });
+
   const runQuery = buildExperimentRunScoreFilterOptionsQuery({
     projectId,
     experimentIds: uniqueExperimentIds,
   });
 
-  const [obsResults, runResults] = await Promise.all([
+  const [obsResults, traceResults, runResults] = await Promise.all([
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
       params: obsQuery.params,
+      tags: { projectId },
+      preferredClickhouseService: "ReadOnly",
+    }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: traceQuery.query,
+      params: traceQuery.params,
       tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
@@ -753,27 +927,42 @@ const getExperimentScoreOptionsByLevel = async ({
 
   return {
     observation: processScoreFilterOptionsResults(obsResults),
+    trace: processScoreFilterOptionsResults(traceResults),
     experiment: processScoreFilterOptionsResults(runResults),
   };
 };
 
 export const getExperimentScoreOptions = async (
   props: ExperimentScoreOptionsInput,
-): Promise<{
-  obs_scores_avg: string[];
-  obs_score_categories: Array<{ label: string; values: string[] }>;
-  obs_score_columns: ScoreColumnDefinition[];
-  experiment_scores_avg: string[];
-  experiment_score_categories: Array<{ label: string; values: string[] }>;
-  experiment_score_columns: ScoreColumnDefinition[];
-}> => {
-  const { observation, experiment } =
+): Promise<
+  AgnosticScoreFilterOptions & {
+    obs_scores_avg: string[];
+    obs_score_categories: Array<{ label: string; values: string[] }>;
+    obs_score_columns: ScoreColumnDefinition[];
+    trace_scores_avg: string[];
+    trace_score_categories: Array<{ label: string; values: string[] }>;
+    trace_score_columns: ScoreColumnDefinition[];
+    experiment_scores_avg: string[];
+    experiment_score_categories: Array<{ label: string; values: string[] }>;
+    experiment_score_columns: ScoreColumnDefinition[];
+  }
+> => {
+  const { observation, trace, experiment } =
     await getExperimentScoreOptionsByLevel(props);
 
   return {
+    // Per-level stays the SOURCE: the run charts select a metric per level,
+    // because a merged identity cannot say which level's series to plot.
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
     obs_score_columns: observation.scoreColumns,
+    trace_scores_avg: trace.numeric,
+    trace_score_categories: trace.categorical,
+    trace_score_columns: trace.scoreColumns,
+    // …and the agnostic projection is what the score FACETS offer.
+    ...toAgnosticScoreFilterOptions(observation, trace),
+    // Experiment-level scores grade the RUN, not an item, so they stay their own
+    // thing rather than being folded into the item-score filters.
     experiment_scores_avg: experiment.numeric,
     experiment_score_categories: experiment.categorical,
     experiment_score_columns: experiment.scoreColumns,
@@ -798,7 +987,7 @@ type QualificationPlan = {
   where: { query: string; params: Record<string, any> };
   having: { query: string; params: Record<string, any> } | null;
   orderBy: string | null;
-  hasScoreFilters: boolean;
+  hasAgnosticScoreFilters: boolean;
   hasTraceScoreFilters: boolean;
 };
 
@@ -867,10 +1056,17 @@ const buildQualificationPlan = (
   });
 
   const filters = filterByExperiment.flatMap((f) => f.filters);
-  const hasScoreFilters = filters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
-      f.column,
-    ),
+  // The canonical ids and their `obs_*` aliases both resolve to the
+  // level-agnostic aggregate, so both mount the same CTE.
+  const hasAgnosticScoreFilters = filters.some((f) =>
+    [
+      "scores_avg",
+      "score_categories",
+      "score_booleans",
+      "obs_scores_avg",
+      "obs_score_categories",
+      "obs_score_booleans",
+    ].includes(f.column),
   );
   const hasTraceScoreFilters = filters.some((f) =>
     [
@@ -914,7 +1110,7 @@ const buildQualificationPlan = (
           }
       : null,
     orderBy: `ORDER BY e.experiment_item_id ASC`,
-    hasScoreFilters,
+    hasAgnosticScoreFilters,
     hasTraceScoreFilters,
   };
 };
@@ -945,13 +1141,31 @@ const getExperimentItemsFromEventsGeneric = (params: {
     offset,
   } = params;
 
-  const { where, having, orderBy, hasScoreFilters, hasTraceScoreFilters } =
-    buildQualificationPlan({
-      baseExperimentId,
-      compExperimentIds,
-      filterByExperiment,
-      config,
-    });
+  const {
+    where,
+    having,
+    orderBy,
+    hasAgnosticScoreFilters,
+    hasTraceScoreFilters,
+  } = buildQualificationPlan({
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+    config,
+  });
+
+  // The item roots the agnostic score aggregate is keyed by. Scoped to the
+  // experiments in play so the CTE never scans the whole project.
+  const itemRoots = eventsExperimentsRootSpans({
+    projectId,
+    experimentIds: [
+      ...(baseExperimentId ? [baseExperimentId] : []),
+      ...compExperimentIds,
+    ],
+  })
+    .selectRaw("e.project_id", "e.span_id AS root_span_id", "e.trace_id")
+    .limitBy("e.project_id", "e.span_id")
+    .buildWithParams();
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
@@ -962,17 +1176,23 @@ const getExperimentItemsFromEventsGeneric = (params: {
       "e.experiment_item_id as item_id, min(e.start_time) as start_time",
   })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .when(hasScoreFilters, (b) =>
+    .when(hasAgnosticScoreFilters, (b) =>
       b.withCTE(
-        "scores_agg",
-        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
-        eventsScoresAggregation({
+        "item_scores_agg",
+        experimentItemScoreCTE({
           projectId,
+          itemRootsCTE: {
+            ...itemRoots,
+            schema: ["project_id", "root_span_id", "trace_id"],
+          },
         }),
       ),
     )
-    .when(hasScoreFilters, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    .when(hasAgnosticScoreFilters, (b) =>
+      b.leftJoin(
+        "item_scores_agg AS ias",
+        "ON ias.project_id = e.project_id AND ias.root_span_id = e.span_id",
+      ),
     )
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(

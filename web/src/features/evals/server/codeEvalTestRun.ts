@@ -1,6 +1,6 @@
 import {
   applyCommentFilters,
-  buildEvalExecutionMetadata,
+  buildEvalExecutionData,
   createW3CTraceId,
   extractObservationVariables,
   getEventsStreamForEval,
@@ -166,7 +166,6 @@ export async function runCodeEvalTestForEvaluationRule(params: {
       sourceCodeLanguage: version.sourceCodeLanguage,
     },
     evaluatorMetadata: {
-      evaluator_id: evaluator.id,
       evaluator_version: version.version,
     },
   });
@@ -244,7 +243,6 @@ async function runCodeEvalTestForObservation(params: {
     evaluator: codeTemplate,
     version: codeTemplate,
     evaluatorMetadata: {
-      evaluator_id: codeTemplate.id,
       evaluator_version: codeTemplate.version,
     },
   });
@@ -288,20 +286,20 @@ async function runCodeEvalTestForObservationWithEvaluator(params: {
   });
   const executionTraceId = createW3CTraceId();
   const traceName = `Test evaluator: ${params.evaluator.name}`;
+  const evaluationData = buildEvalExecutionData({
+    type: "TEST",
+    evaluatorId: params.evaluator.id,
+    targetTraceId: params.observation.trace_id,
+    targetObservationId: params.observation.span_id,
+  });
   const executionMetadata = {
     dispatcher_name: dispatcher.name,
     code_eval_runtime: params.version.sourceCodeLanguage,
     ...params.evaluatorMetadata,
-    ...buildEvalExecutionMetadata({
-      type: "TEST",
-      evaluatorId: params.evaluator.id,
-      targetTraceId: params.observation.trace_id,
-      targetObservationId: params.observation.span_id,
-    }),
+    ...evaluationData.executionMetadata,
     score_name: params.scoreName,
     target_object: params.target,
   };
-
   const dispatchOutcome = await runCodeBasedEvaluationDispatch({
     dispatcher,
     organizationId: params.orgId,
@@ -314,6 +312,7 @@ async function runCodeEvalTestForObservationWithEvaluator(params: {
     hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,
     metadata: executionMetadata,
+    evaluationContext: evaluationData.evaluationContext,
     writeTrace: writeInternalTraceViaOtelIngestion,
   });
 

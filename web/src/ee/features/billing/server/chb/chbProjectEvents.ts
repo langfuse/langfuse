@@ -45,21 +45,46 @@ const EVENT_BUS_REQUEST_TIMEOUT_MS = 5_000;
 // hundred bytes each, so the 256KB per-call limit is never the binding one.
 const EVENT_BUS_MAX_ENTRIES_PER_CALL = 10;
 
-// The envelope (type, CHB organizationId, Langfuse projectId, regionId) still
-// needs a final confirmation from CHB before rollout, so it is isolated here:
-// a contract change stays a one-function edit. `type` is repeated here and in
-// detail-type so a consumer reading either one sees it.
+type CloudCell = NonNullable<typeof env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION>;
+
+// Where each cell runs, mirroring the per-environment AWS region in the
+// infrastructure repo. Exhaustive on purpose: a new cell does not compile until
+// its location is filled in. DEV is a developer machine with no fixed
+// location, so it reports none.
+const CELL_LOCATION: Record<
+  CloudCell,
+  { cloudProvider: "aws"; region: string } | null
+> = {
+  US: { cloudProvider: "aws", region: "us-west-2" },
+  EU: { cloudProvider: "aws", region: "eu-west-1" },
+  HIPAA: { cloudProvider: "aws", region: "us-west-2" },
+  JP: { cloudProvider: "aws", region: "ap-northeast-1" },
+  STAGING: { cloudProvider: "aws", region: "eu-west-1" },
+  DEV: null,
+};
+
+// The envelope is the contract with CHB, so it is isolated here: a contract
+// change stays a one-function edit. `type` is repeated here and in detail-type
+// so a consumer reading either one sees it.
 const buildChbProjectEventPayload = (params: {
   type: ChbProjectEventType;
   chbOrganizationId: string;
   projectId: string;
-}) => ({
-  type: params.type,
-  organizationId: params.chbOrganizationId,
-  projectId: params.projectId,
-  regionId: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  createdAt: new Date().toISOString(),
-});
+}) => {
+  const cell = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  return {
+    type: params.type,
+    organizationId: params.chbOrganizationId,
+    projectId: params.projectId,
+    // CHB locates a deployment by provider region plus cell, not by our cell
+    // name alone: two cells can share one region (US and HIPAA both run in
+    // us-west-2), so the cell is what still tells them apart.
+    ...(cell ? CELL_LOCATION[cell] : null),
+    cell: cell?.toLowerCase(),
+    createdAt: new Date().toISOString(),
+  };
+};
 
 // One bus per deployment, so one client: the ARN comes from env and cannot
 // change at runtime. Lazy so a web instance that never touches CHB billing

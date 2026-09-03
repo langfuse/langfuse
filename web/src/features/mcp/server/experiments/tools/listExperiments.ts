@@ -1,5 +1,5 @@
 import { listExperimentsForPublicApi } from "@/src/features/experiments/server/public/service";
-import { GetExperimentsV1Response } from "@/src/features/public-api/types/experiments";
+import { GetExperimentsV1Response } from "@/src/features/public-api/server";
 import { buildExperimentUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";

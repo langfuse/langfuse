@@ -10,6 +10,7 @@ import type {
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
+  PublicEvaluationRuleReadFilterType,
   PromptVariableMappingReadType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
@@ -20,7 +21,7 @@ import type {
   PublicCodeEvaluatorSourceCodeLanguageType,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-} from "@/src/features/public-api/types/unstable-public-evals-contract";
+} from "@/src/features/public-api/server";
 import type {
   CODE_EVAL_TEMPLATE_VARIABLES,
   FilterCondition,
@@ -104,8 +105,15 @@ type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   mapping: LegacyPromptVariableMappingType[];
 };
 
+type ApiReadableV2EvaluationRuleRecord = Omit<
+  ApiWritableEvaluationRuleRecord,
+  "filter"
+> & {
+  filter: PublicEvaluationRuleReadFilterType[];
+};
+
 export type ApiEvaluationRuleRecord =
-  | ApiWritableEvaluationRuleRecord
+  | ApiReadableV2EvaluationRuleRecord
   | ApiLegacyEvaluationRuleRecord;
 
 export type EvaluationRuleEvaluatorFamilyReference =
@@ -128,4 +136,6 @@ export type StoredPublicEvaluatorTemplate = Pick<
     | "sourceCode"
     | "sourceCodeLanguage"
     | "variableMapping"
-  >;
+  > & {
+    promptMessages?: EvaluatorVersion["promptMessages"];
+  };

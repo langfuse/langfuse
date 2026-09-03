@@ -45,6 +45,64 @@ describe("stable evaluator history public API", () => {
     expect(response.body.meta.cursor).toBeUndefined();
   });
 
+  it("preserves multi-message prompts in evaluator version history", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const evaluator = await makeZodVerifiedAPICall(
+      Evaluator,
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "multi-message history evaluator",
+        type: "llm_as_judge",
+        prompt: [
+          { role: "system", content: "Judge consistently" },
+          { role: "user", content: "Input: {{input}}" },
+        ],
+        outputDefinition: { dataType: "BOOLEAN" },
+      },
+      auth,
+      201,
+    );
+    await makeZodVerifiedAPICall(
+      Evaluator,
+      "PATCH",
+      `/api/public/v2/evaluators/${evaluator.body.id}`,
+      {
+        type: "llm_as_judge",
+        prompt: [
+          { role: "system", content: "Judge very consistently" },
+          { role: "user", content: "Input: {{input}}" },
+          { role: "assistant", content: "I will return a score" },
+        ],
+        outputDefinition: { dataType: "BOOLEAN" },
+      },
+      auth,
+    );
+
+    const response = await makeZodVerifiedAPICall(
+      ListEvaluatorVersionsResponse,
+      "GET",
+      `/api/public/v2/evaluators/${evaluator.body.id}/versions`,
+      undefined,
+      auth,
+    );
+    expect(
+      response.body.data.map((version) =>
+        version.type === "llm_as_judge" ? version.prompt : null,
+      ),
+    ).toEqual([
+      [
+        { role: "system", content: "Judge very consistently" },
+        { role: "user", content: "Input: {{input}}" },
+        { role: "assistant", content: "I will return a score" },
+      ],
+      [
+        { role: "system", content: "Judge consistently" },
+        { role: "user", content: "Input: {{input}}" },
+      ],
+    ]);
+  });
+
   it("returns 404 for an invalid evaluator ID with or without a cursor", async () => {
     const { auth } = await createOrgProjectAndApiKey();
     const evaluatorId = randomUUID();

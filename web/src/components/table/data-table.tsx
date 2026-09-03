@@ -18,7 +18,7 @@ import {
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   type DataTableCellBackground,
   type DataTableCellPadding,
@@ -885,8 +885,9 @@ function TableBodyComponent<TData>({
                       }
 
                       return (
-                        <TableTextLoadingCell
+                        <Skeleton
                           className={cn(
+                            "h-4 w-1/2",
                             "min-w-[3rem]",
                             (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
                             (rowIndex + columnIndex) % 4 === 1 && "w-1/2",

@@ -4,14 +4,22 @@ import { env } from "../../env";
 import {
   buildAnalyticsRedirectOptions,
   rethrowIfOutboundValidationFailure,
+  validateAnalyticsIntegrationUrl,
 } from "../analyticsIntegrationEgress";
 import type { MixpanelEvent } from "./transformers";
 
 type MixpanelClientConfig = {
   projectToken: string;
   /**
-   * Mixpanel region subdomain (e.g., "api", "api-eu", "api-in")
-   * Validated at API layer via MIXPANEL_REGIONS in web/src/features/mixpanel-integration/types.ts
+   * Mixpanel region subdomain (e.g., "api", "api-eu", "api-in").
+   *
+   * The save-time dropdown (`MIXPANEL_REGIONS`) is the only thing that
+   * currently keeps this from being a free-form host. The worker treats it
+   * as a plain string and interpolates it into `https://<region>.mixpanel.com`.
+   * If that dropdown is ever widened (custom host, raw IP, free-form region),
+   * `validateAnalyticsIntegrationUrl` is the use-time check that still
+   * refuses IP literals, embedded credentials, and non-HTTP schemes — the
+   * connect-time DNS hook never fires for a literal, so it cannot cover those.
    */
   region: string;
   /**
@@ -94,6 +102,11 @@ export class MixpanelClient {
     }, env.LANGFUSE_MIXPANEL_TIMEOUT_MS);
 
     try {
+      // Covers what the connect-time lookup cannot see (IP literals, embedded
+      // credentials, non-HTTP schemes). Named hosts are left to connect-time
+      // pinning, which is strictly stronger than a DNS pre-check.
+      validateAnalyticsIntegrationUrl(url);
+
       // Re-resolve and re-validate the destination IP at socket connect time: a
       // host that validated as public can rebind to a private/loopback address
       // before the socket opens (TOCTOU). Redirect targets are re-validated

@@ -4,8 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { prepareReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
-import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  withFieldOptions,
+} from "@/src/features/search-bar/lib/fields";
 
 const reusableFilters = [
   {
@@ -86,5 +90,33 @@ describe("prepareReusableRuleFilterPresets", () => {
 
     expect(events.sections[0]?.options[0]?.query).toBe("name:=checkout");
     expect(rules.sections[0]?.options[0]?.query).toBe("name:checkout");
+  });
+
+  it("renders dataset-scoped presets with names instead of IDs", () => {
+    const datasetFilters = [
+      {
+        latestRuleId: "rule-dataset",
+        filter: [
+          {
+            column: "experimentDatasetId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["dataset-id"],
+          },
+        ] satisfies FilterState,
+        evaluatorCount: 1,
+        updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+    ];
+    const registry = withFieldOptions(
+      RULE_SAMPLE_FIELD_REGISTRY,
+      "datasetName",
+      [{ value: "dataset-id", displayValue: "Filter QA Dataset" }],
+    );
+
+    expect(
+      prepareReusableRuleFilterPresets(datasetFilters, registry).sections[0]
+        ?.options[0]?.query,
+    ).toBe('datasetName:"Filter QA Dataset"');
   });
 });

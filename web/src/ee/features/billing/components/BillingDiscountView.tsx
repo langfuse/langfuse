@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { Badge } from "@/src/components/ui/badge";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";

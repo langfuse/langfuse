@@ -8,7 +8,7 @@ import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/combobox";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { getAddCategoryActionLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScoreCategoryDialog";

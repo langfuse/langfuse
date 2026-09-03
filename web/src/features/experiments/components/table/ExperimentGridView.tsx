@@ -39,6 +39,8 @@ type ExperimentGridViewProps = {
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -70,6 +72,7 @@ export const ExperimentGridView = ({
   rows,
   isLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -207,17 +210,30 @@ export const ExperimentGridView = ({
         getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
       }),
-      createIOTableColumn<ExperimentItemsTableRow>({
-        accessorKey: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
-        singleLine,
-        variant: "output",
-      }),
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: "Expected Output",
+              size: 200,
+              getCell: (value) =>
+                isLoading ? { type: "loading" } : value || undefined,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [
+      experimentColumns,
+      isLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
   );
 
   return (

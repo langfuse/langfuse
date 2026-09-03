@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useDesktopLayoutContextOptional } from "@/src/features/traces/components/TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "@/src/features/traces/components/TraceLayoutMobile";

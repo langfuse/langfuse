@@ -16,6 +16,14 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  // Base URL for the in-app agent's MCP calls. Defaults to NEXTAUTH_URL.
+  // Set this instead of redirecting NEXTAUTH_URL when the worker should reach
+  // web internally: NEXTAUTH_URL also builds user-facing links in emails and
+  // Slack messages, which must stay externally resolvable.
+  // Web validates the Host header of MCP requests, so any hostname used here
+  // other than NEXTAUTH_URL's own must be listed in LANGFUSE_MCP_ALLOWED_HOSTS
+  // on web, or the requests are rejected.
+  LANGFUSE_MCP_BASE_URL: z.url().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
@@ -399,6 +407,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z

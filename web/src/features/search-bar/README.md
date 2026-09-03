@@ -19,7 +19,7 @@ tables (no opt-in). Based on the `langfuse-search-bar` prototype.
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
   The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
   Observations/Traces tables, so call sites still read as
-  `isBetaEnabled && useSearchBarEnabled()`.
+  `isV4 && useSearchBarEnabled()`.
 - The search bar is not a Feature Preview and has no user or organization
   toggle.
 
@@ -154,13 +154,19 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   on a `textSearch` field — `-name:=v` — is representable: it lowers to a
   `stringOptions none of`, the exact-inequality form the facet emits when one
   value is unchecked. It is NOT `does not contain`.)
-- **User-authored filters are never auto-removed.** The bar reads the sidebar's
-  **explicit** `FilterState`, so the managed-environment implicit default
-  (`environment none of [hidden internal envs]`, derived into _effective_ state
-  by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
-  That policy strips exactly one shape from explicit state — that same implicit
-  `none of [hidden]` default (which the facet also re-creates on "clear back to
-  default"). A user-authored positive selection (`environment:default`, typed or
+- **User-authored filters are never auto-removed.** The bar reads a display
+  projection of the sidebar's **explicit** `FilterState`, so the
+  managed-environment implicit default (`environment none of [hidden internal
+envs]`, derived into _effective_ state by
+  `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
+  That policy strips the implicit `none of [hidden]` default (which the facet
+  also re-creates on "clear back to default") and keeps
+  `none of [hidden ∪ extras]` in persisted/effective state so queries still
+  exclude the hidden set. The search-bar projection shows only extras
+  (`-environment:production`). A bar commit of that extras-only chip expands
+  back to the full exclusion set. Enabling any hidden environment stores a
+  positive `any of [checked]` instead, so it cannot be remasked as extras-only
+  none-of. A user-authored positive selection (`environment:default`, typed or
   saved) is kept explicit even when it equals the current default set; the user
   returns to the default by removing the filter, never by us inferring it.
 
@@ -444,6 +450,11 @@ so a new view must check the field dropdown, not just that Enter applies.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed
    values; point it at the new view's procedure (do not invent a parallel one).
+   When a field displays labels but persists stable values, declare its
+   canonical `filterColumn` in the registry overlay and hydrate it with
+   `withFieldOptions([{ value, displayValue }])`. The shared adapter then emits
+   the canonical column/value while the reverse adapter renders the label.
+   Do not add a host-specific post-lowering conversion.
 4. **Keep the adapter targeting the shared `FilterState`.** Reuse the
    already-registry-driven `operatorIssue`/`negationIssue` and the existing
    per-kind lowering. Never add a second lowering path — that breaks the

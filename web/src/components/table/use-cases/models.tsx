@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
@@ -198,16 +198,15 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       enableHiding: true,
     },
-    {
+    createTextTableColumn<ModelTableRow>({
       accessorKey: "tokenizerId",
-      id: "tokenizerId",
       header: "Tokenizer",
       headerTooltip: {
         description: modelConfigDescriptions.tokenizerId,
       },
       enableHiding: true,
       size: 120,
-    },
+    }),
     createIOTableColumn<ModelTableRow>({
       accessorKey: "config",
       header: "Tokenizer Configuration",
@@ -219,8 +218,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
-      accessorKey: "lastUsed",
+    createTextTableColumn<ModelTableRow>({
+      accessorFn: () => undefined,
       id: "lastUsed",
       header: "Last used",
       headerTooltip: {
@@ -228,12 +227,11 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       enableHiding: true,
       size: 120,
-      cell: ({ row }) => {
-        if (!lastUsed.data) return <Skeleton className="h-4 w-20" />;
-        const value = lastUsed.data[row.original.modelId];
-        return value?.toLocaleString() ?? "";
+      mapValue: (_, { row }) => {
+        if (!lastUsed.data) return { type: "loading" };
+        return lastUsed.data[row.original.modelId]?.toLocaleString() ?? "";
       },
-    },
+    }),
     {
       accessorKey: "actions",
       header: "Actions",

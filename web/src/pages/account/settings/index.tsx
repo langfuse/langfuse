@@ -291,9 +291,8 @@ const getAccountSettingsPages = ({
           <Header title="Password" />
           <Card className="p-3">
             <p className="text-primary mb-4 text-sm">
-              To change your password, we will send you a secure link to your
-              email address. Click the button below to start the password reset
-              process.
+              To change your password, we will email a one-time code to your
+              address. Enter the code together with your new password.
             </p>
             <Button asChild variant="secondary">
               <Link href="/auth/reset-password">Change Password</Link>

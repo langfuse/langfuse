@@ -8,7 +8,7 @@ export type TimeSeriesChartDataPoint = {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 type UseAllModelsOptions = {
   enabled?: boolean;
@@ -20,7 +20,7 @@ export const useAllModels = (
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
-  metricsVersion?: ViewVersion,
+  metricsVersion: ViewVersion,
   options?: UseAllModelsOptions,
 ) => {
   const allModels = useScheduledDashboardExecuteQuery(

@@ -2,6 +2,7 @@
 imports:
   commons: ./commons.yml
   errors: ./errors.yml
+  evals: ../evaluation-commons.yml
   pagination: ../utils/pagination.yml
 
 service:
@@ -323,7 +324,7 @@ service:
           type: string
           docs: Evaluation rule identifier.
       request: UpdateEvaluationRuleRequest
-      response: EvaluationRule
+      response: ReadableV2EvaluationRule
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -431,6 +432,22 @@ types:
       mapping:
         type: list<commons.PromptVariableMappingRead>
         docs: Deprecated compatibility alias containing the effective mapping for `evaluators[0]`.
+
+  ReadableV2EvaluationRule:
+    extends: EvaluationRuleBase
+    properties:
+      evaluators:
+        type: list<EvaluationRuleEvaluatorAssignment>
+        docs: Evaluators attached to this rule in deterministic assignment order. A `null` mapping inherits the evaluator version's default mapping.
+      target:
+        type: commons.EvaluationRuleTarget
+        docs: Target object type that should trigger scoring.
+      filter:
+        type: list<evals.EvaluationRuleReadFilter>
+        docs: List of stored filter conditions returned verbatim. Historical filters remain readable even when the current write contract no longer accepts their shape.
+      mapping:
+        type: list<commons.PromptVariableMappingRead>
+        docs: Deprecated compatibility alias containing the effective mapping for `evaluators[0]`.
     examples:
       - value:
           id: erule_123
@@ -498,7 +515,7 @@ types:
     docs: Evaluation rule returned by list and get, including read-only legacy trace and dataset rules.
     discriminated: false
     union:
-      - EvaluationRule
+      - ReadableV2EvaluationRule
       - LegacyEvaluationRule
 
   EvaluationRules:

@@ -10,7 +10,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { api } from "@/src/utils/api";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 const MAX_NODES_FOR_GRAPH_UI = 5000;
 
@@ -56,7 +56,7 @@ export function TraceGraphDataProvider({
   traceId,
   observations,
 }: TraceGraphDataProviderProps) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Skip graph data entirely for large traces to avoid performance issues
   const exceedsThreshold = observations.length >= MAX_NODES_FOR_GRAPH_UI;
@@ -105,17 +105,17 @@ export function TraceGraphDataProvider({
   // Beta OFF: Query from observations table (existing behavior)
   const tracesQuery = api.traces.getAgentGraphData.useQuery(queryInput, {
     ...queryOptions,
-    enabled: queryEnabled && !isBetaEnabled,
+    enabled: queryEnabled && !isV4,
   });
 
   // Beta ON: Query from events table (v4)
   const eventsQuery = api.events.getAgentGraphData.useQuery(queryInput, {
     ...queryOptions,
-    enabled: queryEnabled && isBetaEnabled,
+    enabled: queryEnabled && isV4,
   });
 
   // Use appropriate query based on beta toggle
-  const query = isBetaEnabled ? eventsQuery : tracesQuery;
+  const query = isV4 ? eventsQuery : tracesQuery;
 
   const agentGraphData = useMemo(() => query.data ?? [], [query.data]);
 

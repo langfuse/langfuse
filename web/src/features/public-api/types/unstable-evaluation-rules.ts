@@ -8,6 +8,7 @@ import {
   ObservationPromptVariableMappingInput,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PublicEvaluationRuleFilter,
+  PublicEvaluationRuleReadFilter,
   PublicEvaluationRuleEvaluator,
   PublicEvaluationRuleEvaluatorReference,
   PublicEvaluationRuleEvaluatorReferencePatch,
@@ -48,6 +49,10 @@ const APIEvaluationRule = z
   })
   .strict();
 
+const APIReadableV2EvaluationRule = APIEvaluationRule.extend({
+  filter: z.array(PublicEvaluationRuleReadFilter),
+});
+
 const APILegacyEvaluationRule = z
   .object({
     ...APIEvaluationRuleBase,
@@ -66,7 +71,7 @@ const APILegacyEvaluationRule = z
   .strict();
 
 const APIReadableEvaluationRule = z.union([
-  APIEvaluationRule,
+  APIReadableV2EvaluationRule,
   APILegacyEvaluationRule,
 ]);
 
@@ -237,7 +242,7 @@ export type PatchUnstableEvaluationRuleBodyType = z.infer<
 >;
 
 /** @alias */
-export const PatchUnstableEvaluationRuleResponse = APIEvaluationRule;
+export const PatchUnstableEvaluationRuleResponse = APIReadableV2EvaluationRule;
 
 /** @alias */
 export const DeleteUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;

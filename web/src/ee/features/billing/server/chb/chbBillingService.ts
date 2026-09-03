@@ -13,7 +13,7 @@ import {
 import { type BillingSubscriptionInfo } from "../stripe/stripeBillingService";
 import {
   type ChbApiClient,
-  type ChbBundle,
+  type ChbAttachedPlan,
   ChbPaymentRequiredError,
 } from "./chbApiClient";
 import { backfillChbProjectEvents } from "./chbProjectEvents";
@@ -83,44 +83,36 @@ export class ChbBillingService {
   }
 
   /**
-   * Map a bundle's pending scheduled change onto the Stripe-shaped
-   * cancellation / scheduledChange fields the billing UI renders.
+   * Map the attached plan's pending scheduled change onto the Stripe-shaped
+   * cancellation / scheduledChange fields the billing UI renders. CHB reports
+   * a cancellation with the date the plan ends and an upgrade / downgrade with
+   * the date the new plan starts; the current period end is the fallback while
+   * CHB omits either date.
    */
-  private mapScheduled(bundle: ChbBundle): {
+  private mapScheduled(attachedPlan: ChbAttachedPlan): {
     cancellation: BillingSubscriptionInfo["cancellation"];
     scheduledChange: BillingSubscriptionInfo["scheduledChange"];
   } {
-    const scheduled = bundle.scheduled;
+    const scheduled = attachedPlan.scheduled;
     if (!scheduled) return { cancellation: null, scheduledChange: null };
 
-    // An "immediate" change has already been applied, so there is no pending
-    // state to render. Checked explicitly rather than relying on the date
-    // fallback below: an immediate change echoed back on a bundle that still
-    // carries an active period would otherwise resolve to the period end and
-    // render as "switches at end of cycle".
-    if (scheduled.when === "immediate") {
-      return { cancellation: null, scheduledChange: null };
-    }
-
-    // Date resolution: explicit startDate wins, else the period end.
-    const switchAt =
-      this.toUnixSeconds(scheduled.startDate) ??
-      this.toUnixSeconds(bundle.period?.endDate);
-    if (!switchAt) return { cancellation: null, scheduledChange: null };
+    const periodEnd = this.toUnixSeconds(attachedPlan.period?.endDate);
 
     if (scheduled.type === "cancel") {
-      return {
-        cancellation: { cancelAt: switchAt },
-        scheduledChange: null,
-      };
+      const cancelAt = this.toUnixSeconds(scheduled.endDate) ?? periodEnd;
+      if (!cancelAt) return { cancellation: null, scheduledChange: null };
+      return { cancellation: { cancelAt }, scheduledChange: null };
     }
+
+    const switchAt = this.toUnixSeconds(scheduled.startDate) ?? periodEnd;
+    if (!switchAt) return { cancellation: null, scheduledChange: null };
 
     return {
       cancellation: null,
       scheduledChange: {
         // CHB has no schedule object of its own; synthesize a stable id for
         // the UI (only mutations by orgId exist, the id is display-only).
-        scheduleId: `chb:${bundle.id}`,
+        scheduleId: `chb:${attachedPlan.id}`,
         switchAt,
         newProductId: scheduled.planCode
           ? (mapChbPlanCodeToStripeProductId(scheduled.planCode) ?? undefined)
@@ -134,8 +126,8 @@ export class ChbBillingService {
     const { org, parsedOrg } = await this.getParsedOrg(orgId);
     const chb = parsedOrg.cloudConfig?.clickhouse;
 
-    if (!chb?.bundleId) {
-      // No bundle yet (hobby / pre-checkout) → same cached-cycle fallback the
+    if (!chb?.attachedPlanId) {
+      // No attached plan yet (hobby / pre-checkout) → same cached-cycle fallback the
       // Stripe path uses for orgs without a subscription.
       const now = new Date();
       return {
@@ -149,27 +141,26 @@ export class ChbBillingService {
       };
     }
 
-    const bundle = await this.client.getBundle({
+    const attachedPlan = await this.client.getAttachedPlan({
       chOrganizationId: chb.organizationId,
-      bundleId: chb.bundleId,
     });
 
-    const periodStart = bundle.period?.startDate
-      ? new Date(bundle.period.startDate)
+    const periodStart = attachedPlan.period?.startDate
+      ? new Date(attachedPlan.period.startDate)
       : null;
-    const periodEnd = bundle.period?.endDate
-      ? new Date(bundle.period.endDate)
+    const periodEnd = attachedPlan.period?.endDate
+      ? new Date(attachedPlan.period.endDate)
       : null;
 
     return {
-      ...this.mapScheduled(bundle),
+      ...this.mapScheduled(attachedPlan),
       billingPeriod:
         periodStart && periodEnd
           ? { start: periodStart, end: periodEnd }
           : null,
       // No promotion-code API on the CHB path yet
       discounts: [],
-      hasValidPaymentMethod: bundle.payment?.status === "active",
+      hasValidPaymentMethod: attachedPlan.payment?.status === "active",
     };
   }
 
@@ -250,11 +241,11 @@ export class ChbBillingService {
           "Cannot initialize ClickHouse Billing checkout for a Stripe-billed organization",
       });
     }
-    if (parsedOrg.cloudConfig?.clickhouse?.bundleId) {
+    if (parsedOrg.cloudConfig?.clickhouse?.attachedPlanId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message:
-          "Organization already has an active bundle; use changePlan instead of checkout",
+          "Organization already has an active attached plan; use changePlan instead of checkout",
       });
     }
 
@@ -428,7 +419,7 @@ export class ChbBillingService {
     }
 
     const chb = this.requireChbState(parsedOrg);
-    if (!chb.bundleId) {
+    if (!chb.attachedPlanId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Organization does not have an active subscription",
@@ -449,14 +440,14 @@ export class ChbBillingService {
       : true;
 
     const idempotencyKey = makeIdempotencyKey({
-      kind: IdempotencyKind.enum["chb.bundle.scheduled.set"],
-      fields: { bundleId: chb.bundleId, to: newPlanCode },
+      kind: IdempotencyKind.enum["chb.attachedplan.scheduled.set"],
+      fields: { attachedPlanId: chb.attachedPlanId, to: newPlanCode },
       opId,
     });
 
-    logger.info("chbBillingService.bundle.scheduled.set", {
+    logger.info("chbBillingService.attachedplan.scheduled.set", {
       orgId,
-      bundleId: chb.bundleId,
+      attachedPlanId: chb.attachedPlanId,
       fromPlanCode: currentPlanCode,
       toPlanCode: newPlanCode,
       isUpgrade: upgrading,
@@ -468,7 +459,6 @@ export class ChbBillingService {
     try {
       await this.client.setScheduledChange({
         chOrganizationId: chb.organizationId,
-        bundleId: chb.bundleId,
         change: {
           type: upgrading ? "upgrade" : "downgrade",
           // Same semantics as the Stripe path: upgrades apply immediately,
@@ -526,14 +516,14 @@ export class ChbBillingService {
   /**
    * Immediate cancellation for destructive flows (org deletion). Per spec,
    * CHB closes the bill and invoices on the cancellation date; billing data
-   * only, the CH organization survives. No-op without a bundle so org
+   * only, the CH organization survives. No-op without an attached plan so org
    * deletion keeps working for hobby orgs.
    */
   async cancelImmediatelyAndInvoice(orgId: string, opId?: string) {
     const { parsedOrg } = await this.getParsedOrg(orgId);
     const chb = parsedOrg.cloudConfig?.clickhouse;
-    if (!chb?.bundleId) {
-      logger.info("chbBillingService.cancel.now:noop.noActiveBundle", {
+    if (!chb?.attachedPlanId) {
+      logger.info("chbBillingService.cancel.now:noop.noActiveAttachedPlan", {
         orgId,
       });
       return { status: "noop" } as const;
@@ -541,11 +531,10 @@ export class ChbBillingService {
 
     await this.client.setScheduledChange({
       chOrganizationId: chb.organizationId,
-      bundleId: chb.bundleId,
       change: { type: "cancel", when: "immediate" },
       idempotencyKey: makeIdempotencyKey({
-        kind: IdempotencyKind.enum["chb.bundle.scheduled.set"],
-        fields: { bundleId: chb.bundleId, to: "cancel-immediate" },
+        kind: IdempotencyKind.enum["chb.attachedplan.scheduled.set"],
+        fields: { attachedPlanId: chb.attachedPlanId, to: "cancel-immediate" },
         opId,
       }),
     });
@@ -583,19 +572,18 @@ export class ChbBillingService {
   ) {
     const { parsedOrg } = await this.getParsedOrg(orgId);
     const chb = parsedOrg.cloudConfig?.clickhouse;
-    if (!chb?.bundleId) {
+    if (!chb?.attachedPlanId) {
       return { invoices: [], hasMore: false, cursors: {} };
     }
 
     const invoices = await this.client.listInvoices({
       chOrganizationId: chb.organizationId,
-      bundleId: chb.bundleId,
     });
 
     return {
-      // Mapped into the existing invoice-table row shape. Breakdown parity
-      // (subscription vs usage split, draft/upcoming row) is still open with
-      // CHB, so this is total-only until they confirm the payload.
+      // Mapped into the existing invoice-table row shape. CHB reports one
+      // total per invoice, so the breakdown is total-only; the open period's
+      // accrued usage is available as `preview` on the same route when needed.
       invoices: invoices.map((invoice) => ({
         id: invoice.id,
         number: invoice.number,
@@ -604,14 +592,14 @@ export class ChbBillingService {
         // Milliseconds, like the Stripe path. Guarded: an unparsable CHB
         // timestamp must not reach the table as NaN.
         created: (this.toUnixSeconds(invoice.createdAt) ?? 0) * 1000,
-        hostedInvoiceUrl: invoice.downloadUrl ?? null,
-        invoicePdfUrl: invoice.downloadUrl ?? null,
+        hostedInvoiceUrl: invoice.hostedUrl ?? null,
+        invoicePdfUrl: invoice.pdfUrl ?? null,
         breakdown: {
           subscriptionCents: 0,
           usageCents: 0,
           discountCents: 0,
           taxCents: 0,
-          totalCents: invoice.totalCents ?? 0,
+          totalCents: invoice.amount ?? 0,
         },
       })),
       // CHB invoice pagination is not part of the v1 contract; return the
@@ -625,7 +613,7 @@ export class ChbBillingService {
    * v1 usage source of truth for CHB orgs is the existing non-Stripe
    * fallback: billing cycle from the org's anchor + the cached cycle usage
    * the hourly job maintains. Spend-in-USD can later come from
-   * `GET /bundles/{id}?fields=period`.
+   * `GET /invoices?includePreview=true` (the open period's accrued usage).
    */
   async getUsage(orgId: string) {
     const { org } = await this.getParsedOrg(orgId);
@@ -661,16 +649,16 @@ export class ChbBillingService {
   ) {
     const { parsedOrg } = await this.getParsedOrg(orgId);
     const chb = this.requireChbState(parsedOrg);
-    if (!chb.bundleId) {
+    if (!chb.attachedPlanId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "No active subscription to cancel",
       });
     }
 
-    logger.info("chbBillingService.bundle.scheduled.cancel", {
+    logger.info("chbBillingService.attachedplan.scheduled.cancel", {
       orgId,
-      bundleId: chb.bundleId,
+      attachedPlanId: chb.attachedPlanId,
       when,
       opId,
       userId: this.ctx.session.user.id,
@@ -678,11 +666,10 @@ export class ChbBillingService {
 
     await this.client.setScheduledChange({
       chOrganizationId: chb.organizationId,
-      bundleId: chb.bundleId,
       change: { type: "cancel", when },
       idempotencyKey: makeIdempotencyKey({
-        kind: IdempotencyKind.enum["chb.bundle.scheduled.set"],
-        fields: { bundleId: chb.bundleId, to: `cancel-${when}` },
+        kind: IdempotencyKind.enum["chb.attachedplan.scheduled.set"],
+        fields: { attachedPlanId: chb.attachedPlanId, to: `cancel-${when}` },
         opId,
       }),
     });
@@ -701,16 +688,16 @@ export class ChbBillingService {
   private async clearScheduled(orgId: string, action: string, opId?: string) {
     const { parsedOrg } = await this.getParsedOrg(orgId);
     const chb = this.requireChbState(parsedOrg);
-    if (!chb.bundleId) {
+    if (!chb.attachedPlanId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "No active subscription found",
       });
     }
 
-    logger.info("chbBillingService.bundle.scheduled.clear", {
+    logger.info("chbBillingService.attachedplan.scheduled.clear", {
       orgId,
-      bundleId: chb.bundleId,
+      attachedPlanId: chb.attachedPlanId,
       action,
       opId,
       userId: this.ctx.session.user.id,
@@ -718,10 +705,9 @@ export class ChbBillingService {
 
     await this.client.clearScheduledChange({
       chOrganizationId: chb.organizationId,
-      bundleId: chb.bundleId,
       idempotencyKey: makeIdempotencyKey({
-        kind: IdempotencyKind.enum["chb.bundle.scheduled.clear"],
-        fields: { bundleId: chb.bundleId },
+        kind: IdempotencyKind.enum["chb.attachedplan.scheduled.clear"],
+        fields: { attachedPlanId: chb.attachedPlanId },
         opId,
       }),
     });

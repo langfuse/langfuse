@@ -27,7 +27,10 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -35,7 +38,7 @@ import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
-} from "@/src/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -45,14 +48,30 @@ import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 
+// Controller: no widget query may fire before the session resolves the v3/v4
+// read path — an unresolved session used to read as v3, fire a full wave of
+// legacy-table queries, then re-run the whole dashboard on v4 once the
+// session landed (via the scheduler reset key below).
 export default function Dashboard() {
+  const { readPath } = useReadPath();
+  if (readPath === "unknown") {
+    return (
+      <Page withPadding scrollable headerProps={{ title: "Home" }}>
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+  return <HomeDashboard readPath={readPath} />;
+}
+
+function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
-  const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const isV4 = readPath === "v4";
+  const metricsVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange) ?? undefined,
@@ -69,7 +88,7 @@ export default function Dashboard() {
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
-    isBetaEnabled,
+    isV4,
     timeRange,
   });
 
@@ -252,14 +271,14 @@ export default function Dashboard() {
     userFilterState,
   ]);
 
-  const scheduler = useDashboardQueryScheduler({
+  const schedulerStore = useDashboardQueryScheduler({
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
 
   return (
     <DashboardQuerySchedulerProvider
-      scheduler={scheduler}
+      store={schedulerStore}
       shouldBucketQueriesByTimeRange={!("from" in timeRange)}
     >
       <Page
@@ -381,6 +400,7 @@ export default function Dashboard() {
             canEdit={false}
             dashboardId={dashboardId}
             projectId={projectId}
+            readPath={readPath}
             dateRange={absoluteTimeRange}
             filterState={gridFilterState}
             onDeleteWidget={() => undefined}

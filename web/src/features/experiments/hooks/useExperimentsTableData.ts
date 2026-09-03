@@ -67,8 +67,14 @@ export function useExperimentsTableData({
     ],
   );
 
+  // `projectId` is read from `router.query`, which Next.js populates only after
+  // hydration. Without this guard both queries fire with `projectId: undefined`
+  // on a cold load and the rejected zod input surfaces as a "Bad Request" toast.
+  const isProjectReady = Boolean(projectId);
+
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
+    enabled: isProjectReady,
     refetchOnWindowFocus: true,
   });
 
@@ -88,13 +94,15 @@ export function useExperimentsTableData({
 
   // Fetch metrics
   const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
-    enabled: experimentsQuery.isSuccess && metricsPayload !== null,
+    enabled:
+      isProjectReady && experimentsQuery.isSuccess && metricsPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
+    enabled: isProjectReady,
     refetchOnWindowFocus: true,
   });
 
@@ -103,7 +111,9 @@ export function useExperimentsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (experimentsQuery.isLoading) {
+    // A disabled query is neither loading nor errored, so keep the table in its
+    // loading state until the project id arrives instead of flashing "no rows".
+    if (!isProjectReady || experimentsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -117,6 +127,7 @@ export function useExperimentsTableData({
       metricsQuery.data,
     );
   }, [
+    isProjectReady,
     experimentsQuery.isLoading,
     experimentsQuery.isError,
     experimentsQuery.data?.data,

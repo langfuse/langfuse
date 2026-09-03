@@ -4,7 +4,6 @@ const customTemplate = {
   id: "evaluator-1",
   name: "Project exact match",
   type: "CODE" as const,
-  prompt: null,
   sourceCodeLanguage: "TYPESCRIPT" as const,
   updatedAt: new Date("2026-08-11T10:00:00.000Z"),
   version: 1,

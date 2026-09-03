@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -10,8 +11,8 @@ import {
   type ListEntry,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
@@ -44,7 +45,7 @@ export const DetailPageNav = (props: {
   );
 
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
+  const { isV4 } = useReadPath();
   const router = useRouter();
   const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =

@@ -1,5 +1,5 @@
 import { deleteAnnotationQueueAssignment } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
-import { DeleteAnnotationQueueAssignmentResponse } from "@/src/features/public-api/types/annotation-queues";
+import { DeleteAnnotationQueueAssignmentResponse } from "@/src/features/public-api/server";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";

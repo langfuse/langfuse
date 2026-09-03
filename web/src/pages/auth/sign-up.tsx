@@ -34,6 +34,7 @@ import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -49,8 +50,6 @@ const signupVerifyFormSchema = z.object({
   }),
   email: z.email(),
 });
-
-type SignupPhase = "form" | "otp";
 
 export default function SignUp({
   authProviders = FALLBACK_AUTH_PROVIDERS,
@@ -322,11 +321,6 @@ function VerifiedSignupFlow({
   const emailParam = router.query.email as string | undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<SignupPhase>("form");
-  const [otpEmail, setOtpEmail] = useState<string>("");
-  const [otpCode, setOtpCode] = useState<string>("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState<string | null>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -380,105 +374,16 @@ function VerifiedSignupFlow({
       }
 
       capture("sign_up:button_click", { provider: "email_verification" });
-      setOtpEmail(values.email);
-      setPhase("otp");
+      sessionStorage.setItem(
+        PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+        values.email.toLowerCase(),
+      );
+      await router.push("/auth/setup-password");
     } catch {
       setFormError("An error occurred. Please try again.");
     }
   }
 
-  function handleOtpVerify() {
-    if (!otpCode || otpCode.length !== 6) return;
-    setOtpLoading(true);
-    setOtpError(null);
-
-    const formattedEmail = encodeURIComponent(otpEmail.toLowerCase().trim());
-    const formattedCode = encodeURIComponent(otpCode.trim());
-    const callback = encodeURIComponent(
-      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
-    );
-    // Existing hard navigation is accepted during the Next.js 16.3 migration.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
-  }
-
-  // OTP phase
-  if (phase === "otp") {
-    return (
-      <>
-        <Head>
-          <title>Verify your email | Langfuse</title>
-        </Head>
-        <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
-          <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <div className="mx-auto w-fit">
-              <LangfuseIcon />
-            </div>
-            <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-              Check your email
-            </h2>
-            <p className="text-muted-foreground mt-2 text-center text-sm">
-              We sent a verification code to{" "}
-              <span className="font-bold">{otpEmail}</span>
-            </p>
-          </div>
-
-          <div className="bg-background mt-14 px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
-            <div className="space-y-6">
-              <div>
-                <label
-                  htmlFor="otp-code"
-                  className="mb-2 block text-sm font-bold"
-                >
-                  Verification code
-                </label>
-                <Input
-                  id="otp-code"
-                  type="number"
-                  minLength={6}
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.trim())}
-                  placeholder="6-digit code"
-                  className="w-full"
-                  autoFocus
-                />
-              </div>
-              <Button
-                onClick={handleOtpVerify}
-                className="w-full"
-                loading={otpLoading}
-                disabled={!otpCode || otpCode.length !== 6}
-              >
-                Verify
-              </Button>
-              {otpError && (
-                <div className="text-destructive text-center text-sm font-bold">
-                  {otpError}
-                </div>
-              )}
-              <p className="text-muted-foreground text-center text-xs">
-                The code is valid for 3 minutes.{" "}
-                <button
-                  type="button"
-                  className="text-link hover:text-link-hover font-bold"
-                  onClick={() => {
-                    setPhase("form");
-                    setOtpCode("");
-                    setOtpError(null);
-                  }}
-                >
-                  Go back
-                </button>
-              </p>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // Form phase
   return (
     <SignupPageShell>
       <Form {...form}>

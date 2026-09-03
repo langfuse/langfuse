@@ -141,8 +141,17 @@ export function getInAppAgentReasoningProviderOptions(
         },
       };
     }
-    case "openai":
-      return resolveLangfuseAIOpenAICallFromEnv(config.baseURL).providerOptions;
+    case "openai": {
+      const call = resolveLangfuseAIOpenAICallFromEnv(config.baseURL);
+      if (
+        call.apiMode !== "responses" ||
+        !config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+      ) {
+        return call.providerOptions;
+      }
+
+      return forceResponsesReasoning(call.providerOptions);
+    }
     case "bedrock":
       return getBedrockReasoningProviderOptions(config.modelId);
     default: {
@@ -157,4 +166,25 @@ function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
     baseURL,
     useResponsesApi: env.LANGFUSE_AI_USE_RESPONSES_API,
   });
+}
+
+// @ai-sdk/openai sends `reasoning` (and requests encrypted reasoning for
+// stateless replay) only for model ids it detects as gpt/o-series reasoning
+// models. `forceReasoning` extends that to Claude ids behind a Responses
+// gateway. Forced reasoning also defaults `systemMessageMode` to `developer`;
+// pinning it to `system` keeps the system role, so the reasoning fields are
+// the only difference from the unforced request.
+function forceResponsesReasoning(
+  providerOptions: Extract<
+    ReturnType<typeof resolveLangfuseAIOpenAICallFromEnv>,
+    { apiMode: "responses" }
+  >["providerOptions"],
+) {
+  return {
+    openai: {
+      ...providerOptions.openai,
+      forceReasoning: true,
+      systemMessageMode: "system" as const,
+    },
+  };
 }

@@ -2,15 +2,16 @@ import type { LucideIcon } from "lucide-react";
 import type {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  EvaluatorPromptMessage,
   PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 
-import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 export type EvaluatorSetupDraft = {
   name: string;
   description: string | null;
-  definition: EvaluatorDefinition;
+  definition: NormalizedEvaluatorDefinition;
 };
 
 export type ManagedTemplate = {
@@ -23,7 +24,7 @@ export type ManagedTemplate = {
   evaluator:
     | {
         type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;
-        prompt: string;
+        promptMessages: EvaluatorPromptMessage[];
         variables: Array<{
           name: string;
           defaultMapping: { field: string };
@@ -43,7 +44,6 @@ export type CustomEvaluatorTemplate = {
   name: string;
   description?: string | null;
   type: EvalTemplateType;
-  prompt: string | null;
   sourceCodeLanguage?: EvalTemplateSourceCodeLanguage | null;
   updatedAt: Date;
   version: number;

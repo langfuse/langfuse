@@ -16,7 +16,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
@@ -45,14 +45,14 @@ export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Fetch traces separately when v4 beta is enabled (events table path)
   // The byIdWithScoresFromEvents endpoint doesn't include traces array
   const tracesFromEventsQuery = api.sessions.tracesFromEvents.useQuery(
     { projectId, sessionId: item.objectId },
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -70,7 +70,7 @@ export const SessionAnnotationProcessor: React.FC<
         projectId,
         sessionId: item.objectId,
       },
-      { enabled: isBetaEnabled },
+      { enabled: isV4 },
     );
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery({
@@ -83,20 +83,20 @@ export const SessionAnnotationProcessor: React.FC<
   // - v4 beta OFF: traces come from data.traces (byIdWithScores endpoint)
   // - v4 beta ON: traces come from separate tracesFromEvents query
   const traces = useMemo(() => {
-    if (isBetaEnabled) {
+    if (isV4) {
       return tracesFromEventsQuery.data ?? [];
     }
     return data?.traces ?? [];
-  }, [isBetaEnabled, tracesFromEventsQuery.data, data?.traces]);
+  }, [isV4, tracesFromEventsQuery.data, data?.traces]);
 
   // For the "Total traces" badge, show countTraces from session metadata when available (v4),
   // or fall back to loaded traces length
   const totalTracesForBadge = useMemo(() => {
-    if (isBetaEnabled) {
+    if (isV4) {
       return data?.countTraces ?? traces.length;
     }
     return traces.length;
-  }, [isBetaEnabled, data?.countTraces, traces.length]);
+  }, [isV4, data?.countTraces, traces.length]);
 
   // Stable callback to avoid creating new function reference on every render (defeats React.memo)
   const openPeek = useCallback(
@@ -192,7 +192,7 @@ export const SessionAnnotationProcessor: React.FC<
       <div className="flex-1 overflow-y-auto">
         <div className="p-4">
           {/* Loading state for v4 beta traces */}
-          {isBetaEnabled && tracesFromEventsQuery.isLoading && (
+          {isV4 && tracesFromEventsQuery.isLoading && (
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
                 <Card
@@ -208,13 +208,13 @@ export const SessionAnnotationProcessor: React.FC<
             </div>
           )}
           {/* Error state for v4 beta traces */}
-          {isBetaEnabled && tracesFromEventsQuery.isError && (
+          {isV4 && tracesFromEventsQuery.isError && (
             <div className="text-destructive p-2 text-sm">
               Failed to load traces for this session.
             </div>
           )}
           {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
-          {isBetaEnabled &&
+          {isV4 &&
             tracesFromEventsQuery.isSuccess &&
             traces
               .slice(0, visibleTraces)
@@ -234,7 +234,7 @@ export const SessionAnnotationProcessor: React.FC<
                 />
               ))}
           {/* Trace list - v3 path uses SessionIO */}
-          {!isBetaEnabled &&
+          {!isV4 &&
             traces.slice(0, visibleTraces).map((trace: any) => (
               <Card
                 className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
@@ -260,7 +260,7 @@ export const SessionAnnotationProcessor: React.FC<
                 />
               </Card>
             ))}
-          {(!isBetaEnabled || tracesFromEventsQuery.isSuccess) &&
+          {(!isV4 || tracesFromEventsQuery.isSuccess) &&
             traces.length > visibleTraces && (
               <div className="flex justify-center py-4">
                 <Button
