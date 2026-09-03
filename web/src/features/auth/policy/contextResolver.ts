@@ -43,7 +43,7 @@ export class ContextResolver {
     };
   }
 
-  /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
+  /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, collapsing a null miss to a 500 invariant break. */
   private async getPrincipalOrganization(
     apiKey: ApiKey,
   ): Promise<
@@ -51,13 +51,13 @@ export class ContextResolver {
     | ErrorResult<InternalServerError>
   > {
     const found = await this.loadOrganization(apiKey);
-    if (!found.success) {
+    if (!found.success) return found;
+    if (!found.organization) {
       return {
         success: false,
-        error:
-          found.error instanceof InternalServerError
-            ? found.error
-            : new InternalServerError(found.error.message),
+        error: new InternalServerError(
+          `verified key ${apiKey.id} resolved to no organization`,
+        ),
       };
     }
     return {

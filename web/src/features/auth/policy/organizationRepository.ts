@@ -3,15 +3,15 @@ import {
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+import { InternalServerError } from "@langfuse/shared";
 
 import { type ErrorResult, type Success } from "./types";
 
-/** OrganizationRepository reads an org with its live projects, returning a miss or infra failure as a value. */
+/** OrganizationRepository reads an org with its live projects, returning a null miss or an infra failure as a value. */
 export class OrganizationRepository {
   constructor(private readonly prisma: PrismaClient = defaultPrisma) {}
 
-  /** getOrganizationByOrgId loads an org and all its live project ids by org id; a miss is a legitimate `NotFound`. */
+  /** getOrganizationByOrgId loads an org and all its live project ids by org id, carrying a null miss on success. */
   async getOrganizationByOrgId(orgId: string): Promise<GetOrganizationResult> {
     try {
       const organization = await this.prisma.organization.findUnique({
@@ -20,12 +20,6 @@ export class OrganizationRepository {
           projects: { where: { deletedAt: null }, select: { id: true } },
         },
       });
-      if (!organization) {
-        return {
-          success: false,
-          error: new LangfuseNotFoundError(`org ${orgId} not found`),
-        };
-      }
       return { success: true, organization };
     } catch (error) {
       return {
@@ -37,7 +31,7 @@ export class OrganizationRepository {
     }
   }
 
-  /** getOrganizationByProjectId loads the org owning a live project, carrying only that project id; a soft-deleted or unknown project is a legitimate `NotFound`. */
+  /** getOrganizationByProjectId loads the org owning a live project, carrying only that project id, or a null miss on success for a soft-deleted or unknown project. */
   async getOrganizationByProjectId(
     projectId: string,
   ): Promise<GetOrganizationResult> {
@@ -45,17 +39,11 @@ export class OrganizationRepository {
       const organization = await this.prisma.organization.findFirst({
         where: { projects: { some: { id: projectId, deletedAt: null } } },
       });
-      if (!organization) {
-        return {
-          success: false,
-          error: new LangfuseNotFoundError(
-            `no live project ${projectId} found`,
-          ),
-        };
-      }
       return {
         success: true,
-        organization: { ...organization, projects: [{ id: projectId }] },
+        organization: organization
+          ? { ...organization, projects: [{ id: projectId }] }
+          : null,
       };
     } catch (error) {
       return {
@@ -73,7 +61,7 @@ export type OrganizationWithProjects = Organization & {
   projects: { id: string }[];
 };
 
-/** GetOrganizationResult is the loaded org, a legitimate miss, or an infra failure. */
+/** GetOrganizationResult is the loaded org or a null miss, or an infra failure. */
 export type GetOrganizationResult =
-  | (Success & { organization: OrganizationWithProjects })
-  | ErrorResult<LangfuseNotFoundError | InternalServerError>;
+  | (Success & { organization: OrganizationWithProjects | null })
+  | ErrorResult<InternalServerError>;
