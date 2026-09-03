@@ -110,6 +110,8 @@ the same PR.
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
+- Materialize direct-migration trees: `pnpm ch:migrations:materialize`
+- Clean direct-migration trees: `pnpm ch:migrations:clean`
 
 ## Playbooks
 

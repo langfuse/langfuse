@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import {
+  cpSync,
+  existsSync,
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -22,6 +25,7 @@ const clusteredOnlyPattern = /\{CLICKHOUSE_CLUSTERED_ONLY:([^{}]*)\}/g;
 const unclusteredOnlyPattern = /\{CLICKHOUSE_UNCLUSTERED_ONLY:([^{}]*)\}/g;
 const anyPlaceholderPattern = /\{CLICKHOUSE_[A-Z_]+(?::[^{}]*)?\}/;
 const historicalByteCompatibilityVersion = 47;
+const deliveredModes = ["clustered", "unclustered"];
 
 function countOccurrences(value, search) {
   return value.split(search).length - 1;
@@ -230,9 +234,59 @@ export function prepareMigrations(sourceDirectory, mode, clusterName) {
   return targetDirectory;
 }
 
+function requireCanonicalMigrationDirectory(migrationsDirectory) {
+  const migrationsPath = resolve(migrationsDirectory);
+  const canonicalPath = join(migrationsPath, "canonical");
+
+  if (!existsSync(canonicalPath) || !statSync(canonicalPath).isDirectory()) {
+    throw new Error(
+      `ClickHouse migration directory must contain canonical/: ${migrationsPath}`,
+    );
+  }
+
+  return { canonicalPath, migrationsPath };
+}
+
+export function materializeMigrations(migrationsDirectory) {
+  const { canonicalPath, migrationsPath } =
+    requireCanonicalMigrationDirectory(migrationsDirectory);
+  const renderedDirectories = [];
+
+  try {
+    for (const mode of deliveredModes) {
+      renderedDirectories.push({
+        mode,
+        path: prepareMigrations(canonicalPath, mode, "default"),
+      });
+    }
+
+    mkdirSync(migrationsPath, { recursive: true });
+    for (const rendered of renderedDirectories) {
+      const targetDirectory = join(migrationsPath, rendered.mode);
+      rmSync(targetDirectory, { force: true, recursive: true });
+      cpSync(rendered.path, targetDirectory, { recursive: true });
+    }
+  } finally {
+    for (const rendered of renderedDirectories) {
+      rmSync(rendered.path, { force: true, recursive: true });
+    }
+  }
+
+  return deliveredModes.map((mode) => join(migrationsPath, mode));
+}
+
+export function cleanMaterializedMigrations(migrationsDirectory) {
+  const { migrationsPath } =
+    requireCanonicalMigrationDirectory(migrationsDirectory);
+
+  for (const mode of deliveredModes) {
+    rmSync(join(migrationsPath, mode), { force: true, recursive: true });
+  }
+}
+
 function printUsage() {
   console.error(
-    "Usage: prepare-migrations.mjs render <source-directory> <clustered|unclustered> <cluster-name> | encode-cluster-name <cluster-name>",
+    "Usage: prepare-migrations.mjs render <source-directory> <clustered|unclustered> <cluster-name> | materialize <migrations-directory> | clean <migrations-directory> | encode-cluster-name <cluster-name>",
   );
 }
 
@@ -249,6 +303,18 @@ function main() {
 
   if (command === "encode-cluster-name" && args.length === 1) {
     process.stdout.write(`${encodeClusterName(args[0])}\n`);
+    return;
+  }
+
+  if (command === "materialize" && args.length === 1) {
+    for (const directory of materializeMigrations(args[0])) {
+      process.stdout.write(`${directory}\n`);
+    }
+    return;
+  }
+
+  if (command === "clean" && args.length === 1) {
+    cleanMaterializedMigrations(args[0]);
     return;
   }
 

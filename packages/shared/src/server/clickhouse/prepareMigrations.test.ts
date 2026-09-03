@@ -295,6 +295,53 @@ describe("ClickHouse migration preparation", () => {
     },
   );
 
+  it("materializes and cleans the delivered migration trees", () => {
+    const targetDirectory = createTemporaryDirectory(
+      "langfuse-clickhouse-materialized-migrations-test-",
+    );
+    symlinkSync(migrationSourceDirectory, join(targetDirectory, "canonical"));
+    const materialize = spawnSync(
+      process.execPath,
+      [
+        join(scriptsDirectory, "prepare-migrations.mjs"),
+        "materialize",
+        targetDirectory,
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(materialize.status, materialize.stderr).toBe(0);
+    for (const mode of ["clustered", "unclustered"] as const) {
+      const modeDirectory = join(targetDirectory, mode);
+      expect(existsSync(modeDirectory)).toBe(true);
+      expect(hashHistoricalMigrations(modeDirectory)).toBe(
+        mode === "clustered"
+          ? historicalClusteredHash
+          : historicalUnclusteredHash,
+      );
+      expect(
+        readFileSync(
+          join(modeDirectory, "0047_add_eval_execution_columns.up.sql"),
+          "utf8",
+        ),
+      ).not.toMatch(/\{CLICKHOUSE_[A-Z_]+/);
+    }
+
+    const clean = spawnSync(
+      process.execPath,
+      [
+        join(scriptsDirectory, "prepare-migrations.mjs"),
+        "clean",
+        targetDirectory,
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(clean.status, clean.stderr).toBe(0);
+    expect(existsSync(join(targetDirectory, "clustered"))).toBe(false);
+    expect(existsSync(join(targetDirectory, "unclustered"))).toBe(false);
+  });
+
   it("renders down migrations, confirms non-interactively, and cleans up", () => {
     const run = runMigrationScript({ mode: "unclustered", script: "down" });
 

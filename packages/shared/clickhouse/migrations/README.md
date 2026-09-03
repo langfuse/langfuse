@@ -46,6 +46,23 @@ pnpm --filter @langfuse/shared run test prepareMigrations.test.ts
 The test invokes the production scripts through POSIX `sh`, checks both modes,
 and locks the exact historical bytes for both generated migration trees.
 
+## Direct migrations from a source checkout
+
+Source checkouts do not contain the generated `clustered/` and `unclustered/`
+trees. Materialize them before using a direct `golang-migrate` command from an
+operations runbook:
+
+```sh
+pnpm ch:migrations:materialize
+migrate -source file://packages/shared/clickhouse/migrations/unclustered -database "<migration-url>" up
+pnpm ch:migrations:clean
+```
+
+Always run the clean command after the migration, including after a failed
+migration. Do not edit the materialized files. They are intentionally not
+ignored by Git so an incomplete cleanup or stale generated tree remains visible
+in `git status`.
+
 ## Helm chart with a custom cluster name
 
 The ClickHouse cluster bundled with the current Helm chart uses the name

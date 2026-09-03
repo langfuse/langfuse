@@ -141,6 +141,8 @@
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
     "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
+    "ch:migrations:materialize": "node clickhouse/scripts/prepare-migrations.mjs materialize clickhouse/migrations",
+    "ch:migrations:clean": "node clickhouse/scripts/prepare-migrations.mjs clean clickhouse/migrations",
     "ch:up": "sh clickhouse/scripts/up.sh",
     "ch:down": "sh clickhouse/scripts/down.sh",
     "ch:drop": "bash clickhouse/scripts/drop.sh",
