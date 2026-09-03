@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 
@@ -29,81 +29,83 @@ export const DatasetSchemaValidationError: React.FC<
   const hasMoreThan10 = errorCount === 10; // Backend limits to 10 errors
 
   return (
-    <Alert variant="destructive" className="mt-4">
-      <AlertTitle className="text-base font-bold">
-        Schema Validation Failed
-      </AlertTitle>
-      <AlertDescription className="mt-2 space-y-3">
-        <p className="text-sm">
-          {hasMoreThan10
-            ? `More than 10 items failed validation. Showing first 10 errors.`
-            : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
-        </p>
+    <div className="mt-4">
+      <Alert variant="destructive">
+        <Alert.Title>Schema Validation Failed</Alert.Title>
+        <Alert.Description>
+          <div className="mt-2 flex flex-col gap-3">
+            <p className="text-sm">
+              {hasMoreThan10
+                ? `More than 10 items failed validation. Showing first 10 errors.`
+                : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
+            </p>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="h-auto p-0 text-sm font-bold hover:bg-transparent"
-        >
-          {isExpanded ? (
-            <ChevronDown className="mr-1 h-4 w-4" />
-          ) : (
-            <ChevronRight className="mr-1 h-4 w-4" />
-          )}
-          {isExpanded ? "Hide" : "Show"} error details
-        </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="h-auto p-0 text-sm font-bold hover:bg-transparent"
+            >
+              {isExpanded ? (
+                <ChevronDown className="mr-1 h-4 w-4" />
+              ) : (
+                <ChevronRight className="mr-1 h-4 w-4" />
+              )}
+              {isExpanded ? "Hide" : "Show"} error details
+            </Button>
 
-        {isExpanded && (
-          <div className="border-destructive/20 bg-destructive/5 mt-3 space-y-3 rounded-md border p-3">
-            {errors.map((error, idx) => (
-              <div
-                key={`${error.datasetItemId}-${error.field}`}
-                className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground font-mono text-xs">
-                      #{idx + 1}
-                    </span>
-                    <Link
-                      href={`/project/${projectId}/datasets/${datasetId}/items/${error.datasetItemId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm font-bold hover:underline"
-                    >
-                      Item: {error.datasetItemId}
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  </div>
-                  <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">
-                    {error.field === "input" ? "Input" : "Expected Output"}
-                  </span>
-                </div>
-
-                <ul className="ml-6 space-y-1 text-sm">
-                  {error.errors.map((err, errIdx) => (
-                    <li key={errIdx} className="text-destructive">
-                      <span className="text-muted-foreground font-mono text-xs">
-                        Path {err.path}
+            {isExpanded && (
+              <div className="border-destructive/20 bg-destructive/5 mt-3 space-y-3 rounded-md border p-3">
+                {errors.map((error, idx) => (
+                  <div
+                    key={`${error.datasetItemId}-${error.field}`}
+                    className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground font-mono text-xs">
+                          #{idx + 1}
+                        </span>
+                        <Link
+                          href={`/project/${projectId}/datasets/${datasetId}/items/${error.datasetItemId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-sm font-bold hover:underline"
+                        >
+                          Item: {error.datasetItemId}
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">
+                        {error.field === "input" ? "Input" : "Expected Output"}
                       </span>
-                      : {err.message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+                    </div>
 
-            {hasMoreThan10 && (
-              <p className="text-muted-foreground pt-2 text-xs">
-                Fix these errors to see if there are additional validation
-                issues.
-              </p>
+                    <ul className="ml-6 space-y-1 text-sm">
+                      {error.errors.map((err, errIdx) => (
+                        <li key={errIdx} className="text-destructive">
+                          <span className="text-muted-foreground font-mono text-xs">
+                            Path {err.path}
+                          </span>
+                          : {err.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+
+                {hasMoreThan10 && (
+                  <p className="text-muted-foreground pt-2 text-xs">
+                    Fix these errors to see if there are additional validation
+                    issues.
+                  </p>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </AlertDescription>
-    </Alert>
+        </Alert.Description>
+      </Alert>
+    </div>
   );
 };
