@@ -105,10 +105,6 @@ describe("installProcessErrorHandlers", () => {
       "langfuse.process.unhandled_rejection",
       1,
     );
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.process.fatal_shutdown",
-      1,
-    );
   });
 
   it("drains then exits non-zero on an uncaught exception", async () => {

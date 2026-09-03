@@ -49,58 +49,33 @@ export function installProcessErrorHandlers(
   const exit = options.exit ?? ((code: number) => process.exit(code));
   const drainTimeoutMs = options.drainTimeoutMs ?? DEFAULT_DRAIN_TIMEOUT_MS;
 
-  const beginFatalDrain = (info: {
-    source: FatalSource;
-    reason: unknown;
-  }): void => {
+  const onFatalError = (source: FatalSource, reason: unknown): void => {
     if (draining) {
-      // Safety gate: a second fatal error mid-drain means draining is not going
-      // to recover the process. Stop waiting and die now.
-      try {
-        logger.error(
-          `Repeated ${info.source} during shutdown drain; forcing immediate exit`,
-          info.reason,
-        );
-        recordIncrement("langfuse.process.forced_exit", 1);
-      } catch {
-        // Never let the safety gate throw and prevent the exit.
-      }
+      // Safety gate: a second fatal error mid-drain means draining will not
+      // recover the process. Stop waiting and die now.
+      logger.error(
+        `Repeated ${source} during shutdown drain; exiting now`,
+        reason,
+      );
+      recordIncrement("langfuse.process.forced_exit", 1);
       exit(1);
       return;
     }
     draining = true;
-
-    try {
-      logger.error(
-        `Fatal ${info.source}; draining in-flight requests before exit`,
-        info.reason,
-      );
-      recordIncrement("langfuse.process.fatal_shutdown", 1);
-    } catch {
-      // Logging/metrics must never block the drain.
-    }
+    logger.error(
+      `Fatal ${source}; draining in-flight requests before exit`,
+      reason,
+    );
 
     const backstop = setTimeout(() => {
-      try {
-        logger.error("Shutdown drain exceeded budget; forcing exit");
-      } catch {
-        // ignore
-      }
+      logger.error("Shutdown drain exceeded budget; forcing exit");
       exit(1);
     }, drainTimeoutMs);
-    if (typeof backstop.unref === "function") {
-      backstop.unref();
-    }
+    backstop.unref?.();
 
     Promise.resolve()
-      .then(() => options.onFatal?.(info))
-      .catch((err) => {
-        try {
-          logger.error("Shutdown drain failed", err);
-        } catch {
-          // ignore
-        }
-      })
+      .then(() => options.onFatal?.({ source, reason }))
+      .catch((err) => logger.error("Shutdown drain failed", err))
       .finally(() => {
         clearTimeout(backstop);
         exit(1);
@@ -108,20 +83,12 @@ export function installProcessErrorHandlers(
   };
 
   process.on("unhandledRejection", function onUnhandledRejection(reason) {
-    try {
-      recordIncrement("langfuse.process.unhandled_rejection", 1);
-    } catch {
-      // ignore
-    }
-    beginFatalDrain({ source: "unhandledRejection", reason });
+    recordIncrement("langfuse.process.unhandled_rejection", 1);
+    onFatalError("unhandledRejection", reason);
   });
 
   process.on("uncaughtException", function onUncaughtException(err) {
-    try {
-      recordIncrement("langfuse.process.uncaught_exception", 1);
-    } catch {
-      // ignore
-    }
-    beginFatalDrain({ source: "uncaughtException", reason: err });
+    recordIncrement("langfuse.process.uncaught_exception", 1);
+    onFatalError("uncaughtException", err);
   });
 }
