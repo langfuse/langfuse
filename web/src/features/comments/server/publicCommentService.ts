@@ -148,6 +148,8 @@ export const listCommentsForApi = async ({
   objectType,
   objectId,
   authorUserId,
+  fromTimestamp,
+  toTimestamp,
   limit,
   page,
 }: ListCommentsInput) => {
@@ -156,6 +158,12 @@ export const listCommentsForApi = async ({
     objectType: objectType ?? undefined,
     objectId: objectId ?? undefined,
     authorUserId: authorUserId ?? undefined,
+    ...((fromTimestamp || toTimestamp) && {
+      createdAt: {
+        ...(fromTimestamp && { gte: new Date(fromTimestamp) }),
+        ...(toTimestamp && { lt: new Date(toTimestamp) }),
+      },
+    }),
   };
 
   const [comments, totalItems] = await Promise.all([
