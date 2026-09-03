@@ -1284,6 +1284,28 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: fromTimestamp
+          in: query
+          description: |-
+            Optional ISO-8601 lower bound on the dataset row's `createdAt`.
+            Omit for an open-ended start. Pattern matches
+            `GET /api/public/models`.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: |-
+            Optional ISO-8601 upper bound on the dataset row's `createdAt`.
+            Omit for an open-ended end. Pattern matches
+            `GET /api/public/models`.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''

@@ -31,6 +31,22 @@ export default withMiddlewares({
     responseSchema: GetDatasetsV2Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
+      const where = {
+        projectId: auth.scope.projectId,
+        ...(query.fromTimestamp || query.toTimestamp
+          ? {
+              createdAt: {
+                ...(query.fromTimestamp
+                  ? { gte: new Date(query.fromTimestamp) }
+                  : {}),
+                ...(query.toTimestamp
+                  ? { lte: new Date(query.toTimestamp) }
+                  : {}),
+              },
+            }
+          : {}),
+      };
+
       const datasets = await prisma.dataset.findMany({
         select: {
           name: true,
@@ -43,18 +59,14 @@ export default withMiddlewares({
           updatedAt: true,
           id: true,
         },
-        where: {
-          projectId: auth.scope.projectId,
-        },
+        where,
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         take: query.limit,
         skip: (query.page - 1) * query.limit,
       });
 
       const totalItems = await prisma.dataset.count({
-        where: {
-          projectId: auth.scope.projectId,
-        },
+        where,
       });
 
       return {

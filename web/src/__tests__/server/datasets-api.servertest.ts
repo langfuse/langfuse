@@ -2201,3 +2201,255 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
 });
+
+describe("GET /api/public/datasets timestamp window", () => {
+  it("returns only datasets with createdAt >= fromTimestamp", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const early = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: `early-${v4()}`,
+      },
+      auth,
+    );
+    expect(early.status).toBe(200);
+
+    const late = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: `late-${v4()}`,
+      },
+      auth,
+    );
+    expect(late.status).toBe(200);
+
+    const future = new Date("2027-06-15T12:00:00Z");
+    await prisma.dataset.update({
+      where: { id_projectId: { id: late.body.id, projectId } },
+      data: { createdAt: future },
+    });
+    const past = new Date("2026-06-15T12:00:00Z");
+    await prisma.dataset.update({
+      where: { id_projectId: { id: early.body.id, projectId } },
+      data: { createdAt: past },
+    });
+
+    const res = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      `/api/public/datasets?fromTimestamp=${encodeURIComponent("2027-01-01T00:00:00Z")}`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((d) => d.id);
+    expect(ids).toContain(late.body.id);
+    expect(ids).not.toContain(early.body.id);
+
+    // Cleanup
+    await prisma.dataset.deleteMany({
+      where: { projectId, id: { in: [early.body.id, late.body.id] } },
+    });
+  });
+
+  it("returns only datasets with createdAt <= toTimestamp", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const early = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: `early-${v4()}`,
+      },
+      auth,
+    );
+    expect(early.status).toBe(200);
+
+    const late = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: `late-${v4()}`,
+      },
+      auth,
+    );
+    expect(late.status).toBe(200);
+
+    await prisma.dataset.update({
+      where: { id_projectId: { id: early.body.id, projectId } },
+      data: { createdAt: new Date("2026-06-15T12:00:00Z") },
+    });
+    await prisma.dataset.update({
+      where: { id_projectId: { id: late.body.id, projectId } },
+      data: { createdAt: new Date("2027-06-15T12:00:00Z") },
+    });
+
+    const res = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      `/api/public/datasets?toTimestamp=${encodeURIComponent("2026-12-31T23:59:59Z")}`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((d) => d.id);
+    expect(ids).toContain(early.body.id);
+    expect(ids).not.toContain(late.body.id);
+
+    await prisma.dataset.deleteMany({
+      where: { projectId, id: { in: [early.body.id, late.body.id] } },
+    });
+  });
+
+  it("rejects an invalid timestamp with 400", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const res = await makeAPICall(
+      "GET",
+      "/api/public/datasets?fromTimestamp=not-a-date",
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("omitting both params preserves the existing unfiltered behavior", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const res = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      "/api/public/datasets",
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+});
+
+describe("GET /api/public/v2/datasets timestamp window", () => {
+  it("returns only datasets with createdAt >= fromTimestamp", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const early = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: `early-v2-${v4()}`,
+      },
+      auth,
+    );
+    expect(early.status).toBe(200);
+
+    const late = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: `late-v2-${v4()}`,
+      },
+      auth,
+    );
+    expect(late.status).toBe(200);
+
+    const future = new Date("2027-06-15T12:00:00Z");
+    await prisma.dataset.update({
+      where: { id_projectId: { id: late.body.id, projectId } },
+      data: { createdAt: future },
+    });
+    const past = new Date("2026-06-15T12:00:00Z");
+    await prisma.dataset.update({
+      where: { id_projectId: { id: early.body.id, projectId } },
+      data: { createdAt: past },
+    });
+
+    const res = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      `/api/public/v2/datasets?fromTimestamp=${encodeURIComponent("2027-01-01T00:00:00Z")}`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((d) => d.id);
+    expect(ids).toContain(late.body.id);
+    expect(ids).not.toContain(early.body.id);
+
+    // Cleanup
+    await prisma.dataset.deleteMany({
+      where: { projectId, id: { in: [early.body.id, late.body.id] } },
+    });
+  });
+
+  it("returns only datasets with createdAt <= toTimestamp", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const early = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: `early-v2-${v4()}`,
+      },
+      auth,
+    );
+    expect(early.status).toBe(200);
+
+    const late = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: `late-v2-${v4()}`,
+      },
+      auth,
+    );
+    expect(late.status).toBe(200);
+
+    await prisma.dataset.update({
+      where: { id_projectId: { id: early.body.id, projectId } },
+      data: { createdAt: new Date("2026-06-15T12:00:00Z") },
+    });
+    await prisma.dataset.update({
+      where: { id_projectId: { id: late.body.id, projectId } },
+      data: { createdAt: new Date("2027-06-15T12:00:00Z") },
+    });
+
+    const res = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      `/api/public/v2/datasets?toTimestamp=${encodeURIComponent("2026-12-31T23:59:59Z")}`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((d) => d.id);
+    expect(ids).toContain(early.body.id);
+    expect(ids).not.toContain(late.body.id);
+
+    await prisma.dataset.deleteMany({
+      where: { projectId, id: { in: [early.body.id, late.body.id] } },
+    });
+  });
+
+  it("rejects an invalid timestamp with 400 on v2", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const res = await makeAPICall(
+      "GET",
+      "/api/public/v2/datasets?fromTimestamp=not-a-date",
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(400);
+  });
+});
