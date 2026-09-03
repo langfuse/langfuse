@@ -114,7 +114,17 @@ export class ClickHouseClientManager {
   ): ServiceClickhouseSettings {
     const eventROSettings: ServiceClickhouseSettings =
       preferredClickhouseService === "EventsReadOnly"
-        ? { enable_full_text_index: 1 }
+        ? {
+            enable_full_text_index: 1,
+            // Text index caches and read-time skip-index evaluation, all
+            // default off on ClickHouse 25.12 (the Langfuse v4 minimum). Newer
+            // servers default some on, and use_text_index_dictionary_cache is
+            // accepted but ignored from 26.3.
+            use_skip_indexes_on_data_read: 1,
+            use_text_index_dictionary_cache: 1,
+            use_text_index_header_cache: 1,
+            use_text_index_postings_cache: 1,
+          }
         : {};
 
     return {
