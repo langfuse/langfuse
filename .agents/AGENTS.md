@@ -64,6 +64,30 @@ evaluating, and debugging AI applications.
   that skip), then resolve it. Do not post `@claude review` again unless
   a human asks for another pass.
 
+## Context Handover
+
+Two moments in every task, both easy to skip and both expensive:
+
+- **Before you touch an existing feature, reconstruct its history.** Walk
+  commits, the PRs that carried them, and the head branch name — which is where
+  the work-item identifier lives — through to the work item itself and any prior
+  agent context on it. The commands are in
+  `.agents/skills/pr-stack-workflow/references/stack-commands.md` → *Recover the
+  context before you slice*. A decision already reversed once does not need
+  proposing again.
+- **Before you ask for review or merge, leave your reasoning on the work item**
+  — the decisions, the reversals, how the human steered, the traps. It survives
+  one session otherwise. Do it before the PR, not after the merge: there is no
+  later.
+
+The practice, its template and its tooling are the `linear-context-handover` and
+`linear-planning` skills in the private `langfuse/langfuse-internal-skills`
+plugin, alongside `linear-agent-writes`, which is the policy for what an agent
+may write to the tracker and how it must be marked. Read those rather than
+improvise. If this environment cannot reach the tracker, say so in your reply and
+hand back the text that should have gone on the work item — never skip either
+step silently, because silent non-compliance looks exactly like compliance.
+
 ## Project Structure
 
 ```text
