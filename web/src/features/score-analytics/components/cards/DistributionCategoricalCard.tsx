@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionCategoricalChart } from "../charts/ScoreDistributionCategoricalChart";
 import { getScoreCategoryColors } from "../../lib/color-scales";
@@ -247,12 +247,6 @@ export function DistributionCategoricalCard() {
     (chartData.stackedDistribution && chartData.stackedDistribution.length > 0);
   const showTabs = mode === "two";
 
-  // Helper function to truncate tab labels with max character limit
-  const truncateLabel = (label: string): string => {
-    if (label.length <= 20) return label;
-    return label.substring(0, 17) + "...";
-  };
-
   // Build full tab labels for title attribute (hover tooltip)
   const score1FullLabel =
     score1.name === score2?.name
@@ -288,28 +282,20 @@ export function DistributionCategoricalCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <TabsList className="h-7">
-                <TabsTrigger
+              <Tabs.List size="md">
+                <Tabs.Trigger
                   value="score1"
-                  title={score1FullLabel}
-                  className="h-5 px-2 text-xs"
-                >
-                  {truncateLabel(score1FullLabel)}
-                </TabsTrigger>
-                <TabsTrigger
+                  size="sm"
+                  label={score1FullLabel}
+                />
+                <Tabs.Trigger
                   value="score2"
-                  title={score2FullLabel}
-                  className="h-5 px-2 text-xs"
-                >
-                  {truncateLabel(score2FullLabel)}
-                </TabsTrigger>
-                <TabsTrigger value="all" className="h-5 px-2 text-xs">
-                  all
-                </TabsTrigger>
-                <TabsTrigger value="matched" className="h-5 px-2 text-xs">
-                  matched
-                </TabsTrigger>
-              </TabsList>
+                  size="sm"
+                  label={score2FullLabel}
+                />
+                <Tabs.Trigger value="all" size="sm" label="all" />
+                <Tabs.Trigger value="matched" size="sm" label="matched" />
+              </Tabs.List>
             </Tabs>
           )}
         </div>

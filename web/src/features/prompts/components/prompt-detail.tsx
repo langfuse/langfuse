@@ -14,7 +14,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -57,7 +57,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
 import {
@@ -578,20 +578,18 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <TabsList className="h-auto gap-1">
-                        <TabsTrigger
+                      <Tabs.List gap="sm" size="auto">
+                        <Tabs.Trigger
                           value="resolved"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Resolved prompt
-                        </TabsTrigger>
-                        <TabsTrigger
+                          size="sm"
+                          label="Resolved prompt"
+                        />
+                        <Tabs.Trigger
                           value="tagged"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Tagged prompt
-                        </TabsTrigger>
-                      </TabsList>
+                          size="sm"
+                          label="Tagged prompt"
+                        />
+                      </Tabs.List>
                     </Tabs>
                   </div>
                 )}

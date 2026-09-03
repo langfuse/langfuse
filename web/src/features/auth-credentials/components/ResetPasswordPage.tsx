@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,22 +15,24 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { useSession } from "next-auth/react";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { signIn, useSession } from "next-auth/react";
+import { ArrowLeft } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 import { TRPCClientError } from "@trpc/client";
-import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 const resetPasswordSchema = z
   .object({
-    email: z.email(),
+    token: z.string().regex(/^\d{6}$/, {
+      message: "Verification code must be 6 digits.",
+    }),
     password: passwordSchema,
     confirmPassword: passwordSchema,
   })
@@ -41,70 +43,101 @@ const resetPasswordSchema = z
 
 export function ResetPasswordPage({
   passwordResetAvailable,
+  initialEmail = "",
+  intent = "reset",
 }: {
   passwordResetAvailable: boolean;
+  initialEmail?: string;
+  intent?: "reset" | "setup";
 }) {
   const session = useSession();
   const router = useRouter();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
-    useState(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [codeRequested, setCodeRequested] = useState(
+    intent === "setup" && Boolean(initialEmail),
+  );
 
   const capture = usePostHogClientCapture();
 
-  // Detect set mode: user exists but has no password (signup email verification flow)
-  const isSetMode = session.data?.user?.hasPassword === false;
+  const isSetMode =
+    intent === "setup" || session.data?.user?.hasPassword === false;
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
-  const emailVerified = isEmailVerifiedWithinCutoff(
-    session.data?.user?.emailVerified,
-  );
+  const effectiveEmail = session.data?.user?.email ?? email;
 
   const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
-      email: session.data?.user?.email ?? "",
+      token: "",
       password: "",
       confirmPassword: "",
     },
   });
 
+  useEffect(() => {
+    if (intent !== "setup" || initialEmail) return;
+
+    const storedEmail = sessionStorage.getItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+    );
+    if (storedEmail) {
+      setEmail(storedEmail);
+      setCodeRequested(true);
+    }
+  }, [initialEmail, intent]);
+
   async function onSubmit(values: z.infer<typeof resetPasswordSchema>) {
     setFormError(null);
-    setShowResetPasswordEmailButton(false);
     setIsSuccess(false);
+    if (!z.email().safeParse(effectiveEmail).success) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
     capture(
       isSetMode
         ? "auth:set_password_form_submit"
         : "auth:update_password_form_submit",
     );
-    await mutResetPassword
-      .mutateAsync({ password: values.password })
-      .then(() => {
-        setIsSuccess(true);
-        setTimeout(() => {
-          const target =
-            isSetMode && isLangfuseCloud && region !== "DEV"
-              ? "/onboarding"
-              : "/";
-          router.push(target);
-          setIsSuccess(false);
-        }, 2000);
-      })
-      .catch((error) => {
-        console.log(error.message);
-        if (error instanceof TRPCClientError) {
-          if (error.data?.code === "UNAUTHORIZED") {
-            setShowResetPasswordEmailButton(true);
-          }
-          setFormError(error.message);
-        } else {
-          console.error(error);
-          setFormError("An unknown error occurred");
-        }
+    try {
+      await mutResetPassword.mutateAsync({
+        email: effectiveEmail,
+        token: values.token,
+        password: values.password,
       });
+
+      if (isSetMode) {
+        sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
+      }
+
+      let target =
+        isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
+      if (session.status !== "authenticated") {
+        const signInResult = await signIn("credentials", {
+          email: effectiveEmail,
+          password: values.password,
+          redirect: false,
+        });
+        if (!signInResult?.ok) {
+          target = "/auth/sign-in";
+        }
+      }
+
+      setIsSuccess(true);
+      setTimeout(() => {
+        router.push(target);
+        setIsSuccess(false);
+      }, 2000);
+    } catch (error) {
+      if (error instanceof TRPCClientError) {
+        setFormError(error.message);
+      } else {
+        console.error(error);
+        setFormError("An unknown error occurred");
+      }
+    }
   }
 
   if (!passwordResetAvailable)
@@ -160,34 +193,44 @@ export function ResetPasswordPage({
                 className="space-y-6"
                 onSubmit={form.handleSubmit(onSubmit)}
               >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            placeholder="jsdoe@example.com"
-                            disabled={session.status === "authenticated"}
-                            allowPasswordManager
-                            autoComplete="email"
-                            {...field}
-                          />
-                          {emailVerified.verified && (
-                            <span title="Email verified">
-                              <ShieldCheck className="text-muted-green absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2 transform" />
-                            </span>
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {emailVerified.verified && (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="jsdoe@example.com"
+                      disabled={session.status === "authenticated"}
+                      allowPasswordManager
+                      autoComplete="email"
+                      value={effectiveEmail}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </FormControl>
+                </FormItem>
+                {codeRequested ? (
                   <>
+                    <p className="text-muted-foreground text-sm">
+                      Enter the 6-digit code from your email together with your
+                      new password. The code is valid for 3 minutes.
+                    </p>
+                    <FormField
+                      control={form.control}
+                      name="token"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Verification code</FormLabel>
+                          <FormControl>
+                            <Input
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              placeholder="6-digit code"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name="password"
@@ -226,32 +269,32 @@ export function ResetPasswordPage({
                         </FormItem>
                       )}
                     />
-                  </>
-                )}
-                <div className="pt-4">
-                  {emailVerified.verified ? (
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={mutResetPassword.isPending}
-                      loading={mutResetPassword.isPending}
-                      variant={
-                        showResetPasswordEmailButton ? "secondary" : "default"
-                      }
-                    >
-                      {submitLabel}
-                    </Button>
-                  ) : (
-                    <div className="w-full">
-                      <RequestResetPasswordEmailButton
-                        email={form.watch("email")}
-                        callbackUrl={
-                          isSetMode ? "/auth/setup-password" : undefined
-                        }
-                      />
+                    <div className="pt-4">
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={mutResetPassword.isPending}
+                        loading={mutResetPassword.isPending}
+                      >
+                        {submitLabel}
+                      </Button>
                     </div>
-                  )}
-                </div>
+                    <RequestResetPasswordEmailButton
+                      email={effectiveEmail}
+                      callbackUrl={
+                        isSetMode ? "/auth/setup-password" : undefined
+                      }
+                      onEmailSent={() => setCodeRequested(true)}
+                      label="Send another code"
+                    />
+                  </>
+                ) : (
+                  <RequestResetPasswordEmailButton
+                    email={effectiveEmail}
+                    callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                    onEmailSent={() => setCodeRequested(true)}
+                  />
+                )}
               </form>
             </Form>
             {formError ? (
@@ -262,14 +305,6 @@ export function ResetPasswordPage({
             {isSuccess && (
               <div className="text-center text-sm font-bold">
                 {successMessage}
-              </div>
-            )}
-            {showResetPasswordEmailButton && (
-              <div className="w-full">
-                <RequestResetPasswordEmailButton
-                  email={form.getValues("email")}
-                  callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
-                />
               </div>
             )}
           </div>

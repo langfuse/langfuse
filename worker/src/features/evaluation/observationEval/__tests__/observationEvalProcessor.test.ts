@@ -508,6 +508,44 @@ describe("processObservationEval", () => {
       );
     });
 
+    it("uses a queue mapping override for a batch-run evaluator without a rule", async () => {
+      const variableMapping = [
+        { templateVariable: "output", selectedColumnId: "input" },
+      ];
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(
+        createMockJobExecution({
+          id: jobExecutionId,
+          projectId,
+          jobConfigurationId: evaluator.id,
+          jobTemplateId: null,
+        }),
+      );
+      (prisma.evaluator.findFirst as Mock).mockResolvedValue(evaluator);
+
+      await processObservationEval({
+        event: {
+          ...baseEvent,
+          executionMode: "MANUAL",
+          evaluatorId: evaluator.id,
+          variableMapping,
+        },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps: createMockProcessorDeps(),
+      });
+
+      expect(
+        prisma.evaluationRuleEvaluatorAssignment.findFirst,
+      ).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ variableMapping }),
+          executionMetadata: expect.not.objectContaining({
+            evaluation_rule_assignment_id: expect.anything(),
+          }),
+        }),
+      );
+    });
+
     it("uses an empty variable mapping when neither v2 mapping is configured", async () => {
       setupV2Job();
       (

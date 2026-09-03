@@ -13,12 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -300,28 +295,28 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               }}
             >
               {!initialPrompt ? (
-                <TabsList className="flex w-full">
-                  <TabsTrigger
-                    disabled={
-                      Boolean(initialPromptVariant) &&
-                      initialPromptVariant?.type !== PromptType.Text
-                    }
-                    className="flex-1"
-                    value={PromptType.Text}
-                  >
-                    {capitalize(PromptType.Text)}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    disabled={
-                      Boolean(initialPromptVariant) &&
-                      initialPromptVariant?.type !== PromptType.Chat
-                    }
-                    className="flex-1"
-                    value={PromptType.Chat}
-                  >
-                    {capitalize(PromptType.Chat)}
-                  </TabsTrigger>
-                </TabsList>
+                <Tabs.List layout="full">
+                  <span className="flex-1">
+                    <Tabs.Trigger
+                      disabled={
+                        Boolean(initialPromptVariant) &&
+                        initialPromptVariant?.type !== PromptType.Text
+                      }
+                      value={PromptType.Text}
+                      label={capitalize(PromptType.Text)}
+                    />
+                  </span>
+                  <span className="flex-1">
+                    <Tabs.Trigger
+                      disabled={
+                        Boolean(initialPromptVariant) &&
+                        initialPromptVariant?.type !== PromptType.Chat
+                      }
+                      value={PromptType.Chat}
+                      label={capitalize(PromptType.Chat)}
+                    />
+                  </span>
+                </Tabs.List>
               ) : null}
               {hadDraft && (
                 <p
@@ -345,41 +340,45 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   </button>
                 </p>
               )}
-              <TabsContent value={PromptType.Text}>
-                <FormField
-                  control={form.control}
-                  name="textPrompt"
-                  render={({ field }) => (
-                    <>
-                      <FormControl>
-                        <PromptLinkingEditor
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          minHeight={200}
+              <div className="mt-2">
+                <Tabs.Content value={PromptType.Text}>
+                  <FormField
+                    control={form.control}
+                    name="textPrompt"
+                    render={({ field }) => (
+                      <>
+                        <FormControl>
+                          <PromptLinkingEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            minHeight={200}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </>
+                    )}
+                  />
+                </Tabs.Content>
+              </div>
+              <div className="mt-2">
+                <Tabs.Content value={PromptType.Chat}>
+                  <FormField
+                    control={form.control}
+                    name="chatPrompt"
+                    render={({ field }) => (
+                      <>
+                        <PromptChatMessages
+                          {...field}
+                          initialMessages={initialMessages}
+                          projectId={projectId}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </>
-                  )}
-                />
-              </TabsContent>
-              <TabsContent value={PromptType.Chat}>
-                <FormField
-                  control={form.control}
-                  name="chatPrompt"
-                  render={({ field }) => (
-                    <>
-                      <PromptChatMessages
-                        {...field}
-                        initialMessages={initialMessages}
-                        projectId={projectId}
-                      />
-                      <FormMessage />
-                    </>
-                  )}
-                />
-              </TabsContent>
+                        <FormMessage />
+                      </>
+                    )}
+                  />
+                </Tabs.Content>
+              </div>
             </Tabs>
           </FormItem>
           <PromptVariableListPreview variables={currentExtractedVariables} />
