@@ -181,8 +181,8 @@ A check that passed is not always a check that ran:
   either way — quote the `Cached:` line too. To force execution, use
   `pnpm exec turbo run lint --force`; `--no-cache` does not do this, it only
   stops the write (`turbo run lint --help`).
-- `web` and `packages/shared` lint with `--max-warnings 0`, so one eslint
-  *warning* fails the branch.
+- Every package that lints — `web`, `worker`, `packages/shared`, `ee` — runs
+  eslint with `--max-warnings 0`, so one eslint *warning* fails the branch.
 - `@langfuse/shared` resolves to its built `dist`. Root `pnpm run typecheck`
   orders that build for you (`turbo.json`: `typecheck.dependsOn` includes
   `^build`), but a filtered `pnpm --filter=web run typecheck` does not — after

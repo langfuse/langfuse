@@ -40,7 +40,7 @@ Once we've discussed your changes and you've got your code ready, make sure that
 Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
 
 ```bash
-pnpm run lint        # eslint; web and packages/shared run with --max-warnings 0, so a warning fails
+pnpm run lint        # eslint; every package runs with --max-warnings 0, so a warning fails
 pnpm tc              # typecheck all packages
 pnpm exec knip       # unused files, exports and dependencies
 pnpm run test        # see "Running Unit Tests" below for the setup this needs

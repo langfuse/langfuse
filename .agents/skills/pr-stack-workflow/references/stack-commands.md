@@ -53,11 +53,16 @@ git diff origin/main...$REF --stat
 git diff origin/main...$REF -- <paths for slice 1> > /tmp/slice-1.patch
 
 git switch -c stack/01-bugs origin/main
-git apply --3way /tmp/slice-1.patch && git commit -am "fix: ..."
+git apply --3way /tmp/slice-1.patch
+git add -A && git commit -m "fix: ..."
 
 git switch -c stack/02-defaults stack/01-bugs
 # ... repeat, each branch cut from its predecessor
 ```
+
+Stage with `git add -A`, not `git commit -am`: a slice that adds a file arrives
+untracked, and `-a` stages only tracked files, so the committed stack would be
+missing it and the union proof below would fail.
 
 Push each branch and open its PR against its parent's branch, not `main`.
 
@@ -88,8 +93,9 @@ git switch stack/03-screen   && git merge stack/02-defaults && git push
 
 ## Retarget after a landing
 
-When the parent squash-merges, the child's base has to move and `main` has to
-come back in:
+When the bottom PR squash-merges, exactly one PR retargets — its immediate
+child, which is now the bottom. That child's base moves to `main` and `main` has
+to come back in:
 
 ```bash
 gh pr edit <child PR> --base main
@@ -97,8 +103,12 @@ git switch <child branch>
 git fetch origin && git merge origin/main && git push
 ```
 
-Repeat for every remaining PR in the stack. This is the running cost of a stack;
-budget for it per landing.
+The rest of the stack keeps its existing base and picks the landed work up by
+the propagate recipe above — `git merge <parent branch>` into each descendant in
+order. Retargeting more than one PR to `main` per landing would make every
+descendant's diff carry its unmerged ancestors, which is the thing a stack
+exists to avoid. This is the running cost of a stack; budget for one round of it
+per landing.
 
 ## Verify one branch
 

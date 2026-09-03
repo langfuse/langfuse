@@ -20,8 +20,8 @@ threads live in `git-workflow`. Read that first; this skill does not restate it.
 
 ## Decide whether it needs a stack
 
-A stack costs real time, because every landing forces a retarget of every
-remaining PR. Pay that only when one of these is true.
+A stack costs real time, because every landing forces a base move plus a merge
+down the rest of the chain. Pay that only when one of these is true.
 
 | Stack it | Ship it as one PR |
 | --- | --- |
@@ -101,10 +101,11 @@ Open the whole stack as reviewable, not drafts.
 3. **Every PR must stand alone.** Lint, typecheck and tests green on its own
    branch, not only on the stack tip. A slice that compiles only with its
    successor is not a slice: merge it into its neighbor.
-4. **Every landing costs a retarget.** When the parent merges, the child's base
-   moves to `main` and `main` has to be merged into it again — for every
-   remaining PR, every time. Plan for that cost instead of meeting it on merge
-   day.
+4. **Every landing costs a retarget.** When the parent merges, its immediate
+   child becomes the new bottom: that one PR's base moves to `main`, `main` is
+   merged into it, and the merge is then propagated down the rest of the chain.
+   Every landing, until the stack is empty. Plan for that cost instead of
+   meeting it on merge day.
 5. **A branch that has already merged `main` cannot be split by cherry-picking
    its commits.** The reconciled state exists only in the merged tree: upstream
    took some of your changes, replaced others, reverted a few. Slice the final
