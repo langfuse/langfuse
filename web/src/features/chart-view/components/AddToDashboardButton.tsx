@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { showErrorToast } from "@/src/features/notifications";
 import React, { useCallback, useState } from "react";
 import { useRouter } from "next/router";

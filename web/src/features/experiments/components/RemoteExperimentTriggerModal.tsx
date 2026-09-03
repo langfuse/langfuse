@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import { useForm } from "react-hook-form";

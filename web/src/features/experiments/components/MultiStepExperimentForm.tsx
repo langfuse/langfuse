@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
