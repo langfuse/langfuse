@@ -10,8 +10,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 
