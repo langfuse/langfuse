@@ -53,7 +53,10 @@ import {
 } from "@langfuse/shared";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+import {
+  useWebCalloutAction,
+  WebCalloutButton,
+} from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -382,6 +385,15 @@ export const SessionPage: React.FC<{
       },
     },
   );
+  const webCalloutAction = useWebCalloutAction(
+    {
+      projectId,
+      traceId: null,
+      observationId: null,
+      sessionId,
+    },
+    Boolean(session.data),
+  );
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -532,12 +544,9 @@ export const SessionPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} />
+              )}
               <Button
                 variant="outline"
                 size="icon"
@@ -758,13 +767,9 @@ export const SessionPage: React.FC<{
                   </Button>
                 )}
               </AnnotationQueueItemDropdownMenuController>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-                layout="menu"
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} layout="menu" />
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -971,6 +976,15 @@ const LoadedSessionEventsPage: React.FC<{
   });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
+  const webCalloutAction = useWebCalloutAction(
+    {
+      projectId,
+      traceId: null,
+      observationId: null,
+      sessionId,
+    },
+    true,
+  );
   const defaultPresetResolvedSessionRef = useRef<string | null>(null);
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
@@ -1545,12 +1559,9 @@ const LoadedSessionEventsPage: React.FC<{
           ) : undefined,
           actionButtonsRight: (
             <>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} />
+              )}
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -1795,13 +1806,9 @@ const LoadedSessionEventsPage: React.FC<{
                   </Button>
                 )}
               </AnnotationQueueItemDropdownMenuController>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-                layout="menu"
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} layout="menu" />
+              )}
               {!isModernSessionEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show corrections</span>
