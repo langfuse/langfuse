@@ -16,6 +16,7 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
+import { registerInAppAgentPageContext } from "@/src/features/in-app-agent/lib/pageContext";
 
 const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
@@ -346,6 +347,41 @@ describe("in-app agent execution", () => {
     expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
       false,
     );
+  });
+
+  it("includes live page context in each Assistant turn", async () => {
+    const unregister = registerInAppAgentPageContext("evaluator-sample", [
+      {
+        description: "selected_evaluator_sample",
+        value:
+          '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+      },
+    ]);
+    providerMocks.startRun.mockImplementation(
+      async (input: { conversationId: string }) => ({
+        conversationId: input.conversationId,
+        runId: "run-1",
+      }),
+    );
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    render(providerProbe(null));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const startRunInput = providerMocks.startRun.mock.calls[0]?.[0] as unknown;
+    expect(
+      (startRunInput as { context?: unknown } | undefined)?.context,
+    ).toContainEqual({
+      description: "selected_evaluator_sample",
+      value:
+        '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+    });
+    unregister();
   });
 
   it("always allows a persisted background tool for the conversation", async () => {

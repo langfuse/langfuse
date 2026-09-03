@@ -1,6 +1,50 @@
 // @vitest-environment node
 
-import { getInAppAgentScreenContextDescription } from "./context";
+import {
+  getInAppAgentScreenContextDescription,
+  sanitizeInAppAgentContext,
+} from "./context";
+
+describe("sanitizeInAppAgentContext", () => {
+  it("keeps valid selected evaluator sample references", () => {
+    expect(
+      sanitizeInAppAgentContext(
+        [
+          {
+            description: "selected_evaluator_sample",
+            value: JSON.stringify({
+              evaluatorId: "evaluator-1",
+              observationId: "observation-1",
+              traceId: "trace-1",
+              startTime: "2026-09-03T07:45:00.000Z",
+            }),
+          },
+        ],
+        "project-1",
+      ),
+    ).toEqual([
+      {
+        description: "selected_evaluator_sample",
+        value:
+          '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+      },
+    ]);
+  });
+
+  it("drops malformed selected evaluator sample references", () => {
+    expect(
+      sanitizeInAppAgentContext(
+        [
+          {
+            description: "selected_evaluator_sample",
+            value: '{"evaluatorId":"","observationId":"observation-1"}',
+          },
+        ],
+        "project-1",
+      ),
+    ).toEqual([]);
+  });
+});
 
 describe("getInAppAgentScreenContextDescription", () => {
   it.each([

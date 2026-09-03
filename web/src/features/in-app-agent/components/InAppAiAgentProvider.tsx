@@ -65,6 +65,7 @@ import {
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
+import { getInAppAgentPageContext } from "@/src/features/in-app-agent/lib/pageContext";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
@@ -965,6 +966,7 @@ function InAppAiAgentProviderInner({
       createInAppAgentScreenContext({
         currentUrl: window.location.href,
       }).concat(
+        getInAppAgentPageContext(),
         createInAppAgentUserContext({
           userName: session.data?.user?.name,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

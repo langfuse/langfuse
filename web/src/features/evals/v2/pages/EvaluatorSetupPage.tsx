@@ -66,6 +66,8 @@ import {
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
+import { registerInAppAgentPageContext } from "@/src/features/in-app-agent/lib/pageContext";
+import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/context";
 import {
   evaluatorAssistantTestResultStore,
   useEvaluatorAssistantTestResult,
@@ -327,6 +329,46 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
+  const selectedObservation = useStore(
+    evaluatorSetupStore,
+    (state) => state.selectedObservation,
+  );
+  const assistantSampleContext =
+    getCodeEvaluatorAssistantSampleObservation(selectedObservation);
+  const assistantSampleObservationId =
+    assistantSampleContext?.observationId ?? null;
+  const assistantSampleTraceId = assistantSampleContext?.traceId ?? null;
+  const assistantSampleStartTime = assistantSampleContext?.startTime ?? null;
+  useEffect(() => {
+    if (
+      !assistantSampleObservationId ||
+      !assistantSampleTraceId ||
+      !assistantSampleStartTime
+    ) {
+      return;
+    }
+
+    return registerInAppAgentPageContext(
+      `evaluator-sample:${projectId}:${evaluatorId}`,
+      [
+        {
+          description: SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
+          value: JSON.stringify({
+            evaluatorId,
+            observationId: assistantSampleObservationId,
+            traceId: assistantSampleTraceId,
+            startTime: assistantSampleStartTime,
+          }),
+        },
+      ],
+    );
+  }, [
+    assistantSampleObservationId,
+    assistantSampleStartTime,
+    assistantSampleTraceId,
+    evaluatorId,
+    projectId,
+  ]);
   const codeValidation = useCodeEvalSourceValidation({
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
