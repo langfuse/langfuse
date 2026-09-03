@@ -1,6 +1,12 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
-import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
+import {
+  Database,
+  FlaskConical,
+  ListTree,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
 import {
   type FilterState,
   type TimeFilter,
@@ -30,7 +36,6 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
-import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { buildSampleQueryFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
@@ -99,9 +104,16 @@ const EXAMPLES = [
     ] satisfies FilterState,
   },
   {
-    label: "Exclude experiments & evals",
-    icon: EyeOff,
-    filters: EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
+    label: "Datasets",
+    icon: Database,
+    filters: [
+      {
+        column: "experimentDatasetId",
+        type: "null",
+        operator: "is not null",
+        value: "",
+      },
+    ] satisfies FilterState,
   },
 ] as const;
 
