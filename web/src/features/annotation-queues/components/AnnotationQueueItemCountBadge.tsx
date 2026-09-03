@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 
 type AnnotationQueueItemCountBadgeProps = {

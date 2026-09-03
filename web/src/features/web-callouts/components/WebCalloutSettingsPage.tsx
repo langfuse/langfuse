@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -44,8 +45,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
