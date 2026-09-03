@@ -248,6 +248,12 @@ const withOtelTracingProcedure = t.procedure
 
 export const publicProcedure = withOtelTracingProcedure.use(withErrorHandling);
 
+/**
+ * Public procedure for secret-bearing inputs such as passwords and OTPs.
+ * Unlike `publicProcedure`, its input and result are not collected in traces.
+ */
+export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
+
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
