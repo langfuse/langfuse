@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";

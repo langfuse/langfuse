@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import {
   TestResultTraceActions,

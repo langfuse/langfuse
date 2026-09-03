@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
