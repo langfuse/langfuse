@@ -4,6 +4,7 @@ import {
   type BatchActionQuery,
   type BatchEvalSourceTable,
   BatchEvalSourceTable as SourceTable,
+  extractVariables,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { api, sendAsPostOption } from "@/src/utils/api";
@@ -43,6 +44,7 @@ import {
   buildSelectedSampleObject,
   createRuleSetupStore,
 } from "@/src/features/evals";
+import { coverEvaluatorPromptVariables } from "@/src/features/evals/v2/fns/variableMapping/coverEvaluatorPromptVariables";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -185,17 +187,30 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     () =>
       (evaluatorsQuery.data ?? [])
         .filter((evaluator) => evaluator.blockedAt === null)
-        .map((evaluator) => ({
-          id: evaluator.id,
-          name: evaluator.name,
-          type: evaluator.type,
-          updatedAt: evaluator.updatedAt,
-          createdByUser: evaluator.createdByUser,
-          ...prepareModernRuleVariableMapping(
+        .map((evaluator) => {
+          const prepared = prepareModernRuleVariableMapping(
             evaluator.latestVersion?.variableMapping,
             evaluator.type,
-          ),
-        })),
+          );
+          const requiredVariables =
+            evaluator.type === "CODE"
+              ? []
+              : extractVariables(evaluator.latestVersion?.prompt ?? "");
+
+          return {
+            id: evaluator.id,
+            name: evaluator.name,
+            type: evaluator.type,
+            updatedAt: evaluator.updatedAt,
+            createdByUser: evaluator.createdByUser,
+            defaultVariableMapping: coverEvaluatorPromptVariables(
+              prepared.defaultVariableMapping,
+              requiredVariables,
+            ),
+            initialVariableMapping: prepared.initialVariableMapping,
+            requiredVariables,
+          };
+        }),
     [evaluatorsQuery.data],
   );
 

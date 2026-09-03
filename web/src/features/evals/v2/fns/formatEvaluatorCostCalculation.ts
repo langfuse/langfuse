@@ -34,7 +34,8 @@ export function formatEvaluatorCostCalculation({
     return `${observations} × ${samplingRate} = ≈ ${usdFormatter(0, 2, 2)} ${periodLabel}. ${scope}`;
   }
   if (testRunCostUsd === null || estimatedCostUsd === null) {
-    return `No cost-bearing evaluator trace was available from the last 7 days, and the fallback test call did not return a usable model cost. Expected cost would be charged to your linked API key, not Langfuse.`;
+    const window = isSelection ? "" : " from the last 7 days";
+    return `No cost-bearing evaluator trace was available${window}, and the fallback test call did not return a usable model cost. Expected cost would be charged to your linked API key, not Langfuse.`;
   }
 
   return `${observations} × ${samplingRate} × ${usdFormatter(testRunCostUsd, 2, 6)} per evaluation = ≈ ${usdFormatter(estimatedCostUsd, 2, 2)} ${periodLabel}. ${scope} Per-evaluation cost uses the latest cost-bearing evaluator trace from that period, or a fallback test call.`;

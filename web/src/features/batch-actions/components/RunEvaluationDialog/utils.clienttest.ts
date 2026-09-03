@@ -97,4 +97,30 @@ describe("hasCompleteBatchEvalMappings", () => {
       ]),
     ).toBe(true);
   });
+
+  it("rejects an empty LLM mapping when the prompt still has variables", () => {
+    expect(
+      hasCompleteBatchEvalMappings([
+        {
+          evaluatorType: EvalTemplateType.LLM_AS_JUDGE,
+          variableMapping: null,
+          defaultVariableMapping: [],
+          requiredVariables: ["user_input", "assistant_output"],
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it("accepts an LLM evaluator whose prompt has no variables", () => {
+    expect(
+      hasCompleteBatchEvalMappings([
+        {
+          evaluatorType: EvalTemplateType.LLM_AS_JUDGE,
+          variableMapping: null,
+          defaultVariableMapping: [],
+          requiredVariables: [],
+        },
+      ]),
+    ).toBe(true);
+  });
 });

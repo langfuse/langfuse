@@ -146,6 +146,7 @@ export function EvaluatorAssignmentsEditor({
                         defaultVariableMapping:
                           evaluator.defaultVariableMapping,
                         variableMapping: evaluator.initialVariableMapping,
+                        requiredVariables: evaluator.requiredVariables,
                       });
                       setPickerOpen(false);
                     }}

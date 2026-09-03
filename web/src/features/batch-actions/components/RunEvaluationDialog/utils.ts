@@ -107,6 +107,7 @@ export function hasCompleteBatchEvalMappings(
     evaluatorType: EvalTemplateType;
     variableMapping: ObservationVariableMapping[] | null;
     defaultVariableMapping: ObservationVariableMapping[];
+    requiredVariables?: string[];
   }>,
 ): boolean {
   return assignments.every((assignment) => {
@@ -115,6 +116,17 @@ export function hasCompleteBatchEvalMappings(
     }
     const mapping =
       assignment.variableMapping ?? assignment.defaultVariableMapping;
+    const mappedVariables = new Set(
+      mapping
+        .filter((entry) => Boolean(entry.selectedColumnId?.trim()))
+        .map((entry) => entry.templateVariable),
+    );
+    const requiredVariables = assignment.requiredVariables ?? [];
+    if (requiredVariables.length > 0) {
+      return requiredVariables.every((variable) =>
+        mappedVariables.has(variable),
+      );
+    }
     return mapping.every((entry) => Boolean(entry.selectedColumnId?.trim()));
   });
 }

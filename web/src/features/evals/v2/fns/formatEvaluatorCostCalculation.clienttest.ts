@@ -60,6 +60,21 @@ describe("formatEvaluatorCostCalculation", () => {
     );
   });
 
+  it("does not claim a 7-day window when a selection has no priced test", () => {
+    expect(
+      formatEvaluatorCostCalculation({
+        matchingObservations: 3,
+        sampling: 1,
+        testRunCostUsd: null,
+        estimatedCostUsd: null,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        period: "selection",
+      }),
+    ).toBe(
+      "No cost-bearing evaluator trace was available, and the fallback test call did not return a usable model cost. Expected cost would be charged to your linked API key, not Langfuse.",
+    );
+  });
+
   it("describes a one-shot selection instead of a weekly total", () => {
     expect(
       formatEvaluatorCostCalculation({
