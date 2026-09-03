@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -15,8 +16,10 @@ import {
 } from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";

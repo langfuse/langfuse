@@ -7,9 +7,8 @@ import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMo
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type APIError } from "@/src/utils/api";
 import { type Monitor } from "@langfuse/shared/monitors";
 

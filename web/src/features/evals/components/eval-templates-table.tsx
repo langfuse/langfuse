@@ -31,7 +31,7 @@ import {
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   type TemplateValidationInput,
   useSingleTemplateValidation,
@@ -40,7 +40,7 @@ import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
 import {

@@ -1,6 +1,6 @@
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 
 export const useDatasetItemFromTraceOrObservation = (props: {

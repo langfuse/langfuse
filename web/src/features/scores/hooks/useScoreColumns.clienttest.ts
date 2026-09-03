@@ -8,13 +8,14 @@ const column = {
   dataType: "NUMERIC" as const,
 };
 
-const build = (prefix?: string) =>
-  createScoreColumns<{ scores: Record<string, unknown> }>(
-    [column],
-    "scores",
-    "aggregate",
+const build = (prefix?: string, headerPrefix?: string) =>
+  createScoreColumns<{ scores: Record<string, unknown> }>({
+    scoreColumns: [column],
+    scoreColumnKey: "scores",
+    displayFormat: "aggregate",
     prefix,
-  )[0];
+    headerPrefix,
+  })[0];
 
 describe("createScoreColumns headers", () => {
   it("leads with the score name and trails the level", () => {
@@ -29,5 +30,12 @@ describe("createScoreColumns headers", () => {
 
   it("keeps the level out of the column id, so persisted layouts survive", () => {
     expect(build("Trace").id).toBe("Trace-persona_fit-api-NUMERIC");
+  });
+
+  it("renames the level in the header without moving the column id", () => {
+    const renamed = build("Trace", "Trace Item");
+
+    expect(renamed.header).toBe("# persona_fit (api) · Trace Item");
+    expect(renamed.id).toBe("Trace-persona_fit-api-NUMERIC");
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -36,7 +37,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { GitCompareArrows, LightbulbIcon } from "lucide-react";
+import { ChevronDown, GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -44,6 +45,7 @@ import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
+import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -52,19 +54,18 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import {
+  collectPresentScoreKeys,
+  revealScoreColumns,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 import {
@@ -72,6 +73,7 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
@@ -428,12 +430,28 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
-    projectId,
-    filterState,
-    orderByState,
-    paginationState,
-  });
+  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
+    useExperimentsTableData({
+      projectId,
+      filterState,
+      orderByState,
+      paginationState,
+    });
+
+  // A score column that is empty for every experiment in view is noise, so only
+  // create columns for the keys the metrics query actually returned. Undefined
+  // while metrics load, so columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
+      observationItem: collectPresentScoreKeys(
+        rows.map((r) => r.observationItemScores),
+      ),
+      experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -465,7 +483,7 @@ export default function ExperimentsTable({
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
-    defaultHidden: true,
+    presentKeys: presentScoreKeys?.traceItem,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -476,6 +494,7 @@ export default function ExperimentsTable({
     rawKey: true,
     displayFormat: "aggregate",
     scoreColumnKey: "observationItemScores",
+    headerPrefix: "Observation",
     projectId,
     filter:
       experiments.rows && experiments.rows.length > 0
@@ -484,6 +503,7 @@ export default function ExperimentsTable({
           })
         : [],
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.observationItem,
   });
 
   // Experiment-level scores (direct dataset_run_id match)
@@ -502,6 +522,7 @@ export default function ExperimentsTable({
     rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.experiment,
   });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
@@ -525,6 +546,8 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
+      // Off by default: 300px of mostly boilerplate ahead of the score columns.
+      defaultHidden: true,
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
@@ -537,6 +560,7 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
+      defaultHidden: true,
       singleLine: rowHeight === "s",
     }),
     createNumberTableColumn<ExperimentsTableRow>({
@@ -637,7 +661,8 @@ export default function ExperimentsTable({
         );
       },
     },
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "latency",
       accessorKey: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
@@ -646,20 +671,22 @@ export default function ExperimentsTable({
         description: "Average duration of the root span per experiment item.",
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      metricsLoading,
     }),
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "cost",
       accessorKey: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
+      metricsLoading,
     }),
     {
       accessorKey: "traceItemScores",
-      header: "Trace Item Scores",
+      header: "Trace Scores",
       id: "traceItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isTraceItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -669,10 +696,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: "Observation Scores",
       id: "observationItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -682,10 +708,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: "Experiment Scores",
       id: "experimentScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isExperimentScoreColumnLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -695,10 +720,51 @@ export default function ExperimentsTable({
     },
   ];
 
+  const scoreColumnIds = useMemo(
+    () =>
+      [
+        ...traceItemScoreColumns,
+        ...observationItemScoreColumns,
+        ...experimentScoreColumns,
+      ].map((column) => column.accessorKey),
+    [
+      traceItemScoreColumns,
+      observationItemScoreColumns,
+      experimentScoreColumns,
+    ],
+  );
+
+  // Each score level loads from its own query, so the union above is partial
+  // until all three have settled. The migration below is consumed once and for
+  // good, so running it early would reveal whichever level answered first and
+  // leave the other two hidden permanently.
+  const areScoreColumnsSettled =
+    !isTraceItemScoreLoading &&
+    !isObservationItemScoreLoading &&
+    !isExperimentScoreColumnLoading;
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          areScoreColumnsSettled
+            ? revealScoreColumns(visibility, scoreColumnIds)
+            : null,
+      },
+    ],
+    [projectId, scoreColumnIds, areScoreColumnsSettled],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentsTableRow>(
       `experimentsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
 
   // One-time migration for LFE-10460 on the localStorage replay path:
@@ -874,29 +940,36 @@ export default function ExperimentsTable({
 
           {/* Charts section - Collapsible Accordion */}
           {tableDateRange && (
-            <Accordion
+            <AccordionPrimitive.Root
               type="single"
               collapsible
               value={accordionValue}
               onValueChange={handleChartsAccordionChange}
             >
-              <AccordionItem value="charts" className="border-t">
-                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Charts</span>
+              <AccordionPrimitive.Item className="border-t" value="charts">
+                <AccordionPrimitive.Header className="flex">
+                  <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between px-3 pt-2 pb-1 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">Charts</span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  </AccordionPrimitive.Trigger>
+                </AccordionPrimitive.Header>
+                <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+                  <div className="px-3 pt-1 pb-1">
+                    <div className="max-h-[40dvh] overflow-x-auto">
+                      <ExperimentChartsGrid
+                        projectId={projectId}
+                        experiments={chartExperiments}
+                        fromTimestamp={tableDateRange.from}
+                        toTimestamp={tableDateRange.to}
+                        isExternalLoading={experiments.status === "loading"}
+                      />
+                    </div>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
-                  <ExperimentChartsGrid
-                    projectId={projectId}
-                    experiments={chartExperiments}
-                    fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to}
-                    isExternalLoading={experiments.status === "loading"}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                </AccordionPrimitive.Content>
+              </AccordionPrimitive.Item>
+            </AccordionPrimitive.Root>
           )}
 
           {/* Content area with sidebar and table */}

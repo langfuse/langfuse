@@ -1,9 +1,10 @@
+/* eslint-disable @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { LockIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useRef } from "react";
