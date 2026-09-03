@@ -133,12 +133,12 @@ function stubNarrowDesktop() {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     writable: true,
-    value: 1200,
+    value: 1280,
   });
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      matches: query.includes("max-width: 1200px"),
+      matches: query.includes("max-width: 1280px"),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })),
