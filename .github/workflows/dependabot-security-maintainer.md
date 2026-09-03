@@ -59,10 +59,11 @@ tools:
 
 steps:
   - name: Setup pnpm
-    uses: pnpm/action-setup@v6.0.9
+    uses: pnpm/setup@v2.0.2
     with:
       dest: ${{ runner.temp }}/gh-aw/pnpm
-      run_install: false
+      install: false
+      cache: false
 
   - name: Fetch open npm Dependabot alerts
     env:
