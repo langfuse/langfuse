@@ -116,11 +116,15 @@ export class ClickHouseClientManager {
       preferredClickhouseService === "EventsReadOnly"
         ? {
             enable_full_text_index: 1,
-            // Text index caches and read-time skip-index evaluation, all
-            // default off on ClickHouse 25.12 (the Langfuse v4 minimum). Newer
-            // servers default some on, and use_text_index_dictionary_cache is
-            // accepted but ignored from 26.3.
-            use_skip_indexes_on_data_read: 1,
+            // Text index caches, all default off on ClickHouse 25.12 (the
+            // Langfuse v4 minimum). use_text_index_header_cache defaults on
+            // from 26.7, and use_text_index_dictionary_cache is accepted but
+            // ignored from 26.3.
+            //
+            // use_skip_indexes_on_data_read must stay unset: on 25.12 it fails
+            // reads of columns patched by a lightweight update with "Not found
+            // column _part_offset in block". ClickHouse 26.2 fixes that and
+            // enables the setting by default, so there is nothing to set here.
             use_text_index_dictionary_cache: 1,
             use_text_index_header_cache: 1,
             use_text_index_postings_cache: 1,
