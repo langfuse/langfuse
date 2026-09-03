@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -10,7 +11,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { setReadPath } from "@/src/features/events/actions/setReadPath";
 import { usePendingReadPath } from "@/src/features/events/stores/readPathToggleStore";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import {
   getV4PreviewDisabledRedirect,

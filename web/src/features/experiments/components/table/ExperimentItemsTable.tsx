@@ -9,7 +9,7 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { LightbulbIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -28,7 +28,7 @@ import {
   BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,
@@ -346,7 +346,12 @@ export default function ExperimentItemsTable({
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
-    { stateLocation: "url", loading: isFilterOptionsLoading, isV4: true },
+    {
+      stateLocation: "url",
+      loading: isFilterOptionsLoading,
+      // v4-only surface — drives `isV4` on filters:* analytics.
+      isV4: true,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

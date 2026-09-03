@@ -70,6 +70,11 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      // Natural aggregation the widget builder preselects when the user
+      // switches to this measure (e.g. `sum` for toolCalls, where a carried-over
+      // `count` would count observations instead of tool calls). UI-only
+      // default; the query builder never reads it.
+      defaultAggregation: metricAggregations.optional(),
       aggs: z.record(z.string(), z.string()).optional(),
       // Override query semantics for specific user-selected aggregations while
       // keeping the base declaration as the UI/default compatibility contract.

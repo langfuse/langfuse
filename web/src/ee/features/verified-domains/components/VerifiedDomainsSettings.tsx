@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
@@ -43,9 +44,7 @@ import {
 } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, ChevronRight, TrashIcon } from "lucide-react";

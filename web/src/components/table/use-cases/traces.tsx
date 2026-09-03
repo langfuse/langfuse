@@ -10,6 +10,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
@@ -20,13 +21,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
 import {
@@ -34,13 +29,11 @@ import {
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
-import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
-  getLevelColors,
   LevelSymbols,
+  getObservationLevelStatus,
 } from "@/src/components/level-colors";
-import { cn } from "@/src/utils/tailwind";
 import {
   detailPageListKeys,
   useDetailPageLists,
@@ -68,7 +61,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, Trash2 } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -105,6 +98,10 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { DialogController } from "@/src/components/ui/dialog";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { DeleteTraceDialogContent } from "@/src/features/traces/components/DeleteTraceDialogContent";
 
 export type TracesTableRow = {
   // Shown by default
@@ -164,7 +161,7 @@ export type TracesTableProps = {
   showControlsInPageHeader?: boolean;
 };
 
-export default function TracesTable({
+function TracesTableInternal({
   projectId,
   userId,
   omittedFilter = [],
@@ -173,8 +170,15 @@ export default function TracesTable({
   externalDateRange,
   limitRows,
   showControlsInPageHeader = false,
-}: TracesTableProps) {
+  openDeleteTraceDialog,
+}: TracesTableProps & {
+  openDeleteTraceDialog: (traceId: string) => void;
+}) {
   const peekContext = usePeekTableState();
+  const hasTraceDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:delete",
+  });
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
     [omittedFilter],
@@ -673,18 +677,13 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     }),
-    {
+    createTextTableColumn<TracesTableRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: TracesTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -760,20 +759,24 @@ export default function TracesTable({
       },
       enableHiding: true,
     },
-    createTextTableColumn<TracesTableRow, number>({
+    {
       accessorKey: "latency",
+      id: "latency",
       header: "Latency",
       size: 100,
-      className: "text-nowrap",
-      mapValue: (value, { row }) =>
-        isMetricPending(row.original.id)
-          ? { type: "loading" }
-          : value === null || value === undefined
-            ? undefined
-            : formatIntervalSeconds(value),
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
+      cell: ({ row }) => {
+        const value: TracesTableRow["latency"] = row.getValue("latency");
+        if (isMetricPending(row.original.id)) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
+        return value !== undefined ? (
+          <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
+        ) : undefined;
+      },
       enableHiding: true,
       enableSorting,
-    }),
+    },
 
     createTokenUsageTableColumn<TracesTableRow, TracesTableRow["usage"]>({
       id: "tokens",
@@ -982,38 +985,24 @@ export default function TracesTable({
       getValue: (value, { row }) =>
         isMetricPending(row.original.id) ? { type: "loading" } : (value ?? 0n),
     }),
-    {
+    createStatusTableColumn<TracesTableRow, ObservationLevelType>({
       accessorKey: "level",
-      id: "level",
       header: "Status",
       size: 75,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["level"] = row.getValue("level");
-        if (isMetricPending(row.original.id)) {
-          return <Skeleton className="h-4 w-1/2" />;
-        }
-        return value ? (
-          <span
-            className={cn(
-              "rounded-sm p-0.5 text-xs",
-              getLevelColors(value).bg,
-              getLevelColors(value).text,
-            )}
-          >
-            {value}
-          </span>
-        ) : (
-          <span>-</span>
-        );
-      },
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
-    {
+      isLive: false,
+      emptyValue: "-",
+      getStatus: (level, { row }) =>
+        isMetricPending(row.original.id)
+          ? { type: "loading" }
+          : level
+            ? getObservationLevelStatus(level)
+            : undefined,
+    }),
+    createTextTableColumn<TracesTableRow>({
       accessorKey: "version",
-      id: "version",
       header: "Version",
       size: 100,
       headerTooltip: {
@@ -1037,10 +1026,9 @@ export default function TracesTable({
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
-    {
+    }),
+    createTextTableColumn<TracesTableRow>({
       accessorKey: "release",
-      id: "release",
       header: "Release",
       size: 100,
       headerTooltip: {
@@ -1065,7 +1053,7 @@ export default function TracesTable({
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
+    }),
     createIdTableColumn<TracesTableRow>({
       accessorKey: "id",
       header: "Trace ID",
@@ -1185,12 +1173,14 @@ export default function TracesTable({
             isFixedPosition: true,
             renderMenu: (traceId) =>
               typeof traceId === "string" ? (
-                <DropdownMenuItem asChild>
-                  <DeleteTraceButton
-                    itemId={traceId}
-                    projectId={projectId}
-                    isTableAction
-                  />
+                <DropdownMenuItem
+                  disabled={
+                    !hasTraceDeleteAccess || !hasTraceDeletionEntitlement
+                  }
+                  onSelect={() => openDeleteTraceDialog(traceId)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
                 </DropdownMenuItem>
               ) : null,
           }),
@@ -1545,3 +1535,37 @@ const TracesDynamicCell = ({
     />
   );
 };
+
+export default function TracesTable(props: TracesTableProps) {
+  const [traceIdToDelete, setTraceIdToDelete] = useState<string | null>(null);
+  const capture = usePostHogClientCapture();
+
+  return (
+    <DialogController
+      closeOnInteractionOutside
+      size="default"
+      renderContent={({ closeDialog }) =>
+        traceIdToDelete ? (
+          <DeleteTraceDialogContent
+            closeDialog={closeDialog}
+            projectId={props.projectId}
+            traceId={traceIdToDelete}
+          />
+        ) : null
+      }
+    >
+      {({ openDialog }) => (
+        <TracesTableInternal
+          {...props}
+          openDeleteTraceDialog={(traceId) => {
+            capture("trace:delete_form_open", {
+              source: "table-single-row",
+            });
+            setTraceIdToDelete(traceId);
+            openDialog();
+          }}
+        />
+      )}
+    </DialogController>
+  );
+}

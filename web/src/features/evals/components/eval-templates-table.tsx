@@ -29,9 +29,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   type TemplateValidationInput,
   useSingleTemplateValidation,
@@ -40,7 +40,7 @@ import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
 import {
@@ -54,6 +54,7 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 
@@ -375,13 +376,10 @@ export default function EvalsTemplateTable({
         );
       },
     }),
-    columnHelper.accessor("latestCreatedAt", {
+    createDateTableColumn<EvalsTemplateRow>({
+      accessorKey: "latestCreatedAt",
       header: "Last Edited",
-      id: "latestCreatedAt",
-      size: 80,
-      cell: (row) => {
-        return row.getValue()?.toLocaleDateString();
-      },
+      size: 150,
     }),
     createNumberTableColumn<EvalsTemplateRow>({
       accessorKey: "usageCount",
