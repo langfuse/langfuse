@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import { Card } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 

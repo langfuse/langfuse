@@ -34,4 +34,11 @@ export const monitorsTableCols: ColumnDefinition[] = [
     internal: 'm."tags"',
     options: [],
   },
+  {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: "evaluatorId",
+    options: [],
+  },
 ];

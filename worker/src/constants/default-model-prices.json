@@ -4297,6 +4297,68 @@
     ]
   },
   {
+    "id": "4cbb2cdd-e3b9-41ce-b07e-36136282d92a",
+    "modelName": "claude-fable-5-1",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-1|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-1(-v1(:0)?)?)$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "4cbb2cdd-e3b9-41ce-b07e-36136282d92a_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "0e053111-eda4-4015-8d36-88f553adabc3",
+    "modelName": "claude-mythos-5-1",
+    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5-1$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "0e053111-eda4-4015-8d36-88f553adabc3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "7c2e1f89-3a54-4b67-9d21-58e634b79a0c",
     "modelName": "claude-sonnet-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
@@ -4820,7 +4882,7 @@
     "modelName": "gpt-5.3-codex",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.3-codex)$",
     "createdAt": "2026-07-27T00:00:00.000Z",
-    "updatedAt": "2026-07-29T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4838,9 +4900,38 @@
           "input": 1.75e-6,
           "input_cached_tokens": 0.175e-6,
           "input_cache_read": 0.175e-6,
+          "cache_read_input_tokens": 0.175e-6,
           "output": 14e-6,
           "output_reasoning_tokens": 14e-6,
-          "output_reasoning": 14e-6
+          "output_reasoning": 14e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "365e9e81-8ae0-4c17-94b5-0359ad9c184c",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "fast",
+              "priority"
+            ]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.35e-6,
+          "input_cache_read": 0.35e-6,
+          "cache_read_input_tokens": 0.35e-6,
+          "output": 28e-6,
+          "output_reasoning_tokens": 28e-6,
+          "output_reasoning": 28e-6,
+          "reasoning_tokens": 28e-6
         }
       }
     ]
@@ -6540,6 +6631,44 @@
     "pricingTiers": [
       {
         "id": "b91d332c-a2fd-b85c-f6e6-971796f3f111_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.75e-6,
+          "input_text": 0.75e-6,
+          "input_modality_1": 0.75e-6,
+          "prompt_token_count": 0.75e-6,
+          "promptTokenCount": 0.75e-6,
+          "input_cached_tokens": 0.075e-6,
+          "cached_content_token_count": 0.075e-6,
+          "output": 3.75e-6,
+          "output_text": 3.75e-6,
+          "output_modality_1": 3.75e-6,
+          "candidates_token_count": 3.75e-6,
+          "candidatesTokenCount": 3.75e-6,
+          "thoughtsTokenCount": 3.75e-6,
+          "thoughts_token_count": 3.75e-6,
+          "output_reasoning_tokens": 3.75e-6,
+          "output_reasoning": 3.75e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709",
+    "modelName": "gemini-3.8-flash",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.8-flash)$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709_tier_default",
         "name": "Standard",
         "isDefault": true,
         "priority": 0,

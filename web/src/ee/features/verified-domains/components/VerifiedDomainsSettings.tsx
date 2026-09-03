@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +45,7 @@ import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, ChevronRight, TrashIcon } from "lucide-react";
@@ -92,13 +92,12 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     return (
       <div>
         {heading}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Not available</AlertTitle>
-          <AlertDescription>
+        <Alert icon={AlertCircle}>
+          <Alert.Title>Not available</Alert.Title>
+          <Alert.Description>
             Verified Domains and Enterprise SSO are not available on your plan.
             Please upgrade to access this feature.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -109,11 +108,11 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
       <div>
         {heading}
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to manage verified domains for this
             organization.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );

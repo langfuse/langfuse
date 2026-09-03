@@ -16,6 +16,7 @@ import {
   createTracesCh,
   queryClickhouse,
   redis,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
 import { TableName } from "../services/ClickhouseWriter";
@@ -107,7 +108,9 @@ describe("handleEventPropagationJob", () => {
           ingestion_api_key: "pk-lf-propagation-test",
           ingestion_sdk_name: "langfuse-js",
           ingestion_sdk_version: "4.2.0",
-          s3_first_seen_timestamp: oldEnoughForPropagation,
+          s3_first_seen_timestamp: toClickhouseDateTime(
+            oldEnoughForPropagation,
+          ),
         },
       ],
     });

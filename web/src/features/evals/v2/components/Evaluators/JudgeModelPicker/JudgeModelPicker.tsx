@@ -68,6 +68,7 @@ type JudgeModelPickerTriggerProps = Omit<
   selectedModel: JudgeModel | null;
   disabled: boolean;
   missingDefaultLabel?: string;
+  borderVariant?: "default" | "contrast";
 };
 
 export const JudgeModelPickerTrigger = forwardRef<
@@ -86,6 +87,7 @@ export const JudgeModelPickerTrigger = forwardRef<
       loading,
       loadingText,
       disabled,
+      borderVariant = "default",
       ...buttonProps
     },
     forwardedRef,
@@ -114,6 +116,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         className={cn(
           selectTriggerClassName,
           "w-auto max-w-full min-w-0 justify-start",
+          borderVariant === "contrast" && "border-border-contrast",
         )}
       >
         {mode === "default" ? (

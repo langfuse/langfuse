@@ -186,21 +186,47 @@ export class BufferedStreamUploader {
     await this.enqueuePart(this.takeBytes(this.currentBufferSize));
   }
 
-  // Copies the first `byteLength` bytes out of currentBuffer and leaves any
-  // leftover as the new buffer. Caller must pass byteLength <= currentBufferSize.
+  // Splits off the first `byteLength` bytes of currentBuffer as the part to
+  // upload and keeps the leftover as the new buffer. Coalesces in a single
+  // Buffer.concat pass so cost stays linear in the byte count regardless of
+  // how many row chunks accumulated; a part can hold hundreds of thousands of
+  // per-row chunks and this runs on the worker's shared event loop.
+  // Caller must pass byteLength <= currentBufferSize.
   private takeBytes(byteLength: number): Buffer {
-    const partData = Buffer.concat(this.currentBuffer, byteLength);
-    let remaining = byteLength;
-    while (remaining > 0) {
-      const chunk = this.currentBuffer[0];
-      if (chunk.byteLength <= remaining) {
-        remaining -= chunk.byteLength;
-        this.currentBuffer.shift();
-      } else {
-        this.currentBuffer[0] = chunk.subarray(remaining);
-        remaining = 0;
+    // Single backing buffer: this is the loop that slices one oversized stream
+    // chunk into k = chunkSize / partSizeBytes parts. Re-concatenating and
+    // re-copying the shrinking leftover on each of those k calls would be
+    // O(chunkSize^2 / partSizeBytes) — the same synchronous event-loop stall
+    // this class avoids for many small chunks. Instead slice by view: copy
+    // only the emitted part (so the large source frees once this synchronous
+    // loop ends, rather than being pinned for the upload's retry lifetime) and
+    // carry the leftover as a zero-copy view. Cost stays O(chunkSize).
+    if (this.currentBuffer.length === 1) {
+      const buf = this.currentBuffer[0];
+      this.currentBufferSize -= byteLength;
+      if (byteLength === buf.byteLength) {
+        this.currentBuffer = [];
+        return buf;
       }
+      this.currentBuffer = [buf.subarray(byteLength)];
+      return Buffer.from(buf.subarray(0, byteLength));
     }
+
+    const combined = Buffer.concat(this.currentBuffer);
+    const remainderLength = combined.byteLength - byteLength;
+    // Non-final parts are normally returned as a view into `combined`: no copy
+    // on the hot path, where `combined` is one part plus at most a trailing
+    // row. But a single oversized stream chunk makes `combined` several parts
+    // large, and a view would pin that whole buffer for the part upload's
+    // lifetime (including retry backoff). When at least one more part is left
+    // over, copy the slice so `combined` is freed as soon as this returns.
+    const partData =
+      remainderLength >= byteLength
+        ? Buffer.from(combined.subarray(0, byteLength))
+        : combined.subarray(0, byteLength);
+    // Copy the leftover into its own allocation for the same reason.
+    this.currentBuffer =
+      remainderLength > 0 ? [Buffer.from(combined.subarray(byteLength))] : [];
     this.currentBufferSize -= byteLength;
     return partData;
   }
