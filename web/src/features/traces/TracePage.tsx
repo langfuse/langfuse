@@ -12,6 +12,8 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
+import { StringParam, useQueryParam } from "use-query-params";
 
 export function TracePage({
   traceId,
@@ -23,12 +25,18 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const routeProjectId = (router.query.projectId as string) ?? "";
+  const [aggregationParam, setAggregationParam] = useQueryParam(
+    "aggregation",
+    StringParam,
+  );
+  const aggregationLevel = aggregationParam === "session" ? "session" : "trace";
 
   // Shared, beta-aware fetch (same hook the peek uses).
   const trace = useTraceDetailData({
     projectId: routeProjectId,
     traceId,
     timestamp,
+    aggregationLevel,
   });
 
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
@@ -98,6 +106,19 @@ export function TracePage({
       Public
     </Badge>
   ) : undefined;
+  const aggregationToggle = trace.canAggregateBySession ? (
+    <TraceAggregationToggle
+      aggregationLevel={aggregationLevel}
+      onAggregationLevelChange={(nextAggregationLevel) => {
+        if (nextAggregationLevel === "session") {
+          setAggregationParam("session");
+        }
+        if (nextAggregationLevel === "trace") {
+          setAggregationParam(null);
+        }
+      }}
+    />
+  ) : undefined;
 
   return (
     <Page
@@ -125,6 +146,7 @@ export function TracePage({
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
+            {aggregationToggle}
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
@@ -132,6 +154,9 @@ export function TracePage({
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
+                  ...(aggregationLevel === "session"
+                    ? { aggregation: "session" }
+                    : {}),
                 });
                 const timestamp =
                   entry.params && entry.params.timestamp
@@ -165,15 +190,18 @@ export function TracePage({
         // menu rows (Share / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
-          <TraceDetailActions
-            traceId={trace.data.id}
-            projectId={trace.data.projectId}
-            isPublic={trace.data.public}
-            name={trace.data.name}
-            timestamp={timestamp}
-            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-            layout="menu"
-          />
+          <>
+            {aggregationToggle}
+            <TraceDetailActions
+              traceId={trace.data.id}
+              projectId={trace.data.projectId}
+              isPublic={trace.data.public}
+              name={trace.data.name}
+              timestamp={timestamp}
+              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+              layout="menu"
+            />
+          </>
         ),
       }}
     >

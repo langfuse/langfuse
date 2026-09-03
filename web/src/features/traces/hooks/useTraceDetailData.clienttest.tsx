@@ -182,7 +182,7 @@ describe("useTraceDetailData endpoint routing", () => {
     );
   });
 
-  it("uses events endpoints for authenticated beta users", () => {
+  it("uses trace scope by default for authenticated beta users", () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockUseReadPath.mockReturnValue({ isV4: true });
 
@@ -191,6 +191,59 @@ describe("useTraceDetailData endpoint routing", () => {
     expect(mockTracesQuery.mock.calls[0]?.[1]).toMatchObject({
       enabled: false,
     });
+    expect(mockUseEventsTraceData).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true, scopeToSession: false }),
+    );
+  });
+
+  it("uses the events endpoint when the owning surface is explicitly v4", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockUseReadPath.mockReturnValue({ isV4: false });
+
+    renderHook(() =>
+      useTraceDetailData({
+        projectId: "p",
+        traceId: "t",
+        readPath: "v4",
+      }),
+    );
+
+    expect(mockTracesQuery.mock.calls[0]?.[1]).toMatchObject({
+      enabled: false,
+    });
+    expect(mockUseEventsTraceData).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true, scopeToSession: false }),
+    );
+  });
+
+  it("offers session aggregation when the trace belongs to a session", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockUseReadPath.mockReturnValue({ isV4: true });
+    mockUseEventsTraceData.mockReturnValue({
+      data: { id: "t", sessionId: "s" },
+      isLoading: false,
+      error: null,
+      isSessionScopeUnavailable: false,
+      truncatedAtObservations: undefined,
+    });
+
+    const result = render();
+
+    expect(result.canAggregateBySession).toBe(true);
+  });
+
+  it("uses session scope when explicitly selected", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockUseReadPath.mockReturnValue({ isV4: true });
+
+    renderHook(() =>
+      useTraceDetailData({
+        projectId: "p",
+        traceId: "t",
+        aggregationLevel: "session",
+      }),
+    );
+
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true, scopeToSession: true }),
     );
@@ -205,7 +258,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: true,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false, scopeToSession: true }),
+      expect.objectContaining({ enabled: false, scopeToSession: false }),
     );
   });
 
@@ -220,7 +273,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false, scopeToSession: true }),
+      expect.objectContaining({ enabled: false, scopeToSession: false }),
     );
   });
 
@@ -233,7 +286,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false, scopeToSession: true }),
+      expect.objectContaining({ enabled: false, scopeToSession: false }),
     );
     expect(result.isLoading).toBe(true);
     expect(result.isNotFound).toBe(false);

@@ -13,6 +13,7 @@
 export { Trace } from "@/src/features/traces/components/Trace";
 export { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+export { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
 export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 export { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 

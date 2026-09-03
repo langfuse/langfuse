@@ -2,6 +2,7 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
+  TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
   traceDetailTitle,
@@ -24,6 +25,8 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
+  const aggregationLevel =
+    router.query.aggregation === "session" ? "session" : "trace";
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -41,6 +44,7 @@ export const TablePeekViewTraceDetail = (
     projectId,
     traceId,
     timestamp,
+    ...(props.isV4 ? { aggregationLevel, readPath: "v4" as const } : {}),
   });
   const isSessionScope =
     !!trace.data &&
@@ -66,6 +70,23 @@ export const TablePeekViewTraceDetail = (
         },
       }
     : null;
+  const aggregationToggle =
+    props.isV4 && trace.canAggregateBySession ? (
+      <TraceAggregationToggle
+        aggregationLevel={aggregationLevel}
+        onAggregationLevelChange={(nextAggregationLevel) => {
+          const query = { ...router.query };
+          if (nextAggregationLevel === "session") {
+            query.aggregation = "session";
+          } else {
+            delete query.aggregation;
+          }
+          router.replace({ pathname: router.pathname, query }, undefined, {
+            shallow: true,
+          });
+        }}
+      />
+    ) : undefined;
 
   return (
     <TablePeekView
@@ -73,11 +94,21 @@ export const TablePeekViewTraceDetail = (
       itemType={isSessionScope ? "SESSION" : props.itemType}
       title={isSessionScope ? "Session" : traceDetailTitle(trace.data, traceId)}
       actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+        aggregationToggle || actionProps ? (
+          <>
+            {aggregationToggle}
+            {actionProps ? <TraceDetailActions {...actionProps} /> : null}
+          </>
+        ) : undefined
       }
       actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
+        aggregationToggle || actionProps ? (
+          <>
+            {aggregationToggle}
+            {actionProps ? (
+              <TraceDetailActions {...actionProps} layout="menu" />
+            ) : null}
+          </>
         ) : undefined
       }
     >
