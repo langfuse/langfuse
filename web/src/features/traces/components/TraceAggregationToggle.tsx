@@ -4,15 +4,21 @@ export function TraceAggregationToggle({
   aggregationLevel,
   onAggregationLevelChange,
 }: {
-  aggregationLevel: "trace" | "session";
-  onAggregationLevelChange: (aggregationLevel: "trace" | "session") => void;
+  aggregationLevel: "trace" | "session" | "observation";
+  onAggregationLevelChange: (
+    aggregationLevel: "trace" | "session" | "observation",
+  ) => void;
 }) {
   return (
     <ToggleGroup
       type="single"
       value={aggregationLevel}
       onValueChange={(value) => {
-        if (value === "trace" || value === "session") {
+        if (
+          value === "trace" ||
+          value === "session" ||
+          value === "observation"
+        ) {
           onAggregationLevelChange(value);
         }
       }}
@@ -29,9 +35,16 @@ export function TraceAggregationToggle({
       <ToggleGroupItem
         value="session"
         aria-label="Aggregate by session"
-        className="h-8 rounded-l-none border-l-0 px-2.5 text-xs"
+        className="h-8 rounded-none border-l-0 px-2.5 text-xs"
       >
         Session
+      </ToggleGroupItem>
+      <ToggleGroupItem
+        value="observation"
+        aria-label="Show observation details only"
+        className="h-8 rounded-l-none border-l-0 px-2.5 text-xs"
+      >
+        Observation
       </ToggleGroupItem>
     </ToggleGroup>
   );

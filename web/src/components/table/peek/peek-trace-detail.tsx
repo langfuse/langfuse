@@ -26,7 +26,10 @@ export const TablePeekViewTraceDetail = (
 
   const router = useRouter();
   const aggregationLevel =
-    router.query.aggregation === "session" ? "session" : "trace";
+    router.query.aggregation === "session" ||
+    router.query.aggregation === "observation"
+      ? router.query.aggregation
+      : "trace";
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -44,7 +47,13 @@ export const TablePeekViewTraceDetail = (
     projectId,
     traceId,
     timestamp,
-    ...(props.isV4 ? { aggregationLevel, readPath: "v4" as const } : {}),
+    ...(props.isV4
+      ? {
+          aggregationLevel:
+            aggregationLevel === "session" ? "session" : ("trace" as const),
+          readPath: "v4" as const,
+        }
+      : {}),
   });
   const isSessionScope =
     !!trace.data &&
@@ -76,8 +85,8 @@ export const TablePeekViewTraceDetail = (
         aggregationLevel={aggregationLevel}
         onAggregationLevelChange={(nextAggregationLevel) => {
           const query = { ...router.query };
-          if (nextAggregationLevel === "session") {
-            query.aggregation = "session";
+          if (nextAggregationLevel !== "trace") {
+            query.aggregation = nextAggregationLevel;
           } else {
             delete query.aggregation;
           }
@@ -122,6 +131,7 @@ export const TablePeekViewTraceDetail = (
           trace={trace.data}
           context="peek"
           truncatedAtObservations={trace.truncatedAtObservations}
+          showObservationOnly={aggregationLevel === "observation"}
         />
       )}
     </TablePeekView>

@@ -17,12 +17,14 @@ export function TraceDetailBody({
   context,
   keySuffix,
   truncatedAtObservations,
+  showObservationOnly = false,
 }: {
   trace: TraceDetailData | undefined;
   context: "peek" | "fullscreen" | "annotation";
   keySuffix?: string;
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  showObservationOnly?: boolean;
 }) {
   if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
   const sessionTraceEntries =
@@ -41,6 +43,7 @@ export function TraceDetailBody({
       sessionTraceEntries={sessionTraceEntries}
       context={context}
       truncatedAtObservations={truncatedAtObservations}
+      showObservationOnly={showObservationOnly}
     />
   );
 }

@@ -43,13 +43,15 @@ vi.mock("@/src/features/traces", () => ({
   TraceAggregationToggle: ({
     onAggregationLevelChange,
   }: {
-    onAggregationLevelChange: (aggregationLevel: "trace" | "session") => void;
+    onAggregationLevelChange: (
+      aggregationLevel: "trace" | "session" | "observation",
+    ) => void;
   }) => (
     <button
       role="radio"
-      aria-label="Aggregate by session"
+      aria-label="Show observation details only"
       aria-checked={false}
-      onClick={() => onAggregationLevelChange("session")}
+      onClick={() => onAggregationLevelChange("observation")}
     />
   ),
   TraceDetailActions: () => <div />,
@@ -79,7 +81,7 @@ describe("TablePeekViewObservationDetail", () => {
     });
   });
 
-  it("defaults to trace aggregation and preserves observation peek params when switching", () => {
+  it("defaults to trace aggregation and preserves peek params in observation mode", () => {
     render(
       <TablePeekViewObservationDetail
         projectId="p"
@@ -98,7 +100,7 @@ describe("TablePeekViewObservationDetail", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("radio", { name: "Aggregate by session" }),
+      screen.getByRole("radio", { name: "Show observation details only" }),
     );
 
     expect(mockRouter.replace).toHaveBeenCalledWith(
@@ -110,7 +112,7 @@ describe("TablePeekViewObservationDetail", () => {
           observation: "o",
           traceId: "t",
           timestamp: "2026-09-03T11:33:49.981Z",
-          aggregation: "session",
+          aggregation: "observation",
         },
       },
       undefined,

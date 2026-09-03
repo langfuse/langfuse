@@ -5,8 +5,17 @@ import { describe, expect, it, vi } from "vitest";
 import { TraceDetailBody } from "./TraceDetailBody";
 
 vi.mock("@/src/features/traces/components/Trace", () => ({
-  Trace: ({ trace }: { trace: { id: string } }) => (
-    <input aria-label="trace state" defaultValue={trace.id} />
+  Trace: ({
+    trace,
+    showObservationOnly,
+  }: {
+    trace: { id: string };
+    showObservationOnly?: boolean;
+  }) => (
+    <>
+      <input aria-label="trace state" defaultValue={trace.id} />
+      {showObservationOnly ? <div>Observation details only</div> : null}
+    </>
   ),
 }));
 
@@ -55,5 +64,17 @@ describe("TraceDetailBody", () => {
     expect(screen.getByRole("textbox", { name: "trace state" })).toHaveValue(
       "trace-2",
     );
+  });
+
+  it("forwards observation-only display mode", () => {
+    render(
+      <TraceDetailBody
+        trace={trace("trace-1")}
+        context="fullscreen"
+        showObservationOnly
+      />,
+    );
+
+    expect(screen.getByText("Observation details only")).toBeInTheDocument();
   });
 });

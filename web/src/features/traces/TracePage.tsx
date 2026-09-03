@@ -29,14 +29,17 @@ export function TracePage({
     "aggregation",
     StringParam,
   );
-  const aggregationLevel = aggregationParam === "session" ? "session" : "trace";
+  const aggregationLevel =
+    aggregationParam === "session" || aggregationParam === "observation"
+      ? aggregationParam
+      : "trace";
 
   // Shared, beta-aware fetch (same hook the peek uses).
   const trace = useTraceDetailData({
     projectId: routeProjectId,
     traceId,
     timestamp,
-    aggregationLevel,
+    aggregationLevel: aggregationLevel === "session" ? "session" : "trace",
   });
 
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
@@ -113,6 +116,9 @@ export function TracePage({
         if (nextAggregationLevel === "session") {
           setAggregationParam("session");
         }
+        if (nextAggregationLevel === "observation") {
+          setAggregationParam("observation");
+        }
         if (nextAggregationLevel === "trace") {
           setAggregationParam(null);
         }
@@ -154,8 +160,8 @@ export function TracePage({
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
-                  ...(aggregationLevel === "session"
-                    ? { aggregation: "session" }
+                  ...(aggregationLevel !== "trace"
+                    ? { aggregation: aggregationLevel }
                     : {}),
                 });
                 const timestamp =
@@ -210,6 +216,7 @@ export function TracePage({
           trace={trace.data}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
           truncatedAtObservations={trace.truncatedAtObservations}
+          showObservationOnly={aggregationLevel === "observation"}
         />
       </div>
     </Page>

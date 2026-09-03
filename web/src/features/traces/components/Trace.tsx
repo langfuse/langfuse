@@ -51,6 +51,7 @@ export type TraceProps = {
   context?: "fullscreen" | "peek" | "annotation";
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  showObservationOnly?: boolean;
 };
 
 const DESKTOP_LAYOUT_BY_CONTEXT = {
@@ -102,6 +103,7 @@ function TraceWithSelection({
   sessionTraceEntries,
   projectId,
   truncatedAtObservations,
+  showObservationOnly,
   desktopLayout,
 }: Omit<TraceProps, "context"> & {
   desktopLayout: DesktopLayout;
@@ -271,7 +273,10 @@ function TraceWithSelection({
         <SearchProvider>
           <JsonExpansionProvider>
             <PlayheadProvider>
-              <TraceContent desktopLayout={desktopLayout} />
+              <TraceContent
+                desktopLayout={desktopLayout}
+                showObservationOnly={showObservationOnly ?? false}
+              />
             </PlayheadProvider>
           </JsonExpansionProvider>
         </SearchProvider>
@@ -293,11 +298,21 @@ function TraceWithSelection({
  * - useViewPreferences() - for graph toggle state
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+export function TraceContent({
+  desktopLayout,
+  showObservationOnly,
+}: {
+  desktopLayout: DesktopLayout;
+  showObservationOnly: boolean;
+}) {
   const isMobile = useIsMobile();
   const { showGraph } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
+
+  if (showObservationOnly) {
+    return <TracePanelDetail />;
+  }
 
   return isMobile ? (
     <MobileTraceContent shouldShowGraph={shouldShowGraph} />
