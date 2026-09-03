@@ -171,7 +171,7 @@ export function ResizableSplitLayout({
       className={cn(
         // Peek-style: a wide hit target, a 1px seam at rest, and a full-height
         // bar on hover/drag. The inner `withHandle` pill is restyled to that bar.
-        "group/resize bg-transparent after:w-3",
+        "group/resize bg-border-contrast after:w-3",
         "[&>div]:h-full [&>div]:w-1 [&>div]:rounded-full [&>div]:bg-transparent [&>div]:transition-colors",
         "hover:[&>div]:bg-muted-foreground/40",
         "active:[&>div]:bg-muted-foreground/60",
