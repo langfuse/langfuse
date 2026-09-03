@@ -91,9 +91,8 @@ const MatrixCell = ({
         <span className="text-muted-foreground">↻{movement.changed}</span>
       )}
       {/* Items only one of the two runs scored: never folded into the delta.
-          Spelled out rather than abbreviated to `n/a`, which the reviewer read
-          as "not available" and had to ask about. A matrix cell has no hover to
-          move the count into, so unlike the score column header it stays. */}
+          Spelled out rather than abbreviated, because a matrix cell has no
+          hover to move the count into — the words are all the reader gets. */}
       {hasBaselineColumn && notComparable > 0 && (
         <span className="text-muted-foreground opacity-70">
           {notComparable} not scored
@@ -259,10 +258,10 @@ export const ExperimentScoreMatrix = ({
                           colorStyles.markerClass,
                         )}
                       />
-                      {/* No `baseline` badge: the column is already the first
-                          one and the only one whose cells carry no delta, and
-                          the badge was the third thing competing for a 150px
-                          header. */}
+                      {/* No `baseline` badge: this column is already the
+                          first one and the only one whose cells carry no
+                          delta, and a 150px header has room for the run's
+                          name or a badge, not both. */}
                       <span
                         className="truncate font-bold"
                         title={experiment.experimentName}
