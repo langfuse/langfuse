@@ -246,12 +246,6 @@ export function TimelineChartCard() {
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
 
-  // Helper function to truncate tab labels with max character limit
-  const truncateLabel = (label: string): string => {
-    if (label.length <= 20) return label;
-    return label.substring(0, 17) + "...";
-  };
-
   // Build full tab labels for title attribute (hover tooltip)
   const score1FullLabel =
     score1.name === score2?.name
@@ -290,15 +284,13 @@ export function TimelineChartCard() {
               <Tabs.List size="md">
                 <Tabs.Trigger
                   value="score1"
-                  title={score1FullLabel}
                   size="sm"
-                  label={truncateLabel(score1FullLabel)}
+                  label={score1FullLabel}
                 />
                 <Tabs.Trigger
                   value="score2"
-                  title={score2FullLabel}
                   size="sm"
-                  label={truncateLabel(score2FullLabel)}
+                  label={score2FullLabel}
                 />
                 <Tabs.Trigger value="all" size="sm" label="all" />
                 <Tabs.Trigger value="matched" size="sm" label="matched" />

@@ -218,3 +218,35 @@ export const KeepsUnwrappedTriggersContentWidth = meta.story({
     );
   },
 });
+
+export const TruncatesLabel = meta.story({
+  name: "(Test) Truncates Label",
+  args: {
+    defaultValue: "long",
+    children: (
+      <Tabs.List>
+        <span className="w-20">
+          <Tabs.Trigger
+            value="long"
+            label="A label that is too long for its trigger"
+          />
+        </span>
+      </Tabs.List>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const tab = canvas.getByRole("tab", {
+      name: "A label that is too long for its trigger",
+    });
+    const label = within(tab).getByText(
+      "A label that is too long for its trigger",
+    );
+
+    await expect(tab).toHaveAttribute(
+      "title",
+      "A label that is too long for its trigger",
+    );
+    await expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+  },
+});
