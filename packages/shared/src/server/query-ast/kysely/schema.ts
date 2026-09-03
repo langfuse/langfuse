@@ -6,6 +6,8 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
+ *  - `COLUMN_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
+ *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
@@ -174,5 +176,28 @@ export const TENANTED_TABLES = new Set<string>(
 export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],
+  ),
+);
+
+/**
+ * ClickHouse bind type for a JS value compared against this column. Wider than
+ * the coarse {@link COLUMN_DATA_TYPES} category: `DateTime` columns bind as
+ * `DateTime64(3)`, `Float` as `Float64`, so an integer literal compared to
+ * `total_cost` still becomes `{p:Float64}`.
+ */
+const BIND_TYPE: Record<ChColumnType, string> = {
+  String: "String",
+  Float: "Float64",
+  DateTime: "DateTime64(3)",
+  "Array(String)": "Array(String)",
+  "Map(String, Float)": "Map(String, Float64)",
+};
+
+export const COLUMN_BIND_TYPES: Record<string, string> = Object.fromEntries(
+  Object.values(TABLE_REGISTRY).flatMap((table) =>
+    Object.entries(table.columns).map(([name, chType]) => [
+      name,
+      BIND_TYPE[chType],
+    ]),
   ),
 );

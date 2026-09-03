@@ -62,6 +62,9 @@ a required check once it has proven stable.
   `limitBy` is the legacy `ORDER BY <version> DESC LIMIT 1 BY <key>` already
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY.
+- **Value binds take their ClickHouse type from the compared column** in the
+  table registry (`total_cost > 1` emits `{p:Float64}`, not inferred
+  `{p:Int64}`). Same-value binds still intern to one placeholder.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
