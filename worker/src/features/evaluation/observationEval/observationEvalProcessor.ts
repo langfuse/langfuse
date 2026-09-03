@@ -24,7 +24,7 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { buildEvalExecutionMetadata } from "@langfuse/shared/src/server";
+import { buildEvalExecutionData } from "@langfuse/shared/src/server";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -233,7 +233,7 @@ export async function processObservationEval(
     extractedVariables,
     hasExperimentContext: Boolean(observationData.experiment_id),
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    executionMetadata: buildEvalExecutionMetadata({
+    ...buildEvalExecutionData({
       type: "JOB",
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
@@ -403,7 +403,7 @@ const evaluatorInclude = {
 } satisfies Prisma.EvaluatorInclude;
 
 function normalizeEvalTemplate(
-  template: EvalTemplate,
+  template: EvalTemplate & { promptMessages?: unknown },
   executionType: ObservationEvalExecutionType,
 ): EvalTemplateWithType {
   switch (executionType) {
@@ -508,6 +508,7 @@ function buildV2Execution(params: {
     name: evaluator.name,
     version: version.version,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -517,7 +518,7 @@ function buildV2Execution(params: {
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-  } satisfies EvalTemplate;
+  };
 
   return {
     type: "v2" as const,

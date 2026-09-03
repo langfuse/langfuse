@@ -14,6 +14,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
@@ -150,9 +151,19 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         "mcp.metrics_view": input.view,
       },
       fn: async () => {
-        const normalizedInput = normalizeMetricOrderByFields(
+        const normalizedInputUnclamped = normalizeMetricOrderByFields(
           normalizeMetricFilters(input),
         );
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: context.plan,
+          fromTimestamp: normalizedInputUnclamped.fromTimestamp,
+        });
+        const normalizedInput = {
+          ...normalizedInputUnclamped,
+          fromTimestamp:
+            dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+            normalizedInputUnclamped.fromTimestamp,
+        };
         const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {

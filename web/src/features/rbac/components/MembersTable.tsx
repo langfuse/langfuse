@@ -1,11 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Select,
   SelectContent,
@@ -22,7 +18,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -35,6 +31,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
@@ -42,6 +39,7 @@ import { useEffect } from "react";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { env } from "@/src/env.mjs";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 
@@ -165,43 +163,26 @@ export function MembersTable({
         const { name, image } = row.getValue("user") as MembersTableRow["user"];
         return (
           <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {name
-                  ? name
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
+            <Avatar
+              size="md"
+              src={image ?? undefined}
+              displayName={name ?? "User"}
+            />
             <span>{name}</span>
           </div>
         );
       },
     },
-    {
+    createTextTableColumn<MembersTableRow>({
       accessorKey: "email",
-      id: "email",
       header: "Email",
-    },
-    {
+    }),
+    createTextTableColumn<MembersTableRow, string[]>({
       accessorKey: "providers",
-      id: "providers",
       header: "SSO Provider",
       enableHiding: true,
-      cell: ({ row }) => {
-        const providers = row.getValue("providers") as string[];
-        if (providers.length === 0) return "-";
-
-        return providers.join(", ");
-      },
-    },
+      mapValue: (providers) => (providers?.length ? providers.join(", ") : "-"),
+    }),
     {
       accessorKey: "orgRole",
       id: "orgRole",
@@ -338,17 +319,12 @@ export function MembersTable({
           },
         ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
-    {
+    createDateTableColumn<MembersTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Member Since",
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as MembersTableRow["createdAt"];
-        return value ? new Date(value).toLocaleString() : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "meta",
       id: "meta",
@@ -426,10 +402,10 @@ export function MembersTable({
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
           You do not have permission to view members of this organization.
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     );
   }

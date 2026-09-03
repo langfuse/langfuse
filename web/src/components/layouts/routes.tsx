@@ -169,7 +169,7 @@ export const ROUTES: Route[] = [
     title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
-    projectRbacScopes: ["evalJob:read"],
+    projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,

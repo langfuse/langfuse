@@ -22,7 +22,11 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement> &
   VariantProps<typeof skeletonVariants>) {
   return (
-    <div className={cn(skeletonVariants({ variant }), className)} {...props} />
+    <div
+      data-slot="skeleton"
+      className={cn(skeletonVariants({ variant }), className)}
+      {...props}
+    />
   );
 }
 

@@ -3,7 +3,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
@@ -157,57 +157,26 @@ function DatasetCompareRunsTableInternal(props: {
         };
       },
     }),
-    {
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "input",
       header: "Input",
-      id: "input",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const input = row.getValue(
-          "input",
-        ) as DatasetCompareRunRowData["input"];
-        return input !== null ? (
-          <div className="h-full w-full">
-            <IOTableCell data={input} />
-          </div>
-        ) : null;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "expectedOutput",
       header: "Expected Output",
-      id: "expectedOutput",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const expectedOutput = row.getValue(
-          "expectedOutput",
-        ) as DatasetCompareRunRowData["expectedOutput"];
-        return expectedOutput !== null ? (
-          <div className="h-full w-full">
-            <IOTableCell
-              data={expectedOutput}
-              className="bg-accent-light-green"
-            />
-          </div>
-        ) : null;
-      },
-    },
-    {
+      variant: "output",
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 200,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const metadata = row.getValue(
-          "metadata",
-        ) as DatasetCompareRunRowData["metadata"];
-        return metadata !== null ? <IOTableCell data={metadata} /> : null;
-      },
-    },
+    }),
     {
       ...getDatasetRunAggregateColumnProps(cellsLoading),
       columns: runAggregateColumns,

@@ -1,4 +1,6 @@
 import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { withFieldOptions } from "@/src/features/search-bar/lib/fields";
 
 describe("searchBarStore (draft-only)", () => {
   it("validates the draft on setDraft", () => {
@@ -240,6 +242,24 @@ describe("searchBarStore (draft-only)", () => {
     st = { ...st, numericScoreNames: new Set<string>(["accuracy"]) };
     store.getState().actions.revalidate();
     expect(store.getState().draftValid).toBe(false);
+  });
+
+  it("revalidates drafts against the latest dynamic registry", () => {
+    let registry = withFieldOptions(
+      EVALUATOR_FIELD_REGISTRY,
+      "datasetName",
+      [],
+    );
+    const store = createSearchBarStore(undefined, () => registry);
+    store.getState().actions.setDraft('datasetName:"Filter QA Dataset"');
+    expect(store.getState().draftValid).toBe(false);
+
+    registry = withFieldOptions(EVALUATOR_FIELD_REGISTRY, "datasetName", [
+      { value: "dataset-id", displayValue: "Filter QA Dataset" },
+    ]);
+    store.getState().actions.revalidate();
+
+    expect(store.getState().draftValid).toBe(true);
   });
 
   it("revalidate reveals the red state when a valid draft flips invalid", () => {

@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import React from "react";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {

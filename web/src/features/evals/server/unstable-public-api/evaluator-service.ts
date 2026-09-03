@@ -15,7 +15,10 @@ import {
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
-import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import {
+  EvaluatorService,
+  reconcileEvaluatorPromptMessages,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   EvaluatorConfigurationError,
   EvaluatorVersionConflictError,
@@ -108,7 +111,7 @@ function toDefinition(
 
   return {
     type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: input.prompt,
+    promptMessages: reconcileEvaluatorPromptMessages({ prompt: input.prompt }),
     provider: input.modelConfig?.provider ?? null,
     model: input.modelConfig?.model ?? null,
     modelParams: null,
@@ -147,7 +150,8 @@ function toLatestTemplate(
     name: evaluator.name,
     version: version.version,
     type: evaluator.type,
-    prompt: version.prompt,
+    prompt: null,
+    promptMessages: version.promptMessages,
     partner: version.partner,
     provider: version.provider,
     model: version.model,

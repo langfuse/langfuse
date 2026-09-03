@@ -5,8 +5,97 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
 
+import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
+import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
+
+describe("S3StorageService region normalization", () => {
+  it("trims a persisted region before configuring the AWS client", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: " us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.region()).resolves.toBe("us-west-2");
+  });
+
+  it("rejects malformed persisted regions before creating an AWS client", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+  });
+
+  it.each(["europe-west1", "eastus", "auto"])(
+    "configures an S3-compatible client with region %s",
+    async (region) => {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: "https://storage.googleapis.com",
+        region,
+        forcePathStyle: true,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+
+      await expect(client.config.region()).resolves.toBe(region);
+    },
+  );
+});
+
+describe("resolveMediaStorageEndpoints", () => {
+  it("keeps the existing endpoint for both server access and signed URLs by default", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: undefined,
+      }),
+    ).toEqual({
+      endpoint: "http://localhost:9090",
+      externalEndpoint: undefined,
+    });
+  });
+
+  it("uses the internal override for server access and the existing endpoint for signed URLs", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: "http://minio:9000",
+      }),
+    ).toEqual({
+      endpoint: "http://minio:9000",
+      externalEndpoint: "http://localhost:9090",
+    });
+  });
+});
 
 /**
  * Regression tests for the Azure Blob download path.

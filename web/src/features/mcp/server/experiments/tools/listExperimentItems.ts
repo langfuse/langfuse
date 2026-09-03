@@ -7,6 +7,7 @@ import {
   ListExperimentItemsBaseSchema,
   ListExperimentItemsInputSchema,
 } from "../schema";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
   name: "listExperimentItems",
@@ -27,9 +28,18 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
         "mcp.experiment_item_fields": input.fields.join(","),
       },
       fn: async (span) => {
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: context.plan,
+          fromTimestamp: input.fromStartTime,
+        });
         const result = await listExperimentItemsForPublicApi({
           projectId: context.projectId,
-          query: input,
+          query: {
+            ...input,
+            fromStartTime:
+              dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+              input.fromStartTime,
+          },
         });
         const parsed = GetExperimentItemsV1Response.parse(result);
 

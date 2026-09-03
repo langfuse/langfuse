@@ -35,8 +35,9 @@ const events = {
     "graph_view_toggle",
     // Aggregated vs expanded graph build mode (LFE-10676).
     "graph_mode_switch",
-    // `source` distinguishes the inline expand/collapse button from the
-    // trace settings switch; `collapsed` is the new preference value.
+    // `source` distinguishes the inline expand/collapse button, the message
+    // header control, and the trace settings switch; `collapsed` is the new
+    // preference value.
     "system_prompt_collapse_toggle",
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
@@ -149,6 +150,7 @@ const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "metadata_jsonpath_config_changed",
+    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",
@@ -183,6 +185,7 @@ const events = {
     "empty_state_template_select",
     "empty_state_browse_library",
     "empty_state_detect_topics",
+    "alert_create_clicked",
   ],
   evaluation_rules: [
     "create",
@@ -243,7 +246,7 @@ const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
-  monitors: ["delete_form_open", "delete_monitor_button_click"],
+  monitors: ["create", "delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
@@ -412,6 +415,8 @@ const events = {
     "facet_added",
     "facet_search",
     "facet_mode_switched",
+    "expand_all_toggled",
+    "facet_toggled",
     "sidebar_toggled",
     "search_submitted",
     "search_error",
