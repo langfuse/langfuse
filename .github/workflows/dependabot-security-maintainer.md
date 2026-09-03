@@ -41,6 +41,18 @@ timeout-minutes: 90
 max-ai-credits: 4500
 strict: true
 
+observability:
+  otlp:
+    # Langfuse OTLP endpoint (EU region). gh-aw appends /v1/traces itself.
+    endpoint: https://cloud.langfuse.com/api/public/otel
+    headers:
+      Authorization: Basic ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
+      x-langfuse-ingestion-version: "4"
+    attributes:
+      langfuse.trace.name: dependabot-security-maintainer
+      langfuse.session.id: "{{ gh-aw.episode.id }}"
+      langfuse.user.id: "{{ github.actor }}"
+
 network:
   allowed:
     - defaults
