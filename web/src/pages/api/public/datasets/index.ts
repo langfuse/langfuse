@@ -39,6 +39,8 @@ export default withMiddlewares({
     fn: async ({ query, auth }) =>
       await listDatasetsByProjectForApi({
         projectId: auth.scope.projectId,
+        fromTimestamp: query.fromTimestamp,
+        toTimestamp: query.toTimestamp,
         page: query.page,
         limit: query.limit,
       }),

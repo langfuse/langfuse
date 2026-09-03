@@ -380,11 +380,33 @@ export const getDatasetByIdForApi = async ({
 
 export const listDatasetsByProjectForApi = async ({
   projectId,
+  fromTimestamp,
+  toTimestamp,
   page,
   limit,
 }: ListDatasetsV1Input) => {
   const shouldReadLegacyDatasetRuns =
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
+
+  // Build the time-window filter on `createdAt`. Both params are independently
+  // optional; together they form a half-open `[fromTimestamp, toTimestamp)`
+  // range. The window composes with the existing project scope — it can only
+  // narrow the result set, never widen it.
+  const createdAtFilter =
+    fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: new Date(fromTimestamp) } : {}),
+            ...(toTimestamp ? { lt: new Date(toTimestamp) } : {}),
+          },
+        }
+      : {};
+
+  const where: Prisma.DatasetWhereInput = {
+    projectId,
+    ...createdAtFilter,
+  };
+
   const datasets = await prisma.dataset.findMany({
     select: {
       name: true,
@@ -407,7 +429,7 @@ export const listDatasetsByProjectForApi = async ({
           }
         : {}),
     },
-    where: { projectId },
+    where,
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     take: limit,
     skip: (page - 1) * limit,
@@ -432,7 +454,7 @@ export const listDatasetsByProjectForApi = async ({
   }
 
   const totalItems = await prisma.dataset.count({
-    where: { projectId },
+    where,
   });
 
   return {
