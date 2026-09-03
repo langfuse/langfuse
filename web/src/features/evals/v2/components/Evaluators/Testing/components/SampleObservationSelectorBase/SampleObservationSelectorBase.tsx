@@ -103,18 +103,6 @@ const EXAMPLES = [
       },
     ] satisfies FilterState,
   },
-  {
-    label: "Datasets",
-    icon: Database,
-    filters: [
-      {
-        column: "experimentDatasetId",
-        type: "null",
-        operator: "is not null",
-        value: "",
-      },
-    ] satisfies FilterState,
-  },
 ] as const;
 
 function timeFilters(range: AbsoluteTimeRange | null): FilterState {
@@ -204,6 +192,26 @@ export function SampleObservationSelectorBase(
     },
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
+  const examples = useMemo(() => {
+    const firstDataset = datasetOptions[0];
+    return firstDataset
+      ? [
+          ...EXAMPLES,
+          {
+            label: "Datasets",
+            icon: Database,
+            filters: [
+              {
+                column: "experimentDatasetId",
+                type: "stringOptions",
+                operator: "any of",
+                value: [firstDataset.id],
+              },
+            ] satisfies FilterState,
+          },
+        ]
+      : EXAMPLES;
+  }, [datasetOptions]);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -531,7 +539,7 @@ export function SampleObservationSelectorBase(
         )}
         {filterMode === "query" ? (
           <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((example) => (
+            {examples.map((example) => (
               <Button
                 key={example.label}
                 type="button"
