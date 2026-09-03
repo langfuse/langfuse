@@ -79,6 +79,27 @@ const ResetPasswordTemplate = ({
   );
 };
 
+const SETUP_PASSWORD_PATH = "/auth/setup-password";
+
+/*
+ * NextAuth only hands this function the verification URL, which carries the
+ * sign-in `callbackUrl` percent-encoded in its query string. That destination
+ * is therefore the only signal for which flow asked for the code, and it
+ * selects the email copy only — never an authorization decision.
+ */
+function isSetupPasswordFlow(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const callbackUrl = new URL(url).searchParams.get("callbackUrl");
+    if (!callbackUrl) return false;
+    // Relative callback URLs need a base to parse; the origin is irrelevant here.
+    const { pathname } = new URL(callbackUrl, "http://localhost");
+    return pathname.replace(/\/+$/, "").endsWith(SETUP_PASSWORD_PATH);
+  } catch {
+    return false;
+  }
+}
+
 export async function sendResetPasswordVerificationRequest(
   params: SendVerificationRequestParams,
 ) {
@@ -86,8 +107,7 @@ export async function sendResetPasswordVerificationRequest(
     params as SendVerificationRequestParams & { token: string };
   const transport = createMailTransport(provider.server as string);
 
-  // Detect if this is a setup-password flow (signup email verification)
-  const isSetupMode = url?.includes("/auth/setup-password") ?? false;
+  const isSetupMode = isSetupPasswordFlow(url);
 
   const htmlTemplate = await render(
     <ResetPasswordTemplate token={token} isSetupMode={isSetupMode} />,

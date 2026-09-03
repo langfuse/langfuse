@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";

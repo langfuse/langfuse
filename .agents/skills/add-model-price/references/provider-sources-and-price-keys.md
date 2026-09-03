@@ -48,6 +48,22 @@ Always fetch pricing from the provider's official docs before editing.
   and the pricing file but is NOT listed on the official AI Studio pricing page as of
   June 2026. Its prices ($2.00/≤200k, $4.00/>200k input; $12.00/$18.00 output) were
   set when the model was first added; do not update without explicit official evidence.
+- **`gemini-3-pro-preview` and `gemini-3.1-flash-lite-preview` confirmed shut down
+  (found September 3 2026)** — A targeted fetch of
+  `https://ai.google.dev/gemini-api/docs/models` (its "Previous models" section) shows
+  both explicitly labeled: "Gemini 3 Pro Preview (Shut down)" and "Gemini 3.1
+  Flash-Lite Preview (Shut down)". Neither has a pricing row on
+  `https://ai.google.dev/pricing` (confirmed again this run; `gemini-3.1-flash-lite`,
+  without "Preview", does have a current row and is unaffected). This resolves the
+  long-standing "still not listed" ambiguity in prior audits' unresolved findings —
+  both are now confirmed retired, not merely undocumented previews. Per the
+  automated-audit scope (adding/pricing changes only, no removal category is
+  authorized), the pricing entries were left in place unchanged since historical
+  traces that already used these model IDs still need cost lookups, and the
+  selectable-model-list entries in `types.ts` were also left in place and reported
+  as an unresolved finding rather than removed — a future task that explicitly asks
+  to prune shut-down selectable models should remove them from `vertexAIModels` /
+  `googleAIStudioModels` while keeping the pricing JSON entries intact.
 - **Gemini cache-read ratio** — Google Gemini models consistently price cached input at
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
   cached). If a cache-read price in the file diverges from this ratio, treat it as
