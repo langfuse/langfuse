@@ -198,4 +198,112 @@ describe("matchesTriggerFilter", () => {
       ).toBe(true);
     });
   });
+
+  describe("prompt label filters (arrayOptions)", () => {
+    const productionAnyOf: FilterState = [
+      {
+        type: "arrayOptions",
+        column: "Labels",
+        operator: "any of",
+        value: ["production"],
+      },
+    ];
+
+    it("matches any-of when the version carries the selected label", () => {
+      expect(
+        matchesTriggerFilter(
+          {
+            Name: "checkout",
+            Labels: ["latest", "production"],
+            action: "created",
+          },
+          { id: "trig-prompt", filter: productionAnyOf, eventActions: [] },
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects any-of when the version does not carry the selected label", () => {
+      expect(
+        matchesTriggerFilter(
+          { Name: "checkout", Labels: ["staging"], action: "created" },
+          { id: "trig-prompt", filter: productionAnyOf, eventActions: [] },
+        ),
+      ).toBe(false);
+    });
+
+    it("rejects any-of when the version has no labels", () => {
+      expect(
+        matchesTriggerFilter(
+          { Name: "checkout", Labels: [], action: "created" },
+          { id: "trig-prompt", filter: productionAnyOf, eventActions: [] },
+        ),
+      ).toBe(false);
+    });
+
+    it("matches all-of only when every selected label is present", () => {
+      const allOf: FilterState = [
+        {
+          type: "arrayOptions",
+          column: "Labels",
+          operator: "all of",
+          value: ["production", "latest"],
+        },
+      ];
+
+      expect(
+        matchesTriggerFilter(
+          {
+            Name: "checkout",
+            Labels: ["production", "latest"],
+            action: "updated",
+          },
+          { id: "trig-prompt", filter: allOf, eventActions: [] },
+        ),
+      ).toBe(true);
+
+      expect(
+        matchesTriggerFilter(
+          { Name: "checkout", Labels: ["production"], action: "updated" },
+          { id: "trig-prompt", filter: allOf, eventActions: [] },
+        ),
+      ).toBe(false);
+    });
+
+    it("ANDs label filter with prompt name filter", () => {
+      const filter: FilterState = [
+        { type: "string", column: "Name", operator: "=", value: "checkout" },
+        {
+          type: "arrayOptions",
+          column: "Labels",
+          operator: "any of",
+          value: ["production"],
+        },
+      ];
+
+      expect(
+        matchesTriggerFilter(
+          {
+            Name: "checkout",
+            Labels: ["production"],
+            action: "created",
+          },
+          { id: "trig-prompt", filter, eventActions: ["created"] },
+        ),
+      ).toBe(true);
+
+      expect(
+        matchesTriggerFilter(
+          { Name: "other", Labels: ["production"], action: "created" },
+          { id: "trig-prompt", filter, eventActions: ["created"] },
+        ),
+      ).toBe(false);
+
+      expect(
+        matchesTriggerFilter(
+          { Name: "checkout", Labels: ["staging"], action: "created" },
+          { id: "trig-prompt", filter, eventActions: ["created"] },
+        ),
+      ).toBe(false);
+    });
+  });
 });

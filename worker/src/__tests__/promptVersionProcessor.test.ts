@@ -83,10 +83,112 @@ describe("promptVersionChangeWorker", () => {
       event: { promptName: "target-prompt", action: "created" as const },
       expected: 0,
     },
+    {
+      description:
+        "should execute when label any-of filter matches the saved version",
+      trigger: {
+        eventActions: ["created"],
+        nameFilter: null,
+        labelFilter: { operator: "any of" as const, value: ["production"] },
+      },
+      event: {
+        promptName: "test-prompt",
+        action: "created" as const,
+        labels: ["latest", "production"],
+      },
+      expected: 1,
+    },
+    {
+      description: "should not execute when label any-of filter does not match",
+      trigger: {
+        eventActions: ["created"],
+        nameFilter: null,
+        labelFilter: { operator: "any of" as const, value: ["production"] },
+      },
+      event: {
+        promptName: "test-prompt",
+        action: "created" as const,
+        labels: ["staging"],
+      },
+      expected: 0,
+    },
+    {
+      description:
+        "should not execute label any-of against an unlabelled version",
+      trigger: {
+        eventActions: ["created"],
+        nameFilter: null,
+        labelFilter: { operator: "any of" as const, value: ["production"] },
+      },
+      event: { promptName: "test-prompt", action: "created" as const },
+      expected: 0,
+    },
+    {
+      description: "should execute when label all-of filter matches",
+      trigger: {
+        eventActions: ["updated"],
+        nameFilter: null,
+        labelFilter: {
+          operator: "all of" as const,
+          value: ["production", "latest"],
+        },
+      },
+      event: {
+        promptName: "test-prompt",
+        action: "updated" as const,
+        labels: ["production", "latest"],
+      },
+      expected: 1,
+    },
+    {
+      description: "should not execute when label all-of filter is incomplete",
+      trigger: {
+        eventActions: ["updated"],
+        nameFilter: null,
+        labelFilter: {
+          operator: "all of" as const,
+          value: ["production", "latest"],
+        },
+      },
+      event: {
+        promptName: "test-prompt",
+        action: "updated" as const,
+        labels: ["production"],
+      },
+      expected: 0,
+    },
+    {
+      description: "should execute when name and label filters both match",
+      trigger: {
+        eventActions: ["created"],
+        nameFilter: "target-prompt",
+        labelFilter: { operator: "any of" as const, value: ["production"] },
+      },
+      event: {
+        promptName: "target-prompt",
+        action: "created" as const,
+        labels: ["production"],
+      },
+      expected: 1,
+    },
+    {
+      description: "should not execute when name matches but labels do not",
+      trigger: {
+        eventActions: ["created"],
+        nameFilter: "target-prompt",
+        labelFilter: { operator: "any of" as const, value: ["production"] },
+      },
+      event: {
+        promptName: "target-prompt",
+        action: "created" as const,
+        labels: ["draft"],
+      },
+      expected: 0,
+    },
   ])(
     "$description",
-    async ({ trigger, event: { promptName, action }, expected }) => {
-      const { eventActions, nameFilter } = trigger;
+    async ({ trigger, event: { promptName, action, labels }, expected }) => {
+      const { eventActions, nameFilter, labelFilter } = trigger;
       const promptId = v4();
 
       const actionId = v4();
@@ -112,16 +214,28 @@ describe("promptVersionChangeWorker", () => {
           eventSource: TriggerEventSource.Prompt,
           eventActions,
           status: JobConfigState.ACTIVE,
-          filter: nameFilter
-            ? [
-                {
-                  column: "Name",
-                  operator: "=",
-                  value: nameFilter,
-                  type: "string",
-                },
-              ]
-            : [],
+          filter: [
+            ...(nameFilter
+              ? [
+                  {
+                    column: "Name",
+                    operator: "=",
+                    value: nameFilter,
+                    type: "string" as const,
+                  },
+                ]
+              : []),
+            ...(labelFilter
+              ? [
+                  {
+                    column: "Labels",
+                    operator: labelFilter.operator,
+                    value: labelFilter.value,
+                    type: "arrayOptions" as const,
+                  },
+                ]
+              : []),
+          ],
         },
       });
 
@@ -149,7 +263,7 @@ describe("promptVersionChangeWorker", () => {
           prompt: { messages: [{ role: "user", content: "Hello" }] },
           config: null,
           tags: [],
-          labels: [],
+          labels: labels ?? [],
           type: PromptType.Chat,
           isActive: true,
           createdBy: "test-user",
