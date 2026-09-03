@@ -10,6 +10,7 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
+import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
@@ -155,8 +156,6 @@ export default function ExperimentResults() {
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}
               hasBaseline={hasBaseline}
-              ioRenderMode={ioRenderMode}
-              onIoRenderModeChange={setIoRenderMode}
             />
 
             <OverviewPanelToggle
@@ -175,6 +174,12 @@ export default function ExperimentResults() {
             key={ioRenderMode}
             projectId={projectId}
             ioRenderMode={ioRenderMode}
+            settingsSections={
+              <ExperimentFormatSetting
+                ioRenderMode={ioRenderMode}
+                onIoRenderModeChange={setIoRenderMode}
+              />
+            }
           />
         }
         overviewContent={
