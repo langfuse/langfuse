@@ -67,6 +67,18 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
 
+/**
+ * A column's name for the picker: its own label before its rendered header, so
+ * a column whose header carries more than its name still reads here.
+ */
+const getColumnLabel = <TData, TValue>(
+  column: LangfuseColumnDef<TData, TValue>,
+) =>
+  column.headerLabel ??
+  (typeof column.header === "string" && column.header
+    ? column.header
+    : column.accessorKey);
+
 const calculateColumnCounts = <TData, TValue>(
   columns: LangfuseColumnDef<TData, TValue>[],
   columnVisibility: VisibilityState,
@@ -157,9 +169,7 @@ function ColumnVisibilityListItem<TData, TValue>({
                 : undefined
           }
         >
-          {column.header && typeof column.header === "string"
-            ? column.header
-            : column.accessorKey}
+          {getColumnLabel(column)}
         </label>
         {column.headerTooltip && (
           <DocPopup
@@ -227,11 +237,7 @@ function GroupVisibilityHeader<TData, TValue>({
         >
           <div className="flex items-center gap-2">
             <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-bold">
-              {column.header && typeof column.header === "string"
-                ? column.header
-                : column.accessorKey}
-            </span>
+            <span className="text-sm font-bold">{getColumnLabel(column)}</span>
             <span className="text-muted-foreground text-xs">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
