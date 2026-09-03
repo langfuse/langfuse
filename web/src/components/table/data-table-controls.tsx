@@ -35,7 +35,6 @@ import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
@@ -725,7 +724,7 @@ export function DataTableControls({
       onKeyDownCapture={noteFacetInteraction}
     >
       <div className="w-full">
-        <Accordion
+        <AccordionPrimitive.Root
           type="multiple"
           value={queryFilter.expanded}
           onValueChange={(next) => {
@@ -778,7 +777,7 @@ export function DataTableControls({
             );
             return nodes;
           })}
-        </Accordion>
+        </AccordionPrimitive.Root>
       </div>
 
       {/* Nothing matched — including any facet currently filtering, which the
