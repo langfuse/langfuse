@@ -57,7 +57,7 @@ function getProjectId(
   headers: IncomingHttpHeaders,
 ): ResolvedProject | ErrorResult<InvalidRequestError> {
   const boundProjectId = boundProjectIdOf(context);
-  const header = headerValue(headers[projectIdHeader]);
+  const header = headerValue(headers[projectIdHeader]) || undefined;
   if (header && boundProjectId && header !== boundProjectId) {
     return {
       success: false,

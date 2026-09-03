@@ -42,6 +42,12 @@ describe("getProjectId", () => {
       projectId: PRJ,
     });
   });
+  it("resolves the bound project when the header is blank", () => {
+    expect(getProjectId(projectKey(), { [projectIdHeader]: "" })).toEqual({
+      success: true,
+      projectId: PRJ,
+    });
+  });
   it("resolves an unbound principal from the header", () => {
     expect(getProjectId(orgKey(), { [projectIdHeader]: PRJ })).toEqual({
       success: true,
