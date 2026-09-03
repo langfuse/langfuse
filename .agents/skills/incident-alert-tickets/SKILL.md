@@ -85,43 +85,45 @@ signals and classify:
   investigation before any Datadog sweep.
 - **New cause on existing ticket** — the monitor has a ticket but no section
   matches the evidence. Propose appending a dated section.
-- **No ticket** — no ticket matches the monitor. Propose creating one.
+- **No ticket** — no ticket matches the monitor. Propose creating one, and file
+  it once that is approved.
 
 Treat a partial match — some "Recognize it" signals fit, others do not — as a
 **new cause**, never as a known one: do not recommend a documented "Fix"
 whose recognition signals only partially match. Name the near-miss section in
-the draft so the human can judge the overlap.
+the proposed ticket so the human can judge the overlap.
 
 ## Write-Back
 
 Appending a cause section to a ticket that already exists is a description edit,
-which agents do autonomously. Creating a new ticket is not — see
-`linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin
-for the policy this follows, and read it before your first write.
+which agents do autonomously. A monitor with no ticket needs a parentless one,
+which is the single write that asks first — see `linear-agent-writes` in the
+private `langfuse/langfuse-internal-skills` plugin for the policy this follows,
+and read it before your first write.
 
 - **Append: do it.** Insert the new `---`-separated dated block after the
   existing cause sections, above the `Your cause is not listed?` trailer; leave
   everything else untouched. Mark the block as agent-written in its own text and
   label the ticket `AI edited`. Never reflow or rewrite the human-written prose
   around it.
-- **Create: draft it, do not create it.** Agents may create subtickets of an
-  existing ticket only, and a monitor with no ticket has no parent. Draft the
-  issue — title `[ENV] <Monitor title>`, the `incident-alert` label, description
-  = alert header, the first dated cause section, and the `Your cause is not
-  listed?` trailer — and hand it back for a human to file.
+- **Create: show it, then file it.** Prepare the issue — title
+  `[ENV] <Monitor title>`, the `incident-alert` label, description = alert header,
+  the first dated cause section, and the `Your cause is not listed?` trailer —
+  show it for a go-ahead, and once you have one, create it yourself and label it
+  `AI created`. One go-ahead covers the whole run's proposed tickets.
 
 Report what you did either way:
 
 | ID | Alert / Monitor | Classification | Action | Content |
 | --- | --- | --- | --- | --- |
 
-- `Action`: `appended to LFE-XXXX (AI edited)`, `needs a human to file`, or
-  `none (known cause)`.
-- `Content`: the dated section, or the full drafted ticket body exactly as it
-  should be filed.
+- `Action`: `appended to <key> (AI edited)`, `awaiting your go-ahead`,
+  `filed <key> (AI created)`, or `none (known cause)`.
+- `Content`: the dated section, or the full ticket body exactly as it will be
+  filed — that text is what the go-ahead is given against.
 
-If Linear is unreachable in this environment, say so and return every row as a
-draft rather than skipping the write-back silently.
+If Linear is unreachable in this environment, say so and return every row as text
+ready to paste rather than skipping the write-back silently.
 
 ## Division of Labor
 

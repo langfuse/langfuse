@@ -59,18 +59,21 @@ keep correct. In summary, a skill may:
 1. **Comment**, only when a human must be told something now.
 2. **Edit a description**, adding a clearly separated agent block that never
    rewrites the human's prose. This is where durable context belongs.
-3. **Create a subticket of an existing ticket**, while planning work.
+3. **Create a ticket** — a subticket of an existing ticket needs no permission; a
+   ticket with no parent needs the human's yes first, and then the skill files it
+   itself.
 
 Assigning, moving state, closing, estimating, re-prioritising, deleting,
-top-level issues, projects, and new labels still belong to a human. A skill that
-wants one of those must surface it as a suggestion in its output.
+projects, and new labels still belong to a human. A skill that wants one of those
+must surface it as a suggestion in its output.
 
 Two consequences worth designing for:
 
-- **A skill has no way to file a finding that has no parent ticket.** Shape 3
-  covers subtickets only, so a sweep over a queue or a monitor cannot create a
-  top-level ticket per finding. Write such skills to comment evidence onto
-  tickets that already exist and to present the rest as suggestions.
+- **A finding with no parent ticket is the one write that asks first.** Design a
+  skill that reviews a whole queue to present its filings as a table and take
+  **one** go-ahead for the set — or for named rows — then file them and report
+  what it filed. Asking per ticket, or handing back text for someone to paste, is
+  the cost this policy exists to remove.
 - **State that the write happened.** Because the tracker's API authenticates as
   the human who configured it, an unmarked agent write is indistinguishable from
   something that person typed. Require the skill to mark authorship in the text,

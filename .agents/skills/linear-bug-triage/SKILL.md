@@ -8,29 +8,30 @@ description: |
 # Linear Bug Triage
 
 Use this skill after a bug or regression candidate has measured evidence. This
-skill owns Linear search, deduplication, evidence comments, and drafting new
-issues for a human to file; the calling skill owns deciding whether the signal is
-issue-worthy.
+skill owns Linear search, deduplication, evidence comments, and filing new
+issues once a human says yes; the calling skill owns deciding whether the signal
+is issue-worthy.
 
 ## What This Skill May Write
 
-There is no approval gate before a write. The guardrail is that every write
-carries a label and is marked as agent-written in the text, and that only three
-write shapes are permitted at all. The `linear-agent-writes` skill in the private
-`langfuse/langfuse-internal-skills` plugin is the authority for that policy; read
-it before your first write and prefer it over this summary wherever they differ.
+Every write carries a label and is marked as agent-written in the text, and only
+three write shapes are permitted at all. The `linear-agent-writes` skill in the
+private `langfuse/langfuse-internal-skills` plugin is the authority for that
+policy; read it before your first write and prefer it over this summary wherever
+they differ.
 
 For this skill it resolves to:
 
 - **An evidence comment on an issue that already exists: just do it.** Label that
   issue `AI commented` and say in the comment body that an agent wrote it. This
   is the common case and needs nobody's permission.
-- **A new top-level issue: you cannot create one.** Agents may create subtickets
-  of an existing ticket only. A bug cluster surfaced by a sweep has no parent, so
-  no permitted shape covers it.
+- **A new top-level issue: ask once, then file it.** A bug cluster surfaced by a
+  review has no parent, and a parentless ticket is the one shape that needs a
+  go-ahead. Take one go-ahead for the whole set, or for named rows — never one
+  question per candidate.
 
-So still present the findings table — not as a gate, but because the rows you
-are not allowed to file are a proposal for a human. One row per candidate:
+So present the findings table either way: it is what the go-ahead is given
+against, and it is the report afterwards. One row per candidate:
 
 - Candidate / cluster name.
 - Environments.
@@ -39,15 +40,15 @@ are not allowed to file are a proposal for a human. One row per candidate:
 - Baseline measurement.
 - Delta / regression summary.
 - Key evidence links — the ones *Required Evidence* below asks for.
-- Action taken: `commented <issue key>` for what you already did, or
-  `needs a human to file`.
+- Action: `commented <issue key>` for what you already did, `filed <issue key>`
+  once a row is approved and created, or `awaiting your go-ahead`.
 
-Never present a `needs a human to file` row without the drafted title and body
-underneath it — the whole value of the row is that it can be filed in one paste.
+Never present an `awaiting your go-ahead` row without the exact title and body
+you intend to file underneath it — that text is what is being approved.
 Deduplicate first, so comments land on the right issue.
 
 If Linear is unreachable in this environment, say so plainly and return every row
-as a draft. Do not skip the handoff silently.
+as text ready to paste. Do not skip the handoff silently.
 
 ## Required Evidence
 
@@ -76,8 +77,9 @@ Always, before writing anything:
    wording is distinctive.
 3. If a related issue exists, add a concise evidence comment to it and label it
    `AI commented`.
-4. If no related issue exists, draft the issue in the format below and put it in
-   the findings table as `needs a human to file`. Do not create it.
+4. If no related issue exists, prepare the issue in the format below and put it
+   in the findings table as `awaiting your go-ahead`. File it once the go-ahead
+   comes, and update the row to `filed <issue key>`.
 
 ## Existing Issue Comments
 
@@ -93,7 +95,7 @@ assignments, or next steps.
 
 ## New Issue Format
 
-This is the shape to **draft** for a human to file, not to create yourself:
+The shape to prepare, show for the go-ahead, and then file:
 
 - State/status `Triage`; pass the Linear state explicitly on creation and do not
   rely on workspace defaults.

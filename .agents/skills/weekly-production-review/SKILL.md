@@ -22,11 +22,11 @@ audit from the linked source rows.
   records, follow-ups, alerts, monitors, files, Slack messages, or production
   systems unless the user explicitly asks after reviewing the findings.
 - Linear is the exception: evidence may be commented onto issues that already
-  exist, labelled and marked as agent-written. New issues are drafted for a human
-  to file, never created — agents create subtickets of an existing ticket only.
-  `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin
-  is the authority; [`linear-bug-triage`](../linear-bug-triage/SKILL.md) applies
-  it to measured findings.
+  exist, labelled and marked as agent-written. A new issue has no parent, so it
+  is the one write that asks first — show the set, take one go-ahead, then file
+  them. `linear-agent-writes` in the private `langfuse/langfuse-internal-skills`
+  plugin is the authority; [`linear-bug-triage`](../linear-bug-triage/SKILL.md)
+  applies it to measured findings.
 - For chat-only reviews, avoid creating report artifacts or local analysis
   workspaces unless a required tool workflow explicitly does so or the user asks
   for a file. If incident.io analysis tooling requires a local playbook
@@ -40,8 +40,8 @@ audit from the linked source rows.
 - Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
   production Datadog query shapes and environment/site routing.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for the Linear
-  write-back: it comments measured evidence onto existing issues and drafts new
-  ones for a human to file.
+  write-back: it comments measured evidence onto existing issues, and files new
+  ones once you approve the set.
 - Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) to check
   each alert cluster against the per-monitor knowledge base and record newly
   root-caused clusters there as a labelled description edit.

@@ -24,7 +24,7 @@ Optimize the cost/performance tradeoff: run the smallest reliable container foot
 - Use exact OpenTofu math for markers. Do not mental-math `ceil(target * boundary)` because Terraform float behavior can produce off-by-one results.
 - For `web` and `web-iso`, do not reduce RPM per container solely because service latency is high. First inspect full APM traces, including ClickHouse spans, to distinguish container saturation from database-bound requests.
 - If slow `web-iso` traces are dominated by ClickHouse child spans, do not lower RPM targets as the primary fix. Lowering RPM changes web-container scaling and request distribution, but it does not reduce ClickHouse query cost, total query workload, or an individual long-running query duration.
-- If scaling should be adjusted, create or update a GitHub PR. For the Linear follow-up, comment the evidence onto a ticket that already exists and label it; draft a new ticket for a human to file rather than creating one, and never assign it. Step 8 has the detail.
+- If scaling should be adjusted, create or update a GitHub PR. For the Linear follow-up, comment the evidence onto a ticket that already exists and label it; a new ticket has no parent, so show it and file it once that is approved, and never assign it. Step 8 has the detail.
 
 ## Files
 
@@ -211,14 +211,14 @@ Run a full plan only when credentials and workspace setup are available or the u
 
 - Trigger this when the recommendation table contains at least one concrete scaling change, or when Terraform scaling settings were edited. Do not create a ticket for an all-`No change` review unless the user explicitly asks.
 - Ensure there is a GitHub PR for the scaling change. If no PR exists yet, create one. Include the recommendation summary, validation, and rollout risks in the PR body.
-- Linear writes need no approval first, but only three shapes are permitted and each must be labelled and marked as agent-written. `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin is the authority; read it before your first write. For this skill: **adding evidence to a ticket that already exists is yours to do** (label it `AI commented`, or `AI edited` if you put the evidence in the description); **creating a new top-level ticket is not** — agents may create subtickets of an existing ticket only.
+- Only three write shapes are permitted and each must be labelled and marked as agent-written. `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin is the authority; read it before your first write. For this skill: **adding evidence to a ticket that already exists is yours to do** (label it `AI commented`, or `AI edited` if you put the evidence in the description); **a new ticket has no parent, so it is the one write that asks first** — show the title and body, take one go-ahead, then create it and label it `AI created`.
 - Report what you wrote and what still needs a human:
 
 | ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Action | Confidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| F1 | Scaling adjustment summary | Measured evidence, trace links, PR URL, or `No measurements found` | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or `None found` | `commented <key>`, `edited <key>`, `needs a human to file` plus the drafted title and body, or `no action` | High/medium/low plus one short reason |
+| F1 | Scaling adjustment summary | Measured evidence, trace links, PR URL, or `No measurements found` | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or `None found` | `commented <key>`, `edited <key>`, `awaiting your go-ahead` plus the exact title and body, `filed <key>`, or `no action` | High/medium/low plus one short reason |
 
-- Draft one ticket for the scaling adjustment, not one per region, unless the user requests separate tickets. Never leave a `needs a human to file` row without the full body, so it can be filed in one paste.
+- One ticket for the scaling adjustment, not one per region, unless the user requests separate tickets. Never leave an `awaiting your go-ahead` row without the full body — that text is what is being approved.
 - Do not assign an owner, move state, close, or re-prioritise — those stay with a human. Surface them as suggestions, and never propose an assignee the user did not name.
 - Include the full skill output in the ticket description: recommendation table, measured evidence, trace interpretation, proposed or applied Terraform changes, marker math, validation results, plan status, PR URL, and known rollout risks.
 - Put the PR URL in the Linear ticket. Do not put the ticket identifier or its URL in the PR body or a PR comment — this repo keeps those out of published artifacts; the branch name carries the link.
