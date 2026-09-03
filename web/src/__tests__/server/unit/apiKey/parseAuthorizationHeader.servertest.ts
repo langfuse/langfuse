@@ -36,4 +36,10 @@ describe("parseAuthorizationHeader", () => {
       kind: "malformed",
     });
   });
+
+  it("an invalid base64 Basic payload is malformed", () => {
+    expect(parseAuthorizationHeader("Basic !!!invalid!!!")).toEqual({
+      kind: "malformed",
+    });
+  });
 });

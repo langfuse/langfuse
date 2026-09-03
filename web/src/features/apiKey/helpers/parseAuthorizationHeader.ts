@@ -29,7 +29,13 @@ export function parseAuthorizationHeader(
 function decodeBasic(
   encoded: string,
 ): { publicKey: string; secretKey: string } | undefined {
-  const [publicKey, secretKey] = atob(encoded).split(":");
+  let decoded: string;
+  try {
+    decoded = atob(encoded);
+  } catch {
+    return undefined;
+  }
+  const [publicKey, secretKey] = decoded.split(":");
   if (!publicKey || !secretKey) return undefined;
   return { publicKey, secretKey };
 }
