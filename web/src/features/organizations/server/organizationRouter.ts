@@ -11,7 +11,7 @@ import {
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   getLastTraceTimestampsByProjects,
   isLangfuseAITracingConfigured,

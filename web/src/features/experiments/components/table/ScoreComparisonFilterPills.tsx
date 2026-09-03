@@ -29,8 +29,6 @@ export const ScoreComparisonFilterPills = ({
   pills: ScoreComparisonPill[];
   onRemove: (filter: ScoreComparisonFilter) => void;
 }) => {
-  if (pills.length === 0) return null;
-
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b px-2 py-2">
       {pills.map(({ filter, scoreName, comparisonName }) => {

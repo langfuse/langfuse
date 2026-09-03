@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { traceSpaceOf } from "./viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
+  LABELLED_ROW_HEIGHT,
   anchorTimeToRows,
+  canExpandRowsToReadable,
+  expandRowsToReadable,
   MAX_ROW_HEIGHT,
   MIN_ROW_HEIGHT,
   clampViewport,
@@ -10,6 +13,7 @@ import {
   focusViewport,
   isViewportFitted,
   panViewport,
+  presentationForRowHeight,
   revealViewport,
   rowHeightOf,
   viewportsEqual,
@@ -17,6 +21,7 @@ import {
   visibleRowRange,
   zoomToBox,
   zoomViewport,
+  zoomViewportRevealLabels,
   type Viewport,
 } from "./viewport";
 
@@ -64,6 +69,110 @@ describe("viewport", () => {
       yRatio: 0.5,
     });
     expect(rowHeightOf(zoomedIn, 600)).toBeCloseTo(MAX_ROW_HEIGHT, 6);
+  });
+
+  it("expands rows to a readable height without narrowing the clock", () => {
+    const fitted = fitViewport(limits);
+    expect(rowHeightOf(fitted, limits.boxHeight)).toBe(MIN_ROW_HEIGHT);
+    expect(canExpandRowsToReadable(fitted, limits)).toBe(true);
+    expect(presentationForRowHeight(MIN_ROW_HEIGHT)).toBe("hairline");
+
+    const expanded = expandRowsToReadable(fitted, limits);
+    expect(rowHeightOf(expanded, limits.boxHeight)).toBeCloseTo(
+      HUMAN_ROW_HEIGHT,
+      6,
+    );
+    expect(expanded.time).toEqual(limits.traceSpace);
+    expect(expanded.rows.start).toBe(0);
+    expect(isViewportFitted(expanded, limits)).toBe(false);
+    expect(canExpandRowsToReadable(expanded, limits)).toBe(false);
+    expect(
+      presentationForRowHeight(rowHeightOf(expanded, limits.boxHeight)),
+    ).toBe("labelled");
+
+    // A window that has been panned keeps that slice at the top.
+    const panned = {
+      ...fitted,
+      rows: { start: 800, count: fitted.rows.count },
+    };
+    const fromThere = expandRowsToReadable(panned, limits);
+    expect(fromThere.rows.start).toBeCloseTo(800, 6);
+    expect(fromThere.time).toEqual(panned.time);
+
+    // A clock that has already been sliced stays sliced; only the rows grow.
+    const narrowed = zoomViewport(fitted, limits, {
+      factor: 2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+      axes: "x",
+    });
+    expect(canExpandRowsToReadable(narrowed, limits)).toBe(true);
+    const expandedClock = expandRowsToReadable(narrowed, limits);
+    expect(expandedClock.time).toEqual(narrowed.time);
+    expect(rowHeightOf(expandedClock, limits.boxHeight)).toBeCloseTo(
+      HUMAN_ROW_HEIGHT,
+      6,
+    );
+
+    // A short trace already sits at the human height — nothing to grow.
+    const short = { ...limits, rowCount: 12 };
+    const shortFit = fitViewport(short);
+    expect(canExpandRowsToReadable(shortFit, short)).toBe(false);
+    expect(expandRowsToReadable(shortFit, short)).toEqual(shortFit);
+  });
+
+  it("zooms only the rows when labels are still hidden", () => {
+    const fitted = fitViewport(limits);
+    const yOnly = zoomViewport(fitted, limits, {
+      factor: 2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+      axes: "y",
+    });
+    expect(yOnly.time).toEqual(fitted.time);
+    expect(yOnly.rows.count).toBeCloseTo(300, 6);
+    expect(rowHeightOf(yOnly, limits.boxHeight)).toBeCloseTo(2, 6);
+
+    // Incremental zoom-in stays on Y until a label would fit.
+    const reveal = zoomViewportRevealLabels(fitted, limits, {
+      factor: 2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(reveal.time).toEqual(fitted.time);
+    expect(rowHeightOf(reveal, limits.boxHeight)).toBeCloseTo(2, 6);
+
+    // A factor large enough to cross the labelled threshold spends the rest
+    // on both axes — otherwise a batched pinch would leave the clock full.
+    const crossing = zoomViewportRevealLabels(fitted, limits, {
+      factor: LABELLED_ROW_HEIGHT * 1.2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(rowHeightOf(crossing, limits.boxHeight)).toBeGreaterThanOrEqual(
+      LABELLED_ROW_HEIGHT,
+    );
+    expect(crossing.time.duration).toBeCloseTo(fitted.time.duration / 1.2, 6);
+
+    const labelled = expandRowsToReadable(fitted, limits);
+    const both = zoomViewportRevealLabels(labelled, limits, {
+      factor: 1.2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(both.time.duration).toBeCloseTo(labelled.time.duration / 1.2, 6);
+    expect(both.rows.count).toBeCloseTo(labelled.rows.count / 1.2, 6);
+
+    // Zooming out from the hairline is a no-op on time (already full) and
+    // cannot shrink the rows below the floor.
+    const out = zoomViewportRevealLabels(fitted, limits, {
+      factor: 0.5,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(out.time).toEqual(fitted.time);
+    expect(rowHeightOf(out, limits.boxHeight)).toBeCloseTo(MIN_ROW_HEIGHT, 6);
+    expect(LABELLED_ROW_HEIGHT).toBe(20);
   });
 
   it("zooms both axes about the anchor and holds the content under it", () => {

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { ChevronRight, ChevronDown, Wrench } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";

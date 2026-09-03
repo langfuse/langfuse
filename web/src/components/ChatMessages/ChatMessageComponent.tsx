@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
 import {

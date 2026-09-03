@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Zap } from "lucide-react";

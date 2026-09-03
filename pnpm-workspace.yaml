@@ -84,7 +84,7 @@ overrides:
   "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.15.2
+  qs: 6.16.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
@@ -134,3 +134,4 @@ minimumReleaseAgeExclude:
   - '@next/swc-win32-arm64-msvc@16.3.3'
   - '@next/swc-win32-x64-msvc@16.3.3'
   - next@16.3.3
+  - qs@6.16.0
