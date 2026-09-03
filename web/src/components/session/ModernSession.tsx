@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
-import { SessionConversationTimelineTurn } from "@/src/components/session/SessionConversationTimeline";
+import { ConnectedSessionConversationTimeline } from "@/src/components/session/ConnectedSessionConversationTimeline";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
@@ -435,7 +435,7 @@ export function ModernSession({
               if (!trace) return null;
 
               const content = (
-                <SessionConversationTimelineTurn
+                <ConnectedSessionConversationTimeline
                   trace={trace}
                   projectId={projectId}
                   sessionId={sessionId}

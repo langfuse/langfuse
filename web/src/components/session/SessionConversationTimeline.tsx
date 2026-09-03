@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { type FilterState } from "@langfuse/shared";
 import {
   normalizeSpanIO,
   type NormalizedMessage,
@@ -7,14 +6,23 @@ import {
 
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
-import { getVisibleSessionObservations } from "@/src/components/session/sessionVisibleObservations";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type SessionObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
+
+type SessionConversationTimelineState =
+  | { type: "loading" }
+  | { type: "error" }
+  | { type: "empty"; message: string }
+  | {
+      type: "loaded";
+      observations: readonly SessionObservation[];
+      hasMoreObservations: boolean;
+    };
 
 const toPreviewText = (value: unknown) =>
   typeof value === "string" ? value : JSON.stringify(value, undefined, 2);
@@ -56,7 +64,7 @@ function TruncatedObservation({
   );
 }
 
-export function SessionTimelineObservation({
+function SessionTimelineObservation({
   observation,
   showSystemPrompt,
   onOpenInTraceView,
@@ -159,51 +167,26 @@ export function SessionTimelineObservation({
   );
 }
 
-export function SessionConversationTimelineTurn({
+export function SessionConversationTimeline({
   trace,
-  projectId,
-  sessionId,
-  filterState,
-  viewLabel,
+  state,
   showSystemPrompt,
-  openPeek,
+  onOpenTrace,
+  onOpenObservation,
 }: {
   trace: EventSessionTrace;
-  projectId: string;
-  sessionId: string;
-  filterState: FilterState;
-  viewLabel: string | null;
+  state: SessionConversationTimelineState;
   showSystemPrompt: boolean;
-  openPeek: (
-    id: string,
-    row: EventSessionTrace & { observationId?: string },
-  ) => void;
+  onOpenTrace: () => void;
+  onOpenObservation: (observationId: string) => void;
 }) {
-  const observationsQuery =
-    api.sessions.observationsForTraceFromEvents.useQuery(
-      { projectId, sessionId, traceId: trace.id, filter: filterState },
-      {
-        enabled: Boolean(trace.id),
-        trpc: { context: { skipBatch: true } },
-        staleTime: 60 * 1000,
-      },
-    );
-  const observationsData = observationsQuery.data as
-    | RouterOutputs["sessions"]["observationsForTraceFromEvents"]
-    | {
-        observations?: RouterOutputs["sessions"]["observationsForTraceFromEvents"];
-      }
-    | undefined;
-  const { visibleObservations, hasMoreObservations } =
-    getVisibleSessionObservations(observationsData, trace.id);
-
   return (
     <div className="px-4 pb-12 sm:px-6 lg:px-10">
       <div className="bg-card/95 sticky top-0 z-10 -mx-4 mb-5 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
         <button
           type="button"
           className="group flex min-w-0 items-center gap-2 text-left"
-          onClick={() => openPeek(trace.id, trace)}
+          onClick={onOpenTrace}
         >
           <ItemBadge type="TRACE" isSmall />
           <span
@@ -224,41 +207,35 @@ export function SessionConversationTimelineTurn({
         </time>
       </div>
 
-      {observationsQuery.isLoading ? (
+      {state.type === "loading" ? (
         <JsonSkeleton className="h-64 w-full" numRows={8} />
-      ) : observationsQuery.isError ? (
-        <div className="text-destructive rounded-lg border p-4 text-xs">
+      ) : state.type === "error" ? (
+        <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
           Failed to load observations.
         </div>
-      ) : visibleObservations && visibleObservations.length > 0 ? (
+      ) : state.type === "empty" ? (
+        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-xs">
+          {state.message}
+        </div>
+      ) : (
         <div className="flex flex-col gap-8">
-          {visibleObservations.map((observation) => (
+          {state.observations.map((observation) => (
             <SessionTimelineObservation
               key={observation.id}
               observation={observation}
               showSystemPrompt={showSystemPrompt}
-              onOpenInTraceView={() =>
-                openPeek(trace.id, { ...trace, observationId: observation.id })
-              }
+              onOpenInTraceView={() => onOpenObservation(observation.id)}
             />
           ))}
-          {hasMoreObservations ? (
+          {state.hasMoreObservations ? (
             <button
               type="button"
               className="text-primary self-start text-xs underline underline-offset-2"
-              onClick={() => openPeek(trace.id, trace)}
+              onClick={onOpenTrace}
             >
               Open the trace to see remaining observations
             </button>
           ) : null}
-        </div>
-      ) : (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-xs">
-          {filterState.length === 0
-            ? "This trace has no observations."
-            : viewLabel
-              ? `No observation matches the “${viewLabel}” view in this trace.`
-              : "No observation matches the current filters in this trace."}
         </div>
       )}
     </div>

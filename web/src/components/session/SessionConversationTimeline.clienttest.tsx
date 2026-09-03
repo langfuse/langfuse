@@ -19,12 +19,23 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
   LangfuseMediaView: () => <div>Media</div>,
 }));
 
-import { SessionTimelineObservation } from "@/src/components/session/SessionConversationTimeline";
+import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
 
-type Observation = ComponentProps<
-  typeof SessionTimelineObservation
->["observation"];
+type TimelineProps = ComponentProps<typeof SessionConversationTimeline>;
+type LoadedState = Extract<TimelineProps["state"], { type: "loaded" }>;
+type Observation = LoadedState["observations"][number];
+
+const trace = {
+  id: "trace-1",
+  name: "Answer question",
+  timestamp: new Date("2026-01-01T12:00:00.000Z"),
+  environment: "production",
+  userId: "user-1",
+  observationCount: 1,
+  latencyMs: 1000,
+  scores: [],
+} satisfies TimelineProps["trace"];
 
 const observation = {
   id: "observation-1",
@@ -49,15 +60,32 @@ const observation = {
   metadataTruncated: false,
 } as unknown as Observation;
 
+const renderTimeline = ({
+  timelineObservation = observation,
+  showSystemPrompt = true,
+  onOpenObservation = vi.fn(),
+}: {
+  timelineObservation?: Observation;
+  showSystemPrompt?: boolean;
+  onOpenObservation?: (observationId: string) => void;
+} = {}) =>
+  render(
+    <SessionConversationTimeline
+      trace={trace}
+      state={{
+        type: "loaded",
+        observations: [timelineObservation],
+        hasMoreObservations: false,
+      }}
+      showSystemPrompt={showSystemPrompt}
+      onOpenTrace={vi.fn()}
+      onOpenObservation={onOpenObservation}
+    />,
+  );
+
 describe("SessionConversationTimeline", () => {
   it("renders observation messages produced by the normalized parser", () => {
-    render(
-      <SessionTimelineObservation
-        observation={observation}
-        showSystemPrompt={true}
-        onOpenInTraceView={vi.fn()}
-      />,
-    );
+    renderTimeline();
 
     expect(screen.getByText("User")).toBeInTheDocument();
     expect(screen.getByText("How does it work?")).toBeInTheDocument();
@@ -116,30 +144,23 @@ describe("SessionConversationTimeline", () => {
   });
 
   it("hides system messages when the display option is disabled", () => {
-    render(
-      <SessionTimelineObservation
-        observation={{
-          ...observation,
-          input: [{ role: "system", content: "Secret prompt" }],
-          output: null,
-        }}
-        showSystemPrompt={false}
-        onOpenInTraceView={vi.fn()}
-      />,
-    );
+    renderTimeline({
+      timelineObservation: {
+        ...observation,
+        input: [{ role: "system", content: "Secret prompt" }],
+        output: null,
+      },
+      showSystemPrompt: false,
+    });
 
     expect(screen.queryByText("Secret prompt")).not.toBeInTheDocument();
     expect(screen.getByText("No conversational content")).toBeInTheDocument();
   });
 
   it("reports omitted metadata while preserving parsed messages", () => {
-    render(
-      <SessionTimelineObservation
-        observation={{ ...observation, metadataTruncated: true }}
-        showSystemPrompt={true}
-        onOpenInTraceView={vi.fn()}
-      />,
-    );
+    renderTimeline({
+      timelineObservation: { ...observation, metadataTruncated: true },
+    });
 
     expect(
       screen.getByText(/Metadata was omitted because it is too large/i),
@@ -148,34 +169,24 @@ describe("SessionConversationTimeline", () => {
   });
 
   it("keeps falsy values in truncated observation previews", () => {
-    render(
-      <SessionTimelineObservation
-        observation={{
-          ...observation,
-          input: 0,
-          output: false,
-          outputTruncated: true,
-        }}
-        showSystemPrompt={true}
-        onOpenInTraceView={vi.fn()}
-      />,
-    );
+    renderTimeline({
+      timelineObservation: {
+        ...observation,
+        input: 0,
+        output: false,
+        outputTruncated: true,
+      },
+    });
 
     expect(screen.getByText("0")).toBeInTheDocument();
     expect(screen.getByText("false")).toBeInTheDocument();
   });
 
   it("opens the source observation from its timeline label", () => {
-    const onOpenInTraceView = vi.fn();
-    render(
-      <SessionTimelineObservation
-        observation={observation}
-        showSystemPrompt={true}
-        onOpenInTraceView={onOpenInTraceView}
-      />,
-    );
+    const onOpenObservation = vi.fn();
+    renderTimeline({ onOpenObservation });
 
     fireEvent.click(screen.getByRole("button", { name: /Generate answer/i }));
-    expect(onOpenInTraceView).toHaveBeenCalledOnce();
+    expect(onOpenObservation).toHaveBeenCalledWith("observation-1");
   });
 });
