@@ -7,7 +7,6 @@ import {
   type PaginationState,
   type Table as TanStackTable,
 } from "@tanstack/react-table";
-import { Badge } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -260,21 +259,16 @@ export const ExperimentScoreMatrix = ({
                           colorStyles.markerClass,
                         )}
                       />
+                      {/* No `baseline` badge: the column is already the first
+                          one and the only one whose cells carry no delta, and
+                          the badge was the third thing competing for a 150px
+                          header. */}
                       <span
                         className="truncate font-bold"
                         title={experiment.experimentName}
                       >
                         {experiment.experimentName}
                       </span>
-                      {experiment.isBaseline && (
-                        <Badge
-                          size="sm"
-                          variant="secondary"
-                          className="shrink-0"
-                        >
-                          baseline
-                        </Badge>
-                      )}
                     </span>
                   </th>
                 );
