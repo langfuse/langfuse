@@ -5,16 +5,19 @@
  *
  * Shapes, for a single physical FROM with no JOINs (the floor extent):
  *
- *  - **row** (point-lookup / list) — attach `ORDER BY <version> DESC` (as a
- *    trailing key if the caller already ordered) and `LIMIT 1 BY <key>`.
- *  - **aggregate** (GROUP BY / HAVING / window / sum-count-avg) — wrap the
- *    FROM in a subquery that applies the row idiom first, so the aggregate
- *    sees one row per key. ClickHouse evaluates LIMIT BY *after* GROUP BY,
- *    so attaching the clause to the outer select would limit groups, not
- *    input rows.
- *  - **skip** — DISTINCT-only (already collapses), existence (`SELECT 1` /
- *    `count()` + `LIMIT 1`), CTE names, joins, tables with no spec, or an
- *    already-present LIMIT BY (the caller's explicit `$call(limitBy)`).
+ *  - **row** (point-lookup / list) — attach `ORDER BY <version> DESC` and
+ *    `LIMIT 1 BY <key>`. When the caller already ordered by another column,
+ *    wrap instead so the version sort is the LIMIT BY input order (a trailing
+ *    version key would only break ties and could keep a stale row).
+ *  - **aggregate** (GROUP BY / HAVING / window / sum-count-avg) and
+ *    **DISTINCT** — wrap the FROM in a subquery that applies the row idiom
+ *    first. ClickHouse evaluates LIMIT BY after GROUP BY / DISTINCT, so
+ *    attaching the clause to the outer select would limit groups or distinct
+ *    values, not input rows. DISTINCT does not collapse versions whose
+ *    selected columns differ, so it must wrap.
+ *  - **skip** — existence (`SELECT 1` / `count()` + `LIMIT 1`), CTE names,
+ *    joins, tables with no spec, or an already-present LIMIT BY (the
+ *    caller's explicit `$call(limitBy)`).
  *
  * `strategy: "final"` is part of the declaration vocabulary but has no
  * emitter yet; declaring it is a compile error so a forgotten implementation
@@ -116,7 +119,7 @@ function lowerSelect(
 
   const shape = classifyShape(node);
   if (shape === "skip") return node;
-  if (shape === "aggregate") return wrapAggregate(node, from, spec);
+  if (shape === "aggregate") return wrapPhysicalFrom(node, from, spec);
   return attachRowDedup(node, from, spec);
 }
 
@@ -152,8 +155,13 @@ function describeFrom(node: OperationNode): PhysicalFrom | undefined {
 type QueryShape = "row" | "aggregate" | "skip";
 
 function classifyShape(node: SelectQueryNode): QueryShape {
-  if (isDistinctOnly(node) || isExistence(node)) return "skip";
-  if (node.groupBy || node.having || hasWrappingAggregate(node)) {
+  if (isExistence(node)) return "skip";
+  if (
+    isDistinctOnly(node) ||
+    node.groupBy ||
+    node.having ||
+    hasWrappingAggregate(node)
+  ) {
     return "aggregate";
   }
   // Scalar max/min/argMax without GROUP BY already collapse versions;
@@ -221,13 +229,19 @@ function attachRowDedup(
   from: PhysicalFrom,
   spec: DedupSpec,
 ): ClickHouseSelectQueryNode {
+  // LIMIT BY keeps the first row per key in the query's full sort order.
+  // A caller ORDER BY on any other column would make the version a
+  // tiebreaker and could keep a stale row — wrap so collapse is inner.
+  if (node.orderBy && !hasLeadingVersionDesc(node, spec)) {
+    return wrapPhysicalFrom(node, from, spec);
+  }
   return {
     ...ensureVersionOrder(node, from, spec),
     limitBy: limitByNode(from, spec),
   };
 }
 
-function wrapAggregate(
+function wrapPhysicalFrom(
   node: ClickHouseSelectQueryNode,
   from: PhysicalFrom,
   spec: DedupSpec,
@@ -287,6 +301,24 @@ function qualifyColumn(from: PhysicalFrom, column: string): OperationNode {
     : col;
 }
 
+function hasLeadingVersionDesc(
+  node: SelectQueryNode,
+  spec: DedupSpec,
+): boolean {
+  const first = node.orderBy?.items[0];
+  return (
+    first !== undefined &&
+    columnNameOf(first.orderBy) === spec.version &&
+    isDescending(first)
+  );
+}
+
+function isDescending(item: OrderByItemNode): boolean {
+  const direction = item.direction;
+  if (!direction || !RawNode.is(direction)) return false;
+  return direction.sqlFragments.join("").trim().toLowerCase() === "desc";
+}
+
 function orderByHasColumn(
   orderBy: OrderByNode | undefined,
   column: string,
@@ -309,7 +341,11 @@ function walk(value: unknown, visit: (node: OperationNode) => void): void {
     "kind" in value &&
     typeof (value as { kind: unknown }).kind === "string"
   ) {
-    visit(value as OperationNode);
+    const node = value as OperationNode;
+    visit(node);
+    // Nested selects have their own shape; do not attribute their
+    // aggregates to the outer query.
+    if (SelectQueryNode.is(node)) return;
   }
   for (const child of Object.values(value)) {
     if (Array.isArray(child)) {

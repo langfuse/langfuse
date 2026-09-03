@@ -31,7 +31,7 @@ describe("shape-keyed dedup lowering", () => {
     expect(lower).toMatch(/limit 1 by e\.span_id, e\.project_id/);
   });
 
-  it("appends the version sort after a caller-supplied ORDER BY", () => {
+  it("wraps a caller ORDER BY so LIMIT BY sees the version first", () => {
     const { sql } = compile(
       getClickhouseKysely()
         .selectFrom("events_core")
@@ -39,10 +39,13 @@ describe("shape-keyed dedup lowering", () => {
         .orderBy("start_time", "desc"),
     );
     const lower = sql.toLowerCase();
-    expect(lower.indexOf("start_time desc")).toBeLessThan(
-      lower.indexOf("event_ts desc"),
+    // Inner collapse is version-first; the caller's sort stays on the outer
+    // select so a stale physical row cannot win LIMIT BY.
+    expect(lower).toMatch(
+      /from \(select \* from events_core[\s\S]*order by event_ts desc[\s\S]*limit 1 by span_id, project_id\) as events_core/,
     );
-    expect(lower).toMatch(/limit 1 by span_id, project_id/);
+    expect(lower).toMatch(/\) as events_core[\s\S]*order by start_time desc/);
+    expect(lower.split("limit 1 by").length - 1).toBe(1);
   });
 
   it("does not duplicate LIMIT BY when the caller already attached one", () => {
@@ -93,14 +96,35 @@ describe("shape-keyed dedup lowering", () => {
     expect(lower).toMatch(/rank\(\) over/);
   });
 
-  it("skips DISTINCT-only reads (already collapsed)", () => {
+  it("wraps DISTINCT so a stale version cannot leak a second value", () => {
     const { sql } = compile(
       getClickhouseKysely()
         .selectFrom("events_core")
         .select("environment")
         .distinct(),
     );
-    expect(sql.toLowerCase()).not.toContain("limit 1 by");
+    const lower = sql.toLowerCase();
+    expect(lower).toMatch(/select distinct environment/);
+    expect(lower).toMatch(
+      /from \(select \* from events_core[\s\S]*order by event_ts desc[\s\S]*limit 1 by span_id, project_id\) as events_core/,
+    );
+  });
+
+  it("does not treat a nested subquery aggregate as the outer shape", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select((eb) => [
+          "span_id",
+          eb
+            .selectFrom("events_core as inner")
+            .select((ieb) => ieb.fn.max("inner.event_ts").as("m"))
+            .as("latest"),
+        ]),
+    );
+    const lower = sql.toLowerCase();
+    expect(lower).toMatch(/limit 1 by span_id, project_id/);
+    expect(lower).toMatch(/max\(inner\.event_ts\)/);
   });
 
   it("skips scalar max() (already collapses versions)", () => {
@@ -182,6 +206,21 @@ describe("typed params from the column registry", () => {
         .distinct(),
     );
     expect(sql).toMatch(/total_cost in \(\{p\d+:Array\(Float64\)\}\)/);
+  });
+
+  it("does not type a subquery LIMIT from an outer column comparison", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("trace_id")
+        .where(
+          "trace_id",
+          "in",
+          getClickhouseKysely().selectFrom("traces").select("id").limit(3),
+        ),
+    );
+    expect(sql).toMatch(/limit \{p\d+:Int64\}/);
+    expect(sql).not.toMatch(/limit \{p\d+:String\}/);
   });
 
   it("interns the same typed value to one placeholder across UNION branches", () => {

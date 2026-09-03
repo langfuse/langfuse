@@ -193,6 +193,18 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * offers no hook to inject a clause between JOIN and WHERE.
    */
   protected override visitSelectQuery(node: SelectQueryNode): void {
+    // A surrounding `column <op> (SELECT …)` must not type this select's
+    // own LIMIT / OFFSET / literals with the outer column's bind type.
+    const previousBindType = this.pendingBindType;
+    this.pendingBindType = undefined;
+    try {
+      this.visitSelectQueryBody(node);
+    } finally {
+      this.pendingBindType = previousBindType;
+    }
+  }
+
+  private visitSelectQueryBody(node: SelectQueryNode): void {
     const wrapInParens =
       this.parentNode !== undefined &&
       !ParensNode.is(this.parentNode) &&

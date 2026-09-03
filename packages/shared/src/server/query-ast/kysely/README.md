@@ -52,7 +52,7 @@ is where tenancy is enforced:
    `langfuseTenancy` property is not a valid stamp.
 3. `DedupLoweringPlugin` classifies each single-table select against that
    table's `dedup` spec and lowers the physical idiom (LIMIT 1 BY on row
-   reads; a wrapping subquery on aggregations). DISTINCT-only, existence, and
+   reads; a wrapping subquery on aggregations and DISTINCT). Existence and
    JOINs are left alone. The pass restamps the rewritten root.
 4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take

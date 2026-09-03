@@ -60,8 +60,8 @@ a required check once it has proven stable.
 - **Never write LIMIT BY / FINAL for version collapse.** Tables that declare a
   `dedup` spec (today: `events_core`) get the physical idiom from the compiler:
   `ORDER BY <version> DESC LIMIT 1 BY <key>` on row reads, the same clause
-  wrapped under a subquery on aggregations. DISTINCT-only and existence
-  (`SELECT 1 LIMIT 1`) are left alone. `$call(limitBy(...))` remains for
+  wrapped under a subquery on aggregations and DISTINCT. Existence
+  (`SELECT 1 LIMIT 1`) is left alone. `$call(limitBy(...))` remains for
   non-version idioms (e.g. `LIMIT n BY` a grouping the registry does not own).
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes

@@ -62,8 +62,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 0,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM (
+        SELECT *
+        FROM events_core
+        WHERE project_id = {p1:String}
+        ORDER BY event_ts DESC
+        LIMIT 1 BY span_id, project_id
+      ) AS events_core
     `,
     build: () =>
       db().selectFrom("events_core").select("environment").distinct(),
@@ -114,8 +119,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 1,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(3)})
+      FROM (
+        SELECT *
+        FROM events_core
+        WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(3)})
+        ORDER BY event_ts DESC
+        LIMIT 1 BY span_id, project_id
+      ) AS events_core
     `,
     build: () =>
       db()
@@ -377,8 +387,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 7,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM (
+        SELECT *
+        FROM events_core
+        WHERE project_id = {p1:String}
+        ORDER BY event_ts DESC
+        LIMIT 1 BY span_id, project_id
+      ) AS events_core
     `,
     build: () => environmentsVariant({ writeMode: "events" }),
   },
@@ -388,8 +403,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 7,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(3)})
+      FROM (
+        SELECT *
+        FROM events_core
+        WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(3)})
+        ORDER BY event_ts DESC
+        LIMIT 1 BY span_id, project_id
+      ) AS events_core
     `,
     build: () =>
       environmentsVariant({ writeMode: "events", fromTimestamp: FROM_TS }),

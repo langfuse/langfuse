@@ -10,8 +10,16 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
-FROM events_core
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+FROM
+(
+    SELECT *
+    FROM events_core
+    WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})
+    ORDER BY event_ts DESC
+    LIMIT 1 BY
+        span_id,
+        project_id
+) AS events_core",
   },
   {
     "fn": "queryClickhouse",
@@ -42,8 +50,16 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
-FROM events_core
-WHERE project_id = {param1:String}",
+FROM
+(
+    SELECT *
+    FROM events_core
+    WHERE project_id = {param1:String}
+    ORDER BY event_ts DESC
+    LIMIT 1 BY
+        span_id,
+        project_id
+) AS events_core",
   },
   {
     "fn": "queryClickhouse",
