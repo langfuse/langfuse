@@ -24,7 +24,7 @@ Optimize the cost/performance tradeoff: run the smallest reliable container foot
 - Use exact OpenTofu math for markers. Do not mental-math `ceil(target * boundary)` because Terraform float behavior can produce off-by-one results.
 - For `web` and `web-iso`, do not reduce RPM per container solely because service latency is high. First inspect full APM traces, including ClickHouse spans, to distinguish container saturation from database-bound requests.
 - If slow `web-iso` traces are dominated by ClickHouse child spans, do not lower RPM targets as the primary fix. Lowering RPM changes web-container scaling and request distribution, but it does not reduce ClickHouse query cost, total query workload, or an individual long-running query duration.
-- If scaling should be adjusted, create or update a GitHub PR. For Linear follow-ups, prepare a human-review table first and wait for explicit human approval before creating, updating, commenting on, or assigning tickets. Do not create or assign Linear tickets for Valeriy.
+- If scaling should be adjusted, create or update a GitHub PR. For the Linear follow-up, comment the evidence onto a ticket that already exists and label it; draft a new ticket for a human to file rather than creating one, and never assign it. Step 8 has the detail.
 
 ## Files
 
@@ -207,22 +207,22 @@ Run a full plan only when credentials and workspace setup are available or the u
 - Mention checks run and whether a full plan was not run.
 - Return valid Markdown. Use valid headings, lists, links, tables, and code fences; include spaces after list markers; close every link, parenthesis, and code fence; and check for malformed tables before returning.
 
-8. Create a GitHub PR and prepare human-reviewed Linear follow-ups when scaling should be adjusted:
+8. Create a GitHub PR and record the Linear follow-up when scaling should be adjusted:
 
 - Trigger this when the recommendation table contains at least one concrete scaling change, or when Terraform scaling settings were edited. Do not create a ticket for an all-`No change` review unless the user explicitly asks.
 - Ensure there is a GitHub PR for the scaling change. If no PR exists yet, create one. Include the recommendation summary, validation, and rollout risks in the PR body.
-- Before any Linear write, present a review table and ask the human which row IDs and actions to approve:
+- Linear writes need no approval first, but only three shapes are permitted and each must be labelled and marked as agent-written. `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin is the authority; read it before your first write. For this skill: **adding evidence to a ticket that already exists is yours to do** (label it `AI commented`, or `AI edited` if you put the evidence in the description); **creating a new top-level ticket is not** — agents may create subtickets of an existing ticket only.
+- Report what you wrote and what still needs a human:
 
-| ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Proposed Linear Action | Confidence | Human Decision |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| F1 | Scaling adjustment summary | Measured Datadog evidence, trace links, PR URL, or `No measurements found` | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or `None found` | Create new ticket, add evidence comment, update status/labels, or no action | High/medium/low plus one short reason | Leave blank for the human to choose |
+| ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Action | Confidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| F1 | Scaling adjustment summary | Measured evidence, trace links, PR URL, or `No measurements found` | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or `None found` | `commented <key>`, `edited <key>`, `needs a human to file` plus the drafted title and body, or `no action` | High/medium/low plus one short reason |
 
-- Do not create Linear tickets, comment on tickets, edit ticket fields, add evidence, or assign an owner until the human explicitly selects one or more row IDs and actions. If the user asks for an automated sweep, still pause at this review table before writing to Linear.
-- After approval, use the Linear skill or Linear app tools. Create one ticket for the scaling adjustment, not one ticket per region, unless the user requests separate tickets.
-- Assign the ticket only when the user explicitly names an assignee. Otherwise leave it unassigned. Do not create or assign tickets for Valeriy.
-- Include the full skill output in the ticket description: recommendation table, Datadog evidence, trace interpretation, proposed or applied Terraform changes, marker math, validation results, plan status, PR URL, and known rollout risks.
-- Link the artifacts both ways after approval: put the PR URL in the Linear ticket, and put the Linear issue URL or identifier in the PR body or a PR comment. If one artifact is created after the other, update the first artifact once the second URL exists.
-- If GitHub PR creation or approved Linear ticket creation is unavailable, report that blocker and provide the exact PR body or ticket title/body that should be created manually.
+- Draft one ticket for the scaling adjustment, not one per region, unless the user requests separate tickets. Never leave a `needs a human to file` row without the full body, so it can be filed in one paste.
+- Do not assign an owner, move state, close, or re-prioritise — those stay with a human. Surface them as suggestions, and never propose an assignee the user did not name.
+- Include the full skill output in the ticket description: recommendation table, measured evidence, trace interpretation, proposed or applied Terraform changes, marker math, validation results, plan status, PR URL, and known rollout risks.
+- Put the PR URL in the Linear ticket. Do not put the ticket identifier or its URL in the PR body or a PR comment — this repo keeps those out of published artifacts; the branch name carries the link.
+- If the GitHub PR cannot be created, or Linear is unreachable in this environment, report that blocker and provide the exact PR body or ticket title and body that should be created manually. Do not skip the step silently.
 
 ## PR Handling
 

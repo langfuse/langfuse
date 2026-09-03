@@ -7,7 +7,7 @@ description: Triage an engineer's work queue across Linear, Pylon, and GitHub. U
 
 ## Scope
 
-Review live work queues and recommend what the engineer should do next. Stay read-only until the human explicitly approves specific writes.
+Review live work queues and recommend what the engineer should do next. Triage is a recommendation, not an action: every state change this skill produces — assigning, moving, closing, cancelling, re-prioritising — belongs to the engineer, so the output is a table they act on.
 
 Use this skill for:
 
@@ -40,7 +40,7 @@ Include confidence for each recommendation: `high`, `medium`, `low`, or `unknown
 3. Inspect comments, latest activity, linked issues, checks, and review threads when status or ownership is ambiguous.
 4. Cluster duplicates or related items before prioritizing.
 5. Return recommendations ordered by urgency, then quick wins, then cleanup.
-6. Before any write, present a decision table and wait for explicit row IDs and actions.
+6. Present the recommendations as a decision table for the engineer to act on. Every action this skill recommends is a state change reserved for a human, so do not perform them. If a queue item needs a note left on it for someone else, that is a comment or a description edit, which agents do write — see `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin for the shapes and the labels.
 
 ## Linear Review
 

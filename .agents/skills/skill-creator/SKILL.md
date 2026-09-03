@@ -45,23 +45,40 @@ Match the level of specificity to the task's fragility and variability:
 
 Think of Codex as exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom).
 
-### Require Human Review for Ticket Writes
+### Mark Ticket Writes Instead of Gating Them
 
-For skills that create Linear tickets, update Linear tickets, or add evidence to
-existing tickets, require human review before any write. The skill must present
-all findings in a table, ask the human which findings to create or update in
-Linear, and wait for an explicit selection before making changes.
+Skills that write to the issue tracker do not need a human review gate first.
+The guardrail is **marking plus a bounded set of shapes**: three permitted write
+shapes, each stamped with a label and marked as agent-written in the text.
 
-Use this table structure unless the domain needs additional columns:
+The full policy is the `linear-agent-writes` skill in the private
+`langfuse/langfuse-internal-skills` plugin, which is the **single authority**.
+Do not restate its rules in a new skill — point at it, so there is one text to
+keep correct. In summary, a skill may:
 
-| ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Proposed Linear Action | Confidence | Human Decision |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| F1 | Concise symptom or bug claim | Measured counts, deltas, links, traces, logs, or "No measurements found" | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or "None found" | Create new ticket, add evidence comment, update status/labels, or no action | High/medium/low plus one short reason | Leave blank for the human to choose |
+1. **Comment**, only when a human must be told something now.
+2. **Edit a description**, adding a clearly separated agent block that never
+   rewrites the human's prose. This is where durable context belongs.
+3. **Create a subticket of an existing ticket**, while planning work.
 
-In the skill instructions, state that Codex must not create tickets, comment on
-tickets, edit ticket fields, or add evidence until the human chooses one or more
-row IDs and actions. If the human asks for an automated sweep, still pause at
-this review table before writing to Linear.
+Assigning, moving state, closing, estimating, re-prioritising, deleting,
+top-level issues, projects, and new labels still belong to a human. A skill that
+wants one of those must surface it as a suggestion in its output.
+
+Two consequences worth designing for:
+
+- **A skill has no way to file a finding that has no parent ticket.** Shape 3
+  covers subtickets only, so a sweep over a queue or a monitor cannot create a
+  top-level ticket per finding. Write such skills to comment evidence onto
+  tickets that already exist and to present the rest as suggestions.
+- **State that the write happened.** Because the tracker's API authenticates as
+  the human who configured it, an unmarked agent write is indistinguishable from
+  something that person typed. Require the skill to mark authorship in the text,
+  not only with the label.
+
+If the tracker is not reachable in the environment, the skill must **say so and
+return the content it would have written**, ready to paste. It must not skip the
+step silently.
 
 ### Protect Validation Integrity
 

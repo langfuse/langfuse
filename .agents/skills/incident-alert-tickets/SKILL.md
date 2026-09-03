@@ -92,28 +92,36 @@ Treat a partial match — some "Recognize it" signals fit, others do not — as 
 whose recognition signals only partially match. Name the near-miss section in
 the draft so the human can judge the overlap.
 
-## Write-Back (Human Approval Gate)
+## Write-Back
 
-Never create or update a ticket without explicit human approval. Present the
-proposal first:
+Appending a cause section to a ticket that already exists is a description edit,
+which agents do autonomously. Creating a new ticket is not — see
+`linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin
+for the policy this follows, and read it before your first write.
 
-| ID | Alert / Monitor | Classification | Proposed Action | Draft Content | Human Decision |
-| --- | --- | --- | --- | --- | --- |
+- **Append: do it.** Insert the new `---`-separated dated block after the
+  existing cause sections, above the `Your cause is not listed?` trailer; leave
+  everything else untouched. Mark the block as agent-written in its own text and
+  label the ticket `AI edited`. Never reflow or rewrite the human-written prose
+  around it.
+- **Create: draft it, do not create it.** Agents may create subtickets of an
+  existing ticket only, and a monitor with no ticket has no parent. Draft the
+  issue — title `[ENV] <Monitor title>`, the `incident-alert` label, description
+  = alert header, the first dated cause section, and the `Your cause is not
+  listed?` trailer — and hand it back for a human to file.
 
-- `Proposed Action`: `append cause section to LFE-XXXX`, `create ticket`, or
+Report what you did either way:
+
+| ID | Alert / Monitor | Classification | Action | Content |
+| --- | --- | --- | --- | --- |
+
+- `Action`: `appended to LFE-XXXX (AI edited)`, `needs a human to file`, or
   `none (known cause)`.
-- `Draft Content`: the dated section (or full ticket body) exactly as it would
-  be written.
-- `Human Decision`: leave blank for the human to choose.
+- `Content`: the dated section, or the full drafted ticket body exactly as it
+  should be filed.
 
-Wait for the human to select row IDs and actions before writing. On approval:
-
-- **Append**: insert the new `---`-separated dated block after the existing
-  cause sections, above the `Your cause is not listed?` trailer; leave
-  everything else untouched.
-- **Create**: new Engineering (LFE) issue titled `[ENV] <Monitor title>` with
-  the `incident-alert` label; description = alert header, the first dated
-  cause section, and the `Your cause is not listed?` trailer.
+If Linear is unreachable in this environment, say so and return every row as a
+draft rather than skipping the write-back silently.
 
 ## Division of Labor
 

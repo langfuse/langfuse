@@ -8,14 +8,29 @@ description: |
 # Linear Bug Triage
 
 Use this skill after a bug or regression candidate has measured evidence. This
-skill owns Linear search, deduplication, evidence comments, and ticket creation;
-the calling skill owns deciding whether the signal is issue-worthy.
+skill owns Linear search, deduplication, evidence comments, and drafting new
+issues for a human to file; the calling skill owns deciding whether the signal is
+issue-worthy.
 
-## Human Approval Gate
+## What This Skill May Write
 
-Before doing anything in Linear, first show the findings to the human in a
-compact markdown table and ask for explicit permission to share them in Linear.
-The table should include one row per candidate with:
+There is no approval gate before a write. The guardrail is that every write
+carries a label and is marked as agent-written in the text, and that only three
+write shapes are permitted at all. The `linear-agent-writes` skill in the private
+`langfuse/langfuse-internal-skills` plugin is the authority for that policy; read
+it before your first write and prefer it over this summary wherever they differ.
+
+For this skill it resolves to:
+
+- **An evidence comment on an issue that already exists: just do it.** Label that
+  issue `AI commented` and say in the comment body that an agent wrote it. This
+  is the common case and needs nobody's permission.
+- **A new top-level issue: you cannot create one.** Agents may create subtickets
+  of an existing ticket only. A bug cluster surfaced by a sweep has no parent, so
+  no permitted shape covers it.
+
+So still present the findings table — not as a gate, but because the rows you
+are not allowed to file are a proposal for a human. One row per candidate:
 
 - Candidate / cluster name.
 - Environments.
@@ -23,15 +38,16 @@ The table should include one row per candidate with:
 - Recent window measurement.
 - Baseline measurement.
 - Delta / regression summary.
-- Key Datadog evidence links.
-- Proposed Linear action (`comment existing`, `create new`, or `none`).
+- Key evidence links.
+- Action taken: `commented <issue key>` for what you already did, or
+  `needs a human to file`.
 
-If the human does not explicitly approve, stop after presenting the table. Do
-not search Linear, do not comment on issues, and do not create issues.
+Never present a `needs a human to file` row without the drafted title and body
+underneath it — the whole value of the row is that it can be filed in one paste.
+Deduplicate first, so comments land on the right issue.
 
-If a calling workflow already showed the findings table and obtained explicit
-human approval for a Linear handoff, skip this gate and proceed directly to
-deduplication.
+If Linear is unreachable in this environment, say so plainly and return every row
+as a draft. Do not skip the handoff silently.
 
 ## Required Evidence
 
@@ -52,16 +68,16 @@ measurements alone.
 
 ## Deduplication
 
-After the human explicitly approves, before creating a new issue:
+Always, before writing anything:
 
 1. Search Linear for related open issues using exact error text, route/resource,
-   service, environment, monitor name, and Datadog link keywords.
+   service, environment, monitor name, and observability link keywords.
 2. Search recently closed or canceled issues if the error is recurring or the
    wording is distinctive.
-3. If a related issue exists, add a concise evidence comment instead of creating
-   a duplicate.
-4. If no related issue exists, create one Linear issue in the `Triage` state for
-   each distinct bug cluster.
+3. If a related issue exists, add a concise evidence comment to it and label it
+   `AI commented`.
+4. If no related issue exists, draft the issue in the format below and put it in
+   the findings table as `needs a human to file`. Do not create it.
 
 ## Existing Issue Comments
 
@@ -77,7 +93,7 @@ assignments, or next steps.
 
 ## New Issue Format
 
-Create new issues with:
+This is the shape to **draft** for a human to file, not to create yourself:
 
 - State/status `Triage`; pass the Linear state explicitly on creation and do not
   rely on workspace defaults.

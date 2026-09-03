@@ -19,8 +19,9 @@ loop with short, testable asks. Do not write long agent-only reports.
 Copy Linear's git branch name. Do not invent a `cursor/` name.
 
 - Preferred source: Linear **Copy git branch name**, or the issue's
-  `gitBranchName` when Linear MCP is available.
-- Fallback: `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
+  `gitBranchName` read through the Linear MCP.
+- Fallback, only when the MCP is genuinely not configured:
+  `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
 - Keep a `user/` prefix only when Linear's copied name already includes one.
 - Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
   Repo guidance wins.
@@ -29,6 +30,20 @@ Copy Linear's git branch name. Do not invent a `cursor/` name.
 
 Correct: `lfe-12345-short-descriptive-title`  
 Wrong: `cursor/short-descriptive-title-8c78`
+
+## Linear connection
+
+Cursor can reach Linear — desktop and cloud — but the MCP server is not
+configured by default, so it is a one-time setup step per developer. Langfuse
+engineers: the setup instructions and the write policy live in the private
+`langfuse/langfuse-internal-skills` plugin (`linear-agent-writes`). Configure it
+once; agents are expected to read a ticket's history before starting and to leave
+their context on it when they finish.
+
+If Linear is not reachable in your environment, **say so in your handoff
+message** and hand back the context that should have gone on the ticket. Do not
+skip it silently — a missing connection that nobody notices looks exactly like a
+practice being followed.
 
 ## Pull requests
 
