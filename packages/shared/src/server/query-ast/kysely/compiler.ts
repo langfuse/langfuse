@@ -149,7 +149,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * ClickHouse `IN` takes a single `Array(T)` bind, not a parenthesized list of
    * scalar binds. So `col IN (1, 2, 3)` compiles to `col IN ({p:Array(Int64)})`
    * — one array parameter — which is also the shape the existing production SQL
-   * (e.g. the scores list query) already relies on.
+   * (e.g. the scores list query) already relies on. `T` is the compared
+   * column's registry type, including when that type is already `Array(...)`.
    */
   protected override visitPrimitiveValueList(
     node: PrimitiveValueListNode,
@@ -175,9 +176,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   private arrayBindType(values: unknown[]): string {
     if (this.pendingBindType) {
-      return this.pendingBindType.startsWith("Array(")
-        ? this.pendingBindType
-        : `Array(${this.pendingBindType})`;
+      return `Array(${this.pendingBindType})`;
     }
     return inferClickHouseType(values);
   }
