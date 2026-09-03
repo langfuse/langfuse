@@ -15,8 +15,10 @@ FROM mcr.microsoft.com/devcontainers/universal:6-noble
 # Install golang-migrate for database migrations
 COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
 
-# Activate the repo's pinned pnpm via Corepack
-RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
+# Activate the repo's pinned pnpm through a Corepack release compatible with pnpm 12.
+RUN npm install --global corepack@0.34.7 \
+    && corepack enable \
+    && corepack prepare pnpm@11.22.0 --activate
 
 # Install Clickhouse
 RUN curl https://clickhouse.com/ | sh && \
