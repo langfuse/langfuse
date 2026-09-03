@@ -60,10 +60,12 @@ const buildSession = ({
   orgId,
   projectId,
   projectRole = "ADMIN",
+  v4BetaEnabled = false,
 }: {
   orgId: string;
   projectId: string;
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
+  v4BetaEnabled?: boolean;
 }): Session => ({
   expires: "1",
   user: {
@@ -103,7 +105,7 @@ const buildSession = ({
       experimentsV4Enabled: false,
     },
     admin: false,
-    v4BetaEnabled: false,
+    v4BetaEnabled,
   },
   environment: {} as any,
 });
@@ -268,15 +270,17 @@ const createPrismaStub = () => {
 
 const prepare = async ({
   projectRole = "ADMIN",
+  v4BetaEnabled = false,
 }: {
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
+  v4BetaEnabled?: boolean;
 } = {}) => {
   const orgId = "org-1";
   const projectId = "project-1";
   const prismaStub = createPrismaStub();
 
   const ctx = createInnerTRPCContext({
-    session: buildSession({ orgId, projectId, projectRole }),
+    session: buildSession({ orgId, projectId, projectRole, v4BetaEnabled }),
     headers: {},
   });
 
@@ -745,6 +749,44 @@ describe("webCallouts router", () => {
     expect(
       (getObservationById as Mock).mock.calls[0][0].startTimeLowerBound,
     ).toEqual(traceTimestamp);
+  });
+
+  it("still widens the bound when an earlier source in the chain transient-errors but a later one cleanly misses", async () => {
+    const { caller, projectId } = await prepare({ v4BetaEnabled: true });
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceByIdFromEventsTable as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // Bounded pass: the events-table lookup transient-errors, then the legacy
+    // lookup cleanly misses. The transient error on the earlier source must not
+    // suppress the unbounded retry, which finds the backfilled observation.
+    (getObservationByIdFromEventsTable as Mock)
+      .mockRejectedValueOnce(new Error("ClickHouse timeout"))
+      .mockResolvedValue({
+        id: "observation-1",
+        traceId: "trace-1",
+        sessionId: null,
+      });
+    (getObservationById as Mock).mockResolvedValue(undefined);
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).resolves.toEqual({ success: true, status: 204 });
+
+    // Two events-table calls: the bounded transient error, then the unbounded
+    // retry that succeeds.
+    expect(getObservationByIdFromEventsTable).toHaveBeenCalledTimes(2);
+    const eventsCalls = (getObservationByIdFromEventsTable as Mock).mock.calls;
+    expect(eventsCalls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
+    expect(eventsCalls[1][0].startTimeLowerBound).toBeUndefined();
   });
 
   it("rate limits before target validation and outbound delivery", async () => {

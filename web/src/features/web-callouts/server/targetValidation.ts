@@ -192,8 +192,12 @@ const runObservationLookup = async ({
 }): Promise<ObservationLookupResult> => {
   let transientError = false;
 
+  // Track only the deciding (last-run) lookup's status, not an OR across the
+  // whole chain: an earlier source's transient failure must not suppress the
+  // unbounded retry when a later source cleanly misses (a genuine not-found),
+  // which would wrongly reject a valid observation outside the bound.
   const consider = (result: ObservationLookupResult) => {
-    if (result.transientError) transientError = true;
+    transientError = result.transientError;
     return result.observation;
   };
 
