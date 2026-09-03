@@ -28,6 +28,7 @@ const DESIGN_COMPONENT_STORIES = [
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "Tabs/Tabs",
   "TextLink/TextLink",
   "Toggle/Toggle",
   "table/components/IOTableCell/IOTableCell",
