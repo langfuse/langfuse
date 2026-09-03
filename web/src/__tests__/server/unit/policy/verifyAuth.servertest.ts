@@ -54,6 +54,34 @@ describe("project seam verifyAuth", () => {
       error: new ForbiddenError("nope"),
     });
 
+  const principalOrg = {
+    orgId: "o1",
+    plan: "Team" as const,
+    rateLimitOverrides: [],
+    projectIds: ["p1"],
+    isIngestionSuspended: false,
+  };
+  const apiKeyContextResult = (presentation: "privateKey" | "publicKey") => ({
+    success: true as const,
+    projectId: "p1",
+    context: {
+      principal: {
+        kind: "apiKey" as const,
+        apiKeyId: "ak1",
+        userId: null,
+        isInAppAgentKey: false,
+        scope: "PROJECT" as const,
+        publicKey: "pk-lf-1",
+        presentation,
+        organizations: [principalOrg],
+        boundResource: { projectId: "p1" },
+      },
+      policies: [],
+    },
+  });
+  const authzAllowsApiKey = (presentation: "privateKey" | "publicKey") =>
+    mockEnforceProjectAuth.mockResolvedValue(apiKeyContextResult(presentation));
+
   beforeEach(() => {
     vi.clearAllMocks();
     env.API_AUTH_MIGRATION = "legacy";
@@ -70,6 +98,21 @@ describe("project seam verifyAuth", () => {
       legacyDenies(403);
       await expect(call()).rejects.toEqual({ status: 403, message: "legacy" });
       expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("an unrecognized mode fails safe to legacy", () => {
+    beforeEach(() => {
+      env.API_AUTH_MIGRATION = "";
+    });
+
+    it("runs only legacy and skips the new pipeline and parity telemetry", async () => {
+      legacyAllows();
+      authzDenies();
+      expect(await call()).toBe(legacyScope);
+      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+      expect(mockDiffResults).not.toHaveBeenCalled();
+      expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
 
@@ -103,26 +146,47 @@ describe("project seam verifyAuth", () => {
     });
   });
 
-  describe("enforce mode gates on the new decision", () => {
+  describe("enforce mode is the new pipeline's sole authority", () => {
     beforeEach(() => {
       env.API_AUTH_MIGRATION = "enforce";
     });
 
-    it("returns the legacy scope when the new pipeline allows", async () => {
-      legacyAllows();
-      authzAllows();
-      expect(await call()).toBe(legacyScope);
+    it("maps a private-key principal to a legacy-shaped project scope", async () => {
+      authzAllowsApiKey("privateKey");
+      expect(await call()).toEqual({
+        validKey: true,
+        scope: {
+          projectId: "p1",
+          accessLevel: "project",
+          orgId: "o1",
+          plan: "Team",
+          rateLimitOverrides: [],
+          apiKeyId: "ak1",
+          publicKey: "pk-lf-1",
+          isIngestionSuspended: false,
+          isInAppAgentKey: false,
+        },
+      });
+    });
+
+    it("maps a public-key presentation to the scores access level", async () => {
+      authzAllowsApiKey("publicKey");
+      expect((await call()).scope.accessLevel).toBe("scores");
+    });
+
+    it("never runs legacy verify", async () => {
+      authzAllowsApiKey("privateKey");
+      await call();
+      expect(mockLegacyVerifyAuth).not.toHaveBeenCalled();
     });
 
     it("throws the new pipeline's 403 when it denies", async () => {
-      legacyAllows();
       authzDenies();
       await expect(call()).rejects.toEqual({ status: 403, message: "nope" });
     });
 
     it("does not record parity telemetry", async () => {
-      legacyAllows();
-      authzAllows();
+      authzAllowsApiKey("privateKey");
       await call();
       expect(mockDiffResults).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();

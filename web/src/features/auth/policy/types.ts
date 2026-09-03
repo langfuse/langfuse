@@ -2,6 +2,7 @@ import { type z } from "zod";
 
 import {
   projectScopes,
+  type ApiKeyScope,
   type CloudConfigRateLimit,
   type ForbiddenError,
   type Plan,
@@ -39,7 +40,7 @@ export type Action = ProjectAction | OrganizationAction;
 export type PrincipalOrganization = {
   orgId: string;
   plan: Plan;
-  rateLimitConfig: z.infer<typeof CloudConfigRateLimit>;
+  rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   projectIds: string[];
   isIngestionSuspended: boolean;
 };
@@ -53,6 +54,9 @@ export type Principal =
       apiKeyId: string;
       userId: string | null;
       isInAppAgentKey: boolean;
+      publicKey: string;
+      scope: ApiKeyScope;
+      presentation: "publicKey" | "privateKey";
       organizations: PrincipalOrganization[];
       boundResource?: Resource;
     };

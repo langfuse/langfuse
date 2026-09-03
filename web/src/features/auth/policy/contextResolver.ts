@@ -102,6 +102,9 @@ function materialize(
     apiKeyId: apiKey.id,
     userId: apiKey.createdByUserId,
     isInAppAgentKey: apiKey.isInAppAgentKey,
+    publicKey: apiKey.publicKey,
+    scope: apiKey.scope,
+    presentation: authorization,
     organizations: [org],
     boundResource: boundResourceFor(apiKey),
   };
@@ -131,7 +134,7 @@ function toPrincipalOrganization(
   return {
     orgId: org.id,
     plan: getOrganizationPlanServerSide(cloudConfig),
-    rateLimitConfig: cloudConfig?.rateLimitOverrides ?? [],
+    rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
     projectIds: org.projects.map((p) => p.id),
     isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
   };

@@ -30,13 +30,20 @@ import {
   verifyAuth as verifyLegacyAuth,
   type RouteAccessLevel,
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
-import { enforceProjectAuth } from "@/src/features/auth/policy/enforceProjectAuth";
+import {
+  enforceProjectAuth,
+  type ProjectAccessResult,
+} from "@/src/features/auth/policy/enforceProjectAuth";
 import {
   diffResults,
   legacyFromStatus,
   recordCoverage,
 } from "@/src/features/auth/policy/shadow";
-import { type ProjectAction } from "@/src/features/auth/policy/types";
+import {
+  type Principal,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
+import { prisma } from "@langfuse/shared/src/db";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -107,35 +114,35 @@ export type AuthedProjectAPIRouteConfig<
   }) => Promise<z.infer<TResponse>>;
 };
 
-/** verifyAuth is the project seam: legacy decides in legacy/shadow (byte-identical), and the new PDP gates the legacy scope in enforce. */
+/** verifyAuth is the project seam: the new pipeline decides alone in enforce, both run for parity in shadow (byte-identical to legacy), and legacy decides alone otherwise (the default). */
 export async function verifyAuth(
   params: VerifyAuthParams,
-): Promise<LegacyResult> {
-  const legacy = await runLegacyAuth(params);
-
-  // legacy mode skips the new pipeline entirely so self-host does no extra auth work
-  if (env.API_AUTH_MIGRATION === "legacy") {
-    if (!legacy.ok) throw legacy.error;
-    return legacy.auth;
+): Promise<VerifyAuthResult> {
+  // enforce mode runs only the new pipeline, which is the sole authority.
+  if (env.API_AUTH_MIGRATION === "enforce") {
+    const authz = await runNewAuth(params);
+    if (!authz.success) {
+      throw { status: authz.error.httpCode, message: authz.error.message };
+    }
+    return toVerifyAuthResult(authz);
   }
 
-  const authz = await enforceProjectAuth({
-    headers: params.req.headers,
-    action: params.action,
-    allowInAppAgentKey: params.allowInAppAgentKey,
-    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
-  });
-
+  // shadow mode runs both: legacy decides, the new pipeline records parity.
   if (env.API_AUTH_MIGRATION === "shadow") {
+    const legacy = await runLegacyAuth(params);
+    const authz = await runNewAuth(params);
     recordCoverage(params.name);
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: "project_route",
       action: params.action,
     });
+    if (!legacy.ok) throw legacy.error;
+    return legacy.auth;
   }
-  if (env.API_AUTH_MIGRATION === "enforce" && !authz.success) {
-    throw { status: authz.error.httpCode, message: authz.error.message };
-  }
+
+  // legacy is the default: any other value (including a blank one) fails safe
+  // to the legacy path, so self-host does no new auth work.
+  const legacy = await runLegacyAuth(params);
   if (!legacy.ok) throw legacy.error;
   return legacy.auth;
 }
@@ -162,6 +169,91 @@ async function runLegacyAuth(
   }
 }
 
+/** runNewAuth runs the new project pipeline for the request's action and route opt-ins. */
+function runNewAuth(params: VerifyAuthParams) {
+  return enforceProjectAuth({
+    headers: params.req.headers,
+    action: params.action,
+    allowInAppAgentKey: params.allowInAppAgentKey,
+    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
+  });
+}
+
+/** toVerifyAuthResult maps the new pipeline's principal to the legacy-shaped verified scope. */
+async function toVerifyAuthResult(
+  authz: ProjectAccessResult,
+): Promise<VerifyAuthResult> {
+  const { principal } = authz.context;
+  if (principal.kind === "admin") return adminScope(authz.projectId);
+  if (principal.kind !== "apiKey") {
+    throw {
+      status: 500,
+      message: `unexpected principal kind on the project seam: ${principal.kind}`,
+    };
+  }
+  return apiKeyScope(principal, authz.projectId);
+}
+
+/** apiKeyScope maps an api-key principal to its verified scope; an org key here is an invariant break. */
+function apiKeyScope(
+  principal: ApiKeyPrincipal,
+  projectId: string,
+): VerifyAuthResult {
+  // The project seam denies org keys at the PDP, so one reaching here means a
+  // project route granted an org-satisfiable action.
+  if (principal.scope !== "PROJECT") {
+    throw {
+      status: 500,
+      message: `org-scoped key ${principal.apiKeyId} reached the project mapper`,
+    };
+  }
+  const org = principal.organizations[0];
+  if (!org) {
+    throw {
+      status: 500,
+      message: `api key ${principal.apiKeyId} resolved to no organization`,
+    };
+  }
+  return {
+    validKey: true,
+    scope: {
+      projectId,
+      accessLevel:
+        principal.presentation === "publicKey" ? "scores" : "project",
+      orgId: org.orgId,
+      plan: org.plan,
+      rateLimitOverrides: org.rateLimitOverrides,
+      apiKeyId: principal.apiKeyId,
+      publicKey: principal.publicKey,
+      isIngestionSuspended: org.isIngestionSuspended,
+      isInAppAgentKey: principal.isInAppAgentKey,
+    },
+  };
+}
+
+/** adminScope synthesizes the legacy self-host admin scope, loading the target project's org (404 on miss). Admin auth reaches here only when ADMIN_API_KEY is set, which Cloud does not set. */
+async function adminScope(projectId: string): Promise<VerifyAuthResult> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, deletedAt: null },
+    select: { id: true, orgId: true },
+  });
+  if (!project) throw { status: 404, message: "Project not found" };
+  return {
+    validKey: true,
+    scope: {
+      projectId: project.id,
+      accessLevel: "project",
+      orgId: project.orgId,
+      plan: "oss",
+      rateLimitOverrides: [],
+      apiKeyId: "ADMIN_API_KEY",
+      publicKey: "ADMIN_API_KEY",
+      isIngestionSuspended: false,
+      isInAppAgentKey: false,
+    },
+  };
+}
+
 /** VerifyAuthParams is the request plus the route's action and legacy auth options. */
 export type VerifyAuthParams = {
   req: NextApiRequest;
@@ -172,12 +264,17 @@ export type VerifyAuthParams = {
   allowInAppAgentKey?: boolean;
 };
 
-/** LegacyResult is the legacy verify's verified scope. */
-type LegacyResult = Awaited<ReturnType<typeof verifyLegacyAuth>>;
+/** VerifyAuthResult is the verified project scope the route handler receives. */
+type VerifyAuthResult = AuthHeaderValidVerificationResult & {
+  scope: { projectId: string; accessLevel: RouteAccessLevel };
+};
+
+/** ApiKeyPrincipal is the api-key variant of `Principal` the mapper consumes. */
+type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
 
 /** LegacyDecision is the legacy verify captured as a value: the verified scope, or the status + error to re-throw. */
 type LegacyDecision =
-  | { ok: true; status: 200; auth: LegacyResult }
+  | { ok: true; status: 200; auth: VerifyAuthResult }
   | { ok: false; status: number; error: unknown };
 
 export const createAuthedProjectAPIRoute = <
