@@ -145,13 +145,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-  // Workaround for ClickHouse analyzer/lazy materialization bugs. In "auto",
-  // Langfuse detects the ClickHouse version on startup and applies known
-  // compatibility settings for affected version bands.
+  // Workarounds for ClickHouse version-specific parser and analyzer bugs. In
+  // "auto", Langfuse detects the ClickHouse version on startup and applies
+  // known compatibility settings for affected version bands.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
+  // Read-time skip-index evaluation, applied only from the version that fixes
+  // the patch-part read bug. See the compatibility rule for details.
+  CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
@@ -280,6 +285,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -557,6 +563,14 @@ const EnvSchema = z.object({
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+  LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
+    .enum(["url", "inline", "disabled"])
+    .optional(),
+  LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

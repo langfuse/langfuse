@@ -185,6 +185,7 @@ const events = {
     "empty_state_template_select",
     "empty_state_browse_library",
     "empty_state_detect_topics",
+    "alert_create_clicked",
   ],
   evaluation_rules: [
     "create",
@@ -195,6 +196,9 @@ const events = {
     "detach_evaluator",
     "filter_reused",
   ],
+  // One-shot batch evaluation from the events / experiments tables.
+  // Counts and enums only — never mapping contents or observation payloads.
+  batch_eval: ["run"],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",
@@ -245,7 +249,7 @@ const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
-  monitors: ["delete_form_open", "delete_monitor_button_click"],
+  monitors: ["create", "delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",

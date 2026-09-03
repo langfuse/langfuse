@@ -1,9 +1,9 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import type * as React from "react";
 import { useState } from "react";
 
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { DeleteAutomationDialog } from "./DeleteAutomationDialog";
 
 type DeleteAutomationDialogControllerProps = {

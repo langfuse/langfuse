@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
   createContext,
@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   Select,
   SelectContent,
@@ -35,7 +35,6 @@ import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
@@ -544,6 +543,7 @@ export function DataTableControls({
           onOnlyChange={filter.onOnlyChange}
           renderIcon={filter.renderIcon}
           renderOptionSuffix={filter.renderOptionSuffix}
+          getOptionTitle={filter.getOptionTitle}
           isActive={filter.isActive}
           onReset={filter.onReset}
           operator={filter.operator}
@@ -724,61 +724,62 @@ export function DataTableControls({
       onPointerDownCapture={noteFacetInteraction}
       onKeyDownCapture={noteFacetInteraction}
     >
-      <Accordion
-        type="multiple"
-        className="w-full"
-        value={queryFilter.expanded}
-        onValueChange={(next) => {
-          const prev = queryFilter.expanded;
-          queryFilter.onExpandedChange(next);
-          // One header click changes exactly one column. Expand-all, add
-          // filter, and AI apply call onExpandedChange directly and skip
-          // this handler, so they do not double-count as facet toggles.
-          const added = next.filter((column) => !prev.includes(column));
-          const removed = prev.filter((column) => !next.includes(column));
-          if (added.length + removed.length !== 1) return;
-          capture("filters:facet_toggled", {
-            tableName,
-            column: added[0] ?? removed[0],
-            expanded: added.length === 1,
-            layout,
-            isV4: queryFilter.isV4 ?? false,
-          });
-        }}
-      >
-        {/* ONE keyed child array — not two .map() slices: React can
-            only match keys within the same array, so a facet crossing
-            the promoted/rest boundary would REMOUNT (wiping input
-            focus and draft state) instead of moving.
+      <div className="w-full">
+        <AccordionPrimitive.Root
+          type="multiple"
+          value={queryFilter.expanded}
+          onValueChange={(next) => {
+            const prev = queryFilter.expanded;
+            queryFilter.onExpandedChange(next);
+            // One header click changes exactly one column. Expand-all, add
+            // filter, and AI apply call onExpandedChange directly and skip
+            // this handler, so they do not double-count as facet toggles.
+            const added = next.filter((column) => !prev.includes(column));
+            const removed = prev.filter((column) => !next.includes(column));
+            if (added.length + removed.length !== 1) return;
+            capture("filters:facet_toggled", {
+              tableName,
+              column: added[0] ?? removed[0],
+              expanded: added.length === 1,
+              layout,
+              isV4: queryFilter.isV4 ?? false,
+            });
+          }}
+        >
+          {/* ONE keyed child array — not two .map() slices: React can
+                      only match keys within the same array, so a facet crossing
+                      the promoted/rest boundary would REMOUNT (wiping input
+                      focus and draft state) instead of moving.
 
-            Every facet renders; a search only sets `hidden`
-            on the rows it excludes. The wrapper is always present for
-            the same reason the array is single: swapping the element
-            around a facet would remount it and lose its draft state. */}
-        {displayedFilters.flatMap((filter) => {
-          const nodes = [];
-          if (showPromotedSeparator && filter.column === firstCatalogColumn) {
+                      Every facet renders; a search only sets `hidden`
+                      on the rows it excludes. The wrapper is always present for
+                      the same reason the array is single: swapping the element
+                      around a facet would remount it and lose its draft state. */}
+          {displayedFilters.flatMap((filter) => {
+            const nodes = [];
+            if (showPromotedSeparator && filter.column === firstCatalogColumn) {
+              nodes.push(
+                // The one line that means something: the boundary
+                // between the active/added block and the catalog.
+                <div
+                  key="promoted-separator"
+                  className="border-border mx-2 my-2 border-t"
+                  aria-hidden
+                />,
+              );
+            }
             nodes.push(
-              // The one line that means something: the boundary
-              // between the active/added block and the catalog.
               <div
-                key="promoted-separator"
-                className="border-border mx-2 my-2 border-t"
-                aria-hidden
-              />,
+                key={filter.column}
+                hidden={!visibleColumns.has(filter.column)}
+              >
+                {renderFacet(filter)}
+              </div>,
             );
-          }
-          nodes.push(
-            <div
-              key={filter.column}
-              hidden={!visibleColumns.has(filter.column)}
-            >
-              {renderFacet(filter)}
-            </div>,
-          );
-          return nodes;
-        })}
-      </Accordion>
+            return nodes;
+          })}
+        </AccordionPrimitive.Root>
+      </div>
 
       {/* Nothing matched — including any facet currently filtering, which the
           query hides like the rest. */}
@@ -1291,6 +1292,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
   renderOptionSuffix?: (value: string) => React.ReactNode;
+  getOptionTitle?: (value: string, displayLabel: string) => string;
   operator?: "any of" | "all of" | "none of";
   onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
@@ -1592,6 +1594,7 @@ export function CategoricalFacet({
   onOnlyChange,
   renderIcon,
   renderOptionSuffix,
+  getOptionTitle,
   isActive,
   isDisabled,
   disabledReason,
@@ -1672,6 +1675,7 @@ export function CategoricalFacet({
             onOnlyChange={onOnlyChange}
             renderIcon={renderIcon}
             renderOptionSuffix={renderOptionSuffix}
+            getOptionTitle={getOptionTitle}
             operator={operator}
             onOperatorChange={onOperatorChange}
           />
@@ -1713,6 +1717,7 @@ function CategoricalSelectContent({
   onOnlyChange,
   renderIcon,
   renderOptionSuffix,
+  getOptionTitle,
   operator,
   onOperatorChange,
 }: Pick<
@@ -1727,6 +1732,7 @@ function CategoricalSelectContent({
   | "onOnlyChange"
   | "renderIcon"
   | "renderOptionSuffix"
+  | "getOptionTitle"
   | "operator"
   | "onOperatorChange"
 >) {
@@ -1809,6 +1815,7 @@ function CategoricalSelectContent({
         key={option}
         id={`${filterKey}-${option}`}
         label={displayLabel}
+        title={getOptionTitle?.(option, displayLabel)}
         icon={renderIcon?.(option)}
         suffix={renderOptionSuffix?.(option)}
         count={counts.get(option) || 0}
@@ -1863,13 +1870,9 @@ function CategoricalSelectContent({
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
-              <TabsTrigger value="any of" className="h-5 px-1 text-xs">
-                Any of
-              </TabsTrigger>
-              <TabsTrigger value="all of" className="h-5 px-1 text-xs">
-                All of
-              </TabsTrigger>
+            <Tabs.List layout="full" size="sm">
+              <Tabs.Trigger value="any of" size="sm" label="Any of" />
+              <Tabs.Trigger value="all of" size="sm" label="All of" />
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
                   would persist a vacuous filter — LFE-10717), which used to
@@ -1878,14 +1881,13 @@ function CategoricalSelectContent({
                   engages by itself when a value is unchecked. */}
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <span className="min-w-0">
-                    <TabsTrigger
+                  <span className="w-full min-w-0">
+                    <Tabs.Trigger
                       value="none of"
                       disabled={operator === undefined}
-                      className="h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      None of
-                    </TabsTrigger>
+                      size="sm"
+                      label="None of"
+                    />
                   </span>
                 </TooltipTrigger>
                 {operator === undefined && (
@@ -1895,7 +1897,7 @@ function CategoricalSelectContent({
                   </TooltipContent>
                 )}
               </Tooltip>
-            </TabsList>
+            </Tabs.List>
           </Tabs>
         </div>
       )}
@@ -2508,14 +2510,10 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
-          <TabsTrigger value="select" className="h-5 px-2 text-xs">
-            Select
-          </TabsTrigger>
-          <TabsTrigger value="text" className="h-5 px-2 text-xs">
-            Text
-          </TabsTrigger>
-        </TabsList>
+        <Tabs.List layout="full" size="sm">
+          <Tabs.Trigger value="select" size="sm" label="Select" />
+          <Tabs.Trigger value="text" size="sm" label="Text" />
+        </Tabs.List>
       </Tabs>
     </div>
   );
@@ -2630,6 +2628,7 @@ function TextFilterSection({
 interface FilterValueCheckboxProps {
   id: string;
   label: string;
+  title?: string;
   icon?: React.ReactNode;
   suffix?: React.ReactNode;
   count: number;
@@ -2643,6 +2642,7 @@ interface FilterValueCheckboxProps {
 function FilterValueCheckbox({
   id,
   label,
+  title,
   icon,
   suffix,
   count,
@@ -2657,7 +2657,7 @@ function FilterValueCheckbox({
 
   // Display placeholder for empty strings to ensure clickable area
   const displayLabel = label === "" ? "(empty)" : label;
-  const displayTitle = label === "" ? "(empty)" : label;
+  const displayTitle = title ?? (label === "" ? "(empty)" : label);
 
   return (
     <div

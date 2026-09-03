@@ -32,6 +32,12 @@ describe("chartFilterExclusionReason", () => {
 
   it("groups measures, scores, comments, and metadata by reason", () => {
     expect(chartFilterExclusionReason("latency")).toMatch(/latency, cost/i);
+    expect(chartFilterExclusionReason("cachedInputTokens")).toMatch(
+      /latency, cost/i,
+    );
+    expect(chartFilterExclusionReason("cachedInputCost")).toMatch(
+      /latency, cost/i,
+    );
     expect(chartFilterExclusionReason("totalCost")).toMatch(/latency, cost/i);
     expect(chartFilterExclusionReason("scores_avg")).toMatch(/scores/i);
     expect(chartFilterExclusionReason("trace_score_categories")).toMatch(

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { isPresent, type ScoreConfigDomain } from "@langfuse/shared";
 import React from "react";

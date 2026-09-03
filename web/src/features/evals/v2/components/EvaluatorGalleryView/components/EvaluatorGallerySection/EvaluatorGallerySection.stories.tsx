@@ -38,7 +38,12 @@ const template = {
   maintainer: "langfuse",
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: "Rate the relevance of {{generation}} to {{query}}.",
+    promptMessages: [
+      {
+        role: "user",
+        content: "Rate the relevance of {{generation}} to {{query}}.",
+      },
+    ],
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
       dataType: "NUMERIC",

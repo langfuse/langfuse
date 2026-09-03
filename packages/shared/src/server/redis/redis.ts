@@ -40,8 +40,11 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Waits at least 1s and at most 20s between retries.
-    return Math.max(Math.min(Math.exp(times), 20000), 1000);
+    // Retries forever. Exponential base delay clamped to 1s–20s, plus up to
+    // 50% random jitter (so at most 30s), so the per-queue connections do not
+    // reconnect in lockstep when Redis becomes unreachable.
+    const delay = Math.max(Math.min(Math.exp(times), 20000), 1000);
+    return delay + Math.random() * delay * 0.5;
   },
   reconnectOnError: (err) => {
     // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.

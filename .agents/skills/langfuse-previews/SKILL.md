@@ -52,6 +52,11 @@ Pushing updates it; closing the PR tears it down.
   (`pr-<N> app preview`, `pr-<N> storybook preview`) — keep that suffix when
   editing either comment, or the shortcut disappears. A bare URL is not
   matched.
+- **Read captured email** — each preview has an in-namespace Mailpit SMTP
+  sink (invites, password reset, batch-export, spend alerts, mentions). It
+  does not send real mail. The UI is not public; port-forward it:
+  `kubectl -n langfuse-pr-<N> port-forward svc/preview-mailpit 8025:8025`
+  then open `http://localhost:8025`.
 - **Know where you are** — every preview page shows a top strip linking back
   to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,

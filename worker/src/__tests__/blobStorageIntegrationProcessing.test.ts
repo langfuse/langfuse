@@ -66,6 +66,7 @@ import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCust
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -236,6 +237,51 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       // Nothing was exported.
       const files = await storageService.listFiles(s3Prefix);
       expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
+  describe("invalid persisted region", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("persists the error before any S3 upload starts", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: "us west-2",
+          endpoint: endpoint ?? null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toBe(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+      expect(row.lastErrorAt).not.toBeNull();
+      expect(row.enabled).toBe(true);
     });
   });
 

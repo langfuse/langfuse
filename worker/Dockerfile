@@ -10,8 +10,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 RUN npm install turbo@2.10.5 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-RUN corepack prepare pnpm@11.22.0 --activate
+# Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
+ARG NODE_USE_ENV_PROXY
+RUN npm install --global corepack@0.36.0 \
+    && corepack enable \
+    && corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # package managers and build-only CLIs only increase exposure to CVEs -> remove them
@@ -62,8 +65,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 # we only need the prod + generated prisma client plus .prisma artifacts
 # @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
 # intact here instead of pruning node_modules in Docker.
-# Keep legacy deploy until the worker Docker image is verified with pnpm's default deploy implementation.
-RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
+# Scope workspace injection to deploy so regular workspace installs keep source-link semantics.
+RUN pnpm --config.inject-workspace-packages=true --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     builder_prisma_runtime_dir="$(dirname "$(dirname "$builder_prisma_client_dir")")/.prisma" && \

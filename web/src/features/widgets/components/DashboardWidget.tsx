@@ -1,3 +1,4 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
@@ -31,9 +32,7 @@ import {
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -62,10 +61,10 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
@@ -81,6 +80,7 @@ export interface WidgetPlacement {
 export function DashboardWidget({
   projectId,
   dashboardId,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -93,6 +93,8 @@ export function DashboardWidget({
 }: {
   projectId: string;
   dashboardId: string;
+  /** Resolved by the page controller — the widget must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -119,7 +121,7 @@ export function DashboardWidget({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
+  const isV4 = readPath === "v4";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -139,7 +141,7 @@ export function DashboardWidget({
       filters: widget.data?.filters ?? [],
     },
     persistedMinVersion: widget.data?.minVersion,
-    newestReadableVersion: isBetaEnabled ? "v2" : "v1",
+    newestReadableVersion: isV4 ? "v2" : "v1",
   });
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
@@ -271,11 +273,11 @@ export function DashboardWidget({
       },
       queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute`,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version: metricsVersion,
       }),
       enabled:
@@ -289,7 +291,7 @@ export function DashboardWidget({
     errorMessage: queryResult.error,
   });
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version: metricsVersion,
   });
   const loadingStateLayout =
@@ -476,9 +478,9 @@ export function DashboardWidget({
       view as z.infer<typeof views>,
       mergedFilters,
       dateRange,
-      isBetaEnabled ? "v4" : "v3",
+      readPath,
     );
-  }, [projectId, widget.data, filterState, dateRange, isBetaEnabled]);
+  }, [projectId, widget.data, filterState, dateRange, readPath]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;
