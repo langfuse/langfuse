@@ -1635,6 +1635,7 @@ describe("OTel Resource Span Mapping", () => {
       ["embeddings", "embedding-create"],
       ["invoke_agent", "agent-create"],
       ["create_agent", "agent-create"],
+      ["plan", "agent-create"],
       ["execute_tool", "tool-create"],
     ])(
       "should map OTel GenAI %s operation to %s event",
