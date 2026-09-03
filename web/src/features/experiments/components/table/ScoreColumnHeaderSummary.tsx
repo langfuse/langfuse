@@ -83,7 +83,6 @@ export const ScoreColumnHeaderSummary = ({
   filterMenu?: React.ReactNode;
 }) => {
   const { baseline, comparison, delta, movement } = summary;
-  const notComparable = movement?.notComparable ?? 0;
   const { icon, label: nameLabel } = splitScoreDataTypeIcon(label);
 
   return (
@@ -139,11 +138,10 @@ export const ScoreColumnHeaderSummary = ({
                   </span>
                 )}
                 {movement.changed > 0 && <span>↻{movement.changed}</span>}
-                {/* Items only one of the two runs scored: visible, and never
-                  folded into the regression count. */}
-                {notComparable > 0 && (
-                  <span className="opacity-70">{notComparable} n/a</span>
-                )}
+                {/* The not-scored count is deliberately NOT here. It is the
+                  least-used of the four numbers and it is what pushed this
+                  line onto a second row, which is what made the summary read
+                  as busy. It stays accounted for, in the hover. */}
               </span>
             )}
           </div>
