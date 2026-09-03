@@ -171,7 +171,6 @@ export default function ExperimentResults() {
         persistId={`experiment-detail-${baselineId ?? "none"}`}
         mainContent={
           <ExperimentItemsTable
-            key={ioRenderMode}
             projectId={projectId}
             ioRenderMode={ioRenderMode}
             settingsSections={
