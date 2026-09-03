@@ -104,6 +104,8 @@ export const InAppAiAgentButton = ({
         "relative gap-2",
         // Compact icon-only launcher for the top bar.
         prominent && "size-9 shrink-0 px-0",
+        // Once the assistant is open, the launcher is only a close affordance.
+        !prominent && open && "size-8 shrink-0 px-0",
         !prominent &&
           open &&
           "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
@@ -121,11 +123,9 @@ export const InAppAiAgentButton = ({
           className="bg-primary-accent absolute -top-0.5 -right-0.5 size-2 rounded-full"
         />
       )}
-      {/* Labels follow the page-header container, not the viewport, so a
-          docked right rail compacting the pane hides them before the cluster
-          wraps. The prominent launcher is a fixed 36px square and stays
-          icon-only. */}
-      {!prominent && (
+      {/* Keep the closed launcher descriptive when there is room. The
+          prominent launcher and active close affordance stay icon-only. */}
+      {!prominent && !open && (
         <>
           <span className="hidden @min-[42rem]/pageheader:inline">
             Assistant

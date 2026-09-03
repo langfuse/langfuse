@@ -154,8 +154,12 @@ export function ResizableSplitLayout({
   // In rail mode the collapsed panel stays visible (the caller renders a rail
   // in it) and keeps its handle so it can be dragged back open.
   const secondaryPanelClassName = cn(
-    // overflow-visible so a right-rail shadow can paint onto the primary pane.
-    "relative overflow-visible",
+    "relative",
+    // Right rails (assistant / support) keep overflow visible so the
+    // leftward shadow can paint onto the page. A left secondary (table
+    // filters) must clip, or checkbox rows spill over the table when the
+    // pane is squeezed by a docked rail.
+    secondaryPosition === "right" ? "overflow-visible" : "overflow-hidden",
     !hasCollapsedRail && (open ? "visible" : "invisible"),
   );
   const showSecondaryHandle = open || hasCollapsedRail;

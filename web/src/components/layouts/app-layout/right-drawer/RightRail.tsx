@@ -54,7 +54,7 @@ export function RightRail({
       ref={ref}
       data-right-rail=""
       data-ignore-outside-interaction
-      className="relative h-full min-h-0 border-l shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]"
+      className="relative h-full min-h-0 shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]"
     >
       <div className="h-full min-h-0 overflow-hidden">{children}</div>
     </div>
