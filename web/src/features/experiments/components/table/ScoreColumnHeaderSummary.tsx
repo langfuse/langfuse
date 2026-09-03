@@ -73,12 +73,19 @@ export const ScoreColumnHeaderSummary = ({
   dataType,
   summary,
   comparisonName,
+  hasBaseline,
   filterMenu,
 }: {
   label: string;
   dataType: ScoreColumnDataType;
   summary: ScoreColumnSummary;
   comparisonName?: string;
+  /**
+   * Whether the run the aggregate belongs to is the selected baseline. With
+   * comparisons but no baseline the first selected run stands in, and calling
+   * that a baseline claims a selection the user has not made.
+   */
+  hasBaseline: boolean;
   /** The column's way into the score comparison filter, rendered beside the name. */
   filterMenu?: React.ReactNode;
 }) => {
@@ -138,10 +145,9 @@ export const ScoreColumnHeaderSummary = ({
                   </span>
                 )}
                 {movement.changed > 0 && <span>↻{movement.changed}</span>}
-                {/* The not-scored count is deliberately NOT here. It is the
-                  least-used of the four numbers and it is what pushed this
-                  line onto a second row, which is what made the summary read
-                  as busy. It stays accounted for, in the hover. */}
+                {/* The not-scored count is deliberately NOT here: it is the
+                  least-used of these numbers and the line only holds three.
+                  It stays accounted for, in the hover. */}
               </span>
             )}
           </div>
@@ -155,7 +161,9 @@ export const ScoreColumnHeaderSummary = ({
             {getScoreDataTypeExplanation(dataType)}
           </span>
           <SummaryRow
-            label={`Baseline experiment (${DIFF_LABEL_TITLES[dataType]})`}
+            label={`${
+              hasBaseline ? "Baseline experiment" : "This experiment"
+            } (${DIFF_LABEL_TITLES[dataType]})`}
             value={
               baseline ? formatScoreColumnAggregate(baseline) : "no values"
             }
