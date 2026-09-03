@@ -22,11 +22,14 @@ vi.mock("@/src/components/table/peek", () => ({
   TablePeekView: ({
     actions,
     children,
+    leadingContent,
   }: {
     actions?: React.ReactNode;
     children: React.ReactNode;
+    leadingContent?: React.ReactNode;
   }) => (
     <div>
+      {leadingContent}
       {actions}
       {children}
     </div>
@@ -40,9 +43,9 @@ vi.mock("@/src/features/traces", () => ({
     onAggregationLevelChange: (aggregationLevel: "trace" | "session") => void;
   }) => (
     <button
-      role="radio"
+      role="tab"
       aria-label="Aggregate by session"
-      aria-checked={false}
+      aria-selected={false}
       onClick={() => onAggregationLevelChange("session")}
     />
   ),
@@ -86,9 +89,7 @@ describe("TablePeekViewTraceDetail", () => {
       }),
     );
 
-    fireEvent.click(
-      screen.getByRole("radio", { name: "Aggregate by session" }),
-    );
+    fireEvent.click(screen.getByRole("tab", { name: "Aggregate by session" }));
 
     expect(mockRouter.replace).toHaveBeenCalledWith(
       {
@@ -117,7 +118,7 @@ describe("TablePeekViewTraceDetail", () => {
       timestamp: undefined,
     });
     expect(
-      screen.queryByRole("radio", { name: "Aggregate by session" }),
+      screen.queryByRole("tab", { name: "Aggregate by session" }),
     ).not.toBeInTheDocument();
   });
 });

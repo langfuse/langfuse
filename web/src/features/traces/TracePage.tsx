@@ -149,10 +149,10 @@ export function TracePage({
         ],
         showSidebarTrigger: !showPublicIndicators,
         leadingControl,
+        titleLeadingContent: aggregationToggle,
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
-            {aggregationToggle}
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
@@ -196,18 +196,15 @@ export function TracePage({
         // menu rows (Share / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
-          <>
-            {aggregationToggle}
-            <TraceDetailActions
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              isPublic={trace.data.public}
-              name={trace.data.name}
-              timestamp={timestamp}
-              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-              layout="menu"
-            />
-          </>
+          <TraceDetailActions
+            traceId={trace.data.id}
+            projectId={trace.data.projectId}
+            isPublic={trace.data.public}
+            name={trace.data.name}
+            timestamp={timestamp}
+            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+            layout="menu"
+          />
         ),
       }}
     >

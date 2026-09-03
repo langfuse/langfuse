@@ -102,22 +102,13 @@ export const TablePeekViewObservationDetail = (
       {...props}
       itemType={isSessionScope ? "SESSION" : props.itemType}
       title={isSessionScope ? "Session" : traceDetailTitle(trace.data, traceId)}
+      leadingContent={aggregationToggle}
       actions={
-        aggregationToggle || actionProps ? (
-          <>
-            {aggregationToggle}
-            {actionProps ? <TraceDetailActions {...actionProps} /> : null}
-          </>
-        ) : undefined
+        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
       actionsMenu={
-        aggregationToggle || actionProps ? (
-          <>
-            {aggregationToggle}
-            {actionProps ? (
-              <TraceDetailActions {...actionProps} layout="menu" />
-            ) : null}
-          </>
+        actionProps ? (
+          <TraceDetailActions {...actionProps} layout="menu" />
         ) : undefined
       }
     >

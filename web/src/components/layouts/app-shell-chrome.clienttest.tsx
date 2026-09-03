@@ -140,4 +140,24 @@ describe("app shell chrome row", () => {
     expect(inner).toBeInstanceOf(HTMLElement);
     expect((inner as HTMLElement).className).toContain("lg:mx-auto");
   });
+
+  it("renders title-leading content before the item badge and title", () => {
+    render(
+      <SidebarPresenceProvider>
+        <SidebarProvider>
+          <PageHeader
+            title="Trace title"
+            itemType="TRACE"
+            titleLeadingContent={<div data-testid="title-leading" />}
+          />
+        </SidebarProvider>
+      </SidebarPresenceProvider>,
+    );
+
+    const leading = screen.getByTestId("title-leading");
+    const title = screen.getByTestId("page-header-title");
+    expect(
+      leading.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });

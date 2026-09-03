@@ -81,6 +81,8 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  /** Content pinned at the far left of the peek header. */
+  leadingContent?: React.ReactNode;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -267,6 +269,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     <PeekHeader
       itemType={props.itemType}
       title={resolvedTitle}
+      leadingContent={props.leadingContent}
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}

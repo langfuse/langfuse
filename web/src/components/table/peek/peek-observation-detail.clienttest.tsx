@@ -28,11 +28,14 @@ vi.mock("@/src/components/table/peek", () => ({
   TablePeekView: ({
     actions,
     children,
+    leadingContent,
   }: {
     actions?: React.ReactNode;
     children: React.ReactNode;
+    leadingContent?: React.ReactNode;
   }) => (
     <div>
+      {leadingContent}
       {actions}
       {children}
     </div>
@@ -48,9 +51,9 @@ vi.mock("@/src/features/traces", () => ({
     ) => void;
   }) => (
     <button
-      role="radio"
+      role="tab"
       aria-label="Show observation details only"
-      aria-checked={false}
+      aria-selected={false}
       onClick={() => onAggregationLevelChange("observation")}
     />
   ),
@@ -100,7 +103,7 @@ describe("TablePeekViewObservationDetail", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("radio", { name: "Show observation details only" }),
+      screen.getByRole("tab", { name: "Show observation details only" }),
     );
 
     expect(mockRouter.replace).toHaveBeenCalledWith(

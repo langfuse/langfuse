@@ -27,6 +27,8 @@ export type PlanPeekHeaderArgs = {
   minTitle: number;
   badgeLabelWidth: number;
   badgeIconWidth: number;
+  /** Fixed content rendered before the badge/title, px. */
+  leadingWidth: number;
   /** Prev/next nav width with K/J chips, px (0 when no nav). */
   navFullWidth: number;
   /** Prev/next nav width as compact icon arrows, px (0 when no nav). */
@@ -48,6 +50,7 @@ export function planPeekHeaderLayout({
   minTitle,
   badgeLabelWidth,
   badgeIconWidth,
+  leadingWidth,
   navFullWidth,
   navCompactWidth,
   otherPinnedWidth,
@@ -73,7 +76,8 @@ export function planPeekHeaderLayout({
     (hasOpenInTab && !foldOpenInTab ? (openInTabWidth ?? 0) : 0) +
     safety;
   const badgeWidth = () => (badgeShowLabel ? badgeLabelWidth : badgeIconWidth);
-  const titleAvailable = () => headerWidth - badgeWidth() - clusterWidth();
+  const titleAvailable = () =>
+    headerWidth - leadingWidth - badgeWidth() - clusterWidth();
 
   const reductions: Array<() => void> = [
     () => {

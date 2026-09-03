@@ -14,9 +14,10 @@ describe("TraceAggregationToggle", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("radio", { name: "Show observation details only" }),
-    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Observation" }), {
+      button: 0,
+      ctrlKey: false,
+    });
 
     expect(onAggregationLevelChange).toHaveBeenCalledWith("observation");
   });

@@ -30,6 +30,7 @@ import {
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
   title: React.ReactNode;
+  leadingContent?: React.ReactNode;
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
@@ -110,6 +111,7 @@ function HeaderIconButton({
 export function PeekHeader({
   itemType,
   title,
+  leadingContent,
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
@@ -125,6 +127,7 @@ export function PeekHeader({
   // control cluster too, whose width does change, to re-trigger the plan.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
   const badgeRef = useRef<HTMLDivElement>(null);
+  const leadingRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -135,6 +138,7 @@ export function PeekHeader({
     actions?: number;
     openInTab?: number;
     badgeLabel?: number;
+    leading?: number;
     navFull?: number;
     navCompact?: number;
     otherPinned?: number;
@@ -142,6 +146,7 @@ export function PeekHeader({
   const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
 
   const hasActions = Boolean(actions);
+  const hasLeadingContent = Boolean(leadingContent);
   const hasOpenInTab = Boolean(openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
 
@@ -155,6 +160,9 @@ export function PeekHeader({
 
     if (plan.badgeShowLabel && badgeRef.current) {
       widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
+    }
+    if (leadingRef.current) {
+      widthsRef.current.leading = leadingRef.current.offsetWidth;
     }
     if (hasActions && !plan.foldActions && actionsRef.current) {
       widthsRef.current.actions = actionsRef.current.offsetWidth;
@@ -176,6 +184,7 @@ export function PeekHeader({
       minTitle: MIN_TITLE_PX,
       badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
       badgeIconWidth: BADGE_ICON_PX,
+      leadingWidth: widthsRef.current.leading ?? 0,
       navFullWidth: hasNav
         ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
         : 0,
@@ -195,6 +204,7 @@ export function PeekHeader({
     headerSize?.width,
     clusterSize?.width,
     hasActions,
+    hasLeadingContent,
     hasOpenInTab,
     hasNav,
     plan,
@@ -209,6 +219,11 @@ export function PeekHeader({
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
+          {leadingContent && (
+            <div ref={leadingRef} className="shrink-0">
+              {leadingContent}
+            </div>
+          )}
           {/* Badge never truncates: it shows the full label or just the icon. */}
           <div ref={badgeRef} className="shrink-0">
             <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />

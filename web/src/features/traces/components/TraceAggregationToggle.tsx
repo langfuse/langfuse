@@ -1,4 +1,4 @@
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 export function TraceAggregationToggle({
   aggregationLevel,
@@ -10,8 +10,7 @@ export function TraceAggregationToggle({
   ) => void;
 }) {
   return (
-    <ToggleGroup
-      type="single"
+    <Tabs
       value={aggregationLevel}
       onValueChange={(value) => {
         if (
@@ -22,30 +21,12 @@ export function TraceAggregationToggle({
           onAggregationLevelChange(value);
         }
       }}
-      variant="outline"
-      className="gap-0"
     >
-      <ToggleGroupItem
-        value="trace"
-        aria-label="Aggregate by trace"
-        className="h-8 rounded-r-none px-2.5 text-xs"
-      >
-        Trace
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="session"
-        aria-label="Aggregate by session"
-        className="h-8 rounded-none border-l-0 px-2.5 text-xs"
-      >
-        Session
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="observation"
-        aria-label="Show observation details only"
-        className="h-8 rounded-l-none border-l-0 px-2.5 text-xs"
-      >
-        Observation
-      </ToggleGroupItem>
-    </ToggleGroup>
+      <Tabs.List aria-label="Trace detail scope">
+        <Tabs.Trigger value="trace" label="Trace" />
+        <Tabs.Trigger value="session" label="Session" />
+        <Tabs.Trigger value="observation" label="Observation" />
+      </Tabs.List>
+    </Tabs>
   );
 }
