@@ -13,6 +13,12 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 
+// Safety buffer below project.createdAt for the widened observation lookup:
+// tolerates observations stamped shortly before the project row was created
+// (clock skew / near-creation ingestion). createdAt is immutable, so the
+// resulting bound is stable across the project's lifetime.
+const PROJECT_CREATED_AT_SAFETY_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const assertTargetBelongsToProject = async ({
   prisma,
   input,
@@ -77,7 +83,12 @@ export const assertTargetBelongsToProject = async ({
       });
       observation = await getObservationForProject({
         ...observationLookup,
-        startTimeLowerBound: project?.createdAt,
+        startTimeLowerBound: project
+          ? new Date(
+              project.createdAt.getTime() -
+                PROJECT_CREATED_AT_SAFETY_INTERVAL_MS,
+            )
+          : undefined,
       });
     }
 
