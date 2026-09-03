@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -112,6 +111,7 @@ import {
   useObservationsTableStore,
 } from "@/src/features/tracing-tables/observations/ObservationsTableStoreProvider";
 import { useObservationsTableView } from "@/src/features/tracing-tables/observations/useObservationsTableView";
+import { useStore } from "zustand";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -207,6 +207,10 @@ export default function ObservationsTable({
   const { store: observationsTableStore } = useObservationsTableView({
     projectId,
   });
+  const showAddToDatasetDialog = useStore(
+    observationsTableStore,
+    (state) => state.showAddToDatasetDialog,
+  );
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-${projectId}`,
@@ -1408,15 +1412,17 @@ export default function ObservationsTable({
         )}
       </div>
 
-      <ObservationsAddToDatasetDialog
-        projectId={projectId}
-        rows={rows}
-        backendFilterState={backendFilterState}
-        orderByState={orderByState}
-        searchQuery={searchQuery}
-        searchType={searchType}
-        totalCount={totalCount}
-      />
+      {showAddToDatasetDialog && (
+        <ObservationsAddToDatasetDialog
+          projectId={projectId}
+          rows={rows}
+          backendFilterState={backendFilterState}
+          orderByState={orderByState}
+          searchQuery={searchQuery}
+          searchType={searchType}
+          totalCount={totalCount}
+        />
+      )}
     </>
   );
 
@@ -1527,16 +1533,11 @@ function ObservationsAddToDatasetDialog({
   searchType: TracingSearchType[];
   totalCount: number | null;
 }) {
-  const showAddToDatasetDialog = useObservationsTableStore(
-    (state) => state.showAddToDatasetDialog,
-  );
   const selectedObservationIds = useObservationsTableStore(
     (state) => state.selectedPageRowIds,
   );
   const selectAll = useObservationsTableStore((state) => state.selectAll);
   const actions = useObservationsTableStore((state) => state.actions);
-
-  if (!showAddToDatasetDialog) return null;
 
   const firstId = selectedObservationIds[0];
   const firstRow = rows.find((row) => row.id === firstId);
