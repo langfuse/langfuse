@@ -1,9 +1,9 @@
 ---
 name: incident-alert-tickets
 description: |
-  Read and, after human approval, update the Linear `incident-alert` knowledge
-  base. Use before and after investigating a named Datadog monitor, incident.io
-  alert or incident, or on-call page to find or record root causes.
+  Read and record root causes in the Linear `incident-alert` knowledge base. Use
+  before and after investigating a named Datadog monitor, incident.io alert or
+  incident, or on-call page to find or record root causes.
 ---
 
 # Incident Alert Tickets

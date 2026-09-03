@@ -38,7 +38,7 @@ are not allowed to file are a proposal for a human. One row per candidate:
 - Recent window measurement.
 - Baseline measurement.
 - Delta / regression summary.
-- Key evidence links.
+- Key evidence links — the ones *Required Evidence* below asks for.
 - Action taken: `commented <issue key>` for what you already did, or
   `needs a human to file`.
 
@@ -86,7 +86,7 @@ For related existing issues, add only:
 - Recent window and baseline window.
 - Measured delta or `No measurements found` for unavailable signals.
 - Affected environments, services, routes/resources, and top error messages.
-- Datadog links.
+- The evidence links from *Required Evidence*.
 
 Do not add fix suggestions, root-cause guesses, implementation notes, owner
 assignments, or next steps.

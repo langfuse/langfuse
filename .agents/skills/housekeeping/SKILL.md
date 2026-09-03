@@ -109,14 +109,14 @@ Recommend:
 - `stale-candidate` for old, conflicting, duplicate, or superseded PRs.
 - `no-action` when a PR is blocked on the author, failing CLA, merge conflicts, unresolved requested changes, or unrelated team ownership.
 
-Do not approve, request changes, comment, close, merge, or edit a PR without explicit human approval for that PR.
+Do not approve, request changes, comment, close, merge, or edit a PR without explicit human approval for that PR. This is about **GitHub pull requests**, not the issue tracker — tracker comments and description edits follow `linear-agent-writes` and need nobody's permission.
 
 ## Human Gates
 
-All writes require explicit human confirmation by row ID. This includes:
+These writes require explicit human confirmation by row ID:
 
-- Linear comments, status changes, priority changes, assignee changes, labels, cancellation, or customer-need changes.
-- Pylon replies, internal notes, status changes, assignment, tags, snoozes, closes, or external-issue links.
+- Linear state — status, priority, assignee, labels, cancellation, or customer-need changes. Comments and description edits are **not** gated: they are two of the permitted agent write shapes, so leave them to `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin, which owns the shapes and the labels.
+- Pylon replies, internal notes, status changes, assignment, tags, snoozes, closes, or external-issue links. This is customer-facing, and that gate stays.
 - GitHub approvals, comments, requested changes, reviewer changes, closes, merges, labels, or branch actions.
 
 If the user says "do the quick ones", first show the exact proposed writes and ask for confirmation unless they already named the exact row IDs.
