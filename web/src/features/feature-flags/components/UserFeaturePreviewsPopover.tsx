@@ -1,3 +1,4 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
@@ -14,8 +15,6 @@ import {
   featurePreviewLabels,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Accordion } from "@/src/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
@@ -36,7 +36,7 @@ beforeAll(() => {
 describe("CategoricalFacet", () => {
   it("uses a custom option hover title", () => {
     render(
-      <Accordion type="multiple" value={["evaluatorId"]}>
+      <AccordionPrimitive.Root type="multiple" value={["evaluatorId"]}>
         <CategoricalFacet
           label="Evaluator"
           filterKey="evaluatorId"
@@ -52,7 +52,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -64,7 +64,7 @@ describe("CategoricalFacet", () => {
 
   it("renders an option suffix after its label", () => {
     render(
-      <Accordion type="multiple" value={["model"]}>
+      <AccordionPrimitive.Root type="multiple" value={["model"]}>
         <CategoricalFacet
           label="Model"
           filterKey="model"
@@ -81,7 +81,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -96,7 +96,7 @@ describe("CategoricalFacet", () => {
 
   it("shows selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -110,7 +110,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -122,7 +122,7 @@ describe("CategoricalFacet", () => {
 
   it("shows Clear for active selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -136,7 +136,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -150,7 +150,7 @@ describe("CategoricalFacet", () => {
     // value sits below the 12-item cap and is hidden behind "Show more".
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -164,7 +164,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -191,7 +191,7 @@ describe("CategoricalFacet", () => {
     // not the entire list.
     const options = Array.from({ length: 80 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -205,7 +205,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -236,7 +236,7 @@ describe("CategoricalFacet", () => {
     // a pinned selection — doing so would render the entire list with no cap.
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -250,7 +250,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -269,7 +269,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const selected = options.slice(0, 18); // 18 of 20 selected
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -283,7 +283,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -304,7 +304,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const value = options.filter((option) => option !== "opt-18");
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -320,7 +320,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -347,7 +347,7 @@ describe("CategoricalFacet", () => {
     // deliberate no-op in the state model, so the tab must read disabled
     // instead of silently doing nothing.
     render(
-      <Accordion type="multiple" value={["tags"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags"]}>
         <CategoricalFacet
           label="Tags"
           filterKey="tags"
@@ -363,14 +363,14 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     expect(screen.getByRole("tab", { name: "None of" })).toBeDisabled();
 
     // With a persisted selection the operator conversion is meaningful.
     render(
-      <Accordion type="multiple" value={["tags2"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags2"]}>
         <CategoricalFacet
           label="Tags2"
           filterKey="tags2"
@@ -386,7 +386,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     const tabs = screen.getAllByRole("tab", { name: "None of" });
@@ -395,7 +395,7 @@ describe("CategoricalFacet", () => {
 
   it("does not reorder short, fully-visible lists", () => {
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -409,7 +409,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },

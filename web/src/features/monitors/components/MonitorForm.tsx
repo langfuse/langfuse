@@ -1,7 +1,9 @@
 /* eslint-disable @repo/no-style-props */
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
-import { type LucideIcon, Plus } from "lucide-react";
+import { ChevronDown, type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
@@ -9,12 +11,6 @@ import { startCase } from "lodash";
 import { api } from "@/src/utils/api";
 import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Button } from "@/src/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
 import {
   Card,
   CardContent,
@@ -44,8 +40,6 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
@@ -753,43 +747,48 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
-                <Accordion type="single" collapsible>
-                  <AccordionItem value="advanced" className="border-b-0">
-                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                      Advanced Options
-                    </AccordionTrigger>
-                    <AccordionContent className="space-y-6 px-1 pt-2">
-                      <FormField
-                        control={form.control}
-                        name="noData"
-                        render={({ field }) => (
-                          <FormItem>
-                            <NoDataField
-                              value={field.value as MonitorNoData}
-                              onChange={field.onChange}
-                              disabled={!hasAccess}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="renotify"
-                        render={({ field }) => (
-                          <FormItem>
-                            <RenotifyField
-                              value={field.value as MonitorRenotify}
-                              onChange={field.onChange}
-                              disabled={!hasAccess}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <AccordionPrimitive.Root type="single" collapsible>
+                  <AccordionPrimitive.Item value="advanced">
+                    <AccordionPrimitive.Header className="flex">
+                      <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        Advanced Options
+                      </AccordionPrimitive.Trigger>
+                    </AccordionPrimitive.Header>
+                    <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+                      <div className="space-y-6 px-1 pt-2 pb-4">
+                        <FormField
+                          control={form.control}
+                          name="noData"
+                          render={({ field }) => (
+                            <FormItem>
+                              <NoDataField
+                                value={field.value as MonitorNoData}
+                                onChange={field.onChange}
+                                disabled={!hasAccess}
+                              />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="renotify"
+                          render={({ field }) => (
+                            <FormItem>
+                              <RenotifyField
+                                value={field.value as MonitorRenotify}
+                                onChange={field.onChange}
+                                disabled={!hasAccess}
+                              />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionPrimitive.Content>
+                  </AccordionPrimitive.Item>
+                </AccordionPrimitive.Root>
               </Section>
 
               <Section title="Notifications" step={3} className="pb-2">

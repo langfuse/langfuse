@@ -1,4 +1,4 @@
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import type { Prisma } from "@langfuse/shared";
 
 /**

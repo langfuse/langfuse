@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
