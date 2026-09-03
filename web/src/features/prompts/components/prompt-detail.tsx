@@ -57,7 +57,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
 import {

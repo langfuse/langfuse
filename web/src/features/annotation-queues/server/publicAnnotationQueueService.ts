@@ -1,18 +1,18 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import type {
-  AnnotationQueue,
-  AnnotationQueueItem,
-  CreateAnnotationQueueAssignmentBody,
-  CreateAnnotationQueueBody,
-  CreateAnnotationQueueItemBody,
-  DeleteAnnotationQueueAssignmentBody,
-  DeleteAnnotationQueueItemQuery,
-  GetAnnotationQueueByIdQuery,
-  GetAnnotationQueueItemByIdQuery,
-  GetAnnotationQueueItemsQuery,
-  GetAnnotationQueuesQuery,
-  UpdateAnnotationQueueItemBody,
-} from "@/src/features/public-api/types/annotation-queues";
+import {
+  type AnnotationQueue,
+  type AnnotationQueueItem,
+  type CreateAnnotationQueueAssignmentBody,
+  type CreateAnnotationQueueBody,
+  type CreateAnnotationQueueItemBody,
+  type DeleteAnnotationQueueAssignmentBody,
+  type DeleteAnnotationQueueItemQuery,
+  type GetAnnotationQueueByIdQuery,
+  type GetAnnotationQueueItemByIdQuery,
+  type GetAnnotationQueueItemsQuery,
+  type GetAnnotationQueuesQuery,
+  type UpdateAnnotationQueueItemBody,
+} from "@/src/features/public-api/server";
 import {
   AnnotationQueueStatus,
   InvalidRequestError,

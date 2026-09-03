@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -31,7 +32,7 @@ import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExp
 import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   CreateExperimentData,
