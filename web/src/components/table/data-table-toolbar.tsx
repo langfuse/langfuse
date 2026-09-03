@@ -170,6 +170,10 @@ interface DataTableToolbarProps<TData, TValue> {
    *  shape is validated on the experiments list; needs both controls, so a
    *  table that passes only one keeps its single button. */
   mergeSettingsIntoPopover?: boolean;
+  /** This surface's own presentation settings, rendered inside the merged
+   *  "Table settings" popover under Columns and row height. Ignored unless
+   *  `mergeSettingsIntoPopover` is on and both shared controls are present. */
+  settingsSections?: React.ReactNode;
   /** Notified when a whole column group is shown or hidden at once, for surfaces
    *  that report their own event for it (the experiments score families). */
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
@@ -255,6 +259,7 @@ export function DataTableToolbar<TData, TValue>({
   viewModeToggle,
   leadingControls,
   mergeSettingsIntoPopover = false,
+  settingsSections,
   onColumnGroupToggle,
 }: DataTableToolbarProps<TData, TValue> & ToolbarTableIdentity) {
   const [searchString, setSearchString] = useState(
@@ -514,6 +519,7 @@ export function DataTableToolbar<TData, TValue>({
               tableName={analyticsTableName}
               isV4={analyticsIsV4}
               onColumnGroupToggle={onColumnGroupToggle}
+              extraSections={settingsSections}
             />
           ) : (
             <>
