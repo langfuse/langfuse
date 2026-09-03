@@ -21,7 +21,7 @@ import {
   useCallback,
   type RefObject,
 } from "react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
