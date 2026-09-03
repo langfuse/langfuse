@@ -869,8 +869,8 @@ export const DockedSidebar = meta.story({
 });
 
 /**
- * Title-triggered history: recency groups and relative age. Hover a row to
- * replace the age with delete. New conversation stays a header action.
+ * History lives on the clock icon. Recency groups and relative age; hover a
+ * row to replace the age with delete. New conversation stays a header action.
  */
 export const PastConversations = meta.story({
   name: "Past Conversations",
@@ -1913,7 +1913,7 @@ export const ApprovalExpired = meta.story({
 /**
  * Recency groups, left-side activity, and relative age. The title is only a
  * name: attention lives on the rows and the launcher, and the count stays in
- * the trigger's accessible name. The running conversation is omitted from
+ * the history icon's accessible name. The running conversation is omitted from
  * that count: it has nothing for the user to act on yet.
  */
 export const ConversationActivity = meta.story({

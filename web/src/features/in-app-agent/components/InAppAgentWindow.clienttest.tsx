@@ -249,6 +249,7 @@ describe("InAppAgentWindow header", () => {
     expect(onDockChange).toHaveBeenCalledWith("detached");
     expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
       presentation: "detached",
+      source: "detach",
     });
 
     rerender(windowElement({ dock: "detached", onDockChange }));
@@ -256,6 +257,32 @@ describe("InAppAgentWindow header", () => {
     expect(onDockChange).toHaveBeenCalledWith("sidebar");
     expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
       presentation: "sidebar",
+      source: "dock",
+    });
+  });
+
+  it("tracks expand and collapse from the chrome control", () => {
+    capture.mockClear();
+    const onExpandedChange = vi.fn();
+    const { rerender } = render(
+      windowElement({ dock: "sidebar", onExpandedChange }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand assistant" }));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "fullscreen",
+      source: "expand",
+    });
+
+    rerender(
+      windowElement({ dock: "sidebar", isExpanded: true, onExpandedChange }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Collapse assistant" }));
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "sidebar",
+      source: "collapse",
     });
   });
 
@@ -269,7 +296,7 @@ describe("InAppAgentWindow header", () => {
       screen.queryByRole("button", { name: "Dock assistant" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Collapse window" }),
+      screen.getByRole("button", { name: "Collapse assistant" }),
     ).toBeInTheDocument();
   });
 
@@ -285,11 +312,16 @@ describe("InAppAgentWindow header", () => {
   });
 
   it("toggles expanded on a header double-click, but not from its actions", () => {
+    capture.mockClear();
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));
 
     fireEvent.dblClick(screen.getByRole("banner"));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "fullscreen",
+      source: "header_double_click",
+    });
 
     fireEvent.dblClick(
       screen.getByRole("button", { name: "Start new conversation" }),

@@ -366,6 +366,8 @@ const events = {
     "new_chat_started",
     "new_chat_turn",
     "quick_action_started",
+    // Destination `presentation` plus which chrome control fired it
+    // (`source`: expand, collapse, detach, dock, header_double_click).
     "presentation_changed",
     "tool_approval_decided",
   ],

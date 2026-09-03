@@ -14,8 +14,8 @@ import {
   ArrowRight,
   ArrowDown,
   BotMessageSquare,
-  ChevronDown,
   ChevronRight,
+  History,
   Info,
   Maximize2,
   Minimize2,
@@ -1041,8 +1041,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
+  const skipHistoryTriggerRestoreRef = useRef(false);
   // Same conversations the launcher badge counts. The title stays a name;
-  // the count only goes on the trigger's accessible name.
+  // the count only goes on the history trigger's accessible name.
   const historyAttentionCount = [...activityByConversationId.values()].filter(
     (entry) => entry.needsAttention,
   ).length;
@@ -1197,11 +1198,38 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   return;
                 }
 
+                capture("in_app_agent:presentation_changed", {
+                  presentation: isExpanded ? dock : "fullscreen",
+                  source: "header_double_click",
+                });
                 onExpandedChange(!isExpanded);
               }
         }
       >
         <div className="flex min-w-0 flex-1 items-center">
+          <p className="min-w-0 truncate text-sm font-bold" title={windowTitle}>
+            {windowTitle}
+          </p>
+        </div>
+        <div
+          className="flex shrink-0 items-center gap-1"
+          data-movable-resizable-panel-ignore-drag="true"
+        >
+          <Tooltip delayDuration={100} disableHoverableContent>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0"
+                onClick={onNewConversation}
+                aria-label="Start new conversation"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Start new conversation</TooltipContent>
+          </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
             onOpenChange={(nextOpen) => {
@@ -1218,26 +1246,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    className="h-6 max-w-full min-w-0 gap-1 px-1.5 text-sm font-bold"
+                    size="icon-xs"
+                    className="shrink-0"
                     // Count lives on the button name, as on the launcher — a
                     // nested badge aria-label is ignored once the parent has one.
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
-                    <span className="min-w-0 truncate" title={windowTitle}>
-                      {windowTitle}
-                    </span>
-                    <ChevronDown className="size-3 shrink-0 opacity-70" />
+                    <History className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent>Conversation history</TooltipContent>
             </Tooltip>
             <DropdownMenuContent
-              align="start"
+              align="end"
               className="w-72"
               header="Past conversations"
               maxHeight="20rem"
+              onCloseAutoFocus={(event) => {
+                // Selecting or deleting a row should leave the conversation in
+                // view. Restoring focus would show the trigger's ring and tooltip.
+                if (skipHistoryTriggerRestoreRef.current) {
+                  event.preventDefault();
+                  skipHistoryTriggerRestoreRef.current = false;
+                }
+              }}
             >
               {conversations.length === 0 ? (
                 <DropdownMenuItem disabled>
@@ -1267,6 +1300,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                             isSelected && "bg-accent text-accent-foreground",
                           )}
                           onSelect={() => {
+                            skipHistoryTriggerRestoreRef.current = true;
                             onSelectConversation(conversation.id);
                           }}
                         >
@@ -1283,8 +1317,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           >
                             {itemTitle}
                           </span>
-                          <span className="relative flex h-6 min-w-7 shrink-0 items-center justify-end">
-                            <span className="text-muted-foreground tabular-nums group-focus-within:invisible group-hover:invisible">
+                          <span className="relative size-6 shrink-0">
+                            <span className="text-muted-foreground flex size-full items-center justify-center tabular-nums group-focus-within:invisible group-hover:invisible">
                               {formatConversationHistoryAge(
                                 conversation.updatedAt,
                               )}
@@ -1293,7 +1327,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                               type="button"
                               variant="ghost"
                               size="icon-xs"
-                              className="text-muted-foreground hover:text-destructive absolute inset-y-0 right-0 my-auto opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                              className="text-muted-foreground hover:text-destructive absolute inset-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
                               aria-label="Delete conversation"
                               onPointerDown={(event) => {
                                 event.preventDefault();
@@ -1302,6 +1336,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
+                                skipHistoryTriggerRestoreRef.current = true;
                                 setIsConversationHistoryOpen(false);
                                 onDeleteConversation(conversation);
                               }}
@@ -1328,26 +1363,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-        <div
-          className="flex shrink-0 items-center gap-0.5"
-          data-movable-resizable-panel-ignore-drag="true"
-        >
-          <Tooltip delayDuration={100} disableHoverableContent>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6 shrink-0"
-                onClick={onNewConversation}
-                aria-label="Start new conversation"
-              >
-                <Plus className="size-3" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Start new conversation</TooltipContent>
-          </Tooltip>
           {/* Fullscreen and handheld have nowhere to dock or detach into. */}
           {onDockChange && !isHandheld && !isExpanded ? (
             <Tooltip delayDuration={100} disableHoverableContent>
@@ -1355,8 +1370,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="size-6"
+                  size="icon-xs"
+                  className="shrink-0"
                   aria-label={
                     dock === "sidebar" ? "Detach assistant" : "Dock assistant"
                   }
@@ -1365,14 +1380,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       dock === "sidebar" ? "detached" : "sidebar";
                     capture("in_app_agent:presentation_changed", {
                       presentation: nextDock,
+                      source: nextDock === "detached" ? "detach" : "dock",
                     });
                     onDockChange(nextDock);
                   }}
                 >
                   {dock === "sidebar" ? (
-                    <PictureInPicture2 className="size-3" />
+                    <PictureInPicture2 className="h-4 w-4" />
                   ) : (
-                    <PanelRight className="size-3" />
+                    <PanelRight className="h-4 w-4" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1388,22 +1404,28 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                  size="icon-xs"
+                  className="shrink-0"
+                  aria-label={
+                    isExpanded ? "Collapse assistant" : "Expand assistant"
+                  }
                   onClick={() => {
+                    capture("in_app_agent:presentation_changed", {
+                      presentation: isExpanded ? dock : "fullscreen",
+                      source: isExpanded ? "collapse" : "expand",
+                    });
                     onExpandedChange(!isExpanded);
                   }}
                 >
                   {isExpanded ? (
-                    <Minimize2 className="size-3" />
+                    <Minimize2 className="h-4 w-4" />
                   ) : (
-                    <Maximize2 className="size-3" />
+                    <Maximize2 className="h-4 w-4" />
                   )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isExpanded ? "Collapse window" : "Expand window"}
+                {isExpanded ? "Collapse assistant" : "Expand assistant"}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -1413,12 +1435,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="size-6"
+                  size="icon-xs"
+                  className="shrink-0"
                   aria-label="Close assistant"
                   onClick={props.onClose}
                 >
-                  <X className="size-3" />
+                  <X className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Close assistant</TooltipContent>
@@ -1672,8 +1694,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   ? "Reply..."
                   : "Let me know what I can do for you..."
               }
-              rows={1}
-              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              rows={2}
+              className="placeholder:text-foreground-tertiary max-h-40 min-h-[3.5rem] w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
             <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">

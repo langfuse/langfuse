@@ -20,7 +20,7 @@ import {
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { RightRail } from "@/src/components/layouts/app-layout/right-drawer/RightRail";
 
 function DeleteConversationDialog({
   close,
@@ -128,7 +128,6 @@ function InAppAgentPersistentWindowSink({
 export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const isHandheld = useIsHandheld();
-  const capture = usePostHogClientCapture();
   const { deleteConversation, dock, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -168,11 +167,6 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const handleExpandedChange = (nextIsExpanded: boolean) => {
     previousPanelRectRef.current =
       panelRef.current?.getBoundingClientRect() ?? null;
-    if (nextIsExpanded !== isExpanded) {
-      capture("in_app_agent:presentation_changed", {
-        presentation: nextIsExpanded ? "fullscreen" : dock,
-      });
-    }
     setIsExpanded(nextIsExpanded);
   };
 
@@ -248,13 +242,9 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
                 className="flex h-full min-h-0 w-full flex-1"
                 primaryContent={children}
                 secondaryContent={
-                  <div
-                    data-testid="in-app-agent-sidebar"
-                    data-ignore-outside-interaction
-                    className="h-full min-h-0 overflow-hidden"
-                  >
+                  <RightRail data-testid="in-app-agent-sidebar">
                     <InAppAgentPersistentWindowSink node={outletNode} />
-                  </div>
+                  </RightRail>
                 }
                 open={showSidebar}
                 defaultPrimarySize={70}

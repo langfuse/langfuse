@@ -76,6 +76,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
+  occupyExclusiveRightPanel,
+  registerExclusiveRightPanel,
+} from "@/src/components/layouts/app-layout/right-drawer/exclusiveRightPanels";
+import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
@@ -101,7 +105,8 @@ export type InAppAgentEntryPoint =
   | "keyboard_shortcut"
   | "dashboard_widget"
   | "v4_migration"
-  | "evaluators_empty_state";
+  | "evaluators_empty_state"
+  | "peek_header";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,
@@ -1257,6 +1262,10 @@ function InAppAiAgentProviderInner({
         releaseSubmitLock(selectedConversationId);
       }
 
+      if (nextOpen) {
+        occupyExclusiveRightPanel("assistant");
+      }
+
       if (nextOpen && selectedConversationId) {
         attachToConversation(selectedConversationId).catch(() => undefined);
       }
@@ -1271,6 +1280,14 @@ function InAppAiAgentProviderInner({
       setOpen,
     ],
   );
+  const setAgentOpenRef = useRef(setAgentOpen);
+  setAgentOpenRef.current = setAgentOpen;
+
+  useEffect(() => {
+    return registerExclusiveRightPanel("assistant", () => {
+      setAgentOpenRef.current(false);
+    });
+  }, []);
 
   const openAssistant = useCallback(
     (source: InAppAgentEntryPoint) => {

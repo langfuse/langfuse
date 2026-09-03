@@ -5,6 +5,11 @@ import { BotMessageSquare } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
   type InAppAgentEntryPoint,
@@ -116,13 +121,16 @@ export const InAppAiAgentButton = ({
           className="bg-primary-accent absolute -top-0.5 -right-0.5 size-2 rounded-full"
         />
       )}
-      {/* The prominent launcher is a fixed 36px square (top bar, below md), so
-          it stays strictly icon-only — the `sm:inline` label would otherwise
-          reveal in the 640–767px band and overflow the box. */}
+      {/* Labels follow the page-header container, not the viewport, so a
+          docked right rail compacting the pane hides them before the cluster
+          wraps. The prominent launcher is a fixed 36px square and stays
+          icon-only. */}
       {!prominent && (
         <>
-          <span className="hidden sm:inline">Assistant</span>
-          <span className="hidden md:inline-flex">
+          <span className="hidden @min-[42rem]/pageheader:inline">
+            Assistant
+          </span>
+          <span className="hidden @min-[48rem]/pageheader:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>
         </>
@@ -130,3 +138,55 @@ export const InAppAiAgentButton = ({
     </Button>
   );
 };
+
+/** Icon-only launcher for the table peek header. Separate from
+ * {@link InAppAiAgentButton}: that control is the labeled top-nav toggle and
+ * owns the keyboard shortcut; this one has to match the peek's ghost icon
+ * cluster and must not register a second Cmd+I listener. */
+export function InAppAiAgentPeekHeaderButton() {
+  const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
+
+  if (!isInAppAgentLauncherVisible) {
+    return null;
+  }
+
+  const attentionSuffix =
+    attentionCount > 0
+      ? ` (${attentionCount} ${attentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
+  const label = `${open ? "Close" : "Open"} assistant${attentionSuffix}`;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={label}
+          aria-pressed={open}
+          onClick={() => {
+            if (open) {
+              setOpen(false);
+              return;
+            }
+            openAssistant("peek_header");
+          }}
+          className={cn("relative", open && "text-primary-accent")}
+        >
+          <BotMessageSquare className="h-4 w-4" />
+          {attentionCount > 0 && (
+            <span
+              aria-hidden="true"
+              className="bg-primary-accent absolute -top-0.5 -right-0.5 size-1.5 rounded-full"
+            />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {open ? "Close assistant" : "Open assistant"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}

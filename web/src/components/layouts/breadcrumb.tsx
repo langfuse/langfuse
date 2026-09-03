@@ -46,7 +46,7 @@ const BreadcrumbComponent = ({
 
   return (
     <Breadcrumb className={className}>
-      <BreadcrumbList>
+      <BreadcrumbList className="flex-nowrap">
         {organization && (
           <DropdownMenu>
             <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none">
