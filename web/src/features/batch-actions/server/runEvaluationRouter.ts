@@ -23,6 +23,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
+import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
 
 export const runEvaluationRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -40,6 +41,7 @@ export const runEvaluationRouter = createTRPCRouter({
           query,
           evaluatorIds: rawEvaluatorIds,
           sourceTable = BatchEvalSourceTable.EVENTS,
+          evaluatorMappings: rawEvaluatorMappings,
         } = input;
 
         if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
@@ -111,6 +113,15 @@ export const runEvaluationRouter = createTRPCRouter({
           });
         }
 
+        const evaluatorMappings =
+          input.evalVersion === "v2" && rawEvaluatorMappings
+            ? await prepareBatchEvalEvaluatorMappings({
+                prisma: ctx.prisma,
+                projectId,
+                mappings: rawEvaluatorMappings,
+              })
+            : undefined;
+
         // Event comments live in Postgres, so resolve them for the preflight
         // count while retaining the original query for the queued worker.
         const commentFilterResult =
@@ -145,6 +156,7 @@ export const runEvaluationRouter = createTRPCRouter({
         const batchConfig = {
           evaluatorIds,
           ...(input.evalVersion ? { evalVersion: input.evalVersion } : {}),
+          ...(evaluatorMappings ? { evaluatorMappings } : {}),
         };
 
         logger.info(
@@ -193,6 +205,7 @@ export const runEvaluationRouter = createTRPCRouter({
               ...(batchConfig.evalVersion
                 ? { evalVersion: batchConfig.evalVersion }
                 : {}),
+              ...(evaluatorMappings ? { evaluatorMappings } : {}),
             },
           },
           {
