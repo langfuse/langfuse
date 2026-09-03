@@ -1849,8 +1849,13 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
     );
     if (!show) throw new Error("no show-labels button");
     await expect(show.disabled).toBe(false);
-    await expect(toolbar()?.innerText.toLowerCase()).toContain("show labels");
-    await userEvent.click(show);
+    await expect(show.innerText.toLowerCase()).toContain("show labels");
+    const caption = [...(toolbar()?.querySelectorAll("span") ?? [])].find(
+      (el) => el.textContent?.trim().toLowerCase() === "show labels",
+    );
+    if (!caption) throw new Error("Show labels text is not on the button");
+    await expect(show.contains(caption)).toBe(true);
+    await userEvent.click(caption);
 
     await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
     await expect(readout()).toContain("zoomed");

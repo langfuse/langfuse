@@ -1340,6 +1340,9 @@ export function TimelineDense({
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
             <UnfoldVertical className="h-3 w-3" />
+            <span className="pr-0.5" style={{ fontSize: "10px" }}>
+              Show labels
+            </span>
           </ToolbarButton>
         ) : (
           <ToolbarButton
@@ -1354,18 +1357,16 @@ export function TimelineDense({
           </ToolbarButton>
         )}
         {/* Where you are, when you are somewhere — and nothing at all when the
-            whole trace is in view. When labels are hidden at rest, the spent
-            fit control becomes "Show labels" and this caption says so: zoom is
-            how you get the names back, and that is not obvious from 1px rows. */}
-        <span
-          className="text-muted-foreground truncate"
-          style={{ fontSize: "10px" }}
-          title={
-            offerShowLabels ? "Show labels" : fitted ? undefined : windowHint
-          }
-        >
-          {offerShowLabels ? "Show labels" : fitted ? null : windowHint}
-        </span>
+            whole trace is in view. */}
+        {!offerShowLabels && !fitted ? (
+          <span
+            className="text-muted-foreground truncate"
+            style={{ fontSize: "10px" }}
+            title={windowHint}
+          >
+            {windowHint}
+          </span>
+        ) : null}
       </div>
 
       {/* The axis doubles as the scrub track: press to place the playhead, drag
@@ -1945,7 +1946,7 @@ function ToolbarButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded disabled:pointer-events-none disabled:opacity-40"
+      className="hover:bg-muted flex h-4 min-w-4 shrink-0 items-center justify-center gap-0.5 rounded px-0.5 disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>
