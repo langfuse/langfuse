@@ -52,15 +52,34 @@ export const assertTargetBelongsToProject = async ({
       });
     }
 
-    const observation = await getObservationForProject({
+    const observationLookup = {
       observationId: input.observationId,
       traceId: input.traceId,
       projectId: input.projectId,
       useEventsTable,
-      // The observation belongs to this trace, so the trace timestamp is a tight
-      // lower bound for its start_time and lets the lookup prune events_full.
+    };
+
+    // The observation belongs to this trace, so the trace timestamp is a tight
+    // lower bound for its start_time and lets the lookup prune events_full.
+    let observation = await getObservationForProject({
+      ...observationLookup,
       startTimeLowerBound: trace?.timestamp,
     });
+
+    // trace.timestamp is an independent SDK-supplied field that can be set later
+    // than a child observation's start_time (no ingestion invariant couples
+    // them). On a miss, widen the bound to the project creation time so a valid
+    // observation is never wrongly reported missing while queries stay bounded.
+    if (!observation && trace?.timestamp) {
+      const project = await prisma.project.findUnique({
+        where: { id: input.projectId },
+        select: { createdAt: true },
+      });
+      observation = await getObservationForProject({
+        ...observationLookup,
+        startTimeLowerBound: project?.createdAt,
+      });
+    }
 
     if (!observation) {
       throw new TRPCError({

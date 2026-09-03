@@ -257,6 +257,12 @@ const createPrismaStub = () => {
         },
       ),
     },
+    project: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        createdAt: new Date("2020-01-01T00:00:00.000Z"),
+      })),
+    },
   };
 
   return {
@@ -676,6 +682,43 @@ describe("webCallouts router", () => {
         userId: "user-1",
       },
       expect.any(Function),
+    );
+  });
+
+  it("widens the observation lookup bound when the trace timestamp misses it", async () => {
+    const { caller, projectId } = await prepare();
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceById as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // A trace whose timestamp sits far after the observation's start_time: the
+    // first lookup, bounded by that timestamp, misses; the widened retry finds
+    // it, so validation must succeed rather than 404.
+    (getObservationById as Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({
+        id: "observation-1",
+        traceId: "trace-1",
+        sessionId: null,
+      });
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).resolves.toEqual({ success: true, status: 204 });
+
+    expect(getObservationById).toHaveBeenCalledTimes(2);
+    const calls = (getObservationById as Mock).mock.calls;
+    expect(calls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
+    expect(calls[1][0].startTimeLowerBound).toEqual(
+      new Date("2020-01-01T00:00:00.000Z"),
     );
   });
 
