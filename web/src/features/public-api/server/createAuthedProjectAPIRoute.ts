@@ -231,8 +231,14 @@ function apiKeyScope(
   };
 }
 
-/** adminScope synthesizes the legacy self-host admin scope, loading the target project's org (404 on miss). Admin auth reaches here only when ADMIN_API_KEY is set, which Cloud does not set. */
+/** adminScope synthesizes the legacy self-host admin scope, loading the target project's org (404 on miss); admin key auth never applies on Langfuse Cloud. */
 async function adminScope(projectId: string): Promise<VerifyAuthResult> {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    throw {
+      status: 403,
+      message: "Admin API key auth is not available on Langfuse Cloud",
+    };
+  }
   const project = await prisma.project.findUnique({
     where: { id: projectId, deletedAt: null },
     select: { id: true, orgId: true },

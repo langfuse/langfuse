@@ -26,6 +26,7 @@ let secretKey = "";
 
 let originalMigration: string | undefined;
 let originalAdminApiKey: string | undefined;
+let originalCloudRegion: string | undefined;
 
 const reqWith = (headers: Record<string, string | undefined>): NextApiRequest =>
   ({ headers, method: "GET" }) as unknown as NextApiRequest;
@@ -51,6 +52,7 @@ describe("enforce maps principals to legacy-identical scopes", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
     originalAdminApiKey = (env as any).ADMIN_API_KEY;
+    originalCloudRegion = (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     (env as any).ADMIN_API_KEY = adminApiKey;
 
     ({ verifyAuth } =
@@ -67,6 +69,7 @@ describe("enforce maps principals to legacy-identical scopes", () => {
   afterAll(() => {
     (env as any).API_AUTH_MIGRATION = originalMigration;
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
   it("private-key basic yields a legacy-identical project scope", async () => {
@@ -94,7 +97,8 @@ describe("enforce maps principals to legacy-identical scopes", () => {
     expect(dropScopeKey(enforce)).toEqual(dropScopeKey(legacy));
   });
 
-  it("admin key yields the synthesized admin scope", async () => {
+  it("admin key on self-host yields the synthesized admin scope", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const { legacy, enforce } = await scopeUnderModes({
       req: reqWith({
         authorization: `Bearer ${adminApiKey}`,
@@ -108,5 +112,27 @@ describe("enforce maps principals to legacy-identical scopes", () => {
     expect(enforce.apiKeyId).toBe("ADMIN_API_KEY");
     expect(enforce.projectId).toBe(projectId);
     expect(dropScopeKey(enforce)).toEqual(dropScopeKey(legacy));
+  });
+
+  it("admin key on Langfuse Cloud is refused in legacy and enforce", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+    const params: VerifyAuthParams = {
+      req: reqWith({
+        authorization: `Bearer ${adminApiKey}`,
+        "x-langfuse-admin-api-key": adminApiKey,
+        "x-langfuse-project-id": projectId,
+      }),
+      name: "Get Models",
+      action: "models:read",
+      isAdminApiKeyAuthAllowed: true,
+    };
+    const cloudDenial = {
+      status: 403,
+      message: "Admin API key auth is not available on Langfuse Cloud",
+    };
+    setMode("legacy");
+    await expect(verifyAuth(params)).rejects.toEqual(cloudDenial);
+    setMode("enforce");
+    await expect(verifyAuth(params)).rejects.toEqual(cloudDenial);
   });
 });
