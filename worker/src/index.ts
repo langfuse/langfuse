@@ -2,12 +2,7 @@ import "./instrumentation"; // instrumenting the application
 import type { Server } from "http";
 import { initializeWorker } from "./initialize";
 import { env } from "./env";
-import {
-  installUnhandledRejectionCapture,
-  logger,
-} from "@langfuse/shared/src/server";
-
-installUnhandledRejectionCapture();
+import { logger } from "@langfuse/shared/src/server";
 
 export let server: Server | undefined;
 

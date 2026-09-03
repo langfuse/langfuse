@@ -14,13 +14,21 @@ export async function register() {
     await import("./observability.config");
   }
 
-  // Capture after dd.init when init runs. Keep the dynamic import so AWS SDK
+  // Install after dd.init when init runs. Keep the dynamic import so AWS SDK
   // is not loaded before dd-trace wraps it. Install even when init is skipped
-  // (secondary replicas set NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=false).
+  // (secondary replicas set NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=false). On a
+  // fatal error, drain in-flight requests before exiting instead of dying
+  // abruptly and 5xx-ing them; the drain is imported lazily so its heavy
+  // dependencies load only when a fatal actually fires.
   if (isNodeRuntime) {
-    const { installUnhandledRejectionCapture } =
+    const { installProcessErrorHandlers } =
       await import("@langfuse/shared/src/server");
-    installUnhandledRejectionCapture();
+    installProcessErrorHandlers({
+      onFatal: async () => {
+        const { drainAndClose } = await import("./utils/shutdown");
+        await drainAndClose();
+      },
+    });
   }
 
   if (isNodeRuntime && isInitLoadingEnabled) {

@@ -28,6 +28,13 @@ import {
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
+  await drainAndClose();
+};
+
+// Flip readiness to unhealthy, stop accepting new work, drain in-flight jobs
+// and flush pending writes, then close connections. Shared by the
+// SIGTERM/SIGINT path and the fatal-error path.
+export const drainAndClose = async () => {
   setSigtermReceived();
 
   // Stop accepting new connections
