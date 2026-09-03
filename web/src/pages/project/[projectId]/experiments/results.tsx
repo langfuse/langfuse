@@ -171,6 +171,10 @@ export default function ExperimentResults() {
         persistId={`experiment-detail-${baselineId ?? "none"}`}
         mainContent={
           <ExperimentItemsTable
+            // The shared table body's memo comparator does not look at the
+            // column definitions, so a format change alone never reaches the
+            // cells. Remounting is what makes the switch take effect.
+            key={ioRenderMode}
             projectId={projectId}
             ioRenderMode={ioRenderMode}
             settingsSections={
