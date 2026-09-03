@@ -16,7 +16,7 @@ import {
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({
     name: "Get Unstable Evaluator",
-    action: "evalTemplate:read",
+    action: "evaluator:read",
     querySchema: GetUnstableEvaluatorQuery,
     responseSchema: GetUnstableEvaluatorResponse,
     fn: async ({ query, auth }) =>
@@ -27,7 +27,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Evaluator",
-    action: "evalTemplate:CUD",
+    action: "evaluator:CUD",
     querySchema: DeleteUnstableEvaluatorQuery,
     responseSchema: DeleteUnstableEvaluatorResponse,
     fn: async ({ query, auth }) => {

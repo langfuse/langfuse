@@ -10,7 +10,7 @@ export type Credential =
   | { kind: "bearer"; token: string }
   | { kind: "malformed" };
 
-/** parseAuthorizationHeader decodes the Authorization header into its scheme, or `malformed` for anything unparseable. */
+/** parseAuthorizationHeader decodes the Authorization header into its scheme, or `malformed` for anything unparsable. */
 export function parseAuthorizationHeader(
   header: string | undefined,
 ): Credential {

@@ -1,7 +1,6 @@
 import { type Role } from "@langfuse/shared/src/db";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
-const organizationScopes = [
+export const organizationScopes = [
   "projects:create",
   "projects:transfer_org",
   "organization:CRUD_apiKeys",

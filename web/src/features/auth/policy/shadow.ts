@@ -53,7 +53,7 @@ export function newVerdict(result: NewResult): {
 }
 
 /** verdictFromStatus reads a legacy chokepoint's http status: under 400 allows, else denies. */
-export function verdictFromStatus(status: number): Verdict {
+function verdictFromStatus(status: number): Verdict {
   return status < 400 ? "allow" : "deny";
 }
 

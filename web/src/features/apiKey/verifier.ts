@@ -147,7 +147,7 @@ function unauthorized(): ErrorResult<UnauthorizedError> {
 }
 
 /** VerifiedCredential is the presentation the resolver consumes: an api key with how it was presented, or the admin key. */
-export type VerifiedCredential =
+type VerifiedCredential =
   | { authorization: "publicKey" | "privateKey"; apiKey: ApiKey }
   | { authorization: "admin" };
 

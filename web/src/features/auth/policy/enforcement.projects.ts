@@ -106,11 +106,6 @@ export type AuthError =
   | InternalServerError
   | ForbiddenError;
 
-/** EnforceProjectAuthDecision is the project pipeline's outcome — `enforceProjectAuth`'s return. */
-export type EnforceProjectAuthDecision = Awaited<
-  ReturnType<typeof enforceProjectAuth>
->;
-
 /** ResolvedProject is project target resolution's success outcome. */
 type ResolvedProject = Success & { projectId: string };
 

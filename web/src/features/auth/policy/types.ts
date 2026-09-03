@@ -24,7 +24,7 @@ export const allOrganizationActions: OrganizationAction[] = [
 ];
 
 /** Wildcard is the type of the wildcard resource matcher literal. */
-export type Wildcard = typeof wildcard;
+type Wildcard = typeof wildcard;
 
 /** ProjectAction is an action assignable to a project policy. */
 export type ProjectAction = ProjectScope;
@@ -58,31 +58,31 @@ export type Principal =
     };
 
 /** Source describes where a policy came from: a role or an explicit grant. */
-export type Source = { kind: "role"; id: string } | { kind: "grant" };
+type Source = { kind: "role"; id: string } | { kind: "grant" };
 
 /** ProjectResource identifies a project by its globally-unique id. */
-export type ProjectResource = { projectId: string };
+type ProjectResource = { projectId: string };
 
 /** OrgResource identifies an org node. */
-export type OrgResource = { orgId: string };
+type OrgResource = { orgId: string };
 
 /** Resource is the thing being checked: a bare project or an org node. */
 export type Resource = ProjectResource | OrgResource;
 
 /** BasePolicy carries the origin and effect every policy shares. */
-export type BasePolicy = {
+type BasePolicy = {
   source: Source;
   effect: "allow" | "deny";
 };
 
 /** OrganizationSystemPolicy is a resource-less org-level policy. */
-export type OrganizationSystemPolicy = BasePolicy & {
+type OrganizationSystemPolicy = BasePolicy & {
   kind: "organization";
   actions: OrganizationAction[];
 };
 
 /** ProjectSystemPolicy is a resource-less project-level policy. */
-export type ProjectSystemPolicy = BasePolicy & {
+type ProjectSystemPolicy = BasePolicy & {
   kind: "project";
   actions: ProjectAction[];
 };
