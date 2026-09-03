@@ -716,6 +716,37 @@ describe("webCallouts router", () => {
     expect(calls[1][0].startTimeLowerBound).toBeUndefined();
   });
 
+  it("does not widen the observation lookup bound when the bounded lookup errors", async () => {
+    const { caller, projectId } = await prepare();
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceById as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // A transient failure (e.g. a ClickHouse timeout) must not be mistaken for a
+    // genuine miss: retrying unbounded would issue a second expensive scan while
+    // the backend is already struggling. Validation fails fast to a 404 instead.
+    (getObservationById as Mock).mockRejectedValue(
+      new Error("ClickHouse timeout"),
+    );
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(getObservationById).toHaveBeenCalledTimes(1);
+    expect(
+      (getObservationById as Mock).mock.calls[0][0].startTimeLowerBound,
+    ).toEqual(traceTimestamp);
+  });
+
   it("rate limits before target validation and outbound delivery", async () => {
     const { caller, projectId } = await prepare();
     await createEndpoint(caller, projectId);

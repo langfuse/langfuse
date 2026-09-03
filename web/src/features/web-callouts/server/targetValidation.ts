@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import { type WebCalloutInvokeInput } from "@/src/features/web-callouts/types";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   getObservationById,
@@ -52,33 +53,19 @@ export const assertTargetBelongsToProject = async ({
       });
     }
 
-    const observationLookup = {
+    // The observation belongs to this trace, so the trace timestamp is a tight
+    // lower bound for its start_time and lets the lookup prune events_full. On a
+    // genuine miss the lookup retries unbounded internally: trace.timestamp is
+    // an independent SDK-supplied field that can post-date a child observation's
+    // start_time, and legitimate backfills mean an observation can be older than
+    // any project-derived floor, so no safe fallback bound exists.
+    const observation = await getObservationForProject({
       observationId: input.observationId,
       traceId: input.traceId,
       projectId: input.projectId,
       useEventsTable,
-    };
-
-    // The observation belongs to this trace, so the trace timestamp is a tight
-    // lower bound for its start_time and lets the lookup prune events_full.
-    let observation = await getObservationForProject({
-      ...observationLookup,
       startTimeLowerBound: trace?.timestamp,
     });
-
-    // trace.timestamp is an independent SDK-supplied field that can be set later
-    // than a child observation's start_time (no ingestion invariant couples
-    // them), and legitimate backfills mean an observation can be arbitrarily
-    // older than any project-derived floor. So there is no safe lower bound to
-    // fall back to: on a miss, retry unbounded to avoid wrongly reporting a
-    // valid observation as missing. This runs only on a miss, so the tight
-    // trace-timestamp bound still serves the common path.
-    if (!observation && trace?.timestamp) {
-      observation = await getObservationForProject({
-        ...observationLookup,
-        startTimeLowerBound: undefined,
-      });
-    }
 
     if (!observation) {
       throw new TRPCError({
@@ -136,6 +123,19 @@ const getTraceForProject = async ({
   return undefined;
 };
 
+// Validation only needs the observation's existence, so the lookup keeps just
+// its identity — this stays assignable from both the observations- and
+// events-table getters, whose full return shapes differ.
+type WebCalloutObservation = { id: string };
+
+// A lookup either resolves to an observation, a genuine not-found (undefined
+// observation, transientError false), or a transient failure (transientError
+// true) that the helpers swallow so the caller can decide whether to retry.
+type ObservationLookupResult = {
+  observation?: WebCalloutObservation;
+  transientError: boolean;
+};
+
 const getObservationForProject = async ({
   observationId,
   traceId,
@@ -149,34 +149,89 @@ const getObservationForProject = async ({
   useEventsTable: boolean;
   startTimeLowerBound?: Date;
 }) => {
-  if (useEventsTable) {
-    const observation = await tryGetObservationFromEvents({
-      observationId,
-      traceId,
-      projectId,
-      startTimeLowerBound,
-    });
-    if (observation) return observation;
-  }
-
-  const observation = await tryGetObservation({
+  const bounded = await runObservationLookup({
     observationId,
     traceId,
     projectId,
+    useEventsTable,
     startTimeLowerBound,
   });
-  if (observation) return observation;
+  if (bounded.observation) return bounded.observation;
 
-  if (shouldTryEventsTableFallback(useEventsTable)) {
-    return tryGetObservationFromEvents({
+  // Retry unbounded only on a genuine miss. The lookup helpers swallow transient
+  // failures (timeout, ClickHouse unavailable) into the same empty result as a
+  // real not-found; retrying then would issue a second expensive unbounded scan
+  // exactly when the backend is already struggling. On a transient error, fail
+  // fast instead — matching the pre-bounding behavior.
+  if (startTimeLowerBound && !bounded.transientError) {
+    const unbounded = await runObservationLookup({
+      observationId,
+      traceId,
+      projectId,
+      useEventsTable,
+      startTimeLowerBound: undefined,
+    });
+    if (unbounded.observation) return unbounded.observation;
+  }
+
+  return undefined;
+};
+
+const runObservationLookup = async ({
+  observationId,
+  traceId,
+  projectId,
+  useEventsTable,
+  startTimeLowerBound,
+}: {
+  observationId: string;
+  traceId: string;
+  projectId: string;
+  useEventsTable: boolean;
+  startTimeLowerBound?: Date;
+}): Promise<ObservationLookupResult> => {
+  let transientError = false;
+
+  const consider = (result: ObservationLookupResult) => {
+    if (result.transientError) transientError = true;
+    return result.observation;
+  };
+
+  if (useEventsTable) {
+    const observation = consider(
+      await tryGetObservationFromEvents({
+        observationId,
+        traceId,
+        projectId,
+        startTimeLowerBound,
+      }),
+    );
+    if (observation) return { observation, transientError };
+  }
+
+  const observation = consider(
+    await tryGetObservation({
       observationId,
       traceId,
       projectId,
       startTimeLowerBound,
-    });
+    }),
+  );
+  if (observation) return { observation, transientError };
+
+  if (shouldTryEventsTableFallback(useEventsTable)) {
+    const fallback = consider(
+      await tryGetObservationFromEvents({
+        observationId,
+        traceId,
+        projectId,
+        startTimeLowerBound,
+      }),
+    );
+    if (fallback) return { observation: fallback, transientError };
   }
 
-  return undefined;
+  return { transientError };
 };
 
 const tryGetTrace = async ({
@@ -240,10 +295,10 @@ const tryGetObservation = async ({
   traceId: string;
   projectId: string;
   startTimeLowerBound?: Date;
-}) => {
+}): Promise<ObservationLookupResult> => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Per customer requirement, web callouts should also work on v3.
-    return await getObservationById({
+    const observation = await getObservationById({
       id: observationId,
       projectId,
       traceId,
@@ -254,8 +309,20 @@ const tryGetObservation = async ({
         shouldJsonParse: false,
       },
     });
-  } catch {
-    return undefined;
+    return { observation, transientError: false };
+  } catch (error) {
+    if (error instanceof LangfuseNotFoundError) {
+      return { transientError: false };
+    }
+    logger.warn(
+      "Failed to validate web callout observation via observations table",
+      {
+        projectId,
+        observationId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    );
+    return { transientError: true };
   }
 };
 
@@ -269,9 +336,9 @@ const tryGetObservationFromEvents = async ({
   traceId: string;
   projectId: string;
   startTimeLowerBound?: Date;
-}) => {
+}): Promise<ObservationLookupResult> => {
   try {
-    return await getObservationByIdFromEventsTable({
+    const observation = await getObservationByIdFromEventsTable({
       id: observationId,
       projectId,
       traceId,
@@ -282,13 +349,17 @@ const tryGetObservationFromEvents = async ({
         shouldJsonParse: false,
       },
     });
+    return { observation, transientError: false };
   } catch (error) {
+    if (error instanceof LangfuseNotFoundError) {
+      return { transientError: false };
+    }
     logger.warn("Failed to validate web callout observation via events table", {
       projectId,
       observationId,
       error: error instanceof Error ? error.message : "Unknown error",
     });
-    return undefined;
+    return { transientError: true };
   }
 };
 
