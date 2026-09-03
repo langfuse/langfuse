@@ -40,4 +40,7 @@ export const availableFlags = [
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
+  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
+  // normalized-parser formatted trace view for admins/flagged users only.
+  "normalizedIoPreview",
 ] as const;

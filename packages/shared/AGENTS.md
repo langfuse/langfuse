@@ -23,6 +23,7 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+- Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
   recording/diff harness that captures the current SQL at the
@@ -34,7 +35,10 @@
   `src/server/query-ast/kysely/`.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
-- ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
+- Canonical ClickHouse migration templates (rendered for clustered and
+  unclustered installs): `clickhouse/migrations/canonical/*`
+- ClickHouse SQL identifier and string quoting:
+  `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points
@@ -74,6 +78,7 @@
   the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
+  `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The experimental
@@ -105,6 +110,8 @@ the same PR.
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
+- Materialize direct-migration trees: `pnpm ch:migrations:materialize`
+- Clean direct-migration trees: `pnpm ch:migrations:clean`
 
 ## Playbooks
 
@@ -118,7 +125,16 @@ the same PR.
 
 ### ClickHouse schema change
 
-1. Add migration under `clickhouse/migrations/*`.
+1. Add one canonical migration pair under `clickhouse/migrations/canonical/*`.
+   - Use `{CLICKHOUSE_CLUSTER_CLAUSE}` for every cluster-aware DDL clause.
+   - Use `{CLICKHOUSE_REPLICATION_PREFIX}` only on table engines that should
+     be replicated in clustered mode and plain in unclustered mode.
+   - Put clustered-only synchronization fragments inside
+     `{CLICKHOUSE_CLUSTERED_ONLY:...}`. Use
+     `{CLICKHOUSE_UNCLUSTERED_ONLY:...}` only when preserving a deliberate
+     mode-specific difference.
+   - Run `src/server/clickhouse/prepareMigrations.test.ts`; it validates both
+     rendered modes and protects the historical migration output.
    - Redefining views or materialized views follows strict patterns (no
      `CREATE OR REPLACE VIEW`; MV SELECT changes via
      `ALTER TABLE … MODIFY QUERY`) — apply the "Langfuse-Specific Rules" in

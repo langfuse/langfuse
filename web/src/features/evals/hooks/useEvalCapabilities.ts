@@ -1,7 +1,7 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
@@ -30,7 +30,7 @@ export function useEvalCapabilities(
 ): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
   const isSessionLoading = sessionStatus === "loading";
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const isCodeEvalConfig =
     isCodeEvalEnabled && (options?.isCodeEvalTemplate ?? false);
@@ -38,7 +38,7 @@ export function useEvalCapabilities(
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
     { projectId },
-    { enabled: isBetaEnabled && Boolean(projectId) },
+    { enabled: isV4 && Boolean(projectId) },
   );
 
   // Determine OTEL status from SDK version info
@@ -70,7 +70,7 @@ export function useEvalCapabilities(
   return {
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
-    compatibilityCheckWasPerformed: isBetaEnabled,
+    compatibilityCheckWasPerformed: isV4,
     // Allow setting up new legacy evals only if: not a code eval AND the
     // deployment mode offers the legacy experience. Having existing legacy
     // evals no longer grants this; they remain editable via edit mode.

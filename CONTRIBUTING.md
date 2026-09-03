@@ -551,6 +551,8 @@ To export the respective `openapi.yml` files which power the online API referenc
 pnpm run openapi:export
 ```
 
+Commit the updated files under `web/public/generated/`. CI re-runs this export on PRs that touch `fern/**` or the served specs and fails if they drift (`pnpm run openapi:check`).
+
 This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 
 To generate the server SDKs, run:

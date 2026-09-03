@@ -4,7 +4,7 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import {
   EvalTargetObject,
@@ -308,11 +308,11 @@ export function usePreviewData({
   observationId,
   timestamp,
 }: UsePreviewDataParams): PreviewResult {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const mode = getPreviewMode({
     enabled,
     target,
-    shouldUseEventsTable: isBetaEnabled,
+    shouldUseEventsTable: isV4,
   });
 
   const tracePreview = useTracePreview({

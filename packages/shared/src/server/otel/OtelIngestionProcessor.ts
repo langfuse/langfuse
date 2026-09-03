@@ -25,6 +25,7 @@ import {
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
   LangfuseInternalTraceEnvironment,
+  sanitizeSdkMetricTagValue,
 } from "../";
 
 import {
@@ -270,12 +271,10 @@ export class OtelIngestionProcessor {
   private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
   private static readonly MAX_OTEL_RECONSTRUCTED_PATH_DEPTH = 64;
 
-  private static readonly METADATA_DROP_WARN_CAP = 10;
   private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
-  private metadataDropWarnCount = 0;
   private arrayAttributeDropWarnCounts = new Map<
     ReconstructedAttributeDropReason,
     number
@@ -495,6 +494,8 @@ export class OtelIngestionProcessor {
                   spanAttributes,
                   span,
                 );
+                const evaluationFields =
+                  this.extractEvaluationFields(spanAttributes);
 
                 const spanContext = {
                   spanId,
@@ -594,13 +595,7 @@ export class OtelIngestionProcessor {
                       null)
                     : null,
                   promptVersion: canLinkPrompt
-                    ? (spanAttributes?.[
-                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-                      ] ??
-                      spanAttributes["langfuse.prompt.version"] ??
-                      this.parseLangfusePromptFromAISDK(spanAttributes)
-                        ?.version ??
-                      null)
+                    ? this.extractPromptVersion(spanAttributes)
                     : null,
 
                   modelParameters: this.extractModelParameters(
@@ -664,6 +659,9 @@ export class OtelIngestionProcessor {
 
                   // Experiment fields
                   ...experimentFields,
+
+                  // Evaluator execution fields
+                  ...evaluationFields,
 
                   // Tool calling
                   toolDefinitions,
@@ -1278,12 +1276,7 @@ export class OtelIngestionProcessor {
           null)
         : null,
       promptVersion: canLinkPrompt
-        ? (attributes?.[
-            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-          ] ??
-          attributes["langfuse.prompt.version"] ??
-          this.parseLangfusePromptFromAISDK(attributes)?.version ??
-          null)
+        ? this.extractPromptVersion(attributes)
         : null,
       usageDetails: isAiSdkAgentSpan
         ? {}
@@ -2512,9 +2505,11 @@ export class OtelIngestionProcessor {
     // survive the fallback and are counted by the parser itself.
     const primaryValue = attributes[metadataKeyPrefix];
     if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
+      const isString = typeof primaryValue === "string";
       this.recordMetadataDropped(
-        typeof primaryValue === "string" ? "parse_failure" : "primitive",
+        isString ? "parse_failure" : "primitive",
         { domain, attributeKey: metadataKeyPrefix, dropScope },
+        isString ? this.classifyParseFailure(primaryValue) : undefined,
       );
     }
 
@@ -3274,10 +3269,10 @@ export class OtelIngestionProcessor {
   // pipelines) or the per-resourceSpan attributes object for resource
   // attributes — on (attribute key, reason). Distinct spans/resourceSpans
   // in one job count separately; the first-seen domain wins the tag.
-  // Warns are capped per instance, increments are not.
   private recordMetadataDropped(
     reason: string,
     context: MetadataDropContext,
+    kind?: string,
   ): void {
     const { domain, attributeKey, dropScope } = context;
     let seen = this.reportedMetadataDrops.get(dropScope);
@@ -3291,22 +3286,46 @@ export class OtelIngestionProcessor {
     }
     seen.add(dedupeKey);
 
-    recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+    // attributeKey is a closed set of Langfuse-defined attribute names
+    // (never a user-supplied key); sdkName/sdkVersion attribute the emitting
+    // client and are sanitized because they originate from raw request
+    // headers; kind sub-classifies parse_failure by the value's shape. None
+    // of these carry the dropped value itself.
+    const tags: Record<string, string> = {
       reason,
       source: "otel",
       domain,
-    });
-    if (
-      this.metadataDropWarnCount < OtelIngestionProcessor.METADATA_DROP_WARN_CAP
-    ) {
-      this.metadataDropWarnCount += 1;
-      logger.warn("OTEL metadata attribute dropped", {
-        projectId: this.projectId,
-        reason,
-        domain,
-        attributeKey,
-      });
+      projectId: this.projectId,
+      attributeKey,
+      sdkName: sanitizeSdkMetricTagValue(this.sdkName),
+      sdkVersion: sanitizeSdkMetricTagValue(this.sdkVersion),
+    };
+    if (kind) {
+      tags.kind = kind;
     }
+    recordIncrement("langfuse.ingestion.metadata_dropped", 1, tags);
+  }
+
+  // Sub-classifies a JSON.parse failure by the failing string's shape,
+  // reading only bounded head/tail windows — never re-parses or copies the
+  // (possibly multi-MB) value, and never logs its content. Slicing first
+  // keeps the trim/regex work off the full string.
+  private classifyParseFailure(value: string): string {
+    const head = value.slice(0, 64).trimStart();
+    if (head.length === 0) {
+      return "empty";
+    }
+    // Python `str(dict)` / `str(list)` — single-quoted, or bare True/False/None.
+    if (/^[{[]\s*'/.test(head) || /^(True|False|None)\b/.test(head)) {
+      return "python_repr";
+    }
+    const first = head[0];
+    if (first === "{" || first === "[") {
+      const expectedClose = first === "{" ? "}" : "]";
+      const last = value.slice(-64).trimEnd().slice(-1);
+      return last === expectedClose ? "loose_json" : "truncated_json";
+    }
+    return "unquoted_string";
   }
 
   private parseMetadataAttribute(
@@ -3326,7 +3345,11 @@ export class OtelIngestionProcessor {
         this.recordMetadataDropped("non_object_top_level", context);
         return {};
       } catch {
-        this.recordMetadataDropped("parse_failure", context);
+        this.recordMetadataDropped(
+          "parse_failure",
+          context,
+          this.classifyParseFailure(value),
+        );
         return {};
       }
     }
@@ -3481,6 +3504,34 @@ export class OtelIngestionProcessor {
     };
   }
 
+  private extractEvaluationFields(attributes: Record<string, unknown>) {
+    const evaluatorId = attributes[LangfuseOtelSpanAttributes.EVALUATOR_ID];
+    const evaluationRuleId =
+      attributes[LangfuseOtelSpanAttributes.EVALUATION_RULE_ID];
+    const evaluatorExecutionIsTest =
+      attributes[LangfuseOtelSpanAttributes.EVALUATOR_EXECUTION_IS_TEST];
+
+    if (
+      evaluatorId == null &&
+      evaluationRuleId == null &&
+      evaluatorExecutionIsTest == null
+    ) {
+      return { evaluationContext: undefined };
+    }
+
+    return {
+      evaluationContext: {
+        evaluatorId: evaluatorId ? String(evaluatorId) : undefined,
+        evaluationRuleId: evaluationRuleId
+          ? String(evaluationRuleId)
+          : undefined,
+        evaluatorExecutionIsTest:
+          evaluatorExecutionIsTest === true ||
+          evaluatorExecutionIsTest === "true",
+      },
+    };
+  }
+
   /**
    * The item version is a pointer to a dataset item version (`valid_from` timestamp),
    * not a free-form label; "v1" or "latest" cannot resolve to one, so we drop them.
@@ -3495,6 +3546,25 @@ export class OtelIngestionProcessor {
       "OTEL invalid experiment item version, dropping. Expected timestamp.",
     );
     return undefined;
+  }
+
+  /**
+   * OTLP exporters may carry the prompt version as a stringValue; downstream
+   * schemas require an integer. Non-integer values become null.
+   */
+  private extractPromptVersion(
+    attributes: Record<string, unknown>,
+  ): number | null {
+    const raw =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
+      attributes["langfuse.prompt.version"] ??
+      this.parseLangfusePromptFromAISDK(attributes)?.version;
+
+    if (typeof raw === "number") return Number.isInteger(raw) ? raw : null;
+    if (typeof raw === "string" && /^\d+$/.test(raw.trim())) {
+      return Number(raw);
+    }
+    return null;
   }
 
   private parseLangfusePromptFromAISDK(

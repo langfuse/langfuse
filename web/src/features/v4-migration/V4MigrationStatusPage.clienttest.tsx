@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   evalCount: 1,
   lastTracePending: false,
   canToggleV4: true,
-  isBetaEnabled: false,
+  isV4: false,
   // Cloud is bound by the dated v3 sunset; self-hosted is not.
   hasDeadline: true,
 }));
@@ -104,10 +104,10 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => true,
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({
     canToggleV4: mocks.canToggleV4,
-    isBetaEnabled: mocks.isBetaEnabled,
+    isV4: mocks.isV4,
   }),
 }));
 
@@ -169,7 +169,7 @@ describe("V4MigrationStatusPage", () => {
     mocks.lastTracePending = false;
     mocks.canToggleV4 = true;
     mocks.hasDeadline = true;
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
   });
 
   it("keeps the project table readable through horizontal scrolling", () => {
@@ -260,7 +260,7 @@ describe("V4MigrationStatusPage", () => {
   });
 
   it("offers v3 users a switch to the latest UI without a sunset note", () => {
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
 
     render(<V4MigrationStatusPage />);
 
@@ -274,7 +274,7 @@ describe("V4MigrationStatusPage", () => {
   });
 
   it("warns v4 users about the v3 sunset when offering the switch back", () => {
-    mocks.isBetaEnabled = true;
+    mocks.isV4 = true;
 
     render(<V4MigrationStatusPage />);
 
@@ -328,7 +328,7 @@ describe("V4MigrationStatusPage", () => {
   });
 
   it("drops the dated sunset from the switch-back warning when self-hosted", () => {
-    mocks.isBetaEnabled = true;
+    mocks.isV4 = true;
     mocks.hasDeadline = false;
 
     render(<V4MigrationStatusPage />);

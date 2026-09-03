@@ -1,0 +1,162 @@
+name: API Spec Preview
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions: {}
+
+concurrency:
+  group: api-spec-preview-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'api-spec' }}
+
+jobs:
+  deploy:
+    name: Deploy API spec preview
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'api-spec') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || github.event.label.name == 'api-spec'))
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Resolve pull request number
+        id: resolve-pr-number
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          pr_number=$(gh api -X GET "repos/${GITHUB_REPOSITORY}/pulls" -f "head=${GITHUB_REPOSITORY%%/*}:${GITHUB_REF_NAME}" -f state=open --jq '.[0].number')
+
+          if [ -z "${pr_number}" ] || [ "${pr_number}" = "null" ]; then
+            echo "No open pull request found for branch ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+
+          echo "pr_number=${pr_number}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout API reference
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: langfuse/langfuse-api-reference
+          ref: 7affc0ed7208985f60dab27c9ad0c1751ec4d2f8
+          path: api-reference
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Export OpenAPI spec
+        run: pnpm run openapi:export
+
+      - name: Prepare API reference
+        run: |
+          set -euo pipefail
+
+          cp web/public/generated/api/openapi.yml api-reference/public/openapi.yml
+          sed -i 's/%APISPEC_DATA_URL%/\/openapi.yml/g' api-reference/public/index.html
+
+      - name: Deploy preview to Vercel
+        id: publish
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
+          VERCEL_ORG_ID: ${{ secrets.STORYBOOK_VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.STORYBOOK_VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.STORYBOOK_VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          pnpm install -g vercel@54.7.0
+
+          set +e
+          deploy_output=$(vercel deploy api-reference --yes --scope langfuse 2>&1)
+          deploy_status=$?
+          set -e
+
+          if [ "${deploy_status}" -ne 0 ]; then
+            printf '%s\n' "${deploy_output}"
+            echo "Vercel deploy failed."
+            exit "${deploy_status}"
+          fi
+
+          preview_url=$(printf '%s\n' "${deploy_output}" | grep -Eo 'https://[^[:space:]]+\.vercel\.app[^[:space:]]*' | tail -n 1 || true)
+
+          if [ -z "${preview_url}" ]; then
+            printf '%s\n' "${deploy_output}"
+            echo "Failed to determine Vercel preview URL."
+            exit 1
+          fi
+
+          preview_alias="pr-${PR_NUMBER}-api-spec.langfuse.vercel.app"
+          vercel alias set "${preview_url}" "${preview_alias}" --scope langfuse
+          preview_url="https://${preview_alias}"
+
+          echo "url=${preview_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview link
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_URL: ${{ steps.publish.outputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        with:
+          script: |
+            const marker = "<!-- api-spec-preview -->";
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR_NUMBER);
+            // The link label ends in "preview" so Linear's GitHub integration
+            // picks it up as a custom preview link on every linked Linear issue.
+            const link = `[pr-${issue_number} api spec preview](${process.env.PREVIEW_URL})`;
+            const body = `${marker}\nAPI spec preview: ${link}\n\nUpdated at: ${new Date().toISOString()}\nCommit: ${process.env.COMMIT_SHA}`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previousComment = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.includes(marker),
+            );
+
+            if (previousComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previousComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }

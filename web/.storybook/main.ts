@@ -11,6 +11,9 @@ import {
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Accordion/Accordion",
+  "Alert/Alert",
+  "Avatar/Avatar",
   "Badge/Badge",
   "Callout/Callout",
   "Checkbox/Checkbox",
@@ -21,14 +24,17 @@ const DESIGN_COMPONENT_STORIES = [
   "LangfuseLogo/LangfuseLogo",
   "PasswordInput/PasswordInput",
   "Progress/Progress",
+  "RadioGroup/RadioGroup",
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "Tabs/Tabs",
   "TextLink/TextLink",
   "Toggle/Toggle",
   "table/components/IOTableCell/IOTableCell",
   "table/columns/createBadgeTableColumn",
   "table/columns/createDateTableColumn",
+  "table/columns/createDropdownTableColumn",
   "table/columns/createDurationTableColumn",
   "table/columns/createIdTableColumn",
   "table/columns/createItemBadgeTableColumn",
@@ -36,6 +42,7 @@ const DESIGN_COMPONENT_STORIES = [
   "table/columns/createStatusTableColumn",
   "table/columns/createTagsTableColumn",
   "table/columns/createTextTableColumn",
+  "table/columns/createTokenUsageTableColumn",
 ] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.

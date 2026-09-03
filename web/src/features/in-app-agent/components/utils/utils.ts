@@ -74,6 +74,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   queryMetrics: "Checking metrics",
   read: "Reading file",
   submitFeedback: "Submitting user feedback",
+  testEvaluator: "Testing evaluator",
   updateDashboardPlacement: "Moving widget",
   updateDashboardWidget: "Updating widget",
   updatePromptLabels: "Updating prompt labels",

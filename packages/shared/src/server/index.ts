@@ -48,6 +48,7 @@ export * from "./auth/gitHubEnterpriseProvider";
 export * from "./auth/jumpcloudProvider";
 export * from "./auth/userProjectRoleAuth";
 export * from "./llm/llmText";
+export * from "./llm/mediaMessages";
 export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
@@ -75,6 +76,7 @@ export {
 } from "./clickhouse/compatibility";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
+export * from "./clickhouse/clickhouseIdentifiers";
 export * from "./clickhouse/queryTracking";
 export * from "./clickhouse/queryTags";
 export * from "./repositories/definitions";

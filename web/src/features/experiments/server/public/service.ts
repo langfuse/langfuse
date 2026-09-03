@@ -12,7 +12,7 @@ import {
   encodeExperimentCursor,
   type GetExperimentItemsV1QueryType,
   type GetExperimentsV1QueryType,
-} from "@/src/features/public-api/types/experiments";
+} from "@/src/features/public-api/server";
 import {
   queryExperimentItemsForPublicApi,
   queryExperimentSummariesForPublicApi,

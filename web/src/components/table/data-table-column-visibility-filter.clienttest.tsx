@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
@@ -161,6 +161,28 @@ describe("DataTableColumnVisibilityFilter", () => {
       tableName: "experiments",
       isV4: true,
     });
+  });
+
+  // The capture used to sit inside the setColumnVisibility updater. An updater
+  // has to be pure, and React re-invokes it under StrictMode — which the app
+  // enables — so every toggle was counted twice. Rendering the harness in
+  // StrictMode is what makes this a guard rather than a restatement of the
+  // test above.
+  it("counts one toggle once under StrictMode", () => {
+    render(
+      <StrictMode>
+        <ColumnVisibilityFilterHarness />
+      </StrictMode>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    fireEvent.click(screen.getByText("Input"));
+
+    const events = h.capture.mock.calls.filter(
+      ([name]) => name === "table:column_visibility_changed",
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0][1].selectedColumns).not.toContain("input");
   });
 
   it("notifies onColumnGroupToggle with the group id, not score names", () => {

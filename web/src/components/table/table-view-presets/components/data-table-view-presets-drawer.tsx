@@ -30,11 +30,7 @@ import {
 } from "@/src/components/ui/command";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Dialog,
   DialogContent,
@@ -938,21 +934,11 @@ function TableViewPresetsDrawerContentBody({
                         </DropdownMenu>
                         {!isSystemView && (
                           <div className="text-muted-foreground flex items-center text-xs">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage
-                                src={view.createdByUser?.image ?? undefined}
-                                alt={view.createdByUser?.name ?? "User Avatar"}
-                              />
-                              <AvatarFallback className="bg-tertiary">
-                                {view.createdByUser?.name
-                                  ? view.createdByUser?.name
-                                      .split(" ")
-                                      .map((word) => word[0])
-                                      .slice(0, 2)
-                                      .concat("")
-                                  : null}
-                              </AvatarFallback>
-                            </Avatar>
+                            <Avatar
+                              size="sm"
+                              src={view.createdByUser?.image ?? undefined}
+                              displayName={view.createdByUser?.name ?? "User"}
+                            />
                           </div>
                         )}
                       </div>

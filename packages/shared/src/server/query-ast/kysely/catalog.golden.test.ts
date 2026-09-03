@@ -98,3 +98,66 @@ describeWithClickhouseLocal("catalog JOIN execution", () => {
     );
   });
 });
+
+// Full in-memory schema for the tier 5-7 shapes. Column sets mirror
+// `schema.ts` so the analyzer sees the same types the compiler assumes.
+const CATALOG_MEMORY_DDL = `
+  CREATE TABLE events_core (
+    environment String,
+    project_id String,
+    start_time DateTime64(3),
+    span_id String,
+    trace_id String,
+    event_ts DateTime64(3),
+    type String,
+    total_cost Float64,
+    metadata_names Array(String),
+    metadata_values Array(String)
+  ) ENGINE = Memory;
+  CREATE TABLE observations (
+    environment String,
+    project_id String,
+    start_time DateTime64(3),
+    trace_id String,
+    cost_details Map(String, Float64),
+    usage_details Map(String, Float64)
+  ) ENGINE = Memory;
+  CREATE TABLE traces (
+    environment String,
+    project_id String,
+    timestamp DateTime64(3),
+    id String
+  ) ENGINE = Memory;
+`;
+
+// Syntactic parity (`compile(AST) ≡ referenceSql` under `clickhouse format`)
+// proves the text matches; it does not prove the text is *valid, analyzable*
+// ClickHouse. Executing each new shape against empty Memory tables forces the
+// analyzer to resolve every column, alias, and function — catching an
+// alias-in-GROUP-BY that doesn't resolve, a correlated reference that doesn't
+// bind, or a map function applied to the wrong type — none of which `format`
+// (a parser) can see.
+const EXECUTABLE_TIER_5_7 = [
+  "correlated_latest_per_trace",
+  "metadata_group_by",
+  "map_keys_has_filter",
+  "variant_events_unbounded",
+  "variant_events_time_bounded",
+  "variant_legacy_union",
+];
+
+describeWithClickhouseLocal("catalog tier 5-7 execution", () => {
+  for (const id of EXECUTABLE_TIER_5_7) {
+    it(`${id} compiles to valid analyzable ClickHouse`, () => {
+      const entry = CATALOG.find((e) => e.id === id);
+      expect(entry).toBeDefined();
+      if (!entry) return;
+
+      const compiled = compileClickhouseQuery(entry.build(), {
+        projectId: CATALOG_PROJECT_ID,
+      });
+      const executable = substituteNamedParams(compiled.sql, compiled.params);
+      executeClickhouseLocal(`${CATALOG_MEMORY_DDL}\n${executable}`);
+    });
+  }
+});

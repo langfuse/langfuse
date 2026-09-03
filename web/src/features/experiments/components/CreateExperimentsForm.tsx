@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { CheckIcon, ChevronDown, Code2, Cog, Wand2 } from "lucide-react";
@@ -10,7 +11,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/src/components/ui/card";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   DialogHeader,
   DialogTitle,
@@ -31,7 +32,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";

@@ -5,6 +5,7 @@
  * (trace view, raw download) instead of the full payload.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { SessionProvider } from "next-auth/react";
 
 const fullIOQuery = vi.fn();
 const downloadJsonFile = vi.fn();
@@ -69,14 +70,19 @@ const renderComponent = (
   onOpenInTraceView = vi.fn(),
 ) => {
   render(
-    <SessionObservationIO
-      observation={observation}
-      projectId="p1"
-      sessionId="s1"
-      traceId="t1"
-      showCorrections={false}
-      onOpenInTraceView={onOpenInTraceView}
-    />,
+    // IOPreview reads the normalizedIoPreview flag via useSession; a null
+    // session resolves it to false (legacy behavior), matching production
+    // for regular users.
+    <SessionProvider session={null}>
+      <SessionObservationIO
+        observation={observation}
+        projectId="p1"
+        sessionId="s1"
+        traceId="t1"
+        showCorrections={false}
+        onOpenInTraceView={onOpenInTraceView}
+      />
+    </SessionProvider>,
   );
   return { onOpenInTraceView };
 };
