@@ -35,7 +35,8 @@
   `src/server/query-ast/kysely/`.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
-- ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
+- Canonical ClickHouse migration templates (rendered for clustered and
+  unclustered installs): `clickhouse/migrations/canonical/*`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points
@@ -119,7 +120,16 @@ the same PR.
 
 ### ClickHouse schema change
 
-1. Add migration under `clickhouse/migrations/*`.
+1. Add one canonical migration pair under `clickhouse/migrations/canonical/*`.
+   - Use `{CLICKHOUSE_CLUSTER_CLAUSE}` for every cluster-aware DDL clause.
+   - Use `{CLICKHOUSE_REPLICATION_PREFIX}` only on table engines that should
+     be replicated in clustered mode and plain in unclustered mode.
+   - Put clustered-only synchronization fragments inside
+     `{CLICKHOUSE_CLUSTERED_ONLY:...}`. Use
+     `{CLICKHOUSE_UNCLUSTERED_ONLY:...}` only when preserving a deliberate
+     mode-specific difference.
+   - Run `src/server/clickhouse/prepareMigrations.test.ts`; it validates both
+     rendered modes and protects the historical migration output.
    - Redefining views or materialized views follows strict patterns (no
      `CREATE OR REPLACE VIEW`; MV SELECT changes via
      `ALTER TABLE … MODIFY QUERY`) — apply the "Langfuse-Specific Rules" in

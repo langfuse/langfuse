@@ -87,8 +87,9 @@ langfuse/
 - High-signal shared entry points:
   - Domain models: `packages/shared/src/domain/{observations,traces,scores}.ts`
   - Postgres schema: `packages/shared/prisma/schema.prisma`
-  - ClickHouse migrations:
-    `packages/shared/clickhouse/migrations/{clustered,unclustered}/*.sql`
+  - Canonical ClickHouse migration templates (rendered for clustered and
+    unclustered installs):
+    `packages/shared/clickhouse/migrations/canonical/*.sql`
 - Architecture principles live in `.agents/ARCHITECTURE_PRINCIPLES.md`.
 
 ## Core Commands

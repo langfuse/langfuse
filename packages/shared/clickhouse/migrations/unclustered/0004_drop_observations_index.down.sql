@@ -1,1 +1,0 @@
-ALTER TABLE observations ADD INDEX IF NOT EXISTS idx_project_id project_id TYPE bloom_filter() GRANULARITY 1;
