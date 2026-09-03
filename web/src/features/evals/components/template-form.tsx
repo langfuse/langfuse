@@ -744,9 +744,11 @@ const InnerEvalTemplateForm = (props: {
                           />
                         </FormControl>
                         <FormMessage />
-                        <PromptVariableListPreview
-                          variables={extractedVariables ?? []}
-                        />
+                        {extractedVariables?.length ? (
+                          <PromptVariableListPreview
+                            variables={extractedVariables}
+                          />
+                        ) : null}
                       </FormItem>
                     </>
                   )}
