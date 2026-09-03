@@ -30,7 +30,7 @@ import {
   verifyAuth as verifyLegacyAuth,
   type RouteAccessLevel,
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
-import { enforceProjectAuth } from "@/src/features/auth/policy/enforcement.projects";
+import { enforceProjectAuth } from "@/src/features/auth/policy/enforceProjectAuth";
 import {
   diffResults,
   legacyFromStatus,

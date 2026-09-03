@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { InvalidRequestError } from "@langfuse/shared";
 
-import { __test } from "@/src/features/auth/policy/enforcement.projects";
+import { __test } from "@/src/features/auth/policy/enforceProjectAuth";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const { getProjectId } = __test;

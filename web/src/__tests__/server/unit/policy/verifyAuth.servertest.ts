@@ -23,7 +23,7 @@ vi.mock("@/src/features/public-api/server/verifyProjectApiKeyAuth", () => ({
   verifyAuth: mockLegacyVerifyAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/enforcement.projects", () => ({
+vi.mock("@/src/features/auth/policy/enforceProjectAuth", () => ({
   enforceProjectAuth: mockEnforceProjectAuth,
 }));
 
