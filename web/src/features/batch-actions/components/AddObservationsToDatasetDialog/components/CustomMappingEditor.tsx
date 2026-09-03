@@ -151,8 +151,8 @@ export function CustomMappingEditor({
             onValueChange={(v) => handleTypeChange(v as MappingTarget)}
           >
             <Tabs.List layout="cols-2">
-              <Tabs.Trigger value="root">Root</Tabs.Trigger>
-              <Tabs.Trigger value="keyValueMap">Key-value map</Tabs.Trigger>
+              <Tabs.Trigger value="root" label="Root" />
+              <Tabs.Trigger value="keyValueMap" label="Key-value map" />
             </Tabs.List>
           </Tabs>
         </div>

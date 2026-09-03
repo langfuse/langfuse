@@ -24,18 +24,16 @@ export function EvaluationTypeToggle({
             value={EvalTemplateTypeEnum.LLM_AS_JUDGE}
             disabled={disabled}
             icon={Sparkles}
-          >
-            LLM-as-a-judge
-          </Tabs.Trigger>
+            label="LLM-as-a-judge"
+          />
         ) : null}
         {!disabled || value === EvalTemplateTypeEnum.CODE ? (
           <Tabs.Trigger
             value={EvalTemplateTypeEnum.CODE}
             disabled={disabled}
             icon={Code2}
-          >
-            Code evaluator
-          </Tabs.Trigger>
+            label="Code evaluator"
+          />
         ) : null}
       </Tabs.List>
     </Tabs>

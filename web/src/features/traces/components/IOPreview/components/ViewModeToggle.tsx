@@ -51,9 +51,12 @@ export function ViewModeToggle({
               (prettyBetaDisabled ? (
                 <HoverCard openDelay={200}>
                   <HoverCardTrigger asChild>
-                    <Tabs.Trigger value="pretty-beta" size="sm" disabled>
-                      Normalized (beta)
-                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value="pretty-beta"
+                      size="sm"
+                      disabled
+                      label="Normalized (beta)"
+                    />
                   </HoverCardTrigger>
                   <HoverCardContent align="start" className="w-64 text-sm">
                     Shown with the standard parser for now — beta parsing is not
@@ -61,16 +64,14 @@ export function ViewModeToggle({
                   </HoverCardContent>
                 </HoverCard>
               ) : (
-                <Tabs.Trigger value="pretty-beta" size="sm">
-                  Normalized (beta)
-                </Tabs.Trigger>
+                <Tabs.Trigger
+                  value="pretty-beta"
+                  size="sm"
+                  label="Normalized (beta)"
+                />
               ))}
-            <Tabs.Trigger value="pretty" size="sm">
-              Formatted
-            </Tabs.Trigger>
-            <Tabs.Trigger value="json" size="sm">
-              JSON
-            </Tabs.Trigger>
+            <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
+            <Tabs.Trigger value="json" size="sm" label="JSON" />
           </Tabs.List>
         </Tabs>
       </div>

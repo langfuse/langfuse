@@ -216,13 +216,15 @@ export function SelectWidgetDialog({
                 }
               >
                 <Tabs.List>
-                  <Tabs.Trigger value="project">
-                    Your widgets ({projectWidgets.length})
-                  </Tabs.Trigger>
+                  <Tabs.Trigger
+                    value="project"
+                    label={`Your widgets (${projectWidgets.length})`}
+                  />
                   {onSelectPreset && (
-                    <Tabs.Trigger value="home-cards">
-                      Home cards ({suggestedPresetIds.length})
-                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value="home-cards"
+                      label={`Home cards (${suggestedPresetIds.length})`}
+                    />
                   )}
                 </Tabs.List>
                 <div className="mt-2">

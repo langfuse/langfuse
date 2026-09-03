@@ -579,12 +579,16 @@ export const PromptDetail = ({
                       }}
                     >
                       <Tabs.List layout="gap" size="auto">
-                        <Tabs.Trigger value="resolved" size="sm">
-                          Resolved prompt
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="tagged" size="sm">
-                          Tagged prompt
-                        </Tabs.Trigger>
+                        <Tabs.Trigger
+                          value="resolved"
+                          size="sm"
+                          label="Resolved prompt"
+                        />
+                        <Tabs.Trigger
+                          value="tagged"
+                          size="sm"
+                          label="Tagged prompt"
+                        />
                       </Tabs.List>
                     </Tabs>
                   </div>

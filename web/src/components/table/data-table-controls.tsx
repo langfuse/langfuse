@@ -1864,12 +1864,8 @@ function CategoricalSelectContent({
             }
           >
             <Tabs.List layout="cols-3" size="sm">
-              <Tabs.Trigger value="any of" size="sm">
-                Any of
-              </Tabs.Trigger>
-              <Tabs.Trigger value="all of" size="sm">
-                All of
-              </Tabs.Trigger>
+              <Tabs.Trigger value="any of" size="sm" label="Any of" />
+              <Tabs.Trigger value="all of" size="sm" label="All of" />
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
                   would persist a vacuous filter — LFE-10717), which used to
@@ -1883,9 +1879,8 @@ function CategoricalSelectContent({
                       value="none of"
                       disabled={operator === undefined}
                       size="sm"
-                    >
-                      None of
-                    </Tabs.Trigger>
+                      label="None of"
+                    />
                   </span>
                 </TooltipTrigger>
                 {operator === undefined && (
@@ -2509,12 +2504,8 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
         <Tabs.List layout="cols-2" size="sm">
-          <Tabs.Trigger value="select" size="sm">
-            Select
-          </Tabs.Trigger>
-          <Tabs.Trigger value="text" size="sm">
-            Text
-          </Tabs.Trigger>
+          <Tabs.Trigger value="select" size="sm" label="Select" />
+          <Tabs.Trigger value="text" size="sm" label="Text" />
         </Tabs.List>
       </Tabs>
     </div>

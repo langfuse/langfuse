@@ -159,9 +159,8 @@ function InAppAgentQuickActionPicker({
                   disabled={isDisabled}
                   variant="underline"
                   size="lg"
-                >
-                  {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
-                </Tabs.Trigger>
+                  label={IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+                />
               </span>
             ))}
           </Tabs.List>

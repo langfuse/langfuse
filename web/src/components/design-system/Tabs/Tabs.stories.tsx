@@ -30,8 +30,8 @@ const listSizes = Object.keys({
 const defaultChildren = (
   <>
     <Tabs.List>
-      <Tabs.Trigger value="account">Account</Tabs.Trigger>
-      <Tabs.Trigger value="password">Password</Tabs.Trigger>
+      <Tabs.Trigger value="account" label="Account" />
+      <Tabs.Trigger value="password" label="Password" />
     </Tabs.List>
     <Tabs.Content value="account">Account settings</Tabs.Content>
     <Tabs.Content value="password">Password settings</Tabs.Content>
@@ -42,10 +42,10 @@ const fullWidthChildren = (
   <>
     <Tabs.List layout="full">
       <span className="flex-1">
-        <Tabs.Trigger value="first">First</Tabs.Trigger>
+        <Tabs.Trigger value="first" label="First" />
       </span>
       <span className="flex-1">
-        <Tabs.Trigger value="second">Second</Tabs.Trigger>
+        <Tabs.Trigger value="second" label="Second" />
       </span>
     </Tabs.List>
     <Tabs.Content value="first">First tab fills its wrapper.</Tabs.Content>
@@ -66,10 +66,8 @@ export const Disabled = meta.story({
     children: (
       <>
         <Tabs.List>
-          <Tabs.Trigger value="account">Account</Tabs.Trigger>
-          <Tabs.Trigger value="password" disabled>
-            Password
-          </Tabs.Trigger>
+          <Tabs.Trigger value="account" label="Account" />
+          <Tabs.Trigger value="password" disabled label="Password" />
         </Tabs.List>
         <Tabs.Content value="account">Account settings</Tabs.Content>
         <Tabs.Content value="password">Password settings</Tabs.Content>
@@ -91,12 +89,8 @@ export const WithIcons = meta.story({
     children: (
       <>
         <Tabs.List>
-          <Tabs.Trigger value="account" icon={User}>
-            Account
-          </Tabs.Trigger>
-          <Tabs.Trigger value="password" icon={KeyRound}>
-            Password
-          </Tabs.Trigger>
+          <Tabs.Trigger value="account" icon={User} label="Account" />
+          <Tabs.Trigger value="password" icon={KeyRound} label="Password" />
         </Tabs.List>
         <Tabs.Content value="account">Account settings</Tabs.Content>
         <Tabs.Content value="password">Password settings</Tabs.Content>
@@ -125,16 +119,14 @@ export const VariantMatrix = meta.story({
                   value="one"
                   variant={variant === "underline" ? "underline" : "default"}
                   size={size === "sm" ? "sm" : "default"}
-                >
-                  One
-                </Tabs.Trigger>
+                  label="One"
+                />
                 <Tabs.Trigger
                   value="two"
                   variant={variant === "underline" ? "underline" : "default"}
                   size={size === "sm" ? "sm" : "default"}
-                >
-                  Two
-                </Tabs.Trigger>
+                  label="Two"
+                />
               </Tabs.List>
             </Tabs>
           </div>
@@ -211,8 +203,8 @@ export const KeepsUnwrappedTriggersContentWidth = meta.story({
     defaultValue: "short",
     children: (
       <Tabs.List variant="outline">
-        <Tabs.Trigger value="short">Python</Tabs.Trigger>
-        <Tabs.Trigger value="long">TypeScript</Tabs.Trigger>
+        <Tabs.Trigger value="short" label="Python" />
+        <Tabs.Trigger value="long" label="TypeScript" />
       </Tabs.List>
     ),
   },

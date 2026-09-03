@@ -303,9 +303,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                         initialPromptVariant?.type !== PromptType.Text
                       }
                       value={PromptType.Text}
-                    >
-                      {capitalize(PromptType.Text)}
-                    </Tabs.Trigger>
+                      label={capitalize(PromptType.Text)}
+                    />
                   </span>
                   <span className="flex-1">
                     <Tabs.Trigger
@@ -314,9 +313,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                         initialPromptVariant?.type !== PromptType.Chat
                       }
                       value={PromptType.Chat}
-                    >
-                      {capitalize(PromptType.Chat)}
-                    </Tabs.Trigger>
+                      label={capitalize(PromptType.Chat)}
+                    />
                   </span>
                 </Tabs.List>
               ) : null}

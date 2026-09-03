@@ -126,17 +126,29 @@ function TabsList({
 }
 
 type TabsTriggerProps = {
-  children: React.ReactNode;
   disabled?: boolean;
   icon?: LucideIcon;
   title?: string;
   value: string;
-} & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant">;
+} & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant"> &
+  (
+    | {
+        /** Preferred for plain-text trigger content. */
+        label: string;
+        children?: never;
+      }
+    | {
+        label?: never;
+        /** Rich-content escape hatch. */
+        children: React.ReactNode;
+      }
+  );
 
 function TabsTrigger({
   children,
   disabled,
   icon: Icon,
+  label,
   size,
   title,
   value,
@@ -150,7 +162,7 @@ function TabsTrigger({
       className={tabsTriggerVariants({ size, variant })}
     >
       {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}
-      {children}
+      {label ?? children}
     </TabsPrimitive.Trigger>
   );
 }

@@ -308,19 +308,26 @@ export function TraceDetailView({
                         {/* Log view never runs the normalized parser, so the
                           beta tab only renders on the preview tab. */}
                         {showPrettyBeta && selectedTab !== "log" && (
-                          <Tabs.Trigger value="pretty-beta" size="sm">
-                            Normalized (beta)
-                          </Tabs.Trigger>
+                          <Tabs.Trigger
+                            value="pretty-beta"
+                            size="sm"
+                            label="Normalized (beta)"
+                          />
                         )}
-                        <Tabs.Trigger value="pretty" size="sm">
-                          Formatted
-                        </Tabs.Trigger>
+                        <Tabs.Trigger
+                          value="pretty"
+                          size="sm"
+                          label="Formatted"
+                        />
                         {selectedTab === "log" && isLogViewVirtualized ? (
                           <HoverCard openDelay={200}>
                             <HoverCardTrigger asChild>
-                              <Tabs.Trigger value="json" size="sm" disabled>
-                                JSON
-                              </Tabs.Trigger>
+                              <Tabs.Trigger
+                                value="json"
+                                size="sm"
+                                disabled
+                                label="JSON"
+                              />
                             </HoverCardTrigger>
                             <HoverCardContent
                               align="end"
@@ -339,9 +346,7 @@ export function TraceDetailView({
                             </HoverCardContent>
                           </HoverCard>
                         ) : (
-                          <Tabs.Trigger value="json" size="sm">
-                            JSON
-                          </Tabs.Trigger>
+                          <Tabs.Trigger value="json" size="sm" label="JSON" />
                         )}
                       </Tabs.List>
                     </Tabs>

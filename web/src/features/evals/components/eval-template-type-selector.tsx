@@ -116,25 +116,26 @@ export function EvalTemplateTypeSelector({
               <Tabs.List layout="packed">
                 {mode === "all" ? (
                   <span className="min-w-[100px]">
-                    <Tabs.Trigger value={EvalTemplateType.LLM_AS_JUDGE}>
-                      LLM-as-judge
-                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value={EvalTemplateType.LLM_AS_JUDGE}
+                      label="LLM-as-judge"
+                    />
                   </span>
                 ) : null}
                 <span className="min-w-[100px]">
                   <Tabs.Trigger
                     value={EvalTemplateSourceCodeLanguage.TYPESCRIPT}
-                  >
-                    TypeScript
-                  </Tabs.Trigger>
+                    label="TypeScript"
+                  />
                 </span>
                 {codeEvalCapabilities.supportedSourceCodeLanguages.includes(
                   EvalTemplateSourceCodeLanguage.PYTHON,
                 ) ? (
                   <span className="min-w-[100px]">
-                    <Tabs.Trigger value={EvalTemplateSourceCodeLanguage.PYTHON}>
-                      Python
-                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value={EvalTemplateSourceCodeLanguage.PYTHON}
+                      label="Python"
+                    />
                   </span>
                 ) : null}
               </Tabs.List>

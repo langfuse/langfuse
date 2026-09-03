@@ -891,9 +891,8 @@ export const InnerEvaluatorForm = (props: {
                               value="event"
                               disabled={props.disabled || props.mode === "edit"}
                               icon={CircleDot}
-                            >
-                              Observations
-                            </Tabs.Trigger>
+                              label="Observations"
+                            />
                           </span>
                           {showLegacyTargetOptions && (
                             <span className="min-w-[100px]">
@@ -920,9 +919,8 @@ export const InnerEvaluatorForm = (props: {
                               value="offline-experiment"
                               disabled={props.disabled || props.mode === "edit"}
                               icon={FlaskConical}
-                            >
-                              Experiments
-                            </Tabs.Trigger>
+                              label="Experiments"
+                            />
                           </span>
                         </Tabs.List>
                       </Tabs>
@@ -977,9 +975,8 @@ export const InnerEvaluatorForm = (props: {
                           value="otel"
                           disabled={props.mode === "edit" || props.disabled}
                           icon={FlaskConical}
-                        >
-                          Experiment Runner SDK
-                        </Tabs.Trigger>
+                          label="Experiment Runner SDK"
+                        />
                       </span>
                       <span className="min-w-[100px]">
                         <Tabs.Trigger

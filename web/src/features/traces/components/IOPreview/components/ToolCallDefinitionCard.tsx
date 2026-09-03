@@ -377,12 +377,8 @@ function ToolDefinitionRow({
                 }
               >
                 <Tabs.List size="sm">
-                  <Tabs.Trigger value="formatted" size="sm">
-                    Formatted
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="json" size="sm">
-                    JSON
-                  </Tabs.Trigger>
+                  <Tabs.Trigger value="formatted" size="sm" label="Formatted" />
+                  <Tabs.Trigger value="json" size="sm" label="JSON" />
                 </Tabs.List>
               </Tabs>
             </div>
