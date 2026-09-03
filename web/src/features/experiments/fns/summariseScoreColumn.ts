@@ -30,7 +30,12 @@ type ScoreColumnMovement = {
   unchanged: number;
   /** A different value with no order to it — categorical only. */
   changed: number;
-  /** One side has no score for this item, or the two cannot be compared. */
+  /**
+   * One side has no score for this item, or the two cannot be compared. The
+   * reader is shown this as "not scored", but the name here stays
+   * `notComparable`: an item both sides scored lands in this bucket too, when
+   * its categorical values leave no single value to stand for it.
+   */
   notComparable: number;
 };
 

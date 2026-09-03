@@ -63,10 +63,10 @@ const SummaryRow = ({
 
 /**
  * A score column's header, carrying the analysis instead of only the column's
- * name: this experiment's aggregate and the item count behind it, and — with a
- * comparison selected — the comparison's aggregate, the signed delta and how
- * many items moved which way. This is what the deleted Analytics tab was going
- * to be, put where the eye already is.
+ * name: the baseline experiment's aggregate and the item count behind it, and —
+ * with a comparison selected — the comparison's aggregate, the signed delta and
+ * how many items moved which way. This is what the deleted Analytics tab was
+ * going to be, put where the eye already is.
  */
 export const ScoreColumnHeaderSummary = ({
   label,
@@ -157,7 +157,7 @@ export const ScoreColumnHeaderSummary = ({
             {getScoreDataTypeExplanation(dataType)}
           </span>
           <SummaryRow
-            label={`This experiment (${DIFF_LABEL_TITLES[dataType]})`}
+            label={`Baseline experiment (${DIFF_LABEL_TITLES[dataType]})`}
             value={
               baseline ? formatScoreColumnAggregate(baseline) : "no values"
             }
@@ -188,13 +188,11 @@ export const ScoreColumnHeaderSummary = ({
                 </>
               )}
               <SummaryRow label="Unchanged" value={movement.unchanged} />
-              <SummaryRow
-                label="Not comparable"
-                value={movement.notComparable}
-              />
+              <SummaryRow label="Not scored" value={movement.notComparable} />
               <span className="text-muted-foreground text-[10px]">
-                Not comparable: only one of the two experiments has a score for
-                the item, so it counts as neither an improvement nor a
+                Not scored: only one of the two experiments has a score for the
+                item — or, for a categorical score, the item has no single value
+                to compare — so it counts as neither an improvement nor a
                 regression.
               </span>
             </>
