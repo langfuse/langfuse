@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import {
   BooleanObjectFilter,
   FilterList,
@@ -11,7 +10,6 @@ import {
   StringFilter,
   StringObjectFilter,
 } from "./clickhouse-filter";
-import { createFilterFromFilterState } from "./factory";
 
 // events_core_mv truncates metadata values to leftUTF8(v, 200), so the safety
 // boundary is 200 Unicode code points.
@@ -92,26 +90,6 @@ describe("metadataFilterIsEventsCoreSafe", () => {
     const astral = "\u{1F600}".repeat(100);
     expect(astral.length).toBe(200); // UTF-16 units
     expect(metadataFilterIsEventsCoreSafe("=", astral)).toBe(true);
-  });
-});
-
-describe("event null filter mappings", () => {
-  it("treats empty experiment dataset IDs as null", () => {
-    const [filter] = createFilterFromFilterState(
-      [
-        {
-          column: "experimentDatasetId",
-          type: "null",
-          operator: "is not null",
-          value: "",
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-    );
-
-    expect(filter.apply().query).toBe(
-      `(e."experiment_dataset_id" != '' AND e."experiment_dataset_id" IS NOT NULL)`,
-    );
   });
 });
 

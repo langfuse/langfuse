@@ -441,9 +441,7 @@ export class InMemoryFilterService {
           fieldValue === null || fieldValue === undefined || fieldValue === ""
         );
       case "is not null":
-        return (
-          fieldValue !== null && fieldValue !== undefined && fieldValue !== ""
-        );
+        return fieldValue !== null && fieldValue !== undefined;
       default:
         logger.error("Unsupported null filter operator", {
           operator,

@@ -1091,21 +1091,6 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         ),
       ).toBe(true);
-
-      expect(
-        InMemoryFilterService.evaluateFilter(
-          { ...mockData, release: "" },
-          [
-            {
-              column: "release",
-              type: "null",
-              operator: "is not null",
-              value: "",
-            },
-          ],
-          fieldMapper,
-        ),
-      ).toBe(false);
     });
 
     test("evaluates multiple filters with AND logic", () => {
