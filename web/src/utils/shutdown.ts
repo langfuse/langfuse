@@ -28,27 +28,31 @@ const setSigtermReceived = () => {
 export const isSigtermReceived = () =>
   Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
+let drainPromise: Promise<void> | null = null;
+
 // Flip readiness to unhealthy so the load balancer stops routing new traffic,
 // wait TIMEOUT for in-flight requests to drain, then close backend
-// connections. Shared by the SIGTERM/SIGINT path and the fatal-error path.
-export const drainAndClose = async () => {
+// connections. Shared by the SIGTERM/SIGINT path and the fatal-error path;
+// memoized so concurrent triggers reuse one drain instead of closing
+// connections twice.
+export const drainAndClose = (): Promise<void> => {
+  if (drainPromise) {
+    return drainPromise;
+  }
   setSigtermReceived();
 
-  return await new Promise<void>((resolve) => {
+  drainPromise = new Promise<void>((resolve) => {
     setTimeout(async () => {
       RateLimitService.shutdown();
 
       await ClickHouseClientManager.getInstance().closeAllConnections();
 
       logger.info(`Redis status ${redis?.status}`);
-      if (!redis) {
-        return;
-      }
-      if (redis.status === "end") {
+      if (redis && redis.status !== "end") {
+        redis.disconnect();
+      } else {
         logger.info("Redis connection already closed");
-        return;
       }
-      redis?.disconnect();
 
       await prisma.$disconnect();
       logger.info("Prisma connection has been closed.");
@@ -57,6 +61,8 @@ export const drainAndClose = async () => {
       resolve();
     }, TIMEOUT);
   });
+
+  return drainPromise;
 };
 
 export const shutdown = async (signal: PrexitSignal) => {
