@@ -16,9 +16,9 @@ FROM mcr.microsoft.com/devcontainers/universal:6-noble
 COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
 
 # Activate the repo's pinned pnpm through a Corepack release compatible with pnpm 12.
-RUN npm install --global corepack@0.34.7 \
+RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate
+    && NODE_USE_ENV_PROXY=1 corepack prepare pnpm@11.22.0 --activate
 
 # Install Clickhouse
 RUN curl https://clickhouse.com/ | sh && \

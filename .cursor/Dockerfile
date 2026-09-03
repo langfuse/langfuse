@@ -40,9 +40,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
       > /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install --global corepack@0.34.7 \
+    && npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate \
+    && NODE_USE_ENV_PROXY=1 corepack prepare pnpm@11.22.0 --activate \
     && rm -rf /var/lib/apt/lists/*
 
 # Cursor Cloud runs Docker inside its own container layer. fuse-overlayfs and

@@ -10,9 +10,9 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 RUN npm install turbo@2.10.5 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install --global corepack@0.34.7 \
+RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate
+    && NODE_USE_ENV_PROXY=1 corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
