@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useRef } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type z } from "zod";

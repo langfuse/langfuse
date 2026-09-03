@@ -19,17 +19,16 @@ import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import type {
-  PatchUnstableEvaluationRuleBodyType,
-  PostUnstableEvaluationRuleBodyType,
-} from "@/src/features/public-api/types/unstable-evaluation-rules";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 import {
   PublicEvaluationRuleFilter,
+  type PatchUnstableEvaluationRuleBodyType,
+  type PostUnstableEvaluationRuleBodyType,
   type PromptVariableMappingInputType,
   type PromptVariableMappingReadType,
   type PublicEvaluationRuleTargetType,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-} from "@/src/features/public-api/types/unstable-public-evals-contract";
+} from "@/src/features/public-api/server";
 import {
   deriveEvaluatorVariables,
   toApiMappings,
@@ -60,7 +59,6 @@ import {
   assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
-import { createStructuredPublicApiError } from "@/src/features/public-api";
 import { assertUnreachable } from "@/src/utils/types";
 
 const ruleService = new RuleService(prisma, async () => undefined);

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-margin-on-root-elements, @repo/no-null-render */
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import {
   BracesIcon,
