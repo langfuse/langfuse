@@ -91,10 +91,13 @@ const MatrixCell = ({
       {hasBaselineColumn && movement && movement.changed > 0 && (
         <span className="text-muted-foreground">↻{movement.changed}</span>
       )}
-      {/* Items only one of the two runs scored: never folded into the delta. */}
+      {/* Items only one of the two runs scored: never folded into the delta.
+          Spelled out rather than abbreviated to `n/a`, which the reviewer read
+          as "not available" and had to ask about. A matrix cell has no hover to
+          move the count into, so unlike the score column header it stays. */}
       {hasBaselineColumn && notComparable > 0 && (
         <span className="text-muted-foreground opacity-70">
-          {notComparable} n/a
+          {notComparable} not scored
         </span>
       )}
     </span>
