@@ -446,8 +446,14 @@ export function TimelineDense({
   const wantedGutter = Math.min(Math.max(contentWidth * 0.38, 96), 168);
   const asked =
     labelsPinned || override === "expanded" || gutterMode === "expanded";
-  const wantsOpen =
-    override === "collapsed" ? false : asked || gutterMode === "auto";
+  // An explicit "Show labels" pin wins over a leftover rail-collapse
+  // override; otherwise the names stay a peek overlay and never take
+  // the gutter the user just asked for.
+  const wantsOpen = labelsPinned
+    ? true
+    : override === "collapsed"
+      ? false
+      : asked || gutterMode === "auto";
   const gutterFits =
     contentWidth - wantedGutter >=
     (asked ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
@@ -838,6 +844,7 @@ export function TimelineDense({
   const showLabels = () => {
     const { limits: live, extentOf } = layoutRef.current;
     setLabelsPinned(true);
+    setOverride(null);
     flyTo(
       anchorTimeToRows(
         expandRowsToReadable(viewportRef.current, live),
@@ -955,8 +962,14 @@ export function TimelineDense({
       canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
-      setLabelsPinned(!isOpen);
-      setOverride(isOpen ? "collapsed" : "expanded");
+      // Peek overlays never become committedOpen (the pane is too narrow
+      // to give the gutter a lane). Toggle on the held-open state so a
+      // second tap can dismiss a peek the first tap — or Show labels —
+      // just opened.
+      const namesHeldOpen =
+        committedOpen || labelsPinned || override === "expanded";
+      setLabelsPinned(!namesHeldOpen);
+      setOverride(namesHeldOpen ? "collapsed" : "expanded");
       // This tap is spent on the toggle, so it is not half of a double-tap:
       // opening and closing the names inside the double-tap window otherwise read
       // as one, and flew the viewport to whatever row the second tap landed on.

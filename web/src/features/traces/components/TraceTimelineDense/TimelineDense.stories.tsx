@@ -1989,6 +1989,148 @@ export const ShowLabelsOpensTheGutterOnANarrowPane = meta.story({
 });
 
 /**
+ * A pane too narrow to ever commit the gutter still offers Show labels, but
+ * names float as a peek overlay. A second rail tap must be able to dismiss
+ * that peek: committedOpen never becomes true, so the toggle has to look at
+ * the held-open pin, not the committed lane.
+ */
+const TOO_NARROW_TO_COMMIT = { width: 220, height: 400 };
+
+export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
+  name: "(Test) Show Labels Peek Toggles Off On A Too Narrow Pane",
+  args: {
+    roots: manySpans(12),
+    box: TOO_NARROW_TO_COMMIT,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const peekNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title]',
+      ).length;
+    const gutterNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+    const barLeft = () => {
+      const bar = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      return bar?.getBoundingClientRect().left ?? 0;
+    };
+    const tapRail = () => {
+      const rect = surface.getBoundingClientRect();
+      touch(surface, "pointerdown", 1, rect.left + 2, rect.top + 80);
+      touch(surface, "pointerup", 1, rect.left + 2, rect.top + 80);
+    };
+
+    const show = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show labels"]',
+    );
+    if (!show) throw new Error("no show-labels button on a peek-only pane");
+    const leftBefore = barLeft();
+
+    await userEvent.click(show);
+    await waitFor(() => expect(peekNames()).toBeGreaterThan(0));
+    await expect(gutterNames()).toBe(0);
+    await expect(Math.abs(barLeft() - leftBefore)).toBeLessThan(20);
+
+    tapRail();
+    await waitFor(() => expect(peekNames()).toBe(0));
+    await expect(gutterNames()).toBe(0);
+
+    tapRail();
+    await waitFor(() => expect(peekNames()).toBeGreaterThan(0));
+    await expect(gutterNames()).toBe(0);
+  },
+});
+
+/**
+ * After a coarse rail tap collapses a committed gutter, Show labels must
+ * clear that leftover override and take the lane again. A stale
+ * override==="collapsed" used to leave names as a peek overlay.
+ */
+export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
+  name: "(Test) Show Labels Recommits After A Rail Collapse",
+  args: {
+    roots: manySpans(12),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const peekNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title]',
+      ).length;
+    const gutterNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+    const barLeft = () => {
+      const bar = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      return bar?.getBoundingClientRect().left ?? 0;
+    };
+    const tapRail = () => {
+      const rect = surface.getBoundingClientRect();
+      touch(surface, "pointerdown", 1, rect.left + 2, rect.top + 80);
+      touch(surface, "pointerup", 1, rect.left + 2, rect.top + 80);
+    };
+    const clickShowLabels = async () => {
+      const show = canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label="Show labels"]',
+      );
+      if (!show) throw new Error("no show-labels button");
+      await userEvent.click(show);
+    };
+
+    const leftClosed = barLeft();
+    await expect(gutterNames()).toBe(0);
+
+    await clickShowLabels();
+    await waitFor(() => expect(gutterNames()).toBeGreaterThan(0));
+    await expect(peekNames()).toBe(0);
+    await expect(barLeft()).toBeGreaterThan(leftClosed + 40);
+
+    tapRail();
+    await waitFor(() => expect(gutterNames()).toBe(0));
+    await expect(peekNames()).toBe(0);
+
+    await clickShowLabels();
+    await waitFor(() => expect(gutterNames()).toBeGreaterThan(0));
+    await expect(peekNames()).toBe(0);
+    await expect(barLeft()).toBeGreaterThan(leftClosed + 40);
+  },
+});
+
+/**
  * Panning a hairline overview is not a time zoom. Show labels must stay, or
  * Fit would snap the window back to the top of the tree instead of naming
  * the rows you just scrolled to.
