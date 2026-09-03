@@ -97,9 +97,9 @@ the proposed ticket so the human can judge the overlap.
 
 Appending a cause section to a ticket that already exists is a description edit,
 which agents do autonomously. A monitor with no ticket needs a parentless one,
-which is the single write that asks first — see `linear-agent-writes` in the
-private `langfuse/langfuse-internal-skills` plugin for the policy this follows,
-and read it before your first write.
+which is the single write that asks first — see
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md) for the policy this
+follows, and read it before your first write.
 
 - **Append: do it.** Insert the new `---`-separated dated block after the
   existing cause sections, above the `Your cause is not listed?` trailer; leave

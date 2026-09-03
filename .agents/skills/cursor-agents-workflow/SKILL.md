@@ -35,8 +35,8 @@ Wrong: `cursor/short-descriptive-title-8c78`
 
 Cursor can reach Linear — desktop and cloud — but the MCP server is not
 configured by default, so it is a one-time setup step per developer. Langfuse
-engineers: the setup instructions and the write policy live in the private
-`langfuse/langfuse-internal-skills` plugin (`linear-agent-writes`). Configure it
+engineers: the write policy is
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Configure the connection
 once; agents are expected to read a ticket's history before starting and to leave
 their context on it when they finish.
 

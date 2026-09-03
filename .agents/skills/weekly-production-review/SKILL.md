@@ -24,9 +24,9 @@ audit from the linked source rows.
 - Linear is the exception: evidence may be commented onto issues that already
   exist, labelled and marked as agent-written. A new issue has no parent, so it
   is the one write that asks first — show the set, take one go-ahead, then file
-  them. `linear-agent-writes` in the private `langfuse/langfuse-internal-skills`
-  plugin is the authority; [`linear-bug-triage`](../linear-bug-triage/SKILL.md)
-  applies it to measured findings.
+  them. [`linear-agent-writes`](../linear-agent-writes/SKILL.md) is the authority;
+  [`linear-bug-triage`](../linear-bug-triage/SKILL.md) applies it to measured
+  findings.
 - For chat-only reviews, avoid creating report artifacts or local analysis
   workspaces unless a required tool workflow explicitly does so or the user asks
   for a file. If incident.io analysis tooling requires a local playbook

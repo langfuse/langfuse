@@ -15,8 +15,8 @@ is issue-worthy.
 ## What This Skill May Write
 
 Every write carries a label and is marked as agent-written in the text, and only
-three write shapes are permitted at all. The `linear-agent-writes` skill in the
-private `langfuse/langfuse-internal-skills` plugin is the authority for that
+three write shapes are permitted at all.
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md) is the authority for that
 policy; read it before your first write and prefer it over this summary wherever
 they differ.
 

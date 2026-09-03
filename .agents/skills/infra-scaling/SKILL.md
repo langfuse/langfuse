@@ -211,7 +211,7 @@ Run a full plan only when credentials and workspace setup are available or the u
 
 - Trigger this when the recommendation table contains at least one concrete scaling change, or when Terraform scaling settings were edited. Do not create a ticket for an all-`No change` review unless the user explicitly asks.
 - Ensure there is a GitHub PR for the scaling change. If no PR exists yet, create one. Include the recommendation summary, validation, and rollout risks in the PR body.
-- Only three write shapes are permitted and each must be labelled and marked as agent-written. `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin is the authority; read it before your first write. For this skill: **adding evidence to a ticket that already exists is yours to do** (label it `AI commented`, or `AI edited` if you put the evidence in the description); **a new ticket has no parent, so it is the one write that asks first** — show the title and body, take one go-ahead, then create it and label it `AI created`.
+- Only three write shapes are permitted and each must be labelled and marked as agent-written. [`linear-agent-writes`](../linear-agent-writes/SKILL.md) is the authority; read it before your first write. For this skill: **adding evidence to a ticket that already exists is yours to do** (label it `AI commented`, or `AI edited` if you put the evidence in the description); **a new ticket has no parent, so it is the one write that asks first** — show the title and body, take one go-ahead, then create it and label it `AI created`.
 - Report what you wrote and what still needs a human:
 
 | ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Action | Confidence |

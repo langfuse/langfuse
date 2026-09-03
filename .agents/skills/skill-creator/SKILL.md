@@ -51,8 +51,8 @@ Skills that write to the issue tracker do not need a human review gate first.
 The guardrail is **marking plus a bounded set of shapes**: three permitted write
 shapes, each stamped with a label and marked as agent-written in the text.
 
-The full policy is the `linear-agent-writes` skill in the private
-`langfuse/langfuse-internal-skills` plugin, which is the **single authority**.
+The full policy is [`linear-agent-writes`](../linear-agent-writes/SKILL.md),
+which is the **single authority**.
 Do not restate its rules in a new skill — point at it, so there is one text to
 keep correct. In summary, a skill may:
 

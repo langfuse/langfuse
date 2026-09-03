@@ -40,7 +40,7 @@ Include confidence for each recommendation: `high`, `medium`, `low`, or `unknown
 3. Inspect comments, latest activity, linked issues, checks, and review threads when status or ownership is ambiguous.
 4. Cluster duplicates or related items before prioritizing.
 5. Return recommendations ordered by urgency, then quick wins, then cleanup.
-6. Present the recommendations as a decision table for the engineer to act on. Every action this skill recommends is a state change reserved for a human, so do not perform them. If a queue item needs a note left on it for someone else, that is a comment or a description edit, which agents do write — see `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin for the shapes and the labels.
+6. Present the recommendations as a decision table for the engineer to act on. Every action this skill recommends is a state change reserved for a human, so do not perform them. If a queue item needs a note left on it for someone else, that is a comment or a description edit, which agents do write — see [`linear-agent-writes`](../linear-agent-writes/SKILL.md) for the shapes and the labels.
 
 ## Linear Review
 
@@ -115,7 +115,7 @@ Do not approve, request changes, comment, close, merge, or edit a PR without exp
 
 These writes require explicit human confirmation by row ID:
 
-- Linear state — status, priority, assignee, labels, cancellation, or customer-need changes. Comments and description edits are **not** gated: they are two of the permitted agent write shapes, so leave them to `linear-agent-writes` in the private `langfuse/langfuse-internal-skills` plugin, which owns the shapes and the labels.
+- Linear state — status, priority, assignee, labels, cancellation, or customer-need changes. Comments and description edits are **not** gated: they are two of the permitted agent write shapes, so leave them to [`linear-agent-writes`](../linear-agent-writes/SKILL.md), which owns the shapes and the labels.
 - Pylon replies, internal notes, status changes, assignment, tags, snoozes, closes, or external-issue links. This is customer-facing, and that gate stays.
 - GitHub approvals, comments, requested changes, reviewer changes, closes, merges, labels, or branch actions.
 
