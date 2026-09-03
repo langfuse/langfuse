@@ -1031,14 +1031,19 @@ describe("batch export test suite", () => {
     // Should only include scores with names "accuracy" or "relevance"
     expect(rows).toHaveLength(3);
 
-    // Verify the scores are sorted by timestamp ASC
-    expect(rows[0].name).toBe("accuracy");
-    expect(rows[0].value).toBe(0.85);
-    expect(rows[0].traceId).toBe(traces[0].id);
-
-    expect(rows[1].name).toBe("relevance");
-    expect(rows[1].value).toBe(0.75);
-    expect(rows[1].traceId).toBe(traces[0].id);
+    // Verify the scores are sorted by timestamp ASC. The two 2024-01-01
+    // scores share a timestamp and tie-break on the unique score id, so
+    // assert them as an unordered pair rather than relying on insertion
+    // order.
+    const firstDayRows = rows.slice(0, 2);
+    expect(firstDayRows.map((r) => r.name).sort()).toEqual([
+      "accuracy",
+      "relevance",
+    ]);
+    expect(firstDayRows.map((r) => r.value).sort()).toEqual([0.75, 0.85]);
+    firstDayRows.forEach((r) => {
+      expect(r.traceId).toBe(traces[0].id);
+    });
 
     expect(rows[2].name).toBe("accuracy");
     expect(rows[2].value).toBe(0.92);
@@ -5211,5 +5216,143 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
     expect(rows[0].input).toBe("hello");
     expect(rows[0].output).toBe("world");
+  });
+
+  it("should export observations without duplicates or omissions when observations share a start_time", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // ClickHouse batch page size is 500 (BATCH_EXPORT_PAGE_SIZE default).
+    // Insert more observations than a single page, all sharing the same
+    // start_time, so offset-based pagination must resolve ordering ties
+    // deterministically via the observation-id tiebreaker instead of
+    // duplicating or omitting rows across page boundaries.
+    const sharedStartTime = new Date("2024-02-14T12:00:00Z").getTime();
+    const traceId = randomUUID();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: sharedStartTime,
+      }),
+    ]);
+
+    const observationCount = 550;
+    const observations = Array.from({ length: observationCount }, () =>
+      createObservation({
+        project_id: projectId,
+        trace_id: traceId,
+        id: randomUUID(),
+        type: "GENERATION",
+        start_time: sharedStartTime,
+      }),
+    );
+    await createObservationsCh(observations);
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.Observations,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "startTime", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    const returnedIds = rows.map((r) => r.id);
+    expect(new Set(returnedIds).size).toBe(observationCount);
+    expect(rows).toHaveLength(observationCount);
+  });
+
+  it("should export scores without duplicates or omissions when scores share a timestamp", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // ClickHouse batch page size is 500 (BATCH_EXPORT_PAGE_SIZE default).
+    // Insert more scores than a single page, all sharing the same
+    // timestamp, so offset-based pagination must resolve ordering ties
+    // deterministically via the score-id tiebreaker instead of
+    // duplicating or omitting rows across page boundaries.
+    const sharedTimestamp = new Date("2024-02-15T12:00:00Z").getTime();
+    const traceId = randomUUID();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: sharedTimestamp,
+      }),
+    ]);
+
+    const scoreCount = 550;
+    const scores = Array.from({ length: scoreCount }, () =>
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        id: randomUUID(),
+        name: "pagination-tiebreaker",
+        value: 1,
+        timestamp: sharedTimestamp,
+      }),
+    );
+    await createScoresCh(scores);
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.Scores,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "timestamp", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    const returnedIds = rows.map((r) => r.id);
+    expect(new Set(returnedIds).size).toBe(scoreCount);
+    expect(rows).toHaveLength(scoreCount);
+  });
+
+  it("should export sessions without duplicates or omissions when sessions share a creation timestamp", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // ClickHouse batch page size is 500 (BATCH_EXPORT_PAGE_SIZE default).
+    // Insert more sessions than a single page, all sharing the same
+    // min_timestamp, so offset-based pagination must resolve ordering
+    // ties deterministically via the session_id tiebreaker instead of
+    // duplicating or omitting rows across page boundaries.
+    const sharedTimestamp = new Date("2024-02-16T12:00:00Z").getTime();
+
+    const sessionCount = 550;
+    const traces = Array.from({ length: sessionCount }, () => {
+      const traceId = randomUUID();
+      const sessionId = randomUUID();
+      return createTrace({
+        project_id: projectId,
+        id: traceId,
+        session_id: sessionId,
+        timestamp: sharedTimestamp,
+      });
+    });
+    await createTracesCh(traces);
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.Sessions,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    const returnedIds = rows.map((r) => r.id);
+    expect(new Set(returnedIds).size).toBe(sessionCount);
+    expect(rows).toHaveLength(sessionCount);
   });
 });
