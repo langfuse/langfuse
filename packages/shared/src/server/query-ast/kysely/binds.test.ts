@@ -32,6 +32,19 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/total_cost in \(\{p\d+:Array\(Float64\)\}\)/);
   });
 
+  it("wraps an IN list against an Array column as Array(Array(...))", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("metadata_names", "in", [["a"], ["b"]]),
+    );
+    expect(sql).toMatch(
+      /metadata_names in \(\{p\d+:Array\(Array\(String\)\)\}\)/,
+    );
+    expect(sql).not.toMatch(/metadata_names in \(\{p\d+:Array\(String\)\}\)/);
+  });
+
   it("does not type a subquery LIMIT from an outer column comparison", () => {
     const { sql } = compile(
       getClickhouseKysely()
