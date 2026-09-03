@@ -94,7 +94,7 @@ type GroupedNavigation = {
 };
 
 type AuthenticatedLayoutProps = PropsWithChildren<{
-  session: Session;
+  user: NonNullable<Session["user"]>;
   navigation: {
     mainNavigation: GroupedNavigation;
     secondaryNavigation: GroupedNavigation;
@@ -120,7 +120,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  */
 export function AuthenticatedLayout({
   children,
-  session,
+  user,
   navigation,
   metadata,
   onSignOut,
@@ -134,14 +134,6 @@ export function AuthenticatedLayout({
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
-
-  // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
-  // in AppLayout, which guarantees session.user exists at this point
-  const user = session.user;
-  if (!user) {
-    // This should never happen due to guards in AppLayout, but TypeScript needs this
-    return null;
-  }
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
