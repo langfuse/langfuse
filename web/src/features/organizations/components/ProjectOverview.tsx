@@ -43,6 +43,7 @@ import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
 
 const OrganizationProjectTiles = ({
@@ -75,8 +76,13 @@ const OrganizationProjectTiles = ({
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
         )
-        .map((project) =>
-          v4UpgradeUiEnabled ? (
+        .map((project) => {
+          const migrationStatus = migrationStatusByProjectId.get(project.id);
+          const migrationReadiness = migrationStatus
+            ? getProjectMigrationReadiness(migrationStatus)
+            : "checking";
+
+          return v4UpgradeUiEnabled ? (
             <Card
               key={project.id}
               className="group hover:bg-muted/50 relative transition-colors"
@@ -96,12 +102,14 @@ const OrganizationProjectTiles = ({
                   >
                     {project.name}
                   </CardTitle>
-                  {!project.deletedAt && (
-                    <V4MigrationProjectChip
-                      project={{ id: project.id, name: project.name }}
-                      status={migrationStatusByProjectId.get(project.id)}
-                    />
-                  )}
+                  {!project.deletedAt &&
+                    (migrationReadiness === "action-needed" ||
+                      migrationReadiness === "partner-managed") && (
+                      <V4MigrationProjectChip
+                        project={{ id: project.id, name: project.name }}
+                        readiness={migrationReadiness}
+                      />
+                    )}
                 </div>
               </CardHeader>
               {!project.deletedAt && (
@@ -150,8 +158,8 @@ const OrganizationProjectTiles = ({
                 </CardContent>
               )}
             </Card>
-          ),
-        )}
+          );
+        })}
     </div>
   );
 };
