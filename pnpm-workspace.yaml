@@ -22,6 +22,10 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+# Reject recent releases whose publishing trust is weaker than earlier versions.
+# Older releases have already passed the five-day quarantine above.
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 7200
 # Keep pnpm itself out of the workspace lockfile's dependency graph.
 pmOnFail: ignore
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
