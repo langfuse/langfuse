@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
