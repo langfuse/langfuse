@@ -273,6 +273,12 @@ const StackedExperimentCell = ({
 /**
  * A single experiment's output within the stacked list cell. Renders the
  * compact (truncated) output value from the list query.
+ *
+ * `h-full min-h-0` is what makes a long output scrollable rather than clipped:
+ * the IO cell inside sizes itself to its parent, so an auto-height row hands it
+ * the content's own height and the row's `overflow-hidden` then cuts it off
+ * with no way to read the rest. Bounded to the row, the IO cell's own
+ * scrollport takes over.
  */
 const StackedOutputRow = ({
   output,
@@ -287,7 +293,7 @@ const StackedOutputRow = ({
   chip?: React.ReactNode;
 }) => {
   return (
-    <div className="flex min-w-0 items-start">
+    <div className="flex h-full min-h-0 min-w-0 items-start">
       <span
         className={cn(
           "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
@@ -376,7 +382,7 @@ const StackedOutputCell = ({
     >
       {showExpectedLine && (
         <div className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5">
-          <div className="flex min-w-0 items-start">
+          <div className="flex h-full min-h-0 min-w-0 items-start">
             <span className="text-muted-foreground mt-0.5 mr-1 shrink-0 text-[10px] font-bold uppercase">
               Exp
             </span>
@@ -404,7 +410,7 @@ const StackedOutputCell = ({
             className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
           >
             {isLoading ? (
-              <div className="flex min-w-0 items-start">
+              <div className="flex h-full min-h-0 min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
                 <ConnectedIOTableCell isLoading singleLine={singleLine} />
               </div>
