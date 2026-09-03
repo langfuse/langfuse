@@ -3,6 +3,8 @@ import { useSyncExternalStore } from "react";
 // tailwind default breakpoint, corresponds to `md`, https://tailwindcss.com/docs/responsive-design
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
+const NARROW_DESKTOP_BREAKPOINT = 1024;
+const NARROW_DESKTOP_QUERY = `(min-width: ${MOBILE_BREAKPOINT}px) and (max-width: ${NARROW_DESKTOP_BREAKPOINT}px)`;
 // Phone-sized in EITHER orientation: narrow, or a touch screen that is short
 // (an iPhone in landscape is wider than `md` but only ~390px tall).
 const HANDHELD_QUERY = `${MOBILE_QUERY}, (pointer: coarse) and (max-height: ${MOBILE_BREAKPOINT - 1}px)`;
@@ -26,6 +28,7 @@ function createMediaQueryStore(query: string) {
 }
 
 const mobileStore = createMediaQueryStore(MOBILE_QUERY);
+const narrowDesktopStore = createMediaQueryStore(NARROW_DESKTOP_QUERY);
 const handheldStore = createMediaQueryStore(HANDHELD_QUERY);
 
 /**
@@ -38,6 +41,19 @@ export function useIsMobile() {
   return useSyncExternalStore(
     mobileStore.subscribe,
     mobileStore.getSnapshot,
+    () => false,
+  );
+}
+
+/**
+ * True on desktop-sized viewports that are too narrow to keep the assistant
+ * docked beside the page. This intentionally excludes mobile so handheld
+ * devices keep the drawer presentation.
+ */
+export function useIsNarrowDesktop() {
+  return useSyncExternalStore(
+    narrowDesktopStore.subscribe,
+    narrowDesktopStore.getSnapshot,
     () => false,
   );
 }

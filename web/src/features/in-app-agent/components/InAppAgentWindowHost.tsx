@@ -19,7 +19,7 @@ import {
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
-import { useIsHandheld } from "@/src/hooks/use-mobile";
+import { useIsHandheld, useIsNarrowDesktop } from "@/src/hooks/use-mobile";
 import { RightRail } from "@/src/components/layouts/app-layout/right-drawer/RightRail";
 
 function DeleteConversationDialog({
@@ -128,6 +128,7 @@ function InAppAgentPersistentWindowSink({
 export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const isHandheld = useIsHandheld();
+  const isNarrowDesktop = useIsNarrowDesktop();
   const { deleteConversation, dock, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -179,7 +180,7 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (isHandheld || isExpanded || dock !== "detached") {
+    if (isHandheld || isExpanded || (dock !== "detached" && !isNarrowDesktop)) {
       return;
     }
 
@@ -188,7 +189,14 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
     }
 
     floatingPanelHandle.initializeGeometry();
-  }, [dock, floatingPanelHandle, isExpanded, isHandheld, open]);
+  }, [
+    dock,
+    floatingPanelHandle,
+    isExpanded,
+    isHandheld,
+    isNarrowDesktop,
+    open,
+  ]);
 
   // Only `isInAppAgentLauncherVisible` gates the assistant tree: page content
   // always stays mounted, and the shell owns the `open` guard so the handheld
@@ -197,9 +205,11 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
     return <InAppAgentHostFrame>{children}</InAppAgentHostFrame>;
   }
 
-  const showSidebar = open && dock === "sidebar" && !isExpanded && !isHandheld;
+  const effectiveDock = isNarrowDesktop ? "detached" : dock;
+  const showSidebar =
+    open && effectiveDock === "sidebar" && !isExpanded && !isHandheld;
   const showOverlay =
-    isHandheld || (open && (isExpanded || dock === "detached"));
+    isHandheld || (open && (isExpanded || effectiveDock === "detached"));
   const showWindow = showSidebar || showOverlay;
   const isHeaderDragHandleEnabled = showOverlay && !isHandheld && !isExpanded;
 
@@ -218,6 +228,8 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
           <ControlledInAppAgentWindow
             isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
             isExpanded={isExpanded}
+            dock={effectiveDock}
+            canChangeDock={!isNarrowDesktop}
             onDeleteConversation={(conversation) => {
               deleteConversationDialog.open(conversation);
             }}

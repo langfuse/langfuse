@@ -51,13 +51,24 @@ vi.mock("@/src/components/ui/resizable-split-layout", () => ({
 vi.mock(
   "@/src/features/in-app-agent/components/ControlledInAppAgentWindow",
   () => ({
-    ControlledInAppAgentWindow: function MockControlledInAppAgentWindow() {
+    ControlledInAppAgentWindow: function MockControlledInAppAgentWindow({
+      canChangeDock,
+      dock,
+    }: {
+      canChangeDock?: boolean;
+      dock?: InAppAgentDock;
+    }) {
       useEffect(() => {
         mocks.windowMounts += 1;
       }, []);
 
       return (
-        <div data-in-app-agent-window-drag-handle="true" data-testid="window">
+        <div
+          data-can-change-dock={canChangeDock}
+          data-dock={dock}
+          data-in-app-agent-window-drag-handle="true"
+          data-testid="window"
+        >
           <textarea data-testid="composer" />
         </div>
       );
@@ -112,6 +123,17 @@ function stubHandheld() {
     "matchMedia",
     vi.fn((query: string) => ({
       matches: query.includes("pointer: coarse"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+
+function stubNarrowDesktop() {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query.includes("max-width: 1024px"),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })),
@@ -183,6 +205,24 @@ describe("InAppAgentWindowHost", () => {
     expect(screen.queryByTestId("in-app-agent-header-slot")).toBeNull();
     expect(screen.getByTestId("in-app-agent-sidebar")).not.toContainElement(
       screen.getByTestId("page-header"),
+    );
+  });
+
+  it("detaches automatically on a narrow desktop viewport", () => {
+    stubNarrowDesktop();
+    mocks.open = true;
+    renderHost();
+
+    expect(screen.getByTestId("page")).toBeInTheDocument();
+    expect(screen.getByTestId("movable-resizable-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("in-app-agent-sidebar")).toBeNull();
+    expect(screen.getByTestId("window")).toHaveAttribute(
+      "data-dock",
+      "detached",
+    );
+    expect(screen.getByTestId("window")).toHaveAttribute(
+      "data-can-change-dock",
+      "false",
     );
   });
 
