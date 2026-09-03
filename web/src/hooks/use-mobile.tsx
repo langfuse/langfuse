@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 // tailwind default breakpoint, corresponds to `md`, https://tailwindcss.com/docs/responsive-design
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
-const NARROW_DESKTOP_BREAKPOINT = 1280;
+const NARROW_DESKTOP_BREAKPOINT = 1400;
 const NARROW_DESKTOP_QUERY = `(min-width: ${MOBILE_BREAKPOINT}px) and (max-width: ${NARROW_DESKTOP_BREAKPOINT}px)`;
 // Phone-sized in EITHER orientation: narrow, or a touch screen that is short
 // (an iPhone in landscape is wider than `md` but only ~390px tall).
