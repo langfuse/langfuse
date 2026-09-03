@@ -990,6 +990,7 @@ export default function ExperimentItemsTable({
                     dataType={dataType}
                     summary={summary}
                     comparisonName={primaryComparisonName}
+                    hasBaseline={hasBaseline}
                     filterMenu={
                       comparisonTargets.length === 0 ? undefined : (
                         <ScoreColumnFilterMenu
