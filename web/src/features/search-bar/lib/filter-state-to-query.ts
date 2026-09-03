@@ -39,7 +39,16 @@ function negate(node: FilterNode): ASTNode {
   return { kind: "not", child: node };
 }
 
-function scorePathOf(column: string, key: string): string | null {
+function scorePathOf(
+  column: string,
+  key: string,
+  registry: FieldRegistry,
+): string | null {
+  // A view can own score filters in its sidebar without exposing them in the
+  // bar. Emitting the path anyway would render text the parser rejects as an
+  // unknown field, so a score space the registry does not expose is left to the
+  // sidebar — reported as skipped, and preserved across commits.
+  //
   // Quote the score name iff it has grammar chars so it re-lexes as one token
   // (`scores."Rouge Score"`); resolveField unquotes it on the way back.
   if (
@@ -47,14 +56,14 @@ function scorePathOf(column: string, key: string): string | null {
     column === SCORE_COLUMNS.observation.categorical ||
     column === SCORE_COLUMNS.observation.boolean
   ) {
-    return `scores.${quoteIfNeeded(key)}`;
+    return registry.scores ? `scores.${quoteIfNeeded(key)}` : null;
   }
   if (
     column === SCORE_COLUMNS.trace.numeric ||
     column === SCORE_COLUMNS.trace.categorical ||
     column === SCORE_COLUMNS.trace.boolean
   ) {
-    return `traceScores.${quoteIfNeeded(key)}`;
+    return registry.traceScores ? `traceScores.${quoteIfNeeded(key)}` : null;
   }
   return null;
 }
@@ -209,19 +218,19 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
-      const path = scorePathOf(filter.column, filter.key);
+      const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(path, op, [String(filter.value)]);
     }
     case "booleanObject": {
-      const path = scorePathOf(filter.column, filter.key);
+      const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const node = filterNode(path, "=", [String(filter.value)]);
       return filter.operator === "<>" ? negate(node) : node;
     }
     case "categoryOptions": {
-      const path = scorePathOf(filter.column, filter.key);
+      const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null || filter.value.length === 0) return null;
       const node = filterNode(path, "=", filter.value);
       return filter.operator === "none of" ? negate(node) : node;

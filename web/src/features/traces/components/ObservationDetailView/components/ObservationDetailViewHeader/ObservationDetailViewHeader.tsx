@@ -56,7 +56,7 @@ import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggr
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -82,7 +82,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -133,7 +133,7 @@ export const ObservationDetailViewHeader = memo(
   }: ObservationDetailViewHeaderProps) {
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
-    const { isBetaEnabled: isV4Enabled } = useV4Beta();
+    const { isV4: isV4Enabled } = useReadPath();
     const { trace, serverScores } = useTraceData();
 
     // Get trace-level scores for V4 dual annotation

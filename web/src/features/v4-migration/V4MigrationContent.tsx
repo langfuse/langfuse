@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -27,7 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -52,7 +52,7 @@ import {
   type MigrationCountState,
   type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -61,7 +61,7 @@ import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
@@ -1495,12 +1495,12 @@ export function V4MigrationDetailsContent({
     projectId,
     enabled: Boolean(projectId),
   });
-  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const { canToggleV4, isV4 } = useReadPath();
   // Evidence links target the v4 events table; with the v4 preview off the
   // route renders the v3 observations table, which cannot express the
   // ingestionApiKey filter — the link would open an unfiltered table. Keep
   // the key as plain text there instead of a misleading link.
-  const evidenceProjectId = isBetaEnabled ? projectId : undefined;
+  const evidenceProjectId = isV4 ? projectId : undefined;
 
   // PostHog is the external system here: the panel's checks resolve
   // asynchronously after open, so the "how much work was shown" event can

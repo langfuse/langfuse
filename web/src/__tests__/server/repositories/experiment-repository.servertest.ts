@@ -1380,6 +1380,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         experimentIds: [],
       });
 
+      // The per-level lists stay the source (the charts read them); the
+      // level-agnostic set and its level maps are the projection the three
+      // score facets offer.
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
@@ -1389,6 +1392,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_score_categories: [],
         trace_score_booleans: [],
         trace_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
       });
     });
 
@@ -1398,6 +1408,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         experimentIds: [randomUUID()],
       });
 
+      // The per-level lists stay the source (the charts read them); the
+      // level-agnostic set and its level maps are the projection the three
+      // score facets offer.
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
@@ -1407,6 +1420,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_score_categories: [],
         trace_score_booleans: [],
         trace_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
       });
     });
 
@@ -1739,13 +1759,20 @@ describe("Clickhouse Experiment Repository Test", () => {
         obs_scores_avg: [],
         obs_score_categories: [],
         obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_columns: [],
         experiment_scores_avg: [],
         experiment_score_categories: [],
         experiment_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
       });
-      expect(result).not.toHaveProperty("trace_scores_avg");
-      expect(result).not.toHaveProperty("trace_score_categories");
-      expect(result).not.toHaveProperty("trace_score_columns");
     });
 
     it("should return experiment-run score filter options", async () => {

@@ -3381,8 +3381,13 @@ describe("queryBuilder", () => {
         result.data = await executeQuery(projectId, query);
 
         expect(result.data).toHaveLength(2);
-        expect(result.data[0].name).toBe("observation-basic");
-        expect(Number(result.data[0].count_count)).toBe(1);
+        expect(result.data.map((row) => row.name).toSorted()).toEqual([
+          "observation-basic",
+          "observation-premium",
+        ]);
+        expect(result.data.every((row) => Number(row.count_count) === 1)).toBe(
+          true,
+        );
       });
 
       it("should generate histogram with custom bin count for cost distribution", async () => {
@@ -4089,13 +4094,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 10, output: 20, total: 30 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 5, output: 15, total: 20 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4139,13 +4144,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             usage_details: { input: 100, output: 200, total: 300 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "GENERATION",
             usage_details: { input: 50, output: 75, total: 125 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4354,13 +4359,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 10 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "SPAN",
             cost_details: { input: 999 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4407,13 +4412,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 10, output: 20, total: 30 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 5, output: 15, total: 20 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4459,7 +4464,7 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 7, output: 3 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -5151,7 +5156,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "",
             name: "my-trace",
             parent_span_id: "", // root event
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
@@ -5159,7 +5164,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "",
             name: "child-observation",
             parent_span_id: "some-parent", // child event
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           // Trace 2: trace_name is "other-trace"
           createEvent({
@@ -5168,7 +5173,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "other-trace",
             name: "root-event",
             parent_span_id: "", // root event
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -5218,7 +5223,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "target-trace",
             name: "root-observation",
             parent_span_id: "",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
@@ -5226,7 +5231,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "other-trace",
             name: "root-observation",
             parent_span_id: "",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -5279,7 +5284,7 @@ describe("query builder measure-aggregation validation", () => {
             name: "root-op",
             parent_span_id: "",
             environment: "production",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           // Trace 2: name="target-trace", environment="staging"
           createEvent({
@@ -5289,7 +5294,7 @@ describe("query builder measure-aggregation validation", () => {
             name: "root-op",
             parent_span_id: "",
             environment: "staging",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           // Trace 3: name="other-trace", environment="production"
           createEvent({
@@ -5299,7 +5304,7 @@ describe("query builder measure-aggregation validation", () => {
             name: "root-op",
             parent_span_id: "",
             environment: "production",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -5428,7 +5433,7 @@ describe("query builder measure-aggregation validation", () => {
             parent_span_id: "",
             metadata_names: ["experiments"],
             metadata_values: [longValue],
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ]);
 

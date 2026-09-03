@@ -4285,7 +4285,7 @@ paths:
         - `metadata` - metadata (truncated to 200 chars by default, use
         `expandMetadata` to get full values)
 
-        - `model` - providedModelName, internalModelId, modelParameters
+        - `model` - model, internalModelId, modelParameters
 
         - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
 
@@ -9774,7 +9774,12 @@ components:
           description: Custom endpoint URL (required for S3_COMPATIBLE type)
         region:
           type: string
-          description: Storage region
+          description: >-
+            Storage region used by S3-compatible clients (AWS, GCS, Cloudflare
+            R2, MinIO, Azure location IDs such as eastus, OCI). Leading and
+            trailing whitespace is removed. The remaining value must be 1-63
+            letters, numbers, or hyphens, and cannot start or end with a hyphen.
+            Examples: us-east-1, europe-west1, eastus, auto.
         accessKeyId:
           type: string
           nullable: true
@@ -10619,7 +10624,7 @@ components:
         metadata:
           nullable: true
           description: Additional metadata of the observation
-        providedModelName:
+        model:
           type: string
           nullable: true
           description: The model name as provided by the user

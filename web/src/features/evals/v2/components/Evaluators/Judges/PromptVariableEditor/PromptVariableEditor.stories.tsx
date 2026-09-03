@@ -1,5 +1,5 @@
 import { ChevronDown, MoreVertical } from "lucide-react";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -188,5 +188,40 @@ export const ReadOnly = meta.story({
     variableStatus: { output: { status: "valid" } },
     variableMappings: { output: "Observation output" },
     readOnly: true,
+  },
+});
+
+export const SearchPanel = meta.story({
+  name: "(Test) Search Panel",
+  args: {
+    value:
+      "Return only valid JSON. Do not add markdown or an explanation around the JSON object.",
+    onChange: fn(),
+    showPreviewToggle: true,
+    previewEnabled: false,
+    onPreviewEnabledChange: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editor = canvasElement.querySelector<HTMLElement>(".cm-content");
+    if (!editor) throw new Error("Prompt editor not found");
+
+    await userEvent.click(editor);
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+    editor.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "f",
+        code: "KeyF",
+        metaKey: isMac,
+        ctrlKey: !isMac,
+        bubbles: true,
+      }),
+    );
+
+    const findInput = await canvas.findByRole("textbox", { name: "Find" });
+    await userEvent.type(findInput, "JSON");
+    await expect(
+      canvasElement.querySelector(".cm-panels-top .cm-search"),
+    ).toBeInTheDocument();
   },
 });

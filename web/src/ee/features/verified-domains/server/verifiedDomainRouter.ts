@@ -1,6 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,

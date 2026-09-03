@@ -19,7 +19,7 @@ tables (no opt-in). Based on the `langfuse-search-bar` prototype.
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
   The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
   Observations/Traces tables, so call sites still read as
-  `isBetaEnabled && useSearchBarEnabled()`.
+  `isV4 && useSearchBarEnabled()`.
 - The search bar is not a Feature Preview and has no user or organization
   toggle.
 

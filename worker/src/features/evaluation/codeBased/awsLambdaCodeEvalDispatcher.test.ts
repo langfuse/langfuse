@@ -255,9 +255,8 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies Runtime.ExitError as non-retryable LAMBDA_CONFIGURATION_ERROR", async () => {
-    // Documented Lambda RIC errorType for abnormal runtime termination
-    // (OOM kill, segfault, process.exit). Retrying never recovers.
+  it("classifies Runtime.ExitError with signal killed as non-retryable OUT_OF_MEMORY", async () => {
+    // Lambda reports some OOM kills as Runtime.ExitError with signal: killed.
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
       Payload: Buffer.from(
@@ -273,7 +272,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     });
 
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
-      code: "LAMBDA_CONFIGURATION_ERROR",
+      code: "OUT_OF_MEMORY",
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });

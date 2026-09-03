@@ -10,6 +10,7 @@ import type {
   InternalTraceEventInput,
   InternalTraceExperimentContext,
 } from "./internalTraceEvents";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 
 // disable lint as this is exported and used in web/worker
 
@@ -383,7 +384,9 @@ export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
   "claude-fable-5",
+  "claude-fable-5-1",
   "claude-mythos-5",
+  "claude-mythos-5-1",
   "claude-opus-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
@@ -410,6 +413,7 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
@@ -436,6 +440,7 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
@@ -543,6 +548,7 @@ export type TraceSinkParams = {
   userId?: string;
   sessionId?: string;
   metadata?: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
   prompt?: {
     name: string;
     version: number;

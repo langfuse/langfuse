@@ -25,11 +25,14 @@ export function createScoreColumns<T extends Record<string, any>>(
   rawKey?: boolean,
 ): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
-    // Apply prefix to both column ID/accessor and header
     const accessorKey = prefix ? `${prefix}-${key}` : key;
-    const header = prefix
-      ? `${prefix}: ${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`
-      : `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
+    // The score's name identifies the column, so it comes first. A score
+    // column is narrow and truncates from the right, so a leading level ate
+    // the name and left every column of a level looking alike. The level
+    // still trails the name, where the hover title and the column picker
+    // pick it up in full.
+    const label = `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
+    const header = prefix ? `${label} · ${prefix}` : label;
 
     return {
       accessorKey,

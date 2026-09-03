@@ -1,9 +1,10 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import { LayoutDashboard } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { type ChartWidgetInput } from "../lib/chartConfigToWidget";

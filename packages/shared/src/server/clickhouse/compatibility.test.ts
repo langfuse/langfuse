@@ -70,6 +70,9 @@ describe("resolveClickHouseCompatibility", () => {
     ["26.7.1.1334", noCompatibilitySettings],
     ["26.7.2.0", disableTopKThroughJoin],
     ["26.7.2.11", noCompatibilitySettings],
+    ["26.7.99.9999", noCompatibilitySettings],
+    ["26.8.0.0", noCompatibilitySettings],
+    ["26.8.1.2041", noCompatibilitySettings],
   ])("resolves automatic settings for %s", (version, expectedSettings) => {
     expect(resolveClickHouseCompatibility({ version }).settings).toEqual(
       expectedSettings,
@@ -107,7 +110,9 @@ describe("resolveClickHouseCompatibility", () => {
           CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "false",
         },
       }).settings,
-    ).toEqual(disableLazyMaterialization);
+    ).toEqual({
+      ...disableLazyMaterialization,
+    });
   });
 });
 

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -10,6 +11,12 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -30,7 +37,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { GitCompareArrows, LightbulbIcon } from "lucide-react";
+import { ChevronDown, GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -52,13 +59,8 @@ import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 import {
@@ -66,7 +68,7 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
@@ -274,15 +276,6 @@ export default function ExperimentsTable({
   showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
-  const filterConfig = useMemo(
-    () =>
-      getExperimentsFilterConfig(
-        fixedFilter
-          .map((filter) => filter.column)
-          .filter(isExperimentsOmittableFilterColumn),
-      ),
-    [fixedFilter],
-  );
 
   const { setDetailPageList } = useDetailPageLists();
   // Selection lives in a per-mount vanilla zustand store (not useState) so a
@@ -337,15 +330,34 @@ export default function ExperimentsTable({
   const oldFilterState = inputFilterState.concat(dateRangeFilter, fixedFilter);
 
   // Fetch filter options for datasets and scores
-  const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
+  const {
+    filterOptions,
+    datasetIdByName,
+    datasetNameById,
+    isFilterOptionsPending,
+  } = useExperimentFilterOptions({
     projectId,
     oldFilterState,
   });
+
+  // Built after the dataset map, which its filter-state migration needs to
+  // translate a legacy dataset id into the name the facet is keyed by.
+  const filterConfig = useMemo(
+    () =>
+      getExperimentsFilterConfig(
+        fixedFilter
+          .map((filter) => filter.column)
+          .filter(isExperimentsOmittableFilterColumn),
+        datasetNameById,
+      ),
+    [fixedFilter, datasetNameById],
+  );
 
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
+    // v4-only surface — drives `isV4` on filters:* analytics.
     isV4: true,
   });
 
@@ -371,12 +383,45 @@ export default function ExperimentsTable({
     [],
   );
 
+  // Grammar search bar: an ADDITIONAL editor over the same FilterState the
+  // facet sidebar edits. Score filtering stays in the sidebar here — see
+  // experimentsSearchRegistry.
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+  // The experiments table has no full-text lane, so the registry rejects free
+  // text and these stay inert.
+  const noSearchLane = useCallback(() => {}, []);
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    tableName: filterConfig.tableName,
+    enabled: true,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery: null,
+    searchType: DEFAULT_SEARCH_TYPE,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery: noSearchLane,
+    setSearchType: noSearchLane,
+    registry: EXPERIMENTS_FIELD_REGISTRY,
+  });
+
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
     fixedFilter,
   );
 
-  const filterState = combinedFilterState;
+  // The one boundary where a dataset NAME becomes its id — see
+  // fns/datasetNameFilter.
+  const filterState = useMemo(
+    () => withDatasetNamesResolved(combinedFilterState, datasetIdByName),
+    [combinedFilterState, datasetIdByName],
+  );
 
   // Use the custom hook for experiments data fetching
   const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
@@ -524,13 +569,13 @@ export default function ExperimentsTable({
     {
       accessorKey: "datasetId",
       id: "datasetId",
-      header: getExperimentsColumnName("experimentDatasetId"),
+      header: getExperimentsColumnName("experimentDatasetName"),
       size: 150,
       cell: ({ row }) => {
         const datasetId: string | undefined = row.getValue("datasetId");
-        const datasetName = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === datasetId,
-        )?.displayValue;
+        const datasetName = datasetId
+          ? datasetNameById.get(datasetId)
+          : undefined;
 
         if (!datasetId || !datasetName) {
           return undefined;
@@ -776,63 +821,85 @@ export default function ExperimentsTable({
               setTimeRange={setTimeRange}
             />
           )}
-          {/* Toolbar spanning full width */}
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Experiments,
-              projectId,
-              controllers: viewControllers,
-            }}
-            tableName={filterConfig.tableName}
-            isV4={true}
-            onColumnGroupToggle={handleColumnGroupToggle}
-            columnsWithCustomSelect={["name", "datasetId"]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            actionButtons={[
-              <ExperimentsMultiSelectActionMenu
-                key="experiments-multi-select-actions"
-                projectId={projectId}
-                store={experimentsTableStore}
-                datasetIdByExperimentId={datasetIdByExperimentId}
-              />,
-            ]}
-          />
+          {/* The composer and the toolbar stick together as one band so the
+              toolbar cannot scroll under the composer and render half-clipped;
+              pb-1.5 matches the other bar surfaces' spacing above the table. */}
+          <div className="bg-background sticky top-0 z-30 pb-1.5">
+            <EventsSearchBarRow
+              projectId={projectId}
+              tableName={filterConfig.tableName}
+              store={searchBarStore}
+              commit={searchBarCommit}
+              observed={observedOptions}
+              onApplyFilters={searchBarApplyFilters}
+              registry={EXPERIMENTS_FIELD_REGISTRY}
+            />
+            {/* Toolbar spanning full width */}
+            <DataTableToolbar
+              rowClassName="my-1"
+              columns={columns}
+              filterState={queryFilter.filterState}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Experiments,
+                projectId,
+                controllers: viewControllers,
+              }}
+              tableName={filterConfig.tableName}
+              isV4={true}
+              onColumnGroupToggle={handleColumnGroupToggle}
+              columnsWithCustomSelect={["name", "datasetId"]}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibilityState}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              orderByState={orderByState}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              actionButtons={[
+                <ExperimentsMultiSelectActionMenu
+                  key="experiments-multi-select-actions"
+                  projectId={projectId}
+                  store={experimentsTableStore}
+                  datasetIdByExperimentId={datasetIdByExperimentId}
+                />,
+              ]}
+            />
+          </div>
 
           {/* Charts section - Collapsible Accordion */}
           {tableDateRange && (
-            <Accordion
+            <AccordionPrimitive.Root
               type="single"
               collapsible
               value={accordionValue}
               onValueChange={handleChartsAccordionChange}
             >
-              <AccordionItem value="charts" className="border-t">
-                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Charts</span>
+              <AccordionPrimitive.Item className="border-t" value="charts">
+                <AccordionPrimitive.Header className="flex">
+                  <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between px-3 pt-2 pb-1 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">Charts</span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  </AccordionPrimitive.Trigger>
+                </AccordionPrimitive.Header>
+                <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+                  <div className="px-3 pt-1 pb-1">
+                    <div className="max-h-[40dvh] overflow-x-auto">
+                      <ExperimentChartsGrid
+                        projectId={projectId}
+                        experiments={chartExperiments}
+                        fromTimestamp={tableDateRange.from}
+                        toTimestamp={tableDateRange.to}
+                        isExternalLoading={experiments.status === "loading"}
+                      />
+                    </div>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
-                  <ExperimentChartsGrid
-                    projectId={projectId}
-                    experiments={chartExperiments}
-                    fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to}
-                    isExternalLoading={experiments.status === "loading"}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                </AccordionPrimitive.Content>
+              </AccordionPrimitive.Item>
+            </AccordionPrimitive.Root>
           )}
 
           {/* Content area with sidebar and table */}
