@@ -62,7 +62,7 @@ import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/features/traces/fns/traceAggregation";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";

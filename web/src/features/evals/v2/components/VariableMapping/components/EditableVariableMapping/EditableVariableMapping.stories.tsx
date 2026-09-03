@@ -43,7 +43,7 @@ export const MappedMediaValue = meta.story({
         attachments: [
           {
             media:
-              "@@@langfuseMedia:type=image/png|id=cc48838a-3da8-4ca4-a007-2cf8df930e69|source=bytes@@@",
+              "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
           },
         ],
       },

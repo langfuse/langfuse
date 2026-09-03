@@ -10,7 +10,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 

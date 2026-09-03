@@ -38,7 +38,7 @@ import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
-} from "@/src/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -271,14 +271,14 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     userFilterState,
   ]);
 
-  const scheduler = useDashboardQueryScheduler({
+  const schedulerStore = useDashboardQueryScheduler({
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
 
   return (
     <DashboardQuerySchedulerProvider
-      scheduler={scheduler}
+      store={schedulerStore}
       shouldBucketQueriesByTimeRange={!("from" in timeRange)}
     >
       <Page
