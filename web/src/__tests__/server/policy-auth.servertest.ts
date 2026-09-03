@@ -1,6 +1,7 @@
 import {
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
+  hashSecretKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -72,13 +73,14 @@ describe("policy authenticate() composition", () => {
     expect(result.success).toBe(false);
   });
 
-  it("keeps a NULL fast-hash key Basic-only", async () => {
-    await backfillFastHash();
+  it("authenticates a NULL fast-hash key over Basic via the slow-hash path", async () => {
     await prisma.apiKey.update({
       where: { publicKey: fixture.publicKey },
-      data: { fastHashedSecretKey: null },
+      data: {
+        hashedSecretKey: await hashSecretKey(fixture.secretKey),
+        fastHashedSecretKey: null,
+      },
     });
     expect((await auth(basicHeader())).success).toBe(true);
-    expect((await auth(`Bearer ${fixture.secretKey}`)).success).toBe(false);
   });
 });

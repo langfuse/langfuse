@@ -104,6 +104,17 @@ const projectRoutes: Route[] = [
     route: "unstable/evaluation-rules/[evaluationRuleId]",
     methods: ["GET", "PATCH", "DELETE"],
   },
+  { route: "v2/evaluators/index", methods: ["GET", "POST"] },
+  {
+    route: "v2/evaluators/[evaluatorId]",
+    methods: ["GET", "PATCH", "DELETE"],
+  },
+  { route: "v2/evaluators/[evaluatorId]/versions", methods: ["GET"] },
+  { route: "v2/evaluation-rules/index", methods: ["GET", "POST"] },
+  {
+    route: "v2/evaluation-rules/[evaluationRuleId]",
+    methods: ["GET", "PATCH", "DELETE"],
+  },
 ];
 
 // Non-project public files, subtracted from the filesystem walk before the
