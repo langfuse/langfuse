@@ -13,12 +13,6 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 
-// Safety buffer below project.createdAt for the widened observation lookup:
-// tolerates observations stamped shortly before the project row was created
-// (clock skew / near-creation ingestion). createdAt is immutable, so the
-// resulting bound is stable across the project's lifetime.
-const PROJECT_CREATED_AT_SAFETY_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
-
 export const assertTargetBelongsToProject = async ({
   prisma,
   input,
@@ -74,21 +68,15 @@ export const assertTargetBelongsToProject = async ({
 
     // trace.timestamp is an independent SDK-supplied field that can be set later
     // than a child observation's start_time (no ingestion invariant couples
-    // them). On a miss, widen the bound to the project creation time so a valid
-    // observation is never wrongly reported missing while queries stay bounded.
+    // them), and legitimate backfills mean an observation can be arbitrarily
+    // older than any project-derived floor. So there is no safe lower bound to
+    // fall back to: on a miss, retry unbounded to avoid wrongly reporting a
+    // valid observation as missing. This runs only on a miss, so the tight
+    // trace-timestamp bound still serves the common path.
     if (!observation && trace?.timestamp) {
-      const project = await prisma.project.findUnique({
-        where: { id: input.projectId },
-        select: { createdAt: true },
-      });
       observation = await getObservationForProject({
         ...observationLookup,
-        startTimeLowerBound: project
-          ? new Date(
-              project.createdAt.getTime() -
-                PROJECT_CREATED_AT_SAFETY_INTERVAL_MS,
-            )
-          : undefined,
+        startTimeLowerBound: undefined,
       });
     }
 

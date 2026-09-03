@@ -257,12 +257,6 @@ const createPrismaStub = () => {
         },
       ),
     },
-    project: {
-      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
-        id: where.id,
-        createdAt: new Date("2020-01-01T00:00:00.000Z"),
-      })),
-    },
   };
 
   return {
@@ -717,12 +711,9 @@ describe("webCallouts router", () => {
     expect(getObservationById).toHaveBeenCalledTimes(2);
     const calls = (getObservationById as Mock).mock.calls;
     expect(calls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
-    // Widened retry floors at project.createdAt (2020-01-01) minus the one-week
-    // safety buffer.
-    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
-    expect(calls[1][0].startTimeLowerBound).toEqual(
-      new Date(new Date("2020-01-01T00:00:00.000Z").getTime() - oneWeekMs),
-    );
+    // No safe lower bound exists on a miss (legitimate backfills predate any
+    // project-derived floor), so the retry is unbounded.
+    expect(calls[1][0].startTimeLowerBound).toBeUndefined();
   });
 
   it("rate limits before target validation and outbound delivery", async () => {
