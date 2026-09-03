@@ -139,21 +139,25 @@ const OpenAICompletionUsageSchema = z
     };
 
     if (prompt_tokens_details) {
+      let inputRemainder = result.input;
       for (const [key, value] of Object.entries(prompt_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`input_${key}`] = value;
-          result.input = Math.max(result.input - (value ?? 0), 0);
+          inputRemainder -= value ?? 0;
         }
       }
+      result.input = Math.max(inputRemainder, 0);
     }
 
     if (completion_tokens_details) {
+      let outputRemainder = result.output;
       for (const [key, value] of Object.entries(completion_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`output_${key}`] = value;
-          result.output = Math.max(result.output - (value ?? 0), 0);
+          outputRemainder -= value ?? 0;
         }
       }
+      result.output = Math.max(outputRemainder, 0);
     }
 
     return result;
@@ -194,21 +198,25 @@ const OpenAIResponseUsageSchema = z
     };
 
     if (input_tokens_details) {
+      let inputRemainder = result.input;
       for (const [key, value] of Object.entries(input_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`input_${key}`] = value;
-          result.input = Math.max(result.input - (value ?? 0), 0);
+          inputRemainder -= value ?? 0;
         }
       }
+      result.input = Math.max(inputRemainder, 0);
     }
 
     if (output_tokens_details) {
+      let outputRemainder = result.output;
       for (const [key, value] of Object.entries(output_tokens_details)) {
         if (value !== null && value !== undefined) {
           result[`output_${key}`] = value;
-          result.output = Math.max(result.output - (value ?? 0), 0);
+          outputRemainder -= value ?? 0;
         }
       }
+      result.output = Math.max(outputRemainder, 0);
     }
 
     return result;
