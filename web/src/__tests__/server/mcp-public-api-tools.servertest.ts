@@ -450,11 +450,13 @@ describe("MCP public API tools", () => {
       prompt: "Test prompt",
     });
 
+    const ignoredAuthorUserId = uuidv4();
     const created = (await handleCreateComment(
       {
         objectType: "PROMPT",
         objectId: prompt.id,
         content: "MCP comment",
+        authorUserId: ignoredAuthorUserId,
       },
       context,
     )) as { id: string };
@@ -467,12 +469,34 @@ describe("MCP public API tools", () => {
         limit: 10,
       },
       context,
-    )) as { data: Array<{ id: string; content: string }> };
+    )) as {
+      data: Array<{ id: string; content: string; authorUserId: string | null }>;
+    };
     expect(listed.data).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: created.id, content: "MCP comment" }),
+        expect.objectContaining({
+          id: created.id,
+          content: "MCP comment",
+          authorUserId: null,
+        }),
       ]),
     );
+
+    const sessionUserId = uuidv4();
+    const attributed = (await handleCreateComment(
+      {
+        objectType: "PROMPT",
+        objectId: prompt.id,
+        content: "MCP session comment",
+      },
+      { ...context, userId: sessionUserId },
+    )) as { id: string };
+    await expect(
+      handleGetComment({ commentId: attributed.id }, context),
+    ).resolves.toMatchObject({
+      id: attributed.id,
+      authorUserId: sessionUserId,
+    });
 
     await expect(
       handleGetComment({ commentId: created.id }, context),
