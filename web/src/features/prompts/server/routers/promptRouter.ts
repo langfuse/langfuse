@@ -28,6 +28,7 @@ import {
   TracingSearchType,
   orderBy,
   singleFilter,
+  normalizeOrderByForTable,
 } from "@langfuse/shared";
 import {
   orderByToPrismaSql,
@@ -115,7 +116,10 @@ export const promptRouter = createTRPCRouter({
       });
 
       const orderByCondition = orderByToPrismaSql(
-        input.orderBy,
+        normalizeOrderByForTable({
+          orderBy: input.orderBy,
+          expectedTimeColumn: "createdAt",
+        }),
         promptsTableCols,
       );
 

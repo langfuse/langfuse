@@ -170,6 +170,20 @@ describe("prompts trpc", () => {
         });
       },
     );
+
+    it("accepts leaked tracing time-column orderBy aliases", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.prompts.all({
+          projectId: project.id,
+          page: 0,
+          limit: 10,
+          filter: [],
+          orderBy: { column: "startTime", order: "DESC" },
+        }),
+      ).resolves.toMatchObject({ prompts: [], totalCount: 0 });
+    });
   });
 
   describe("prompts.importBulk", () => {
