@@ -59,4 +59,19 @@ describe("formatEvaluatorCostCalculation", () => {
       "Code evaluators do not call an LLM, so they do not incur model-provider / LLM costs.",
     );
   });
+
+  it("describes a one-shot selection instead of a weekly total", () => {
+    expect(
+      formatEvaluatorCostCalculation({
+        matchingObservations: 12,
+        sampling: 1,
+        testRunCostUsd: 0.01,
+        estimatedCostUsd: 0.12,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        period: "selection",
+      }),
+    ).toBe(
+      "12 observations × 100% sampling × $0.01 per evaluation = ≈ $0.12 for this run. Expected cost on your linked API key (not Langfuse). Per-evaluation cost uses the latest cost-bearing evaluator trace from that period, or a fallback test call.",
+    );
+  });
 });

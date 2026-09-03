@@ -2,7 +2,8 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import { EstimatedCostRow } from "./EstimatedCostRow";
-import { BatchEvalSourceTable } from "@langfuse/shared";
+import type { BatchEvalSourceTable } from "@langfuse/shared";
+import { getBatchEvalCostObservationCount } from "./utils";
 
 type ConfirmationStepProps = {
   projectId: string;
@@ -12,34 +13,6 @@ type ConfirmationStepProps = {
   sourceTable: BatchEvalSourceTable;
   experimentCount?: number;
 };
-
-/**
- * Determines whether to show a cost disclaimer instead of the actual cost estimate.
- * For experiments source, we can't accurately estimate cost because displayCount
- * is the experiment count, not the actual observation count.
- */
-function shouldShowCostDisclaimer(sourceTable: BatchEvalSourceTable): boolean {
-  return sourceTable === BatchEvalSourceTable.EXPERIMENTS;
-}
-
-/**
- * Calculates the effective observation count for cost estimation.
- * For experiment-items source, multiplies by experiment count since each item
- * is evaluated once per experiment.
- */
-function getEffectiveObservationCount(
-  displayCount: number,
-  sourceTable: BatchEvalSourceTable,
-  experimentCount?: number,
-): number {
-  if (
-    sourceTable === BatchEvalSourceTable.EXPERIMENT_ITEMS &&
-    experimentCount
-  ) {
-    return displayCount * experimentCount;
-  }
-  return displayCount;
-}
 
 export function ConfirmationStep(props: ConfirmationStepProps) {
   const {
@@ -51,12 +24,11 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
     experimentCount,
   } = props;
 
-  const showCostDisclaimer = shouldShowCostDisclaimer(sourceTable);
-  const effectiveObservationCount = getEffectiveObservationCount(
+  const effectiveObservationCount = getBatchEvalCostObservationCount({
     displayCount,
     sourceTable,
     experimentCount,
-  );
+  });
 
   return (
     <div className="space-y-4">
@@ -86,7 +58,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
 
           <Separator />
 
-          {showCostDisclaimer ? (
+          {effectiveObservationCount == null ? (
             <div className="flex gap-2">
               <span className="text-muted-foreground shrink-0">
                 Est. LLM API Key Cost:

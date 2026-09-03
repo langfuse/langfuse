@@ -113,6 +113,7 @@ function prepare({
         }
         return foundEvaluatorIds.map((id) => ({
           id,
+          name: "Quality",
           type: "LLM_AS_JUDGE",
           versions: [
             {
@@ -442,5 +443,75 @@ describe("batched evaluation version selection", () => {
 
     expect(context.batchActionCreate).not.toHaveBeenCalled();
     expect(mocks.queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than 100 evaluators", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: Array.from(
+          { length: 101 },
+          (_, index) => `evaluator-${index}`,
+        ),
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+  });
+
+  it("names the evaluator when a mapping is incomplete", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+    vi.mocked(context.prisma.evaluator.findMany).mockImplementation(
+      async (args?: { select?: { id?: boolean } }) => {
+        if (args?.select?.id) {
+          return [{ id: evaluatorId }];
+        }
+        return [
+          {
+            id: evaluatorId,
+            name: "Quality",
+            type: "LLM_AS_JUDGE",
+            versions: [
+              {
+                prompt: "Evaluate {{output}} {{input}}",
+                promptMessages: [
+                  {
+                    role: "user",
+                    content: "Evaluate {{output}} {{input}}",
+                  },
+                ],
+                variableMapping: [
+                  {
+                    templateVariable: "output",
+                    selectedColumnId: "output",
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+      },
+    );
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+        evaluatorMappings: [{ evaluatorId, variableMapping: null }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining('Evaluator "Quality"'),
+    });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
   });
 });

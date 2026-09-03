@@ -1,4 +1,6 @@
 import {
+  BatchEvalSourceTable,
+  EvalTemplateType,
   extractValueFromObjectAsString,
   zipToolCallsFromRecord,
   type BatchActionQuery,
@@ -80,6 +82,45 @@ export function renderPromptPreviewFromObservation(params: {
   return renderedPrompt.length > PROMPT_PREVIEW_CHAR_LIMIT
     ? `${renderedPrompt.slice(0, PROMPT_PREVIEW_CHAR_LIMIT)}...`
     : renderedPrompt;
+}
+
+/**
+ * Observations this batch will score, or null when the count cannot be known
+ * up front (experiment-scoped runs).
+ */
+export function getBatchEvalCostObservationCount(params: {
+  displayCount: number;
+  sourceTable: BatchEvalSourceTable;
+  experimentCount?: number;
+}): number | null {
+  const { displayCount, sourceTable, experimentCount } = params;
+  if (sourceTable === BatchEvalSourceTable.EXPERIMENTS) {
+    return null;
+  }
+  if (
+    sourceTable === BatchEvalSourceTable.EXPERIMENT_ITEMS &&
+    experimentCount
+  ) {
+    return displayCount * experimentCount;
+  }
+  return displayCount;
+}
+
+export function hasCompleteBatchEvalMappings(
+  assignments: Array<{
+    evaluatorType: EvalTemplateType;
+    variableMapping: ObservationVariableMapping[] | null;
+    defaultVariableMapping: ObservationVariableMapping[];
+  }>,
+): boolean {
+  return assignments.every((assignment) => {
+    if (assignment.evaluatorType === EvalTemplateType.CODE) {
+      return true;
+    }
+    const mapping =
+      assignment.variableMapping ?? assignment.defaultVariableMapping;
+    return mapping.every((entry) => Boolean(entry.selectedColumnId?.trim()));
+  });
 }
 
 export function buildQueryWithSelectedIds(params: {

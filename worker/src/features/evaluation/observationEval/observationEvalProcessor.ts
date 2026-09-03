@@ -365,10 +365,7 @@ async function resolveObservationEvalExecution(params: {
     // payload is the override; omitting it inherits the version mapping.
     const assignment =
       event.variableMapping !== undefined
-        ? {
-            id: event.evaluatorId ?? evaluator.id,
-            variableMapping: event.variableMapping,
-          }
+        ? { variableMapping: event.variableMapping }
         : null;
     return buildV2Execution({ rule: null, assignment, evaluator });
   }
@@ -470,10 +467,10 @@ type ResolvedEvaluationRule = Prisma.EvaluationRuleGetPayload<object>;
  */
 function buildV2Execution(params: {
   rule: ResolvedEvaluationRule | null;
-  assignment: Pick<
-    Prisma.EvaluationRuleEvaluatorAssignmentGetPayload<object>,
-    "id" | "variableMapping"
-  > | null;
+  assignment: {
+    id?: string;
+    variableMapping: Prisma.JsonValue;
+  } | null;
   evaluator: ResolvedEvaluator;
 }) {
   const { rule, assignment, evaluator } = params;

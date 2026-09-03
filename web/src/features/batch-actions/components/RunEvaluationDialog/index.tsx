@@ -18,6 +18,11 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { ChevronLeft } from "lucide-react";
@@ -27,7 +32,13 @@ import {
 } from "./EvaluatorSelectionStep";
 import { EvaluatorMappingStep } from "./EvaluatorMappingStep";
 import { ConfirmationStep } from "./ConfirmationStep";
-import { buildQueryWithSelectedIds, getCreateEvaluatorHref } from "./utils";
+import {
+  buildQueryWithSelectedIds,
+  getBatchEvalCostObservationCount,
+  getCreateEvaluatorHref,
+  hasCompleteBatchEvalMappings,
+} from "./utils";
+import { BATCH_EVAL_EVALUATOR_LIMIT } from "@/src/features/batch-actions/validation";
 import {
   buildSelectedSampleObject,
   createRuleSetupStore,
@@ -53,9 +64,6 @@ type RunEvaluationDialogProps = {
 };
 
 type DialogStep = "select-evaluator" | "confirm";
-
-/** Matches the evaluator overview page size; the forced-v3 step filters client-side. */
-const BATCH_EVALUATOR_LIMIT = 100;
 
 export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const {
@@ -103,7 +111,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const evaluatorsQuery = api.evalsV2.options.useQuery(
     {
       projectId,
-      limit: BATCH_EVALUATOR_LIMIT,
+      limit: BATCH_EVAL_EVALUATOR_LIMIT,
       excludeLegacyEvaluators: true,
       search:
         showMappingEditor && mappingSearchQuery.trim()
@@ -201,19 +209,21 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     eventDetails: previewQuery.data?.[0],
   });
 
-  const selectedMappingEvaluators = mappingAssignments.map((assignment) => ({
-    id: assignment.evaluatorId,
-    name: assignment.evaluatorName,
-  }));
-  const confirmationEvaluators = showMappingEditor
-    ? selectedMappingEvaluators
-    : selectedEvaluators.map((evaluator) => ({
-        id: evaluator.id,
-        name: evaluator.scoreName,
-      }));
   const selectedCount = showMappingEditor
     ? mappingAssignments.length
     : selectedEvaluators.length;
+  const mappingsComplete = hasCompleteBatchEvalMappings(mappingAssignments);
+  const costObservationCount = getBatchEvalCostObservationCount({
+    displayCount,
+    sourceTable,
+    experimentCount: experimentItemsExperimentCount,
+  });
+  const mappingRunDisabledReason =
+    selectedCount === 0
+      ? "Attach at least one evaluator."
+      : mappingsComplete
+        ? null
+        : "Map every evaluator variable to a source column before running.";
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
     setSelectedEvaluators((previous) => {
@@ -229,6 +239,9 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   const onSubmit = async () => {
     if (selectedCount === 0) {
+      return;
+    }
+    if (showMappingEditor && !mappingsComplete) {
       return;
     }
 
@@ -332,6 +345,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
             ) : step === "select-evaluator" ? (
               showMappingEditor ? (
                 <EvaluatorMappingStep
+                  projectId={projectId}
                   store={ruleSetupStore}
                   evaluatorOptions={evaluatorOptions}
                   isQueryLoading={evaluatorsQuery.isLoading}
@@ -344,6 +358,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   }}
                   sampleObject={sampleObject}
                   createEvaluatorHref={createEvaluatorHref}
+                  costObservationCount={costObservationCount}
                 />
               ) : (
                 <EvaluatorSelectionStep
@@ -365,7 +380,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               <ConfirmationStep
                 projectId={projectId}
                 displayCount={displayCount}
-                evaluators={confirmationEvaluators}
+                evaluators={selectedEvaluators.map((evaluator) => ({
+                  id: evaluator.id,
+                  name: evaluator.scoreName,
+                }))}
                 hideCount={sourceTable !== SourceTable.EVENTS}
                 sourceTable={sourceTable}
                 experimentCount={experimentItemsExperimentCount}
@@ -387,7 +405,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               <div />
             )}
 
-            {step === "select-evaluator" ? (
+            {showMappingEditor ? (
+              <MappingRunButton
+                disabledReason={mappingRunDisabledReason}
+                selectedCount={selectedCount}
+                loading={runEvaluationMutation.isPending}
+                onClick={onSubmit}
+              />
+            ) : step === "select-evaluator" ? (
               <Button
                 onClick={() => setStep("confirm")}
                 disabled={isExperiencePending || selectedCount === 0}
@@ -409,5 +434,44 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function MappingRunButton({
+  disabledReason,
+  selectedCount,
+  loading,
+  onClick,
+}: {
+  disabledReason: string | null;
+  selectedCount: number;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  const button = (
+    <Button
+      onClick={onClick}
+      disabled={Boolean(disabledReason)}
+      loading={loading}
+      className={disabledReason ? "pointer-events-none" : undefined}
+    >
+      Run Evaluation
+      {selectedCount > 0 ? ` with ${selectedCount} evaluator(s)` : null}
+    </Button>
+  );
+
+  if (!disabledReason) {
+    return button;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+          {button}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{disabledReason}</TooltipContent>
+    </Tooltip>
   );
 }

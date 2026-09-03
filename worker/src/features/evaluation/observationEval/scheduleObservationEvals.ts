@@ -30,6 +30,13 @@ interface ScheduleObservationEvalsParams {
   configs: ObservationEvalRule[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
+  /**
+   * Extra identity for this scheduling pass so overlapping runs of the same
+   * evaluator on the same observation do not share a job id. Live ingestion
+   * omits it; batch passes the batch-action id so retries of that run stay
+   * stable while a second run gets its own executions.
+   */
+  executionScopeId?: string;
 }
 
 /**
@@ -86,7 +93,13 @@ export function isObservationAllowedForQueuedObservationEvals(
 export async function scheduleObservationEvals(
   params: ScheduleObservationEvalsParams,
 ): Promise<void> {
-  const { observation, configs, schedulerDeps, executionMode } = params;
+  const {
+    observation,
+    configs,
+    schedulerDeps,
+    executionMode,
+    executionScopeId,
+  } = params;
 
   // Early return if no configs
   if (configs.length === 0) {
@@ -169,6 +182,7 @@ export async function scheduleObservationEvals(
           observationS3Path,
           schedulerDeps,
           executionMode,
+          executionScopeId,
         }).catch((error) => {
           logger.error("Failed to process observation eval assignment", {
             configId: config.id,
@@ -190,6 +204,7 @@ interface ProcessConfigParams {
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
+  executionScopeId?: string;
 }
 
 async function processMatchingConfig(
@@ -202,26 +217,28 @@ async function processMatchingConfig(
     observationS3Path,
     schedulerDeps,
     executionMode,
+    executionScopeId,
   } = params;
 
-  const jobExecutionId = createW3CTraceId(
-    JSON.stringify(
-      "assignments" in matchingConfig
-        ? [
-            "observation-eval",
-            matchingConfig.id,
-            assignment.id,
-            observation.trace_id,
-            observation.span_id,
-          ]
-        : [
-            "observation-eval",
-            matchingConfig.id,
-            observation.trace_id,
-            observation.span_id,
-          ],
-    ),
-  );
+  const jobIdentity: string[] =
+    "assignments" in matchingConfig
+      ? [
+          "observation-eval",
+          matchingConfig.id,
+          assignment.id,
+          observation.trace_id,
+          observation.span_id,
+        ]
+      : [
+          "observation-eval",
+          matchingConfig.id,
+          observation.trace_id,
+          observation.span_id,
+        ];
+  if (executionScopeId) {
+    jobIdentity.push(executionScopeId);
+  }
+  const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
 
   // Create job execution
   await schedulerDeps.upsertJobExecution({

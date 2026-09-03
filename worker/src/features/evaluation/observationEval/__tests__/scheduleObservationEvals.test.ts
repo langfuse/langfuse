@@ -675,6 +675,86 @@ describe("scheduleObservationEvals", () => {
       );
     });
 
+    it("should include an execution scope in the job identity", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const rule = createMockRule({
+        id: "evaluator-1",
+        ruleId: null,
+        assignments: [
+          {
+            id: "evaluator-1",
+            evaluatorId: "evaluator-1",
+            variableMapping: null,
+            evaluator: {
+              id: "evaluator-1",
+              projectId: "project-789",
+              type: EvalTemplateType.LLM_AS_JUDGE,
+            },
+          },
+        ],
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [rule],
+        schedulerDeps,
+        executionMode: "MANUAL",
+        executionScopeId: "batch-action-1",
+      });
+
+      const scopedJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          "evaluator-1",
+          "evaluator-1",
+          observation.trace_id,
+          observation.span_id,
+          "batch-action-1",
+        ]),
+      );
+      const unscopedJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          "evaluator-1",
+          "evaluator-1",
+          observation.trace_id,
+          observation.span_id,
+        ]),
+      );
+
+      expect(scopedJobExecutionId).not.toBe(unscopedJobExecutionId);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ id: scopedJobExecutionId }),
+      );
+    });
+
+    it("should keep live eval job identity unchanged when no execution scope is passed", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const rule = createMockRule();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [rule],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: createW3CTraceId(
+            JSON.stringify([
+              "observation-eval",
+              rule.id,
+              "assignment-1",
+              observation.trace_id,
+              observation.span_id,
+            ]),
+          ),
+        }),
+      );
+    });
+
     it("should omit mapping when a ruleless batch run inherits the version mapping", async () => {
       const schedulerDeps = createMockSchedulerDeps();
 

@@ -539,6 +539,9 @@ describe("processObservationEval", () => {
       expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
         expect.objectContaining({
           config: expect.objectContaining({ variableMapping }),
+          executionMetadata: expect.not.objectContaining({
+            evaluation_rule_assignment_id: expect.anything(),
+          }),
         }),
       );
     });

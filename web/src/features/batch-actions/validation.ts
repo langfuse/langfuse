@@ -6,6 +6,9 @@ import {
   BatchEvalSourceTableSchema,
 } from "@langfuse/shared";
 
+/** Matches the evaluator options page size used by the run-evaluation dialog. */
+export const BATCH_EVAL_EVALUATOR_LIMIT = 100;
+
 export const CreateObservationAddToDatasetActionSchema = z.object({
   projectId: z.string(),
   query: BatchActionQuerySchema,
@@ -16,12 +19,12 @@ export const CreateObservationBatchEvaluationActionSchema = z
   .object({
     projectId: z.string(),
     query: BatchActionQuerySchema,
-    evaluatorIds: z.array(z.string()).min(1),
+    evaluatorIds: z.array(z.string()).min(1).max(BATCH_EVAL_EVALUATOR_LIMIT),
     sourceTable: BatchEvalSourceTableSchema.default("events"),
     evalVersion: z.literal("v2").optional(),
     evaluatorMappings: z
       .array(BatchEvalEvaluatorMappingSchema)
-      .max(100)
+      .max(BATCH_EVAL_EVALUATOR_LIMIT)
       .optional(),
   })
   .superRefine((value, ctx) => {

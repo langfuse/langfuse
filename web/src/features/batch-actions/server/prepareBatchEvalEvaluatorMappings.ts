@@ -41,41 +41,51 @@ export async function prepareBatchEvalEvaluatorMappings(params: {
         "Selected evaluators are missing or incompatible with batch evaluation.",
       );
     }
-    const latestVersion = evaluator.versions[0];
-    if (!latestVersion) {
-      throw new InvalidRequestError("Evaluator version not found");
-    }
-
-    if (evaluator.type === EvalTemplateType.CODE) {
-      if (mapping.variableMapping !== null) {
-        throw new InvalidRequestError(
-          "Code evaluator mappings are managed by Langfuse and cannot be provided.",
-        );
+    try {
+      const latestVersion = evaluator.versions[0];
+      if (!latestVersion) {
+        throw new InvalidRequestError("Evaluator version not found");
       }
+
+      if (evaluator.type === EvalTemplateType.CODE) {
+        if (mapping.variableMapping !== null) {
+          throw new InvalidRequestError(
+            "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+          );
+        }
+        return {
+          evaluatorId: mapping.evaluatorId,
+          variableMapping: null,
+        };
+      }
+
+      const prepared = prepareModernRuleVariableMapping(
+        latestVersion.variableMapping,
+        evaluator.type,
+      );
+      const storedVariableMapping =
+        mapping.variableMapping ?? prepared.initialVariableMapping;
+      const promptMessages = reconcileEvaluatorPromptMessages({
+        prompt: latestVersion.prompt,
+        promptMessages: latestVersion.promptMessages,
+      });
+      assertCompleteEvaluatorVariableMapping({
+        promptVariables: extractEvaluatorPromptVariables(promptMessages),
+        variableMapping:
+          storedVariableMapping ?? prepared.defaultVariableMapping,
+      });
+
       return {
         evaluatorId: mapping.evaluatorId,
-        variableMapping: null,
+        variableMapping: storedVariableMapping,
       };
+    } catch (error) {
+      if (error instanceof InvalidRequestError) {
+        throw new InvalidRequestError(
+          `Evaluator "${evaluator.name}": ${error.message}`,
+        );
+      }
+      throw error;
     }
-
-    const prepared = prepareModernRuleVariableMapping(
-      latestVersion.variableMapping,
-      evaluator.type,
-    );
-    const storedVariableMapping =
-      mapping.variableMapping ?? prepared.initialVariableMapping;
-    const promptMessages = reconcileEvaluatorPromptMessages({
-      prompt: latestVersion.prompt,
-      promptMessages: latestVersion.promptMessages,
-    });
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: extractEvaluatorPromptVariables(promptMessages),
-      variableMapping: storedVariableMapping ?? prepared.defaultVariableMapping,
-    });
-
-    return {
-      evaluatorId: mapping.evaluatorId,
-      variableMapping: storedVariableMapping,
-    };
   });
 }
