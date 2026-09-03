@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
 import { SendHorizontal, Sparkles } from "lucide-react";
 

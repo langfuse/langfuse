@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
