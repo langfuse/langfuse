@@ -11,7 +11,10 @@ import {
   EvaluatorAssignmentsEditor,
   type RuleEvaluatorOption,
 } from "@/src/features/evals";
-import { useRuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
+import {
+  useRuleCostEstimate,
+  type RuleCostEstimate,
+} from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { usdFormatter } from "@/src/utils/numbers";
 
@@ -192,7 +195,7 @@ function EvaluatorMappingEditor({
   onSearchChange: (value: string) => void;
   sampleObject: Record<string, unknown> | null;
   createEvaluatorHref: string;
-  costEstimates: ReturnType<typeof useRuleCostEstimate>["estimates"];
+  costEstimates: RuleCostEstimate[];
   estimatingEvaluatorIds: string[];
   footerTrailing: ReactNode;
   costError: boolean;

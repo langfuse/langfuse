@@ -166,7 +166,7 @@ export function useRuleCostEstimate({
           );
           updateState({
             status: "idle",
-            estimates: assignments.flatMap((assignment) => {
+            estimates: assignments.flatMap((assignment): RuleCostEstimate[] => {
               if (assignment.evaluatorType === EvalTemplateType.CODE) {
                 return codeEstimates.filter(
                   ({ evaluatorId }) => evaluatorId === assignment.evaluatorId,
@@ -203,7 +203,9 @@ export function useRuleCostEstimate({
         matchingObservations,
         sampling,
         period:
-          matchingObservationsOverride === undefined ? "week" : "selection",
+          matchingObservationsOverride === undefined
+            ? ("week" as const)
+            : ("selection" as const),
         estimatedCostUsd:
           matchingObservations === 0
             ? 0

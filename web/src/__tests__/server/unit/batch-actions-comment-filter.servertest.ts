@@ -94,6 +94,7 @@ const session = {
 function prepare({
   v4BetaEnabled = false,
   foundEvaluatorIds = [evaluatorId],
+  missingPromptVariable = false,
 } = {}) {
   const batchActionCreate = vi
     .fn()
@@ -117,9 +118,16 @@ function prepare({
           type: "LLM_AS_JUDGE",
           versions: [
             {
-              prompt: "Evaluate {{output}}",
+              prompt: missingPromptVariable
+                ? "Evaluate {{output}} {{input}}"
+                : "Evaluate {{output}}",
               promptMessages: [
-                { role: "user", content: "Evaluate {{output}}" },
+                {
+                  role: "user",
+                  content: missingPromptVariable
+                    ? "Evaluate {{output}} {{input}}"
+                    : "Evaluate {{output}}",
+                },
               ],
               variableMapping: [
                 {
@@ -465,38 +473,10 @@ describe("batched evaluation version selection", () => {
   });
 
   it("names the evaluator when a mapping is incomplete", async () => {
-    const context = prepare({ v4BetaEnabled: true });
-    vi.mocked(context.prisma.evaluator.findMany).mockImplementation(
-      async (args?: { select?: { id?: boolean } }) => {
-        if (args?.select?.id) {
-          return [{ id: evaluatorId }];
-        }
-        return [
-          {
-            id: evaluatorId,
-            name: "Quality",
-            type: "LLM_AS_JUDGE",
-            versions: [
-              {
-                prompt: "Evaluate {{output}} {{input}}",
-                promptMessages: [
-                  {
-                    role: "user",
-                    content: "Evaluate {{output}} {{input}}",
-                  },
-                ],
-                variableMapping: [
-                  {
-                    templateVariable: "output",
-                    selectedColumnId: "output",
-                  },
-                ],
-              },
-            ],
-          },
-        ];
-      },
-    );
+    const context = prepare({
+      v4BetaEnabled: true,
+      missingPromptVariable: true,
+    });
 
     await expect(
       context.runEvaluation.create({
