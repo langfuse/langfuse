@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import {
   BookOpen,
   LockIcon,
@@ -44,6 +43,7 @@ import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import { ErrorPage } from "@/src/components/error-page";
 
 const OrganizationProjectTiles = ({
   org,
@@ -234,21 +234,14 @@ const OrganizationActionButtons = ({
 };
 
 const SingleOrganizationPage = ({
-  orgId,
+  org,
   search,
 }: {
-  orgId: string;
+  org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
-  const session = useSession();
-  const org = session.data?.user?.organizations.find((o) => o.id === orgId);
-
-  if (!org) {
-    return null;
-  }
-
   const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
+    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
 
   if (isDemoOrg) {
@@ -266,8 +259,8 @@ const SingleOrganizationPage = ({
   return (
     <ContainerPage
       headerProps={{
-        title: org?.name ?? "Organization",
-        actionButtonsRight: <OrganizationActionButtons orgId={orgId} />,
+        title: org.name,
+        actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
       <OrganizationProjectTiles org={org} search={search} />
@@ -276,38 +269,31 @@ const SingleOrganizationPage = ({
 };
 
 const SingleOrganizationProjectOverviewTile = ({
-  orgId,
+  org,
   search,
 }: {
-  orgId: string;
+  org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
-  const session = useSession();
-  const org = session.data?.user?.organizations.find((o) => o.id === orgId);
-
-  if (!org) {
-    return null;
-  }
-
   const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
+    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
 
   if (isDemoOrg) {
     return (
-      <div key={orgId}>
+      <div key={org.id}>
         <DemoOrganizationTile />
       </div>
     );
   }
 
   return (
-    <div key={orgId}>
+    <div key={org.id}>
       <Header
         title={org.name}
         className="truncate"
         labelBadge={
-          orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
+          org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
         }
         label={
           isCloudPlan(org.plan)
@@ -319,7 +305,7 @@ const SingleOrganizationProjectOverviewTile = ({
         }
         actionButtons={
           <OrganizationActionButtons
-            orgId={orgId}
+            orgId={org.id}
             primaryButtonVariant="secondary"
           />
         }
@@ -351,12 +337,15 @@ export const OrganizationProjectOverview = () => {
     const org = organizations.find((org) => org.id === queryOrgId);
 
     if (!org) {
-      return null;
+      return (
+        <ErrorPage
+          title="Organization not found"
+          message="This organization does not exist or you do not have access to it."
+        />
+      );
     }
 
-    return (
-      <SingleOrganizationPage orgId={org.id} search={search ?? undefined} />
-    );
+    return <SingleOrganizationPage org={org} search={search ?? undefined} />;
   }
 
   return (
@@ -422,7 +411,7 @@ export const OrganizationProjectOverview = () => {
               {!queryOrgId && isDemo && <Separator className="my-8" />}
               <div key={org.id} className={index > 0 && !isDemo ? "mt-8" : ""}>
                 <SingleOrganizationProjectOverviewTile
-                  orgId={org.id}
+                  org={org}
                   search={search ?? undefined}
                 />
               </div>
