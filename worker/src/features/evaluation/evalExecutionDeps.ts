@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
+import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   buildEventBucketPrefix,
@@ -63,6 +64,7 @@ interface LLMCallParams {
     traceName: string;
     environment: string;
     metadata: Record<string, unknown>;
+    evaluationContext?: EvalExecutionContext;
   };
 }
 
@@ -282,6 +284,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           traceName: params.traceSinkParams.traceName,
           environment: params.traceSinkParams.environment,
           metadata: params.traceSinkParams.metadata,
+          evaluationContext: params.traceSinkParams.evaluationContext,
           eventsWriter: createInternalEventsWriter(),
         },
       });

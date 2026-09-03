@@ -190,13 +190,6 @@ export default [
     },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
-      // Margin makes components harder to compose and should therefore be applied by the parent.
-      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
-      // TODO: Consider expanding this rule beyond design-system components
-      "@repo/no-margin-on-root-elements": [
-        "warn",
-        { classNameFunctions: ["cn", "clsx"] },
-      ],
       "boundaries/dependencies": [
         "error",
         {
@@ -223,6 +216,20 @@ export default [
 
       // TODO: Expand to more of the codebase
       "no-nested-ternary": "error",
+    },
+  },
+
+  {
+    name: "langfuse/web/component-margin-rules",
+    files: ["src/components/**/*.{ts,tsx}"],
+    ignores: ["src/components/**/*.stories.{ts,tsx}"],
+    rules: {
+      // Margin makes components harder to compose and should therefore be applied by the parent.
+      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
+      "@repo/no-margin-on-root-elements": [
+        "warn",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
     },
   },
 

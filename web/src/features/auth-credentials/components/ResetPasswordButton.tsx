@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
 import { z } from "zod";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { env } from "@/src/env.mjs";
 
 export function RequestResetPasswordEmailButton({

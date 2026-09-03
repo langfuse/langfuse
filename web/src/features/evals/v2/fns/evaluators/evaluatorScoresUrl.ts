@@ -11,7 +11,6 @@ export function evaluatorScoresUrl(
   evaluatorId: string,
   evaluatorName: string,
   evaluatorType: EvalTemplateType,
-  assignedRuleIds: string[],
 ) {
   const evaluatorFilter: FilterState[number] =
     evaluatorType === EvalTemplateTypeEnum.CODE
@@ -19,7 +18,7 @@ export function evaluatorScoresUrl(
           column: "evaluatorId",
           type: "stringOptions",
           operator: "any of",
-          value: [...new Set([evaluatorId, ...assignedRuleIds])],
+          value: [evaluatorId],
         }
       : {
           column: "name",

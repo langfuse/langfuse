@@ -71,6 +71,7 @@ overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
   "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0

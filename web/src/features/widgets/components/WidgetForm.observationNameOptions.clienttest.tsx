@@ -26,6 +26,7 @@ vi.mock("@/src/utils/api", () => ({
       filterOptions: { useQuery: generationsFilterOptionsUseQuery },
     },
     events: { filterOptions: { useQuery: noopQuery } },
+    evalsV2: { options: { useQuery: noopQuery } },
     projects: { environmentFilterOptions: { useQuery: noopQuery } },
     datasets: { allDatasetMeta: { useQuery: noopQuery } },
     dashboard: { executeQuery: { useQuery: noopQuery } },

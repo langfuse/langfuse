@@ -64,7 +64,7 @@ import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
   createExperimentsTableStore,
@@ -72,7 +72,7 @@ import {
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
 import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
