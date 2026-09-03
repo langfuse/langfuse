@@ -1,27 +1,21 @@
 /**
- * Shape-keyed dedup lowering. Always-on: every compile walks this pass. The
- * physical idiom is chosen from facts declared once on the table
- * ({@link DEDUP_SPECS}) plus the query's shape — never written at a call site.
+ * Per-table dedup lowering. Always-on: every compile walks this pass.
+ * The physical idiom is the one already used in production SQL for that
+ * table ({@link DEDUP_SPECS}) — never a new collapse invented here.
  *
- * Shapes, for a single physical FROM with no JOINs (the floor extent):
+ *  - **none** — immutable at read time (`events_core` / `events_full`).
+ *    Leave the query unchanged. No FINAL, no LIMIT BY.
+ *  - **limitBy** — existing legacy idiom: `ORDER BY <version> DESC`
+ *    `LIMIT 1 BY <key>` on row reads; wrap the FROM first for
+ *    aggregates / DISTINCT so LIMIT BY runs on input rows. Used by
+ *    traces / observations / scores point and list reads. A caller
+ *    ORDER BY on another column wraps so the version sort is the
+ *    LIMIT BY input order.
+ *  - **final** — existing `FROM <table> FINAL` idiom. Declaring it
+ *    without an emitter is a compile error (fail-closed).
  *
- *  - **row** (point-lookup / list) — attach `ORDER BY <version> DESC` and
- *    `LIMIT 1 BY <key>`. When the caller already ordered by another column,
- *    wrap instead so the version sort is the LIMIT BY input order (a trailing
- *    version key would only break ties and could keep a stale row).
- *  - **aggregate** (GROUP BY / HAVING / window / sum-count-avg) and
- *    **DISTINCT** — wrap the FROM in a subquery that applies the row idiom
- *    first. ClickHouse evaluates LIMIT BY after GROUP BY / DISTINCT, so
- *    attaching the clause to the outer select would limit groups or distinct
- *    values, not input rows. DISTINCT does not collapse versions whose
- *    selected columns differ, so it must wrap.
- *  - **skip** — existence (`SELECT 1` / `count()` + `LIMIT 1`), CTE names,
- *    joins, tables with no spec, or an already-present LIMIT BY (the
- *    caller's explicit `$call(limitBy)`).
- *
- * `strategy: "final"` is part of the declaration vocabulary but has no
- * emitter yet; declaring it is a compile error so a forgotten implementation
- * cannot silently ship undeduplicated SQL.
+ * Omit the spec until a family is migrated. `$call(limitBy)` remains
+ * for non-version LIMIT BY the registry does not own.
  */
 import {
   AggregateFunctionNode,
@@ -58,6 +52,8 @@ type PhysicalFrom = {
   alias?: string;
   fromItem: OperationNode;
 };
+
+type LimitBySpec = Extract<DedupSpec, { strategy: "limitBy" }>;
 
 const DOUBLE_COUNT_AGGREGATES = new Set(["count", "sum", "avg"]);
 
@@ -103,7 +99,7 @@ function lowerSelect(
   if (!from) return node;
 
   const spec = DEDUP_SPECS[from.tableName];
-  if (!spec) return node;
+  if (!spec || spec.strategy === "none") return node;
 
   if (spec.strategy === "final") {
     throw new QueryCompileError(
@@ -227,7 +223,7 @@ function unwrapSelection(selection: OperationNode): OperationNode | undefined {
 function attachRowDedup(
   node: ClickHouseSelectQueryNode,
   from: PhysicalFrom,
-  spec: DedupSpec,
+  spec: LimitBySpec,
 ): ClickHouseSelectQueryNode {
   // LIMIT BY keeps the first row per key in the query's full sort order.
   // A caller ORDER BY on any other column would make the version a
@@ -244,7 +240,7 @@ function attachRowDedup(
 function wrapPhysicalFrom(
   node: ClickHouseSelectQueryNode,
   from: PhysicalFrom,
-  spec: DedupSpec,
+  spec: LimitBySpec,
 ): ClickHouseSelectQueryNode {
   const inner: ClickHouseSelectQueryNode = {
     kind: "SelectQueryNode",
@@ -265,7 +261,7 @@ function wrapPhysicalFrom(
 function ensureVersionOrder(
   node: ClickHouseSelectQueryNode,
   from: PhysicalFrom,
-  spec: DedupSpec,
+  spec: LimitBySpec,
 ): ClickHouseSelectQueryNode {
   if (orderByHasColumn(node.orderBy, spec.version)) return node;
   return QueryNode.cloneWithOrderByItems(node, [
@@ -273,13 +269,13 @@ function ensureVersionOrder(
   ]) as ClickHouseSelectQueryNode;
 }
 
-function versionOrderBy(from: PhysicalFrom, spec: DedupSpec): OrderByNode {
+function versionOrderBy(from: PhysicalFrom, spec: LimitBySpec): OrderByNode {
   return OrderByNode.create([versionOrderItem(from, spec)]);
 }
 
 function versionOrderItem(
   from: PhysicalFrom,
-  spec: DedupSpec,
+  spec: LimitBySpec,
 ): OrderByItemNode {
   return OrderByItemNode.create(
     qualifyColumn(from, spec.version),
@@ -287,7 +283,7 @@ function versionOrderItem(
   );
 }
 
-function limitByNode(from: PhysicalFrom, spec: DedupSpec): LimitByNode {
+function limitByNode(from: PhysicalFrom, spec: LimitBySpec): LimitByNode {
   return LimitByNode.create(
     ValueNode.createImmediate(1),
     spec.key.map((column) => qualifyColumn(from, column)),
@@ -303,7 +299,7 @@ function qualifyColumn(from: PhysicalFrom, column: string): OperationNode {
 
 function hasLeadingVersionDesc(
   node: SelectQueryNode,
-  spec: DedupSpec,
+  spec: LimitBySpec,
 ): boolean {
   const first = node.orderBy?.items[0];
   return (

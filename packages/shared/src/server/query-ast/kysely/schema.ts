@@ -6,12 +6,11 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
- *  - `COLUMN_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
- *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
- *  - `DEDUP_SPECS` — the physical dedup key / version / strategy the shape-keyed
- *    lowering pass reads (`dedup.ts`).
+ *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
+ *    (`dedup.ts`). Each table names an existing production mechanism; the
+ *    pass does not invent a new one.
  *
  * Deriving every view from one declaration keeps them from drifting apart.
  *
@@ -54,23 +53,24 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
 };
 
 /**
- * Physical ReplacingMergeTree (or equivalent) dedup facts. The lowering pass
- * chooses the idiom from the query shape; call sites never write LIMIT BY or
- * FINAL themselves.
+ * Per-table read idiom. Must match a mechanism already used in production
+ * SQL for that table — the pass applies the declaration, it does not invent
+ * a new collapse.
  *
- *  - `limitBy` — `ORDER BY <version> DESC LIMIT 1 BY <key>` on row reads;
- *    the same clause is wrapped under a subquery for aggregations so
- *    GROUP BY / windows / sum-count see one row per key.
- *  - `final` — reserved for legacy MergeTree tables. Declaring it without
- *    an implemented emitter is a compile error (fail-closed).
+ *  - `none` — rows are treated as immutable at read time. No FINAL, no
+ *    LIMIT BY. Used for `events_core` / `events_full`.
+ *  - `limitBy` — the existing legacy idiom
+ *    `ORDER BY <version> DESC LIMIT 1 BY <key>` (traces / observations /
+ *    scores point and list reads).
+ *  - `final` — the existing `FROM <table> FINAL` idiom. Declaring it
+ *    without an emitter is a compile error (fail-closed).
  */
-export type DedupStrategy = "limitBy" | "final";
+export type DedupStrategy = "none" | "limitBy" | "final";
 
-export type DedupSpec = {
-  key: readonly string[];
-  version: string;
-  strategy: DedupStrategy;
-};
+export type DedupSpec =
+  | { strategy: "none" }
+  | { strategy: "limitBy"; key: readonly string[]; version: string }
+  | { strategy: "final" };
 
 function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   columns: Cols;
@@ -81,7 +81,10 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
    * only for a genuinely global relation.
    */
   tenant?: boolean;
-  /** Physical version-collapse facts. Omit when the table is not versioned. */
+  /**
+   * Existing read-time collapse for this table. Omit until the family is
+   * migrated; `none` is an explicit "do not collapse" (immutable rows).
+   */
   dedup?: DedupSpec;
 }) {
   return {
@@ -123,13 +126,8 @@ const TABLE_REGISTRY = {
       metadata_names: "Array(String)",
       metadata_values: "Array(String)",
     },
-    // ReplacingMergeTree(event_ts) version-collapses on (span_id, project_id).
-    // FINAL is never used on this family — LIMIT 1 BY is the physical idiom.
-    dedup: {
-      key: ["span_id", "project_id"],
-      version: "event_ts",
-      strategy: "limitBy",
-    },
+    // Immutable at read time. Do not inject LIMIT BY or FINAL.
+    dedup: { strategy: "none" },
   }),
   scores: defineTable({
     columns: {
@@ -174,30 +172,7 @@ export const TENANTED_TABLES = new Set<string>(
     .map(([name]) => name),
 );
 
-/**
- * ClickHouse bind type for a JS value compared against this column. Wider than
- * the coarse {@link COLUMN_DATA_TYPES} category: `DateTime` columns bind as
- * `DateTime64(3)`, `Float` as `Float64`, so an integer literal compared to
- * `total_cost` still becomes `{p:Float64}`.
- */
-const BIND_TYPE: Record<ChColumnType, string> = {
-  String: "String",
-  Float: "Float64",
-  DateTime: "DateTime64(3)",
-  "Array(String)": "Array(String)",
-  "Map(String, Float)": "Map(String, Float64)",
-};
-
-export const COLUMN_BIND_TYPES: Record<string, string> = Object.fromEntries(
-  Object.values(TABLE_REGISTRY).flatMap((table) =>
-    Object.entries(table.columns).map(([name, chType]) => [
-      name,
-      BIND_TYPE[chType],
-    ]),
-  ),
-);
-
-/** Derived physical dedup facts, keyed by table name. */
+/** Derived per-table read idioms, keyed by table name. */
 export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],

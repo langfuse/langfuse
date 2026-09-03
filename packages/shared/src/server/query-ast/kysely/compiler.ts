@@ -1,12 +1,9 @@
 import {
-  BinaryOperationNode,
-  ColumnNode,
   CreateTableNode,
   CreateViewNode,
   DefaultQueryCompiler,
   InsertQueryNode,
   ParensNode,
-  ReferenceNode,
   SetOperationNode,
   ValueNode,
   type OperationNode,
@@ -23,7 +20,6 @@ import {
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
-import { COLUMN_BIND_TYPES } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
 
 const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
@@ -75,12 +71,6 @@ function inferClickHouseType(value: unknown): string {
 export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   namedParameters: Record<string, unknown> = {};
   private intern = new Map<string, string>();
-  /**
-   * ClickHouse type taken from the compared column (registry bind type) while
-   * visiting a binary operation. Falls back to JS-value inference when no
-   * column is in scope.
-   */
-  private pendingBindType: string | undefined;
 
   constructor() {
     super();
@@ -127,22 +117,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   protected override appendValue(parameter: unknown): void {
-    this.append(this.bindValue(parameter, this.pendingBindType));
-  }
-
-  /**
-   * While visiting `column <op> value`, bind the value with the column's
-   * registry type so an integer compared to a Float column still emits
-   * `{p:Float64}` rather than inferred `{p:Int64}`.
-   */
-  protected override visitBinaryOperation(node: BinaryOperationNode): void {
-    const columnType =
-      bindTypeOfColumnOperand(node.leftOperand) ??
-      bindTypeOfColumnOperand(node.rightOperand);
-    const previous = this.pendingBindType;
-    if (columnType) this.pendingBindType = columnType;
-    super.visitBinaryOperation(node);
-    this.pendingBindType = previous;
+    this.append(this.bindValue(parameter));
   }
 
   /**
@@ -154,9 +129,10 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   protected override visitPrimitiveValueList(
     node: PrimitiveValueListNode,
   ): void {
-    const values = [...node.values];
     this.append("(");
-    this.append(this.bindValue(values, this.arrayBindType(values)));
+    this.append(
+      this.bindValue([...node.values], inferClickHouseType([...node.values])),
+    );
     this.append(")");
   }
 
@@ -166,20 +142,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     );
     if (values.every((v) => v !== undefined)) {
       this.append("(");
-      this.append(this.bindValue(values, this.arrayBindType(values)));
+      this.append(this.bindValue(values, inferClickHouseType(values)));
       this.append(")");
       return;
     }
     super.visitValueList(node);
-  }
-
-  private arrayBindType(values: unknown[]): string {
-    if (this.pendingBindType) {
-      return this.pendingBindType.startsWith("Array(")
-        ? this.pendingBindType
-        : `Array(${this.pendingBindType})`;
-    }
-    return inferClickHouseType(values);
   }
 
   /**
@@ -193,18 +160,6 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * offers no hook to inject a clause between JOIN and WHERE.
    */
   protected override visitSelectQuery(node: SelectQueryNode): void {
-    // A surrounding `column <op> (SELECT …)` must not type this select's
-    // own LIMIT / OFFSET / literals with the outer column's bind type.
-    const previousBindType = this.pendingBindType;
-    this.pendingBindType = undefined;
-    try {
-      this.visitSelectQueryBody(node);
-    } finally {
-      this.pendingBindType = previousBindType;
-    }
-  }
-
-  private visitSelectQueryBody(node: SelectQueryNode): void {
     const wrapInParens =
       this.parentNode !== undefined &&
       !ParensNode.is(this.parentNode) &&
@@ -366,12 +321,4 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.namedParameters[name] = value;
     return `{${name}:${inferred}}`;
   }
-}
-
-function bindTypeOfColumnOperand(node: OperationNode): string | undefined {
-  if (ColumnNode.is(node)) return COLUMN_BIND_TYPES[node.column.name];
-  if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
-    return COLUMN_BIND_TYPES[node.column.column.name];
-  }
-  return undefined;
 }

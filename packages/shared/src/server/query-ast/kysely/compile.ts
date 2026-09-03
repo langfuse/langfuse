@@ -28,7 +28,7 @@ export type ClickhouseCompilable = {
  * The choke point. Every query that should produce ClickHouse SQL goes
  * through here: the `ctx` parameter is required, so a caller cannot compile
  * without a tenancy scope — omitting it is a compile-time type error. Tenancy
- * is injected from that scope, shape-keyed dedup is lowered from the table
+ * is injected from that scope, per-table dedup is applied from the
  * registry, and the dialect compiler refuses to emit SQL unless the tree was
  * identity-stamped by those passes (a copied property is not enough). The
  * runtime `requireExecutionContext` guard remains as defense-in-depth for the

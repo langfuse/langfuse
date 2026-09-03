@@ -17,14 +17,14 @@ sugar, semantic field metadata, `FilterState` embedding) will land under
 - `kysely/` — compile-only ClickHouse dialect on Kysely 0.28. Real
   `OperationNode`s for ARRAY JOIN, LIMIT BY, and metadata `indexOf`
   subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
-  shape-keyed dedup lowering from the table registry; schema-typed selection
-  and typed `{pN:Type}` binds; virtual views as WITH CTEs; catalog parity.
-  Library-specific code lives only in this folder.
+  per-table dedup lowering from the registry; schema-typed selection; virtual
+  views as WITH CTEs; catalog parity. Library-specific code lives only in
+  this folder.
 - `kysely/schema.ts` — the physical table registry: one `defineTable`
   declaration per relation drives the Kysely row types (`ClickHouseDatabase`),
-  the runtime column-type map (`COLUMN_DATA_TYPES`), the bind-type map
-  (`COLUMN_BIND_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the
-  dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
+  the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
+  (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) —
+  instead of hand-maintained tables that drift.
 
 Regenerate baselines with `-u` after an intentional SQL change:
 
@@ -57,12 +57,11 @@ a required check once it has proven stable.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `{ projectId }` (see `repositories/environments.ts`).
-- **Never write LIMIT BY / FINAL for version collapse.** Tables that declare a
-  `dedup` spec (today: `events_core`) get the physical idiom from the compiler:
-  `ORDER BY <version> DESC LIMIT 1 BY <key>` on row reads, the same clause
-  wrapped under a subquery on aggregations and DISTINCT. Existence
-  (`SELECT 1 LIMIT 1`) is left alone. `$call(limitBy(...))` remains for
-  non-version idioms (e.g. `LIMIT n BY` a grouping the registry does not own).
+- **Dedup is declared per table and must be an existing production idiom.**
+  `events_core` is `none` (immutable at read time — no LIMIT BY, no FINAL).
+  `limitBy` is the legacy `ORDER BY <version> DESC LIMIT 1 BY <key>` already
+  used on traces / observations / scores. `$call(limitBy(...))` remains for
+  explicit non-version LIMIT BY.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
