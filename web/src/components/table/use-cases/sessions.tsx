@@ -321,7 +321,7 @@ export default function SessionsTable({
     projectId,
     tableName: sessionsFilterConfig.tableName,
     enabled: sessionsSearchBarEnabled,
-    filterState: queryFilter.explicitFilterState,
+    filterState: queryFilter.searchBarFilterState,
     searchQuery: null,
     searchType: DEFAULT_SEARCH_TYPE,
     observed: observedOptions,
