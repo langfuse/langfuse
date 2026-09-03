@@ -10,6 +10,8 @@ import {
   createTrace,
   createTracesCh,
   createManyDatasetItems,
+  createDatasetRunItem,
+  createDatasetRunItemsCh,
   applyCommentFilters,
   createEvent,
   createEventsCh,
@@ -5211,5 +5213,92 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
     expect(rows[0].input).toBe("hello");
     expect(rows[0].output).toBe("world");
+  });
+  it("should export dataset run items scoped to a run", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const datasetId = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: "test-dataset-run-items-export",
+        projectId,
+      },
+    });
+
+    const runId1 = randomUUID();
+    const runId2 = randomUUID();
+    const now = Date.now();
+
+    await createDatasetRunItemsCh([
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: datasetId,
+        dataset_run_id: runId1,
+        dataset_item_id: randomUUID(),
+        dataset_run_name: "run-1",
+        created_at: now,
+        updated_at: now,
+        event_ts: now,
+      }),
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: datasetId,
+        dataset_run_id: runId1,
+        dataset_item_id: randomUUID(),
+        dataset_run_name: "run-1",
+        created_at: now,
+        updated_at: now,
+        event_ts: now,
+      }),
+      // Second run — must be excluded by the datasetRunId filter
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: datasetId,
+        dataset_run_id: runId2,
+        dataset_item_id: randomUUID(),
+        dataset_run_name: "run-2",
+        created_at: now,
+        updated_at: now,
+        event_ts: now,
+      }),
+    ]);
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.DatasetRunItems,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "string",
+          operator: "=",
+          column: "datasetRunId",
+          value: runId1,
+        },
+        {
+          type: "string",
+          operator: "=",
+          column: "datasetId",
+          value: datasetId,
+        },
+      ],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toEqual(
+        expect.objectContaining({
+          datasetName: "test-dataset-run-items-export",
+        }),
+      );
+      expect(row.traceId).toBeTruthy();
+      expect(row.datasetItemId).toBeTruthy();
+    }
   });
 });
