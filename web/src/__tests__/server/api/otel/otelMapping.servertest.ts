@@ -2912,6 +2912,177 @@ describe("OTel Resource Span Mapping", () => {
       ).toBe(false);
     });
 
+    // The Python SDK's update_current_span() stamps its default
+    // langfuse.observation.type="span" onto whatever OTel span is current,
+    // including spans owned by third-party instrumentation. On an
+    // OpenInference span that default must not erase the instrumentor's kind.
+    it("should keep the OpenInference kind when the SDK stamped its default span type on a third-party span", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.agno",
+              version: "1.0.1",
+            },
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: "MyAgent.arun",
+                attributes: [
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "AGENT" },
+                  },
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "span" },
+                  },
+                  {
+                    key: "langfuse.observation.metadata.user_id",
+                    value: { stringValue: "u1" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      expect(
+        langfuseEvents.some((event) => event.type === "agent-create"),
+      ).toBe(true);
+      expect(langfuseEvents.some((event) => event.type === "span-create")).toBe(
+        false,
+      );
+    });
+
+    it("should map the OpenInference kind for every third-party kind the SDK default would have masked", async () => {
+      const cases: Array<[string, string]> = [
+        ["TOOL", "tool-create"],
+        ["LLM", "generation-create"],
+        ["CHAIN", "chain-create"],
+        ["RETRIEVER", "retriever-create"],
+        ["EMBEDDING", "embedding-create"],
+        ["GUARDRAIL", "guardrail-create"],
+        ["EVALUATOR", "evaluator-create"],
+      ];
+
+      for (const [spanKind, expectedEventType] of cases) {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: "openinference.instrumentation.agno" },
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "openinference.span.kind",
+                      value: { stringValue: spanKind },
+                    },
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "span" },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+
+        const langfuseEvents = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+
+        expect(
+          langfuseEvents.some((event) => event.type === expectedEventType),
+          `openinference.span.kind=${spanKind} should map to ${expectedEventType}`,
+        ).toBe(true);
+      }
+    });
+
+    it("should still trust an explicit span type on Langfuse SDK spans that carry an OpenInference kind", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "langfuse-sdk", version: "4.14.2" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "span" },
+                  },
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "AGENT" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      expect(langfuseEvents.some((event) => event.type === "span-create")).toBe(
+        true,
+      );
+      expect(
+        langfuseEvents.some((event) => event.type === "agent-create"),
+      ).toBe(false);
+    });
+
+    it("should keep an explicit non-default Langfuse type on a third-party span", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "openinference.instrumentation.agno" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  // not the SDK default -> a deliberate type the caller asked for
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "generation" },
+                  },
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "AGENT" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      expect(
+        langfuseEvents.some((event) => event.type === "generation-create"),
+      ).toBe(true);
+      expect(
+        langfuseEvents.some((event) => event.type === "agent-create"),
+      ).toBe(false);
+    });
+
     it("should trust OpenInference over model detection but keep model attributes", async () => {
       const resourceSpan = {
         scopeSpans: [
