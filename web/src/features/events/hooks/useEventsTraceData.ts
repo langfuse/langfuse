@@ -22,6 +22,7 @@ interface UseEventsTraceDataProps {
   traceId: string;
   timestamp?: Date;
   enabled?: boolean;
+  scopeToSession: boolean;
 }
 
 interface UseEventsTraceDataResult {
@@ -30,10 +31,17 @@ interface UseEventsTraceDataResult {
         observations: AdaptedTraceData["observations"];
         scores: WithStringifiedMetadata<ScoreDomain>[];
         corrections: ScoreDomain[];
+        sessionTraceEntries?: Array<{
+          trace: AdaptedTraceData["trace"];
+          observations: AdaptedTraceData["observations"];
+          scores: WithStringifiedMetadata<ScoreDomain>[];
+          corrections: ScoreDomain[];
+        }>;
       })
     | undefined;
   isLoading: boolean;
   error: unknown;
+  isSessionScopeUnavailable: boolean;
   /**
    * The observation cap this trace was loaded under, set ONLY when the trace hit
    * it (so the list is missing its chronological tail). The number comes from the
@@ -56,7 +64,7 @@ interface UseEventsTraceDataResult {
 export function useEventsTraceData(
   props: UseEventsTraceDataProps,
 ): UseEventsTraceDataResult {
-  const { projectId, traceId, enabled = true } = props;
+  const { projectId, traceId, enabled = true, scopeToSession } = props;
 
   // Step 1: Fetch all observations for this trace (without I/O for performance)
   const eventsQuery = api.events.byTraceId.useQuery(
@@ -178,12 +186,140 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
+  const sessionId = transformed?.sessionId ?? "";
+  const sessionQueryEnabled = enabled && scopeToSession && !!sessionId;
+  const sessionTraceSummariesQuery = api.sessions.tracesFromEvents.useQuery(
+    { projectId, sessionId, includeScores: false },
+    { enabled: sessionQueryEnabled, staleTime: 60 * 1000 },
+  );
+  const sessionObservationsQuery =
+    api.sessions.observationsForSessionFromEvents.useQuery(
+      { projectId, sessionId },
+      { enabled: sessionQueryEnabled, staleTime: 60 * 1000 },
+    );
+
+  const sessionScopedData = useMemo(() => {
+    if (
+      !transformed ||
+      !sessionId ||
+      !sessionTraceSummariesQuery.data ||
+      !sessionObservationsQuery.data
+    ) {
+      return undefined;
+    }
+
+    const sessionObservations = sessionObservationsQuery.data
+      .observations as EventsTraceObservation[];
+    const observationsByTraceId = new Map<string, EventsTraceObservation[]>();
+    for (const observation of sessionObservations) {
+      if (!observation.traceId) continue;
+      const traceObservations = observationsByTraceId.get(observation.traceId);
+      if (traceObservations) traceObservations.push(observation);
+      else observationsByTraceId.set(observation.traceId, [observation]);
+    }
+
+    const sessionTraceEntries = sessionTraceSummariesQuery.data.map(
+      (traceSummary) => {
+        const traceObservations =
+          observationsByTraceId.get(traceSummary.id) ?? [];
+        const adapted = traceObservations.length
+          ? adaptEventsToTraceFormat({
+              events: traceObservations,
+              traceId: traceSummary.id,
+            })
+          : {
+              trace: {
+                id: traceSummary.id,
+                projectId,
+                name: traceSummary.name,
+                timestamp: traceSummary.timestamp,
+                input: null,
+                output: null,
+                metadata: "{}",
+                tags: [],
+                bookmarked: false,
+                public: false,
+                release: null,
+                version: null,
+                userId: traceSummary.userId,
+                sessionId,
+                environment: traceSummary.environment ?? "default",
+                latency:
+                  traceSummary.latencyMs === null
+                    ? undefined
+                    : traceSummary.latencyMs / 1000,
+                createdAt: traceSummary.timestamp,
+                updatedAt: traceSummary.timestamp,
+              },
+              observations: [],
+            };
+
+        if (traceSummary.id === transformed.id) {
+          return {
+            trace: transformed,
+            observations: adapted.observations,
+            scores: transformed.scores,
+            corrections: transformed.corrections,
+          };
+        }
+
+        return {
+          trace: {
+            ...adapted.trace,
+            name: traceSummary.name,
+            timestamp: traceSummary.timestamp,
+            userId: traceSummary.userId,
+            environment: traceSummary.environment ?? adapted.trace.environment,
+            latency:
+              traceSummary.latencyMs === null
+                ? adapted.trace.latency
+                : traceSummary.latencyMs / 1000,
+          },
+          observations: adapted.observations,
+          scores: [],
+          corrections: [],
+        };
+      },
+    );
+
+    return {
+      ...transformed,
+      observations: sessionTraceEntries.flatMap((entry) => entry.observations),
+      sessionTraceEntries,
+    };
+  }, [
+    projectId,
+    sessionId,
+    sessionObservationsQuery.data,
+    sessionTraceSummariesQuery.data,
+    transformed,
+  ]);
+
+  const isSessionScopeUnavailable =
+    scopeToSession && !!transformed && !transformed.sessionId;
+  const isSessionLoading =
+    scopeToSession &&
+    !!transformed &&
+    !!transformed.sessionId &&
+    (sessionTraceSummariesQuery.isLoading ||
+      sessionObservationsQuery.isLoading);
+
   return {
-    data: transformed ?? undefined,
-    isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
-    error: eventsQuery.error || scoresQuery.error,
-    truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
-      ? eventsQuery.data.maxObservationsPerTrace
-      : undefined,
+    data: scopeToSession ? sessionScopedData : (transformed ?? undefined),
+    isLoading:
+      eventsQuery.isLoading || scoresQuery.isLoading || isSessionLoading,
+    error:
+      eventsQuery.error ||
+      scoresQuery.error ||
+      sessionTraceSummariesQuery.error ||
+      sessionObservationsQuery.error,
+    isSessionScopeUnavailable,
+    truncatedAtObservations: scopeToSession
+      ? sessionObservationsQuery.data?.cutoffObservationsAfterMaxCount
+        ? sessionObservationsQuery.data.maxObservationsPerSession
+        : undefined
+      : eventsQuery.data?.cutoffObservationsAfterMaxCount
+        ? eventsQuery.data.maxObservationsPerTrace
+        : undefined,
   };
 }

@@ -74,6 +74,9 @@ export function useTraceDetailData({
       !!projectId &&
       !isTraceSourceLoading &&
       useEventsTraceSource,
+    // A public trace grant does not grant access to sibling traces in its
+    // potentially private session. Keep unauthenticated public reads trace-scoped.
+    scopeToSession: !isUnauthenticated,
   });
 
   if (isTraceSourceLoading) {
@@ -84,6 +87,7 @@ export function useTraceDetailData({
       isError: false,
       isNotFound: false,
       isUnauthorized: false,
+      isSessionScopeUnavailable: false,
       truncatedAtObservations: undefined,
     };
   }
@@ -106,8 +110,13 @@ export function useTraceDetailData({
       // also lands as no-data, so "not found" must mean no-data AND no-error —
       // else a transient failure is mislabeled as a deleted/missing trace.
       isNotFound:
-        !eventsData.isLoading && !eventsData.data && !eventsData.error,
+        eventsErrorCode === "NOT_FOUND" ||
+        (!eventsData.isLoading &&
+          !eventsData.data &&
+          !eventsData.error &&
+          !eventsData.isSessionScopeUnavailable),
       isUnauthorized,
+      isSessionScopeUnavailable: eventsData.isSessionScopeUnavailable,
       truncatedAtObservations: eventsData.truncatedAtObservations,
     };
   }
@@ -119,6 +128,7 @@ export function useTraceDetailData({
     isError: tracesQuery.isError,
     isNotFound: tracesQuery.error?.data?.code === "NOT_FOUND",
     isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
+    isSessionScopeUnavailable: false,
     // The traces-table read path has no row cap.
     truncatedAtObservations: undefined,
   };

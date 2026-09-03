@@ -43,6 +43,10 @@ export const TablePeekViewObservationDetail = (
     traceId,
     timestamp,
   });
+  const isSessionScope =
+    !!trace.data &&
+    "sessionTraceEntries" in trace.data &&
+    !!trace.data.sessionTraceEntries;
 
   const actionProps = trace.data
     ? {
@@ -72,7 +76,8 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={isSessionScope ? "Session" : traceDetailTitle(trace.data, traceId)}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

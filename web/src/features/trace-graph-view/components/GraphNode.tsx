@@ -16,6 +16,8 @@ import {
  * type's badge in the tree/timeline all read as one color across light/dark.
  */
 const TYPE_BORDER_CLASS: Record<string, string> = {
+  SESSION: "border-primary-accent",
+  TRACE: "border-dark-green",
   AGENT: "border-purple-600",
   TOOL: "border-orange-600",
   GENERATION: "border-muted-magenta",

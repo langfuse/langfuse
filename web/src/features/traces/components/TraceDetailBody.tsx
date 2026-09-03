@@ -25,14 +25,20 @@ export function TraceDetailBody({
   truncatedAtObservations?: number;
 }) {
   if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
+  const sessionTraceEntries =
+    "sessionTraceEntries" in trace ? trace.sessionTraceEntries : undefined;
+  const traceKey = sessionTraceEntries
+    ? `session-${trace.sessionId ?? trace.id}`
+    : trace.id;
   return (
     <Trace
-      key={keySuffix ? `${trace.id}-${keySuffix}` : trace.id}
+      key={keySuffix ? `${traceKey}-${keySuffix}` : traceKey}
       trace={trace}
       scores={trace.scores}
       corrections={trace.corrections}
       projectId={trace.projectId}
       observations={trace.observations}
+      sessionTraceEntries={sessionTraceEntries}
       context={context}
       truncatedAtObservations={truncatedAtObservations}
     />

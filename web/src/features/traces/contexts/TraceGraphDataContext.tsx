@@ -19,12 +19,8 @@ interface TraceGraphDataContextValue {
   agentGraphData: AgentGraphDataResponse[];
   /** Whether graph view is available (more than one node, not too large) */
   isGraphViewAvailable: boolean;
-  /**
-   * A "real" agent graph (agentic observation types or LangGraph metadata) —
-   * shown expanded by default. Traces that only qualify via the >1-node rule
-   * get a collapsed-by-default graph panel instead.
-   */
-  isAgentGraph: boolean;
+  /** Whether the graph panel initially expands when no preference is stored. */
+  shouldExpandGraphByDefault: boolean;
   /** Whether data is currently loading */
   isLoading: boolean;
 }
@@ -47,13 +43,19 @@ interface TraceGraphDataProviderProps {
   children: ReactNode;
   projectId: string;
   traceId: string;
-  observations: Array<{ startTime: Date }>;
+  sessionId?: string | null;
+  observations: Array<{
+    id: string;
+    traceId?: string | null;
+    startTime: Date;
+  }>;
 }
 
 export function TraceGraphDataProvider({
   children,
   projectId,
   traceId,
+  sessionId,
   observations,
 }: TraceGraphDataProviderProps) {
   const { isV4 } = useReadPath();
@@ -111,21 +113,58 @@ export function TraceGraphDataProvider({
   // Beta ON: Query from events table (v4)
   const eventsQuery = api.events.getAgentGraphData.useQuery(queryInput, {
     ...queryOptions,
-    enabled: queryEnabled && isV4,
+    enabled: queryEnabled && isV4 && !sessionId,
   });
 
+  const sessionQuery = api.sessions.agentGraphDataForSessionFromEvents.useQuery(
+    {
+      projectId,
+      sessionId: sessionId ?? "",
+      minStartTime: minStartTime ?? "",
+      maxStartTime: maxStartTime ?? "",
+    },
+    {
+      ...queryOptions,
+      enabled: queryEnabled && isV4 && !!sessionId,
+    },
+  );
+
   // Use appropriate query based on beta toggle
-  const query = isV4 ? eventsQuery : tracesQuery;
+  const query = isV4 ? (sessionId ? sessionQuery : eventsQuery) : tracesQuery;
 
-  const agentGraphData = useMemo(() => query.data ?? [], [query.data]);
+  const agentGraphData = useMemo(() => {
+    const data = query.data ?? [];
+    if (!sessionId) return data;
 
-  const { isGraphViewAvailable, isAgentGraph } = useMemo(() => {
+    const observationIdCounts = new Map<string, number>();
+    for (const observation of observations) {
+      observationIdCounts.set(
+        observation.id,
+        (observationIdCounts.get(observation.id) ?? 0) + 1,
+      );
+    }
+    return data.map((observation) => ({
+      ...observation,
+      sessionId,
+      selectionId:
+        observation.selectionId &&
+        observation.traceId &&
+        (observationIdCounts.get(observation.selectionId) ?? 0) > 1
+          ? `${observation.traceId}:${observation.selectionId}`
+          : observation.selectionId,
+    }));
+  }, [query.data, sessionId, observations]);
+
+  const { isGraphViewAvailable, shouldExpandGraphByDefault } = useMemo(() => {
     if (
       agentGraphData.length === 0 ||
       // Don't show graph UI for extremely large traces
       agentGraphData.length >= MAX_NODES_FOR_GRAPH_UI
     ) {
-      return { isGraphViewAvailable: false, isAgentGraph: false };
+      return {
+        isGraphViewAvailable: false,
+        shouldExpandGraphByDefault: false,
+      };
     }
 
     // "Real" agent graph: observations of agentic types (not SPAN, EVENT, or
@@ -139,9 +178,16 @@ export function TraceGraphDataProvider({
     const hasLangGraphData = agentGraphData.some(
       (obs) => obs.step != null && obs.step !== 0,
     );
-    const isAgentGraph = hasGraphableObservations || hasLangGraphData;
-    if (isAgentGraph) {
-      return { isGraphViewAvailable: true, isAgentGraph };
+    const shouldExpandGraphByDefault =
+      hasGraphableObservations || hasLangGraphData;
+    if (
+      sessionId &&
+      agentGraphData.some((observation) => observation.traceId)
+    ) {
+      return { isGraphViewAvailable: true, shouldExpandGraphByDefault: true };
+    }
+    if (shouldExpandGraphByDefault) {
+      return { isGraphViewAvailable: true, shouldExpandGraphByDefault };
     }
 
     // Otherwise the graph is still available whenever it would draw more than
@@ -163,17 +209,25 @@ export function TraceGraphDataProvider({
         ? nonEvent.filter((obs) => obs.parentObservationId)
         : nonEvent;
     const distinctNodes = new Set(counted.map((obs) => obs.name));
-    return { isGraphViewAvailable: distinctNodes.size > 1, isAgentGraph };
-  }, [agentGraphData]);
+    return {
+      isGraphViewAvailable: distinctNodes.size > 1,
+      shouldExpandGraphByDefault,
+    };
+  }, [agentGraphData, sessionId]);
 
   const value = useMemo<TraceGraphDataContextValue>(
     () => ({
       agentGraphData,
       isGraphViewAvailable,
-      isAgentGraph,
+      shouldExpandGraphByDefault,
       isLoading: query.isLoading,
     }),
-    [agentGraphData, isGraphViewAvailable, isAgentGraph, query.isLoading],
+    [
+      agentGraphData,
+      isGraphViewAvailable,
+      shouldExpandGraphByDefault,
+      query.isLoading,
+    ],
   );
 
   return (

@@ -95,6 +95,21 @@ describe("useTraceDetailData (beta / events path)", () => {
     expect(r.isError).toBe(true);
   });
 
+  it("reports a missing session as not-found", () => {
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: { data: { code: "NOT_FOUND" } },
+      isSessionScopeUnavailable: false,
+      truncatedAtObservations: undefined,
+    });
+
+    const r = render();
+
+    expect(r.isNotFound).toBe(true);
+    expect(r.isUnauthorized).toBe(false);
+  });
+
   it("treats no-data-after-loading (no error) as a genuine not-found", () => {
     mockUseEventsTraceData.mockReturnValue({
       data: undefined,
@@ -145,7 +160,7 @@ describe("useTraceDetailData endpoint routing", () => {
         enabled: false,
       });
       expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: true }),
+        expect.objectContaining({ enabled: true, scopeToSession: false }),
       );
     },
   );
@@ -163,7 +178,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: true,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: false, scopeToSession: false }),
     );
   });
 
@@ -177,7 +192,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: true }),
+      expect.objectContaining({ enabled: true, scopeToSession: true }),
     );
   });
 
@@ -190,7 +205,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: true,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: false, scopeToSession: true }),
     );
   });
 
@@ -205,7 +220,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: false, scopeToSession: true }),
     );
   });
 
@@ -218,7 +233,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: false, scopeToSession: true }),
     );
     expect(result.isLoading).toBe(true);
     expect(result.isNotFound).toBe(false);
@@ -237,7 +252,7 @@ describe("useTraceDetailData endpoint routing", () => {
       enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: false, scopeToSession: false }),
     );
     expect(result.isLoading).toBe(true);
     expect(result.isNotFound).toBe(false);

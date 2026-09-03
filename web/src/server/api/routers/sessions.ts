@@ -29,6 +29,10 @@ import {
   getEventsGroupedByTraceTags,
   hasAnySessionFromEventsTable,
   parseClickhouseUTCDateTimeFormat,
+  convertDateToClickhouseDateTime,
+  getAgentGraphDataForSessionFromEventsTable,
+  getObservationsForSessionFromEventsTable,
+  MAX_OBSERVATIONS_PER_SESSION,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -57,6 +61,10 @@ import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import {
+  AgentGraphDataSchema,
+  type AgentGraphDataResponse,
+} from "@/src/features/trace-graph-view/types";
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -708,6 +716,7 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        includeScores: z.boolean().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -776,6 +785,7 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        includeScores: z.boolean().optional(),
       }),
     )
     .query(async ({ input }) => {
@@ -783,6 +793,10 @@ export const sessionRouter = createTRPCRouter({
         projectId: input.projectId,
         sessionId: input.sessionId,
       });
+
+      if (input.includeScores === false) {
+        return traces.map((trace) => ({ ...trace, scores: [] }));
+      }
 
       const chunks = chunk(traces, 500);
       const scores = await Promise.all(
@@ -809,6 +823,71 @@ export const sessionRouter = createTRPCRouter({
           validatedScores.filter((s) => s.traceId === trace.id),
         ),
       }));
+    }),
+  observationsForSessionFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { observations, totalCount } =
+        await getObservationsForSessionFromEventsTable(input);
+
+      return {
+        observations: toDomainArrayWithStringifiedMetadata(observations),
+        cutoffObservationsAfterMaxCount:
+          totalCount > MAX_OBSERVATIONS_PER_SESSION,
+        maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,
+      };
+    }),
+  agentGraphDataForSessionFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        projectId: z.string(),
+        minStartTime: z.iso.datetime({ offset: true }),
+        maxStartTime: z.iso.datetime({ offset: true }),
+      }),
+    )
+    .query(async ({ input }): Promise<AgentGraphDataResponse[]> => {
+      const records = await getAgentGraphDataForSessionFromEventsTable({
+        ...input,
+        chMinStartTime: convertDateToClickhouseDateTime(
+          new Date(input.minStartTime),
+        ),
+        chMaxStartTime: convertDateToClickhouseDateTime(
+          new Date(input.maxStartTime),
+        ),
+      });
+
+      return records.flatMap((record) => {
+        const parsed = AgentGraphDataSchema.safeParse(record);
+        if (!parsed.success) return [];
+        const data = parsed.data;
+        if (!data.trace_id) return [];
+        const hasLangGraphData = data.step != null && data.node != null;
+        if (!hasLangGraphData && data.type === "EVENT") return [];
+
+        const id = `${data.trace_id}:${data.id}`;
+        return [
+          {
+            id,
+            selectionId: data.id,
+            traceId: data.trace_id,
+            node: hasLangGraphData ? (data.node ?? null) : data.name,
+            step: hasLangGraphData ? (data.step ?? null) : 0,
+            parentObservationId: data.parent_observation_id
+              ? `${data.trace_id}:${data.parent_observation_id}`
+              : null,
+            name: data.name,
+            startTime: data.start_time,
+            endTime: data.end_time ?? undefined,
+            observationType: data.type,
+          },
+        ];
+      });
     }),
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)

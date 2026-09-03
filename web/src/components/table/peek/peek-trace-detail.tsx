@@ -42,6 +42,10 @@ export const TablePeekViewTraceDetail = (
     traceId,
     timestamp,
   });
+  const isSessionScope =
+    !!trace.data &&
+    "sessionTraceEntries" in trace.data &&
+    !!trace.data.sessionTraceEntries;
 
   const actionProps = trace.data
     ? {
@@ -66,7 +70,8 @@ export const TablePeekViewTraceDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={isSessionScope ? "Session" : traceDetailTitle(trace.data, traceId)}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
@@ -76,11 +81,18 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        truncatedAtObservations={trace.truncatedAtObservations}
-      />
+      {trace.isSessionScopeUnavailable ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-sm">
+          This trace is not part of a session and cannot be opened in the v4
+          detail view.
+        </div>
+      ) : (
+        <TraceDetailBody
+          trace={trace.data}
+          context="peek"
+          truncatedAtObservations={trace.truncatedAtObservations}
+        />
+      )}
     </TablePeekView>
   );
 };

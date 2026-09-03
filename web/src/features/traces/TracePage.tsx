@@ -39,6 +39,14 @@ export function TracePage({
   if (trace.isUnauthorized)
     return <ErrorPage message="You do not have access to this trace." />;
 
+  if (trace.isSessionScopeUnavailable)
+    return (
+      <ErrorPage
+        title="Session required"
+        message="This trace is not part of a session and cannot be opened in the v4 detail view."
+      />
+    );
+
   if (trace.isNotFound)
     return (
       <ErrorPage
@@ -53,6 +61,8 @@ export function TracePage({
 
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
+  const isSessionScope =
+    "sessionTraceEntries" in trace.data && !!trace.data.sessionTraceEntries;
   const isSharedTrace = trace.data.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
   const encodedTargetPath = encodeURIComponent(
@@ -92,13 +102,23 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: traceDetailTitle(trace.data) ?? trace.data.id,
-        itemType: "TRACE",
+        title: isSessionScope
+          ? "Session"
+          : (traceDetailTitle(trace.data) ?? trace.data.id),
+        itemType: isSessionScope ? "SESSION" : "TRACE",
         breadcrumb: [
           {
             name: "Traces",
             href: `/project/${router.query.projectId as string}/traces`,
           },
+          ...(trace.data.sessionId
+            ? [
+                {
+                  name: "Session",
+                  href: `/project/${router.query.projectId as string}/sessions/${encodeURIComponent(trace.data.sessionId)}`,
+                },
+              ]
+            : []),
         ],
         showSidebarTrigger: !showPublicIndicators,
         leadingControl,

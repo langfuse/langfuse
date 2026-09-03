@@ -18,7 +18,7 @@
  * - Preview cards (modal/panel)
  */
 
-import { type TreeNode } from "../types/treeNode";
+import { isObservationTreeNode, type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -100,8 +100,9 @@ export function SpanContent({
 
   const nodeScores = selectNodeScores(
     mergedScores,
-    node.id,
+    node.observationId ?? node.id,
     traceLevelScoreOwnerIds,
+    node.traceId,
   );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
@@ -109,16 +110,18 @@ export function SpanContent({
   return (
     <button
       type="button"
+      disabled={node.type === "SESSION"}
       onClick={(e) => {
         e.stopPropagation();
         onSelect?.();
       }}
-      onMouseEnter={onHover}
+      onMouseEnter={node.type === "SESSION" ? undefined : onHover}
       // No row-level title: it would pop a native tooltip from ANYWHERE in the
       // row — stacking on the score chips' own titles and the ScoreTag level
       // tooltip. The truncating name span below carries its own title.
       className={cn(
         "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
+        node.type === "SESSION" && "cursor-default",
         className,
       )}
     >
@@ -136,7 +139,7 @@ export function SpanContent({
             )}
 
             {/* Level badge */}
-            {node.type !== "TRACE" &&
+            {isObservationTreeNode(node) &&
               node.level &&
               node.level !== "DEFAULT" && (
                 <ObservationLevelBadge level={node.level} size="sm" />
@@ -151,9 +154,11 @@ export function SpanContent({
             {shouldRenderDuration && (duration || node.latency) ? (
               <span
                 title={
-                  node.type === "TRACE"
-                    ? "Total trace duration"
-                    : "Own span duration"
+                  node.type === "SESSION"
+                    ? "Total session duration"
+                    : node.type === "TRACE"
+                      ? "Total trace duration"
+                      : "Own span duration"
                 }
                 className={cn(
                   "text-foreground-tertiary text-xs",

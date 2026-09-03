@@ -65,6 +65,7 @@ interface ProcessingNode {
  * observation list can fail.
  */
 export const traceNodeId = (traceId: string) => `trace-${traceId}`;
+export const sessionNodeId = (sessionId: string) => `session-${sessionId}`;
 
 /**
  * Returns observation levels at or above the minimum level.
@@ -357,6 +358,7 @@ function buildTreeNodesBottomUp(
     // Create TreeNode
     const treeNode: TreeNode = {
       id: obs.id,
+      observationId: obs.id,
       type: obs.type,
       name: obs.name ?? "",
       startTime: obs.startTime,
@@ -430,6 +432,7 @@ function buildTraceTree(
     // Traditional traces: return TRACE node with no children
     const emptyTree: TreeNode = {
       id: traceNodeId(trace.id),
+      traceId: trace.id,
       type: "TRACE",
       name: trace.name ?? "",
       startTime: trace.timestamp,
@@ -508,6 +511,7 @@ function buildTraceTree(
   // Create trace root node
   const traceNode: TreeNode = {
     id: traceNodeId(trace.id),
+    traceId: trace.id,
     type: "TRACE",
     name: trace.name ?? "",
     startTime: trace.timestamp,
@@ -597,6 +601,153 @@ export function buildTraceUiData(
   }
 
   return { roots, searchItems, nodeMap };
+}
+
+/**
+ * Builds one session forest while preserving trace boundaries. Each v4 trace
+ * is built independently and wrapped in a TRACE node before the forests are
+ * combined, so parent ids can never connect observations from different
+ * traces.
+ */
+export function buildSessionUiData(
+  sessionId: string,
+  traces: TraceType[],
+  observations: ObservationReturnType[],
+) {
+  const observationIdCounts = new Map<string, number>();
+  for (const observation of observations) {
+    observationIdCounts.set(
+      observation.id,
+      (observationIdCounts.get(observation.id) ?? 0) + 1,
+    );
+  }
+  const observationsByTraceId = new Map<string, ObservationReturnType[]>();
+  for (const observation of observations) {
+    const id =
+      (observationIdCounts.get(observation.id) ?? 0) > 1
+        ? `${observation.traceId}:${observation.id}`
+        : observation.id;
+    const parentObservationId = observation.parentObservationId;
+    const sessionObservation = {
+      ...observation,
+      id,
+      parentObservationId:
+        parentObservationId &&
+        (observationIdCounts.get(parentObservationId) ?? 0) > 1
+          ? `${observation.traceId}:${parentObservationId}`
+          : parentObservationId,
+    };
+    const traceObservations = observationsByTraceId.get(observation.traceId);
+    if (traceObservations) {
+      traceObservations.push(sessionObservation);
+    } else {
+      observationsByTraceId.set(observation.traceId, [sessionObservation]);
+    }
+  }
+
+  const roots: TreeNode[] = [];
+  const nodeMap = new Map<string, TreeNode>();
+  for (const trace of traces) {
+    const traceUiData = buildTraceUiData(
+      {
+        ...trace,
+        rootObservationType: undefined,
+        rootObservationId: undefined,
+      },
+      observationsByTraceId.get(trace.id) ?? [],
+    );
+    const traceRoot = traceUiData.roots[0];
+    if (!traceRoot) continue;
+    roots.push(traceRoot);
+    for (const [id, node] of traceUiData.nodeMap) {
+      if (
+        node.type !== "SESSION" &&
+        node.type !== "TRACE" &&
+        id.startsWith(`${trace.id}:`)
+      ) {
+        node.observationId = id.slice(trace.id.length + 1);
+      }
+      nodeMap.set(id, node);
+    }
+  }
+
+  roots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  let sessionStartTime: Date | undefined;
+  const boundsStack = [...roots];
+  while (boundsStack.length > 0) {
+    const node = boundsStack.pop()!;
+    if (!sessionStartTime || node.startTime < sessionStartTime) {
+      sessionStartTime = node.startTime;
+    }
+    for (const child of node.children) boundsStack.push(child);
+  }
+  if (sessionStartTime) {
+    const stack = [...roots];
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      node.startTimeSinceTrace =
+        node.startTime.getTime() - sessionStartTime.getTime();
+      for (const child of node.children) stack.push(child);
+    }
+  }
+
+  const sessionTotalCost = roots.reduce<Decimal | undefined>((total, root) => {
+    if (!root.totalCost) return total;
+    return total ? total.plus(root.totalCost) : root.totalCost;
+  }, undefined);
+  let sessionEndTime = sessionStartTime;
+  const durationStack = [...roots];
+  while (durationStack.length > 0) {
+    const node = durationStack.pop()!;
+    const nodeEnd = node.latency
+      ? new Date(node.startTime.getTime() + node.latency * 1000)
+      : (node.endTime ?? node.startTime);
+    if (!sessionEndTime || nodeEnd > sessionEndTime) sessionEndTime = nodeEnd;
+    for (const child of node.children) durationStack.push(child);
+  }
+  const sessionDuration =
+    sessionStartTime && sessionEndTime
+      ? sessionEndTime.getTime() - sessionStartTime.getTime()
+      : 0;
+  const sessionChildrenDepth =
+    roots.length > 0
+      ? Math.max(...roots.map((root) => root.childrenDepth)) + 1
+      : 0;
+  const sessionRoot: TreeNode = {
+    id: sessionNodeId(sessionId),
+    sessionId,
+    type: "SESSION",
+    name: sessionId,
+    startTime: sessionStartTime ?? new Date(0),
+    endTime: sessionEndTime ?? null,
+    children: roots,
+    latency: sessionDuration / 1000,
+    totalCost: sessionTotalCost,
+    startTimeSinceTrace: 0,
+    startTimeSinceParentStart: null,
+    depth: -2,
+    childrenDepth: sessionChildrenDepth,
+  };
+  nodeMap.set(sessionRoot.id, sessionRoot);
+  const sessionRoots = [sessionRoot];
+
+  const searchItems: TraceSearchListItem[] = [];
+  const stack = [...sessionRoots].reverse();
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    searchItems.push({
+      node,
+      parentTotalCost: sessionTotalCost,
+      parentTotalDuration: sessionDuration,
+      observationId:
+        node.type === "SESSION" || node.type === "TRACE" ? undefined : node.id,
+    });
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push(node.children[i]!);
+    }
+  }
+
+  return { roots: sessionRoots, searchItems, nodeMap };
 }
 
 /**

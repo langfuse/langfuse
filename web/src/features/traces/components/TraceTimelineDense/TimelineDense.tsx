@@ -106,6 +106,7 @@ import {
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
 const TYPE_COLOR: Record<string, string> = {
+  SESSION: "bg-primary-accent",
   TRACE: "bg-dark-green",
   GENERATION: "bg-muted-magenta",
   EVENT: "bg-muted-green",

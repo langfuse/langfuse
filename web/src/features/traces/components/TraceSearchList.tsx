@@ -11,9 +11,7 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
@@ -22,23 +20,9 @@ import { XIcon } from "lucide-react";
 export function TraceSearchList() {
   const { searchItems } = useTraceData();
   const { searchQuery, setSearchInputValue } = useSearch();
-  const { selectedNodeId, setSelectedNodeId } = useSelection();
+  const { selectedNodeId } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
-  const capture = usePostHogClientCapture();
-  const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null on mobile): reopen the detail panel on select, including
-  // re-selecting the already-selected result.
-  const layout = useDesktopLayoutContextOptional();
-  const handleSelectItem = (id: string | null) => {
-    if (id) {
-      capture("trace_detail:node_selected", {
-        source: "search",
-        ...analyticsDimensions,
-      });
-    }
-    setSelectedNodeId(id);
-    layout?.expandDetailPanel();
-  };
+  const handleSelectItem = useSelectTraceNode("search");
 
   // Co-located filtering - only this component re-renders on search query change
   const searchResults = useMemo(() => {

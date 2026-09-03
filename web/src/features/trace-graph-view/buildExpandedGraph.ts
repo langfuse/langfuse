@@ -205,9 +205,9 @@ function buildFlowEdges(
  * the unfiltered observations so parent chains can be walked through
  * observations that aren't part of the graph.
  */
-export function buildExpandedGraph(
+function buildExpandedGraphForTrace(
   data: AgentGraphDataResponse[],
-  ancestry: AgentGraphDataResponse[] = data,
+  ancestry: AgentGraphDataResponse[],
 ): ExpandedGraphResult {
   // Dedupe by id (re-seeded/duplicated ingestion can repeat ids) and drop the
   // synthetic system rows — start/end are re-derived from the edges below.
@@ -265,8 +265,89 @@ export function buildExpandedGraph(
   // One observation per node — clicking a node selects exactly that call.
   const nodeToObservationsMap: Record<string, string[]> = {};
   for (const obs of observations) {
-    nodeToObservationsMap[obs.id] = [obs.id];
+    nodeToObservationsMap[obs.id] = [obs.selectionId ?? obs.id];
   }
 
   return { graph: { nodes, edges }, nodeToObservationsMap };
+}
+
+export function buildExpandedGraph(
+  data: AgentGraphDataResponse[],
+  ancestry: AgentGraphDataResponse[] = data,
+): ExpandedGraphResult {
+  const traceIds = [
+    ...new Set(
+      data
+        .map((observation) => observation.traceId)
+        .filter((traceId): traceId is string => Boolean(traceId)),
+    ),
+  ];
+  if (traceIds.length === 0) return buildExpandedGraphForTrace(data, ancestry);
+
+  const graph: ExpandedGraphResult["graph"] = { nodes: [], edges: [] };
+  const nodeToObservationsMap: Record<string, string[]> = {};
+  const sessionIds = [
+    ...new Set(
+      data
+        .map((observation) => observation.sessionId)
+        .filter((sessionId): sessionId is string => Boolean(sessionId)),
+    ),
+  ];
+  for (const traceId of traceIds) {
+    const traceData = data.filter(
+      (observation) => observation.traceId === traceId,
+    );
+    const traceAncestry = ancestry.filter(
+      (observation) => observation.traceId === traceId,
+    );
+    const result = buildExpandedGraphForTrace(traceData, traceAncestry);
+    if (result.limitExceeded) return EDGE_LIMIT_RESULT;
+
+    const startId = `${traceId}:${LANGFUSE_START_NODE_NAME}`;
+    const endId = `${traceId}:${LANGFUSE_END_NODE_NAME}`;
+    const qualifySystemId = (id: string) => {
+      if (id === LANGFUSE_START_NODE_NAME) return startId;
+      if (id === LANGFUSE_END_NODE_NAME) return endId;
+      return id;
+    };
+
+    graph.nodes.push(
+      ...result.graph.nodes.map((node) => {
+        if (node.id === LANGFUSE_START_NODE_NAME) {
+          return { id: startId, label: `Trace ${traceId}`, type: "TRACE" };
+        }
+        if (node.id === LANGFUSE_END_NODE_NAME) {
+          return { ...node, id: endId };
+        }
+        return node;
+      }),
+    );
+    graph.edges.push(
+      ...result.graph.edges.map((edge) => ({
+        from: qualifySystemId(edge.from),
+        to: qualifySystemId(edge.to),
+      })),
+    );
+    if (graph.edges.length > MAX_EXPANDED_EDGES) return EDGE_LIMIT_RESULT;
+    Object.assign(nodeToObservationsMap, result.nodeToObservationsMap);
+  }
+
+  if (sessionIds.length === 1) {
+    const sessionId = sessionIds[0]!;
+    const sessionRootId = `session-${sessionId}`;
+    graph.nodes.unshift({
+      id: sessionRootId,
+      label: `Session ${sessionId}`,
+      type: "SESSION",
+    });
+    for (const traceId of traceIds) {
+      graph.edges.push({
+        from: sessionRootId,
+        to: `${traceId}:${LANGFUSE_START_NODE_NAME}`,
+      });
+    }
+    if (graph.edges.length > MAX_EXPANDED_EDGES) return EDGE_LIMIT_RESULT;
+  }
+
+  return { graph, nodeToObservationsMap };
 }
