@@ -1940,6 +1940,55 @@ export const FitStaysAfterATimeOnlyBox = meta.story({
 });
 
 /**
+ * A short trace on a narrow pane already has readable rows, but auto will not
+ * spend the lane on names. Show labels is still the ask: take the gutter,
+ * even if the bars get thinner.
+ */
+export const ShowLabelsOpensTheGutterOnANarrowPane = meta.story({
+  name: "(Test) Show Labels Opens The Gutter On A Narrow Pane",
+  args: {
+    roots: manySpans(12),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const names = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title], [data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+    const barLeft = () => {
+      const bar = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      return bar?.getBoundingClientRect().left ?? 0;
+    };
+
+    await expect(names()).toBe(0);
+    const show = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show labels"]',
+    );
+    if (!show) throw new Error("no show-labels button on a squeezed pane");
+    await expect(show.innerText.toLowerCase()).toContain("show labels");
+    const caption = [...show.querySelectorAll("span")].find(
+      (el) => el.textContent?.trim().toLowerCase() === "show labels",
+    );
+    if (!caption) throw new Error("Show labels text is not on the button");
+    const leftBefore = barLeft();
+
+    await userEvent.click(caption);
+    await waitFor(() => expect(names()).toBeGreaterThan(0));
+    await expect(barLeft()).toBeGreaterThan(leftBefore + 40);
+  },
+});
+
+/**
  * Panning a hairline overview is not a time zoom. Show labels must stay, or
  * Fit would snap the window back to the top of the tree instead of naming
  * the rows you just scrolled to.

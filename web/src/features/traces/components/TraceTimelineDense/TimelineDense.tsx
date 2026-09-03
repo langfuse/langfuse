@@ -391,6 +391,10 @@ export function TimelineDense({
   // A manual override lives until you touch the chart again, which is what
   // "expand to look, then get out of my way" means in practice.
   const [override, setOverride] = useState<GutterMode | null>(null);
+  // An explicit "Show labels" is the other ask: keep the names on screen even
+  // when a gesture would have handed the gutter back, and even when auto would
+  // rather keep the lane. Fit or a rail collapse lets go.
+  const [labelsPinned, setLabelsPinned] = useState(false);
   // Desktop peek: hovering the left edge opens it, moving into the chart closes
   // it again. No click to look, no click to get out of the way.
   const [peeking, setPeeking] = useState(false);
@@ -440,7 +444,8 @@ export function TimelineDense({
    */
   const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
   const wantedGutter = Math.min(Math.max(contentWidth * 0.38, 96), 168);
-  const asked = override === "expanded" || gutterMode === "expanded";
+  const asked =
+    labelsPinned || override === "expanded" || gutterMode === "expanded";
   const wantsOpen =
     override === "collapsed" ? false : asked || gutterMode === "auto";
   const gutterFits =
@@ -489,18 +494,22 @@ export function TimelineDense({
   // an explicit ask still gets the names where they could not fit beside the
   // chart.
   const peekWidth =
-    canShowNames && !committedOpen && (peeking || override === "expanded")
+    canShowNames &&
+    !committedOpen &&
+    (peeking || labelsPinned || override === "expanded")
       ? wantedGutter
       : 0;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const canShowLabels = canExpandRowsToReadable(current, limits);
-  // Replace Fit only while the whole clock is still on screen. A time-zoomed
-  // hairline needs one click back to the overview; Show labels would keep
-  // that narrow clock. A vertical pan of the overview is not a time zoom —
-  // Show labels should still grow the rows from where you are.
+  const labelsShowing = committedOpen || (labelsPinned && peekWidth > 0);
+  // Replace Fit only while the whole clock is still on screen AND names are
+  // missing. Rows can be too short, or the pane too narrow to volunteer a
+  // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
   const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
-  const offerShowLabels = canShowLabels && clockFits;
+  const offerShowLabels =
+    clockFits && !labelsShowing && (canShowLabels || canShowNames);
+  const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   /**
@@ -828,6 +837,7 @@ export function TimelineDense({
 
   const showLabels = () => {
     const { limits: live, extentOf } = layoutRef.current;
+    setLabelsPinned(true);
     flyTo(
       anchorTimeToRows(
         expandRowsToReadable(viewportRef.current, live),
@@ -945,6 +955,7 @@ export function TimelineDense({
       canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
+      setLabelsPinned(!isOpen);
       setOverride(isOpen ? "collapsed" : "expanded");
       // This tap is spent on the toggle, so it is not half of a double-tap:
       // opening and closing the names inside the double-tap window otherwise read
@@ -1330,7 +1341,7 @@ export function TimelineDense({
         <ToolbarButton
           label="Zoom in"
           onClick={() =>
-            canShowLabels
+            offerShowLabels
               ? showLabels()
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
@@ -1346,9 +1357,13 @@ export function TimelineDense({
           </ToolbarButton>
         ) : (
           <ToolbarButton
-            label={fitted ? "Whole trace already fits" : "Fit whole trace"}
-            onClick={() => flyTo(fitViewport(limits))}
-            disabled={fitted}
+            label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
+            onClick={() => {
+              setLabelsPinned(false);
+              setOverride(null);
+              flyTo(fitViewport(limits));
+            }}
+            disabled={fitSpent}
           >
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
