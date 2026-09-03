@@ -96,8 +96,6 @@ export const ScoreColumnFilterMenu = ({
   /** Renders the trigger, so its presentation stays with the caller. */
   children: ComponentProps<typeof DropdownMenuController>["children"];
 }) => {
-  if (targets.length === 0) return null;
-
   const operators = hasOrder ? ORDERED_OPERATORS : (["differs"] as const);
   const isActive = (operator: ScoreComparisonOperator, experimentId: string) =>
     active?.operator === operator &&
