@@ -128,12 +128,21 @@ const getTraceForProject = async ({
 // events-table getters, whose full return shapes differ.
 type WebCalloutObservation = { id: string };
 
-// A lookup either resolves to an observation, a genuine not-found (undefined
-// observation, transientError false), or a transient failure (transientError
-// true) that the helpers swallow so the caller can decide whether to retry.
+// A single-source lookup either resolves to an observation, a genuine not-found
+// (undefined observation, transientError false), or a transient failure
+// (transientError true) that the helpers swallow so the caller can decide
+// whether to retry.
 type ObservationLookupResult = {
   observation?: WebCalloutObservation;
   transientError: boolean;
+};
+
+// The aggregate result of running the source chain at one bound. cleanMiss is
+// true when at least one source returned a genuine not-found under the bound —
+// the signal that an unbounded retry is worthwhile.
+type ObservationChainResult = {
+  observation?: WebCalloutObservation;
+  cleanMiss: boolean;
 };
 
 const getObservationForProject = async ({
@@ -158,12 +167,13 @@ const getObservationForProject = async ({
   });
   if (bounded.observation) return bounded.observation;
 
-  // Retry unbounded only on a genuine miss. The lookup helpers swallow transient
-  // failures (timeout, ClickHouse unavailable) into the same empty result as a
-  // real not-found; retrying then would issue a second expensive unbounded scan
-  // exactly when the backend is already struggling. On a transient error, fail
-  // fast instead — matching the pre-bounding behavior.
-  if (startTimeLowerBound && !bounded.transientError) {
+  // Retry unbounded only when at least one bounded source produced a genuine
+  // clean miss: the observation could legitimately be older than the bound
+  // (backfills, or trace.timestamp post-dating a child observation). If every
+  // source instead transient-errored (timeout, ClickHouse unavailable) the
+  // bounded pass told us nothing, so skip the second expensive unbounded scan
+  // and fail fast — matching the pre-bounding behavior.
+  if (startTimeLowerBound && bounded.cleanMiss) {
     const unbounded = await runObservationLookup({
       observationId,
       traceId,
@@ -189,15 +199,16 @@ const runObservationLookup = async ({
   projectId: string;
   useEventsTable: boolean;
   startTimeLowerBound?: Date;
-}): Promise<ObservationLookupResult> => {
-  let transientError = false;
+}): Promise<ObservationChainResult> => {
+  // Remember a genuine clean miss from any source, even if a later source in the
+  // chain transient-errors: the earlier clean miss still means the observation
+  // could exist outside the bound, so the unbounded retry must stay eligible.
+  let cleanMiss = false;
 
-  // Track only the deciding (last-run) lookup's status, not an OR across the
-  // whole chain: an earlier source's transient failure must not suppress the
-  // unbounded retry when a later source cleanly misses (a genuine not-found),
-  // which would wrongly reject a valid observation outside the bound.
   const consider = (result: ObservationLookupResult) => {
-    transientError = result.transientError;
+    if (!result.observation && !result.transientError) {
+      cleanMiss = true;
+    }
     return result.observation;
   };
 
@@ -210,7 +221,7 @@ const runObservationLookup = async ({
         startTimeLowerBound,
       }),
     );
-    if (observation) return { observation, transientError };
+    if (observation) return { observation, cleanMiss };
   }
 
   const observation = consider(
@@ -221,7 +232,7 @@ const runObservationLookup = async ({
       startTimeLowerBound,
     }),
   );
-  if (observation) return { observation, transientError };
+  if (observation) return { observation, cleanMiss };
 
   if (shouldTryEventsTableFallback(useEventsTable)) {
     const fallback = consider(
@@ -232,10 +243,10 @@ const runObservationLookup = async ({
         startTimeLowerBound,
       }),
     );
-    if (fallback) return { observation: fallback, transientError };
+    if (fallback) return { observation: fallback, cleanMiss };
   }
 
-  return { transientError };
+  return { cleanMiss };
 };
 
 const tryGetTrace = async ({

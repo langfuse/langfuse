@@ -781,8 +781,45 @@ describe("webCallouts router", () => {
       }),
     ).resolves.toEqual({ success: true, status: 204 });
 
-    // Two events-table calls: the bounded transient error, then the unbounded
-    // retry that succeeds.
+    expect(getObservationByIdFromEventsTable).toHaveBeenCalledTimes(2);
+    const eventsCalls = (getObservationByIdFromEventsTable as Mock).mock.calls;
+    expect(eventsCalls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
+    expect(eventsCalls[1][0].startTimeLowerBound).toBeUndefined();
+  });
+
+  it("still widens the bound when an earlier source cleanly misses but a later one transient-errors", async () => {
+    const { caller, projectId } = await prepare({ v4BetaEnabled: true });
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceByIdFromEventsTable as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // Bounded pass: the events-table lookup cleanly misses, then the legacy
+    // lookup transient-errors. The later transient error must not discard the
+    // earlier clean-miss signal — the unbounded retry still runs and finds the
+    // backfilled observation via the events table.
+    (getObservationByIdFromEventsTable as Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({
+        id: "observation-1",
+        traceId: "trace-1",
+        sessionId: null,
+      });
+    (getObservationById as Mock).mockRejectedValue(
+      new Error("ClickHouse timeout"),
+    );
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).resolves.toEqual({ success: true, status: 204 });
+
     expect(getObservationByIdFromEventsTable).toHaveBeenCalledTimes(2);
     const eventsCalls = (getObservationByIdFromEventsTable as Mock).mock.calls;
     expect(eventsCalls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
