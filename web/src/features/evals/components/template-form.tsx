@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { useState } from "react";
 import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -76,10 +75,7 @@ import {
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import {
-  useEvalCapabilities,
-  type EvalCapabilities,
-} from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
@@ -615,9 +611,36 @@ const InnerEvalTemplateForm = (props: {
 
       {showCodeTemplateForm ? (
         <div className="space-y-3">
-          {props.isEditing ? (
-            <CodeEvalSdkVersionCallout evalCapabilities={evalCapabilities} />
-          ) : null}
+          {props.isEditing &&
+            !evalCapabilities.isLoading &&
+            evalCapabilities.compatibilityCheckWasPerformed &&
+            !evalCapabilities.isNewCompatible && (
+              <div className="w-full max-w-4xl">
+                <Alert variant="warning" icon={AlertTriangle}>
+                  <Alert.Description>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-foreground font-bold">
+                        Please verify your SDK version
+                      </span>
+                      <span className="text-foreground text-sm">
+                        Code evaluators require JS SDK v4+ or Python SDK v3+.
+                        You can create this evaluator now, but it will only run
+                        once your project ingests data with a compatible SDK.{" "}
+                        <a
+                          href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-dark-blue font-bold hover:opacity-80"
+                        >
+                          Learn more
+                        </a>
+                        .
+                      </span>
+                    </div>
+                  </Alert.Description>
+                </Alert>
+              </div>
+            )}
           <FormField
             control={form.control}
             name="sourceCode"
@@ -1013,45 +1036,3 @@ const InnerEvalTemplateForm = (props: {
     </Form>
   );
 };
-
-function CodeEvalSdkVersionCallout({
-  evalCapabilities,
-}: {
-  evalCapabilities: EvalCapabilities;
-}) {
-  if (
-    evalCapabilities.isLoading ||
-    !evalCapabilities.compatibilityCheckWasPerformed ||
-    evalCapabilities.isNewCompatible
-  ) {
-    return null;
-  }
-
-  return (
-    <div className="w-full max-w-4xl">
-      <Alert variant="warning" icon={AlertTriangle}>
-        <Alert.Description>
-          <div className="flex flex-col gap-1">
-            <span className="text-foreground font-bold">
-              Please verify your SDK version
-            </span>
-            <span className="text-foreground text-sm">
-              Code evaluators require JS SDK v4+ or Python SDK v3+. You can
-              create this evaluator now, but it will only run once your project
-              ingests data with a compatible SDK.{" "}
-              <a
-                href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-blue font-bold hover:opacity-80"
-              >
-                Learn more
-              </a>
-              .
-            </span>
-          </div>
-        </Alert.Description>
-      </Alert>
-    </div>
-  );
-}
