@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { JSONPath } from "jsonpath-plus";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 import {
   EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS,
   ExperimentPromptVariableMappingSource,
@@ -12,9 +13,8 @@ import {
   type PublicEvaluationRuleFilterType,
   type PromptVariableMappingInputType,
   type PublicEvaluationRuleTargetType,
-} from "@/src/features/public-api/types/unstable-public-evals-contract";
+} from "@/src/features/public-api/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { createStructuredPublicApiError } from "@/src/features/public-api";
 
 // Derived from the same column lists as the request schemas, so this runtime
 // check cannot drift from the documented contract.

@@ -61,6 +61,16 @@ export type ScoreToAggregate =
     });
 
 /**
+ * Display value of a boolean score. They are stored as 0/1 with "True"/"False"
+ * string values, but users read and write them as booleans.
+ */
+export const toBooleanScoreValue = (score: {
+  value?: number | null;
+  stringValue?: string | null;
+}): string =>
+  score.value === 1 || score.stringValue === "True" ? "true" : "false";
+
+/**
  * Maps score data types to aggregate types for processing.
  * Boolean scores are treated as categorical since they share the same
  * aggregation logic (value counting vs numeric averaging).
@@ -113,7 +123,15 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         timestamp: values.length === 1 ? scores[0].timestamp : undefined,
       };
     } else {
-      const values = scores.map((score) => score.stringValue ?? "n/a");
+      const isBoolean = scores[0].dataType === "BOOLEAN";
+      // Sorted by value: the score rows arrive in event-timestamp order, so an
+      // unsorted cell lists "true, false" in one row and "false, true" in the
+      // next, which makes a score column impossible to scan.
+      const values = scores
+        .map((score) =>
+          isBoolean ? toBooleanScoreValue(score) : (score.stringValue ?? "n/a"),
+        )
+        .sort((a, b) => a.localeCompare(b));
       if (!Boolean(values.length)) return acc;
       const valueCounts = values.reduce(
         (acc, value) => {

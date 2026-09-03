@@ -672,6 +672,7 @@ export default function ObservationsEventsTable({
       isV4: true,
     },
   );
+  const projectFiltersForSearchBar = queryFilter.projectFiltersForSearchBar;
 
   // Lazy filter-options: load a facet's values when its sidebar section is
   // expanded (also covers active filters, which auto-expand on mount). The
@@ -743,7 +744,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    filterState: queryFilter.explicitFilterState,
+    filterState: queryFilter.searchBarFilterState,
     searchQuery,
     searchType,
     observed: observedOptions,
@@ -762,12 +763,15 @@ export default function ObservationsEventsTable({
       if (!searchBarMode) return;
       const { actions } = searchBarStore.getState();
       if (state) {
-        actions.setPreview(filterStateToQueryText(state.filters).text);
+        actions.setPreview(
+          filterStateToQueryText(projectFiltersForSearchBar(state.filters))
+            .text,
+        );
       } else {
         actions.clearPreview();
       }
     },
-    [searchBarMode, searchBarStore],
+    [searchBarMode, searchBarStore, projectFiltersForSearchBar],
   );
 
   // Disabled for now because perhaps confusing
