@@ -1,7 +1,7 @@
 import {
   GetDatasetItemV1Query,
   GetDatasetItemV1Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/features/public-api/server";
 import { getDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
