@@ -73,12 +73,19 @@ export const ScoreColumnHeaderSummary = ({
   dataType,
   summary,
   comparisonName,
+  hasBaseline,
   filterMenu,
 }: {
   label: string;
   dataType: ScoreColumnDataType;
   summary: ScoreColumnSummary;
   comparisonName?: string;
+  /**
+   * Whether the run the aggregate belongs to is the selected baseline. With
+   * comparisons but no baseline the first selected run stands in, and calling
+   * that a baseline claims a selection the user has not made.
+   */
+  hasBaseline: boolean;
   /** The column's way into the score comparison filter, rendered beside the name. */
   filterMenu?: React.ReactNode;
 }) => {
@@ -90,6 +97,15 @@ export const ScoreColumnHeaderSummary = ({
   const hasMovementCounts = Boolean(
     movement && (movement.improved || movement.regressed || movement.changed),
   );
+  // The counts are the part a narrow column clips, so they say the same thing
+  // in words on hover.
+  const movementCountsTitle = [
+    movement?.improved ? `${movement.improved} improved` : null,
+    movement?.regressed ? `${movement.regressed} regressed` : null,
+    movement?.changed ? `${movement.changed} changed` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     // The filter menu sits outside the hover-card trigger so its own popover is
@@ -110,45 +126,45 @@ export const ScoreColumnHeaderSummary = ({
               labelled row in the hover, and giving it up is what leaves the
               movement counts room to stay beside their delta. */}
             <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
+              {/* `truncate`: each aggregate is one value, so it moves to the
+                next line whole rather than breaking in the middle of itself —
+                a categorical's `mostly-grounded 9/11` is long enough to do
+                that. And if one value alone is wider than the column, it ends
+                in an ellipsis: a value that stops with no mark reads as the
+                whole value. */}
               {baseline ? (
-                <>
-                  {/* `truncate`: each aggregate is one value, so it moves to
-                    the next line whole rather than breaking in the middle of
-                    itself — a categorical's `mostly-grounded 9/11` is long
-                    enough to do that. And if one value alone is wider than the
-                    column, it ends in an ellipsis: a value that stops with no
-                    mark reads as the whole value. */}
-                  <span
-                    className="text-foreground min-w-0 truncate font-bold"
-                    title={formatScoreColumnAggregate(baseline)}
-                  >
-                    {formatScoreColumnAggregate(baseline)}
-                  </span>
-                  {comparison && (
-                    <span
-                      className="min-w-0 truncate"
-                      title={`vs ${formatScoreColumnAggregate(comparison)}`}
-                    >
-                      vs {formatScoreColumnAggregate(comparison)}
-                    </span>
-                  )}
-                </>
+                <span
+                  className="text-foreground min-w-0 truncate font-bold"
+                  title={formatScoreColumnAggregate(baseline)}
+                >
+                  {formatScoreColumnAggregate(baseline)}
+                </span>
               ) : (
                 <span>no values</span>
               )}
+              {/* Independent of the baseline's own aggregate: a score the
+                comparison recorded and this run has not yet is exactly the
+                case worth seeing. */}
+              {comparison && (
+                <span
+                  className="min-w-0 truncate"
+                  title={`vs ${formatScoreColumnAggregate(comparison)}`}
+                >
+                  vs {formatScoreColumnAggregate(comparison)}
+                </span>
+              )}
             </span>
-            {/* The movement: how far, and how many items moved which way. One
-              line that does not wrap — a count is only readable as a movement
-              next to the delta it belongs to, and the reviewer's complaint was
-              exactly this pair coming apart across lines. It is short enough to
-              hold at any width a column can be dragged to; what gives way
-              instead is the line above, which drops whole values rather than
-              clipping one (half a number reads as a number).
+            {/* The movement: how far, and how many items moved which way.
+              One line that does not wrap — a count is only readable as a
+              movement next to the delta it belongs to. The delta keeps its
+              full width; the counts are what give way, as an ellipsis, so a
+              narrow column clips them here instead of bleeding over the
+              header beside it — the hover card carries every count in full.
 
               The not-scored count is deliberately not here either — it is
-              accounted for in the hover. */}
+              accounted for in the hover card. */}
             {(deltaToShow !== null || hasMovementCounts) && (
-              <span className="text-muted-foreground flex items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
+              <span className="text-muted-foreground flex min-w-0 items-center gap-x-1 overflow-hidden text-[10px] leading-tight font-normal tabular-nums">
                 {deltaToShow !== null && (
                   <DiffLabel
                     diff={{
@@ -159,18 +175,25 @@ export const ScoreColumnHeaderSummary = ({
                     formatValue={formatScoreValue}
                   />
                 )}
-                {movement && movement.improved > 0 && (
-                  <span className="text-dark-green font-bold">
-                    ↗{movement.improved}
+                {hasMovementCounts && (
+                  <span
+                    className="flex min-w-0 items-center gap-x-1 truncate"
+                    title={movementCountsTitle}
+                  >
+                    {movement && movement.improved > 0 && (
+                      <span className="text-dark-green font-bold">
+                        ↗{movement.improved}
+                      </span>
+                    )}
+                    {movement && movement.regressed > 0 && (
+                      <span className="text-dark-red font-bold">
+                        ↘{movement.regressed}
+                      </span>
+                    )}
+                    {movement && movement.changed > 0 && (
+                      <span>↻{movement.changed}</span>
+                    )}
                   </span>
-                )}
-                {movement && movement.regressed > 0 && (
-                  <span className="text-dark-red font-bold">
-                    ↘{movement.regressed}
-                  </span>
-                )}
-                {movement && movement.changed > 0 && (
-                  <span>↻{movement.changed}</span>
                 )}
               </span>
             )}
@@ -185,7 +208,9 @@ export const ScoreColumnHeaderSummary = ({
             {getScoreDataTypeExplanation(dataType)}
           </span>
           <SummaryRow
-            label={`Baseline experiment (${DIFF_LABEL_TITLES[dataType]})`}
+            label={`${
+              hasBaseline ? "Baseline experiment" : "This experiment"
+            } (${DIFF_LABEL_TITLES[dataType]})`}
             value={
               baseline ? formatScoreColumnAggregate(baseline) : "no values"
             }
