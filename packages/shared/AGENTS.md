@@ -37,6 +37,8 @@
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
   unclustered installs): `clickhouse/migrations/canonical/*`
+- ClickHouse SQL identifier and string quoting:
+  `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points
@@ -76,6 +78,7 @@
   the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
+  `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The experimental
