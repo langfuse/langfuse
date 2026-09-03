@@ -1951,7 +1951,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
   experimentDescription:
-    "any(e.experiment_description) AS experiment_description",
+    "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
   experimentDatasetId:
     "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
@@ -1960,7 +1960,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   prompts:
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
-    "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
+    "anyIf(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values), e.span_id = e.experiment_item_root_span_id) AS experiment_metadata",
 
   // Metrics fields
   totalCost: "SUM(e.total_cost) AS total_cost",
