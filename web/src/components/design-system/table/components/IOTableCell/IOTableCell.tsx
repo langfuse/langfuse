@@ -146,6 +146,10 @@ export const IOTableCell = memo(function IOTableCell({
     ? decodeUnicodeEscapesOnly(stringifiedJson, true)
     : stringifiedJson;
 
+  // The multi-line branches scroll inside the cell, so their scrollport is
+  // marked `scrollbar-visible`: a region that scrolls without ever painting a
+  // scrollbar is indistinguishable from one whose content was cut off, and
+  // nobody reaches for the wheel on content they read as truncated.
   let content: ReactNode;
   if (singleLine) {
     content = (
@@ -192,7 +196,10 @@ export const IOTableCell = memo(function IOTableCell({
             "h-full w-full self-stretch overflow-hidden rounded-sm",
             variantClassName,
           )}
-          codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
+          codeClassName={cn(
+            "scrollbar-visible min-h-0 h-full overflow-y-auto",
+            paddingClassName,
+          )}
           collapseStringsAfterLength={null}
           borderless
         />
@@ -213,7 +220,10 @@ export const IOTableCell = memo(function IOTableCell({
           "h-full w-full self-stretch overflow-hidden rounded-sm",
           variantClassName,
         )}
-        codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
+        codeClassName={cn(
+          "scrollbar-visible min-h-0 h-full overflow-y-auto",
+          paddingClassName,
+        )}
         collapseStringsAfterLength={null}
         borderless
       />
