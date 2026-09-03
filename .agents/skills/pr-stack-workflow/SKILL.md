@@ -30,7 +30,6 @@ down the rest of the chain. Pay that only when one of these is true.
 | Someone will ask "why" and the answer is evidence: numbers, screenshots, a competitor's UI | The bug report is the justification |
 | It touches a shared component other surfaces consume | The blast radius is one screen |
 | Verification is a click path, not an assertion | An existing test proves it |
-| More than roughly 10 files or 300 lines of intended diff | Under that |
 
 Two consequences:
 
@@ -38,7 +37,8 @@ Two consequences:
 - If you cannot yet write the acceptance check, you are researching, not
   planning. Do the research, publish it, then plan.
 
-Keep a stack under about eight PRs. Past that the retarget cost dominates.
+Keep the stack short. Every landing costs another round of retarget-and-merge,
+so length is a running cost you pay until the last PR is in.
 
 ## Slice by what a reviewer has to hold in their head
 
