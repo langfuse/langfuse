@@ -349,11 +349,13 @@ export function EvaluatorSetupPage(
     }
 
     return registerInAppAgentPageContext(
+      projectId,
       `evaluator-sample:${projectId}:${evaluatorId}`,
       [
         {
           description: SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
           value: JSON.stringify({
+            projectId,
             evaluatorId,
             observationId: assistantSampleObservationId,
             traceId: assistantSampleTraceId,

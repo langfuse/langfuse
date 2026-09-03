@@ -966,7 +966,7 @@ function InAppAiAgentProviderInner({
       createInAppAgentScreenContext({
         currentUrl: window.location.href,
       }).concat(
-        getInAppAgentPageContext(),
+        getInAppAgentPageContext(projectId),
         createInAppAgentUserContext({
           userName: session.data?.user?.name,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -976,7 +976,7 @@ function InAppAiAgentProviderInner({
               : [navigator.language],
         }),
       ),
-    [session.data?.user?.name],
+    [projectId, session.data?.user?.name],
   );
 
   const selectConversation = useCallback(

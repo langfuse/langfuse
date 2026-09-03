@@ -350,13 +350,17 @@ describe("in-app agent execution", () => {
   });
 
   it("includes live page context in each Assistant turn", async () => {
-    const unregister = registerInAppAgentPageContext("evaluator-sample", [
-      {
-        description: "selected_evaluator_sample",
-        value:
-          '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
-      },
-    ]);
+    const unregister = registerInAppAgentPageContext(
+      "project-1",
+      "evaluator-sample",
+      [
+        {
+          description: "selected_evaluator_sample",
+          value:
+            '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+        },
+      ],
+    );
     providerMocks.startRun.mockImplementation(
       async (input: { conversationId: string }) => ({
         conversationId: input.conversationId,
@@ -379,7 +383,7 @@ describe("in-app agent execution", () => {
     ).toContainEqual({
       description: "selected_evaluator_sample",
       value:
-        '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+        '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
     });
     unregister();
   });

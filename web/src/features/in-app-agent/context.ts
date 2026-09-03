@@ -197,12 +197,17 @@ export function sanitizeInAppAgentContext(
     }
   }
 
-  const selectedEvaluatorSample = sanitizeSelectedEvaluatorSampleContext(
-    context.find(
-      (item) =>
-        item.description === SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
-    )?.value,
+  const selectedEvaluatorSampleContexts = context.filter(
+    (item) =>
+      item.description === SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
   );
+  const selectedEvaluatorSample =
+    selectedEvaluatorSampleContexts.length === 1
+      ? sanitizeSelectedEvaluatorSampleContext(
+          selectedEvaluatorSampleContexts[0]?.value,
+          projectId,
+        )
+      : null;
   if (selectedEvaluatorSample) {
     sanitizedContext.push(selectedEvaluatorSample);
   }
@@ -214,6 +219,7 @@ export function sanitizeInAppAgentContext(
 
 function sanitizeSelectedEvaluatorSampleContext(
   value: string | undefined,
+  projectId: string,
 ): InAppAgentContext[number] | null {
   if (!value || value.length > MAX_CONTEXT_VALUE_LENGTH) {
     return null;
@@ -230,6 +236,9 @@ function sanitizeSelectedEvaluatorSampleContext(
   }
 
   const record = parsed as Record<string, unknown>;
+  if (record.projectId !== projectId) {
+    return null;
+  }
   const evaluatorId = readBoundedContextId(record.evaluatorId);
   const observationId = readBoundedContextId(record.observationId);
   const traceId = readBoundedContextId(record.traceId);
