@@ -456,3 +456,92 @@ describe("S3StorageService DeleteObjects checksum", () => {
     expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
   });
 });
+
+/**
+ * Regression guard: the S3 (@aws-sdk/lib-storage) upload path consumes the
+ * source `Readable` via async iteration, which attaches an error listener to
+ * the source. A mid-read source error must therefore reject the awaited
+ * upload rather than leak as an uncaught 'error' event — unlike the GCS
+ * `.pipe()` path, which only listened on the destination. This locks that
+ * behavior in so a future refactor cannot reintroduce the GCS-class leak on
+ * S3.
+ */
+describe("S3StorageService.uploadFile source stream errors", () => {
+  it("rejects when the source stream fails without leaking process events", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "us-east-1",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    // Stub the S3 client so lib-storage's only failure source is the body
+    // stream: every send() resolves, so a rejected upload can only come from
+    // the source Readable erroring.
+    (service as unknown as { client: unknown }).client = {
+      config: {},
+      middlewareStack: { clone: () => ({ add: () => {}, resolve: () => {} }) },
+      send: async (command: unknown) => {
+        const name =
+          (command as { constructor?: { name?: string } })?.constructor?.name ??
+          "";
+        if (name.includes("CreateMultipartUpload")) return { UploadId: "u1" };
+        if (name.includes("UploadPart")) return { ETag: "e1" };
+        if (name.includes("CompleteMultipartUpload")) return { Location: "x" };
+        if (name.includes("PutObject")) return { ETag: "e1" };
+        return {};
+      },
+    };
+
+    const unhandled: unknown[] = [];
+    const uncaught: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    const onUncaught = (err: unknown) => {
+      uncaught.push(err);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    process.on("uncaughtException", onUncaught);
+
+    try {
+      const source = new Readable({
+        read() {
+          this.destroy(new Error("source stream failed"));
+        },
+      });
+
+      await expect(
+        (
+          service as unknown as {
+            uploadFile(params: {
+              fileName: string;
+              fileType: string;
+              data: Readable;
+            }): Promise<void>;
+          }
+        ).uploadFile({
+          fileName: "export.json",
+          fileType: "application/json",
+          data: source,
+        }),
+      ).rejects.toThrow();
+
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(unhandled).toHaveLength(0);
+      expect(uncaught).toHaveLength(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      process.off("uncaughtException", onUncaught);
+    }
+  });
+});
