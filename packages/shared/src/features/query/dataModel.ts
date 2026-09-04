@@ -9,6 +9,7 @@ import {
 import { InvalidRequestError } from "../../errors";
 import {
   eventsTableIsRootObservationSqlForAlias,
+  eventsTableScoreTraceRootSqlForAlias,
   eventsTableTraceNameAggregationSqlForAlias,
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
@@ -1039,8 +1040,9 @@ const createScoreTableRelations = (
       // its app roots come from newer SDKs and are expected to carry trace_name.
       // A semantic-root join can match both rows in dual-write data and
       // multiply scores for little fallback value.
-      joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+      joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ${eventsTableScoreTraceRootSqlForAlias(
+        "events_traces",
+      )}`,
       timeDimension: "start_time",
       useFinal: false,
     },
