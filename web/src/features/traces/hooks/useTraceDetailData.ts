@@ -94,6 +94,7 @@ export function useTraceDetailData({
       isUnauthorized: false,
       isSessionScopeUnavailable: false,
       canAggregateBySession: false,
+      isEventsTraceSource: useEventsTraceSource,
       truncatedAtObservations: undefined,
     };
   }
@@ -124,6 +125,7 @@ export function useTraceDetailData({
       isUnauthorized,
       isSessionScopeUnavailable: eventsData.isSessionScopeUnavailable,
       canAggregateBySession: !isUnauthenticated && !!eventsData.data?.sessionId,
+      isEventsTraceSource: true,
       truncatedAtObservations: eventsData.truncatedAtObservations,
     };
   }
@@ -137,6 +139,7 @@ export function useTraceDetailData({
     isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
     isSessionScopeUnavailable: false,
     canAggregateBySession: false,
+    isEventsTraceSource: false,
     // The traces-table read path has no row cap.
     truncatedAtObservations: undefined,
   };

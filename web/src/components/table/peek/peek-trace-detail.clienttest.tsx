@@ -23,13 +23,20 @@ vi.mock("@/src/components/table/peek", () => ({
     actions,
     children,
     leadingContent,
+    hideItemBadge,
+    itemType,
   }: {
     actions?: React.ReactNode;
     children: React.ReactNode;
     leadingContent?: React.ReactNode;
+    hideItemBadge?: boolean;
+    itemType?: string;
   }) => (
     <div>
       {leadingContent}
+      {itemType && !hideItemBadge ? (
+        <div data-testid="item-type">{itemType}</div>
+      ) : null}
       {actions}
       {children}
     </div>
@@ -37,17 +44,34 @@ vi.mock("@/src/components/table/peek", () => ({
   shouldClosePeekAfterDelete: vi.fn(),
 }));
 vi.mock("@/src/features/traces", () => ({
+  canSelectObservationView: () => false,
+  getSelectedObservation: () => null,
+  getTraceDetailModeTitle: (aggregationLevel: string) =>
+    aggregationLevel === "session" ? "s" : "Trace",
   TraceAggregationToggle: ({
+    canSelectObservation,
+    canSelectSession,
     onAggregationLevelChange,
   }: {
+    canSelectObservation: boolean;
+    canSelectSession: boolean;
     onAggregationLevelChange: (aggregationLevel: "trace" | "session") => void;
   }) => (
-    <button
-      role="tab"
-      aria-label="Aggregate by session"
-      aria-selected={false}
-      onClick={() => onAggregationLevelChange("session")}
-    />
+    <>
+      <button
+        role="tab"
+        aria-label="Show observation details only"
+        aria-selected={false}
+        disabled={!canSelectObservation}
+      />
+      <button
+        role="tab"
+        aria-label="Aggregate by session"
+        aria-selected={false}
+        disabled={!canSelectSession}
+        onClick={() => onAggregationLevelChange("session")}
+      />
+    </>
   ),
   TraceDetailActions: () => <div />,
   TraceDetailBody: () => <div />,
@@ -88,6 +112,7 @@ describe("TablePeekViewTraceDetail", () => {
         readPath: "v4",
       }),
     );
+    expect(screen.queryByTestId("item-type")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Aggregate by session" }));
 
@@ -117,8 +142,42 @@ describe("TablePeekViewTraceDetail", () => {
       traceId: "t",
       timestamp: undefined,
     });
+    expect(screen.getByTestId("item-type")).toHaveTextContent("TRACE");
     expect(
       screen.queryByRole("tab", { name: "Aggregate by session" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps v4 tabs visible when observation and session modes are unavailable", () => {
+    mockUsePeekData.mockReturnValue({
+      data: {
+        id: "t",
+        projectId: "p",
+        public: false,
+        sessionId: null,
+        observations: [],
+      },
+      canAggregateBySession: false,
+      isSessionScopeUnavailable: false,
+      truncatedAtObservations: undefined,
+    });
+
+    render(
+      <TablePeekViewTraceDetail
+        projectId="p"
+        itemType="TRACE"
+        closePeek={vi.fn()}
+        tableName="traces"
+        isV4
+      />,
+    );
+
+    expect(
+      screen.getByRole("tab", { name: "Show observation details only" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("tab", { name: "Aggregate by session" }),
+    ).toBeDisabled();
+    expect(screen.queryByTestId("item-type")).not.toBeInTheDocument();
   });
 });

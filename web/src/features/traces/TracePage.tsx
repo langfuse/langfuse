@@ -5,7 +5,6 @@ import { TraceDetailActions } from "@/src/features/traces/components/TraceDetail
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { Button } from "@/src/components/ui/button";
@@ -13,6 +12,11 @@ import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
+import {
+  canSelectObservationView,
+  getSelectedObservation,
+  getTraceDetailModeTitle,
+} from "@/src/features/traces/fns/getSelectedObservationType";
 import { StringParam, useQueryParam } from "use-query-params";
 
 export function TracePage({
@@ -109,9 +113,22 @@ export function TracePage({
       Public
     </Badge>
   ) : undefined;
-  const aggregationToggle = trace.canAggregateBySession ? (
+  const selectedObservation = getSelectedObservation(
+    trace.data.observations,
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined,
+  );
+  const selectedNodeId =
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined;
+  const aggregationToggle = trace.isEventsTraceSource ? (
     <TraceAggregationToggle
       aggregationLevel={aggregationLevel}
+      canSelectObservation={canSelectObservationView(selectedNodeId)}
+      canSelectSession={trace.canAggregateBySession}
+      observationType={selectedObservation?.type ?? null}
       onAggregationLevelChange={(nextAggregationLevel) => {
         if (nextAggregationLevel === "session") {
           setAggregationParam("session");
@@ -125,14 +142,23 @@ export function TracePage({
       }}
     />
   ) : undefined;
+  const title =
+    getTraceDetailModeTitle(
+      aggregationLevel,
+      trace.data,
+      selectedObservation,
+      aggregationLevel === "observation" ? selectedNodeId : traceId,
+    ) ?? traceId;
 
   return (
     <Page
       headerProps={{
-        title: isSessionScope
-          ? "Session"
-          : (traceDetailTitle(trace.data) ?? trace.data.id),
-        itemType: isSessionScope ? "SESSION" : "TRACE",
+        title,
+        itemType: aggregationToggle
+          ? undefined
+          : isSessionScope
+            ? "SESSION"
+            : "TRACE",
         breadcrumb: [
           {
             name: "Traces",

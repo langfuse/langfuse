@@ -83,6 +83,8 @@ type TablePeekViewProps = Pick<
   title?: string;
   /** Content pinned at the far left of the peek header. */
   leadingContent?: React.ReactNode;
+  /** Hide the item badge when leading content already identifies the scope. */
+  hideItemBadge?: boolean;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -270,6 +272,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       itemType={props.itemType}
       title={resolvedTitle}
       leadingContent={props.leadingContent}
+      hideItemBadge={props.hideItemBadge}
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}

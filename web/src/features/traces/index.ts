@@ -15,6 +15,12 @@ export { TraceDetailActions } from "@/src/features/traces/components/TraceDetail
 export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 export { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
 export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
+export {
+  canSelectObservationView,
+  getSelectedObservation,
+  getSelectedObservationType,
+  getTraceDetailModeTitle,
+} from "@/src/features/traces/fns/getSelectedObservationType";
 export { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 export { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";

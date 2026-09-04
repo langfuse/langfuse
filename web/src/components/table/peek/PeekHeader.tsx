@@ -31,6 +31,7 @@ type PeekHeaderProps = {
   itemType: LangfuseItemType;
   title: React.ReactNode;
   leadingContent?: React.ReactNode;
+  hideItemBadge?: boolean;
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
@@ -112,6 +113,7 @@ export function PeekHeader({
   itemType,
   title,
   leadingContent,
+  hideItemBadge = false,
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
@@ -182,8 +184,10 @@ export function PeekHeader({
     const next = planPeekHeaderLayout({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
-      badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
-      badgeIconWidth: BADGE_ICON_PX,
+      badgeLabelWidth: hideItemBadge
+        ? 0
+        : (widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX),
+      badgeIconWidth: hideItemBadge ? 0 : BADGE_ICON_PX,
       leadingWidth: widthsRef.current.leading ?? 0,
       navFullWidth: hasNav
         ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
@@ -207,6 +211,7 @@ export function PeekHeader({
     hasLeadingContent,
     hasOpenInTab,
     hasNav,
+    hideItemBadge,
     plan,
   ]);
 
@@ -225,9 +230,11 @@ export function PeekHeader({
             </div>
           )}
           {/* Badge never truncates: it shows the full label or just the icon. */}
-          <div ref={badgeRef} className="shrink-0">
-            <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
-          </div>
+          {!hideItemBadge && (
+            <div ref={badgeRef} className="shrink-0">
+              <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
+            </div>
+          )}
           <span
             className="truncate text-sm font-bold focus:outline-hidden"
             tabIndex={0}

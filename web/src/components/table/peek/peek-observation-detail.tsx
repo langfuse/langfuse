@@ -4,10 +4,12 @@ import {
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
+  canSelectObservationView,
   TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
-  traceDetailTitle,
+  getSelectedObservation,
+  getTraceDetailModeTitle,
 } from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
@@ -55,6 +57,16 @@ export const TablePeekViewObservationDetail = (
     !!trace.data &&
     "sessionTraceEntries" in trace.data &&
     !!trace.data.sessionTraceEntries;
+  const selectedObservation = getSelectedObservation(
+    trace.data?.observations,
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined,
+  );
+  const selectedNodeId =
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined;
 
   const actionProps = trace.data
     ? {
@@ -80,9 +92,12 @@ export const TablePeekViewObservationDetail = (
         },
       }
     : null;
-  const aggregationToggle = trace.canAggregateBySession ? (
+  const aggregationToggle = props.isV4 ? (
     <TraceAggregationToggle
       aggregationLevel={aggregationLevel}
+      canSelectObservation={canSelectObservationView(selectedNodeId)}
+      canSelectSession={trace.canAggregateBySession}
+      observationType={selectedObservation?.type ?? null}
       onAggregationLevelChange={(nextAggregationLevel) => {
         const query = { ...router.query };
         if (nextAggregationLevel !== "trace") {
@@ -96,13 +111,20 @@ export const TablePeekViewObservationDetail = (
       }}
     />
   ) : undefined;
+  const title = getTraceDetailModeTitle(
+    aggregationLevel,
+    trace.data,
+    selectedObservation,
+    aggregationLevel === "observation" ? selectedNodeId : traceId,
+  );
 
   return (
     <TablePeekView
       {...props}
       itemType={isSessionScope ? "SESSION" : props.itemType}
-      title={isSessionScope ? "Session" : traceDetailTitle(trace.data, traceId)}
+      title={title}
       leadingContent={aggregationToggle}
+      hideItemBadge={!!aggregationToggle}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

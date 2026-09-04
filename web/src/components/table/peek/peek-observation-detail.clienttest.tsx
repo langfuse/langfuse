@@ -29,13 +29,23 @@ vi.mock("@/src/components/table/peek", () => ({
     actions,
     children,
     leadingContent,
+    hideItemBadge,
+    itemType,
+    title,
   }: {
     actions?: React.ReactNode;
     children: React.ReactNode;
     leadingContent?: React.ReactNode;
+    hideItemBadge?: boolean;
+    itemType?: string;
+    title?: React.ReactNode;
   }) => (
     <div>
       {leadingContent}
+      <div data-testid="peek-title">{title}</div>
+      {itemType && !hideItemBadge ? (
+        <div data-testid="item-type">{itemType}</div>
+      ) : null}
       {actions}
       {children}
     </div>
@@ -43,19 +53,43 @@ vi.mock("@/src/components/table/peek", () => ({
   shouldClosePeekAfterDelete: vi.fn(),
 }));
 vi.mock("@/src/features/traces", () => ({
+  canSelectObservationView: () => true,
+  getSelectedObservation: () => ({
+    id: "o",
+    name: "Observation name",
+    type: "GENERATION",
+  }),
+  getTraceDetailModeTitle: (aggregationLevel: string) =>
+    aggregationLevel === "observation" ? "Observation name" : "Trace",
   TraceAggregationToggle: ({
+    canSelectObservation,
+    canSelectSession,
+    observationType,
     onAggregationLevelChange,
   }: {
+    canSelectObservation: boolean;
+    canSelectSession: boolean;
+    observationType: string | null;
     onAggregationLevelChange: (
       aggregationLevel: "trace" | "session" | "observation",
     ) => void;
   }) => (
-    <button
-      role="tab"
-      aria-label="Show observation details only"
-      aria-selected={false}
-      onClick={() => onAggregationLevelChange("observation")}
-    />
+    <>
+      <div data-testid="observation-type">{observationType}</div>
+      <button
+        role="tab"
+        aria-label="Show observation details only"
+        aria-selected={false}
+        disabled={!canSelectObservation}
+        onClick={() => onAggregationLevelChange("observation")}
+      />
+      <button
+        role="tab"
+        aria-label="Aggregate by session"
+        aria-selected={false}
+        disabled={!canSelectSession}
+      />
+    </>
   ),
   TraceDetailActions: () => <div />,
   TraceDetailBody: () => <div />,
@@ -78,6 +112,7 @@ describe("TablePeekViewObservationDetail", () => {
         projectId: "p",
         public: false,
         sessionId: "s",
+        observations: [{ id: "o", traceId: "t", type: "GENERATION" }],
       },
       canAggregateBySession: true,
       truncatedAtObservations: undefined,
@@ -101,6 +136,10 @@ describe("TablePeekViewObservationDetail", () => {
         readPath: "v4",
       }),
     );
+    expect(screen.getByTestId("observation-type")).toHaveTextContent(
+      "GENERATION",
+    );
+    expect(screen.queryByTestId("item-type")).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("tab", { name: "Show observation details only" }),
@@ -120,6 +159,27 @@ describe("TablePeekViewObservationDetail", () => {
       },
       undefined,
       { shallow: true },
+    );
+  });
+
+  it("shows the selected observation name in observation mode", () => {
+    mockRouter.query = {
+      ...mockRouter.query,
+      aggregation: "observation",
+    };
+
+    render(
+      <TablePeekViewObservationDetail
+        projectId="p"
+        itemType="TRACE"
+        closePeek={vi.fn()}
+        tableName="events"
+        isV4
+      />,
+    );
+
+    expect(screen.getByTestId("peek-title")).toHaveTextContent(
+      "Observation name",
     );
   });
 });

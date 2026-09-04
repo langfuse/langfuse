@@ -194,6 +194,7 @@ describe("useTraceDetailData endpoint routing", () => {
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true, scopeToSession: false }),
     );
+    expect(render().isEventsTraceSource).toBe(true);
   });
 
   it("uses the events endpoint when the owning surface is explicitly v4", () => {
@@ -260,6 +261,7 @@ describe("useTraceDetailData endpoint routing", () => {
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false, scopeToSession: false }),
     );
+    expect(render().isEventsTraceSource).toBe(false);
   });
 
   it("does not fetch while the trace id is missing (deep-link first render)", () => {
