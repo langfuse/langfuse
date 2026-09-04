@@ -12,7 +12,7 @@ import {
   ObservationPromptVariableMappingInput,
   PromptVariableMappingRead,
   PublicEvaluatorType,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/evaluation/publicEvalsContract";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
 
 const RuleFilterBaseSchema = McpAdvancedFilterBaseSchema.describe(
