@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { MessageSquareOff } from "lucide-react";
 import {
   normalizeSpanIO,
   type NormalizedMessage,
@@ -160,12 +161,16 @@ function SessionTimelineObservation({
         >
           {observation.name ?? observation.id}
         </span>
-        {hasNoConversationalContent ? (
-          <Badge variant="secondary" size="sm" className="shrink-0">
-            No conversational content
-          </Badge>
-        ) : null}
         <span className="ml-auto flex shrink-0 items-center gap-2">
+          {hasNoConversationalContent ? (
+            <span
+              className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+              aria-label="No conversational content"
+              title="No conversational content"
+            >
+              <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
+            </span>
+          ) : null}
           {observation.latency !== null && observation.type !== "EVENT" ? (
             <span className="text-muted-foreground font-mono text-[11px]">
               {formatIntervalSeconds(observation.latency)}

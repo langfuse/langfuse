@@ -162,7 +162,7 @@ describe("SessionConversationTimeline", () => {
 
     expect(screen.queryByText("Secret prompt")).not.toBeInTheDocument();
     expect(
-      screen.getByText("No conversational content").closest("button"),
+      screen.getByLabelText("No conversational content").closest("button"),
     ).toHaveTextContent("Generate answer");
   });
 
