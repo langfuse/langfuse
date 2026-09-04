@@ -26,10 +26,13 @@ export function ObservationIdentityBadges({
   return (
     <>
       {hasDistinctSessionId ? (
-        <SessionBadge sessionId={observationSessionId} projectId={projectId} />
+        <SessionBadge
+          sessionId={observationSessionId ?? null}
+          projectId={projectId}
+        />
       ) : null}
       {hasDistinctUserId ? (
-        <UserIdBadge userId={observationUserId} projectId={projectId} />
+        <UserIdBadge userId={observationUserId ?? null} projectId={projectId} />
       ) : null}
     </>
   );

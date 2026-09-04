@@ -28,8 +28,8 @@ export function TraceSummaryBar({
       <p className="text-muted-foreground mb-1 text-xs">Trace summary</p>
       <CollapsibleBadgeRow>
         <LatencyBadge latencySeconds={latencySeconds} />
-        <SessionBadge sessionId={sessionId} projectId={projectId} />
-        <UserIdBadge userId={userId} projectId={projectId} />
+        <SessionBadge sessionId={sessionId ?? null} projectId={projectId} />
+        <UserIdBadge userId={userId ?? null} projectId={projectId} />
         {totalCost != null && costDetails ? (
           <CostBadge totalCost={totalCost} costDetails={costDetails} />
         ) : null}
