@@ -16,10 +16,7 @@ import {
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
 } from "../../repositories/constants";
 import type { ClickhouseFilter } from "./clickhouse-filter";
-import {
-  eventsTableScoreTraceRootSqlForAlias,
-  eventsTableTraceNameSql,
-} from "../../../eventsTable";
+import { eventsTableTraceNameSql } from "../../../eventsTable";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -441,25 +438,6 @@ export const eventsExperimentsRootSpans = (params: {
   eventsExperimentsForItems(params).whereRaw(
     "e.experiment_item_root_span_id = e.span_id",
   );
-
-/**
- * Narrows to the row the scores -> events_traces relation joins on, and only
- * when that row itself carries the experiment. `experiment_id` is stamped on an
- * item's root span and its subtree, so a trace whose item is nested inside a
- * wider trace has a parentless row without one.
- *
- * Shares its predicate with that relation's join condition so the two cannot
- * drift: a trace-level score reachable through this fragment is one a chart
- * over the relation can actually plot. Note this is deliberately NOT the
- * semantic-root test — see `eventsTableScoreTraceRootSqlForAlias`. Use
- * `eventsExperimentsRootSpans` instead for the per-item semantics the item
- * tables need.
- */
-export const eventsExperimentsTraceRootSpans = (params: {
-  projectId: string;
-  experimentIds?: string[];
-}): EventsQueryBuilder =>
-  eventsExperiments(params).whereRaw(eventsTableScoreTraceRootSqlForAlias("e"));
 
 /**
  * Session-level scores aggregation CTE.
