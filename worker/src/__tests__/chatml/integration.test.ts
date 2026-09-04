@@ -133,6 +133,50 @@ describe("ChatML Integration", () => {
     expect(() => normalizeOutput({ scope: null, answer: "..." })).not.toThrow();
   });
 
+  it("does not throw when Error.name is non-writable", () => {
+    // Zod 4 safeParse builds a $ZodError on mismatch and assigns inst.name.
+    // That assignment throws when Error.name is non-writable (SES/lockdown).
+    // Adapter detection runs safeParse on arbitrary observation metadata, so
+    // a failed parse must stay a non-match instead of crashing I/O preview.
+    const descriptor = Object.getOwnPropertyDescriptor(Error.prototype, "name");
+    Object.defineProperty(Error.prototype, "name", {
+      writable: false,
+      configurable: true,
+      enumerable: descriptor?.enumerable ?? false,
+      value: descriptor?.value ?? "Error",
+    });
+
+    try {
+      const input = {
+        messages: [{ role: "user", content: "hello" }],
+      };
+      const metadata = {
+        provider: "openrouter",
+        model: "openrouter-completion",
+      };
+
+      expect(() =>
+        normalizeInput(input, {
+          metadata,
+          observationName: "openrouter-completion",
+        }),
+      ).not.toThrow();
+      expect(() =>
+        normalizeOutput({ role: "assistant", content: "hi" }, { metadata }),
+      ).not.toThrow();
+
+      const result = normalizeInput(input, {
+        metadata,
+        observationName: "openrouter-completion",
+      });
+      expect(result.success).toBe(true);
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(Error.prototype, "name", descriptor);
+      }
+    }
+  });
+
   it("should handle very large inputs", () => {
     const largeContent = "x".repeat(1000000);
     const input = [{ role: "user", content: largeContent }];
