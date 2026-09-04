@@ -19,8 +19,8 @@ events.csv ──► replay script ──► POST /api/admin/ingestion-replay
 
 ## Prerequisites
 
-- **S3 server access logging** enabled on the Langfuse events bucket (see [Initial setup](#1-initial-setup-one-time))
-- **Athena** configured to query the access logs (see [Initial setup](#1-initial-setup-one-time))
+- **S3 server access logging** enabled on the Langfuse events bucket (see [Initial setup](#1-initial-setup-one-time-on-aws))
+- **Athena** configured to query the access logs (see [Initial setup](#1-initial-setup-one-time-on-aws))
 - **Node.js 18+** with `npx tsx` available (no repo clone or `pnpm` needed)
 - **`events.csv`** exported from Athena (see [Export events](#2-export-events-from-athena))
 - **`LANGFUSE_HOST`** URL of the target Langfuse instance (e.g. `https://cloud.langfuse.com`)
