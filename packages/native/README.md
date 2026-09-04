@@ -54,7 +54,9 @@ sources are unchanged.
 
 This path does not regenerate `index.js` and `index.d.ts`. It is for people who
 run the worker but do not change Rust; anyone editing `src/` needs the local
-strategy.
+strategy. It covers macOS and Linux hosts. On Windows, install Rust or work
+inside WSL2, which takes the Linux path; the script says so when it cannot
+target the host.
 
 <details>
 <summary>How the container build works</summary>

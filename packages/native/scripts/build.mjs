@@ -118,7 +118,8 @@ const hostTarget = () => {
           };
     default:
       throw new Error(
-        `No docker build target for ${key}. Install a Rust toolchain (https://rustup.rs) instead.`,
+        `The docker build strategy cannot target ${key}; it covers macOS and Linux hosts. ` +
+          "Install a Rust toolchain (https://rustup.rs) or, on Windows, work inside WSL2.",
       );
   }
 };
