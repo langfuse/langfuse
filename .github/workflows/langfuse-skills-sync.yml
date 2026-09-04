@@ -94,8 +94,8 @@ jobs:
           branch: ${{ env.BOT_BRANCH }}
           base: main
           add-paths: ${{ env.GENERATED_FILE }}
-          commit-message: "chore(skills): refresh embedded Langfuse skills"
-          title: "chore(skills): refresh embedded Langfuse skills"
+          commit-message: "chore(assistant): refresh embedded Langfuse skills"
+          title: "chore(assistant): refresh embedded Langfuse skills"
           body: |
             Automated refresh of the embedded Langfuse skill catalog.
 
