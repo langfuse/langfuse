@@ -18,7 +18,6 @@ export const BASE_CHART_IDS = {
  */
 export const SCORE_LEVEL_TAGS: Record<ScoreLevel, ScoreTagLevel> = {
   obs: "observation",
-  trace: "trace",
   experiment: "experiment",
 };
 
@@ -29,10 +28,9 @@ export const SCORE_LEVEL_TAGS: Record<ScoreLevel, ScoreTagLevel> = {
  */
 export const SCORE_BOOLEAN_FILTER_KEYS: Record<
   ScoreLevel,
-  "obs_score_booleans" | "trace_score_booleans" | "experiment_score_booleans"
+  "obs_score_booleans" | "experiment_score_booleans"
 > = {
   obs: "obs_score_booleans",
-  trace: "trace_score_booleans",
   experiment: "experiment_score_booleans",
 };
 
@@ -46,16 +44,6 @@ export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
     level: "obs",
     dataType: "categorical",
     filterKey: "obs_score_categories",
-  },
-  "trace:numeric": {
-    level: "trace",
-    dataType: "numeric",
-    filterKey: "trace_scores_avg",
-  },
-  "trace:categorical": {
-    level: "trace",
-    dataType: "categorical",
-    filterKey: "trace_score_categories",
   },
   "experiment:numeric": {
     level: "experiment",
@@ -117,13 +105,6 @@ export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
   { field: string }
 > = {
   obs: { field: "experimentName" },
-  // A trace-level score has no observation, so the experiment has to be read
-  // off the scored trace's root event rather than off the observation. Keyed by
-  // id, not name: an experiment name is unique only within its dataset, and
-  // this table is project-wide, so two identically named runs from different
-  // datasets would group into one bucket — one bar carrying the aggregate of
-  // both, the other run gone from the chart.
-  trace: { field: "traceExperimentId" },
   experiment: { field: "datasetRunId" },
 };
 
@@ -153,14 +134,6 @@ export const SCORE_LEVEL_FILTERS: Record<ScoreLevel, FilterCondition[]> = {
     {
       column: "observationId",
       operator: "is not null",
-      value: "",
-      type: "null",
-    },
-  ],
-  trace: [
-    {
-      column: "observationId",
-      operator: "is null",
       value: "",
       type: "null",
     },
