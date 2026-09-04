@@ -688,72 +688,15 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
     }
   },
 
-  // Make email-OTP login that is used for password reset safer.
-  //
-  // Look the token up before consuming it. The upstream PrismaAdapter
-  // implements this as an unconditional `verificationToken.delete`, which
-  // rejects with Prisma P2025 whenever the token is missing — expired,
-  // already consumed (e.g. an email security scanner prefetching the magic
-  // link), or a bogus value from endpoint scanning. Every rejected query is
-  // surfaced by the global Prisma error handler (packages/shared/src/db.ts) as
-  // a `prisma:error` ERROR log, so a routine "invalid or expired token" spams
-  // error logs and error-rate dashboards. Reading first keeps the happy path
-  // identical while treating a missing token as the ordinary invalid-token
-  // outcome instead of a failed query.
-  async useVerificationToken(params) {
-    const identifier_token = {
-      identifier: params.identifier,
-      token: params.token,
-    };
-
-    const verificationToken = await prisma.verificationToken.findUnique({
-      where: { identifier_token },
-    });
-
-    if (!verificationToken) {
-      // Token invalid or expired-and-swept. Log the security event and clear
-      // any remaining tokens for this identifier to prevent enumeration.
-      logger.info("Failed OTP verification attempt", {
-        identifier: params.identifier,
-        token: params.token?.substring(0, 2) + "****", // partial token for debugging
-        timestamp: new Date().toISOString(),
-        reason: "invalid_or_expired",
-      });
-
-      await prisma.verificationToken.deleteMany({
-        where: { identifier: params.identifier },
-      });
-
-      return null;
-    }
-
-    try {
-      // Consume the token. NextAuth validates `expires` on the returned row.
-      await prisma.verificationToken.delete({ where: { identifier_token } });
-    } catch (error) {
-      // A concurrent request may have consumed the token between the read and
-      // the delete. Treat that race as an already-used token, not a 500.
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code?: unknown }).code === "P2025"
-      ) {
-        logger.info("OTP verification token already consumed", {
-          identifier: params.identifier,
-          timestamp: new Date().toISOString(),
-        });
-        return null;
-      }
-      throw error;
-    }
-
-    logger.info("OTP verification successful", {
-      identifier: params.identifier,
-      timestamp: new Date().toISOString(),
-    });
-
-    return verificationToken;
+  // Email one-time codes are consumed only by `credentials.resetPassword`
+  // (consumeEmailOtpAndUpdatePassword), which validates the code and writes
+  // the new password in one transaction. NextAuth calls this adapter method
+  // from GET /api/auth/callback/email before it consults `callbacks.signIn`,
+  // so returning null here is what keeps that route from logging a user in
+  // without a password. It also leaves the stored code untouched, so a
+  // prefetching mail scanner or a guessed request cannot burn a valid code.
+  async useVerificationToken() {
+    return null;
   },
 });
 
@@ -1021,7 +964,7 @@ export async function getAuthOptions(signupAttribution?: {
           };
         });
       },
-      async signIn({ user, account, profile }) {
+      async signIn({ user, account, profile, email: emailFlow }) {
         return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
@@ -1078,8 +1021,30 @@ export async function getAuthOptions(signupAttribution?: {
             }
           }
 
-          // Only allow sign in via email link if user is already in db as this is used for password reset
+          // The email provider only sends password-reset codes; it must never
+          // complete a login. NextAuth sets `email.verificationRequest` on the
+          // send request (POST /api/auth/signin/email) and omits it on the
+          // consume request (GET /api/auth/callback/email).
           if (account?.provider === "email") {
+            if (!emailFlow?.verificationRequest) {
+              logger.warn(
+                "Blocked email-OTP sign in via the NextAuth email callback",
+                { email },
+              );
+              return false;
+            }
+
+            // Codes only reset passwords, so there is nothing to send when
+            // password login is disabled.
+            if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
+              logger.info(
+                "Blocked email-OTP request because AUTH_DISABLE_USERNAME_PASSWORD is set",
+                { email },
+              );
+              return false;
+            }
+
+            // Only send a code if the user already exists, as this is used for password reset
             const blockedDomains = getSSOBlockedDomains();
             if (userDomain && blockedDomains.includes(userDomain)) {
               logger.info(
