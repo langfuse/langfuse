@@ -8,6 +8,7 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   LLMConnectionConfigSchema,
   OpenAIConfigSchema,
+  stringDateTime,
   VertexAIConfigSchema,
 } from "@langfuse/shared";
 
@@ -31,6 +32,14 @@ export const LlmConnectionResponse = z
 // GET /api/public/llm-connections query parameters
 export const GetLlmConnectionsV1Query = z
   .object({
+    // Optional ISO-8601 time window on the LLM connection row's `createdAt`.
+    // Both params are independently optional and compose into a half-open
+    // `[fromTimestamp, toTimestamp)` range. Omitting both preserves the
+    // historical "all connections" behavior. Pattern matches
+    // `GET /api/public/comments` (PR #15692), `GET /api/public/models`
+    // (PR #16952), and `GET /api/public/datasets` (PR #17002).
+    fromTimestamp: stringDateTime,
+    toTimestamp: stringDateTime,
     ...publicApiPaginationZod,
   })
   .strict();

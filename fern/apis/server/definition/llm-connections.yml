@@ -13,6 +13,20 @@ service:
       request:
         name: GetLlmConnectionsRequest
         query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 lower bound on the LLM connection row's
+              `createdAt` (inclusive). Omit for an open-ended start.
+              Pattern matches `GET /api/public/comments`,
+              `GET /api/public/models`, and `GET /api/public/datasets`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 upper bound on the LLM connection row's
+              `createdAt` (exclusive). Omit for an open-ended end.
+              Pattern matches `GET /api/public/comments`,
+              `GET /api/public/models`, and `GET /api/public/datasets`.
           page:
             type: optional<integer>
             docs: page number, starts at 1
