@@ -258,6 +258,40 @@ describe("in-app agent sandbox", () => {
     expect(output).toEqual({ result: "test" });
   });
 
+  it("keeps evaluator test results visible to the browser", async () => {
+    let receivedInput: unknown;
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        langfuse_testEvaluator: new Tool({
+          id: "langfuse_testEvaluator",
+          description: "Test evaluator",
+          inputSchema: z.object({ evaluatorId: z.string() }),
+          execute: async (input) => {
+            receivedInput = input;
+            return { success: true, executionTraceId: "trace-1" };
+          },
+        }),
+      },
+      sandbox: dummySandbox,
+    });
+    const tool = tools.langfuse_testEvaluator;
+
+    if (!(tool.inputSchema instanceof z.ZodObject)) {
+      throw new Error("Expected a Zod object input schema");
+    }
+    expect(tool.inputSchema.shape).not.toHaveProperty("silent");
+
+    await expect(
+      tool.execute?.({ evaluatorId: "evaluator-1", silent: true }, {
+        agent: { toolCallId: "tool-call-1" },
+      } as never),
+    ).resolves.toEqual({
+      success: true,
+      executionTraceId: "trace-1",
+    });
+    expect(receivedInput).toEqual({ evaluatorId: "evaluator-1" });
+  });
+
   it("does not advertise silent MCP output without a sandbox", () => {
     const tools = withOptionalSilentMcpOutput({
       tools: {

@@ -1,0 +1,45 @@
+.root {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius-md);
+}
+
+.highlight {
+  pointer-events: none;
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  animation: assistant-update-highlight 2.4s ease-out forwards;
+}
+
+@keyframes assistant-update-highlight {
+  0% {
+    opacity: 0;
+  }
+
+  12%,
+  45% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight {
+    animation: assistant-update-highlight-reduced 2.4s step-end forwards;
+  }
+}
+
+@keyframes assistant-update-highlight-reduced {
+  0%,
+  99% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}

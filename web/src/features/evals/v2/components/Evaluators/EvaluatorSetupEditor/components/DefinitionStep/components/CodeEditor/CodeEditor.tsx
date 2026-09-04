@@ -3,20 +3,36 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
+import {
+  CodeEvaluatorAssistantExperience,
+  type CodeEvaluatorAssistantContext,
+} from "./CodeEvaluatorAssistantExperience";
 import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
+import { useEvaluatorAssistantCodeUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 
 export function CodeEditor({
   projectId,
+  evaluatorId,
   store,
   validationResult,
+  assistantContext,
+  onAssistantSubmit,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
   validationResult: CodeEvalValidationResult | null;
+  assistantContext: CodeEvaluatorAssistantContext | null;
+  onAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
+  const codeUpdateId = useEvaluatorAssistantCodeUpdateSignal(
+    projectId,
+    evaluatorId,
+  );
   const sampleObservation = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
     store,
@@ -38,13 +54,20 @@ export function CodeEditor({
   );
 
   return (
-    <CodeEvalTemplateFormBody
-      sourceCode={state.sourceCode}
-      sourceCodeLanguage={state.sourceCodeLanguage}
-      onSourceCodeChange={state.setSourceCode}
-      editable
-      validationResult={validationResult}
-      ctxSample={ctxSample}
-    />
+    <CodeEvaluatorAssistantExperience
+      context={assistantContext}
+      onAssistantSubmit={onAssistantSubmit}
+    >
+      <InAppAgentUpdateHighlight updateId={codeUpdateId}>
+        <CodeEvalTemplateFormBody
+          sourceCode={state.sourceCode}
+          sourceCodeLanguage={state.sourceCodeLanguage}
+          onSourceCodeChange={state.setSourceCode}
+          editable
+          validationResult={validationResult}
+          ctxSample={ctxSample}
+        />
+      </InAppAgentUpdateHighlight>
+    </CodeEvaluatorAssistantExperience>
   );
 }

@@ -4,6 +4,7 @@ import type { LLMAdapter } from "@langfuse/shared";
 
 import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
 import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
+import type { CodeEvaluatorAssistantContext } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEvaluatorAssistantExperience";
 import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeLanguageSelector/CodeLanguageSelector";
 import { ModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ModelSelector/ModelSelector";
 import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/PromptEditor";
@@ -15,6 +16,7 @@ import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-e
 
 export function DefinitionStepContainer({
   projectId,
+  evaluatorId,
   store,
   isEditing,
   defaultModel,
@@ -25,8 +27,11 @@ export function DefinitionStepContainer({
   onConfigureProviders,
   onSetProjectDefault,
   codeValidationResult,
+  codeEvaluatorAssistantContext,
+  onCodeEvaluatorAssistantSubmit,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
   isEditing: boolean;
   defaultModel: JudgeModel | null;
@@ -37,6 +42,8 @@ export function DefinitionStepContainer({
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
   codeValidationResult: CodeEvalValidationResult | null;
+  codeEvaluatorAssistantContext: CodeEvaluatorAssistantContext | null;
+  onCodeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const state = useStore(
     store,
@@ -80,8 +87,11 @@ export function DefinitionStepContainer({
       codeEditor={
         <CodeEditor
           projectId={projectId}
+          evaluatorId={evaluatorId}
           store={store}
           validationResult={codeValidationResult}
+          assistantContext={codeEvaluatorAssistantContext}
+          onAssistantSubmit={onCodeEvaluatorAssistantSubmit}
         />
       }
     />

@@ -5,6 +5,7 @@ import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { DefinitionStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DefinitionStepContainer/DefinitionStepContainer";
 import { NameStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/components/NameStepContainer/NameStepContainer";
 import { VariableMappingStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";
+import type { CodeEvaluatorAssistantContext } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEvaluatorAssistantExperience";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
@@ -12,6 +13,7 @@ import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-e
 
 export function EvaluatorSetupEditor({
   projectId,
+  evaluatorId,
   store,
   isEditing,
   defaultModel,
@@ -24,8 +26,11 @@ export function EvaluatorSetupEditor({
   onConfigureProviders,
   onSetProjectDefault,
   codeValidationResult,
+  codeEvaluatorAssistantContext,
+  onCodeEvaluatorAssistantSubmit,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
   isEditing: boolean;
   defaultModel: JudgeModel | null;
@@ -40,6 +45,8 @@ export function EvaluatorSetupEditor({
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
   codeValidationResult: CodeEvalValidationResult | null;
+  codeEvaluatorAssistantContext: CodeEvaluatorAssistantContext | null;
+  onCodeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const type = useStore(store, (state) => state.type);
 
@@ -47,6 +54,7 @@ export function EvaluatorSetupEditor({
     <div className="overflow-y-auto p-6">
       <DefinitionStepContainer
         projectId={projectId}
+        evaluatorId={evaluatorId}
         store={store}
         isEditing={isEditing}
         defaultModel={defaultModel}
@@ -57,6 +65,8 @@ export function EvaluatorSetupEditor({
         onConfigureProviders={onConfigureProviders}
         onSetProjectDefault={onSetProjectDefault}
         codeValidationResult={codeValidationResult}
+        codeEvaluatorAssistantContext={codeEvaluatorAssistantContext}
+        onCodeEvaluatorAssistantSubmit={onCodeEvaluatorAssistantSubmit}
       />
       {type === "LLM_AS_JUDGE" ? (
         <VariableMappingStepContainer
