@@ -188,21 +188,26 @@ function OptionSourceRow({ source }: { source: CostSource }) {
   );
 }
 
-/** Option 3: replace/extend tier link — calculated keeps link + label; provided shows provided copy */
+/** Option 3: fold source into the tier line — one italic line */
 function OptionTierReplace({ source }: { source: CostSource }) {
   return (
     <TooltipPanel
-      optionLabel={`3 · Extend tier line · ${source === "calculated" ? "Calculated" : "Provided"}`}
+      optionLabel={`3 · Combined tier line · ${source === "calculated" ? "Calculated" : "Provided"}`}
     >
       <div className="flex flex-col gap-1">
         <span className="font-bold">Cost breakdown</span>
         {source === "calculated" ? (
-          <>
-            <span className="text-muted-foreground text-xs italic">
-              Calculated from model pricing
+          <Link
+            href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
+            className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span className="min-w-0 truncate">
+              Calculated · {priceSource.pricingTierName} Tier Pricing
             </span>
-            <TierPricingLink />
-          </>
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </Link>
         ) : (
           <span className="text-muted-foreground text-xs italic">
             Provided by client
@@ -235,7 +240,6 @@ function OptionBadge({ source }: { source: CostSource }) {
 }
 
 const meta = preview.meta({
-  title: "Features/Traces/BreakdownTooltip/CostSourceOptions",
   parameters: {
     layout: "padded",
     controls: { disable: true },
@@ -263,7 +267,7 @@ export const Option2SourceRow = meta.story({
 });
 
 export const Option3ExtendTierLine = meta.story({
-  name: "3 Extend Tier Line",
+  name: "3 Combined Tier Line",
   render: () => (
     <div className="flex flex-wrap gap-8 p-4">
       <OptionTierReplace source="calculated" />
