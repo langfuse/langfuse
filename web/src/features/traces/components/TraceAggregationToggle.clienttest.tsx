@@ -21,6 +21,8 @@ describe("TraceAggregationToggle", () => {
       "Trace",
       "Session",
     ]);
+    expect(screen.getByRole("tablist")).toHaveClass("bg-muted-foreground/10");
+    expect(screen.getByRole("tablist")).not.toHaveClass("border");
 
     const observationTab = screen.getByRole("tab", { name: "Observation" });
     expect(observationTab.querySelector("svg")).toHaveClass(
