@@ -75,65 +75,19 @@ jobs:
 
       - name: Create or update pull request
         if: steps.changes.outputs.has_changes == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          branch: ${{ env.BOT_BRANCH }}
+          base: main
+          add-paths: ${{ env.GENERATED_FILE }}
+          commit-message: "chore(skills): refresh embedded Langfuse skills"
+          title: "chore(skills): refresh embedded Langfuse skills"
+          body: |
+            Automated refresh of the embedded Langfuse skill catalog.
 
-          git config user.name "langfuse-bot"
-          git config user.email "langfuse-bot@langfuse.com"
-          git switch -c "$BOT_BRANCH"
-          git -c core.hooksPath=/dev/null add -- "$GENERATED_FILE"
+            ## Validation
 
-          mapfile -t staged_files < <(git diff --cached --name-only)
-          if [ "${#staged_files[@]}" -ne 1 ] || [ "${staged_files[0]}" != "$GENERATED_FILE" ]; then
-            echo "::error::Refusing to publish unexpected staged files"
-            exit 1
-          fi
-
-          git diff --cached --check -- "$GENERATED_FILE"
-          git -c core.hooksPath=/dev/null commit --no-verify \
-            -m "chore(skills): refresh embedded Langfuse skills"
-          git -c credential.helper= \
-            push --force \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            "$BOT_BRANCH"
-
-          body_file="$RUNNER_TEMP/langfuse-skills-sync-pr-body.md"
-          cat > "$body_file" <<'EOF'
-          Automated refresh of the embedded Langfuse skill catalog.
-
-          ## Validation
-
-          - `pnpm --filter @repo/langfuse-skills run sync:check`
-          - `node --check packages/langfuse-skills/src/generated/skills.js`
-          - `git diff --check`
-          EOF
-
-          pr_number="$(
-            gh pr list \
-              --head "$BOT_BRANCH" \
-              --base main \
-              --state open \
-              --json number \
-              --jq '.[0].number // empty'
-          )"
-
-          if [ -n "$pr_number" ]; then
-            gh pr edit "$pr_number" \
-              --title "chore(skills): refresh embedded Langfuse skills" \
-              --body-file "$body_file"
-            pr_url="$(gh pr view "$pr_number" --json url --jq '.url')"
-          else
-            pr_url="$(
-              gh pr create \
-                --head "$BOT_BRANCH" \
-                --base main \
-                --title "chore(skills): refresh embedded Langfuse skills" \
-                --body-file "$body_file"
-            )"
-          fi
-
-          echo "Created or updated Langfuse skill sync PR: $pr_url"
-          echo "## Pull request" >> "$GITHUB_STEP_SUMMARY"
-          echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
+            - `pnpm --filter @repo/langfuse-skills run sync:check`
+            - `node --check packages/langfuse-skills/src/generated/skills.js`
+            - `git diff --check`
