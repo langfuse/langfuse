@@ -36,6 +36,9 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
 
+  /** Runs against the context before argument validation; throws to block the call fail-closed. */
+  preValidate?: (context: ServerContext) => void | Promise<void>;
+
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
 
@@ -118,6 +121,7 @@ export function defineTool<TInput, const TName extends string>(
     baseSchema,
     inputSchema,
     handler,
+    preValidate,
     readOnlyHint,
     destructiveHint,
     expensiveHint,
@@ -169,6 +173,8 @@ export function defineTool<TInput, const TName extends string>(
   // Wrap handler with validation and error handling
   const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
     async (rawInput: unknown, context: ServerContext) => {
+      // Authorize before validation so a lacked action fails closed on unparsed input
+      if (preValidate) await preValidate(context);
       // Validate input with the full schema (including refinements)
       const validatedInput = inputSchema.parse(rawInput);
       return await handler(validatedInput, context);

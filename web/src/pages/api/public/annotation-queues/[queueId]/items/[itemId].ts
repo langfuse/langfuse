@@ -17,6 +17,7 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue item by ID",
+    action: "annotationQueues:read",
     querySchema: GetAnnotationQueueItemByIdQuery,
     responseSchema: GetAnnotationQueueItemByIdResponse,
     rateLimitResource: "annotation-queues",
@@ -29,6 +30,7 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Update annotation queue item",
+    action: "annotationQueues:CUD",
     querySchema: GetAnnotationQueueItemByIdQuery,
     bodySchema: UpdateAnnotationQueueItemBody,
     responseSchema: UpdateAnnotationQueueItemResponse,
@@ -44,6 +46,7 @@ export default withMiddlewares({
   }),
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete annotation queue item",
+    action: "annotationQueues:CUD",
     querySchema: DeleteAnnotationQueueItemQuery,
     responseSchema: DeleteAnnotationQueueItemResponse,
     rateLimitResource: "annotation-queues",

@@ -12,6 +12,7 @@ import { addPublicDashboardPlacement } from "@/src/features/dashboard/server/pub
 export default withUnstablePublicApiMiddlewares({
   POST: createUnstablePublicApiRoute({
     name: "Add Unstable Dashboard Placement",
+    action: null,
     querySchema: DashboardIdQuery,
     bodySchema: PostDashboardPlacementBody,
     responseSchema: PostDashboardPlacementResponse,

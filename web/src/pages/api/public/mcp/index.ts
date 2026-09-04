@@ -45,6 +45,7 @@ import {
 } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
+import { resolveMcpAuthz } from "@/src/features/auth/policy/shadow.mcp";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
@@ -131,6 +132,10 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
+    // Legacy decides the connection; the seam runs the policy core beside it
+    // (shadow: parity + coverage, authz attached only on resolve; enforce: gate).
+    const { authz } = await resolveMcpAuthz({ headers: req.headers });
+
     // Build ServerContext from authenticated scope. In-app-agent keys need a
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
@@ -145,6 +150,7 @@ export default async function handler(
       rateLimitOverrides: authCheck.scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
+      authz,
     };
 
     logger.debug("MCP request authenticated", {
