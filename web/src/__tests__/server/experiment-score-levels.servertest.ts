@@ -480,3 +480,160 @@ maybeEventTables("level-agnostic experiment ITEM score filters", () => {
     ]);
   });
 });
+
+maybeEventTables("experiment item scores span the item's subtree", () => {
+  /**
+   * An item whose run has a nested generation, with the score on the NESTED
+   * observation rather than on the item's root span - what an evaluator
+   * configured on generations actually produces.
+   */
+  const seedItemWithNestedScore = async ({
+    projectId,
+    experimentName,
+    startTimeMs,
+    scoreName,
+    value,
+  }: {
+    projectId: string;
+    experimentName: string;
+    startTimeMs: number;
+    scoreName: string;
+    value: number;
+  }) => {
+    const rootSpanId = randomUUID();
+    const childSpanId = randomUUID();
+    const traceId = randomUUID();
+    const experimentId = `exp-${randomUUID()}`;
+    const experimentItemId = randomUUID();
+
+    await createEventsCh([
+      createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: `${experimentName}-root`,
+        type: "SPAN",
+        start_time: startTimeMs * 1000,
+        end_time: (startTimeMs + 200) * 1000,
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_dataset_id: "dataset-subtree",
+        experiment_item_id: experimentItemId,
+        experiment_item_root_span_id: rootSpanId,
+      }),
+      createEvent({
+        id: childSpanId,
+        span_id: childSpanId,
+        parent_span_id: rootSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: `${experimentName}-generation`,
+        type: "GENERATION",
+        start_time: (startTimeMs + 10) * 1000,
+        end_time: (startTimeMs + 100) * 1000,
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_dataset_id: "dataset-subtree",
+        experiment_item_id: experimentItemId,
+        experiment_item_root_span_id: rootSpanId,
+      }),
+    ]);
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: childSpanId,
+        name: scoreName,
+        value,
+        data_type: "NUMERIC",
+        timestamp: startTimeMs,
+      }),
+    ]);
+
+    return { experimentId, rootSpanId, childSpanId };
+  };
+
+  it("qualifies an item scored on a nested observation", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const scoreName = `nested-${randomUUID().slice(0, 8)}`;
+
+    const run = await seedItemWithNestedScore({
+      projectId,
+      experimentName: "nested-score-run",
+      startTimeMs,
+      scoreName,
+      value: 0.9,
+    });
+
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [run.experimentId],
+        filterByExperiment: [
+          {
+            experimentId: run.experimentId,
+            filters: [
+              {
+                type: "numberObject",
+                column: "scores_avg",
+                key: scoreName,
+                operator: ">",
+                value: 0.5,
+              },
+            ],
+          },
+        ],
+      }),
+    ).resolves.toBe(1);
+
+    // The threshold still bites, so the item is not qualifying merely because
+    // an unresolved filter was dropped.
+    await expect(
+      getExperimentItemsCountFromEvents({
+        projectId,
+        compExperimentIds: [run.experimentId],
+        filterByExperiment: [
+          {
+            experimentId: run.experimentId,
+            filters: [
+              {
+                type: "numberObject",
+                column: "scores_avg",
+                key: scoreName,
+                operator: ">",
+                value: 0.95,
+              },
+            ],
+          },
+        ],
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("offers a nested observation's score name, so offered == matchable", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const scoreName = `nested-offered-${randomUUID().slice(0, 8)}`;
+
+    const run = await seedItemWithNestedScore({
+      projectId,
+      experimentName: "nested-offered-run",
+      startTimeMs,
+      scoreName,
+      value: 0.7,
+    });
+
+    const options = await getExperimentItemsFilterOptions({
+      projectId,
+      experimentIds: [run.experimentId],
+    });
+
+    expect(options.scores_avg).toContain(scoreName);
+    expect(options.score_name_levels_numeric[scoreName]).toEqual([
+      "observation",
+    ]);
+  });
+});

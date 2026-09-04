@@ -213,10 +213,11 @@ const experimentScoreCTE = (params: {
 };
 
 /**
- * Per-item score arrays that span BOTH levels: scores recorded on the item's
- * root span and scores recorded on its trace. Keyed by the root span id, which
- * is unique per (experiment, item) - so a join on it scopes to one experiment's
- * run of that item without any experiment predicate of its own.
+ * Per-item score arrays that span BOTH levels and the item's whole subtree:
+ * scores on any observation the item produced, plus scores on its trace. Keyed
+ * by the root span id, which is unique per (experiment, item) - so a join on it
+ * scopes to one experiment's run of that item without any experiment predicate
+ * of its own.
  *
  * The level is kept in the inner GROUP BY, giving one array entry per
  * (name, level). Score filters compile to array-existence checks, so a positive
@@ -226,11 +227,11 @@ const experimentScoreCTE = (params: {
 const experimentItemScoreCTE = (params: {
   projectId: string;
   startTimeFrom?: string | null;
-  itemRootsCTE: CTEWithSchema;
+  itemSpansCTE: CTEWithSchema;
 }) => {
   const joinedItemScores = new CTEQueryBuilder()
-    .withCTE("item_roots", {
-      ...params.itemRootsCTE,
+    .withCTE("item_spans", {
+      ...params.itemSpansCTE,
     })
     .withCTE("unit_scores", {
       ...buildScoresCTE({
@@ -239,25 +240,27 @@ const experimentItemScoreCTE = (params: {
         level: "any",
       }),
     })
-    .from("item_roots", "ir")
+    .from("item_spans", "isp")
     .innerJoin(
       "unit_scores",
       "us",
-      // Observation-level scores count only when they sit on the item's ROOT
-      // span (the pre-existing scope); trace-level ones carry no observation.
-      "ON us.project_id = ir.project_id AND us.trace_id = ir.trace_id AND (us.observation_id = ir.root_span_id OR us.observation_id IS NULL)",
+      // An observation-level score counts when it sits on ANY observation the
+      // item produced, not only its root span - an evaluator usually scores the
+      // generation inside the run. Trace-level scores carry no observation, and
+      // are matched at the root row only so they are not counted once per span.
+      "ON us.project_id = isp.project_id AND us.trace_id = isp.trace_id AND (us.observation_id = isp.span_id OR (us.observation_id IS NULL AND isp.span_id = isp.root_span_id))",
     )
     .select(
-      "ir.project_id AS project_id",
-      "ir.root_span_id AS root_span_id",
+      "isp.project_id AS project_id",
+      "isp.root_span_id AS root_span_id",
       "us.name AS name",
       "us.data_type AS data_type",
       "us.string_value AS string_value",
       "avg(us.avg_value) AS item_avg",
     )
     .groupBy(
-      "ir.project_id",
-      "ir.root_span_id",
+      "isp.project_id",
+      "isp.root_span_id",
       "us.name",
       "us.data_type",
       "us.string_value",
@@ -694,11 +697,16 @@ const buildScoreFilterOptionsQuery = (params: {
 }): { query: string; params: Record<string, unknown> } => {
   const { projectId, experimentIds, level } = params;
 
-  // Build experiment events CTE using existing fragment
-  const experimentEventsCTE = eventsExperimentsRootSpans({
-    projectId,
-    experimentIds,
-  })
+  // Offered-set == matchable-set. An observation-level filter matches a score on
+  // ANY observation the run produced, so discovery has to see them all - keying
+  // off root spans alone would hide every score an evaluator wrote to a nested
+  // generation, offering less than the filter can match. The trace level joins
+  // on trace_id only, so root spans are enough there and scan less.
+  const experimentEventsCTE = (
+    level === "trace"
+      ? eventsExperimentsRootSpans({ projectId, experimentIds })
+      : eventsExperimentsForItems({ projectId, experimentIds })
+  )
     .selectRaw("e.project_id", "e.trace_id", "e.span_id")
     .limitBy("e.project_id", "e.trace_id", "e.span_id")
     .buildWithParams();
@@ -1154,16 +1162,23 @@ const getExperimentItemsFromEventsGeneric = (params: {
     config,
   });
 
-  // The item roots the agnostic score aggregate is keyed by. Scoped to the
-  // experiments in play so the CTE never scans the whole project.
-  const itemRoots = eventsExperimentsRootSpans({
+  // Every observation each item produced, tagged with the item's root span so
+  // the aggregate can key by it. Scoped to the experiments in play so the CTE
+  // never scans the whole project.
+  const itemSpans = eventsExperimentsForItems({
     projectId,
     experimentIds: [
       ...(baseExperimentId ? [baseExperimentId] : []),
       ...compExperimentIds,
     ],
   })
-    .selectRaw("e.project_id", "e.span_id AS root_span_id", "e.trace_id")
+    .whereRaw("e.experiment_item_root_span_id != ''")
+    .selectRaw(
+      "e.project_id",
+      "e.experiment_item_root_span_id AS root_span_id",
+      "e.trace_id",
+      "e.span_id",
+    )
     .limitBy("e.project_id", "e.span_id")
     .buildWithParams();
 
@@ -1181,9 +1196,9 @@ const getExperimentItemsFromEventsGeneric = (params: {
         "item_scores_agg",
         experimentItemScoreCTE({
           projectId,
-          itemRootsCTE: {
-            ...itemRoots,
-            schema: ["project_id", "root_span_id", "trace_id"],
+          itemSpansCTE: {
+            ...itemSpans,
+            schema: ["project_id", "root_span_id", "trace_id", "span_id"],
           },
         }),
       ),
