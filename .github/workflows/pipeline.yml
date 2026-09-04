@@ -464,21 +464,25 @@ jobs:
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
         # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
-        # The static tarball comes straight from ClickHouse's package host, so
-        # no apt-get and no Ubuntu mirror is involved. continue-on-error +
-        # timeout-minutes: a failed download just skips the tests, never
-        # blocks (timeout-minutes bounds a hang, which continue-on-error
-        # alone would not).
+        # The static tarball comes straight from ClickHouse's package host and
+        # is checked against a pinned SHA-512, so no apt-get and no Ubuntu
+        # mirror is involved. continue-on-error + timeout-minutes: a failed
+        # download just skips the tests, never blocks (timeout-minutes bounds
+        # a hang, which continue-on-error alone would not).
         continue-on-error: true
         timeout-minutes: 5
         env:
           CLICKHOUSE_VERSION: 26.4.5.143
+          # From the .sha512 file published next to the tarball; update it
+          # together with CLICKHOUSE_VERSION.
+          CLICKHOUSE_SHA512: b42cb1a26cd990264f5aa6058de870720f28b5af1c43d2dda9829c993a1356f6569180553417ccdfb19c0b887c8b19e46083aaf99c3f06bf3a4da3e8582e5799
         run: |
           set -euo pipefail
           archive="clickhouse-common-static-${CLICKHOUSE_VERSION}"
           curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
             --output "$RUNNER_TEMP/$archive.tgz" \
             "https://packages.clickhouse.com/tgz/stable/$archive-amd64.tgz"
+          echo "${CLICKHOUSE_SHA512}  $RUNNER_TEMP/$archive.tgz" | sha512sum -c -
           tar xzf "$RUNNER_TEMP/$archive.tgz" -C "$RUNNER_TEMP" "$archive/usr/bin/clickhouse"
           sudo install -m 0755 "$RUNNER_TEMP/$archive/usr/bin/clickhouse" /usr/local/bin/clickhouse
           clickhouse --version

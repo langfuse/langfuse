@@ -40,11 +40,6 @@ evaluating, and debugging AI applications.
 - Always quote file paths in shell commands, or use `noglob` for path-heavy
   commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
-- CI jobs in `.github/workflows/pipeline.yml` never run `apt-get` on their
-  hot path: Canonical's Ubuntu mirrors are the pipeline's least reliable
-  dependency. Use what the runner image ships, or fetch a pinned binary
-  directly (`curl` + tarball); `scripts/ci/install-playwright-chromium.sh`
-  shows the pattern, including a probe-gated apt fallback.
 - Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
   tracker URLs into anything an OSS reader meets: code comments, commit messages,
   PR titles and descriptions, changelog entries, or user-facing docs. They mean

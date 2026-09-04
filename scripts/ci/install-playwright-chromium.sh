@@ -33,5 +33,8 @@ if probe; then
 fi
 
 echo "::warning title=Chromium launch probe failed::Installing Chromium OS dependencies via apt as a fallback. The runner image no longer ships them; check the runner label or image."
-pnpm --filter=web exec playwright install-deps chromium
+# One bounded attempt, no retry: `timeout` cannot reach the apt-get that
+# playwright spawns via sudo, so a second attempt after a stall would only
+# fail on the dpkg lock the first one still holds.
+timeout 300 pnpm --filter=web exec playwright install-deps chromium
 probe
