@@ -39,10 +39,13 @@ env:
   # restore CI caches.
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
-  # Pull requests and merge groups test only files related to their immutable
-  # event base. Pushes remain full runs; duplicate main pushes are skipped by
-  # pre-job when the same tree already passed the merge queue.
-  VITEST_CHANGED_SINCE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
+  # Pull requests without the `full-test` label select files against the
+  # immutable PR base. Merge groups, pushes, workflow_dispatch, and PRs labeled
+  # `full-test` run the full suite. Duplicate main pushes are skipped by
+  # pre-job when the same tree already passed the merge queue. Adding the
+  # label to an already-running PR needs a re-run (this workflow does not
+  # subscribe to `labeled`, so an unrelated label cannot cancel in-flight CI).
+  VITEST_CHANGED_SINCE: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-test') && github.event.pull_request.base.sha || '' }}
 
 jobs:
   validate-v3-release-tag:
@@ -109,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
+          fetch-depth: ${{ env.VITEST_CHANGED_SINCE != '' && '0' || '1' }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -482,7 +485,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
+          fetch-depth: ${{ env.VITEST_CHANGED_SINCE != '' && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -516,9 +519,9 @@ jobs:
         run: |
           changed_args=()
           if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
-            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+            changed_args=(--changed "$VITEST_CHANGED_SINCE" --passWithNoTests)
           fi
-          pnpm --filter @langfuse/shared run test "${changed_args[@]}" --passWithNoTests
+          pnpm --filter @langfuse/shared run test "${changed_args[@]}"
       - name: Install ClickHouse binary for SQL-equivalence tests
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
@@ -663,7 +666,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
+          fetch-depth: ${{ env.VITEST_CHANGED_SINCE != '' && '0' || '1' }}
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations in background
         # Only needed by the "Migrate DB" step, so let the dependency setup
@@ -810,9 +813,9 @@ jobs:
         run: |
           changed_args=()
           if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
-            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+            changed_args=(--changed "$VITEST_CHANGED_SINCE" --passWithNoTests)
           fi
-          npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8 "${changed_args[@]}" --passWithNoTests
+          npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8 "${changed_args[@]}"
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
@@ -829,7 +832,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
+          fetch-depth: ${{ env.VITEST_CHANGED_SINCE != '' && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -862,9 +865,9 @@ jobs:
         run: |
           changed_args=()
           if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
-            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+            changed_args=(--changed "$VITEST_CHANGED_SINCE" --passWithNoTests)
           fi
-          pnpm run test-client "${changed_args[@]}" --passWithNoTests
+          pnpm run test-client "${changed_args[@]}"
 
   tests-worker:
     timeout-minutes: 20
@@ -887,7 +890,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
+          fetch-depth: ${{ env.VITEST_CHANGED_SINCE != '' && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -968,9 +971,9 @@ jobs:
         run: |
           changed_args=()
           if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
-            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+            changed_args=(--changed "$VITEST_CHANGED_SINCE" --passWithNoTests)
           fi
-          pnpm --filter=worker run test:exclude-llm-connections "${changed_args[@]}" --passWithNoTests
+          pnpm --filter=worker run test:exclude-llm-connections "${changed_args[@]}"
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
   test-worker-llm-connections:

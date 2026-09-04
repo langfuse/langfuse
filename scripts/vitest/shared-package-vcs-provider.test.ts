@@ -21,6 +21,8 @@ test("selects package test jobs before their builds", () => {
   const repositoryRoot = "/repo";
   const file = (path: string) => join(repositoryRoot, path);
 
+  // Empty changed-since (merge_group, push, or the `full-test` PR label)
+  // selects every package job.
   assert.deepEqual(selectTestScopes([], repositoryRoot, false), {
     full: true,
     shared: true,

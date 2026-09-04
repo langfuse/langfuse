@@ -7,6 +7,8 @@ import {
 
 const changedSince = process.argv[2];
 const repositoryRoot = resolve(process.cwd());
+// Empty changed-since is the full-suite path: merge_group, push,
+// workflow_dispatch, and pull requests labeled `full-test`.
 const changedFiles = changedSince
   ? await createSharedPackageVcsProvider().findChangedFiles({
       root: repositoryRoot,
