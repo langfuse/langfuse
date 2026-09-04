@@ -1,0 +1,35 @@
+name: Login to Docker Hub
+description: >-
+  docker/login-action with one retry. Docker Hub's auth endpoint returns
+  intermittent 5xx responses; without the retry a job fails before it pulls
+  anything.
+
+inputs:
+  username:
+    description: Docker Hub username
+    required: true
+  password:
+    description: Docker Hub access token
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - id: login
+      continue-on-error: true
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      with:
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
+    - name: Wait before retrying Docker Hub login
+      if: steps.login.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning title=Docker Hub login failed::Retrying after 10s"
+        sleep 10
+    - name: Retry Docker Hub login
+      if: steps.login.outcome == 'failure'
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      with:
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}

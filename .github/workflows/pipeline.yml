@@ -131,10 +131,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -198,10 +195,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -234,10 +228,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -297,10 +288,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -335,10 +323,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -354,10 +339,18 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Setup Blacksmith Builder
+        # The e2e test builds the sandbox image (node:24-alpine, apk, npm
+        # install) on every run. A Blacksmith-backed builder keeps those
+        # layers across runs so only the `COPY dist` layer rebuilds; on a
+        # non-Blacksmith runner the action falls back to a local builder.
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/sandbox-runtime-e2e
       - name: install dependencies
         run: |
           pnpm install
@@ -383,10 +376,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -417,23 +407,11 @@ jobs:
         # same reason. `prisma generate` only reads the schema; it needs no DB.
         run: pnpm --filter=shared run db:generate
       - name: Install playwright
-        # apt-get (pulled in by --with-deps) occasionally stalls against a
-        # slow/unresponsive mirror and can ride the job's timeout-minutes
-        # instead of failing fast (observed: a 10-minute hang cancelled by
-        # the job timeout). A normal install takes well under a minute, so
-        # bound each attempt and retry instead of trusting the job-level
-        # timeout as the only guard.
-        run: |
-          attempt=1
-          until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
-            if [ "$attempt" -ge 3 ]; then
-              echo "Playwright install failed after 3 attempts" >&2
-              exit 1
-            fi
-            echo "Attempt $attempt failed (possibly a stalled apt mirror), retrying in $((attempt * 15))s..." >&2
-            sleep $((attempt * 15))
-            attempt=$((attempt + 1))
-          done
+        # Downloads the Chromium headless shell without `--with-deps`: the
+        # runner image already ships the Chromium libraries, and the apt-get
+        # that flag runs against Canonical's mirrors was this job's main
+        # failure source. apt remains a probe-gated fallback in the script.
+        run: bash scripts/ci/install-playwright-chromium.sh
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
       - name: build Storybook
@@ -454,10 +432,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -489,24 +464,23 @@ jobs:
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
         # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
-        # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
-        # mirror just skips the tests, never blocks (timeout-minutes bounds a
-        # hang, which continue-on-error alone would not).
+        # The static tarball comes straight from ClickHouse's package host, so
+        # no apt-get and no Ubuntu mirror is involved. continue-on-error +
+        # timeout-minutes: a failed download just skips the tests, never
+        # blocks (timeout-minutes bounds a hang, which continue-on-error
+        # alone would not).
         continue-on-error: true
         timeout-minutes: 5
         env:
           CLICKHOUSE_VERSION: 26.4.5.143
         run: |
           set -euo pipefail
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
-            | gpg --dearmor \
-            | sudo tee /etc/apt/keyrings/clickhouse.gpg >/dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/clickhouse.gpg] https://packages.clickhouse.com/deb stable main" \
-            | sudo tee /etc/apt/sources.list.d/clickhouse.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install --allow-downgrades -y \
-            "clickhouse-common-static=${CLICKHOUSE_VERSION}"
+          archive="clickhouse-common-static-${CLICKHOUSE_VERSION}"
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            --output "$RUNNER_TEMP/$archive.tgz" \
+            "https://packages.clickhouse.com/tgz/stable/$archive-amd64.tgz"
+          tar xzf "$RUNNER_TEMP/$archive.tgz" -C "$RUNNER_TEMP" "$archive/usr/bin/clickhouse"
+          sudo install -m 0755 "$RUNNER_TEMP/$archive/usr/bin/clickhouse" /usr/local/bin/clickhouse
           clickhouse --version
       - name: run SQL-equivalence tests (non-blocking)
         # Non-blocking: a snapshot drift or an intentional SQL change emits a
@@ -547,7 +521,7 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -646,13 +620,10 @@ jobs:
             sudo mv migrate /usr/bin/migrate
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -792,10 +763,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -843,13 +811,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -936,13 +901,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -1007,6 +969,7 @@ jobs:
 
   e2e-tests:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1019,10 +982,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1038,7 +998,7 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -1087,8 +1047,10 @@ jobs:
         run: |
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Install playwright in background
+        # Same install path as tests-storybook (no apt unless the launch
+        # probe fails); "Wait for playwright install" collects the result.
         run: |
-          (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
+          (set +e; bash scripts/ci/install-playwright-chromium.sh > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build
         env:
@@ -1121,8 +1083,11 @@ jobs:
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed
       - name: Wait for playwright install
+        # The install script bounds each of its three download attempts at
+        # 90s, so a healthy install is long done; this only guards the apt
+        # fallback path.
         run: |
-          timeout 600 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' \
+          timeout 420 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' \
             || { echo "Timed out waiting for playwright install"; cat /tmp/playwright-install.log; exit 1; }
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
@@ -1145,14 +1110,11 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: ./.github/actions/dockerhub-login
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-        with:
-          install: false
-          cache: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
