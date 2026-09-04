@@ -60,6 +60,20 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "s",
   },
   {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluator_id",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluation_rule_id",
+    queryPrefix: "s",
+  },
+  {
     uiTableName: "Value",
     uiTableId: "value",
     clickhouseTableName: "scores",

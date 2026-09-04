@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -26,8 +26,9 @@ import {
   PromptType,
   StringNoHTMLNonEmpty,
   TracingSearchType,
+  orderBy,
+  singleFilter,
 } from "@langfuse/shared";
-import { orderBy, singleFilter } from "@langfuse/shared";
 import {
   orderByToPrismaSql,
   PromptService,

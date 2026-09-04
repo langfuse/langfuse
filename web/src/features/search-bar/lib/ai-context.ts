@@ -8,33 +8,15 @@
 // Everything is capped so the added context stays small (window/cost).
 
 import type { ObservedOptions } from "./observed-options";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 
-// Columns whose observed values help map a phrase to the right column/value.
-// High-cardinality ids (userId/sessionId/id) are excluded — too many to list and
-// the user types those verbatim anyway.
-const VALUE_COLUMNS: Array<{ col: string; label: string }> = [
-  { col: "type", label: "type" },
-  { col: "level", label: "level" },
-  { col: "environment", label: "environment" },
-  { col: "traceName", label: "traceName" },
-  { col: "name", label: "name" },
-  { col: "traceTags", label: "traceTags (tags)" },
-  { col: "providedModelName", label: "providedModelName (model)" },
-  { col: "promptName", label: "promptName" },
-  { col: "scores_avg", label: "scores.<name> (numeric)" },
-  { col: "score_categories", label: "scores.<name> (categorical)" },
-  { col: "score_booleans", label: "scores.<name> (boolean)" },
-  { col: "trace_scores_avg", label: "traceScores.<name> (numeric)" },
-  { col: "trace_score_categories", label: "traceScores.<name> (categorical)" },
-  { col: "trace_score_booleans", label: "traceScores.<name> (boolean)" },
-];
-
-// Filter-options columns the AI prompt grounds on (lazy mode: requested when
-// Ask AI opens so the model sees real values). Excludes high-cardinality ids by
-// construction — `VALUE_COLUMNS` already omits userId/sessionId/id.
-export const AI_GROUNDING_COLUMNS: readonly string[] = VALUE_COLUMNS.map(
-  (c) => c.col,
-);
+export function aiContextObservedOptionsKeys(
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): readonly string[] {
+  return registry.aiContextFields.map(
+    ({ observedOptionsKey }) => observedOptionsKey,
+  );
+}
 
 const MAX_VALUES_PER_COL = 25;
 const MAX_METADATA_KEYS = 30;
@@ -80,19 +62,29 @@ export function buildAiContext(args: {
   sampleMetadata: unknown[];
   /** Number of currently-loaded/visible rows (so the model can warn when 0). */
   resultCount: number | null;
+  registry?: FieldRegistry;
 }): string | undefined {
-  const { observed, sampleMetadata, resultCount } = args;
+  const {
+    observed,
+    sampleMetadata,
+    resultCount,
+    registry = EVENTS_FIELD_REGISTRY,
+  } = args;
   const sections: string[] = [];
 
   if (observed) {
     const valueLines: string[] = [];
-    for (const { col, label } of VALUE_COLUMNS) {
-      const vals = (observed[col] ?? [])
+    for (const {
+      observedOptionsKey,
+      promptLabel,
+    } of registry.aiContextFields) {
+      const vals = (observed[observedOptionsKey] ?? [])
         .map((o) => o.value)
         .filter((v) => v.length > 0)
         .slice(0, MAX_VALUES_PER_COL)
         .map((v) => v.slice(0, MAX_VALUE_LEN));
-      if (vals.length > 0) valueLines.push(`- ${label}: ${vals.join(", ")}`);
+      if (vals.length > 0)
+        valueLines.push(`- ${promptLabel}: ${vals.join(", ")}`);
     }
     if (valueLines.length > 0) {
       sections.push(

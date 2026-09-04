@@ -15,7 +15,7 @@ export const PostUnstableDashboardWidgetView = z.enum([
   "scores-categorical",
 ]);
 
-export const DashboardWidgetViewOutput = z.enum([
+const DashboardWidgetViewOutput = z.enum([
   "observations",
   "scores-numeric",
   "scores-boolean",
@@ -57,7 +57,7 @@ export const PostUnstableDashboardWidgetBody =
     description: z.string().default(""),
   });
 
-export const PublicDashboardWidget = z
+const PublicDashboardWidget = z
   .object({
     id: z.string(),
     createdAt: z.coerce.date(),

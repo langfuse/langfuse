@@ -1,5 +1,8 @@
 import { type JobConfiguration, type JobExecution } from "@prisma/client";
-import { type EvalTemplateCodeBased } from "@langfuse/shared";
+import {
+  type EvalExecutionContext,
+  type EvalTemplateCodeBased,
+} from "@langfuse/shared";
 import {
   CodeEvalExecutionError,
   instrumentAsync,
@@ -17,12 +20,14 @@ import { type EvalExecutionDeps } from "../evalExecutionDeps";
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
   organizationId: string;
+  evaluatorId?: string;
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   executionMetadata: Record<string, string>;
+  evaluationContext: EvalExecutionContext;
   // Unused by code-based eval; the shared observation processor passes it.
   deps?: EvalExecutionDeps;
 }): Promise<EvalExecutionResult> {
@@ -63,11 +68,13 @@ export async function executeCodeBasedEvaluation(params: {
         projectId: params.projectId,
         executionTraceId,
         jobExecutionId,
-        template: params.template,
+        evaluator: { id: params.evaluatorId ?? params.template.id },
+        version: params.template,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
         metadata: executionMetadata,
+        evaluationContext: params.evaluationContext,
         // Publish via the OTel ingestion pipeline (like LLM-as-a-judge) so the
         // trace reaches the legacy tables too in dual write mode — a direct
         // events-table write alone 404s in the trace detail view.
@@ -75,10 +82,6 @@ export async function executeCodeBasedEvaluation(params: {
       });
 
       if (!dispatchOutcome.success) {
-        if (dispatchOutcome.error.retryable === false) {
-          throw new UnrecoverableError(dispatchOutcome.error.message);
-        }
-
         throw new CodeEvalExecutionError(dispatchOutcome.error);
       }
 
@@ -88,6 +91,7 @@ export async function executeCodeBasedEvaluation(params: {
         scores: dispatchOutcome.scores,
         executionTraceId,
         metadata: executionMetadata,
+        evaluationContext: params.evaluationContext,
       };
     },
   );

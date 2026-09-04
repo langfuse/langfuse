@@ -50,6 +50,7 @@ import {
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
+import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { prisma } from "@langfuse/shared/src/db";
@@ -429,7 +430,11 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 
-if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED,
+  )
+) {
   WorkerManager.register(
     QueueName.InAppAgentRunQueue,
     inAppAgentRunQueueProcessor,
@@ -777,7 +782,11 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
 // Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
 export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 
-if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED === "true") {
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED,
+  )
+) {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
 }

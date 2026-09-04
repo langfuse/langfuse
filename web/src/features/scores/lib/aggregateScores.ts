@@ -46,6 +46,28 @@ export const decomposeAggregateScoreKey = (
   };
 };
 
+/**
+ * How many values each score name carries across the aggregates handed in —
+ * the counting sibling of `collectPresentScoreKeys`, which only answers
+ * whether a score is present at all. Keyed by normalized score name and summed
+ * across sources and data types, so a surface can prefer the best-recorded
+ * score over whichever name sorts first. Client-side, from data already
+ * fetched.
+ */
+export const collectScoreNameCoverage = (
+  aggregates: (ScoreAggregate | null | undefined)[],
+): Map<string, number> => {
+  const coverage = new Map<string, number>();
+  for (const aggregate of aggregates) {
+    if (!aggregate) continue;
+    for (const [key, value] of Object.entries(aggregate)) {
+      const { name } = decomposeAggregateScoreKey(key);
+      coverage.set(name, (coverage.get(name) ?? 0) + value.values.length);
+    }
+  }
+  return coverage;
+};
+
 export const getScoreLabelFromKey = (key: string): string => {
   const { name, source, dataType } = decomposeAggregateScoreKey(key);
   return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
@@ -61,11 +83,21 @@ export type ScoreToAggregate =
     });
 
 /**
+ * Display value of a boolean score. They are stored as 0/1 with "True"/"False"
+ * string values, but users read and write them as booleans.
+ */
+export const toBooleanScoreValue = (score: {
+  value?: number | null;
+  stringValue?: string | null;
+}): string =>
+  score.value === 1 || score.stringValue === "True" ? "true" : "false";
+
+/**
  * Maps score data types to aggregate types for processing.
  * Boolean scores are treated as categorical since they share the same
  * aggregation logic (value counting vs numeric averaging).
  */
-export const resolveAggregateType = (
+const resolveAggregateType = (
   dataType: ListableScoreDataType,
 ): "NUMERIC" | "CATEGORICAL" => {
   return dataType === "NUMERIC" ? "NUMERIC" : "CATEGORICAL";
@@ -113,7 +145,15 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         timestamp: values.length === 1 ? scores[0].timestamp : undefined,
       };
     } else {
-      const values = scores.map((score) => score.stringValue ?? "n/a");
+      const isBoolean = scores[0].dataType === "BOOLEAN";
+      // Sorted by value: the score rows arrive in event-timestamp order, so an
+      // unsorted cell lists "true, false" in one row and "false, true" in the
+      // next, which makes a score column impossible to scan.
+      const values = scores
+        .map((score) =>
+          isBoolean ? toBooleanScoreValue(score) : (score.stringValue ?? "n/a"),
+        )
+        .sort((a, b) => a.localeCompare(b));
       if (!Boolean(values.length)) return acc;
       const valueCounts = values.reduce(
         (acc, value) => {

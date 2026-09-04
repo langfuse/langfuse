@@ -46,7 +46,13 @@ export const viewDeclaration = z.object({
         .optional(),
       highCardinality: z.boolean().optional(),
       uiHidden: z.boolean().optional(),
+      // Expands dimension.sql independently with arrayJoin(), producing one row
+      // per array element. Duplicate elements duplicate the source row; use
+      // arrayDistinct(...) in sql when the intended grain is entity + distinct value.
       explodeArray: z.boolean().optional(),
+      // Expands dimension.sql and valuesSql together in one ARRAY JOIN, pairing
+      // elements by position and exposing valueAlias to a dependent measure.
+      // Only one pairExpand dimension is supported per query, and it cannot be filtered.
       pairExpand: z
         .object({
           valuesSql: z.string(),
@@ -64,6 +70,11 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      // Natural aggregation the widget builder preselects when the user
+      // switches to this measure (e.g. `sum` for toolCalls, where a carried-over
+      // `count` would count observations instead of tool calls). UI-only
+      // default; the query builder never reads it.
+      defaultAggregation: metricAggregations.optional(),
       aggs: z.record(z.string(), z.string()).optional(),
       // Override query semantics for specific user-selected aggregations while
       // keeping the base declaration as the UI/default compatibility contract.
@@ -78,9 +89,8 @@ export const viewDeclaration = z.object({
           }),
         )
         .optional(),
-      // When set, the query builder will auto-include this dimension if it is absent.
-      // Used for pairExpand value-alias measures (e.g. costByType requires costType so
-      // the ARRAY JOIN is emitted and "cost_value" is in scope).
+      // Auto-includes a dimension needed to evaluate the measure, including its
+      // explodeArray or pairExpand behavior and resulting aliases.
       requiresDimension: z.string().optional(),
     }),
   ),

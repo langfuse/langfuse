@@ -23,13 +23,22 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+- Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
+  recording/diff harness that captures the current SQL at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
+  `clickhouse format` for snapshot comparison. Every migrated call site is
+  proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
+  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
+  typed selection, virtual views, catalog parity) lives under
+  `src/server/query-ast/kysely/`.
 - Postgres schema: `prisma/schema.prisma`
-- For unstable public eval APIs, the public `evaluatorId` is currently the
-  exact `EvalTemplate.id`. Latest-version family grouping is derived from
-  `(projectId, name)` rather than stored on extra evaluator identity fields.
 - Prisma migrations: `prisma/migrations/*`
-- ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
+- Canonical ClickHouse migration templates (rendered for clustered and
+  unclustered installs): `clickhouse/migrations/canonical/*`
+- ClickHouse SQL identifier and string quoting:
+  `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points
@@ -56,6 +65,8 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/instrumentation/bootstrap` via
+  `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe durable in-app-agent contracts: AG-UI messages/events/context,
   run requests/status/errors, approval events, constants, message helpers,
@@ -67,9 +78,12 @@
   the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
+  `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
-  `@langfuse/shared/src/utils/chatml`.
+  `@langfuse/shared/src/utils/chatml`. The experimental
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe but **do not
+  use it yet**; its public contract is still being validated.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
@@ -96,6 +110,8 @@ the same PR.
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
+- Materialize direct-migration trees: `pnpm ch:migrations:materialize`
+- Clean direct-migration trees: `pnpm ch:migrations:clean`
 
 ## Playbooks
 
@@ -109,7 +125,16 @@ the same PR.
 
 ### ClickHouse schema change
 
-1. Add migration under `clickhouse/migrations/*`.
+1. Add one canonical migration pair under `clickhouse/migrations/canonical/*`.
+   - Use `{CLICKHOUSE_CLUSTER_CLAUSE}` for every cluster-aware DDL clause.
+   - Use `{CLICKHOUSE_REPLICATION_PREFIX}` only on table engines that should
+     be replicated in clustered mode and plain in unclustered mode.
+   - Put clustered-only synchronization fragments inside
+     `{CLICKHOUSE_CLUSTERED_ONLY:...}`. Use
+     `{CLICKHOUSE_UNCLUSTERED_ONLY:...}` only when preserving a deliberate
+     mode-specific difference.
+   - Run `src/server/clickhouse/prepareMigrations.test.ts`; it validates both
+     rendered modes and protects the historical migration output.
    - Redefining views or materialized views follows strict patterns (no
      `CREATE OR REPLACE VIEW`; MV SELECT changes via
      `ALTER TABLE … MODIFY QUERY`) — apply the "Langfuse-Specific Rules" in
@@ -164,6 +189,10 @@ the same PR.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
+- Adding vocabulary here — a field on a shared schema, an option on a shared
+  signature, an enum member, a branch for one caller — is owned by `web`,
+  `worker`, and `ee` at once. Apply
+  `.agents/skills/backend-dev-guidelines/references/new-concepts.md` first.
 - Changes to domain constants consumed by blob storage exports (e.g.
   `LISTABLE_SCORE_TYPES` in `src/domain/scores.ts`, score data type enums)
   should be reviewed against the blob storage export field reference docs for

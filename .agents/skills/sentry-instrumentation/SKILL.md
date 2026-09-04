@@ -122,15 +122,14 @@ ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
    user/session ids. This is not hygiene — it is the compliance boundary: ALL
    cloud regions, **including HIPAA**, report to the **same US Sentry org**,
    and error events are **never masked**, so this discipline is the only thing
-   keeping user content out of them. Session Replay is the one masked channel:
-   [`instrumentation-client.ts`](../../../web/instrumentation-client.ts) gates
-   `maskAllText`/`blockAllMedia` so replays are fully masked everywhere except
-   the EU/US non-HIPAA cloud regions. **Never remove or weaken that gate** —
-   the gate (`isEuOrUsRegionNonHipaa` → the `replayIntegration` options) must
-   be covered by a CI regression test asserting the masked/unmasked regions on
-   the real module (the mask-guard
+   keeping user content out of them. Session Replay is the masked channel:
+   [`instrumentation-client.ts`](../../../web/instrumentation-client.ts) sets
+   `maskAllText`, `maskAllInputs`, and `blockAllMedia` so every replay is fully
+   masked in every deployment. **Never remove or weaken that mask** — the
+   `replayIntegration` options must be covered by a CI regression test
+   asserting every region against the real module (the mask-guard
    `instrumentation-client-replay-mask.clienttest.ts`; landing with #15802).
-   Reject any diff that touches the gate without that guard passing, and run
+   Reject any diff that touches Replay masking without that guard passing, and run
    every diff touching `instrumentation-client.ts` or replay config through
    the reviewer checklist in the
    [reference](references/sentry-capture-contract.md#pii-and-the-hipaa-compliance-boundary).
@@ -171,7 +170,7 @@ ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
   that reads the wrong event field (Rule 6).
 - Interpolating ids/user data into the message → PII + grouping explosion
   (Rules 5, 7).
-- Removing/weakening the region-gated replay mask, or "fixing" the mask-guard
+- Removing/weakening the unconditional replay mask, or "fixing" the mask-guard
   test instead of the diff that tripped it (Rule 7).
 - Trusting a green jsdom test as proof the noise is gone (Rule 8).
 - An ad-hoc inline `beforeSend` check instead of a named, tested predicate in

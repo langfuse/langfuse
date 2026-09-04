@@ -5,8 +5,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
 type ReferencingEvaluator = {
@@ -22,7 +21,7 @@ const EvaluatorLink = ({
   evaluator: ReferencingEvaluator;
 }) => (
   <Link
-    href={`/project/${projectId}/evals?peek=${evaluator.id}`}
+    href={`/project/${projectId}/evals/legacy?peek=${evaluator.id}`}
     target="_blank"
     rel="noopener noreferrer"
     className="inline-flex items-center gap-1 text-blue-600 hover:underline"

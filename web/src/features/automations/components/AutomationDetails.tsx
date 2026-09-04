@@ -9,6 +9,7 @@ import {
   type AutomationDomain,
   JobConfigState,
   TriggerEventSource,
+  type FilterState,
 } from "@langfuse/shared";
 import {
   TabsBar,
@@ -16,10 +17,9 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { type FilterState } from "@langfuse/shared";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 interface AutomationDetailsProps {
@@ -38,6 +38,8 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   onDelete,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isFailureBannerDismissed, setIsFailureBannerDismissed] =
+    useState(false);
   const [activeTab, setActiveTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "executions"),
@@ -54,6 +56,17 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
         // Suppress 404 toast: after deletion the invalidation can refetch this
         // query before the component unmounts, producing a spurious error toast.
         meta: { silentHttpCodes: [404] },
+      },
+    );
+
+  const { data: failureData } =
+    api.automations.getCountOfConsecutiveFailures.useQuery(
+      {
+        projectId,
+        automationId,
+      },
+      {
+        enabled: Boolean(automation),
       },
     );
 
@@ -125,20 +138,35 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                <DeleteAutomationButton
+                <DeleteAutomationDialogController
                   projectId={projectId}
                   automationId={automationId}
-                  variant="button"
                   onSuccess={onDelete}
-                />
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-light-red flex items-center"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      <span className="text-dark-red">Delete</span>
+                    </Button>
+                  )}
+                </DeleteAutomationDialogController>
               </div>
             }
           />
 
-          <AutomationFailureBanner
-            projectId={projectId}
-            automationId={automationId}
-          />
+          {!isFailureBannerDismissed &&
+            failureData &&
+            failureData.count >= 5 && (
+              <AutomationFailureBanner
+                failureCount={failureData.count}
+                onDismiss={() => setIsFailureBannerDismissed(true)}
+              />
+            )}
 
           {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
             <AutomationForm

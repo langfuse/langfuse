@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";

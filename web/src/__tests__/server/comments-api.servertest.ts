@@ -13,8 +13,9 @@ import { z } from "zod";
 import {
   createObservationsCh,
   createTracesCh,
+  createObservation,
+  createTrace,
 } from "@langfuse/shared/src/server";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
 
 const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 

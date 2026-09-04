@@ -3,8 +3,10 @@ import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { BatchTableNames, paginationZod } from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { getObservationsTableCount } from "@langfuse/shared/src/server";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
+import {
+  getObservationsTableCount,
+  applyCommentFilters,
+} from "@langfuse/shared/src/server";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 
 const GetAllGenerationsInput = GenerationTableOptions.safeExtend({

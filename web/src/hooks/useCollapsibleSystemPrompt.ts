@@ -96,10 +96,12 @@ interface UseCollapsibleSystemPromptOptions {
   previewCharLimit?: number;
 }
 
+type SystemPromptCollapseSource = "inline" | "header";
+
 interface UseCollapsibleSystemPromptReturn {
   shouldBeCollapsible: boolean;
   isCollapsed: boolean;
-  toggleCollapsed: () => void;
+  toggleCollapsed: (source?: SystemPromptCollapseSource) => void;
   truncatedContent: string;
 }
 
@@ -131,13 +133,19 @@ export function useCollapsibleSystemPrompt({
       return null;
     }
 
-    const lines = content.split("\n");
+    // Split only a bounded prefix. A full split("\n") over a multi-MB string
+    // is the main-thread cost PrettyJsonView's large-string gate exists to
+    // avoid; the preview never needs more than the first few lines anyway.
+    const scanLimit = Math.max(previewCharLimit, 8_192);
+    const scanText =
+      content.length > scanLimit ? content.slice(0, scanLimit) : content;
+    const lines = scanText.split("\n");
     const previewText = lines.slice(0, previewLines).join("\n");
 
     if (previewText.length > previewCharLimit) {
       return previewText.slice(0, previewCharLimit) + "...";
     }
-    if (lines.length > previewLines) {
+    if (lines.length > previewLines || content.length > scanText.length) {
       return previewText + "\n...";
     }
     return null;
@@ -146,14 +154,14 @@ export function useCollapsibleSystemPrompt({
   const shouldBeCollapsible = preview !== null;
   const isCollapsed = shouldBeCollapsible && collapsePreference;
 
-  const toggleCollapsed = () => {
+  const toggleCollapsed = (source: SystemPromptCollapseSource = "inline") => {
     const next = !collapsePreference;
     // No trace analytics dimensions here on purpose: this fires from shared
     // components that also render outside trace contexts (e.g. session view),
     // and the event must keep one shape across sources.
     capture("trace_detail:system_prompt_collapse_toggle", {
       collapsed: next,
-      source: "inline",
+      source,
     });
     setCollapsePreference(next);
   };

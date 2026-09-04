@@ -4,26 +4,19 @@
  * All TypeScript interfaces and types used throughout the component.
  */
 
-import type { RefObject } from "react";
 import type { CommentRange } from "./utils/commentRanges";
 
 // ============================================================================
 // JSON Value Types
 // ============================================================================
 
-export type JSONValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JSONObject
-  | JSONArray;
+type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
 
-export interface JSONObject {
+interface JSONObject {
   [key: string]: JSONValue;
 }
 
-export interface JSONArray extends Array<JSONValue> {}
+interface JSONArray extends Array<JSONValue> {}
 
 export type JSONType =
   | "string"
@@ -192,120 +185,6 @@ export type PartialJSONTheme = Partial<JSONTheme>;
 /**
  * Main AdvancedJsonViewer props
  */
-export interface AdvancedJsonViewerProps {
-  /** Data to display */
-  data: unknown;
-
-  /** Field name for sessionStorage persistence (e.g., "input", "output"). If null, no persistence. */
-  field?: string | null;
-
-  /** Enable virtualization (default: true for >500 rows) */
-  virtualized?: boolean;
-
-  /** Theme customization */
-  theme?: PartialJSONTheme;
-
-  /** Initial expansion state (only used if field is null, otherwise read from storage) */
-  initialExpansion?: ExpansionState;
-
-  /** Enable search functionality */
-  enableSearch?: boolean;
-
-  /** Search placeholder text */
-  searchPlaceholder?: string;
-
-  /** Controlled search query */
-  searchQuery?: string;
-
-  /** Callback when search query changes */
-  onSearchQueryChange?: (query: string) => void;
-
-  /** Controlled current match index */
-  currentMatchIndex?: number;
-
-  /** Callback when current match index changes */
-  onCurrentMatchIndexChange?: (index: number) => void;
-
-  /** Match counts per row (including descendants) for visual indicators */
-  matchCounts?: Map<string, number>;
-
-  /** Show line numbers */
-  showLineNumbers?: boolean;
-
-  /** Enable copy buttons */
-  enableCopy?: boolean;
-
-  /** String wrapping mode (default: "truncate") */
-  stringWrapMode?: StringWrapMode;
-
-  /** Callback when string wrap mode changes */
-  onStringWrapModeChange?: (mode: StringWrapMode) => void;
-
-  /** Truncate strings longer than this (null = no truncation) - used internally for "truncate" mode */
-  truncateStringsAt?: number | null;
-
-  /** Custom CSS class */
-  className?: string;
-
-  /** Loading state */
-  isLoading?: boolean;
-
-  /** Error state */
-  error?: Error | string;
-
-  /** Ref to the scroll container (for proper scroll-to behavior) */
-  scrollContainerRef?: RefObject<HTMLDivElement | null>;
-
-  commentedPaths?: Map<string, Array<{ start: number; end: number }>>;
-}
-
-/**
- * Props for JsonRow component
- */
-export interface JsonRowProps {
-  /** Row data */
-  row: FlatJSONRow;
-
-  /** Theme */
-  theme: JSONTheme;
-
-  /** Search match for this row (if any) */
-  searchMatch?: SearchMatch;
-
-  /** Whether this is the current search match */
-  isCurrentMatch?: boolean;
-
-  /** Number of search matches in this row and its descendants */
-  matchCount?: number;
-
-  /** Current match index within this row (1-based) */
-  currentMatchIndexInRow?: number;
-
-  /** Show line number */
-  showLineNumber?: boolean;
-
-  /** Line number (1-indexed) */
-  lineNumber?: number;
-
-  /** Enable copy button */
-  enableCopy?: boolean;
-
-  /** String wrapping mode */
-  stringWrapMode?: StringWrapMode;
-
-  /** Truncate strings at this length (for "truncate" mode) */
-  truncateStringsAt?: number | null;
-
-  /** Callback when expand/collapse is toggled */
-  onToggleExpansion?: (rowId: string) => void;
-
-  /** Maximum number of digits for line numbers (for fixed width) */
-  maxLineNumberDigits?: number;
-
-  /** Custom CSS class */
-  className?: string;
-}
-
 /**
  * Props for JsonValue component
  */
@@ -375,45 +254,6 @@ export interface JsonKeyProps {
 /**
  * Configuration for flattening algorithm
  */
-export interface FlattenConfig {
-  /** Root key name */
-  rootKey?: string;
-
-  /** Maximum depth to flatten (null = unlimited) */
-  maxDepth?: number | null;
-
-  /** Maximum number of rows (null = unlimited) */
-  maxRows?: number | null;
-}
-
-/**
- * Configuration for row height estimation
- */
-export interface RowHeightConfig {
-  /** Base row height in pixels */
-  baseHeight: number;
-
-  /** Threshold for considering a string "long" */
-  longStringThreshold: number;
-
-  /** Characters per line for wrapped strings */
-  charsPerLine: number;
-
-  /** String wrap mode (affects whether long strings are multi-line) */
-  stringWrapMode?: StringWrapMode;
-}
-
-/**
- * Result of height estimation
- */
-export interface RowHeightEstimate {
-  /** Estimated height in pixels */
-  height: number;
-
-  /** Whether height is dynamic (might change on render) */
-  isDynamic: boolean;
-}
-
 // ============================================================================
 // Multi-Section Support
 // ============================================================================
@@ -421,13 +261,6 @@ export interface RowHeightEstimate {
 /**
  * Node type discriminator for multi-section trees
  */
-export type TreeNodeType =
-  | "meta"
-  | "section-header"
-  | "section-footer"
-  | "section-spacer"
-  | "json";
-
 /**
  * Section definition for MultiSectionJsonViewer
  */

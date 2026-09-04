@@ -3,8 +3,8 @@ import { EventType } from "@ag-ui/core";
 import {
   createConversationMessageAccumulator,
   redactSilentToolMessages,
+  type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
-import type { PersistedConversationEvent } from "@langfuse/shared/in-app-agent/server/persistence";
 
 import {
   createInAppAgentDisplayState,

@@ -5,6 +5,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   getInAppAgentModelConfig,
   isInAppAgentInstanceEnabled,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
 } from "@langfuse/shared/in-app-agent/server/modelProvider";
 
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -64,12 +65,16 @@ export async function assertInAppAgentAvailable({
 
 /** Only startRun and approval continuation dispatch to the model. */
 export function assertInAppAgentModelConfigured() {
-  if (!getInAppAgentModelConfig()) {
+  const modelConfig = getInAppAgentModelConfig();
+
+  if (!modelConfig) {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
+      LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
       true,
     );
   }
+
+  return modelConfig;
 }

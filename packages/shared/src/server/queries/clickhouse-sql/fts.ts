@@ -10,15 +10,14 @@ export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 
 type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
-export type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
+type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
 
-export const FTS_MATCH_TOKEN_ERROR =
-  "`matches` requires at least one search token.";
-export const FTS_MATCH_TARGET_ERROR =
+const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
+const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
-export const FTS_TEXT_NORMALIZER = "lower";
-export const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
+const FTS_TEXT_NORMALIZER = "lower";
+const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
@@ -95,10 +94,7 @@ const ftsTokenPrefilterPredicate = (
 ): string =>
   `hasAllTokens(${fieldExpr}, ${ftsSearchTokenPrefilterExpr(valueParam, normalizeValue)})`;
 
-export const ftsTextTokenPredicate = (
-  fieldExpr: string,
-  valueParam: string,
-): string =>
+const ftsTextTokenPredicate = (fieldExpr: string, valueParam: string): string =>
   ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
 
 export const ftsTextTokenConjunct = (
@@ -107,18 +103,16 @@ export const ftsTextTokenConjunct = (
 ): string =>
   `(empty(${ftsSearchTokensExpr(valueParam, true)}) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-export const ftsTextIndexedSubstringCondition = (
+const ftsTextIndexedSubstringCondition = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-export const ftsMetadataArrayHas = (
-  arrayExpr: string,
-  valueParam: string,
-): string => `has(${arrayExpr}, ${valueParam})`;
+const ftsMetadataArrayHas = (arrayExpr: string, valueParam: string): string =>
+  `has(${arrayExpr}, ${valueParam})`;
 
-export const ftsMetadataArrayTokenConjunct = (
+const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
 ): string => ftsTokenPrefilterPredicate(arrayExpr, valueParam, false);
@@ -139,7 +133,7 @@ type FtsOperatorDescriptor = {
   metadataArrayCondition: (ctx: FtsMetadataArrayConditionContext) => string;
 };
 
-export const ftsMetadataArrayIndexedSubstringCondition = ({
+const ftsMetadataArrayIndexedSubstringCondition = ({
   hasKey,
   valuesColumn,
   valueAccessor,

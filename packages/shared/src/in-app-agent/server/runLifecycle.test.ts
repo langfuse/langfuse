@@ -5,8 +5,10 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
 } from "../../features/inAppAgent/types";
-import type { PrismaClient } from "../../db";
+import { Prisma, type PrismaClient } from "../../db";
+import { logger } from "../../server";
 import {
+  cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   reconcileConversationRuns,
   requestRunCancellation,
@@ -336,5 +338,46 @@ describe("in-app agent run lifecycle races", () => {
       }),
     ).rejects.toThrow("Assistant is already responding in this conversation");
     expect(metricMocks.recordRunTerminalOutcome).not.toHaveBeenCalled();
+  });
+});
+
+describe("cleanupTerminalRunMcpApiKeys", () => {
+  const missingKeyError = new Prisma.PrismaClientKnownRequestError(
+    "No record was found for a delete.",
+    { code: "P2025", clientVersion: "test" },
+  );
+
+  it("clears the pointer when the API key row is already gone", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      inAppAgentRun: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: "run-1", mcpApiKeyId: "key-1" }]),
+        updateMany,
+      },
+    } as unknown as PrismaClient;
+    const errorSpy = vi.spyOn(logger, "error");
+
+    try {
+      await expect(
+        cleanupTerminalRunMcpApiKeys({
+          prisma,
+          projectId: "project-1",
+          conversationId: "conversation-1",
+          deleteApiKey: async () => {
+            throw missingKeyError;
+          },
+        }),
+      ).resolves.toBe(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "run-1", projectId: "project-1" },
+      data: { mcpApiKeyId: null },
+    });
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

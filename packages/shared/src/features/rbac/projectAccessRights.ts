@@ -1,7 +1,5 @@
 import { type Role } from "../../db";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
 export const projectScopes = [
   "projectMembers:read",
   "projectMembers:CUD",
@@ -46,10 +44,10 @@ export const projectScopes = [
   "batchExports:create",
   "batchExports:read",
 
-  "evalTemplate:CUD",
-  "evalTemplate:read",
-  "evalJob:read",
-  "evalJob:CUD",
+  "evaluator:CUD",
+  "evaluator:read",
+  "evaluationRule:read",
+  "evaluationRule:CUD",
   "evalJobExecution:read",
   "evalDefaultModel:read",
   "evalDefaultModel:CUD",
@@ -73,7 +71,7 @@ export const projectScopes = [
   "promptExperiments:CUD",
   "promptExperiments:read",
 
-  "auditLogs:read",
+  "projectAuditLogs:read",
 
   "TableViewPresets:CUD",
   "TableViewPresets:read",
@@ -83,6 +81,19 @@ export const projectScopes = [
 
   "alerts:read",
   "alerts:CUD",
+
+  // Public-API action tokens; not granted to any UI role.
+  "traces:read",
+  "traces:create",
+  "scores:read",
+  "scores:create",
+  "media:create",
+  "sessions:read",
+  "metrics:read",
+  "models:read",
+  "experiments:read",
+  "mcp:access",
+  "feedback:create",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -111,10 +122,10 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "prompts:read",
     "promptProtectedLabels:CUD",
     "models:CUD",
-    "evalTemplate:CUD",
-    "evalTemplate:read",
-    "evalJob:CUD",
-    "evalJob:read",
+    "evaluator:CUD",
+    "evaluator:read",
+    "evaluationRule:CUD",
+    "evaluationRule:read",
     "evalJobExecution:read",
     "evalDefaultModel:CUD",
     "evalDefaultModel:read",
@@ -137,7 +148,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
-    "auditLogs:read",
+    "projectAuditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -168,10 +179,10 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "prompts:read",
     "promptProtectedLabels:CUD",
     "models:CUD",
-    "evalTemplate:CUD",
-    "evalTemplate:read",
-    "evalJob:CUD",
-    "evalJob:read",
+    "evaluator:CUD",
+    "evaluator:read",
+    "evaluationRule:CUD",
+    "evaluationRule:read",
     "evalJobExecution:read",
     "evalDefaultModel:CUD",
     "evalDefaultModel:read",
@@ -194,7 +205,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
-    "auditLogs:read",
+    "projectAuditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -218,10 +229,10 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
-    "evalTemplate:CUD",
-    "evalTemplate:read",
-    "evalJob:read",
-    "evalJob:CUD",
+    "evaluator:CUD",
+    "evaluator:read",
+    "evaluationRule:read",
+    "evaluationRule:CUD",
     "evalJobExecution:read",
     "evalDefaultModel:read",
     "evalDefaultModel:CUD",
@@ -251,9 +262,9 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   VIEWER: [
     "project:read",
     "prompts:read",
-    "evalTemplate:read",
+    "evaluator:read",
     "scoreConfigs:read",
-    "evalJob:read",
+    "evaluationRule:read",
     "evalJobExecution:read",
     "evalDefaultModel:read",
     "datasets:read",

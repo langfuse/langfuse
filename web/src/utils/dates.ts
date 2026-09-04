@@ -1,25 +1,3 @@
-export const utcDateOffsetByDays = (days: number) => {
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date;
-};
-
-export const localtimeDateOffsetByDays = (days: number) => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + days);
-  return date;
-};
-export const utcDate = (localDateTime: Date) =>
-  new Date(
-    Date.UTC(
-      localDateTime.getFullYear(),
-      localDateTime.getMonth(),
-      localDateTime.getDate(),
-    ),
-  );
-
 export const setBeginningOfDay = (date: Date) => {
   const newDate = new Date(date);
   newDate.setHours(0, 0, 0, 0);
@@ -31,9 +9,6 @@ export const setEndOfDay = (date: Date) => {
   newDate.setHours(23, 59, 59, 999);
   return newDate;
 };
-
-export const intervalInSeconds = (start: Date, end: Date | null) =>
-  end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
 export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);
@@ -60,6 +35,58 @@ export const formatApproximateDuration = (secondsRemaining: number) => {
 
   const hours = Math.ceil(minutes / 60);
   return `${hours} hour${hours === 1 ? "" : "s"}`;
+};
+
+type Accuracy = "day" | "hour" | "minute" | "second" | "millisecond";
+
+export const formatLocalIsoDate = (
+  date: Date,
+  useUTC = false,
+  pAccuracy: Accuracy,
+) => {
+  const pad = (num: number) => String(num).padStart(2, "0");
+
+  const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+  const month = useUTC ? date.getUTCMonth() + 1 : date.getMonth() + 1;
+  const day = useUTC ? date.getUTCDate() : date.getDate();
+  const hours = useUTC ? date.getUTCHours() : date.getHours();
+  const minutes = useUTC ? date.getUTCMinutes() : date.getMinutes();
+  const seconds = useUTC ? date.getUTCSeconds() : date.getSeconds();
+  const ms = useUTC ? date.getUTCMilliseconds() : date.getMilliseconds();
+
+  let formatted = `${year}-${pad(month)}-${pad(day)}`;
+
+  if (["hour", "minute", "second", "millisecond"].includes(pAccuracy)) {
+    formatted += ` ${pad(hours)}`;
+  }
+  if (["minute", "second", "millisecond"].includes(pAccuracy)) {
+    formatted += `:${pad(minutes)}`;
+  }
+  if (["second", "millisecond"].includes(pAccuracy)) {
+    formatted += `:${pad(seconds)}`;
+  }
+  if (pAccuracy === "millisecond") {
+    formatted += `.${String(ms).padStart(3, "0")}`;
+  }
+
+  return formatted;
+};
+
+export const buildLocalIsoDatePresentation = ({
+  date,
+  accuracy = "second",
+}: {
+  date: unknown;
+  accuracy?: Accuracy;
+}) => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return null;
+  }
+
+  return {
+    display: formatLocalIsoDate(date, false, accuracy),
+    title: `UTC: ${formatLocalIsoDate(date, true, "millisecond")}`,
+  };
 };
 
 export const getShortLocalTimezone = () => {

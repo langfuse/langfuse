@@ -30,11 +30,7 @@ import {
 } from "@/src/components/ui/command";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Dialog,
   DialogContent,
@@ -53,18 +49,24 @@ import {
   type FilterState,
   type TableViewPresetTableName,
   type TableViewPresetState,
+  buildCurrentPageSavedViewPermalink,
+  tableViewPresetPermalinkUsesCurrentPath,
 } from "@langfuse/shared";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
-import { DropdownMenu } from "@/src/components/ui/dropdown-menu";
-import { DropdownMenuContent } from "@/src/components/ui/dropdown-menu";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { api } from "@/src/utils/api";
-import { Popover, PopoverContent } from "@/src/components/ui/popover";
-import { PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import {
   Form,
   FormControl,
@@ -84,7 +86,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import isEqual from "lodash/isEqual";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
-import { DropdownMenuSeparator } from "@/src/components/ui/dropdown-menu";
 import { summarizeTableViewPreset } from "../lib/viewPreview";
 
 /**
@@ -92,11 +93,28 @@ import { summarizeTableViewPreset } from "../lib/viewPreview";
  * (not stored in DB). Using this prefix prevents DB lookups and allows special handling.
  * Convention: `__langfuse_{preset_name}__`
  */
-export const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
+const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
 
 /** Check if a view ID is a system preset (defined in code, not stored in DB) */
 export const isSystemPresetId = (id: string | undefined | null): boolean =>
   !!id?.startsWith(SYSTEM_PRESET_ID_PREFIX);
+
+const copyPermalinkAndToast = (href: string) => {
+  copyTextToClipboard(href)
+    .then(() =>
+      showSuccessToast({
+        title: "Permalink copied to clipboard",
+        description: "You can now share the permalink with others",
+      }),
+    )
+    .catch(() =>
+      showErrorToast(
+        "Failed to copy permalink",
+        "Could not write to the clipboard. Please copy the page URL manually.",
+        "WARNING",
+      ),
+    );
+};
 
 /** Recursively remove undefined values for consistent comparison */
 function normalizeForComparison<T>(obj: T): T {
@@ -517,20 +535,27 @@ function TableViewPresetsDrawerContentBody({
     ) {
       // Toast on the clipboard write's resolution: a permission failure must
       // surface an error instead of falsely reporting success.
-      copyTextToClipboard(window.location.href)
-        .then(() =>
-          showSuccessToast({
-            title: "Permalink copied to clipboard",
-            description: "You can now share the permalink with others",
-          }),
-        )
-        .catch(() =>
-          showErrorToast(
-            "Failed to copy permalink",
-            "Could not write to the clipboard. Please copy the page URL manually.",
-            "WARNING",
-          ),
-        );
+      copyPermalinkAndToast(window.location.href);
+      return;
+    }
+
+    // Session detail (and any future resource-scoped table) cannot be
+    // expressed as `/project/:id/<table>?viewId=…` — the session id lives
+    // in the path. Build that on the client instead of hitting the server,
+    // which would 400 (and previously 500'd as a generic Error).
+    if (
+      tableViewPresetPermalinkUsesCurrentPath(tableName) &&
+      typeof window !== "undefined" &&
+      window.location?.origin &&
+      window.location?.pathname
+    ) {
+      copyPermalinkAndToast(
+        buildCurrentPageSavedViewPermalink({
+          origin: window.location.origin,
+          pathname: window.location.pathname,
+          viewId,
+        }),
+      );
       return;
     }
 
@@ -909,21 +934,11 @@ function TableViewPresetsDrawerContentBody({
                         </DropdownMenu>
                         {!isSystemView && (
                           <div className="text-muted-foreground flex items-center text-xs">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage
-                                src={view.createdByUser?.image ?? undefined}
-                                alt={view.createdByUser?.name ?? "User Avatar"}
-                              />
-                              <AvatarFallback className="bg-tertiary">
-                                {view.createdByUser?.name
-                                  ? view.createdByUser?.name
-                                      .split(" ")
-                                      .map((word) => word[0])
-                                      .slice(0, 2)
-                                      .concat("")
-                                  : null}
-                              </AvatarFallback>
-                            </Avatar>
+                            <Avatar
+                              size="sm"
+                              src={view.createdByUser?.image ?? undefined}
+                              displayName={view.createdByUser?.name ?? "User"}
+                            />
                           </div>
                         )}
                       </div>

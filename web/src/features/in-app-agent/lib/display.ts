@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentUiMessage } from "../schema";
 
 /**
@@ -72,7 +74,7 @@ const InAppAgentDisplayPlacementSchema = z.object({
  * dominate and are never duplicated here, so that optimization is not worth
  * its invariant today.
  */
-export const SerializedInAppAgentDisplayStateSchema = z.object({
+const SerializedInAppAgentDisplayStateSchema = z.object({
   latestPlacement: InAppAgentDisplayPlacementSchema.nullable(),
   nativeToolCallParentMessageId: z.string().nullable(),
   latestNewMessageId: z.string().nullable(),

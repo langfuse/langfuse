@@ -1,29 +1,8 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
-  createTRPCRouter,
-  protectedGetSessionProcedure,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import {
-  filterAndValidateDbScoreList,
-  type FilterState,
-  type OrderByState,
-  normalizeOrderByForTable,
-  orderBy,
-  paginationZod,
-  type PrismaClient,
-  singleFilter,
-  timeFilter,
-  type SessionOptions,
-  type ScoreDomain,
-  LISTABLE_SCORE_TYPES,
-} from "@langfuse/shared";
-import { TRPCError } from "@trpc/server";
-import Decimal from "decimal.js";
-import {
+  applyCommentFilters,
   traceException,
   getSessionsTable,
   getSessionsTableCount,
@@ -51,6 +30,27 @@ import {
   hasAnySessionFromEventsTable,
   parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
+import {
+  createTRPCRouter,
+  protectedGetSessionProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import {
+  filterAndValidateDbScoreList,
+  type FilterState,
+  type OrderByState,
+  normalizeOrderByForTable,
+  orderBy,
+  paginationZod,
+  type PrismaClient,
+  singleFilter,
+  timeFilter,
+  type SessionOptions,
+  type ScoreDomain,
+  LISTABLE_SCORE_TYPES,
+} from "@langfuse/shared";
+import { TRPCError } from "@trpc/server";
+import Decimal from "decimal.js";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -426,8 +426,6 @@ export const sessionRouter = createTRPCRouter({
       const scores = await getScoresForSessions({
         projectId: ctx.session.projectId,
         sessionIds: sessions.map((s) => s.session_id),
-        limit: 1000,
-        offset: 0,
       });
 
       const validatedScores = filterAndValidateDbScoreList({
@@ -495,8 +493,6 @@ export const sessionRouter = createTRPCRouter({
       const scores = await getScoresForSessions({
         projectId: ctx.session.projectId,
         sessionIds: sessions.map((s) => s.session_id),
-        limit: 1000,
-        offset: 0,
       });
 
       const validatedScores = filterAndValidateDbScoreList({

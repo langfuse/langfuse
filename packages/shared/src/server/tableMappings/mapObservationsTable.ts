@@ -149,8 +149,9 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "observations",
     clickhouseSelect: "level",
     queryPrefix: "o",

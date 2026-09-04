@@ -71,7 +71,7 @@ export type MovableResizablePanelViewportBounds = {
   maxBottom: number;
 };
 
-export type MovableResizablePanelResizeContext = {
+type MovableResizablePanelResizeContext = {
   bounds: MovableResizablePanelViewportBounds;
   constraints: MovableResizablePanelSizeConstraints;
 };

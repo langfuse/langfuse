@@ -4,6 +4,7 @@ import {
   type ObservationLevelType,
   type SingleValueOption,
 } from "..";
+import { EvalExecutionMetadataKey } from "../features/evals/evalExecutionMetadata";
 import { formatColumnOptions } from "./typeHelpers";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
@@ -57,6 +58,20 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     internal: 't."metadata"',
   },
   {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: `t.metadata['${EvalExecutionMetadataKey.EVALUATOR_ID}']`,
+    options: [],
+  },
+  {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal: `if(notEmpty(t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}']), t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'], t.metadata['${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}'])`,
+    options: [],
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
@@ -71,7 +86,7 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: '"level"',
@@ -81,6 +96,7 @@ export const tracesOnlyCols: ColumnDefinition[] = [
       { value: "WARNING" },
       { value: "ERROR" },
     ] as { value: ObservationLevelType }[],
+    aliases: ["Level"],
   },
   {
     name: "Tags",

@@ -32,8 +32,8 @@ type TraceDeleteBatchActionState = {
   config: TraceDeleteBatchActionConfig;
 };
 
-export const TRACE_DELETE_BATCH_ACTION_MAX_BATCHES_PER_RUN = 5;
-export const TRACE_DELETE_BATCH_ACTION_MAX_FAILURES = 10;
+const TRACE_DELETE_BATCH_ACTION_MAX_BATCHES_PER_RUN = 5;
+const TRACE_DELETE_BATCH_ACTION_MAX_FAILURES = 10;
 
 export type ProcessTraceDeleteBatchActionResult =
   | {

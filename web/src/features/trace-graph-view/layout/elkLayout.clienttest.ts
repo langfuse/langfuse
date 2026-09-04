@@ -1,11 +1,15 @@
 // @vitest-environment node
 
+import type { ELK } from "elkjs";
+
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
   computeGraphLayout,
   dedupeEdges,
   MAX_GRAPH_LAYOUT_EDGES,
   MAX_GRAPH_LAYOUT_NODES,
+  runGraphLayout,
+  type GraphLayoutRequest,
 } from "./elkLayout";
 
 const node = (id: string): GraphNodeData => ({ id, label: id, type: "AGENT" });
@@ -215,5 +219,49 @@ describe("computeGraphLayout layout budget", () => {
     );
     expect(layout.tooLarge).toBeFalsy();
     expect(layout.nodes.length).toBeGreaterThan(0);
+  });
+});
+
+describe("runGraphLayout elkjs stack overflow", () => {
+  // elkjs's layered algorithm recurses per layer. Inside the count budget a
+  // deep/cyclic graph can still overflow the (especially worker) stack —
+  // Chrome/Safari RangeError, Firefox InternalError "too much recursion".
+  // That is the same user-visible "too large" state as the count/deadline
+  // gates, not an actionable app crash.
+
+  const request: GraphLayoutRequest = {
+    nodes: [node("a"), node("b")],
+    edges: [{ from: "a", to: "b" }],
+    counterReserve: [],
+    direction: "DOWN",
+  };
+
+  const fakeElk = (error: unknown) =>
+    ({
+      layout: async () => {
+        throw error;
+      },
+    }) as unknown as ELK;
+
+  it.each([
+    new RangeError("Maximum call stack size exceeded"),
+    new RangeError("Maximum call stack size exceeded."),
+    Object.assign(new Error("too much recursion"), { name: "InternalError" }),
+    "Maximum call stack size exceeded",
+    { message: "Maximum call stack size exceeded" },
+  ])("returns tooLarge instead of throwing on %s", async (error) => {
+    const layout = await runGraphLayout(fakeElk(error), request);
+
+    expect(layout.tooLarge).toBe(true);
+    expect(layout.nodes).toHaveLength(0);
+    expect(layout.edges).toHaveLength(0);
+    expect(layout.nodeCount).toBe(2);
+    expect(layout.edgeCount).toBe(1);
+  });
+
+  it("still throws unexpected ELK failures", async () => {
+    await expect(
+      runGraphLayout(fakeElk(new Error("elk failed: bad graph")), request),
+    ).rejects.toThrow("elk failed: bad graph");
   });
 });

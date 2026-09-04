@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
@@ -164,7 +165,7 @@ export function createMediaDropPasteExtension({
  * Attach button for a dataset item field. Shows a spinner while its upload is
  * in flight; failures surface via toast from the upload hook.
  */
-export function DatasetItemMediaUploadButton({
+function DatasetItemMediaUploadButton({
   onSelectFile,
   disabled,
 }: {

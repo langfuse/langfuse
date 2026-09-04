@@ -16,6 +16,7 @@ import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
@@ -95,7 +96,7 @@ const SubmitFeedbackInput = ConversationIdInput.extend({
 });
 
 const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
-const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
+const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = IN_APP_AGENT_PRODUCT_ENVIRONMENT;
 
 export const inAppAgentRouter = createTRPCRouter({
   // Each row carries its newest run summary for the activity poll and badges.
@@ -212,7 +213,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-      assertInAppAgentModelConfigured();
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -234,7 +235,7 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });
     }),
@@ -272,7 +273,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-      assertInAppAgentModelConfigured();
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -300,7 +301,7 @@ export const inAppAgentRouter = createTRPCRouter({
         approved: input.approved,
         approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
       });
     }),
 

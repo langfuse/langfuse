@@ -21,6 +21,7 @@ import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
   type GraphLayout,
   type GraphLayoutDirection,
+  isElkCallStackOverflow,
 } from "../layout/elkLayout";
 import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
 import { GraphNode } from "./GraphNode";
@@ -186,8 +187,18 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       .catch((error) => {
         clearTimeout(slowTimer);
         if (cancelled) return; // superseded — the rejection IS the cancellation
-        // No warnMessage: the console line must carry ELK's own reason (e.g.
-        // "too much recursion"), which is the whole diagnostic.
+        // Stack overflow is converted to `tooLarge` inside runGraphLayout.
+        // If a wrapper still rejects with that signature, treat it as the
+        // same expected "cannot lay out" state — do not page Sentry.
+        if (isElkCallStackOverflow(error)) {
+          reportError(error, {
+            area: "trace-graph-layout",
+            expected: true,
+          });
+          setLayoutError(true);
+          return;
+        }
+        // No warnMessage: the console line must carry ELK's own reason.
         reportError(error, { area: "trace-graph-layout" });
         setLayoutError(true);
       });

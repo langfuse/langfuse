@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Accordion } from "@/src/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
@@ -34,9 +34,69 @@ beforeAll(() => {
 });
 
 describe("CategoricalFacet", () => {
+  it("uses a custom option hover title", () => {
+    render(
+      <AccordionPrimitive.Root type="multiple" value={["evaluatorId"]}>
+        <CategoricalFacet
+          label="Evaluator"
+          filterKey="evaluatorId"
+          expanded
+          loading={false}
+          options={["evaluator-1"]}
+          displayByValue={new Map([["evaluator-1", "Answer quality"]])}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          getOptionTitle={(value, label) => `${label} (${value})`}
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </AccordionPrimitive.Root>,
+      { wrapper: TooltipProvider },
+    );
+
+    expect(screen.getByText("Answer quality")).toHaveAttribute(
+      "title",
+      "Answer quality (evaluator-1)",
+    );
+  });
+
+  it("renders an option suffix after its label", () => {
+    render(
+      <AccordionPrimitive.Root type="multiple" value={["model"]}>
+        <CategoricalFacet
+          label="Model"
+          filterKey="model"
+          expanded
+          loading={false}
+          options={["gpt-4.1", "claude-sonnet"]}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          renderOptionSuffix={(value) =>
+            value === "gpt-4.1" ? <span>Project default</span> : null
+          }
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </AccordionPrimitive.Root>,
+      { wrapper: TooltipProvider },
+    );
+
+    const label = screen.getByText("gpt-4.1");
+    const suffix = screen.getByText("Project default");
+    expect(
+      label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(label).not.toHaveClass("flex-1");
+    expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
+  });
+
   it("shows selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -50,7 +110,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -62,7 +122,7 @@ describe("CategoricalFacet", () => {
 
   it("shows Clear for active selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -76,7 +136,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -90,7 +150,7 @@ describe("CategoricalFacet", () => {
     // value sits below the 12-item cap and is hidden behind "Show more".
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -104,7 +164,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -131,7 +191,7 @@ describe("CategoricalFacet", () => {
     // not the entire list.
     const options = Array.from({ length: 80 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -145,7 +205,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -176,7 +236,7 @@ describe("CategoricalFacet", () => {
     // a pinned selection — doing so would render the entire list with no cap.
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -190,7 +250,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -209,7 +269,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const selected = options.slice(0, 18); // 18 of 20 selected
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -223,7 +283,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -244,7 +304,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const value = options.filter((option) => option !== "opt-18");
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -260,7 +320,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -287,7 +347,7 @@ describe("CategoricalFacet", () => {
     // deliberate no-op in the state model, so the tab must read disabled
     // instead of silently doing nothing.
     render(
-      <Accordion type="multiple" value={["tags"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags"]}>
         <CategoricalFacet
           label="Tags"
           filterKey="tags"
@@ -303,14 +363,14 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     expect(screen.getByRole("tab", { name: "None of" })).toBeDisabled();
 
     // With a persisted selection the operator conversion is meaningful.
     render(
-      <Accordion type="multiple" value={["tags2"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags2"]}>
         <CategoricalFacet
           label="Tags2"
           filterKey="tags2"
@@ -326,7 +386,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     const tabs = screen.getAllByRole("tab", { name: "None of" });
@@ -335,7 +395,7 @@ describe("CategoricalFacet", () => {
 
   it("does not reorder short, fully-visible lists", () => {
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -349,7 +409,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -597,6 +657,8 @@ describe("DataTableControls facet ordering", () => {
       categoricalFilter("beta", "Beta", true),
     ]);
     qf.onExpandedChange = (value) => expandedChanges.push(value);
+    qf.isV4 = true;
+    captureSpy.mockClear();
     render(
       <TooltipProvider>
         <DataTableControls queryFilter={qf} />
@@ -606,6 +668,94 @@ describe("DataTableControls facet ordering", () => {
     // Nothing expanded -> the toggle offers Expand all with every column.
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
     expect(expandedChanges.at(-1)).toEqual(["beta", "alpha"]);
+
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: true,
+      facetCount: 2,
+      layout: "panel",
+      isV4: true,
+    });
+    // Expand-all is its own intent; it must not also emit per-facet toggles.
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
+  });
+
+  it("captures expand_all_toggled collapsed when every visible facet is open", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.expanded = ["alpha", "beta"];
+    qf.isV4 = false;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse all filters" }),
+    );
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: false,
+      facetCount: 2,
+      layout: "panel",
+      isV4: false,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("captures facet_toggled once when a single header is opened", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.isV4 = true;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
+    const toggled = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_toggled",
+    );
+    expect(toggled).toHaveLength(1);
+    expect(toggled[0][1]).toMatchObject({
+      column: "alpha",
+      expanded: true,
+      layout: "panel",
+      isV4: true,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:expand_all_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
   });
 
   it("shows only active facets plus an Add filter picker when active-only mode is on", () => {
@@ -794,6 +944,81 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     } finally {
       localStorage.removeItem("data-table-controls-active-only");
     }
+  });
+});
+
+describe("DataTableControls facet catalog", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): CategoricalUIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const CATALOG = [
+    categoricalFilter("environment", "Environment", false),
+    categoricalFilter("release", "Release", false),
+    categoricalFilter("name", "Name", false),
+    categoricalFilter("version", "Version", false),
+  ];
+
+  it("keeps every facet visible so browser find can reach it", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter(CATALOG)} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(screen.getByText("Name")).toBeVisible();
+    expect(screen.getByText("Release")).toBeVisible();
+    expect(screen.getByText("Version")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Show \d+ more/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expand-all expands every facet in the catalog", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={{
+            ...queryFilter(CATALOG),
+            onExpandedChange,
+          }}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    expect(onExpandedChange).toHaveBeenCalledWith([
+      "environment",
+      "release",
+      "name",
+      "version",
+    ]);
   });
 });
 

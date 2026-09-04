@@ -127,6 +127,23 @@ const manyRows = () =>
 // gate constant, so it keeps guarding the regression if the constant moves.
 const deadZoneRows = () => Array.from({ length: 5_000 }, (_, i) => i);
 
+describe("IOPreviewJSON session recording privacy", () => {
+  it("blocks trace input and output from session recordings", () => {
+    const { container } = render(
+      <IOPreviewJSON
+        input={{ secret: "input" }}
+        output={{ secret: "output" }}
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    expect(container.firstElementChild).toHaveClass("ph-no-capture");
+  });
+});
+
 describe("IOPreviewJSON node-count gating", () => {
   it("routes a dead-zone field (thousands of rows) to the lazy viewer, not the eager tree", () => {
     render(

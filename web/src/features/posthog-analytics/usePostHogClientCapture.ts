@@ -5,9 +5,8 @@ import { useCallback } from "react";
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 // resource:action, only use snake_case
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const events = {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -36,12 +35,20 @@ export const events = {
     "graph_view_toggle",
     // Aggregated vs expanded graph build mode (LFE-10676).
     "graph_mode_switch",
-    // `source` distinguishes the inline expand/collapse button from the
-    // trace settings switch; `collapsed` is the new preference value.
+    // `source` distinguishes the inline expand/collapse button, the message
+    // header control, and the trace settings switch; `collapsed` is the new
+    // preference value.
     "system_prompt_collapse_toggle",
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Trace playhead transport in the navigation header (and the overflow
+    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
+    // is tree vs timeline at click time; `observationCount` is the loaded
+    // trace size. Metadata only — never a trace/observation id.
+    "playback_play",
+    "playback_pause",
+    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -112,6 +119,7 @@ export const events = {
     "create_form_submit",
     "update_form_submit",
     "manage_configs_item_click",
+    "add_category_inline",
     "archive_form_open",
     "archive_form_submit",
   ],
@@ -141,6 +149,8 @@ export const events = {
     "truncated_observation_download_click",
     "inline_tools_toggled",
     "system_prompt_toggled",
+    "metadata_jsonpath_config_changed",
+    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",
@@ -160,6 +170,35 @@ export const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
+  evaluators: [
+    "create",
+    "update",
+    "delete",
+    "test",
+    "saved_dialog_submit",
+    "overview_action_click",
+    "variable_mapping_configured",
+    "version_history_interaction",
+    "default_model_update",
+    "reactivate",
+    "gallery_creation_source_select",
+    "empty_state_template_select",
+    "empty_state_browse_library",
+    "empty_state_detect_topics",
+    "alert_create_clicked",
+  ],
+  evaluation_rules: [
+    "create",
+    "update",
+    "delete",
+    "status_change",
+    "attach_evaluator",
+    "detach_evaluator",
+    "filter_reused",
+  ],
+  // One-shot batch evaluation from the events / experiments tables.
+  // Counts and enums only — never mapping contents or observation payloads.
+  batch_eval: ["run"],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",
@@ -178,6 +217,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -208,7 +249,7 @@ export const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
-  monitors: ["delete_form_open", "delete_monitor_button_click"],
+  monitors: ["create", "delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
@@ -247,6 +288,29 @@ export const events = {
     "charts_view_removed",
     "compare_run_added",
     "compare_run_removed",
+  ],
+  // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
+  // never experiment or dataset names, score values, or item content.
+  // `isV4` + `tableName` on every event. `source` on comparison/baseline
+  // distinguishes picker vs table-selection vs url (deep link / redirect) vs
+  // auto — so the auto-selected comparison stays out of "users who compare".
+  //
+  // Two events from the original plan went away with the surfaces they
+  // measured: `analytics_tab_opened` (the Analytics route is
+  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
+  // an always-on metric strip). `chart_metric_changed` now belongs to that
+  // strip and `item_regression_filter_applied` to the score-comparison filter:
+  // same question, same name, so the event history stays continuous.
+  experiment: [
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "auto_comparison_preference_changed",
+    "chart_metric_changed",
+    "layout_changed",
+    "diff_mode_changed",
+    "score_column_scope_toggled",
+    "item_regression_filter_applied",
   ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No
@@ -294,6 +358,8 @@ export const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "feature_flag_default_toggled",
+    "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -361,6 +427,8 @@ export const events = {
     "facet_added",
     "facet_search",
     "facet_mode_switched",
+    "expand_all_toggled",
+    "facet_toggled",
     "sidebar_toggled",
     "search_submitted",
     "search_error",

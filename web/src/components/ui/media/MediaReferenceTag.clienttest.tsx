@@ -13,6 +13,21 @@ vi.mock("./useResolvedMedia", () => ({
 }));
 
 describe("MediaReferenceTag", () => {
+  it("keeps focus on the media trigger when resolution starts", () => {
+    const descriptor = classifyMediaValue(
+      "@@@langfuseMedia:type=image/png|id=image|source=bytes@@@",
+    );
+
+    expect(descriptor).not.toBeNull();
+    render(<MediaReferenceTag descriptor={descriptor!} />);
+
+    const trigger = screen.getByRole("button", { name: "PNG media" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveFocus();
+  });
+
   it("renders a field-limit media reference as an attachment", () => {
     const descriptor = classifyMediaValue(
       "@@@langfuseMedia:type=text/plain|id=oversized-field|source=field_size_limit@@@",

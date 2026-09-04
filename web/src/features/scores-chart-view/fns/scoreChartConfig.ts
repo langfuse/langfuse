@@ -55,7 +55,7 @@ export const getScoreMetric = (
  * dimension list is per-view, see `getScoreDimensionsForDataset`), so
  * `dataset` disambiguates which view's list to look in.
  */
-export const getScoreDimension = (
+const getScoreDimension = (
   key: ScoreDimensionKey,
   dataset: ScoreChartDataset,
   isTimeSeries: boolean,

@@ -5,7 +5,7 @@ import {
   JobTimeScopeZod,
 } from "@langfuse/shared";
 
-export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
+const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
   (value) => ({
     value,
   }),
@@ -62,6 +62,12 @@ export const evalConfigsTableCols: ColumnDefinition[] = [
   },
   evalConfigFilterColumns[1],
   evalConfigFilterColumns[2],
+  {
+    name: "Generated Score Name",
+    id: "scoreName",
+    type: "string",
+    internal: 'jc."score_name"',
+  },
   {
     name: "Updated At",
     id: "updatedAt",

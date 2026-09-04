@@ -486,11 +486,9 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                                 {option}
                               </span>
                               {keyLevels?.[option]?.map((level) => (
-                                <ScoreTag
-                                  key={level}
-                                  level={level}
-                                  className="ml-1.5"
-                                />
+                                <span key={level} className="ml-1.5">
+                                  <ScoreTag level={level} />
+                                </span>
                               ))}
                             </InputCommandItem>
                           ))}

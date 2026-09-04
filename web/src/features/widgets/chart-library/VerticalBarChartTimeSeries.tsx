@@ -23,6 +23,7 @@ import {
   TimeSeriesLegend,
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -104,10 +105,12 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      <SeriesOverflowNote
-        visibleCount={dimensions.length}
-        totalCount={series.total}
-      />
+      {series.total > dimensions.length && (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={series.total}
+        />
+      )}
       <ChartContainer
         ref={chartBoxRef}
         config={config}
@@ -136,6 +139,10 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
             {...timeAxis.tickProps}
+            {...temporalAxisTickProp(
+              timeAxis,
+              groupedData.at(-1)?.time_dimension,
+            )}
           />
           <YAxis
             type="number"
@@ -188,15 +195,16 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           />
         </BarChart>
       </ChartContainer>
-      {(legendPosition === "below" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={formatValue}
-        />
-      )}
+      {legendItems.length > 0 &&
+        (legendPosition === "below" ||
+          (legendPosition === "auto" && legendItems.length > 1)) && (
+          <TimeSeriesLegend
+            items={legendItems}
+            interaction={legendInteraction}
+            onItemClick={onLegendClick}
+            formatSummary={formatValue}
+          />
+        )}
     </div>
   );
 };

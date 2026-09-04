@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { z } from "zod";
 import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";

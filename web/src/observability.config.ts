@@ -19,11 +19,12 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
-import { ioredisRequestHook } from "@langfuse/shared/src/server";
 import {
   SDK_NAME_ATTRIBUTE,
-  extractSdkName,
-} from "@/src/server/observability/sdkName";
+  SDK_VERSION_ATTRIBUTE,
+  extractSdkAttributes,
+  ioredisRequestHook,
+} from "@langfuse/shared/instrumentation/bootstrap";
 import { envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
@@ -142,8 +143,11 @@ const sdk = new NodeSDK({
         // Incoming requests (IncomingMessage) carry headers; outgoing
         // ClientRequests expose `path` instead.
         if (!("path" in req) && req?.headers) {
-          const sdkName = extractSdkName(req.headers);
+          const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
           if (sdkName) span.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
+          if (sdkVersion) {
+            span.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
+          }
         }
       },
     }),

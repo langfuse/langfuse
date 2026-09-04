@@ -10,10 +10,11 @@ import { randomUUID } from "node:crypto";
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
+  const userId = `table-view-user-${randomUUID()}`;
   const session: Session = {
     expires: "1",
     user: {
-      id: `table-view-user-${randomUUID()}`,
+      id: userId,
       canCreateOrganizations: true,
       name: "Table View Test User",
       organizations: [
@@ -60,10 +61,79 @@ const prepare = async () => {
   return {
     caller: appRouter.createCaller({ ...ctx, prisma }),
     projectId: project.id,
+    userId,
   };
 };
 
 describe("table view presets tRPC", () => {
+  it("creates separate saved views for evaluator and rule tables", async () => {
+    const { caller, projectId, userId } = await prepare();
+    await prisma.user.create({
+      data: { id: userId, email: `${userId}@example.com` },
+    });
+    const [evaluatorView, ruleView] = await Promise.all([
+      caller.TableViewPresets.create({
+        projectId,
+        name: `evaluator-view-${randomUUID()}`,
+        tableName: TableViewPresetTableName.Evaluators,
+        filters: [
+          {
+            column: "status",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ACTIVE"],
+          },
+        ],
+        columnOrder: ["name", "status"],
+        columnVisibility: { name: true, status: true },
+        searchQuery: "quality",
+        orderBy: null,
+      }),
+      caller.TableViewPresets.create({
+        projectId,
+        name: `rule-view-${randomUUID()}`,
+        tableName: TableViewPresetTableName.EvaluationRules,
+        filters: [
+          {
+            column: "enabled",
+            type: "boolean",
+            operator: "=",
+            value: true,
+          },
+        ],
+        columnOrder: ["name", "enabled"],
+        columnVisibility: { name: true, enabled: true },
+        orderBy: null,
+      }),
+    ]);
+
+    await expect(
+      caller.TableViewPresets.getByTableName({
+        projectId,
+        tableName: TableViewPresetTableName.Evaluators,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: evaluatorView.view.id,
+        tableName: TableViewPresetTableName.Evaluators,
+        searchQuery: "quality",
+      }),
+    ]);
+    await expect(
+      caller.TableViewPresets.getByTableName({
+        projectId,
+        tableName: TableViewPresetTableName.EvaluationRules,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: ruleView.view.id,
+        tableName: TableViewPresetTableName.EvaluationRules,
+      }),
+    ]);
+    await prisma.tableViewPreset.deleteMany({ where: { projectId } });
+    await prisma.user.delete({ where: { id: userId } });
+  });
+
   it("deletes an already-deleted preset idempotently", async () => {
     const { caller, projectId } = await prepare();
     const preset = await prisma.tableViewPreset.create({

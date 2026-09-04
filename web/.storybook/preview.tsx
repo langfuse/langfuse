@@ -11,11 +11,12 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
+import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
-import "../src/styles/globals.css";
+import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
 // (react18-json-view, streamdown markdown) render identically to the app.
@@ -158,11 +159,16 @@ export default definePreview({
               the JSON/IO viewers (CodeJsonViewer's JSONView calls
               useMarkdownContext) work identically to production. Without it,
               multi-line IOTableCell renders (rowHeight m/l) throw. */}
-        <MarkdownContextProvider>
-          <TooltipProvider>
-            <Story />
-          </TooltipProvider>
-        </MarkdownContextProvider>
+        {/* SessionProvider mirrors _app.tsx: components reading feature
+              flags call useSession, which throws without a provider. A null
+              session resolves every flag to false (regular-user behavior). */}
+        <SessionProvider session={null}>
+          <MarkdownContextProvider>
+            <TooltipProvider>
+              <Story />
+            </TooltipProvider>
+          </MarkdownContextProvider>
+        </SessionProvider>
       </StorybookThemeProvider>
     ),
   ],
@@ -176,12 +182,24 @@ export default definePreview({
     options: {
       storySort: (a, b) => {
         const sectionOrder = ["Design", "Playground"];
+        const designDocOrder = [
+          "Design/Overview",
+          "Design/Writing Good Stories",
+        ];
         const aSectionIndex = sectionOrder.indexOf(a.title.split("/")[0] ?? "");
         const bSectionIndex = sectionOrder.indexOf(b.title.split("/")[0] ?? "");
         const sectionDifference =
           (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
           (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
         if (sectionDifference !== 0) return sectionDifference;
+
+        const aDesignDocIndex = designDocOrder.indexOf(a.title);
+        const bDesignDocIndex = designDocOrder.indexOf(b.title);
+        if (aDesignDocIndex !== bDesignDocIndex) {
+          if (aDesignDocIndex === -1) return 1;
+          if (bDesignDocIndex === -1) return -1;
+          return aDesignDocIndex - bDesignDocIndex;
+        }
 
         // Returning 0 preserves Storybook's existing stable order. Only
         // partition test stories when both entries belong to the same component.

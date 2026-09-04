@@ -12,6 +12,7 @@ describe("organization AI feature settings", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalSharedInAppAgentEnabled =
     sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
+  const originalAiFeaturesProjectId = sharedEnv.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -21,6 +22,9 @@ describe("organization AI feature settings", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
       originalSharedInAppAgentEnabled;
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
   });
 
   it("allows a self-hosted organization administrator to opt in to AI features", async () => {
@@ -38,6 +42,25 @@ describe("organization AI feature settings", () => {
       }),
     ).resolves.toEqual({ aiFeaturesEnabled: true });
   });
+
+  it.each([true, false])(
+    "persists aiFeaturesEnabled=%s when creating an organization",
+    async (aiFeaturesEnabled) => {
+      const { caller } = await createCaller();
+
+      const organization = await caller.organizations.create({
+        name: `Created Organization ${randomUUID()}`,
+        aiFeaturesEnabled,
+      });
+
+      await expect(
+        prisma.organization.findUniqueOrThrow({
+          where: { id: organization.id },
+          select: { aiFeaturesEnabled: true },
+        }),
+      ).resolves.toEqual({ aiFeaturesEnabled });
+    },
+  );
 
   it("allows a self-hosted organization administrator to opt in to AI features when in-app agent is instance-disabled", async () => {
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "false";
@@ -68,6 +91,47 @@ describe("organization AI feature settings", () => {
       code: "PRECONDITION_FAILED",
       message: "AI telemetry controls are only available on Langfuse Cloud.",
     });
+  });
+
+  it("rejects AI telemetry updates when the AI-features project is not configured", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
+
+    const { caller, orgId } = await createCaller();
+
+    await expect(
+      caller.organizations.update({
+        orgId,
+        aiTelemetryEnabled: false,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message:
+        "AI telemetry controls are only available when the AI-features project is configured.",
+    });
+  });
+
+  it("allows Cloud organizations to update AI telemetry when the AI-features project is configured", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = "test-ai-features-project";
+
+    const { caller, orgId } = await createCaller();
+
+    await caller.organizations.update({
+      orgId,
+      aiTelemetryEnabled: false,
+    });
+
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: orgId },
+        select: { aiTelemetryEnabled: true },
+      }),
+    ).resolves.toEqual({ aiTelemetryEnabled: false });
   });
 });
 

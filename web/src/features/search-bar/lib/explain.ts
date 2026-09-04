@@ -14,7 +14,12 @@
 import { INVERTED_COMPARISON } from "./adapter";
 import type { CompareOp } from "./ast";
 import type { ComposerSegment, FilterSegment } from "./composer-segments";
-import { resolveField, type FieldDef, type FieldRef } from "./fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldDef,
+  type FieldRef,
+  type FieldRegistry,
+} from "./fields";
 
 export type TokenExplanation = {
   /** Bold lead-in: the field this token filters on. */
@@ -185,9 +190,12 @@ function explainBoolean(field: FieldDef, seg: FilterSegment): TokenExplanation {
 }
 
 /** `has:` reads about its VALUE — the field that is (or isn't) set. */
-function explainHas(seg: FilterSegment): TokenExplanation {
+function explainHas(
+  seg: FilterSegment,
+  registry: FieldRegistry,
+): TokenExplanation {
   const labels = seg.values.map((value) => {
-    const ref = resolveField(value);
+    const ref = registry.resolveField(value);
     return ref === null ? value : subjectOf(ref);
   });
   const verb = labels.length > 1 ? "are" : "is";
@@ -208,12 +216,15 @@ const KEYWORDS: Record<string, TokenExplanation> = {
  * say (parentheses, an unknown field, an invalid token — those carry their own
  * diagnostic).
  */
-export function explainSegment(seg: ComposerSegment): TokenExplanation | null {
+export function explainSegment(
+  seg: ComposerSegment,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): TokenExplanation | null {
   switch (seg.kind) {
     case "filter": {
-      const ref = resolveField(seg.displayField);
+      const ref = registry.resolveField(seg.displayField);
       if (ref === null) return null;
-      if (ref.type === "pseudo") return explainHas(seg);
+      if (ref.type === "pseudo") return explainHas(seg, registry);
       if (ref.type === "field" && ref.field.kind === "boolean") {
         return explainBoolean(ref.field, seg);
       }

@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import boundaries from "eslint-plugin-boundaries";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
@@ -139,9 +140,43 @@ export default [
     },
   },
 
-  // Component APIs should expose explicit variants instead of className or style
-  // escape hatches. New file-level overrides are only acceptable for headless
-  // components that do not apply any internal styling themselves.
+  // Components should always render. Returning null/undefined hides the
+  // condition that owns visibility and makes composition unpredictable — the
+  // parent should branch, or the logic should live in a hook/HOC. Headless
+  // children/portal passthroughs (gates, createPortal wrappers) may return
+  // null; anything that owns markup may not. Existing violations use a
+  // file-level eslint-disable; do not add new ones.
+  {
+    name: "langfuse/web/no-null-render",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+      "src/components/layouts/**",
+    ],
+    rules: {
+      "@repo/no-null-render": "error",
+    },
+  },
+
+  // Next.js pages are the route composition root: the router, not a parent
+  // component, owns whether they mount. Returning null for auth, missing
+  // params, or SSR is a page-level concern, so this rule does not apply.
+  {
+    name: "langfuse/web/no-null-render-pages",
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-null-render": "off",
+    },
+  },
+
+  // Component APIs should expose explicit variants instead of className, style,
+  // or prefixed variants such as badgeClassName. New file-level overrides are
+  // only acceptable for headless components that do not apply any internal
+  // styling themselves.
   {
     name: "langfuse/web/no-style-props",
     files: ["src/**/*.{ts,tsx}"],
@@ -161,18 +196,73 @@ export default [
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
+    plugins: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.plugins,
+      boundaries,
+    },
+    settings: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.settings,
+      // Progressive adoption: only these trees are classified. Unknown
+      // targets (utils, hooks, third-party) stay allowed. Design-system
+      // files also match `app-component`; the policy below excludes that
+      // overlap with `noneOf: ["design-system"]`.
+      "boundaries/files": [
+        {
+          category: "design-system",
+          pattern: "src/components/design-system/**",
+        },
+        {
+          category: "app-component",
+          pattern: "src/components/**",
+        },
+        {
+          category: "feature",
+          pattern: "src/features/**",
+        },
+      ],
+    },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
-      // Margin makes components harder to compose and should therefore be applied by the parent.
-      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
-      // TODO: Consider expanding this rule beyond design-system components
-      "@repo/no-margin-on-root-elements": [
-        "warn",
-        { classNameFunctions: ["cn", "clsx"] },
+      "boundaries/dependencies": [
+        "error",
+        {
+          default: "allow",
+          policies: [
+            {
+              from: { file: { categories: "design-system" } },
+              disallow: {
+                to: {
+                  file: {
+                    categories: {
+                      anyOf: ["app-component", "feature"],
+                      noneOf: ["design-system"],
+                    },
+                  },
+                },
+              },
+              message:
+                "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
+            },
+          ],
+        },
       ],
 
       // TODO: Expand to more of the codebase
       "no-nested-ternary": "error",
+    },
+  },
+
+  {
+    name: "langfuse/web/component-margin-rules",
+    files: ["src/components/**/*.{ts,tsx}"],
+    ignores: ["src/components/**/*.stories.{ts,tsx}"],
+    rules: {
+      // Margin makes components harder to compose and should therefore be applied by the parent.
+      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
+      "@repo/no-margin-on-root-elements": [
+        "warn",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
     },
   },
 

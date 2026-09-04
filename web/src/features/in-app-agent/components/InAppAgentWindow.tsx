@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,7 +68,6 @@ import {
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { deduplicateBy } from "@/src/utils/arrays";
-import messageStyles from "./InAppAgentMessage.module.css";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -80,8 +80,8 @@ import {
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -137,31 +137,35 @@ function InAppAgentQuickActionPicker({
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
       </p>
-      <Tabs
-        value={selectedContext}
-        className="mt-4 w-full max-w-sm"
-        onValueChange={(value) => {
-          if (isInAppAgentQuickActionContext(value)) {
-            setSelectedContext(value);
-          }
-        }}
-      >
-        <TabsList
-          aria-label="Quick action category"
-          className="flex h-auto w-full rounded-none border-b bg-transparent p-0"
+      <div className="mt-4 w-full max-w-sm">
+        <Tabs
+          value={selectedContext}
+          onValueChange={(value) => {
+            if (isInAppAgentQuickActionContext(value)) {
+              setSelectedContext(value);
+            }
+          }}
         >
-          {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
-            <TabsTrigger
-              key={context}
-              value={context}
-              disabled={isDisabled}
-              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+          <Tabs.List
+            aria-label="Quick action category"
+            variant="underline"
+            size="auto"
+            layout="full"
+          >
+            {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
+              <span key={context} className="min-w-0 flex-1">
+                <Tabs.Trigger
+                  value={context}
+                  disabled={isDisabled}
+                  variant="underline"
+                  size="lg"
+                  label={IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+                />
+              </span>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </div>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;
@@ -634,7 +638,7 @@ function AssistantActivityGroup({
           className={cn(
             isInProgress &&
               !isAwaitingApproval &&
-              messageStyles.thinkingShimmer,
+              textShimmerStyles.textShimmer,
           )}
         >
           {label}
@@ -839,7 +843,7 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
-export type InAppAgentWindowNotice = {
+type InAppAgentWindowNotice = {
   text: string;
   tone: "info" | "warning";
 };
@@ -900,7 +904,7 @@ export type InAppAgentWindowProps = {
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
   /** Titles the window. Null until the server has named the conversation,
-   * which is when the product name and its Beta tag show instead. */
+   * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -1169,17 +1173,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <>
-              <p
-                className="shrink-0 truncate text-sm font-bold"
-                title="Assistant"
-              >
-                Assistant
-              </p>
-              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-                Beta
-              </span>
-            </>
+            <p
+              className="shrink-0 truncate text-sm font-bold"
+              title="Assistant"
+            >
+              Assistant
+            </p>
           )}
         </div>
         <div

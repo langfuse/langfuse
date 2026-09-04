@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ChatMessageSchema,
   createChatPromptTool,
-} from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
+} from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
 
 type JsonSchema = Record<string, unknown>;
 

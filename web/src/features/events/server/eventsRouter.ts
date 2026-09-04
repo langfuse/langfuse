@@ -1,5 +1,4 @@
-import { type z } from "zod";
-import { z as zodSchema } from "zod";
+import { type z, z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,9 +16,10 @@ import {
   toDomainWithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { EventsTableOptions } from "./types";
+import { EventsCursorTableOptions, EventsTableOptions } from "./types";
 import {
   getEventList,
+  getEventListCursor,
   getEventCount,
   getEventFilterOptions,
   getEventMetadataValues,
@@ -45,6 +45,17 @@ import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
+});
+
+const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
+  limit: paginationZod.limit,
+  cursor: zodSchema
+    .object({
+      lastStartTimeTo: zodSchema.date(),
+      lastTraceId: zodSchema.string(),
+      lastId: zodSchema.string(),
+    })
+    .optional(),
 });
 
 export type EventBatchIOOutput = {
@@ -81,7 +92,7 @@ const GetEventMetadataValuesInput = zodSchema.object({
   startTimeFilter: zodSchema.array(timeFilter).optional(),
 });
 
-export const BatchIOInput = zodSchema.object({
+const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
   observations: zodSchema
     .array(
@@ -105,7 +116,7 @@ export const BatchIOInput = zodSchema.object({
   traceId: zodSchema.string().optional(),
 });
 
-export type BatchIOInput = z.infer<typeof BatchIOInput>;
+type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -141,6 +152,44 @@ export const eventsRouter = createTRPCRouter({
             orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
+          });
+        },
+      );
+    }),
+  listCursor: protectedProjectProcedure
+    .input(GetEventsCursorInput)
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return {
+          observations: [],
+          hasMore: false,
+          nextCursor: undefined,
+        };
+      }
+
+      return instrumentAsync(
+        { name: "get-event-list-cursor-trpc" },
+        async (span) => {
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: { column: "startTime", order: "DESC" },
+          });
+
+          return getEventListCursor({
+            projectId: ctx.session.projectId,
+            filter: filterState,
+            searchQuery: input.searchQuery ?? undefined,
+            searchType: input.searchType,
+            limit: input.limit,
+            cursor: input.cursor,
           });
         },
       );
@@ -443,7 +492,7 @@ export const eventsRouter = createTRPCRouter({
     }),
 });
 
-export const addAttributesToSpan = ({
+const addAttributesToSpan = ({
   span,
   input,
   orderBy,
@@ -485,6 +534,6 @@ export const addAttributesToSpan = ({
   }
 };
 
-export const dateDiff = (date1: Date, date2: Date) => {
+const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };

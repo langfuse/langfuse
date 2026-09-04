@@ -20,10 +20,10 @@
 
 export type PointerModality = "fine" | "coarse";
 
-export const FINE_ROW_HEIGHT = 26;
-export const COARSE_ROW_HEIGHT = 44;
+const FINE_ROW_HEIGHT = 26;
+const COARSE_ROW_HEIGHT = 44;
 /** A row that stacks a name over its bar needs two text lines' worth. */
-export const TWO_LINE_MIN_HEIGHT = 38;
+const TWO_LINE_MIN_HEIGHT = 38;
 
 export type Density = {
   pointer: PointerModality;

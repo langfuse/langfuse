@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     instrumentAsync: vi.fn(async (_ctx, callback) => callback(span)),
     recordDistribution: vi.fn(),
     traceException: vi.fn(),
+    loggerWarn: vi.fn(),
   };
 });
 
@@ -25,7 +26,7 @@ vi.mock("../instrumentation", () => ({
 
 vi.mock("../logger", () => ({
   logger: {
-    warn: vi.fn(),
+    warn: mocks.loggerWarn,
   },
 }));
 
@@ -192,6 +193,46 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "langfuse.code_eval.error.retryable": false,
     });
   });
+
+  it.each([
+    {
+      errorType: "Runtime.OutOfMemory",
+      errorMessage: "Runtime exited with error: signal: killed",
+    },
+    {
+      errorType: "Runtime.ExitError",
+      errorMessage: "Runtime exited with error: signal: killed",
+    },
+  ])(
+    "classifies Lambda $errorType failures as evaluator memory errors",
+    async ({ errorType, errorMessage }) => {
+      const dispatcher = new AwsLambdaCodeEvalDispatcher({
+        lambdaClient: {
+          send: vi.fn().mockResolvedValue({
+            StatusCode: 200,
+            FunctionError: "Unhandled",
+            Payload: Buffer.from(JSON.stringify({ errorMessage, errorType })),
+            $metadata: {
+              requestId: "request-oom",
+              httpStatusCode: 200,
+              attempts: 1,
+              totalRetryDelay: 0,
+            },
+          }),
+        } as any,
+      });
+
+      await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+        code: "OUT_OF_MEMORY",
+        retryable: false,
+      });
+      expectSpanAttributes({
+        "langfuse.code_eval.error.code": "OUT_OF_MEMORY",
+        "langfuse.code_eval.error.retryable": false,
+      });
+      expect(mocks.loggerWarn).not.toHaveBeenCalled();
+    },
+  );
 
   it("records the original Lambda FunctionError before throwing the derived user-facing error", async () => {
     const dispatcher = new AwsLambdaCodeEvalDispatcher({

@@ -5,14 +5,17 @@ import {
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
+import {
+  MetricStripBand,
+  type MetricStripStatus,
+} from "@/src/components/metric-strip/MetricStripBand";
 import {
   canReuseOutlierPlaceholder,
   pickChartGranularity,
 } from "@/src/features/events/components/outlier-strip/lib/binning";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
 import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
@@ -60,7 +63,7 @@ export function ScoresOutlierStrip({
   fromTimestamp: Date;
   toTimestamp: Date;
   onSelectRange: (range: { from: Date; to: Date }) => void;
-  /** Must match the caller's own `isBetaEnabled` check — see `ScoresChartView`'s doc comment. */
+  /** Must match the caller's own `isV4` check — see `ScoresChartView`'s doc comment. */
   viewVersion: ViewVersion;
 }) {
   const capture = usePostHogClientCapture();
@@ -162,7 +165,7 @@ export function ScoresOutlierStrip({
       // change (drill-in, Back, preset hop) shows the skeleton instead.
       placeholderData: (prev, prevQuery) =>
         prev && isSameGridAsCurrent(prevQuery) ? prev : undefined,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );
@@ -174,7 +177,7 @@ export function ScoresOutlierStrip({
       // Same same-grid placeholder reuse as `countQuery` above.
       placeholderData: (prev, prevQuery) =>
         prev && isSameGridAsCurrent(prevQuery) ? prev : undefined,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );
@@ -285,78 +288,63 @@ export function ScoresOutlierStrip({
       (valueQueryResult.isPending && !valueQueryResult.isError) ||
       placeholderMissesGrid);
 
+  const status: MetricStripStatus = !canApplyFilters
+    ? "ready"
+    : isLoading || width === 0
+      ? "loading"
+      : countQueryResult.isError || valueQueryResult.isError
+        ? "empty"
+        : "ready";
+
   return (
-    // Ruled top and bottom: the strip reads as its own band instead of
-    // floating between the toolbar and the table header.
-    <div ref={wrapperRef} className="shrink-0 border-y">
-      {size === undefined ? null : (
-        <div className="relative px-2 pt-2.5 pb-1">
-          {!canApplyFilters ? (
-            <div>
-              <ScoreOutlierStripHeader
-                mode={mode}
-                onModeChange={handleModeChange}
-                aggregation={aggregation}
-                aggOptions={aggOptions}
-                onAggregationChange={setAggregation}
-              />
-              <ScoreOutlierBarStrip
-                className="mt-1.5"
-                dense={[]}
-                maxValue={0}
-                ticks={[]}
-                stepMs={stepMs}
-                metric={mode}
-                widthPx={chartWidth}
-                disabledReason="Chart unavailable for the current filters"
-              />
-            </div>
-          ) : isLoading || width === 0 ? (
-            <div className="bg-muted h-[76px] animate-pulse rounded" />
-          ) : countQueryResult.isError || valueQueryResult.isError ? (
-            <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
-              No Data
-            </div>
-          ) : (
-            <div
-              className={cn("min-w-0 transition-opacity", {
-                "opacity-60":
-                  (countQueryResult.isPlaceholderData &&
-                    countQueryResult.isFetching) ||
-                  (valueQueryResult.isPlaceholderData &&
-                    valueQueryResult.isFetching),
-              })}
-            >
-              <ScoreOutlierStripHeader
-                mode={mode}
-                onModeChange={handleModeChange}
-                aggregation={aggregation}
-                aggOptions={aggOptions}
-                onAggregationChange={setAggregation}
-              />
-              <ScoreOutlierBarStrip
-                className="mt-1.5"
-                dense={series.dense}
-                maxValue={series.maxValue}
-                ticks={series.ticks}
-                stepMs={stepMs}
-                metric={mode}
-                widthPx={chartWidth}
-                onSelectBucket={handleSelectBucket}
-                onPreviewPinned={(trigger) =>
-                  capture("pulse:preview_pinned", {
-                    trigger,
-                    metric: mode,
-                    surface: "scores",
-                  })
-                }
-                selection={activeSelection}
-                onSelectionChange={handleSelectionChange}
-              />
-            </div>
-          )}
-        </div>
+    <MetricStripBand
+      ref={wrapperRef}
+      measured={size !== undefined}
+      status={status}
+      stale={
+        (countQueryResult.isPlaceholderData && countQueryResult.isFetching) ||
+        (valueQueryResult.isPlaceholderData && valueQueryResult.isFetching)
+      }
+      header={
+        <ScoreOutlierStripHeader
+          mode={mode}
+          onModeChange={handleModeChange}
+          aggregation={aggregation}
+          aggOptions={aggOptions}
+          onAggregationChange={setAggregation}
+        />
+      }
+    >
+      {!canApplyFilters ? (
+        <ScoreOutlierBarStrip
+          dense={[]}
+          maxValue={0}
+          ticks={[]}
+          stepMs={stepMs}
+          metric={mode}
+          widthPx={chartWidth}
+          disabledReason="Chart unavailable for the current filters"
+        />
+      ) : (
+        <ScoreOutlierBarStrip
+          dense={series.dense}
+          maxValue={series.maxValue}
+          ticks={series.ticks}
+          stepMs={stepMs}
+          metric={mode}
+          widthPx={chartWidth}
+          onSelectBucket={handleSelectBucket}
+          onPreviewPinned={(trigger) =>
+            capture("pulse:preview_pinned", {
+              trigger,
+              metric: mode,
+              surface: "scores",
+            })
+          }
+          selection={activeSelection}
+          onSelectionChange={handleSelectionChange}
+        />
       )}
-    </div>
+    </MetricStripBand>
   );
 }

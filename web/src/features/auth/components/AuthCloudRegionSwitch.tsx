@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import { CloudRegionPicker } from "@/src/features/auth/components/CloudRegionPicker";
 import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -10,12 +10,10 @@ export function CloudRegionSwitch({
   isSignUpPage?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const { isLangfuseCloud, region: cloudRegion } = useLangfuseCloudRegion();
+  const { region: cloudRegion } = useLangfuseCloudRegion();
   const regions = getAvailableCloudRegionOptions(
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? cloudRegion,
   );
-
-  if (!isLangfuseCloud) return null;
 
   const currentRegion = regions.find((region) => region.name === cloudRegion);
 

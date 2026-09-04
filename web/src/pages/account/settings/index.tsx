@@ -25,7 +25,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
@@ -154,7 +155,7 @@ function DeleteAccountButton() {
         description: "Your account has been successfully deleted.",
       });
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      await signOut();
+      await signOutCleanly();
     } catch (error) {
       reportNonTrpcError(error, "account");
       showErrorToast(
@@ -290,9 +291,8 @@ const getAccountSettingsPages = ({
           <Header title="Password" />
           <Card className="p-3">
             <p className="text-primary mb-4 text-sm">
-              To change your password, we will send you a secure link to your
-              email address. Click the button below to start the password reset
-              process.
+              To change your password, we will email a one-time code to your
+              address. Enter the code together with your new password.
             </p>
             <Button asChild variant="secondary">
               <Link href="/auth/reset-password">Change Password</Link>

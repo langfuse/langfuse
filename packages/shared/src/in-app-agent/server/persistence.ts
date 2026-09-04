@@ -6,12 +6,7 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
 } from "../../features/inAppAgent/types";
-import {
-  ChatMessageRole,
-  ChatMessageType,
-  LangfuseInternalTraceEnvironment,
-  logger,
-} from "../../server";
+import { ChatMessageRole, ChatMessageType, logger } from "../../server";
 import { isSettledInAppAgentRunStatus } from "../constants";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
@@ -40,6 +35,7 @@ import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
   type CompletedInAppAgentMcpToolCall,
+  getInAppAgentSilentMcpOutputFilePath,
   getPublicInAppAgentMcpToolResultContent,
   getSandboxInAppAgentMcpToolResultContent,
 } from "./toolResults";
@@ -325,7 +321,10 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(
+        draft?.toolName ?? toolCall.toolName,
+        toolCall.toolCallId,
+      ),
       content: JSON.stringify(
         {
           request: draft
@@ -400,7 +399,7 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(draft.toolName, toolCallId),
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
@@ -474,6 +473,10 @@ export async function maybeInferAndPersistConversationTitle(params: {
       return;
     }
 
+    if (!isUnsetConversationTitle(conversation.title)) {
+      return;
+    }
+
     const transcript = buildConversationTitleTranscript(
       await getConversationMessages({
         prisma: params.prisma,
@@ -544,7 +547,6 @@ ${JSON.stringify(transcript, null, 2)}
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
-            environment: LangfuseInternalTraceEnvironment.InAppAgent,
             feature: "in-app-agent-conversation-title",
             projectId: params.projectId,
             traceName: "in-app-agent-conversation-title",
@@ -649,7 +651,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
   );
 }
 
-function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   eventsToAppend: AgUiEvent[];
   retainedEvents: AgUiEvent[];
 } {
@@ -1492,16 +1494,20 @@ function parseSandboxToolCallValue(
   return parsed === undefined ? value : parsed;
 }
 
-function formatSandboxToolCallTimestamp(date: Date) {
-  return date.toISOString().replaceAll(":", "-");
-}
-
 function getDefaultConversationTitle(date: Date) {
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `Chat on ${weekday} at ${hours}:${minutes}`;
+}
+
+function isUnsetConversationTitle(title: string | null) {
+  if (!title) {
+    return true;
+  }
+
+  return /^Chat on [A-Za-z]+ at \d{2}:\d{2}$/.test(title);
 }
 
 export function buildConversationTitleTranscript(

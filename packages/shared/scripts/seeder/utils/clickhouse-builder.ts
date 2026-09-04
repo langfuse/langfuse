@@ -231,11 +231,23 @@ export class ClickHouseQueryBuilder {
           when type = 'GENERATION' then concat('generation-', toString(number % 10))
           when type = 'SPAN' then concat('span-', toString(number % 10))
           else concat('event-', toString(number % 10))
-        end AS name,
-        ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
-        multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
-        NULL AS status_message,
-        NULL AS version,
+          end AS name,
+          ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
+          multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
+          multiIf(
+            level = 'ERROR' AND h2 % 2 = 0,
+              '{"error":{"code":"upstream_timeout","message":"The upstream model did not respond in time.","retryable":true},"requestId":"seed-request-42"}',
+            level = 'ERROR',
+              'Upstream model request timed out after 30 seconds.',
+            level = 'WARNING',
+              'The response completed after one automatic retry.',
+            level = 'DEBUG',
+              'Prompt cache lookup completed without a matching entry.',
+            level = 'DEFAULT' AND h2 % 10 = 0,
+              'The response completed with additional status details.',
+            NULL
+          ) AS status_message,
+          NULL AS version,
         if(type = 'GENERATION',
           if(h2 % 10 < 4, '${escapedHeavyMarkdown}', '${escapedChatMl}'),
           NULL) AS input,
