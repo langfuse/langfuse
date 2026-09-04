@@ -193,7 +193,11 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const { openAssistant, submit: submitToAssistant } = useInAppAiAgent();
+  const {
+    openAssistant,
+    selectedConversationId,
+    submit: submitToAssistant,
+  } = useInAppAiAgent();
   const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
     EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
     "query",
@@ -244,6 +248,7 @@ export function EvaluatorSetupPage(
   useEvaluatorSamplePageContext({
     projectId,
     evaluatorId,
+    selectedConversationId,
     store: evaluatorSetupStore,
   });
   useEffect(() => {

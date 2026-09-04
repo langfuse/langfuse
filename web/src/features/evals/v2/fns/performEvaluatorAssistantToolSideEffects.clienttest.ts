@@ -128,6 +128,35 @@ describe("evaluator Assistant tool side effects", () => {
       surface: "test",
       updateId: "test-evaluator-1",
     });
+
+    performEvaluatorAssistantToolSideEffects({
+      toolCalls: [
+        {
+          toolCallId: "test-evaluator-2",
+          toolName: "langfuse_testEvaluator",
+          toolArguments: {
+            evaluatorId: "evaluator-1",
+            observationId: "observation-1",
+          },
+          toolResultContent: JSON.stringify({
+            success: true,
+            scores: [{ name: "Non-empty", value: 0, dataType: "BOOLEAN" }],
+          }),
+        },
+      ],
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      source: "live",
+      utils: {} as InvalidationUtils,
+    });
+
+    expect(publishUpdate).toHaveBeenCalledTimes(2);
+    expect(publishUpdate).toHaveBeenLastCalledWith({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      surface: "test",
+      updateId: "test-evaluator-2",
+    });
     publishUpdate.mockRestore();
     evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");
   });

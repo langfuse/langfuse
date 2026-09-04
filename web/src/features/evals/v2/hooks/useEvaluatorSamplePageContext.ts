@@ -5,14 +5,17 @@ import { registerInAppAgentPageContext } from "@/src/features/in-app-agent";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "@/src/features/evals/v2/constants/evaluatorAssistant";
 import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
+import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 
 export function useEvaluatorSamplePageContext({
   projectId,
   evaluatorId,
+  selectedConversationId,
   store,
 }: {
   projectId: string;
   evaluatorId: string;
+  selectedConversationId: string | undefined;
   store: EvaluatorSetupStore;
 }) {
   const selectedObservation = useStore(
@@ -26,6 +29,15 @@ export function useEvaluatorSamplePageContext({
 
   useEffect(() => {
     if (!observationId || !traceId || !startTime) return;
+
+    if (selectedConversationId) {
+      evaluatorAssistantTestResultStore.expect({
+        projectId,
+        evaluatorId,
+        conversationId: selectedConversationId,
+        observationId,
+      });
+    }
 
     return registerInAppAgentPageContext(
       projectId,
@@ -43,5 +55,12 @@ export function useEvaluatorSamplePageContext({
         },
       ],
     );
-  }, [evaluatorId, observationId, projectId, startTime, traceId]);
+  }, [
+    evaluatorId,
+    observationId,
+    projectId,
+    selectedConversationId,
+    startTime,
+    traceId,
+  ]);
 }

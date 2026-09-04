@@ -56,9 +56,30 @@ describe("useEvaluatorAssistantTestResultSync", () => {
     expect(setLastTestRunCostUsd).toHaveBeenCalledWith(0.01);
     expect(setRawResultOpen).toHaveBeenCalledWith(false);
 
+    const retryResult = {
+      success: true,
+      executionTraceId: "trace-2",
+      estimatedCostUsd: 0.02,
+    };
+    act(() => {
+      evaluatorAssistantTestResultStore.publish({
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        conversationId: "conversation-1",
+        observationId: "observation-1",
+        toolCallId: "tool-call-2",
+        result: retryResult,
+      });
+    });
+    await waitFor(() => {
+      expect(firstMount.result.current?.result).toEqual(retryResult);
+      expect(setLastTestRunCostUsd).toHaveBeenLastCalledWith(0.02);
+    });
+    expect(setRawResultOpen).toHaveBeenCalledTimes(2);
+
     firstMount.unmount();
     const secondMount = renderHook(useTestResultSync);
-    expect(secondMount.result.current?.result).toEqual(result);
+    expect(secondMount.result.current?.result).toEqual(retryResult);
 
     secondMount.unmount();
     evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");

@@ -81,7 +81,11 @@ export function createEvaluatorAssistantTestResultStore({
     }) {
       const key = resultKey(projectId, evaluatorId);
       const next = new Map(snapshot);
-      next.set(key, { conversationId, observationId });
+      next.set(key, {
+        ...snapshot.get(key),
+        conversationId,
+        observationId,
+      });
       snapshot = next;
       scheduleExpiry(key);
       notify();
