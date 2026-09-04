@@ -15,12 +15,16 @@ evaluating, and debugging AI applications.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
-- For bug fixes, first write the smallest failing test that proves the reported
-  behavior and confirm it fails against the buggy behavior before changing
-  production code. Add another test only when it exercises a distinct adapter,
-  contract, or execution path. Extend the closest existing test suite; do not
-  create a standalone constant test when an existing feature suite owns the
-  behavior. If the bug depends on a data shape, pause and ask: can
+- Match verification to risk, not to the fact that you changed something. A test
+  earns its place when it pins behavior that could regress without anyone
+  noticing. When the only assertion available restates the diff — that a spacing
+  value is now that value, that a label reads what it reads — it costs a file and
+  proves nothing. Skip it, and say in one line that you did and why.
+- When a bug fix does warrant a test, write the smallest failing one first and
+  confirm it fails against the buggy behavior before changing production code.
+  Add another only when it exercises a distinct adapter, contract, or execution
+  path. Extend the closest existing test suite; do not create a standalone
+  constant test when an existing feature suite owns the behavior. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
   seeder scenario so the bug stays cheaply reproducible
   (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
@@ -224,8 +228,14 @@ A check that passed is not always a check that ran:
 - `pnpm exec knip` is a required check in `pipeline.yml` with no `package.json`
   script, so it is easy to never run locally. Unused files and exports under
   `web/**`, `packages/shared/**` and `worker/**` fail it.
-- No check loads a page. A rendering change is not verified until somebody opens
-  the surface it touches and looks at it.
+- No check loads a page, so a rendering change is only verified once somebody
+  looks at it — but that somebody need not be you. Drive a browser when you are
+  genuinely uncertain: a layout that may reflow, a flow that carries state, an
+  interaction whose outcome you cannot predict. When the change is small and
+  visual and your confidence is high, say what you changed, hand over the exact
+  URL, and let the developer glance at it — that is faster for them than watching
+  you automate a confirmation of something you already know. Offering is not
+  punting; silently skipping is.
 
 ## Generated Files
 
