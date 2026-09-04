@@ -42,6 +42,7 @@ export function EvaluatorSavedDialog({
   mode,
   modeContentByMode,
   backfillContent,
+  backfillExpanded,
   costSummary,
   canSubmit,
   isSubmitting,
@@ -56,6 +57,7 @@ export function EvaluatorSavedDialog({
   mode: EvaluatorSavedMode;
   modeContentByMode: Record<EvaluatorSavedMode, ReactNode>;
   backfillContent: ReactNode;
+  backfillExpanded: boolean;
   costSummary: ReactNode;
   canSubmit: boolean;
   isSubmitting: boolean;
@@ -85,7 +87,12 @@ export function EvaluatorSavedDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="gap-0 p-0">
-          <div className="grid h-[27rem] grid-cols-[minmax(0,1fr)_15rem] overflow-hidden">
+          <div
+            className={cn(
+              "grid grid-cols-[minmax(0,1fr)_15rem] overflow-hidden",
+              backfillExpanded ? "h-[31rem]" : "h-[24rem]",
+            )}
+          >
             <div className="min-w-0 overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
               <h3 className="mb-2 text-sm font-bold">
                 Set up rule to run on incoming observations

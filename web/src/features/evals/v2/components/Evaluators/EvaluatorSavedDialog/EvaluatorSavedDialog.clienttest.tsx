@@ -16,6 +16,7 @@ const renderDialog = () => {
           "different-scope": null,
         }}
         backfillContent={null}
+        backfillExpanded={false}
         costSummary={null}
         canSubmit
         isSubmitting={false}

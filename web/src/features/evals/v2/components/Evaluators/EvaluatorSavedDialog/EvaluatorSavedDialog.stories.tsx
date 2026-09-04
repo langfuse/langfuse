@@ -140,6 +140,7 @@ const sharedArgs = {
       onMaxItemsChange={fn()}
     />
   ),
+  backfillExpanded: false,
   canSubmit: true,
   isSubmitting: false,
   onModeChange: fn(),
@@ -227,6 +228,7 @@ export const WithBackfill = meta.story({
         onMaxItemsChange={fn()}
       />
     ),
+    backfillExpanded: true,
     costSummary: backfillCostSummary,
     primaryActionLabel: "Execute",
   },
@@ -255,6 +257,7 @@ export const WithCustomBackfill = meta.story({
         onMaxItemsChange={fn()}
       />
     ),
+    backfillExpanded: true,
     costSummary: backfillCostSummary,
     primaryActionLabel: "Execute",
   },

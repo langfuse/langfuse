@@ -742,6 +742,7 @@ export function EvaluatorSavedDialogContainer({
       mode={mode}
       modeContentByMode={modeContentByMode}
       backfillContent={backfillContent}
+      backfillExpanded={backfillEnabled}
       costSummary={costSummary}
       canSubmit={
         !isEstimating &&
