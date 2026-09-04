@@ -4,12 +4,12 @@
  * Contains:
  * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
+ * - Trace-specific metadata badges (timestamp, release, version, usage)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -18,7 +18,6 @@ import {
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
@@ -30,16 +29,12 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import {
-  SessionBadge,
-  UserIdBadge,
-  EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
   TargetTraceBadge,
 } from "../../TraceMetadataBadges";
-import { LatencyBadge } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { UsageBadge } from "../../ObservationMetadataBadgesTooltip";
+import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
@@ -70,7 +65,7 @@ export interface TraceDetailViewHeaderProps {
     input: string | null;
     output: string | null;
   };
-  observations: ObservationReturnTypeWithMetadata[];
+  aggregatedMetrics: AggregatedTraceMetrics;
   parsedMetadata: unknown;
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
@@ -84,7 +79,7 @@ export interface TraceDetailViewHeaderProps {
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
-  observations,
+  aggregatedMetrics,
   parsedMetadata,
   projectId,
   traceScores,
@@ -96,10 +91,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
   const isMobile = useIsMobile();
-  const aggregatedMetrics = useMemo(
-    () => aggregateTraceMetrics(observations),
-    [observations],
-  );
   const {
     existingDatasetItems,
     hasAccess: hasDatasetAccess,
@@ -493,23 +484,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {/* Other badges */}
         {!isAnnotationMode && (
           <CollapsibleBadgeRow>
-            <LatencyBadge latencySeconds={trace.latency ?? null} />
-            <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
-            <UserIdBadge userId={trace.userId} projectId={projectId} />
             <TargetTraceBadge
               targetTraceId={targetTraceId}
               projectId={projectId}
             />
-            <EnvironmentBadge environment={trace.environment} />
             <ReleaseBadge release={trace.release} />
             <VersionBadge version={trace.version} />
-            {aggregatedMetrics.totalCost != null &&
-              aggregatedMetrics.costDetails && (
-                <CostBadge
-                  totalCost={aggregatedMetrics.totalCost}
-                  costDetails={aggregatedMetrics.costDetails}
-                />
-              )}
             {aggregatedMetrics.hasGenerationLike &&
               aggregatedMetrics.usageDetails && (
                 <UsageBadge

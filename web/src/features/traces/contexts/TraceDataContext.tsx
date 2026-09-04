@@ -34,11 +34,16 @@ import {
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
+import {
+  aggregateTraceMetrics,
+  type AggregatedTraceMetrics,
+} from "@/src/features/traces/fns/traceAggregation";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
   "input" | "output"
 > & {
+  latency?: number;
   input: string | null;
   output: string | null;
 };
@@ -82,6 +87,8 @@ interface TraceDataContextValue {
   traceStartTime: Date;
   /** Total trace span in seconds, origin → latest end (0 for empty traces). */
   traceDuration: number;
+  /** Existing trace-level cost and usage aggregation shared by detail headers. */
+  aggregatedMetrics: AggregatedTraceMetrics;
 }
 
 const TraceDataContext = createContext<TraceDataContextValue | null>(null);
@@ -178,6 +185,10 @@ export function TraceDataProvider({
     () => calculateTraceDuration(filteredRoots, traceStartTime),
     [filteredRoots, traceStartTime],
   );
+  const aggregatedMetrics = useMemo(
+    () => aggregateTraceMetrics(observations),
+    [observations],
+  );
 
   const traceLevelScoreOwnerIdSet = useMemo(
     () =>
@@ -218,6 +229,7 @@ export function TraceDataProvider({
       comments,
       traceStartTime,
       traceDuration,
+      aggregatedMetrics,
     }),
     [
       trace,
@@ -236,6 +248,7 @@ export function TraceDataProvider({
       comments,
       traceStartTime,
       traceDuration,
+      aggregatedMetrics,
     ],
   );
 
