@@ -103,6 +103,30 @@ describe("SessionConversationTimeline", () => {
     expect(screen.getByText("search")).toBeInTheDocument();
   });
 
+  it("renders a timeline-shaped loading state", () => {
+    render(
+      <SessionConversationTimeline
+        trace={trace}
+        turnNumber={1}
+        idleGapSeconds={null}
+        state={{ type: "loading" }}
+        showSystemPrompt={true}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+      />,
+    );
+
+    const loadingState = screen.getByRole("status", {
+      name: "Loading conversation",
+    });
+
+    expect(
+      loadingState.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThan(8);
+    expect(loadingState.querySelector(".justify-end")).not.toBeNull();
+    expect(loadingState.querySelector(".justify-start")).not.toBeNull();
+  });
+
   it("renders truncated input and output as conversational messages", () => {
     const { container } = renderTimeline({
       timelineObservation: {
