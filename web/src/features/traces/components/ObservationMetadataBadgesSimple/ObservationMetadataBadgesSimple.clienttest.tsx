@@ -3,10 +3,11 @@ import { render, screen } from "@testing-library/react";
 import { ReleaseBadge } from "./ObservationMetadataBadgesSimple";
 
 describe("ReleaseBadge", () => {
-  it("shows an observation release", () => {
-    render(<ReleaseBadge release="181" />);
+  it("shows an observation release as key-value text", () => {
+    const { container } = render(<ReleaseBadge release="181" />);
 
-    expect(screen.getByText("Release: 181")).toBeInTheDocument();
+    expect(screen.getByText("181")).toBeInTheDocument();
+    expect(container).toHaveTextContent("release: 181");
   });
 
   it("hides when no release is available", () => {

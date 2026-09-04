@@ -148,6 +148,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Input"
+            hoverControls
             json={input}
             parsedJson={effectiveInput}
             isLoading={isLoading}
@@ -175,6 +176,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Output"
+            hoverControls
             json={output}
             parsedJson={effectiveOutput}
             isLoading={isLoading}
@@ -217,6 +219,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Metadata"
+            hoverControls
             json={metadata}
             parsedJson={effectiveMetadata}
             isLoading={isLoading}

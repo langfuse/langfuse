@@ -27,6 +27,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   TabsBar,
   TabsBarContent,
@@ -366,7 +367,20 @@ export function ConnectedObservationDetailView({
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {showScoresTab ? (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                <TabsBarTrigger value="scores" className="gap-1">
+                  Scores
+                  {/* Match the tab's table: observation scores, plus the
+                      trace-level ones when this node stands in for the trace. */}
+                  <ActionButtonCountBadge
+                    count={
+                      observationScores.length +
+                      (ownsTraceLevelScores
+                        ? scores.filter((score) => !score.observationId).length
+                        : 0)
+                    }
+                    variant="muted"
+                  />
+                </TabsBarTrigger>
               ) : null}
               {showLogViewTab ? (
                 <TabsBarTrigger value="log">
@@ -480,7 +494,6 @@ export function ConnectedObservationDetailView({
         >
           <ObservationPreview
             currentView={currentView}
-            tags={isRoot ? observation.traceTags : undefined}
             previewKey={observation.id}
             onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
             previewProps={{

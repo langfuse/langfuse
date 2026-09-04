@@ -209,9 +209,10 @@ export function PeekHeader({
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
-          {/* Badge never truncates: it shows the full label or just the icon. */}
+          {/* Label-only chip, matching the full-page header (the label names
+              the type; short enough to keep on any width). */}
           <div ref={badgeRef} className="shrink-0">
-            <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
+            <ItemBadge type={itemType} showLabel hideIcon />
           </div>
           <span
             className="truncate text-sm font-bold focus:outline-hidden"

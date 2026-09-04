@@ -20,27 +20,26 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    expect(
-      screen.getByText("Session: customer-session").closest("a"),
-    ).toHaveClass("ph-no-capture");
-    expect(screen.getByText("User ID: customer-user").closest("a")).toHaveClass(
+    // The session link is label-only ("Session"); the id lives in the title.
+    expect(screen.getByText("Session").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    expect(
-      screen.getByText("Target Trace: target-trace").closest("a"),
-    ).toHaveClass("ph-no-capture");
-    expect(
-      screen.getByText("Session: customer-session").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(
-      screen.getByText("User ID: customer-user").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(
-      screen.getByText("Target Trace: target-trace").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(screen.getByText("Env: production").parentElement).toHaveClass(
-      "bg-tertiary",
+    // The user id renders in full (it is often an email) — link still masked.
+    expect(screen.getByText("customer-user").closest("a")).toHaveClass(
+      "ph-no-capture",
     );
+    expect(screen.getByText("Target trace").closest("a")).toHaveClass(
+      "ph-no-capture",
+    );
+    // Quiet text links, not primary-filled chips.
+    expect(screen.getByText("Session").closest("a")).toHaveClass(
+      "text-muted-foreground",
+    );
+    // Environment renders as muted key-value text, not a chip.
+    expect(screen.getByText("production").closest("span")).not.toBeNull();
+    expect(
+      screen.getByText("production").closest("span")?.parentElement,
+    ).toHaveTextContent("env: production");
   });
 });
 
