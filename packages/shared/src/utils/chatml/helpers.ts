@@ -1,5 +1,32 @@
 import { parseJsonIfString as parseIfString } from "../json";
 
+type SchemaWithSafeParse<T> = {
+  safeParse: (data: unknown) => T;
+};
+
+/**
+ * Zod 4 `safeParse` constructs a `$ZodError` on failure and assigns
+ * `inst.name`. That assignment throws when `Error.name` is non-writable
+ * (SES/lockdown and some browser extensions). Treat a throw as a failed parse.
+ */
+export function safeSchemaParse<T extends { success: boolean }>(
+  schema: SchemaWithSafeParse<T>,
+  data: unknown,
+): T {
+  try {
+    return schema.safeParse(data);
+  } catch {
+    return { success: false } as T;
+  }
+}
+
+export function schemaMatches(
+  schema: SchemaWithSafeParse<{ success: boolean }>,
+  data: unknown,
+): boolean {
+  return safeSchemaParse(schema, data).success;
+}
+
 export function removeNullFields(obj: unknown): Record<string, unknown> {
   if (!obj || typeof obj !== "object") return {};
 

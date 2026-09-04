@@ -11,6 +11,13 @@ import {
   ChatMlMessageSchema,
 } from "../IORepresentation/chatML/types";
 import { selectAdapter, type NormalizerContext } from "./adapters";
+import { safeSchemaParse } from "./helpers";
+
+type ChatMlParseResult = ReturnType<typeof ChatMlArraySchema.safeParse>;
+
+function failedChatMlParse(): ChatMlParseResult {
+  return { success: false } as ChatMlParseResult;
+}
 
 type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
@@ -26,44 +33,41 @@ function isSingleChatMlMessage(
   );
 }
 
-export function mapToChatMl(
-  input: unknown,
-): ReturnType<typeof ChatMlArraySchema.safeParse> {
-  let result = ChatMlArraySchema.safeParse(input);
+export function mapToChatMl(input: unknown): ChatMlParseResult {
+  const result = safeSchemaParse(ChatMlArraySchema, input);
   if (result.success) {
     return result;
   }
 
   // Check if input is an array of length 1 including an array of ChatMlMessageSchema
   // e.g. [[ChatMlMessageSchema, ...]]
-  const inputArray = z.array(ChatMlArraySchema).safeParse(input);
+  const inputArray = safeSchemaParse(z.array(ChatMlArraySchema), input);
   if (inputArray.success && inputArray.data.length === 1) {
-    return ChatMlArraySchema.safeParse(inputArray.data[0]);
+    return safeSchemaParse(ChatMlArraySchema, inputArray.data[0]);
   }
 
   // Check if input is an object with a messages key
   // e.g. { messages: [ChatMlMessageSchema, ...] }
-  const inputObject = z
-    .object({
+  const inputObject = safeSchemaParse(
+    z.object({
       messages: ChatMlArraySchema,
-    })
-    .safeParse(input);
+    }),
+    input,
+  );
 
   if (inputObject.success) {
-    return ChatMlArraySchema.safeParse(inputObject.data.messages);
+    return safeSchemaParse(ChatMlArraySchema, inputObject.data.messages);
   }
 
   // Single message object, e.g. { role: "user", content: "..." }
   if (isSingleChatMlMessage(input)) {
-    return ChatMlArraySchema.safeParse([input]);
+    return safeSchemaParse(ChatMlArraySchema, [input]);
   }
 
   return result;
 }
 
-export function mapOutputToChatMl(
-  output: unknown,
-): ReturnType<typeof ChatMlArraySchema.safeParse> {
+export function mapOutputToChatMl(output: unknown): ChatMlParseResult {
   // Check if output has messages key (LangGraph/LangChain format)
   if (
     output &&
@@ -72,14 +76,13 @@ export function mapOutputToChatMl(
     "messages" in output
   ) {
     const obj = output as Record<string, unknown>;
-    return ChatMlArraySchema.safeParse(obj.messages);
+    return safeSchemaParse(ChatMlArraySchema, obj.messages);
   }
 
-  const result = ChatMlArraySchema.safeParse(
+  return safeSchemaParse(
+    ChatMlArraySchema,
     Array.isArray(output) ? output : [output],
   );
-
-  return result;
 }
 
 export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
@@ -89,8 +92,10 @@ export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
     })
     .refine((value) => Object.keys(value).length === 1);
 
-  const outLegacyCompletionSchemaParsed =
-    outLegacyCompletionSchema.safeParse(output);
+  const outLegacyCompletionSchemaParsed = safeSchemaParse(
+    outLegacyCompletionSchema,
+    output,
+  );
   const outputClean = outLegacyCompletionSchemaParsed.success
     ? outLegacyCompletionSchemaParsed.data
     : (fallback ?? null);
@@ -155,14 +160,18 @@ export function combineInputOutputMessages(
 export function normalizeInput(
   input: unknown,
   ctx: NormalizerContext = {},
-): ReturnType<typeof ChatMlArraySchema.safeParse> {
-  const adapter = selectAdapter({
-    ...ctx,
-    metadata: ctx.metadata ?? input,
-    data: input,
-  });
-  const preprocessed = adapter.preprocess(input, "input", ctx);
-  return mapToChatMl(preprocessed);
+): ChatMlParseResult {
+  try {
+    const adapter = selectAdapter({
+      ...ctx,
+      metadata: ctx.metadata ?? input,
+      data: input,
+    });
+    const preprocessed = adapter.preprocess(input, "input", ctx);
+    return mapToChatMl(preprocessed);
+  } catch {
+    return failedChatMlParse();
+  }
 }
 
 /**
@@ -172,12 +181,16 @@ export function normalizeInput(
 export function normalizeOutput(
   output: unknown,
   ctx: NormalizerContext = {},
-): ReturnType<typeof ChatMlArraySchema.safeParse> {
-  const adapter = selectAdapter({
-    ...ctx,
-    metadata: ctx.metadata ?? output,
-    data: output,
-  });
-  const preprocessed = adapter.preprocess(output, "output", ctx);
-  return mapOutputToChatMl(preprocessed);
+): ChatMlParseResult {
+  try {
+    const adapter = selectAdapter({
+      ...ctx,
+      metadata: ctx.metadata ?? output,
+      data: output,
+    });
+    const preprocessed = adapter.preprocess(output, "output", ctx);
+    return mapOutputToChatMl(preprocessed);
+  } catch {
+    return failedChatMlParse();
+  }
 }
