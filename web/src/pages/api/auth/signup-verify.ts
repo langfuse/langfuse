@@ -115,11 +115,15 @@ export default async function handler(
       res.status(200).json({ status: "ok" });
       return;
     }
-    const message =
+    const logMessage =
       "Signup verify: Error creating user: " +
       (error instanceof Error ? error.message : JSON.stringify(error));
-    logger.warn(message, normalizedEmail, name);
-    res.status(500).json({ message });
+    logger.warn(logMessage, normalizedEmail, name);
+    // Raw Prisma/Postgres error details stay in the logs; the response
+    // carries a generic message only.
+    res.status(500).json({
+      message: "Signup verification failed. Please try again later.",
+    });
     return;
   }
 
