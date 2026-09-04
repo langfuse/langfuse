@@ -106,6 +106,7 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
+  buildEventsTraceToolCallCountsQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
@@ -177,6 +178,11 @@ const applyBatchIOStringRendering = (
 type EventsObservationQueryResult = EventsObservationRecordReadType & {
   latency?: string;
   time_to_first_token?: string;
+};
+
+type ToolCallCountRow = {
+  trace_id: string;
+  tool_calls_count: string;
 };
 
 /**
@@ -330,6 +336,7 @@ async function enrichObservationsWithModelData(
  */
 async function enrichObservationsWithTraceFields(
   observationRecords: Array<EventsObservation & ObservationPriceFields>,
+  toolCallCounts: ReadonlyMap<string, number> = new Map(),
 ): Promise<FullEventsObservations> {
   return observationRecords.map((observation) => {
     // Remove raw tags field as this is re-mapped to traceTags
@@ -344,9 +351,13 @@ async function enrichObservationsWithTraceFields(
       toolDefinitionsCount: observation.toolDefinitions
         ? Object.keys(observation.toolDefinitions).length
         : null,
-      toolCallsCount: observation.toolCalls
-        ? observation.toolCalls.length
-        : null,
+      toolCallsCount:
+        observation.type === "CHAIN" && observation.traceId
+          ? (toolCallCounts.get(observation.traceId) ??
+            (observation.toolCalls ? observation.toolCalls.length : null))
+          : observation.toolCalls
+            ? observation.toolCalls.length
+            : null,
     };
   });
 }
@@ -540,7 +551,21 @@ export async function getObservationsWithModelDataFromEventsTable(
       null, // V1 path: always enrich all fields
     );
 
-  const enriched = await enrichObservationsWithTraceFields(withModelData);
+  const chainRecords = observationRecords.filter(
+    (record) => record.type === "CHAIN" && Boolean(record.trace_id),
+  );
+  const toolCallCounts = opts.includeTraceToolCallCounts
+    ? await getToolCallCountsForTraces({
+        projectId: opts.projectId,
+        traceIds: Array.from(
+          new Set(chainRecords.map((record) => record.trace_id as string)),
+        ),
+      })
+    : new Map<string, number>();
+  const enriched = await enrichObservationsWithTraceFields(
+    withModelData,
+    toolCallCounts,
+  );
 
   if (!opts.ioSizeCap) return enriched;
 
@@ -569,6 +594,34 @@ export async function getObservationsWithModelDataFromEventsTable(
       metadataLength: Number(record.metadata_length ?? 0),
     };
   });
+}
+
+/**
+ * Counts declared tool calls for the traces in one event-list page.
+ *
+ * The inner aggregation applies ReplacingMergeTree semantics explicitly: a
+ * span may have multiple physical rows before background merges complete, and
+ * the newest row can be a delete marker. Restricting this query to page trace
+ * IDs keeps the work bounded without performing a correlated subquery per row.
+ */
+async function getToolCallCountsForTraces(params: {
+  projectId: string;
+  traceIds: string[];
+}): Promise<Map<string, number>> {
+  if (params.traceIds.length === 0) return new Map();
+
+  const rows = await queryClickhouse<ToolCallCountRow>({
+    ...buildEventsTraceToolCallCountsQuery({
+      projectId: params.projectId,
+      traceIds: params.traceIds,
+    }),
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return new Map(
+    rows.map((row) => [row.trace_id, Number(row.tool_calls_count)]),
+  );
 }
 
 export const getObservationMetricsForPromptsFromEvents = async (

@@ -549,6 +549,8 @@ export type ObservationTableQuery = {
    * Required by callers whose limits/paging count observations.
    */
   dedupeBySpanId?: boolean;
+  /** Events list only: enrich each row with the total tool calls in its trace. */
+  includeTraceToolCallCounts?: boolean;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 

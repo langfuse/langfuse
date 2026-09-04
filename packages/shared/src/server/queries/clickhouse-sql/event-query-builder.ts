@@ -599,6 +599,41 @@ const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
+ * Build a trace-scoped tool-call rollup for the Events list.
+ *
+ * ReplacingMergeTree versions are collapsed by span before the live rows are
+ * counted. The caller supplies only trace IDs from the current page; no time
+ * bound is valid because ingestion permits independently timestamped children.
+ * The events_core trace_id bloom-filter index keeps this lookup selective.
+ */
+export const buildEventsTraceToolCallCountsQuery = (params: {
+  projectId: string;
+  traceIds: string[];
+}): { query: string; params: Record<string, any> } => ({
+  query: `
+    SELECT
+      trace_id,
+      sumIf(length(tool_calls), is_deleted = 0) AS tool_calls_count
+    FROM (
+      SELECT
+        trace_id,
+        span_id,
+        tupleElement(argMax(tuple(tool_calls, is_deleted), event_ts), 1) AS tool_calls,
+        tupleElement(argMax(tuple(tool_calls, is_deleted), event_ts), 2) AS is_deleted
+      FROM events_core
+      WHERE project_id = {projectId: String}
+        AND trace_id IN ({traceIds: Array(String)})
+      GROUP BY trace_id, span_id
+    )
+    GROUP BY trace_id
+  `,
+  params: {
+    projectId: params.projectId,
+    traceIds: params.traceIds,
+  },
+});
+
+/**
  * Most abstract base class - contains common query building logic
  * that applies to all query types (WHERE, ORDER BY, LIMIT, params management).
  */

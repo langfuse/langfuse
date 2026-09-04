@@ -693,6 +693,52 @@ describe("Clickhouse Events Repository Test", () => {
       ).toBe(30);
     });
 
+    it("returns trace-level tool-call counts for chain rows", async () => {
+      const traceId = randomUUID();
+      const chainId = randomUUID();
+      const generationId = randomUUID();
+      const chainStartTime = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: chainId,
+          span_id: chainId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "CHAIN",
+          name: "agent-loop",
+          start_time: chainStartTime,
+          tool_calls: [],
+        }),
+        createEvent({
+          id: generationId,
+          span_id: generationId,
+          parent_span_id: chainId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "agent-turn",
+          // Child timestamps are independent and may fall outside conventional trace windows.
+          start_time: chainStartTime + 72 * 60 * 60 * 1_000 * 1_000,
+          tool_calls: ["call-1", "call-2"],
+        }),
+      ]);
+
+      const page = await getEventListCursor({
+        projectId,
+        filter: [idFilter(chainId)],
+        searchType: [],
+        limit: 25,
+      });
+
+      expect(page.observations).toHaveLength(1);
+      expect(page.observations[0]).toMatchObject({
+        id: chainId,
+        toolCalls: [],
+        toolCallsCount: 2,
+      });
+    });
+
     it("should return release field in the result set", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();

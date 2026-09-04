@@ -267,6 +267,7 @@ export async function getEventList(params: GetObservationsListParams) {
     limit: params.limit + 1,
     offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
+    includeTraceToolCallCounts: true,
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
@@ -286,6 +287,7 @@ export async function getEventListCursor(
     cursor: params.cursor,
     dedupeBySpanId: true,
     selectIOAndMetadata: false,
+    includeTraceToolCallCounts: true,
     renderingProps: { truncated: true, shouldJsonParse: false },
   });
   const boundary = page.observations.at(-1);
