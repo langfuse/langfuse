@@ -51,7 +51,11 @@ async function enqueueBatchEvaluation(params: {
   query: z.infer<typeof BatchActionQuerySchema>;
   config: z.infer<typeof batchEvaluationConfigSchema>;
 }) {
-  await BatchActionQueue.getInstance()?.add(
+  const queue = BatchActionQueue.getInstance();
+  if (!queue) {
+    throw new Error("Batch action queue is unavailable.");
+  }
+  await queue.add(
     QueueJobs.BatchActionProcessingJob,
     {
       id: params.id,
