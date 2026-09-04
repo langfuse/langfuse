@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Check,
@@ -47,6 +47,12 @@ export function JSONView(props: {
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  collapseDepth?: number;
+  customizeNode?: (params: {
+    node: unknown;
+    indexOrName: number | string | undefined;
+    depth: number;
+  }) => ReactElement | undefined;
 }) {
   // some users ingest stringified json nested in json, parse it. Also decode
   // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
@@ -67,7 +73,8 @@ export function JSONView(props: {
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
 
-  const isCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
+  const isFullyCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
+  const collapsed = isFullyCollapsed ? 1 : (props.collapseDepth ?? false);
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
@@ -135,8 +142,8 @@ export function JSONView(props: {
               src={parsedJson}
               theme="github"
               dark={resolvedTheme === "dark"}
-              collapsed={isCollapsed ? 1 : false}
-              collapseObjectsAfterLength={isCollapsed ? 0 : 20}
+              collapsed={collapsed}
+              collapseObjectsAfterLength={isFullyCollapsed ? 0 : 20}
               collapseStringsAfterLength={collapseStringsAfterLength}
               collapseStringMode="word"
               customizeCollapseStringUI={(fullSTring, truncated) =>
@@ -146,12 +153,19 @@ export function JSONView(props: {
                   ""
                 )
               }
-              displaySize={isCollapsed ? "collapsed" : "expanded"}
+              displaySize={isFullyCollapsed ? "collapsed" : "expanded"}
               matchesURL={true}
               // Render previewable media (Langfuse refs, data URIs, media URLs)
               // as a hover-to-peek chip instead of the raw string; everything
               // else falls through to the default value rendering.
-              customizeNode={({ node }) => {
+              customizeNode={({ node, indexOrName, depth }) => {
+                const customNode = props.customizeNode?.({
+                  node,
+                  indexOrName,
+                  depth,
+                });
+                if (customNode) return customNode;
+
                 const descriptor = classifyMediaValue(node);
                 return descriptor ? (
                   <MediaReferenceTag descriptor={descriptor} />
@@ -204,9 +218,9 @@ export function JSONView(props: {
                 size="icon-xs"
                 onClick={handleToggleCollapse}
                 className="hover:bg-border -mr-2"
-                title={isCollapsed ? "Expand all" : "Collapse all"}
+                title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
-                {isCollapsed ? (
+                {isFullyCollapsed ? (
                   <UnfoldVertical className="h-3 w-3" />
                 ) : (
                   <FoldVertical className="h-3 w-3" />
