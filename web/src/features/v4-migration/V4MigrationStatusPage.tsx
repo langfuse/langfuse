@@ -6,14 +6,9 @@ import { useSession } from "next-auth/react";
 import { ArrowRight } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { Card } from "@/src/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   useCopyMigrationPrompt,
   useHasV4MigrationDeadline,
@@ -134,7 +129,7 @@ type OrderBy = { column: SortKey; order: "ASC" | "DESC" } | null;
 
 // Header styling and none → DESC → ASC → none sort cycle copied from the
 // trace table (DataTable); sorting here is client-side over the static rows.
-function SortableHead({
+function SortableHeader({
   label,
   column,
   orderBy,
@@ -146,8 +141,8 @@ function SortableHead({
   onSort: (column: SortKey) => void;
 }) {
   return (
-    <TableHead
-      className="group cursor-pointer px-2"
+    <div
+      className="-mx-2 flex h-10 w-[calc(100%+1rem)] items-center px-2"
       onClick={() => onSort(column)}
     >
       <div className="flex items-center select-none">
@@ -160,7 +155,7 @@ function SortableHead({
           </span>
         )}
       </div>
-    </TableHead>
+    </div>
   );
 }
 
@@ -299,6 +294,118 @@ function OrgStatusSection({
       })
     : rows;
 
+  const sortableHeader = (label: string, column: SortKey) => (
+    <SortableHeader
+      label={label}
+      column={column}
+      orderBy={orderBy}
+      onSort={handleSort}
+    />
+  );
+
+  const columnOptions = {
+    cellPadding: "comfortable" as const,
+  };
+
+  const columns: LangfuseColumnDef<(typeof rows)[number]>[] = [
+    {
+      ...columnOptions,
+      accessorKey: "name",
+      header: () => sortableHeader("Project", "name"),
+      cell: ({ row }) => (
+        <Link
+          href={`/project/${row.original.id}/traces`}
+          className="block truncate font-bold hover:underline"
+          title={row.original.name}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!row.original.status.forceV3Experience) {
+              openProjectMigration(row.original, row.original.readiness);
+            }
+          }}
+        >
+          {row.original.name}
+        </Link>
+      ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "readiness",
+      header: () => sortableHeader("Status", "status"),
+      cell: ({ row }) => <StatusPill readiness={row.original.readiness} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "sdk",
+      header: () => sortableHeader("SDK", "sdk"),
+      cell: ({ row }) =>
+        row.original.status.sdk.status === "latest" ? (
+          <span className="text-foreground-tertiary">Latest</span>
+        ) : row.original.status.sdk.status === "otel_realtime" ? (
+          <span className="text-foreground-tertiary">OTel real-time</span>
+        ) : row.original.status.sdk.status === "no_data" ? (
+          <span className="text-foreground-tertiary">No data detected</span>
+        ) : row.original.status.sdk.status === "checking" ? (
+          <span className="text-foreground-tertiary">Checking…</span>
+        ) : row.original.status.sdk.status === "unknown" ? (
+          <span className="text-foreground-tertiary">Unknown</span>
+        ) : row.original.status.sdk.status === "otel_header_required" ? (
+          <span>
+            {row.original.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+            {row.original.status.sdk.delayedOtelIngestionCount === 1
+              ? "required"
+              : "issues"}
+          </span>
+        ) : row.original.status.sdk.status === "error" ? (
+          <span className="text-foreground-tertiary">Unavailable</span>
+        ) : (
+          <span>{row.original.status.sdk.upgradeRequiredCount} outdated</span>
+        ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "evals",
+      header: () => sortableHeader("Affected Evals", "evals"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.evals} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "experiments",
+      header: () => sortableHeader("Affected Experiments", "experiments"),
+      cell: ({ row }) => (
+        <MigrationActionCell state={row.original.status.experiments} />
+      ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "apis",
+      header: () => sortableHeader("Affected APIs", "apis"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.apis} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "exports",
+      header: () => sortableHeader("Affected Exports", "exports"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.exports} />,
+    },
+    createTextTableColumn<(typeof rows)[number]>({
+      ...columnOptions,
+      accessorKey: "lastTraceLabel",
+      header: () => sortableHeader("Last trace", "lastTrace"),
+    }),
+    {
+      accessorKey: "id",
+      header: "",
+      size: 96,
+      cellPadding: "comfortable",
+      cell: () => (
+        <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
+          Review <ArrowRight className="h-3 w-3 shrink-0" />
+        </span>
+      ),
+    },
+  ];
+
   if (rows.length === 0) return null;
 
   return (
@@ -308,156 +415,15 @@ function OrgStatusSection({
       </h3>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="min-w-[60rem] table-auto">
-            <TableHeader>
-              <TableRow>
-                <SortableHead
-                  label="Project"
-                  column="name"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Status"
-                  column="status"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="SDK"
-                  column="sdk"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Evals"
-                  column="evals"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Experiments"
-                  column="experiments"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected APIs"
-                  column="apis"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Exports"
-                  column="exports"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Last trace"
-                  column="lastTrace"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <TableHead className="w-24" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedRows.map((row) => {
-                const { readiness } = row;
-                return (
-                  <TableRow
-                    key={row.id}
-                    className="group/row cursor-pointer"
-                    onClick={() => handleRowClick(row, readiness)}
-                  >
-                    <TableCell density="comfortable" className="max-w-48">
-                      <Link
-                        href={`/project/${row.id}/traces`}
-                        className="block truncate font-bold hover:underline"
-                        title={row.name}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          // Forced-v3 projects have no migration panel.
-                          if (!row.status.forceV3Experience) {
-                            openProjectMigration(row, readiness);
-                          }
-                        }}
-                      >
-                        {row.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell
-                      density="comfortable"
-                      className="overflow-hidden"
-                    >
-                      <StatusPill readiness={readiness} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      {row.status.sdk.status === "latest" ? (
-                        <span className="text-foreground-tertiary">Latest</span>
-                      ) : row.status.sdk.status === "otel_realtime" ? (
-                        <span className="text-foreground-tertiary">
-                          OTel real-time
-                        </span>
-                      ) : row.status.sdk.status === "no_data" ? (
-                        <span className="text-foreground-tertiary">
-                          No data detected
-                        </span>
-                      ) : row.status.sdk.status === "checking" ? (
-                        <span className="text-foreground-tertiary">
-                          Checking…
-                        </span>
-                      ) : row.status.sdk.status === "unknown" ? (
-                        <span className="text-foreground-tertiary">
-                          Unknown
-                        </span>
-                      ) : row.status.sdk.status === "otel_header_required" ? (
-                        <span>
-                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
-                          {row.status.sdk.delayedOtelIngestionCount === 1
-                            ? "required"
-                            : "issues"}
-                        </span>
-                      ) : row.status.sdk.status === "error" ? (
-                        <span className="text-foreground-tertiary">
-                          Unavailable
-                        </span>
-                      ) : (
-                        <span>
-                          {row.status.sdk.upgradeRequiredCount} outdated
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.evals} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <MigrationActionCell state={row.status.experiments} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.apis} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.exports} />
-                    </TableCell>
-                    <TableCell
-                      density="comfortable"
-                      className="text-muted-foreground truncate"
-                      title={row.lastTraceLabel}
-                    >
-                      {row.lastTraceLabel}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-                        Review <ArrowRight className="h-3 w-3 shrink-0" />
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <SimpleDataTable
+            columns={columns}
+            data={sortedRows}
+            isLoading={false}
+            noResults={null}
+            presentation="wide"
+            rowVariant="review"
+            onRowClick={(row) => handleRowClick(row, row.readiness)}
+          />
         </div>
       </Card>
     </div>
