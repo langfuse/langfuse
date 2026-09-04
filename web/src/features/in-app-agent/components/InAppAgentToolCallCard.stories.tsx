@@ -495,17 +495,11 @@ export const ApprovalRequiredWithCode = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
-    await userEvent.hover(
-      canvas.getByLabelText("Source code at versions[1].sourceCode"),
-    );
     const showCodeButtons = canvas.getAllByRole("button", {
       name: "View as code",
     });
-    await expect(showCodeButtons).toHaveLength(1);
-    await expect(
-      canvas.getByRole("button", { name: "Copy source code" }),
-    ).toBeVisible();
-    await userEvent.click(showCodeButtons[0]);
+    await expect(showCodeButtons).toHaveLength(2);
+    await userEvent.click(showCodeButtons[1]);
     await expect(canvas.getByTitle("versions[1].sourceCode")).toBeVisible();
   },
 });
