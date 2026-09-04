@@ -1932,6 +1932,107 @@ describe("Webhook Integration Tests", () => {
       expect(payload.client_payload.truncation).toBeUndefined();
     });
 
+    it("should truncate oversized GitHub dispatch metadata when prompt content is omitted", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+      if (!fullPrompt) {
+        throw new Error("Prompt not found");
+      }
+
+      const ghActionId = v4();
+      await prisma.action.create({
+        data: {
+          id: ghActionId,
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "prompt-update",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+            includePromptContent: false,
+          },
+        },
+      });
+
+      const ghAutomationId = v4();
+      await prisma.automation.create({
+        data: {
+          id: ghAutomationId,
+          projectId,
+          triggerId,
+          actionId: ghActionId,
+          name: "GitHub Dispatch Oversized Metadata",
+        },
+      });
+
+      const ghExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: ghExecutionId,
+          projectId,
+          triggerId,
+          automationId: ghAutomationId,
+          actionId: ghActionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: promptId,
+          input: {},
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: ghAutomationId,
+        executionId: ghExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse({
+            ...fullPrompt,
+            prompt: { content: "must stay omitted" },
+            config: { temperature: 0.2 },
+            tags: [
+              "tag-" + "x".repeat(GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES),
+            ],
+            labels: [
+              "label-" +
+                "y".repeat(GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES),
+            ],
+            commitMessage: "commit-" + "z".repeat(1024),
+          }),
+          action: "updated",
+          type: "prompt-version",
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+      expect(Buffer.byteLength(requests[0].body, "utf8")).toBeLessThan(
+        GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES,
+      );
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.client_payload.prompt.prompt).toBe(
+        GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
+      );
+      expect(payload.client_payload.prompt.config).toEqual({});
+      expect(payload.client_payload.prompt.tags).toEqual([]);
+      expect(payload.client_payload.prompt.labels).toEqual([]);
+      expect(payload.client_payload.prompt.commitMessage).toBeNull();
+      expect(payload.client_payload.truncation).toEqual({
+        payloadTruncated: true,
+        truncatedFields: [
+          "prompt.prompt",
+          "prompt.config",
+          "prompt.tags",
+          "prompt.labels",
+          "prompt.commitMessage",
+        ],
+      });
+    });
+
     it("should truncate oversized GitHub dispatch monitor-alert filters", async () => {
       const ghActionId = v4();
       await prisma.action.create({
