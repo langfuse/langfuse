@@ -1,4 +1,4 @@
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   HoverCard,
   HoverCardContent,
@@ -40,43 +40,41 @@ export function ViewModeToggle({
 
   return (
     <div className="flex w-full flex-row items-center justify-start gap-1.5">
-      <Tabs
-        ref={compensateScrollRef}
-        className="h-fit py-0.5"
-        value={selectedViewTab}
-        onValueChange={handleViewTabChange}
-      >
-        <TabsList className="h-fit p-0.5">
-          {showPrettyBeta &&
-            (prettyBetaDisabled ? (
-              <HoverCard openDelay={200}>
-                <HoverCardTrigger asChild>
-                  <TabsTrigger
-                    value="pretty-beta"
-                    className="h-fit px-1 text-xs"
-                    disabled
-                  >
-                    Normalized (beta)
-                  </TabsTrigger>
-                </HoverCardTrigger>
-                <HoverCardContent align="start" className="w-64 text-sm">
-                  Shown with the standard parser for now — beta parsing is not
-                  applied to precomputed views yet.
-                </HoverCardContent>
-              </HoverCard>
-            ) : (
-              <TabsTrigger value="pretty-beta" className="h-fit px-1 text-xs">
-                Normalized (beta)
-              </TabsTrigger>
-            ))}
-          <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-            Formatted
-          </TabsTrigger>
-          <TabsTrigger value="json" className="h-fit px-1 text-xs">
-            JSON
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="h-fit py-0.5">
+        <Tabs
+          ref={compensateScrollRef}
+          value={selectedViewTab}
+          onValueChange={handleViewTabChange}
+        >
+          <Tabs.List size="sm">
+            {showPrettyBeta &&
+              (prettyBetaDisabled ? (
+                <HoverCard openDelay={200}>
+                  <HoverCardTrigger asChild>
+                    <Tabs.Trigger
+                      value="pretty-beta"
+                      size="sm"
+                      disabled
+                      label="Normalized (beta)"
+                    />
+                  </HoverCardTrigger>
+                  <HoverCardContent align="start" className="w-64 text-sm">
+                    Shown with the standard parser for now — beta parsing is not
+                    applied to precomputed views yet.
+                  </HoverCardContent>
+                </HoverCard>
+              ) : (
+                <Tabs.Trigger
+                  value="pretty-beta"
+                  size="sm"
+                  label="Normalized (beta)"
+                />
+              ))}
+            <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
+            <Tabs.Trigger value="json" size="sm" label="JSON" />
+          </Tabs.List>
+        </Tabs>
+      </div>
       {selectedViewTab === "json" && (
         <div className="flex items-center gap-1.5">
           <Switch

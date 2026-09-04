@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import React from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -41,10 +41,6 @@ export function TruncatedLabels({
   const visibleLabels = sortedLabels.slice(0, maxVisibleLabels);
   const hiddenLabels = sortedLabels.slice(maxVisibleLabels);
   const hasHiddenLabels = hiddenLabels.length > 0;
-
-  if (sortedLabels.length === 0) {
-    return null;
-  }
 
   return (
     <div className={cn("flex flex-wrap gap-1", className)}>

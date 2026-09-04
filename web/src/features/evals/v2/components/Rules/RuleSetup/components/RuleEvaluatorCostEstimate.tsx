@@ -18,7 +18,9 @@ export function RuleEvaluatorCostEstimate({
         <span className="cursor-help font-mono text-sm tabular-nums underline decoration-dotted underline-offset-4">
           {estimate.estimatedCostUsd === null
             ? "Unavailable"
-            : `≈ ${usdFormatter(estimate.estimatedCostUsd, 2, 2)} / week`}
+            : estimate.period === "selection"
+              ? `≈ ${usdFormatter(estimate.estimatedCostUsd, 2, 2)}`
+              : `≈ ${usdFormatter(estimate.estimatedCostUsd, 2, 2)} / week`}
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-72">

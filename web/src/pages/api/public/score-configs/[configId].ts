@@ -15,6 +15,7 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get a Score Config",
+    action: "scoreConfigs:read",
     querySchema: GetScoreConfigQuery,
     responseSchema: GetScoreConfigResponse,
     fn: async ({ query, auth }) => {
@@ -26,6 +27,7 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Update a Score Config",
+    action: "scoreConfigs:CUD",
     querySchema: PatchScoreConfigQuery,
     bodySchema: PatchScoreConfigBody,
     responseSchema: PatchScoreConfigResponse,

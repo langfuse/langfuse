@@ -5,6 +5,11 @@ evaluating, and debugging AI applications.
 
 ## How To Work
 
+- Know who you are working for before you assume what they may do. An outside
+  contributor and a Langfuse maintainer get different halves of this repo, and
+  the difference is derivable — `~/.config/langfuse/me.md` if it exists, else
+  `gh api repos/langfuse/langfuse --jq .permissions`. `langfuse-onboarding`
+  establishes it once and records it; never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file
@@ -36,10 +41,14 @@ evaluating, and debugging AI applications.
   commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
 - Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
-  Linear URLs into anything this repo publishes: code comments, docs prose,
-  commit messages, PR titles and descriptions, or changelog entries. They mean
-  nothing to OSS readers. Describe the problem on its own terms; a
-  ticket-prefixed branch name is the one place the identifier belongs.
+  tracker URLs into anything an OSS reader meets: code comments, commit messages,
+  PR titles and descriptions, changelog entries, or user-facing docs. They mean
+  nothing to them. Describe the problem on its own terms; a ticket-prefixed
+  branch name is the one place the identifier belongs.
+  - `.agents/skills/**` is the exception, for identifiers only. Those files are
+    maintainer guidance, and an id there is provenance an engineer can follow —
+    "the shape from LFE-10959", "the worked example". Tracker URLs stay out even
+    here: they cannot be opened from a fork and they carry the workspace name.
 - Code comments document behavior for future readers, not the reasoning
   behind the current change. Do not reference PR/review history ("changed X
   to Y", "now also handles", "per review", "was previously") or describe
@@ -64,6 +73,29 @@ evaluating, and debugging AI applications.
   that skip), then resolve it. Do not post `@claude review` again unless
   a human asks for another pass.
 
+## Context Handover
+
+Two moments in every task, both easy to skip and both expensive:
+
+- **Before you touch an existing feature, reconstruct its history.** Walk
+  commits, the PRs that carried them, and the head branch name — which is where
+  the work-item identifier lives — through to the work item itself and any prior
+  agent context on it. The commands are in
+  `.agents/skills/pr-stack-workflow/references/stack-commands.md` → *Recover the
+  context before you slice*. A decision already reversed once does not need
+  proposing again.
+- **Before you ask for review or merge, leave your reasoning on the work item**
+  — the decisions, the reversals, how the human steered, the traps. It survives
+  one session otherwise. Do it before the PR, not after the merge: there is no
+  later.
+
+The practice, its template and its tooling are the `linear-context-handover` and
+`linear-planning` skills, alongside `linear-agent-writes`, which is the policy for
+what an agent may write to the tracker and how it must be marked. Read those
+rather than improvise. If this environment cannot reach the tracker, say so in your reply and
+hand back the text that should have gone on the work item — never skip either
+step silently, because silent non-compliance looks exactly like compliance.
+
 ## Project Structure
 
 ```text
@@ -87,8 +119,9 @@ langfuse/
 - High-signal shared entry points:
   - Domain models: `packages/shared/src/domain/{observations,traces,scores}.ts`
   - Postgres schema: `packages/shared/prisma/schema.prisma`
-  - ClickHouse migrations:
-    `packages/shared/clickhouse/migrations/{clustered,unclustered}/*.sql`
+  - Canonical ClickHouse migration templates (rendered for clustered and
+    unclustered installs):
+    `packages/shared/clickhouse/migrations/canonical/*.sql`
 - Architecture principles live in `.agents/ARCHITECTURE_PRINCIPLES.md`.
 
 ## Core Commands
@@ -164,14 +197,35 @@ langfuse/
 - Client-bundle soundness: CI scans every prod web build
   (`pnpm run scan:client-bundle`) for minifier-dropped bindings and Node-only
   globals leaking into browser chunks — the SWC dropped-binding class ships
-  runtime-only `ReferenceError`s that dev builds and type checks cannot see
-  (LFE-10645). On failure, `scripts/scan-client-bundle.mjs`'s header explains
-  the canonical fix.
+  runtime-only `ReferenceError`s that dev builds and type checks cannot see. On
+  failure, `scripts/scan-client-bundle.mjs`'s header explains the canonical fix.
 
 End your turn with evidence, not claims: quote each check's summary line —
 e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
 `Tests  12 passed (12)` (vitest) — say which checks you skipped and why,
 never report unverified work as done, and never end with work pending.
+
+A check that passed is not always a check that ran:
+
+- `lint` and `typecheck` are cached turbo tasks, and worktrees share one cache
+  (`using shared worktree cache` on every run), so a pass can be a replay of
+  another branch's result. `Tasks: 1 successful, 1 total` prints identically
+  either way — quote the `Cached:` line too. To force execution, use
+  `pnpm exec turbo run lint --force`; `--no-cache` does not do this, it only
+  stops the write (`turbo run lint --help`).
+- Every package that lints — `web`, `worker`, `packages/shared`, `ee` — runs
+  eslint with `--max-warnings 0`, so one eslint *warning* fails the branch.
+- `@langfuse/shared` resolves to its built `dist`. Root `pnpm run typecheck`
+  orders that build for you (`turbo.json`: `typecheck.dependsOn` includes
+  `^build`), but a filtered `pnpm --filter=web run typecheck` does not — after
+  switching a worktree between branches, run
+  `pnpm --filter=shared run db:generate && pnpm --filter=shared run build`
+  first, or typecheck reports on the previous branch's source.
+- `pnpm exec knip` is a required check in `pipeline.yml` with no `package.json`
+  script, so it is easy to never run locally. Unused files and exports under
+  `web/**`, `packages/shared/**` and `worker/**` fail it.
+- No check loads a page. A rendering change is not verified until somebody opens
+  the surface it touches and looks at it.
 
 ## Generated Files
 

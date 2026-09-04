@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { PlusCircle } from "lucide-react";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
@@ -20,13 +19,11 @@ export function ProvidedModelNameCell({
   projectId,
   usageDetails,
 }: {
-  modelName: string | undefined;
+  modelName: string;
   modelId: string | undefined;
   projectId: string;
   usageDetails: Record<string, number>;
 }) {
-  if (!modelName) return null;
-
   // Both states wrap the name in the same inline-flex so the text sits at an
   // identical baseline whether or not the trailing affordance is present.
   if (modelId) {

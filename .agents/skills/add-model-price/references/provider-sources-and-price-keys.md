@@ -459,6 +459,41 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   a third model sharing the same Jan 1, 2027 price step-up — see unresolved finding in
   `model-audit-memory.md` about updating all three (3.6, 3.7, 3.8 Flash) on/after that
   date.
+- **GPT-6 Astra (added September 3 2026)** — `gpt-6-astra` is OpenAI's new
+  flagship reasoning model ("Our most capable model, built for the hardest
+  end-to-end work"), confirmed via `https://developers.openai.com/api/docs/pricing`
+  and its dedicated model page `https://developers.openai.com/api/docs/models/gpt-6-astra`.
+  API ID: `gpt-6-astra` (no date-stamped snapshot at launch, following the
+  gpt-5.6 family's dateless-launch precedent). Context window 1,050,000 tokens
+  (max input 922,000), max output 128,000 tokens, prompt caching and reasoning
+  tokens supported. Standard pricing: $10/MTok input, $1/MTok cached input,
+  $12.50/MTok cache write (1.25x input, matching the gpt-5.6-family pattern),
+  $50/MTok output. **Large Context tier applies above 272,000 input tokens**
+  (the same threshold as the gpt-5.6 family, not the 200K used by most other
+  OpenAI models): 2x input/cache prices and 1.5x output for the full request —
+  $20/$2/$25/$75. Fast mode (`service_tier` in `["fast","priority"]`) is 2x the
+  applicable tier's rate: $20/$2/$25/$100 standard, $40/$4/$50/$150 large
+  context (Fast mode is documented as unavailable for EU data residency
+  requests — Langfuse's pricing schema cannot condition on data residency, so
+  the tier is added unconditionally like every other Fast-mode tier). Flex
+  (`service_tier: "flex"`) is 0.5x the applicable tier's rate: $5/$0.50/$6.25/$25
+  standard, $10/$1/$12.50/$37.50 large context. Added to the pricing file
+  mirroring the `gpt-5.6-sol` six-tier key set exactly (Standard, Fast mode ·
+  Large context, Flex · Large context, Fast mode, Flex, Large Context) and to
+  `openAIModels` in `types.ts` (not as the first entry). matchPattern:
+  `(?i)^(openai/)?(gpt-6-astra)$`. Confirmed via two independent WebFetch
+  calls (aggregate pricing table plus the dedicated model page) that returned
+  consistent numbers. **Batch pricing intentionally not added**: the pricing
+  page also documents a Batch tier at 50% of Standard (same discount as Flex),
+  but no OpenAI model in this file has ever had a Batch tier represented —
+  Batch is a distinct async submission endpoint (results collected up to 24h
+  later via a separate Batches API) rather than a `service_tier` value on a
+  normal chat/response request, so it would not appear in ordinary Langfuse
+  ingestion usage data the way `fast`/`priority`/`flex` do. Treat this as the
+  established scope boundary rather than a gap to fill without first
+  confirming Langfuse actually observes a `service_tier: "batch"` (or
+  equivalent) value in real ingested usage payloads for any provider request
+  path.
 - **Gemini 2.5-family grounding price is a different rate than 3.x — confirmed the
   pricing file correctly has no grounding keys on 2.5-family models (September 2
   2026)** — `gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` grounding is
