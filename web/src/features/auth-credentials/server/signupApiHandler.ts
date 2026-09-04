@@ -7,6 +7,7 @@ import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { applyAuthRateLimit } from "@/src/features/auth-credentials/server/authRateLimit";
 
 export function getSSOBlockedDomains() {
   return (
@@ -62,6 +63,10 @@ export async function signupApiHandler(
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
+  }
+
+  if (await applyAuthRateLimit(req, res, "auth-signup")) {
+    return;
   }
 
   // Block direct signup when email verification is required
