@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/clickhouse/clickhouseIdentifiers": {
+      "import": "./dist/src/server/clickhouse/clickhouseIdentifiers.js",
+      "require": "./dist/src/server/clickhouse/clickhouseIdentifiers.js"
+    },
     "./src/server/llm/llmText": {
       "import": "./dist/src/server/llm/llmText.js",
       "require": "./dist/src/server/llm/llmText.js"
@@ -137,8 +141,10 @@
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
     "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
-    "ch:up": "bash clickhouse/scripts/up.sh",
-    "ch:down": "bash clickhouse/scripts/down.sh",
+    "ch:migrations:materialize": "node clickhouse/scripts/prepare-migrations.mjs materialize clickhouse/migrations",
+    "ch:migrations:clean": "node clickhouse/scripts/prepare-migrations.mjs clean clickhouse/migrations",
+    "ch:up": "sh clickhouse/scripts/up.sh",
+    "ch:down": "sh clickhouse/scripts/down.sh",
     "ch:drop": "bash clickhouse/scripts/drop.sh",
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",

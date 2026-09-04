@@ -155,6 +155,11 @@ export async function handleDeleteProject(
       action: "delete",
     });
 
+    // Refresh org-scoped keys' baked projectIds now that a project is gone.
+    await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
+      scope.orgId,
+    );
+
     // Soft-delete is the billing-relevant moment: the customer stops being
     // billable now, not when the async hard-delete worker finishes.
     emitChbProjectEvent({

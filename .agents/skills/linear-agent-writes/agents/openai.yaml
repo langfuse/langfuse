@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Agent Writes"
+  short_description: "What an agent may write to Linear, and how it must be marked"
+  default_prompt: "Use $linear-agent-writes to check which Linear write shapes are permitted, which label stamps each one, and what still belongs to a human."

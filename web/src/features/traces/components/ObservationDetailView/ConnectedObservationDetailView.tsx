@@ -26,7 +26,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   TabsBar,
   TabsBarContent,
@@ -371,82 +371,75 @@ export function ConnectedObservationDetailView({
               {(selectedTab === "log" ||
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
                 <>
-                  <Tabs
-                    className="ml-auto h-fit px-2 py-0.5"
-                    value={
-                      selectedTab === "log" &&
-                      (isLogViewVirtualized ||
-                        selectedViewTab === "pretty-beta")
-                        ? "pretty"
-                        : selectedViewTab
-                    }
-                    onValueChange={(value) => {
-                      if (
+                  <div className="ml-auto h-fit px-2 py-0.5">
+                    <Tabs
+                      value={
                         selectedTab === "log" &&
-                        isLogViewVirtualized &&
-                        value === "json"
-                      ) {
-                        return;
+                        (isLogViewVirtualized ||
+                          selectedViewTab === "pretty-beta")
+                          ? "pretty"
+                          : selectedViewTab
                       }
-                      handleViewTabChange(value);
-                    }}
-                  >
-                    <TabsList className="h-fit py-0.5">
-                      {/* Log view never runs the normalized parser, so the
+                      onValueChange={(value) => {
+                        if (
+                          selectedTab === "log" &&
+                          isLogViewVirtualized &&
+                          value === "json"
+                        ) {
+                          return;
+                        }
+                        handleViewTabChange(value);
+                      }}
+                    >
+                      <Tabs.List size="sm">
+                        {/* Log view never runs the normalized parser, so the
                           beta tab only renders on the preview tab. */}
-                      {showPrettyBeta && selectedTab !== "log" && (
-                        <TabsTrigger
-                          value="pretty-beta"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Normalized (beta)
-                        </TabsTrigger>
-                      )}
-                      <TabsTrigger
-                        value="pretty"
-                        className="h-fit px-1 text-xs"
-                      >
-                        Formatted
-                      </TabsTrigger>
-                      {selectedTab === "log" && isLogViewVirtualized ? (
-                        <HoverCard openDelay={200}>
-                          <HoverCardTrigger asChild>
-                            <span>
-                              <TabsTrigger
-                                value="json"
-                                className="h-fit px-1 text-xs"
-                                disabled
-                              >
-                                JSON
-                              </TabsTrigger>
-                            </span>
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            align="end"
-                            className="w-64 text-sm"
-                            sideOffset={8}
-                          >
-                            <p className="font-bold">JSON view unavailable</p>
-                            <p className="text-muted-foreground mt-1">
-                              Disabled for traces with{" "}
-                              {
-                                TRACE_VIEW_CONFIG.logView
-                                  .virtualizationThreshold
-                              }
-                              + observations to maintain performance.
-                            </p>
-                          </HoverCardContent>
-                        </HoverCard>
-                      ) : (
-                        <TabsTrigger
-                          value="json"
-                          className="h-fit px-1 text-xs"
-                        >
-                          JSON
-                        </TabsTrigger>
-                      )}
-                    </TabsList>
-                  </Tabs>
+                        {showPrettyBeta && selectedTab !== "log" && (
+                          <Tabs.Trigger
+                            value="pretty-beta"
+                            size="sm"
+                            label="Normalized (beta)"
+                          />
+                        )}
+                        <Tabs.Trigger
+                          value="pretty"
+                          size="sm"
+                          label="Formatted"
+                        />
+                        {selectedTab === "log" && isLogViewVirtualized ? (
+                          <HoverCard openDelay={200}>
+                            <HoverCardTrigger asChild>
+                              <span>
+                                <Tabs.Trigger
+                                  value="json"
+                                  size="sm"
+                                  disabled
+                                  label="JSON"
+                                />
+                              </span>
+                            </HoverCardTrigger>
+                            <HoverCardContent
+                              align="end"
+                              className="w-64 text-sm"
+                              sideOffset={8}
+                            >
+                              <p className="font-bold">JSON view unavailable</p>
+                              <p className="text-muted-foreground mt-1">
+                                Disabled for traces with{" "}
+                                {
+                                  TRACE_VIEW_CONFIG.logView
+                                    .virtualizationThreshold
+                                }
+                                + observations to maintain performance.
+                              </p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
+                          <Tabs.Trigger value="json" size="sm" label="JSON" />
+                        )}
+                      </Tabs.List>
+                    </Tabs>
+                  </div>
                   {selectedViewTab === "json" &&
                     !(selectedTab === "log" && isLogViewVirtualized) && (
                       <div className="mr-1 flex items-center gap-1.5">
