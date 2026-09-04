@@ -769,6 +769,7 @@ function InAppAiAgentProviderInner({
               projectId,
               conversationId:
                 backgroundSessionRef.current?.conversationId ?? null,
+              source: "live",
               utils,
             }).catch((error: unknown) => {
               console.error(
@@ -910,6 +911,7 @@ function InAppAiAgentProviderInner({
             handledToolCallIds: handledToolCallIdsRef.current,
             projectId,
             conversationId,
+            source: "hydrated",
             utils,
           }).catch((error: unknown) => {
             console.error(

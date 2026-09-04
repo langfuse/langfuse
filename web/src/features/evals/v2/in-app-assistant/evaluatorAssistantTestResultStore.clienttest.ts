@@ -95,14 +95,16 @@ describe("evaluatorAssistantTestResultStore", () => {
       observationId: "observation-1",
     });
 
-    store.publish({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
-      conversationId: "old-conversation",
-      observationId: "observation-1",
-      toolCallId: "old-tool-call",
-      result: { success: true },
-    });
+    expect(
+      store.publish({
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        conversationId: "old-conversation",
+        observationId: "observation-1",
+        toolCallId: "old-tool-call",
+        result: { success: true },
+      }),
+    ).toBe(false);
 
     expect(store.get("project-1", "evaluator-1")).toBeNull();
     store.clear("project-1", "evaluator-1");

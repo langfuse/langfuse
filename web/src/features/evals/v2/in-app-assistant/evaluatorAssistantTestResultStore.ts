@@ -109,7 +109,7 @@ export function createEvaluatorAssistantTestResultStore({
         (expected.observationId !== null &&
           expected.observationId !== observationId)
       ) {
-        return;
+        return false;
       }
 
       const next = new Map(snapshot);
@@ -127,6 +127,7 @@ export function createEvaluatorAssistantTestResultStore({
       snapshot = next;
       scheduleExpiry(key);
       notify();
+      return true;
     },
     clear(projectId: string, evaluatorId: string) {
       clearKey(resultKey(projectId, evaluatorId));

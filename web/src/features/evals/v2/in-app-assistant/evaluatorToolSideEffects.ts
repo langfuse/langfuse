@@ -2,6 +2,7 @@ import { safeJsonParse } from "@langfuse/shared";
 
 import type { api } from "@/src/utils/api";
 import { evaluatorAssistantTestResultStore } from "./evaluatorAssistantTestResultStore";
+import { evaluatorAssistantUpdateSignalStore } from "./evaluatorAssistantUpdateSignalStore";
 
 export type EvaluatorAssistantCompletedToolCall = {
   toolCallId: string;
@@ -15,14 +16,16 @@ export function performEvaluatorAssistantToolSideEffects({
   toolCalls,
   projectId,
   conversationId,
+  source,
   utils,
 }: {
   toolCalls: readonly EvaluatorAssistantCompletedToolCall[];
   projectId: string;
   conversationId: string | null;
+  source: "live" | "hydrated";
   utils: ReturnType<typeof api.useUtils>;
 }) {
-  const updatedEvaluatorIds = new Set<string>();
+  const updatedEvaluators = new Map<string, string>();
 
   for (const toolCall of toolCalls) {
     if (toolCall.toolName === "langfuse_updateEvaluator") {
@@ -31,7 +34,7 @@ export function performEvaluatorAssistantToolSideEffects({
         "evaluatorId",
       );
       if (evaluatorId) {
-        updatedEvaluatorIds.add(evaluatorId);
+        updatedEvaluators.set(evaluatorId, toolCall.toolCallId);
       }
     }
 
@@ -42,7 +45,7 @@ export function performEvaluatorAssistantToolSideEffects({
       );
       const result = getEvaluatorTestResult(toolCall);
       if (evaluatorId && result) {
-        evaluatorAssistantTestResultStore.publish({
+        const published = evaluatorAssistantTestResultStore.publish({
           projectId,
           evaluatorId,
           conversationId,
@@ -53,12 +56,29 @@ export function performEvaluatorAssistantToolSideEffects({
           toolCallId: toolCall.toolCallId,
           result,
         });
+        if (source === "live" && published) {
+          evaluatorAssistantUpdateSignalStore.publish({
+            projectId,
+            evaluatorId,
+            surface: "test",
+            updateId: toolCall.toolCallId,
+          });
+        }
       }
     }
   }
 
-  return Array.from(updatedEvaluatorIds, (evaluatorId) =>
-    utils.evalsV2.get.invalidate({ projectId, evaluatorId }),
+  return Array.from(updatedEvaluators, ([evaluatorId, updateId]) =>
+    utils.evalsV2.get.invalidate({ projectId, evaluatorId }).then(() => {
+      if (source === "live") {
+        evaluatorAssistantUpdateSignalStore.publish({
+          projectId,
+          evaluatorId,
+          surface: "code",
+          updateId,
+        });
+      }
+    }),
   );
 }
 

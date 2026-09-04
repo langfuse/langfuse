@@ -1,5 +1,6 @@
 import type { api } from "@/src/utils/api";
 import { evaluatorAssistantTestResultStore } from "./evaluatorAssistantTestResultStore";
+import { evaluatorAssistantUpdateSignalStore } from "./evaluatorAssistantUpdateSignalStore";
 import { performEvaluatorAssistantToolSideEffects } from "./evaluatorToolSideEffects";
 
 type InvalidationUtils = ReturnType<typeof api.useUtils>;
@@ -7,6 +8,10 @@ type InvalidationUtils = ReturnType<typeof api.useUtils>;
 describe("evaluator Assistant tool side effects", () => {
   it("refreshes the updated evaluator only", async () => {
     const evaluatorInvalidate = vi.fn(() => Promise.resolve());
+    const publishUpdate = vi.spyOn(
+      evaluatorAssistantUpdateSignalStore,
+      "publish",
+    );
     const utils = {
       evalsV2: { get: { invalidate: evaluatorInvalidate } },
     } as unknown as InvalidationUtils;
@@ -27,6 +32,7 @@ describe("evaluator Assistant tool side effects", () => {
         ],
         projectId: "project-1",
         conversationId: "conversation-1",
+        source: "live",
         utils,
       }),
     );
@@ -36,9 +42,49 @@ describe("evaluator Assistant tool side effects", () => {
       evaluatorId: "evaluator-1",
     });
     expect(evaluatorInvalidate).toHaveBeenCalledOnce();
+    expect(publishUpdate).toHaveBeenCalledWith({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      surface: "code",
+      updateId: "update-evaluator-2",
+    });
+    publishUpdate.mockRestore();
   });
 
-  it("publishes a hydrated evaluator test result for the matching handoff", async () => {
+  it("does not replay highlights for hydrated historical updates", async () => {
+    const publishUpdate = vi.spyOn(
+      evaluatorAssistantUpdateSignalStore,
+      "publish",
+    );
+    const utils = {
+      evalsV2: { get: { invalidate: vi.fn(() => Promise.resolve()) } },
+    } as unknown as InvalidationUtils;
+
+    await Promise.all(
+      performEvaluatorAssistantToolSideEffects({
+        toolCalls: [
+          {
+            toolCallId: "historical-update",
+            toolName: "langfuse_updateEvaluator",
+            toolArguments: '{"evaluatorId":"evaluator-1"}',
+          },
+        ],
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        source: "hydrated",
+        utils,
+      }),
+    );
+
+    expect(publishUpdate).not.toHaveBeenCalled();
+    publishUpdate.mockRestore();
+  });
+
+  it("publishes an evaluator test result for the matching handoff", async () => {
+    const publishUpdate = vi.spyOn(
+      evaluatorAssistantUpdateSignalStore,
+      "publish",
+    );
     const result = {
       success: true,
       scores: [{ name: "Non-empty", value: 1, dataType: "BOOLEAN" }],
@@ -66,6 +112,7 @@ describe("evaluator Assistant tool side effects", () => {
       ],
       projectId: "project-1",
       conversationId: "conversation-1",
+      source: "live",
       utils: {} as InvalidationUtils,
     });
 
@@ -75,6 +122,13 @@ describe("evaluator Assistant tool side effects", () => {
       toolCallId: "test-evaluator-1",
       result,
     });
+    expect(publishUpdate).toHaveBeenCalledWith({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      surface: "test",
+      updateId: "test-evaluator-1",
+    });
+    publishUpdate.mockRestore();
     evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");
   });
 
@@ -98,6 +152,7 @@ describe("evaluator Assistant tool side effects", () => {
       ],
       projectId: "project-1",
       conversationId: "conversation-1",
+      source: "live",
       utils: {} as InvalidationUtils,
     });
 
@@ -105,5 +160,33 @@ describe("evaluator Assistant tool side effects", () => {
       evaluatorAssistantTestResultStore.get("project-1", "evaluator-1"),
     ).toBeNull();
     evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");
+  });
+
+  it("does not highlight a test result rejected by the handoff store", () => {
+    const publishUpdate = vi.spyOn(
+      evaluatorAssistantUpdateSignalStore,
+      "publish",
+    );
+
+    performEvaluatorAssistantToolSideEffects({
+      toolCalls: [
+        {
+          toolCallId: "unmatched-test",
+          toolName: "langfuse_testEvaluator",
+          toolArguments: {
+            evaluatorId: "unmatched-evaluator",
+            observationId: "observation-1",
+          },
+          toolResultContent: JSON.stringify({ success: true }),
+        },
+      ],
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      source: "live",
+      utils: {} as InvalidationUtils,
+    });
+
+    expect(publishUpdate).not.toHaveBeenCalled();
+    publishUpdate.mockRestore();
   });
 });

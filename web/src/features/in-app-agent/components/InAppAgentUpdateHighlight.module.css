@@ -1,0 +1,42 @@
+.root {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius-md);
+}
+
+.highlight {
+  pointer-events: none;
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  animation: assistant-update-highlight 2.4s ease-out forwards;
+}
+
+@keyframes assistant-update-highlight {
+  0% {
+    opacity: 0;
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, hsl(var(--ring)) 85%, transparent),
+      0 0 0 7px color-mix(in srgb, hsl(var(--ring)) 18%, transparent);
+  }
+
+  12%,
+  45% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    box-shadow:
+      0 0 0 2px transparent,
+      0 0 0 10px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight {
+    opacity: 1;
+    animation: none;
+    box-shadow: 0 0 0 2px hsl(var(--ring));
+  }
+}

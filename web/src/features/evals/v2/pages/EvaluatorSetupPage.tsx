@@ -73,6 +73,7 @@ import {
 } from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantHandoff";
 import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/in-app-assistant/useEvaluatorSamplePageContext";
 import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/in-app-assistant/useEvaluatorAssistantTestResultSync";
+import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantUpdateSignalStore";
 
 type InitialEvaluator = {
   id: string;
@@ -291,6 +292,10 @@ export function EvaluatorSetupPage(
     setLastTestRunCostUsd,
     setRawResultOpen,
   });
+  const assistantTestUpdateId = useEvaluatorAssistantTestUpdateSignal(
+    projectId,
+    evaluatorId,
+  );
   const hasRequestedName = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -797,6 +802,7 @@ export function EvaluatorSetupPage(
   const evaluatorEditor = (
     <EvaluatorSetupEditor
       projectId={projectId}
+      evaluatorId={evaluatorId}
       store={evaluatorSetupStore}
       isEditing={Boolean(initialEvaluator)}
       defaultModel={projectDefaultModel.defaultModel}
@@ -861,6 +867,7 @@ export function EvaluatorSetupPage(
         />
       }
       testResult={assistantTestResult?.result ?? testResult}
+      assistantUpdateId={assistantTestUpdateId}
       testPending={!assistantTestResult && testEvaluator.isPending}
       rawResultOpen={rawResultOpen}
       onRawResultOpenChange={setRawResultOpen}

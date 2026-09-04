@@ -272,12 +272,14 @@ export function performToolSideEffectsForCompletedToolCalls({
   handledToolCallIds,
   projectId,
   conversationId,
+  source,
   utils,
 }: {
   toolCalls: readonly CompletedToolCall[];
   handledToolCallIds: Set<string>;
   projectId: string;
   conversationId: string | null;
+  source: "live" | "hydrated";
   utils: ReturnType<typeof api.useUtils>;
 }) {
   const targets = new Set<InAppAgentTrpcInvalidationTarget>();
@@ -307,6 +309,7 @@ export function performToolSideEffectsForCompletedToolCalls({
       toolCalls: featureToolCalls,
       projectId,
       conversationId,
+      source,
       utils,
     }),
     ...Array.from(targets, (target) =>

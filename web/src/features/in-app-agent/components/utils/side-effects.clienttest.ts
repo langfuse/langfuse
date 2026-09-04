@@ -26,6 +26,7 @@ describe("in-app agent tool side-effect dispatch", () => {
       handledToolCallIds: new Set(),
       projectId: "project-1",
       conversationId: "conversation-1",
+      source: "live",
       utils,
     });
 
