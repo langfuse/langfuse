@@ -40,11 +40,7 @@ export function InAppAgentToolPayload({
 
       return {
         state: "json",
-        value: decodeUnicodeInJson(
-          deepParseJson(unwrapMcpTextResult(parsedValue), {
-            maxDepth: 6,
-          }),
-        ),
+        value: unwrapMcpTextResult(parsedValue),
       };
     } catch {
       return { state: "raw", value };
@@ -226,6 +222,22 @@ function findEvaluatorSourceCodeRecursive(
     return null;
   }
 
+  if (typeof value === "string") {
+    const trimmedValue = value.trimStart();
+    if (
+      value.length > 500_000 ||
+      (trimmedValue[0] !== "{" && trimmedValue[0] !== "[")
+    ) {
+      return null;
+    }
+
+    const nestedValue = deepParseJson(value, { maxDepth: 1 });
+
+    return nestedValue === value
+      ? null
+      : findEvaluatorSourceCodeRecursive(nestedValue, depth + 1, path);
+  }
+
   if (Array.isArray(value)) {
     for (const [index, entry] of value.entries()) {
       const code = findEvaluatorSourceCodeRecursive(
@@ -301,11 +313,16 @@ function readEvaluatorSourceCodeFields(
     return null;
   }
 
+  const decodedSourceCode = decodeUnicodeInJson(value.sourceCode);
+
   return {
     language: value.sourceCodeLanguage === "PYTHON" ? "python" : "typescript",
     label: value.sourceCodeLanguage === "PYTHON" ? "Python" : "TypeScript",
     path: appendJsonPath(path, "sourceCode"),
-    value: value.sourceCode,
+    value:
+      typeof decodedSourceCode === "string"
+        ? decodedSourceCode
+        : value.sourceCode,
   } satisfies PayloadCode;
 }
 

@@ -73,7 +73,7 @@ export function JSONView(props: {
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
 
-  const isFullyCollapsed = props.externalJsonCollapsed || internalCollapsed;
+  const isFullyCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
   const collapsed = isFullyCollapsed ? 1 : (props.collapseDepth ?? false);
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {

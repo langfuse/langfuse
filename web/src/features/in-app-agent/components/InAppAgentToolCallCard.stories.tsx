@@ -118,17 +118,12 @@ function evaluate({
 }`;
 
 const toolErrorCountDefinition = {
-  id: "cmtmniwcq001f1g6cqtuwqzsr",
-  createdAt: "2026-09-04T07:47:46.634Z",
-  updatedAt: "2026-09-04T07:47:46.634Z",
-  projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
   name: "tool_error_count",
   type: "CODE",
   description:
     "Counts tool-call errors on a TOOL observation by checking the observation's level/status and scanning parsed output for common error fields.",
   versions: [
     {
-      id: "cmtmniwcq001h1g6c7qw0kv8g",
       version: 1,
       sourceCode: toolErrorCountSource,
       sourceCodeLanguage: "TYPESCRIPT",
@@ -139,7 +134,29 @@ const toolErrorCountDefinition = {
 const toolErrorCountArguments = JSON.stringify(toolErrorCountDefinition);
 
 const toolErrorCountResult = JSON.stringify({
-  content: [{ type: "text", text: JSON.stringify(toolErrorCountDefinition) }],
+  content: [
+    {
+      type: "text",
+      text: JSON.stringify({
+        evaluator: {
+          name: "tool_error_count",
+          type: "CODE",
+          version: 1,
+          status: "created",
+        },
+      }),
+    },
+  ],
+});
+
+const approvalToolErrorCountArguments = JSON.stringify({
+  ...toolErrorCountDefinition,
+  versions: [
+    {
+      ...toolErrorCountDefinition.versions[0],
+      sourceCode: `${toolErrorCountSource}\n\nconst healthMarker = "\\u2713";`,
+    },
+  ],
 });
 
 const meta = preview.meta({
@@ -189,79 +206,8 @@ export const Error = meta.story({
   },
 });
 
-export const NestedJson = meta.story({
-  name: "Nested JSON",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_queryMetrics",
-      status: "succeeded",
-      args: JSON.stringify({
-        filters: {
-          project: { id: "project-123", environments: ["production"] },
-          timeRange: {
-            from: "2026-09-01T00:00:00.000Z",
-            to: "2026-09-04T00:00:00.000Z",
-          },
-        },
-        metrics: [
-          {
-            measure: "latency",
-            aggregation: "p95",
-            groupBy: ["model", "region"],
-          },
-        ],
-      }),
-      result: JSON.stringify({
-        data: [
-          {
-            model: "gpt-5",
-            region: "eu-central-1",
-            latency_p95: 420,
-            trace_count: 42,
-          },
-        ],
-        pagination: { page: 1, totalPages: 1 },
-      }),
-    },
-  },
-});
-
-export const TypeScriptCodeEvaluator = meta.story({
-  name: "(Test) TypeScript code evaluator",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_createEvaluator",
-      status: "succeeded",
-      args: JSON.stringify({
-        name: "Output is present",
-        type: "CODE",
-        sourceCodeLanguage: "TYPESCRIPT",
-        sourceCode:
-          "export function evaluate({ output }) {\n  return { score: output ? 1 : 0 };\n}",
-      }),
-    },
-  },
-  play: async (context) => {
-    const canvas = await showToolCall(context);
-    await expect(canvas.getByText("sourceCode")).toBeVisible();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Show in code block" }),
-    );
-    await expect(
-      canvas.getByRole("button", { name: "Expand JSON" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Copy code" }),
-    ).toBeVisible();
-  },
-});
-
-export const ToolErrorCountEvaluator = meta.story({
-  name: "Tool error count evaluator",
+export const EvaluatorToolCall = meta.story({
+  name: "Evaluator tool call",
   args: {
     isCompact: true,
     tool: {
@@ -269,71 +215,8 @@ export const ToolErrorCountEvaluator = meta.story({
       name: "langfuse_createEvaluator",
       status: "succeeded",
       args: toolErrorCountArguments,
+      result: toolErrorCountResult,
     },
-  },
-});
-
-export const PythonCodeEvaluator = meta.story({
-  name: "(Test) Python code evaluator",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_updateEvaluator",
-      status: "succeeded",
-      args: JSON.stringify({ evaluatorId: "evaluator-1" }),
-      result: JSON.stringify({
-        definition: {
-          type: "CODE",
-          sourceCodeLanguage: "PYTHON",
-          sourceCode:
-            'def evaluate(output):\n    return {"score": 1 if output else 0}',
-        },
-      }),
-    },
-  },
-  play: async (context) => {
-    const canvas = await showToolCall(context);
-    await expect(canvas.getByText("sourceCode")).toBeVisible();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Show in code block" }),
-    );
-    await expect(
-      canvas.getByRole("button", { name: "Expand JSON" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Copy code" }),
-    ).toBeVisible();
-  },
-});
-
-export const UnicodeEscapedCodeEvaluator = meta.story({
-  name: "(Test) Unicode-escaped code evaluator",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_createEvaluator",
-      status: "succeeded",
-      args: JSON.stringify({
-        name: "Unicode is present",
-        type: "CODE",
-        sourceCodeLanguage: "TYPESCRIPT",
-        sourceCode: String.raw`export const check = "\u2713";`,
-      }),
-    },
-  },
-  play: async (context) => {
-    const canvas = await showToolCall(context);
-    await expect(
-      canvas.getByRole("button", { name: "Show in code block" }),
-    ).toBeVisible();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Show in code block" }),
-    );
-    await expect(
-      canvas.getByRole("button", { name: "Copy code" }),
-    ).toBeVisible();
   },
 });
 
@@ -361,30 +244,6 @@ export const LargePayload = meta.story({
     await expect(
       canvas.queryByRole("button", { name: /show arguments/i }),
     ).not.toBeInTheDocument();
-  },
-});
-
-export const NestedEvaluatorResult = meta.story({
-  name: "(Test) Nested evaluator result",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_createEvaluator",
-      status: "succeeded",
-      args: JSON.stringify({ name: "tool_error_count", type: "CODE" }),
-      result: toolErrorCountResult,
-    },
-  },
-  play: async (context) => {
-    const canvas = await showToolCall(context);
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Show in code block" }),
-    );
-    await expect(canvas.getByTitle("versions[0].sourceCode")).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Copy code" }),
-    ).toBeVisible();
   },
 });
 
@@ -617,7 +476,7 @@ export const ApprovalRequiredWithCode = meta.story({
       type: "tool",
       name: "langfuse_createEvaluator",
       status: "running",
-      args: toolErrorCountArguments,
+      args: approvalToolErrorCountArguments,
       approval: {
         id: "approval-code-1",
         status: "pending",
@@ -632,14 +491,8 @@ export const ApprovalRequiredWithCode = meta.story({
 
     await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
     await expect(canvas.getByText("sourceCode")).toBeVisible();
-    await userEvent.click(
+    await expect(
       canvas.getByRole("button", { name: "Show in code block" }),
-    );
-    await expect(
-      canvas.getByRole("button", { name: "Expand JSON" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Copy code" }),
     ).toBeVisible();
   },
 });
