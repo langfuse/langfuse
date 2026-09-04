@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-export const gatewayApiFormats = [
+const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
   "anthropic.messages",
@@ -13,7 +13,6 @@ export type GatewayProviderName = (typeof gatewayProviders)[number];
 export type GatewayMetadata = Record<string, string | number | boolean>;
 
 export const GatewayApiFormatSchema = z.enum(gatewayApiFormats);
-export const GatewayProviderSchema = z.enum(gatewayProviders);
 
 const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);

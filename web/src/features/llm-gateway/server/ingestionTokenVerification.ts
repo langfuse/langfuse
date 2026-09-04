@@ -9,7 +9,7 @@ import {
   verifyGatewayIngestionToken,
 } from "./auth";
 
-export function verifyConfiguredGatewayIngestionToken(
+function verifyConfiguredGatewayIngestionToken(
   token: string,
 ): GatewayIngestionClaims {
   const publicKeys = [
