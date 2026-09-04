@@ -1,3 +1,4 @@
+import { SIGN_UP_PAGE_TITLE } from "@/src/features/auth/pageMetadata";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -454,7 +455,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Head>
-        <title>Sign up | Langfuse</title>
+        <title>{SIGN_UP_PAGE_TITLE}</title>
         <meta
           name="description"
           content="Create an account, no credit card required."
