@@ -66,18 +66,32 @@ export function collectPricingModelChanges(basePrices, currentPrices) {
 }
 
 const selectableModelArrays = [
-  { name: "openAIModels", provider: "OpenAI" },
-  { name: "anthropicModels", provider: "Anthropic" },
-  { name: "vertexAIModels", provider: "Google" },
-  { name: "googleAIStudioModels", provider: "Google" },
+  {
+    name: "openAIModels",
+    pattern: /export const openAIModels = \[([\s\S]*?)\] as const;/u,
+    provider: "OpenAI",
+  },
+  {
+    name: "anthropicModels",
+    pattern: /export const anthropicModels = \[([\s\S]*?)\] as const;/u,
+    provider: "Anthropic",
+  },
+  {
+    name: "vertexAIModels",
+    pattern: /export const vertexAIModels = \[([\s\S]*?)\] as const;/u,
+    provider: "Google",
+  },
+  {
+    name: "googleAIStudioModels",
+    pattern: /export const googleAIStudioModels = \[([\s\S]*?)\] as const;/u,
+    provider: "Google",
+  },
 ];
 
 const readSelectableModelArrays = (source, label) =>
   new Map(
-    selectableModelArrays.map(({ name, provider }) => {
-      const match = source.match(
-        new RegExp(`export const ${name} = \\[([\\s\\S]*?)\\] as const;`, "u"),
-      );
+    selectableModelArrays.map(({ name, pattern, provider }) => {
+      const match = source.match(pattern);
       if (!match) {
         throw new Error(`${label} types file is missing ${name}`);
       }
