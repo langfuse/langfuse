@@ -38,8 +38,16 @@ pnpm --filter=shared run build                # ← do not skip this
 
 **`pnpm dev:web` does not build `shared`.** A fresh worktree returns a 500 on
 `@langfuse/shared/src/server` until you have, and the error names a module rather
-than a missing build, so it reads like a broken import. Build it before the first
-run and again after switching that worktree between branches.
+than a missing build, so it reads like a broken import.
+
+Run **both** commands, and run them again after switching that worktree between
+branches: `build` alone leaves the generated Prisma client in `node_modules`
+from the previous branch, so a schema change shows up as type errors on code
+that is actually correct.
+
+```bash
+pnpm --filter=shared run db:generate && pnpm --filter=shared run build
+```
 
 **Name it for the work, not for its port number.** Sequential names collide: two
 sessions picking "the next free port" at the same moment choose the same one and
@@ -77,8 +85,16 @@ pnpm dev:web -- -p <port>
 
 - **500 on `@langfuse/shared/src/server`** — `shared` is not built. See above.
 - **Auth failing on every page** — the shared database is behind this branch's
-  migrations. `pnpm --filter=shared run db:deploy` (forward-only). Check an
-  authenticated page afterwards, not just an HTTP 200 on the root.
+  migrations. `pnpm --filter=shared run db:deploy`, then check an *authenticated*
+  page rather than an HTTP 200 on the root.
+
+  **Think before you run that on a branch carrying a new migration.** The whole
+  point of the shared tier is that one database serves every worktree, so a
+  forward-only migration applied from one of them lands on all of them — and
+  abandoning the branch does not take it back. Other worktrees then run against
+  a schema their code does not expect. If the branch introduces a migration,
+  either give it its own data tier (a separate `.env` with its own database) or
+  accept that you are migrating everybody and be ready to reset the tier.
 - **A skill you expect is missing** — `.claude/skills/` and the other per-tool
   configs are generated and gitignored, so a fresh worktree has none until
   `pnpm install` runs its postinstall. `pnpm run agents:sync` regenerates them.
