@@ -1,9 +1,7 @@
 // @vitest-environment node
 
-import {
-  sanitizeSelectedEvaluatorSampleContext,
-  SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
-} from "./evaluatorAssistantContext";
+import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "@/src/features/evals/v2/constants/evaluatorAssistant";
+import { sanitizeSelectedEvaluatorSampleContext } from "./sanitizeSelectedEvaluatorSampleContext";
 
 const validContext = {
   description: SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
@@ -18,7 +16,7 @@ const validContext = {
   }),
 };
 
-describe("evaluator Assistant context", () => {
+describe("sanitizeSelectedEvaluatorSampleContext", () => {
   it("keeps canonical references and strips sample content", () => {
     expect(
       sanitizeSelectedEvaluatorSampleContext([validContext], "project-1"),

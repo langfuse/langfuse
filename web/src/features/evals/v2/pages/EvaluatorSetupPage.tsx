@@ -66,14 +66,12 @@ import {
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
-import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantTestResultStore";
-import {
-  getEvaluatorAssistantSampleObservation,
-  startCodeEvaluatorAssistantHandoff,
-} from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantHandoff";
-import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/in-app-assistant/useEvaluatorSamplePageContext";
-import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/in-app-assistant/useEvaluatorAssistantTestResultSync";
-import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantUpdateSignalStore";
+import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
+import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
+import { startCodeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startCodeEvaluatorAssistantHandoff";
+import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/useEvaluatorSamplePageContext";
+import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
+import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 
 type InitialEvaluator = {
   id: string;

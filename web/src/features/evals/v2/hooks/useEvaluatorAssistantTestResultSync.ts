@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { useEvaluatorAssistantTestResult } from "./evaluatorAssistantTestResultStore";
+import { useEvaluatorAssistantTestResult } from "../store/evaluatorAssistantTestResultStore";
 
 export function useEvaluatorAssistantTestResultSync({
   projectId,

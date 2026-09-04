@@ -1,7 +1,6 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 
-export const SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION =
-  "selected_evaluator_sample";
+import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "@/src/features/evals/v2/constants/evaluatorAssistant";
 
 const MAX_CONTEXT_ID_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;

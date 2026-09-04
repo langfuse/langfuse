@@ -1,7 +1,7 @@
 import type { api } from "@/src/utils/api";
-import { evaluatorAssistantTestResultStore } from "./evaluatorAssistantTestResultStore";
-import { evaluatorAssistantUpdateSignalStore } from "./evaluatorAssistantUpdateSignalStore";
-import { performEvaluatorAssistantToolSideEffects } from "./evaluatorToolSideEffects";
+import { evaluatorAssistantTestResultStore } from "../store/evaluatorAssistantTestResultStore";
+import { evaluatorAssistantUpdateSignalStore } from "../store/evaluatorAssistantUpdateSignalStore";
+import { performEvaluatorAssistantToolSideEffects } from "./performEvaluatorAssistantToolSideEffects";
 
 type InvalidationUtils = ReturnType<typeof api.useUtils>;
 

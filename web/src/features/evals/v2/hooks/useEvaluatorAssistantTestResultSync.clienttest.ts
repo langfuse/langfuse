@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { evaluatorAssistantTestResultStore } from "./evaluatorAssistantTestResultStore";
+import { evaluatorAssistantTestResultStore } from "../store/evaluatorAssistantTestResultStore";
 import { useEvaluatorAssistantTestResultSync } from "./useEvaluatorAssistantTestResultSync";
 
 describe("useEvaluatorAssistantTestResultSync", () => {

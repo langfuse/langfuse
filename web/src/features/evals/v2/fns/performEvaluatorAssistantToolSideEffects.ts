@@ -1,8 +1,8 @@
 import { safeJsonParse } from "@langfuse/shared";
 
 import type { api } from "@/src/utils/api";
-import { evaluatorAssistantTestResultStore } from "./evaluatorAssistantTestResultStore";
-import { evaluatorAssistantUpdateSignalStore } from "./evaluatorAssistantUpdateSignalStore";
+import { evaluatorAssistantTestResultStore } from "../store/evaluatorAssistantTestResultStore";
+import { evaluatorAssistantUpdateSignalStore } from "../store/evaluatorAssistantUpdateSignalStore";
 
 export type EvaluatorAssistantCompletedToolCall = {
   toolCallId: string;

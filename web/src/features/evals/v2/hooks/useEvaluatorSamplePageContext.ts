@@ -3,8 +3,8 @@ import { useStore } from "zustand";
 
 import { registerInAppAgentPageContext } from "@/src/features/in-app-agent";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "./evaluatorAssistantContext";
-import { getEvaluatorAssistantSampleObservation } from "./evaluatorAssistantHandoff";
+import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "@/src/features/evals/v2/constants/evaluatorAssistant";
+import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
 
 export function useEvaluatorSamplePageContext({
   projectId,

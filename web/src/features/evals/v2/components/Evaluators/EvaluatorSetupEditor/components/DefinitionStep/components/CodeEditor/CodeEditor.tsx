@@ -12,7 +12,7 @@ import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvalua
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
 import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
-import { useEvaluatorAssistantCodeUpdateSignal } from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantUpdateSignalStore";
+import { useEvaluatorAssistantCodeUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 
 export function CodeEditor({
   projectId,
