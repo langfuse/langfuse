@@ -1,3 +1,7 @@
+export {
+  performEvaluatorAssistantToolSideEffects,
+  sanitizeSelectedEvaluatorSampleContext,
+} from "./v2/in-app-assistant";
 export { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
 export { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
 export { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";

@@ -74,7 +74,6 @@ import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
-import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -329,13 +328,6 @@ function InAppAiAgentProviderInner({
   );
   const handledToolCallIdsRef = useRef(new Set<string>());
   const submitInFlightRef = useRef<string | null>(null);
-
-  useEffect(
-    () => () => {
-      evaluatorAssistantTestResultStore.clearCompletedProjectResults(projectId);
-    },
-    [projectId],
-  );
 
   const conversationListQuery =
     api.inAppAgent.listConversations.useInfiniteQuery(

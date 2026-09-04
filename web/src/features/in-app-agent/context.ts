@@ -1,6 +1,7 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
+import { sanitizeSelectedEvaluatorSampleContext } from "@/src/features/evals";
 
 type InAppAgentContext = AgUiContext;
 
@@ -26,8 +27,6 @@ export type InAppAgentScreenContextDescription =
   | { type: "datasets-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
-export const SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION =
-  "selected_evaluator_sample";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
@@ -197,17 +196,10 @@ export function sanitizeInAppAgentContext(
     }
   }
 
-  const selectedEvaluatorSampleContexts = context.filter(
-    (item) =>
-      item.description === SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
+  const selectedEvaluatorSample = sanitizeSelectedEvaluatorSampleContext(
+    context,
+    projectId,
   );
-  const selectedEvaluatorSample =
-    selectedEvaluatorSampleContexts.length === 1
-      ? sanitizeSelectedEvaluatorSampleContext(
-          selectedEvaluatorSampleContexts[0]?.value,
-          projectId,
-        )
-      : null;
   if (selectedEvaluatorSample) {
     sanitizedContext.push(selectedEvaluatorSample);
   }
@@ -215,63 +207,6 @@ export function sanitizeInAppAgentContext(
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
-}
-
-function sanitizeSelectedEvaluatorSampleContext(
-  value: string | undefined,
-  projectId: string,
-): InAppAgentContext[number] | null {
-  if (!value || value.length > MAX_CONTEXT_VALUE_LENGTH) {
-    return null;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    return null;
-  }
-
-  const record = parsed as Record<string, unknown>;
-  if (record.projectId !== projectId) {
-    return null;
-  }
-  const evaluatorId = readBoundedContextId(record.evaluatorId);
-  const observationId = readBoundedContextId(record.observationId);
-  const traceId = readBoundedContextId(record.traceId);
-  const startTime =
-    typeof record.startTime === "string" ? record.startTime.trim() : "";
-  if (
-    !evaluatorId ||
-    !observationId ||
-    !traceId ||
-    !startTime ||
-    startTime.length > 100 ||
-    Number.isNaN(Date.parse(startTime))
-  ) {
-    return null;
-  }
-
-  return {
-    description: SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
-    value: JSON.stringify({
-      evaluatorId,
-      observationId,
-      traceId,
-      startTime: new Date(startTime).toISOString(),
-    }),
-  };
-}
-
-function readBoundedContextId(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const id = value.trim();
-  return id && id.length <= MAX_CONTEXT_KEY_LENGTH ? id : null;
 }
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {

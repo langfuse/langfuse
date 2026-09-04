@@ -7,19 +7,19 @@ describe("in-app agent page context", () => {
   it("exposes registered context until its owner unmounts", () => {
     const unregister = registerInAppAgentPageContext(
       "project-1",
-      "evaluator-sample",
+      "feature-context",
       [
         {
-          description: "selected_evaluator_sample",
-          value: '{"observationId":"observation-1"}',
+          description: "feature_context",
+          value: '{"selectionId":"selection-1"}',
         },
       ],
     );
 
     expect(getInAppAgentPageContext("project-1")).toEqual([
       {
-        description: "selected_evaluator_sample",
-        value: '{"observationId":"observation-1"}',
+        description: "feature_context",
+        value: '{"selectionId":"selection-1"}',
       },
     ]);
     expect(getInAppAgentPageContext("project-2")).toEqual([]);
@@ -31,18 +31,18 @@ describe("in-app agent page context", () => {
   it("does not let stale cleanup remove newer context", () => {
     const unregisterOld = registerInAppAgentPageContext(
       "project-1",
-      "evaluator-sample",
-      [{ description: "selected_evaluator_sample", value: "old" }],
+      "feature-context",
+      [{ description: "feature_context", value: "old" }],
     );
     const unregisterNew = registerInAppAgentPageContext(
       "project-1",
-      "evaluator-sample",
-      [{ description: "selected_evaluator_sample", value: "new" }],
+      "feature-context",
+      [{ description: "feature_context", value: "new" }],
     );
 
     unregisterOld();
     expect(getInAppAgentPageContext("project-1")).toEqual([
-      { description: "selected_evaluator_sample", value: "new" },
+      { description: "feature_context", value: "new" },
     ]);
 
     unregisterNew();

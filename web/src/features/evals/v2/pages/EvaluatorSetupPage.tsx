@@ -66,12 +66,13 @@ import {
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
-import { registerInAppAgentPageContext } from "@/src/features/in-app-agent/lib/pageContext";
-import { SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/context";
+import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantTestResultStore";
 import {
-  evaluatorAssistantTestResultStore,
-  useEvaluatorAssistantTestResult,
-} from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
+  getEvaluatorAssistantSampleObservation,
+  startCodeEvaluatorAssistantHandoff,
+} from "@/src/features/evals/v2/in-app-assistant/evaluatorAssistantHandoff";
+import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/in-app-assistant/useEvaluatorSamplePageContext";
+import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/in-app-assistant/useEvaluatorAssistantTestResultSync";
 
 type InitialEvaluator = {
   id: string;
@@ -100,33 +101,6 @@ export function applyEvaluatorSuggestion(
   return true;
 }
 
-export function getCodeEvaluatorAssistantSampleObservation(
-  observation: {
-    id: string;
-    traceId: string | null;
-    startTime: Date | null;
-  } | null,
-) {
-  const observationId = observation?.id.trim();
-  const traceId = observation?.traceId?.trim();
-  const startTime = observation?.startTime;
-
-  if (
-    !observationId ||
-    !traceId ||
-    !startTime ||
-    Number.isNaN(startTime.getTime())
-  ) {
-    return null;
-  }
-
-  return {
-    observationId,
-    traceId,
-    startTime: startTime.toISOString(),
-  };
-}
-
 export async function navigateToEvaluatorDetail({
   projectId,
   evaluatorId,
@@ -143,85 +117,6 @@ export async function navigateToEvaluatorDetail({
   const path = `/project/${projectId}/evals/${evaluatorId}`;
   await Promise.allSettled([prefetchEvaluator(), prefetchRoute(path)]);
   await replace(path);
-}
-
-export function getCodeEvaluatorAssistantPrompt({
-  evaluatorId,
-  request,
-  sampleObservation,
-}: {
-  evaluatorId: string;
-  request: string;
-  sampleObservation?: {
-    observationId: string;
-    traceId: string;
-    startTime: string;
-  } | null;
-}) {
-  const sampleTestInstructions = sampleObservation
-    ? `
-
-After the update, test the updated evaluator against the sample observation selected by the user with these exact test parameters:
-- evaluatorId: "${evaluatorId}"
-- observationId: "${sampleObservation.observationId}"
-- traceId: "${sampleObservation.traceId}"
-- startTime: "${sampleObservation.startTime}"
-
-Use the evaluator test tool with these references; do not substitute another observation and do not set silent mode so the result can be shown in the evaluator test panel.`
-    : "";
-
-  return `Update the code evaluator with evaluator ID "${evaluatorId}" for this request:
-
-${request}
-
-First load this evaluator and preserve its existing configuration unless the request requires a change. Ask follow-up questions if the request is ambiguous. Use the evaluator update tool with evaluator ID "${evaluatorId}" after I approve the tool call. Do not create a new evaluator.${sampleTestInstructions}`;
-}
-
-export async function startCodeEvaluatorAssistantHandoff({
-  request,
-  sampleObservation,
-  conversationId,
-  openAssistant,
-  persistEvaluator,
-  submitToAssistant,
-}: {
-  request: string;
-  conversationId: string;
-  sampleObservation?: {
-    observationId: string;
-    traceId: string;
-    startTime: string;
-  } | null;
-  openAssistant: () => boolean;
-  persistEvaluator: () => Promise<string | null>;
-  submitToAssistant: (
-    prompt: string,
-    options: {
-      newConversation: true;
-      conversationId: string;
-      entryPoint: "code-evaluator-editor";
-    },
-  ) => Promise<boolean>;
-}) {
-  if (!openAssistant()) return null;
-
-  const evaluatorId = await persistEvaluator();
-  if (!evaluatorId) return null;
-
-  const started = await submitToAssistant(
-    getCodeEvaluatorAssistantPrompt({
-      evaluatorId,
-      request,
-      sampleObservation,
-    }),
-    {
-      newConversation: true,
-      conversationId,
-      entryPoint: "code-evaluator-editor",
-    },
-  );
-
-  return { evaluatorId, started };
 }
 
 export function getEvaluatorVersionDefinition(
@@ -347,6 +242,11 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  useEvaluatorSamplePageContext({
+    projectId,
+    evaluatorId,
+    store: evaluatorSetupStore,
+  });
   useEffect(() => {
     evaluatorSetupStore
       .getState()
@@ -360,48 +260,6 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
-  const selectedObservation = useStore(
-    evaluatorSetupStore,
-    (state) => state.selectedObservation,
-  );
-  const assistantSampleContext =
-    getCodeEvaluatorAssistantSampleObservation(selectedObservation);
-  const assistantSampleObservationId =
-    assistantSampleContext?.observationId ?? null;
-  const assistantSampleTraceId = assistantSampleContext?.traceId ?? null;
-  const assistantSampleStartTime = assistantSampleContext?.startTime ?? null;
-  useEffect(() => {
-    if (
-      !assistantSampleObservationId ||
-      !assistantSampleTraceId ||
-      !assistantSampleStartTime
-    ) {
-      return;
-    }
-
-    return registerInAppAgentPageContext(
-      projectId,
-      `evaluator-sample:${projectId}:${evaluatorId}`,
-      [
-        {
-          description: SELECTED_EVALUATOR_SAMPLE_CONTEXT_DESCRIPTION,
-          value: JSON.stringify({
-            projectId,
-            evaluatorId,
-            observationId: assistantSampleObservationId,
-            traceId: assistantSampleTraceId,
-            startTime: assistantSampleStartTime,
-          }),
-        },
-      ],
-    );
-  }, [
-    assistantSampleObservationId,
-    assistantSampleStartTime,
-    assistantSampleTraceId,
-    evaluatorId,
-    projectId,
-  ]);
   const codeValidation = useCodeEvalSourceValidation({
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
@@ -425,11 +283,14 @@ export function EvaluatorSetupPage(
     null,
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
-  const assistantTestResult = useEvaluatorAssistantTestResult(
+  const assistantTestResult = useEvaluatorAssistantTestResultSync({
     projectId,
     evaluatorId,
-  );
-  const handledAssistantTestCallIdRef = useRef<string | null>(null);
+    store: evaluatorSetupStore,
+    setHasCompletedTestCall,
+    setLastTestRunCostUsd,
+    setRawResultOpen,
+  });
   const hasRequestedName = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -559,31 +420,6 @@ export function EvaluatorSetupPage(
   });
   const suggestName = api.evalsV2.suggestName.useMutation();
   const suggestDescription = api.evalsV2.suggestDescription.useMutation();
-
-  useEffect(() => {
-    if (
-      !assistantTestResult ||
-      handledAssistantTestCallIdRef.current === assistantTestResult.toolCallId
-    ) {
-      return;
-    }
-
-    handledAssistantTestCallIdRef.current = assistantTestResult.toolCallId;
-    const result = assistantTestResult.result;
-    if (result && typeof result === "object" && "executionTraceId" in result) {
-      setHasCompletedTestCall(true);
-    }
-    setLastTestRunCostUsd(
-      result &&
-        typeof result === "object" &&
-        "estimatedCostUsd" in result &&
-        typeof result.estimatedCostUsd === "number"
-        ? result.estimatedCostUsd
-        : null,
-    );
-    setRawResultOpen(false);
-    evaluatorSetupStore.getState().actions.setTestPanelOpen(true);
-  }, [assistantTestResult, evaluatorSetupStore]);
 
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
@@ -870,7 +706,7 @@ export function EvaluatorSetupPage(
   const submitCodeEvaluatorAssistantRequest = async (request: string) => {
     setTestResult(null);
     const conversationId = createInAppAgentConversationId();
-    const sampleObservation = getCodeEvaluatorAssistantSampleObservation(
+    const sampleObservation = getEvaluatorAssistantSampleObservation(
       evaluatorSetupStore.getState().selectedObservation,
     );
     const handoff = await startCodeEvaluatorAssistantHandoff({

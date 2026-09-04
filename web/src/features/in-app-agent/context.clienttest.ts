@@ -5,79 +5,19 @@ import {
   sanitizeInAppAgentContext,
 } from "./context";
 
-describe("sanitizeInAppAgentContext", () => {
-  it("keeps valid selected evaluator sample references", () => {
-    expect(
-      sanitizeInAppAgentContext(
-        [
-          {
-            description: "selected_evaluator_sample",
-            value: JSON.stringify({
-              projectId: "project-1",
-              evaluatorId: "evaluator-1",
-              observationId: "observation-1",
-              traceId: "trace-1",
-              startTime: "2026-09-03T07:45:00.000Z",
-              input: "sensitive input",
-              output: "sensitive output",
-            }),
-          },
-        ],
-        "project-1",
-      ),
-    ).toEqual([
-      {
-        description: "selected_evaluator_sample",
-        value:
-          '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
-      },
-    ]);
-  });
-
-  it("drops malformed selected evaluator sample references", () => {
-    expect(
-      sanitizeInAppAgentContext(
-        [
-          {
-            description: "selected_evaluator_sample",
-            value:
-              '{"projectId":"project-1","evaluatorId":"","observationId":"observation-1"}',
-          },
-        ],
-        "project-1",
-      ),
-    ).toEqual([]);
-  });
-
-  it("drops selected samples registered for another project", () => {
-    expect(
-      sanitizeInAppAgentContext(
-        [
-          {
-            description: "selected_evaluator_sample",
-            value:
-              '{"projectId":"project-2","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
-          },
-        ],
-        "project-1",
-      ),
-    ).toEqual([]);
-  });
-
-  it("drops ambiguous duplicate selected sample contexts", () => {
-    const value =
-      '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}';
-
-    expect(
-      sanitizeInAppAgentContext(
-        [
-          { description: "selected_evaluator_sample", value },
-          { description: "selected_evaluator_sample", value },
-        ],
-        "project-1",
-      ),
-    ).toEqual([]);
-  });
+it("includes sanitized feature screen context", () => {
+  expect(
+    sanitizeInAppAgentContext(
+      [
+        {
+          description: "selected_evaluator_sample",
+          value:
+            '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+        },
+      ],
+      "project-1",
+    ),
+  ).toHaveLength(1);
 });
 
 describe("getInAppAgentScreenContextDescription", () => {

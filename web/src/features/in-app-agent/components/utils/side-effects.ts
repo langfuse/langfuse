@@ -7,7 +7,7 @@ import {
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
-import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
+import { performEvaluatorAssistantToolSideEffects } from "@/src/features/evals";
 
 export type InAppAgentTrpcInvalidationTarget =
   | "annotationQueues"
@@ -281,7 +281,7 @@ export function performToolSideEffectsForCompletedToolCalls({
   utils: ReturnType<typeof api.useUtils>;
 }) {
   const targets = new Set<InAppAgentTrpcInvalidationTarget>();
-  const updatedEvaluatorIds = new Set<string>();
+  const featureToolCalls: CompletedToolCall[] = [];
 
   for (const toolCall of toolCalls) {
     if (handledToolCallIds.has(toolCall.toolCallId)) {
@@ -293,33 +293,7 @@ export function performToolSideEffectsForCompletedToolCalls({
       continue;
     }
 
-    if (toolCall.toolName === "langfuse_updateEvaluator") {
-      const evaluatorId = getEvaluatorIdFromToolArguments(
-        toolCall.toolArguments,
-      );
-      if (evaluatorId) {
-        updatedEvaluatorIds.add(evaluatorId);
-      }
-    }
-
-    if (toolCall.toolName === "langfuse_testEvaluator") {
-      const evaluatorId = getEvaluatorIdFromToolArguments(
-        toolCall.toolArguments,
-      );
-      const result = getEvaluatorTestResult(toolCall);
-      if (evaluatorId && result && conversationId) {
-        evaluatorAssistantTestResultStore.publish({
-          projectId,
-          evaluatorId,
-          conversationId,
-          observationId: getObservationIdFromToolArguments(
-            toolCall.toolArguments,
-          ),
-          toolCallId: toolCall.toolCallId,
-          result,
-        });
-      }
-    }
+    featureToolCalls.push(toolCall);
 
     for (const target of getInAppAgentTrpcInvalidationTargets(
       toolCall.toolName,
@@ -329,100 +303,14 @@ export function performToolSideEffectsForCompletedToolCalls({
   }
 
   return Promise.all([
+    ...performEvaluatorAssistantToolSideEffects({
+      toolCalls: featureToolCalls,
+      projectId,
+      conversationId,
+      utils,
+    }),
     ...Array.from(targets, (target) =>
       performTargetInvalidation(target, utils),
     ),
-    ...Array.from(updatedEvaluatorIds, (evaluatorId) =>
-      utils.evalsV2.get.invalidate({ projectId, evaluatorId }),
-    ),
   ]);
-}
-
-function getEvaluatorIdFromToolArguments(toolArguments: unknown) {
-  return getStringFromToolArguments(toolArguments, "evaluatorId");
-}
-
-function getObservationIdFromToolArguments(toolArguments: unknown) {
-  return getStringFromToolArguments(toolArguments, "observationId");
-}
-
-function getStringFromToolArguments(
-  toolArguments: unknown,
-  key: "evaluatorId" | "observationId",
-) {
-  const parsedArguments =
-    typeof toolArguments === "string"
-      ? safeJsonParse(toolArguments)
-      : toolArguments;
-
-  if (typeof parsedArguments !== "object" || parsedArguments === null) {
-    return null;
-  }
-
-  const value = (parsedArguments as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : null;
-}
-
-function getEvaluatorTestResult(toolCall: CompletedToolCall) {
-  if (toolCall.toolError) {
-    return { requestError: getToolErrorMessage(toolCall.toolError) };
-  }
-
-  return parseEvaluatorTestResultContent(toolCall.toolResultContent);
-}
-
-function parseEvaluatorTestResultContent(
-  content: unknown,
-  depth = 0,
-): Record<string, unknown> | null {
-  if (depth > 3) {
-    return null;
-  }
-
-  const parsed = typeof content === "string" ? safeJsonParse(content) : content;
-  if (typeof parsed !== "object" || parsed === null) {
-    return null;
-  }
-  const record = parsed as Record<string, unknown>;
-
-  if (typeof record.success === "boolean") {
-    return record;
-  }
-
-  if (record.output !== undefined) {
-    return parseEvaluatorTestResultContent(record.output, depth + 1);
-  }
-
-  if (Array.isArray(record.content)) {
-    const contentItems = record.content as unknown[];
-    const textContent: unknown = contentItems.find((item) => {
-      if (typeof item !== "object" || item === null) {
-        return false;
-      }
-      const text = (item as Record<string, unknown>).text;
-      return typeof text === "string";
-    });
-    if (textContent) {
-      return parseEvaluatorTestResultContent(
-        (textContent as Record<string, unknown>).text,
-        depth + 1,
-      );
-    }
-  }
-
-  return null;
-}
-
-function getToolErrorMessage(error: unknown) {
-  const parsed = typeof error === "string" ? safeJsonParse(error) : error;
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "message" in parsed &&
-    typeof parsed.message === "string"
-  ) {
-    return parsed.message;
-  }
-
-  return typeof error === "string" ? error : "Evaluator test failed";
 }
