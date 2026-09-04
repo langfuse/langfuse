@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { useRef } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type z } from "zod";
@@ -40,13 +39,11 @@ export function EvalTemplateTypeSelector({
   form,
   codeEvalCapabilities,
   mode,
-  hasExistingTemplate,
   onChange,
 }: {
   form: EvalTemplateFormReturn;
   codeEvalCapabilities: CodeEvalCapabilities;
-  mode: EvalTemplateTypeSelectorMode;
-  hasExistingTemplate: boolean;
+  mode: Exclude<EvalTemplateTypeSelectorMode, "hidden">;
   onChange?: () => void;
 }) {
   const sourceCodeDraftsRef = useRef<CodeEvalSourceDrafts>({});
@@ -54,11 +51,6 @@ export function EvalTemplateTypeSelector({
   const sourceCodeLanguage =
     form.watch("sourceCodeLanguage") ??
     EvalTemplateSourceCodeLanguage.TYPESCRIPT;
-  const shouldShow =
-    codeEvalCapabilities.enabled && !hasExistingTemplate && mode !== "hidden";
-
-  if (!shouldShow) return null;
-
   const selectedValue =
     evalTemplateType === EvalTemplateType.CODE
       ? sourceCodeLanguage

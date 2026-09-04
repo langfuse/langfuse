@@ -896,7 +896,7 @@ export default function SignIn({
           </div>
         )}
 
-        <CloudRegionSwitch />
+        {isLangfuseCloud && <CloudRegionSwitch />}
 
         <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
@@ -1025,7 +1025,9 @@ export default function SignIn({
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+          <CloudPrivacyNotice action="signing in" />
+        )}
       </div>
     </>
   );
