@@ -39,10 +39,10 @@ work on, and this file deliberately does not restate them:
 
 | Page | What you need from it |
 | --- | --- |
-| `product-engineering/how-we-work/how-we-ship.mdx` | Prioritisation, the P0–P3 levels and their timelines, daily response times, the project-update rhythm |
-| `product-engineering/principles.mdx` | What product engineers do and explicitly do not do |
-| `how-we-work/ownership.mdx` | That product areas are split between engineers by direct ownership |
-| `tools-and-processes/using-linear.mdx` | The working agreement: primitives, project lifecycle, definition of done |
+| `content/handbook/product-engineering/how-we-work/how-we-ship.mdx` | Prioritisation, the P0–P3 levels and their timelines, daily response times, the project-update rhythm |
+| `content/handbook/product-engineering/principles.mdx` | What product engineers do and explicitly do not do |
+| `content/handbook/how-we-work/ownership.mdx` | That product areas are split between engineers by direct ownership |
+| `content/handbook/tools-and-processes/using-linear.mdx` | The working agreement: primitives, project lifecycle, definition of done |
 
 If what you are about to say contradicts one of them, the handbook wins.
 
