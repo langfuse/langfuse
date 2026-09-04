@@ -10,13 +10,25 @@ dd.init({
   runtimeMetrics: false,
 });
 
-export type OtelIngestionWorkerRequest = Omit<OtelIngestionRequest, "body"> & {
-  body: Uint8Array<ArrayBuffer>;
-};
+export type OtelIngestionWorkerRequest =
+  | (Omit<OtelIngestionRequest, "body"> & {
+      body: Uint8Array<ArrayBuffer>;
+    })
+  | { type: "warmup" };
+
+export type OtelIngestionWorkerResult =
+  | OtelIngestionResult
+  | {
+      kind: "warmup";
+    };
 
 export default function processOtelIngestionInWorker(
   request: OtelIngestionWorkerRequest,
-): Promise<OtelIngestionResult> {
+): Promise<OtelIngestionWorkerResult> {
+  if (!("body" in request)) {
+    return Promise.resolve({ kind: "warmup" });
+  }
+
   const body = Buffer.from(
     request.body.buffer,
     request.body.byteOffset,

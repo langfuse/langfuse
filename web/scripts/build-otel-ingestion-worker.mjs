@@ -32,11 +32,18 @@ const pool = new Piscina({
   filename: outfile,
   minThreads: 1,
   maxThreads: 1,
-  maxQueue: 1,
+  maxQueue: 0,
   atomics: "disabled",
 });
 
 try {
+  const warmup = await pool.run({ type: "warmup" });
+  if (warmup?.kind !== "warmup") {
+    throw new Error(
+      `Unexpected OTel worker warm-up result: ${JSON.stringify(warmup)}`,
+    );
+  }
+
   const body = Buffer.allocUnsafeSlow(2);
   body.write("{}", "utf8");
   const result = await pool.run(

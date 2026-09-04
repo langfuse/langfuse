@@ -16,6 +16,7 @@ import {
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
 import { processOtelIngestion } from "@/src/server/otel/processOtelIngestion";
+import type { OtelIngestionWorkerContext } from "@/src/server/otel/otelIngestionWorkerPool";
 
 export const config = {
   api: {
@@ -42,29 +43,31 @@ export default withMiddlewares({
       await markProjectAsOtelUser(auth.scope.projectId);
 
       const useWorker = env.LANGFUSE_OTEL_INGESTION_USE_WORKER === "true";
-      const workerLeaseResult = useWorker
-        ? await (
-            await import("@/src/server/otel/otelIngestionWorkerPool")
-          ).createOtelIngestionWorkerLease(req, res, auth.scope.projectId)
-        : undefined;
-      if (workerLeaseResult && "response" in workerLeaseResult) {
-        return workerLeaseResult.response;
-      }
-      const workerLease = workerLeaseResult?.lease;
-
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
       let body: Buffer;
       let encodedBodyBytes: number;
+      let workerContext: OtelIngestionWorkerContext | undefined;
       let bodyFailureMessage = "Failed to read request body";
       try {
-        const bodyReadResult = workerLease
-          ? await workerLease.readBody(maxBodyBytes)
-          : { body: await readOtelRequestBody(req, maxBodyBytes) };
-        if ("response" in bodyReadResult) {
-          return bodyReadResult.response;
+        // Acquire worker admission before reading so queued request bodies remain paused.
+        if (useWorker) {
+          const { createOtelIngestionWorkerContext } =
+            await import("@/src/server/otel/otelIngestionWorkerPool");
+          const contextResult = await createOtelIngestionWorkerContext(
+            req,
+            res,
+            auth.scope.projectId,
+            maxBodyBytes,
+          );
+          if ("response" in contextResult) {
+            return contextResult.response;
+          }
+          workerContext = contextResult;
+          body = contextResult.body;
+        } else {
+          body = await readOtelRequestBody(req, maxBodyBytes);
         }
-        body = bodyReadResult.body;
         encodedBodyBytes = body.byteLength;
 
         if (req.headers["content-encoding"]?.includes("gzip")) {
@@ -127,8 +130,8 @@ export default withMiddlewares({
           ingestionVersion,
         },
       };
-      const result = workerLease
-        ? await workerLease.run(ingestionRequest)
+      const result = workerContext
+        ? await workerContext.process(ingestionRequest)
         : await processOtelIngestion(ingestionRequest);
       if (!result) {
         return {};
