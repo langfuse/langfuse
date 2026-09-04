@@ -49,7 +49,6 @@ const originalPreviewOptIn =
 
 const projectId = "project-id";
 const evaluatorId = "evaluator-id";
-const backfillIdempotencyKey = "8057e838-b9f6-4c53-85a2-ecfaa0837555";
 const rawCommentFilter = {
   type: "string" as const,
   column: "commentContent",
@@ -103,12 +102,8 @@ function prepare({
   const batchActionCreate = vi
     .fn()
     .mockResolvedValue({ id: "batch-action-id" });
-  const batchActionFindUnique = vi.fn().mockResolvedValue(null);
   const prisma = {
-    batchAction: {
-      create: batchActionCreate,
-      findUnique: batchActionFindUnique,
-    },
+    batchAction: { create: batchActionCreate },
     jobConfiguration: {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
     },
@@ -163,7 +158,6 @@ function prepare({
   return {
     prisma,
     batchActionCreate,
-    batchActionFindUnique,
     addToDataset: addToDatasetRouter.createCaller(ctx),
     runEvaluation: runEvaluationRouter.createCaller(ctx),
   };
@@ -332,20 +326,15 @@ describe("batched evaluation version selection", () => {
     );
   });
 
-  it("allows a capped backfill when more observations match than will be processed", async () => {
+  it("prepares a capped, deduplicated backfill cohort", async () => {
     const context = prepare({ v4BetaEnabled: true });
-    mocks.getObservationsCountFromEventsTable.mockResolvedValue(100_000);
 
-    await context.runEvaluation.createBackfill({
+    const result = await context.runEvaluation.prepareBackfill({
       projectId,
-      idempotencyKey: backfillIdempotencyKey,
       query,
-      evaluatorIds: [evaluatorId],
-      sourceTable: BatchEvalSourceTable.EVENTS,
-      evalVersion: "v2",
       sampling: 1,
       rowLimit: 5_000,
-      backfillTimeRange: {
+      timeRange: {
         from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
         to: new Date(),
       },
@@ -360,118 +349,45 @@ describe("batched evaluation version selection", () => {
         orderBy: { column: "startTime", order: "DESC" },
       }),
     );
-    expect(context.batchActionCreate).toHaveBeenCalledWith(
+    expect(result.query?.filter).toEqual([
       expect.objectContaining({
-        data: expect.objectContaining({
-          query: expect.objectContaining({
-            filter: [
-              expect.objectContaining({
-                column: "id",
-                value: ["matching-observation"],
-              }),
-            ],
-          }),
-        }),
+        column: "id",
+        value: ["matching-observation"],
       }),
-    );
-    expect(mocks.queueAdd).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          query: expect.objectContaining({
-            filter: [
-              expect.objectContaining({
-                column: "id",
-                value: ["matching-observation"],
-              }),
-            ],
-          }),
-        }),
-      }),
-      expect.anything(),
-    );
-  });
-
-  it("does not queue a backfill when deterministic sampling selects no observations", async () => {
-    const context = prepare({ v4BetaEnabled: true });
-
-    const result = await context.runEvaluation.createBackfill({
-      projectId,
-      idempotencyKey: backfillIdempotencyKey,
-      query,
-      evaluatorIds: [evaluatorId],
-      sourceTable: BatchEvalSourceTable.EVENTS,
-      evalVersion: "v2",
-      sampling: 0,
-      rowLimit: 5_000,
-      backfillTimeRange: {
-        from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
-        to: new Date(),
-      },
-    });
-
-    expect(result).toEqual({ id: null });
+    ]);
     expect(context.batchActionCreate).not.toHaveBeenCalled();
     expect(mocks.queueAdd).not.toHaveBeenCalled();
   });
 
-  it("returns an existing backfill for a repeated idempotency key", async () => {
+  it("returns no query when deterministic sampling selects no observations", async () => {
     const context = prepare({ v4BetaEnabled: true });
-    context.batchActionFindUnique.mockResolvedValue({
-      id: backfillIdempotencyKey,
-      projectId,
-      actionType: "observation-run-batched-evaluation",
-      status: "QUEUED",
-      query,
-      config: {
-        evaluatorIds: [evaluatorId],
-        evalVersion: "v2",
-      },
-    });
 
-    const result = await context.runEvaluation.createBackfill({
+    const result = await context.runEvaluation.prepareBackfill({
       projectId,
-      idempotencyKey: backfillIdempotencyKey,
       query,
-      evaluatorIds: [evaluatorId],
-      sourceTable: BatchEvalSourceTable.EVENTS,
-      evalVersion: "v2",
-      sampling: 1,
+      sampling: 0,
       rowLimit: 5_000,
-      backfillTimeRange: {
+      timeRange: {
         from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
         to: new Date(),
       },
     });
 
-    expect(result).toEqual({ id: backfillIdempotencyKey });
+    expect(result).toEqual({ query: null });
     expect(context.batchActionCreate).not.toHaveBeenCalled();
-    expect(mocks.queueAdd).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          batchActionId: backfillIdempotencyKey,
-          query,
-        }),
-      }),
-      { jobId: backfillIdempotencyKey },
-    );
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
   });
 
   it("rejects backfills above the 25,000 observation cap", async () => {
     const context = prepare({ v4BetaEnabled: true });
 
     await expect(
-      context.runEvaluation.createBackfill({
+      context.runEvaluation.prepareBackfill({
         projectId,
-        idempotencyKey: backfillIdempotencyKey,
         query,
-        evaluatorIds: [evaluatorId],
-        sourceTable: BatchEvalSourceTable.EVENTS,
-        evalVersion: "v2",
         sampling: 1,
         rowLimit: 25_001,
-        backfillTimeRange: {
+        timeRange: {
           from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
           to: new Date(),
         },
