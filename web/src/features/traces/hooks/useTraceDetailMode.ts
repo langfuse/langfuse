@@ -57,9 +57,16 @@ export function useTraceDetailMode({
       } else {
         query.aggregation = nextMode;
       }
-      if (nextMode === "observation" && !selectedObservation) {
-        const defaultObservationId = getDefaultObservationId(trace);
-        if (defaultObservationId) query.observation = defaultObservationId;
+      if (nextMode === "observation") {
+        if (selectedObservation) {
+          query.observation = selectedObservation.id;
+          if (selectedObservation.traceId) {
+            query.traceId = selectedObservation.traceId;
+          }
+        } else {
+          const defaultObservationId = getDefaultObservationId(trace);
+          if (defaultObservationId) query.observation = defaultObservationId;
+        }
       }
       router.replace({ pathname: router.pathname, query }, undefined, {
         shallow: true,
