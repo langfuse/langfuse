@@ -98,9 +98,8 @@ export function TraceTimelineCompact() {
     (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
       if (!node?.totalCost || !showCostTokens) return {};
-      const aggregated = node.children.length > 0 || node.type === "TRACE";
       return {
-        costText: `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
+        costText: usdFormatter(node.totalCost.toNumber()),
       };
     },
     [nodeMap, showCostTokens],

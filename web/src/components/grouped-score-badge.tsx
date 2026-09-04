@@ -50,6 +50,7 @@ export const GroupedScoreBadges = <
   scores,
   maxVisible,
   compact,
+  hideLevels = false,
   expandable = true,
 }: {
   scores: T[];
@@ -63,6 +64,9 @@ export const GroupedScoreBadges = <
    * part that actually shows them.
    */
   expandable?: boolean;
+  /** Suppress the level tag even on mixed rows — for dense surfaces (tree
+      rows) where the level lives in the detail panel instead. */
+  hideLevels?: boolean;
 }) => {
   const groupedScores = groupScoresByName(scores);
 
@@ -72,6 +76,7 @@ export const GroupedScoreBadges = <
   // (e.g. the root carrying trace-level and observation-level scores) tags
   // each group so the levels are tellable apart.
   const showLevels =
+    !hideLevels &&
     new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
 
   // "+N" expands IN PLACE on click (hover still previews the hidden chips);

@@ -115,9 +115,13 @@ export function ViewPreferencesProvider({
     "scoresOnObservationTree",
     true,
   );
+  // Off by default: the red/orange heat map made rows read as errors. The
+  // toggle stays in View Options for users who want hotspot coloring back.
+  // Key rotated (-v2) so the new default applies to users whose browsers
+  // stored the old always-on value.
   const [colorCodeMetrics, setColorCodeMetrics] = useLocalStorage(
-    "colorCodeMetricsOnObservationTree",
-    true,
+    "colorCodeMetricsOnObservationTree-v2",
+    false,
   );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
