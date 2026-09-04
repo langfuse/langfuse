@@ -55,11 +55,18 @@ The heaviest recurring obligation and the easiest to miss, because nothing
 notifies you.
 
 ```
-get_status_updates(type: "project", user: "me", createdAt: "-P14D")
+get_status_updates(type: "project", user: "me")
 ```
 
+**Do not put a lower bound on that window.** A cutoff drops exactly the projects
+that need reporting: one last updated five weeks ago returns nothing, so you can
+say only "older than the window" — not how stale it is, and not what its last
+"next step" was. Take the newest update per project from an unbounded query
+instead, and page if you have to.
+
 Compare against the in-progress projects from above. Any project with no update
-since the last Monday owes one. Say how stale each is in days — "last update 11
+since the last Monday owes one, and a project with **no update at all** is the
+worst case, not an absent row. Say how stale each is in days — "last update 11
 days ago" lands, "stale" does not.
 
 An update carries health, progress since the last one, next step, blockers or

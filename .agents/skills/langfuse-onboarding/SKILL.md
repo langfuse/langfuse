@@ -22,15 +22,18 @@ Two signals, in order. Both are read-only.
 
 ```bash
 gh api repos/langfuse/langfuse --jq '.permissions | {push, maintain, admin}'
-git config user.email
 ```
 
 - **`push: true`** → maintainer. They have write access to the app repo.
 - **`push: false`** or the call fails → treat as an outside contributor until they
   say otherwise.
-- A `@clickhouse.com` git email plus reachable Linear tools is a second maintainer
-  signal, and the one that matters for the tracker layer: a maintainer with no
-  Linear connection is a *setup gap*, not a contributor.
+- Then check whether the tracker answers a real read. That is the second signal,
+  and the one that matters here: a maintainer with no tracker connection is a
+  *setup gap*, not a contributor, and step 4 is where you fix it.
+
+**Do not infer this from an email domain.** Maintainers here commit from at least
+three — a company address, an acquirer address, and personal ones — so a domain
+test misclassifies people in both directions. Write access is definitive; use it.
 
 Say what you found and let them correct it. Never announce a role silently — a
 wrong guess sends someone down the wrong half of this file.
