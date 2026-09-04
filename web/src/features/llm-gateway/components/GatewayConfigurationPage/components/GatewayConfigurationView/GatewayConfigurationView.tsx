@@ -159,7 +159,7 @@ export function GatewayConfigurationView({
 
       <div>
         <Header title="Instrumentation mode" />
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-2 md:grid-cols-3">
           {instrumentationModes.map((option) => {
             const Icon = option.icon;
             const selected = mode === option.value;
@@ -170,17 +170,19 @@ export function GatewayConfigurationView({
                 aria-pressed={selected}
                 onClick={() => setMode(option.value)}
                 className={cn(
-                  "bg-card hover:bg-muted/50 flex min-h-36 flex-col items-start gap-3 rounded-lg border p-4 text-left transition-colors",
+                  "bg-card hover:bg-muted/50 flex min-h-24 flex-col items-start gap-2 rounded-md border p-3 text-left transition-colors",
                   selected && "border-primary ring-primary ring-1",
                 )}
               >
-                <div className="flex w-full items-center justify-between gap-3">
-                  <Icon className="text-muted-foreground size-5" />
-                  {selected ? <Check className="text-primary size-4" /> : null}
+                <div className="flex w-full items-center justify-between gap-2">
+                  <Icon className="text-muted-foreground size-4" />
+                  {selected ? (
+                    <Check className="text-primary size-3.5" />
+                  ) : null}
                 </div>
                 <div>
-                  <p className="font-bold">{option.title}</p>
-                  <p className="text-muted-foreground mt-1 text-sm">
+                  <p className="text-sm font-bold">{option.title}</p>
+                  <p className="text-muted-foreground mt-0.5 text-xs leading-4">
                     {option.description}
                   </p>
                 </div>
