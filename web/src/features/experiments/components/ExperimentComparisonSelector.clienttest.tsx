@@ -6,21 +6,30 @@ const h = vi.hoisted(() => ({
   capture: vi.fn(),
   onSelectedIdsChange: vi.fn(),
   searchQuery: "",
+  onAutoSelectEnabledChange: vi.fn(),
+  // Newest first, the order the picker's own query returns. `startTime` and
+  // `datasetName` came with the dataset grouping and recency ordering.
   searchResults: [
     {
       experimentId: "exp-a",
       experimentName: "My Experiment A",
       datasetId: "ds-1",
+      datasetName: "My Dataset One",
+      startTime: new Date("2026-08-26T10:00:00Z"),
     },
     {
       experimentId: "exp-b",
       experimentName: "My Experiment B",
       datasetId: "ds-1",
+      datasetName: "My Dataset One",
+      startTime: new Date("2026-08-25T10:00:00Z"),
     },
     {
       experimentId: "exp-c",
       experimentName: "My Experiment C",
       datasetId: "ds-2",
+      datasetName: "My Dataset Two",
+      startTime: new Date("2026-08-24T10:00:00Z"),
     },
   ],
 }));
@@ -34,6 +43,7 @@ vi.mock("@/src/features/experiments/hooks/useExperimentSearch", () => ({
     searchResults: h.searchResults,
     searchQuery: h.searchQuery,
     setSearchQuery: vi.fn(),
+    isSearchActive: false,
     isLoading: false,
     availableExperimentNames: h.searchResults,
   }),
@@ -45,6 +55,7 @@ describe("ExperimentComparisonSelector analytics", () => {
   beforeEach(() => {
     h.capture.mockClear();
     h.onSelectedIdsChange.mockClear();
+    h.onAutoSelectEnabledChange.mockClear();
     h.searchQuery = "";
   });
 
@@ -56,6 +67,8 @@ describe("ExperimentComparisonSelector analytics", () => {
         selectedIds={[]}
         selectedExperimentCount={1}
         onSelectedIdsChange={h.onSelectedIdsChange}
+        isAutoSelectEnabled={true}
+        onAutoSelectEnabledChange={h.onAutoSelectEnabledChange}
       />,
     );
 
@@ -86,6 +99,8 @@ describe("ExperimentComparisonSelector analytics", () => {
         selectedIds={[]}
         selectedExperimentCount={1}
         onSelectedIdsChange={h.onSelectedIdsChange}
+        isAutoSelectEnabled={true}
+        onAutoSelectEnabledChange={h.onAutoSelectEnabledChange}
       />,
     );
 
