@@ -36,10 +36,14 @@ evaluating, and debugging AI applications.
   commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
 - Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
-  Linear URLs into anything this repo publishes: code comments, docs prose,
-  commit messages, PR titles and descriptions, or changelog entries. They mean
-  nothing to OSS readers. Describe the problem on its own terms; a
-  ticket-prefixed branch name is the one place the identifier belongs.
+  tracker URLs into anything an OSS reader meets: code comments, commit messages,
+  PR titles and descriptions, changelog entries, or user-facing docs. They mean
+  nothing to them. Describe the problem on its own terms; a ticket-prefixed
+  branch name is the one place the identifier belongs.
+  - `.agents/skills/**` is the exception, for identifiers only. Those files are
+    maintainer guidance, and an id there is provenance an engineer can follow —
+    "the shape from LFE-10959", "the worked example". Tracker URLs stay out even
+    here: they cannot be opened from a fork and they carry the workspace name.
 - Code comments document behavior for future readers, not the reasoning
   behind the current change. Do not reference PR/review history ("changed X
   to Y", "now also handles", "per review", "was previously") or describe
@@ -81,10 +85,9 @@ Two moments in every task, both easy to skip and both expensive:
   later.
 
 The practice, its template and its tooling are the `linear-context-handover` and
-`linear-planning` skills in the private `langfuse/langfuse-internal-skills`
-plugin, alongside `linear-agent-writes`, which is the policy for what an agent
-may write to the tracker and how it must be marked. Read those rather than
-improvise. If this environment cannot reach the tracker, say so in your reply and
+`linear-planning` skills, alongside `linear-agent-writes`, which is the policy for
+what an agent may write to the tracker and how it must be marked. Read those
+rather than improvise. If this environment cannot reach the tracker, say so in your reply and
 hand back the text that should have gone on the work item — never skip either
 step silently, because silent non-compliance looks exactly like compliance.
 
