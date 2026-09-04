@@ -296,6 +296,20 @@ describe("Token Cost Calculation", () => {
           total_cost: 2,
         },
       },
+
+      // mixed key set beyond {input, output}, missing total (issue #15961)
+      {
+        userProvidedCosts: {
+          input: 1,
+          output: 2,
+          cache_read_input_tokens: 3,
+        },
+        expectedCost: {
+          input_cost: 1,
+          output_cost: 2,
+          total_cost: 6,
+        },
+      },
     ];
 
     for (const { userProvidedCosts, expectedCost } of data) {
