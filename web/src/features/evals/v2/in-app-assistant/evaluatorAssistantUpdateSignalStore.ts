@@ -15,7 +15,7 @@ function signalKey(
   return `${projectId}:${evaluatorId}:${surface}`;
 }
 
-export function createEvaluatorAssistantUpdateSignalStore() {
+function createEvaluatorAssistantUpdateSignalStore() {
   let snapshot: SignalSnapshot = EMPTY_SNAPSHOT;
   const listeners = new Set<Listener>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
