@@ -330,7 +330,7 @@ describe("batched evaluation version selection", () => {
     const context = prepare({ v4BetaEnabled: true });
     mocks.getObservationsCountFromEventsTable.mockResolvedValue(100_000);
 
-    await context.runEvaluation.create({
+    await context.runEvaluation.createBackfill({
       projectId,
       query,
       evaluatorIds: [evaluatorId],
@@ -388,7 +388,7 @@ describe("batched evaluation version selection", () => {
   it("does not queue a backfill when deterministic sampling selects no observations", async () => {
     const context = prepare({ v4BetaEnabled: true });
 
-    const result = await context.runEvaluation.create({
+    const result = await context.runEvaluation.createBackfill({
       projectId,
       query,
       evaluatorIds: [evaluatorId],
@@ -411,7 +411,7 @@ describe("batched evaluation version selection", () => {
     const context = prepare({ v4BetaEnabled: true });
 
     await expect(
-      context.runEvaluation.create({
+      context.runEvaluation.createBackfill({
         projectId,
         query,
         evaluatorIds: [evaluatorId],

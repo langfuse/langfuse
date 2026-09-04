@@ -102,7 +102,7 @@ export function EvaluatorSavedDialogContainer({
   const [isCompleting, setIsCompleting] = useState(false);
   const estimateRequestId = useRef(0);
   const backfillEstimateRequestId = useRef(0);
-  const attachedRuleId = useRef<string | null>(null);
+  const hasScheduledBackfill = useRef(false);
   // Strict Mode replays mount effects; this mutation must run once per dialog.
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -161,9 +161,10 @@ export function EvaluatorSavedDialogContainer({
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
       onError: trpcErrorToast,
     });
-  const runEvaluation = api.batchAction.runEvaluation.create.useMutation({
-    onError: trpcErrorToast,
-  });
+  const runEvaluation =
+    api.batchAction.runEvaluation.createBackfill.useMutation({
+      onError: trpcErrorToast,
+    });
 
   const finish = async () => {
     await onFinish();
@@ -230,7 +231,7 @@ export function EvaluatorSavedDialogContainer({
     filter: FilterState;
     sampling: number;
   }) => {
-    if (!backfillEnabled) return;
+    if (!backfillEnabled || hasScheduledBackfill.current) return;
     const executionRange =
       backfillWindow === "custom"
         ? backfillRange
@@ -259,10 +260,19 @@ export function EvaluatorSavedDialogContainer({
         useEventsTable: true,
       },
     });
+    hasScheduledBackfill.current = true;
   };
 
   const attachToRule = async (rule: Rule) => {
-    if (attachedRuleId.current !== rule.id) {
+    const currentAssignments =
+      await utils.client.evalsV2.rules.listRulesForEvaluator.query({
+        projectId,
+        evaluatorId: evaluator.id,
+      });
+    const isAlreadyAttached = currentAssignments.some(
+      (assignment) => assignment.evaluationRule.id === rule.id,
+    );
+    if (!isAlreadyAttached) {
       await attach.mutateAsync({
         projectId,
         ruleId: rule.id,
@@ -270,7 +280,6 @@ export function EvaluatorSavedDialogContainer({
         variableMapping: null,
         enableRule: !rule.enabled,
       });
-      attachedRuleId.current = rule.id;
       capture("evaluation_rules:attach_evaluator", {
         evaluatorCount: 1,
         source: "evaluator_create",
@@ -713,6 +722,7 @@ export function EvaluatorSavedDialogContainer({
         !isEstimating &&
         !isCompleting &&
         (!backfillEnabled || !isEstimatingBackfill) &&
+        (!backfillEnabled || historicEvaluationLimit.isSuccess) &&
         (mode === "test-filters" || selectedRuleId !== undefined)
       }
       isSubmitting={
