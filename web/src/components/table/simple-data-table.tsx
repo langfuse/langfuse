@@ -81,9 +81,9 @@ export function SimpleDataTable<TData extends object>({
               <TableHead
                 key={header.id}
                 className={cn(
-                  "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
-                  header.column.columnDef.headerClassName,
-                  header.column.columnDef.hideBelowMd && "hidden md:table-cell",
+                    "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+                    header.column.columnDef.headerClassName,
+                    header.column.columnDef.hideBelowMd && "hidden md:table-cell",
                 )}
                 style={
                   header.column.columnDef.size === undefined

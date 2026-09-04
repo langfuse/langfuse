@@ -40,4 +40,37 @@ describe("SimpleDataTable", () => {
     fireEvent.keyDown(row!, { key: " " });
     expect(onRowClick).toHaveBeenCalledTimes(2);
   });
+
+  it("hides responsive columns consistently", () => {
+    const responsiveColumns: LangfuseColumnDef<{
+      id: string;
+      name: string;
+      detail: string;
+    }>[] = [
+      { accessorKey: "name", header: "Name" },
+      {
+        accessorKey: "detail",
+        header: "Detail",
+        hideBelowMd: true,
+      },
+    ];
+
+    render(
+      <SimpleDataTable
+        columns={responsiveColumns}
+        data={[{ id: "row-1", name: "Name value", detail: "Detail value" }]}
+        isLoading={false}
+        noResults={null}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Detail" })).toHaveClass(
+      "hidden",
+      "md:table-cell",
+    );
+    expect(screen.getByRole("cell", { name: "Detail value" })).toHaveClass(
+      "hidden",
+      "md:table-cell",
+    );
+  });
 });
