@@ -84,6 +84,7 @@ export function AnnotationQueueFormDialogContent({
     allNames: queueNameOptions,
     form,
     errorMessage: "Queue name already exists.",
+    whitelistedName: mode === "edit" ? initialValues.name : undefined,
   });
 
   const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
