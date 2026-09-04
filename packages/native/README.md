@@ -139,9 +139,10 @@ the same code will work unchanged in a standalone Rust process later.
   `langfuse.native.telemetry_init_failed` counter and the worker keeps
   running without native metrics.
 
-The hello-world function logs one line and increments
-`langfuse.native.hello_calls`, tagged `source:startup` once per worker boot and
-`source:health` once per `/api/health` probe.
+The hello-world function increments `langfuse.native.hello_calls`, tagged
+`source:startup` once per worker boot and `source:health` once per
+`/api/health` probe, and writes a debug-level log line, so the probes add no
+log volume at the default level.
 
 Known gaps: dd-trace appends the container id to each datagram so the Agent can
 add pod tags, which the Rust exporter does not do yet; Rust log lines carry

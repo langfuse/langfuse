@@ -107,7 +107,7 @@ describe("@langfuse/native telemetry", () => {
       env: {
         ...process.env,
         LANGFUSE_LOG_FORMAT: "json",
-        LANGFUSE_LOG_LEVEL: "info",
+        LANGFUSE_LOG_LEVEL: "debug",
       },
     });
 
@@ -118,7 +118,7 @@ describe("@langfuse/native telemetry", () => {
     const helloLine = lines.find(
       (line) => line.message === "hello from the native addon",
     );
-    expect(helloLine).toMatchObject({ level: "INFO", source: "startup" });
+    expect(helloLine).toMatchObject({ level: "DEBUG", source: "startup" });
     expect(typeof helloLine?.timestamp).toBe("string");
   });
 });
