@@ -61,12 +61,31 @@ export const Cost = meta.story({
   },
 });
 
-export const CostWithMatchedPricingTier = meta.story({
+export const CostCalculatedFromPricing = meta.story({
   args: {
     details: costDetails,
     children: <span>$0.001725</span>,
     isCost: true,
+    costSource: "calculated",
     priceSource,
+  },
+});
+
+export const CostCalculatedWithoutTier = meta.story({
+  args: {
+    details: costDetails,
+    children: <span>$0.001725</span>,
+    isCost: true,
+    costSource: "calculated",
+  },
+});
+
+export const CostProvidedAtIngestion = meta.story({
+  args: {
+    details: costDetails,
+    children: <span>$0.001725</span>,
+    isCost: true,
+    costSource: "provided",
   },
 });
 
@@ -83,6 +102,7 @@ export const CostWithLongUsageTypes = meta.story({
     details: longUsageTypeCostDetails,
     children: <span>$0.03824809</span>,
     isCost: true,
+    costSource: "calculated",
     priceSource: {
       ...priceSource,
       pricingTierName: "Standard",
@@ -112,11 +132,12 @@ async function openBreakdownTooltip(
 }
 
 export const TestLinksMatchedPricingTier = meta.story({
-  name: "(Test) Opens matched pricing tier breakdown",
+  name: "(Test) Opens calculated cost source with pricing tier",
   args: {
     details: costDetails,
     children: <span>$0.001725</span>,
     isCost: true,
+    costSource: "calculated",
     priceSource,
   },
   play: async ({ canvasElement }) => {
@@ -124,12 +145,29 @@ export const TestLinksMatchedPricingTier = meta.story({
     await expect(content.getByText("Cost breakdown")).toBeInTheDocument();
     await expect(content.getByText("Total cost")).toBeInTheDocument();
     const link = content.getByRole("link");
-    await expect(link).toHaveTextContent("Priority");
+    await expect(link).toHaveTextContent("Calculated · Priority Tier Pricing");
     await expect(link).toHaveAttribute(
       "href",
       "/project/project-1/settings/models/gpt-5.6%2Fpriority?pricingTier=tier-priority",
     );
     await expect(link).toHaveClass("text-xs", "italic");
+  },
+});
+
+export const TestProvidedAtIngestionLabel = meta.story({
+  name: "(Test) Shows provided at ingestion label",
+  args: {
+    details: costDetails,
+    children: <span>$0.001725</span>,
+    isCost: true,
+    costSource: "provided",
+  },
+  play: async ({ canvasElement }) => {
+    const { content } = await openBreakdownTooltip(canvasElement, "$0.001725");
+    await expect(
+      content.getByText("Provided at ingestion"),
+    ).toBeInTheDocument();
+    await expect(content.queryByRole("link")).not.toBeInTheDocument();
   },
 });
 
