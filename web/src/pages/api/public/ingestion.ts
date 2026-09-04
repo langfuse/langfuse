@@ -42,20 +42,19 @@ export const config = {
 };
 
 /**
- * This handler performs multiple actions to ingest data. It is compatible with the new async workflow, but also
- * supports the old synchronous workflow which processes events in the web container.
- * Overall, the processing of each incoming request happens in three stages
+ * This handler ingests data via the async workflow:
  * 1. Validation
  *   - Check that the user has permissions
  *   - Check whether rate-limits are breached
  *   - Check that the request is well-formed
- * 2. Async Processing
+ * 2. Async Processing (in processEventBatch, also reused for the POST scores
+ *    endpoint and OTLP ingestion)
  *   - Upload each event to S3 for long-term storage and as an event cache
- *   - Add the event batch to the queue for async processing
- *   - Fallback to sync processing on errors
- * 3. Sync Processing
- * The last two stages live in a processEventBatch function which is reused for the POST scores endpoint and for
- * legacy event types.
+ *   - Add the event batch to the queue for async processing by the worker
+ *
+ * If the S3 upload fails, event processing is aborted (the request fails) so
+ * that the queue never references a missing S3 object. There is no synchronous
+ * fallback path.
  */
 export default async function handler(
   req: NextApiRequest,
