@@ -179,6 +179,164 @@ describe("Annotation Queues API Endpoints", () => {
       expect(firstPageResponse.body.data.length).toBe(limit);
       expect(secondPageResponse.body.data.length).toBe(limit);
     });
+
+    describe("GET /annotation-queues timestamp window", () => {
+      // Three annotation queues at deterministic, well-separated `createdAt`
+      // values so the half-open `[fromTimestamp, toTimestamp)` window can be
+      // exercised without relying on clock or ordering accidents. These
+      // are force-pinned via prisma so the time window is deterministic.
+      const OLD = new Date("2021-01-01T00:00:00.000Z");
+      const MID = new Date("2021-06-01T00:00:00.000Z");
+      const NEW = new Date("2022-01-01T00:00:00.000Z");
+
+      let oldName: string;
+      let midName: string;
+      let newName: string;
+
+      const createQueueAt = async (name: string, createdAt: Date) => {
+        await prisma.annotationQueue.create({
+          data: {
+            projectId,
+            name,
+            scoreConfigIds: [],
+            createdAt,
+            // updatedAt must satisfy `@updatedAt`; setting it equal to
+            // createdAt is fine for tests.
+            updatedAt: createdAt,
+          },
+        });
+      };
+
+      beforeEach(async () => {
+        oldName = `ts-old-${uuidv4()}`;
+        midName = `ts-mid-${uuidv4()}`;
+        newName = `ts-new-${uuidv4()}`;
+
+        await createQueueAt(oldName, OLD);
+        await createQueueAt(midName, MID);
+        await createQueueAt(newName, NEW);
+      });
+
+      it("omits the filter when neither timestamp is provided (existing behavior)", async () => {
+        const response = await makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          "/api/public/annotation-queues?limit=50",
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const names = response.body.data.map((q) => q.name);
+        expect(names).toEqual(
+          expect.arrayContaining([oldName, midName, newName]),
+        );
+        // Includes the TOTAL_TEST_QUEUES seed plus the 3 timestamp-pinned.
+        expect(response.body.meta.totalItems).toBe(TOTAL_TEST_QUEUES + 3);
+      });
+
+      it("filters by fromTimestamp only (inclusive lower bound)", async () => {
+        // Anything on or after MID: the mid and new queues.
+        const response = await makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          `/api/public/annotation-queues?fromTimestamp=${MID.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const names = response.body.data.map((q) => q.name);
+        expect(names).toEqual(expect.arrayContaining([midName, newName]));
+        expect(names).not.toContain(oldName);
+        expect(response.body.meta.totalItems).toBe(2);
+      });
+
+      it("filters by toTimestamp only (exclusive upper bound)", async () => {
+        // Anything strictly before NEW: the old and mid queues. The queue
+        // created exactly at NEW is excluded because the upper bound is `lt`.
+        const response = await makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          `/api/public/annotation-queues?toTimestamp=${NEW.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const names = response.body.data.map((q) => q.name);
+        expect(names).toEqual(expect.arrayContaining([oldName, midName]));
+        expect(names).not.toContain(newName);
+        expect(response.body.meta.totalItems).toBe(2);
+      });
+
+      it("filters by a half-open [fromTimestamp, toTimestamp) window when both are provided", async () => {
+        // Window [OLD, NEW) -> exactly the mid queue.
+        const response = await makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          `/api/public/annotation-queues?fromTimestamp=${OLD.toISOString()}&toTimestamp=${NEW.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const names = response.body.data.map((q) => q.name);
+        expect(names).toEqual([midName]);
+        expect(response.body.meta.totalItems).toBe(1);
+      });
+
+      it("returns 400 on an invalid fromTimestamp format", async () => {
+        const response = await makeAPICall(
+          "GET",
+          "/api/public/annotation-queues?fromTimestamp=not-a-date",
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+      });
+
+      it("returns 400 on an invalid toTimestamp format", async () => {
+        const response = await makeAPICall(
+          "GET",
+          "/api/public/annotation-queues?toTimestamp=2021-13-40T99:99:99Z",
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+      });
+
+      it("composes the time window with the existing project scope", async () => {
+        // Create a separate project + api key so we can prove the filter
+        // does not leak queues across the project boundary.
+        const other = await createOrgProjectAndApiKey();
+
+        await prisma.annotationQueue.create({
+          data: {
+            projectId: other.projectId,
+            name: `ts-other-project-${uuidv4()}`,
+            scoreConfigIds: [],
+            createdAt: NEW,
+            updatedAt: NEW,
+          },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          `/api/public/annotation-queues?fromTimestamp=${NEW.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        // Only `newName` belongs to `projectId` with createdAt >= NEW.
+        expect(response.body.meta.totalItems).toBe(1);
+        expect(response.body.data.map((q) => q.name)).toEqual([newName]);
+      });
+    });
   });
 
   describe("POST /annotation-queues", () => {
