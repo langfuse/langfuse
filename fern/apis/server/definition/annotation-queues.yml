@@ -14,6 +14,22 @@ service:
       request:
         name: GetAnnotationQueuesRequest
         query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 lower bound on the annotation queue row's
+              `createdAt` (inclusive). Omit for an open-ended start.
+              Pattern matches `GET /api/public/comments`,
+              `GET /api/public/models`, `GET /api/public/datasets`, and
+              `GET /api/public/llm-connections`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 upper bound on the annotation queue row's
+              `createdAt` (exclusive). Omit for an open-ended end.
+              Pattern matches `GET /api/public/comments`,
+              `GET /api/public/models`, `GET /api/public/datasets`, and
+              `GET /api/public/llm-connections`.
           page:
             type: optional<integer>
             docs: page number, starts at 1
