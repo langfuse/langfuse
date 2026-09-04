@@ -28,11 +28,10 @@ concurrency:
 checkout:
   fetch-depth: 0
 
-# Plain model id. The `<model>?effort=` alias suffix is rejected by Claude Code
-# and rewritten by the awf api-proxy's middle-power fallback to sonnet-4-5, and
-# the suffixed string matches no Langfuse price, so runs were mis-served and
-# uncosted. Effort cannot be set via frontmatter in gh-aw v0.86; Claude Code
-# uses its default effort for this model.
+# Plain model id only. Do not append the `?effort=` alias suffix: Claude Code
+# rejects it and the awf api-proxy remaps it to a fallback model, and the
+# suffixed string matches no Langfuse price. gh-aw v0.86 has no frontmatter
+# knob for effort, so Claude Code uses its default effort for this model.
 model: claude-opus-5
 
 engine:
@@ -63,10 +62,11 @@ observability:
     headers:
       Authorization: Basic ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
       x-langfuse-ingestion-version: "4"
+    # Values are GitHub expressions; gh-aw v0.86 does not expand `{{ }}` templates.
     attributes:
       langfuse.trace.name: dependabot-security-maintainer
-      langfuse.session.id: "{{ gh-aw.episode.id }}"
-      langfuse.user.id: "{{ github.actor }}"
+      langfuse.user.id: ${{ github.actor }}
+      langfuse.trace.metadata.run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 network:
   allowed:
