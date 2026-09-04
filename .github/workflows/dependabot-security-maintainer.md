@@ -41,6 +41,28 @@ timeout-minutes: 90
 max-ai-credits: 4500
 strict: true
 
+# Intended to keep the Langfuse OTLP credential out of the agent container; the
+# api-proxy sidecar and runner-side gh-aw steps read it from the host env. As of
+# gh-aw v0.88 the compiler drops this field whenever its typed frontmatter parse
+# fails, which it does for string `environment:` and array `tools.bash:`, so the
+# credential is still visible inside the sandbox today. Accepted: the key only
+# grants access to a dedicated Langfuse project. Takes effect once gh-aw fixes it.
+excluded-env:
+  - OTEL_EXPORTER_OTLP_HEADERS
+  - GH_AW_OTLP_ENDPOINTS
+
+observability:
+  otlp:
+    # Langfuse OTLP endpoint (EU region). gh-aw appends /v1/traces itself.
+    endpoint: https://cloud.langfuse.com/api/public/otel
+    headers:
+      Authorization: Basic ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
+      x-langfuse-ingestion-version: "4"
+    attributes:
+      langfuse.trace.name: dependabot-security-maintainer
+      langfuse.session.id: "{{ gh-aw.episode.id }}"
+      langfuse.user.id: "{{ github.actor }}"
+
 network:
   allowed:
     - defaults

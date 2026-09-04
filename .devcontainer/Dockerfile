@@ -20,7 +20,7 @@ COPY --from=migrate-builder /out/migrate /usr/local/bin/migrate
 ARG NODE_USE_ENV_PROXY
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate
+    && corepack prepare pnpm@12.3.1 --activate
 
 # Install Clickhouse
 RUN curl https://clickhouse.com/ | sh && \
