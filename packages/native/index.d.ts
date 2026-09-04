@@ -3,8 +3,9 @@
 /**
  * Hello-world entry point. It proves that the worker can load and call the
  * addon and that native code reports through the same telemetry as the rest
- * of the worker: one log line, and one increment of the
- * `langfuse.native.hello_calls` counter tagged with `source`.
+ * of the worker: one increment of the `langfuse.native.hello_calls` counter
+ * tagged with `source`, plus a debug-level log line. The worker calls this on
+ * every health probe, so the log line stays below the default level.
  */
 export declare function hello(source: string): void
 
