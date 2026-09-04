@@ -85,13 +85,6 @@ export function useExperimentStripMetric({
       obs_score_booleans: booleanOnlyScoreNames(
         scoreOptions.data.obs_score_columns,
       ),
-      trace_scores_avg: scoreOptions.data.trace_scores_avg,
-      trace_score_categories: processCategoricalScoreOptions(
-        scoreOptions.data.trace_score_categories,
-      ),
-      trace_score_booleans: booleanOnlyScoreNames(
-        scoreOptions.data.trace_score_columns,
-      ),
       experiment_scores_avg: scoreOptions.data.experiment_scores_avg,
       experiment_score_categories: processCategoricalScoreOptions(
         scoreOptions.data.experiment_score_categories,
