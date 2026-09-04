@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
+vi.mock("next/router", () => ({
+  useRouter: () => ({ query: {}, push: vi.fn() }),
+}));
+
 const { fetchNextPage, queryState } = vi.hoisted(() => {
   const fetchNextPage = vi.fn();
   return {

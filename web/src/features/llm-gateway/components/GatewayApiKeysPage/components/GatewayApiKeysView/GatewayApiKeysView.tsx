@@ -1,17 +1,11 @@
 import type { ReactNode } from "react";
 
 import Header from "@/src/components/layouts/header";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { DataTable } from "@/src/components/table/data-table";
+import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 
 type GatewayApiKey = {
   metadata: unknown;
@@ -39,75 +33,75 @@ export function GatewayApiKeysView({
   isLoadingMore: boolean;
   onLoadMore: () => unknown;
 }) {
+  const columns: LangfuseColumnDef<GatewayApiKey>[] = [
+    {
+      accessorKey: "apiKey.createdAt",
+      id: "createdAt",
+      header: "Created",
+      cell: ({ row }) => row.original.apiKey.createdAt.toLocaleDateString(),
+      size: 120,
+    },
+    {
+      accessorKey: "apiKey.publicKey",
+      id: "key",
+      header: "Key",
+      cell: ({ row }) => (
+        <div className="ph-no-capture font-mono">
+          <div>{row.original.apiKey.publicKey}</div>
+          <div className="text-muted-foreground">
+            {row.original.apiKey.displaySecretKey}
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "apiKey.note",
+      id: "description",
+      header: "Description",
+      cell: ({ row }) => row.original.apiKey.note || "—",
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      cell: ({ row }) => {
+        const metadata = getMetadataEntries(row.original.metadata);
+        return metadata.length > 0 ? (
+          <div className="ph-no-capture flex flex-wrap gap-1">
+            {metadata.map(([key, value]) => (
+              <Badge key={key} variant="outline-solid">
+                {key}: {value}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
+      },
+    },
+    {
+      accessorKey: "apiKey.id",
+      id: "actions",
+      header: "",
+      cell: ({ row }) => renderRevokeAction(row.original.apiKey.id),
+      size: 60,
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <Header title="Gateway API keys" actionButtons={createAction} />
       <p className="text-muted-foreground text-sm">
         These organization keys authenticate requests to the LLM Gateway only.
       </p>
-      <Card className="overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-32">Created</TableHead>
-              <TableHead>Key</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Metadata</TableHead>
-              <TableHead className="w-20" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {apiKeys.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  density="comfortable"
-                  className="text-muted-foreground text-center"
-                >
-                  No gateway API keys created.
-                </TableCell>
-              </TableRow>
-            ) : (
-              apiKeys.map((association) => {
-                const apiKey = association.apiKey;
-                const metadata = getMetadataEntries(association.metadata);
-                return (
-                  <TableRow key={apiKey.id} className="ph-no-capture">
-                    <TableCell density="comfortable">
-                      {apiKey.createdAt.toLocaleDateString()}
-                    </TableCell>
-                    <TableCell density="comfortable" className="font-mono">
-                      <div>{apiKey.publicKey}</div>
-                      <div className="text-muted-foreground">
-                        {apiKey.displaySecretKey}
-                      </div>
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      {apiKey.note || "—"}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      {metadata.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {metadata.map(([key, value]) => (
-                            <Badge key={key} variant="outline-solid">
-                              {key}: {value}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      {renderRevokeAction(apiKey.id)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      <SettingsTableCard>
+        <DataTable
+          tableName="gatewayApiKeys"
+          columns={columns}
+          data={{ isLoading: false, isError: false, data: apiKeys }}
+          noResultsMessage="No gateway API keys created."
+          cellPadding="comfortable"
+        />
+      </SettingsTableCard>
       {hasMore ? (
         <Button
           className="self-center"
