@@ -32,6 +32,7 @@ type SelectOption<V> =
 
 type SelectGroup<V> = {
   type: "group";
+  id: string;
   label: string;
   options: SelectOption<V>[];
 };
@@ -63,29 +64,11 @@ function SelectInputInner<V extends string>(
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const container = useLayerContainer("popover");
-  const triggerRef = React.useRef<HTMLButtonElement>(null);
-  const focusAfterCloseRef = React.useRef<HTMLElement | null>(null);
   const [open, setOpen] = React.useState(false);
   const { register, recompute, top, bottom } =
     useScrollGradients<React.ComponentRef<typeof SelectPrimitive.Viewport>>(
       true,
     );
-  const setTriggerRef = useCallback(
-    (element: HTMLButtonElement | null) => {
-      triggerRef.current = element;
-
-      if (typeof ref === "function") {
-        ref(element);
-        return;
-      }
-
-      if (ref) {
-        ref.current = element;
-      }
-    },
-    [ref],
-  );
-
   const renderNode = useCallback(
     (
       node: SelectInputNode<V>,
@@ -93,7 +76,7 @@ function SelectInputInner<V extends string>(
     ): React.ReactElement => {
       if (isSelectGroup(node)) {
         return (
-          <>
+          <React.Fragment key={node.id}>
             {hasPreviousGroup && (
               <SelectPrimitive.Separator className="bg-border my-2 h-px" />
             )}
@@ -103,7 +86,7 @@ function SelectInputInner<V extends string>(
               </SelectPrimitive.Label>
               {node.options.map((option) => renderNode(option, false))}
             </SelectPrimitive.Group>
-          </>
+          </React.Fragment>
         );
       }
 
@@ -156,7 +139,7 @@ function SelectInputInner<V extends string>(
       onOpenChange={setOpen}
     >
       <SelectPrimitive.Trigger
-        ref={setTriggerRef}
+        ref={ref}
         className="border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
         {...triggerProps}
       >
@@ -169,36 +152,6 @@ function SelectInputInner<V extends string>(
         <SelectPrimitive.Content
           position="popper"
           sideOffset={4}
-          onCloseAutoFocus={(event) => {
-            const nextFocusableElement = focusAfterCloseRef.current;
-            if (!nextFocusableElement) return;
-
-            event.preventDefault();
-            focusAfterCloseRef.current = null;
-            nextFocusableElement.focus();
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Tab") return;
-
-            const trigger = triggerRef.current;
-            if (!trigger) return;
-
-            const focusableElements = Array.from(
-              document.querySelectorAll<HTMLElement>(
-                "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]",
-              ),
-            ).filter((element) => element.tabIndex >= 0);
-            const triggerIndex = focusableElements.indexOf(trigger);
-            const nextFocusableElement =
-              focusableElements[triggerIndex + (event.shiftKey ? -1 : 1)];
-
-            if (!nextFocusableElement) return;
-
-            // Radix keeps Tab in its open listbox; return it to the surrounding form.
-            event.preventDefault();
-            focusAfterCloseRef.current = nextFocusableElement;
-            setOpen(false);
-          }}
           className="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative w-(--radix-select-trigger-width) min-w-32 overflow-hidden rounded-md border shadow-md"
         >
           <SelectPrimitive.ScrollUpButton
@@ -233,7 +186,7 @@ function SelectInputInner<V extends string>(
 }
 
 type SelectInputComponent = {
-  <V>(
+  <V extends string>(
     props: SelectInputProps<V> & React.RefAttributes<HTMLButtonElement>,
   ): React.ReactElement | null;
 

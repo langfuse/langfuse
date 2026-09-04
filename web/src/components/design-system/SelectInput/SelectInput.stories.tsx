@@ -14,6 +14,7 @@ export const Default = meta.story({
     options: [
       {
         type: "group",
+        id: "openai",
         label: "OpenAI",
         options: [
           { value: "gpt-4.1", label: "GPT-4.1" },
@@ -24,6 +25,7 @@ export const Default = meta.story({
       },
       {
         type: "group",
+        id: "anthropic",
         label: "Anthropic",
         options: [
           {
@@ -39,6 +41,7 @@ export const Default = meta.story({
       },
       {
         type: "group",
+        id: "google",
         label: "Google",
         options: [
           { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },

@@ -393,6 +393,7 @@ export function SupportForm({
                     options={[
                       {
                         type: "group",
+                        id: "product-features",
                         label: "Product Features",
                         options: productFeatureTopics.map((t) => ({
                           value: t,
@@ -401,6 +402,7 @@ export function SupportForm({
                       },
                       {
                         type: "group",
+                        id: "operations",
                         label: "Operations",
                         options: TopicGroups.Operations.map((t) => ({
                           value: t,

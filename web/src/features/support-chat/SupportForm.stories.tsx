@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { SEVERITY_1, SEVERITY_3 } from "./formConstants";
@@ -165,20 +165,5 @@ export const KeepsFormWhenSubmitIsKept = meta.story({
     await expect(args.onSuccess).not.toHaveBeenCalled();
     await expect(getMessageField(canvasElement)).toHaveValue(LONG_MESSAGE);
     await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-  },
-});
-
-export const TestTabsBetweenSelects = meta.story({
-  name: "(Test) Tabs Between Selects",
-  args: defaultArgs,
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const [priority, topic] = body.getAllByRole("combobox");
-
-    priority!.focus();
-    await userEvent.keyboard("{Enter}");
-    await userEvent.tab();
-
-    await waitFor(() => expect(topic).toHaveFocus());
   },
 });
