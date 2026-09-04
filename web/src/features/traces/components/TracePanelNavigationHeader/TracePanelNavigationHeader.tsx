@@ -45,6 +45,7 @@ import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTrac
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
@@ -87,6 +88,9 @@ function TracePanelNavigationHeaderExpanded({
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
+  const isLanesEnabled = useIsFeatureEnabled("laneTimelineView", {
+    projectId: trace.projectId,
+  });
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -170,7 +174,9 @@ function TracePanelNavigationHeaderExpanded({
       ? "timeline"
       : viewMode === "graph" && isGraphViewAvailable
         ? "graph"
-        : "tree";
+        : viewMode === "lanes" && isLanesEnabled
+          ? "lanes"
+          : "tree";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
@@ -258,6 +264,7 @@ function TracePanelNavigationHeaderExpanded({
           <ViewModeSwitch
             activeView={activeView}
             showGraphSegment={isGraphViewAvailable}
+            showLanesSegment={isLanesEnabled}
             onSelect={(view) => {
               // Clicking the already-active segment is a no-op — don't count it.
               if (view !== activeView) {
@@ -275,15 +282,17 @@ function TracePanelNavigationHeaderExpanded({
   );
 }
 
-export type TraceViewMode = "tree" | "timeline" | "graph";
+export type TraceViewMode = "tree" | "timeline" | "graph" | "lanes";
 
 function ViewModeSwitch({
   activeView,
   showGraphSegment,
+  showLanesSegment,
   onSelect,
 }: {
   activeView: TraceViewMode;
   showGraphSegment: boolean;
+  showLanesSegment: boolean;
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
@@ -308,6 +317,15 @@ function ViewModeSwitch({
           active={activeView === "graph"}
           onClick={() => onSelect("graph")}
           label="Graph"
+        />
+      )}
+      {/* Experimental (flag: laneTimelineView): swim lanes per observation
+          type with idle time compressed. */}
+      {showLanesSegment && (
+        <ViewModeSegment
+          active={activeView === "lanes"}
+          onClick={() => onSelect("lanes")}
+          label="Tree+"
         />
       )}
     </div>
