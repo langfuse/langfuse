@@ -130,7 +130,7 @@ export function EvaluatorSavedCostSummary({
               </p>
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-lg font-bold tabular-nums">
-                  {estimate
+                  {backfillEstimatedCostUsd !== null
                     ? `≈ ${usdFormatter(backfillEstimatedCostUsd, 2, 2)}`
                     : "Unavailable"}
                 </span>
