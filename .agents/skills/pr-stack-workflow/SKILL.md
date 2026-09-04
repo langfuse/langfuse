@@ -131,8 +131,8 @@ git-to-PR walk for recovering why a surface is the way it is before you slice it
 ## Verify per branch, not per stack
 
 Run the verification bar from `.agents/AGENTS.md` on **each branch**, in a
-worktree checked out on that branch, and publish the result as a table of branch
-by check. That file owns the commands and the checks that pass without executing;
+worktree checked out on that branch ([`parallel-worktrees`](../parallel-worktrees/SKILL.md)
+sets one up), and publish the result as a table of branch by check. That file owns the commands and the checks that pass without executing;
 follow it there rather than from memory. Three failure modes belong to stacking
 specifically:
 
