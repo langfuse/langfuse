@@ -21,7 +21,7 @@ import {
  */
 export const DASHBOARD_FILE_FORMAT_VERSION = 1;
 
-export function isLangfuseDashboardPayload(parsed: unknown): boolean {
+function isLangfuseDashboardPayload(parsed: unknown): boolean {
   return (
     typeof parsed === "object" &&
     parsed !== null &&
@@ -100,7 +100,7 @@ export function parsePastedPreset(text: string): PastedPresetParseResult {
  */
 export function isPasteablePlacementPayload(
   text: string,
-  params: { isBetaEnabled: boolean },
+  params: { isV4: boolean },
 ): boolean {
   if (parsePastedWidget(text, params).status === "widget") return true;
   return parsePastedPreset(text).status === "preset";
@@ -211,7 +211,7 @@ export function buildDashboardExport(params: {
   };
 }
 
-export type ParsedDashboardImportPlacement =
+type ParsedDashboardImportPlacement =
   | ({ type: "widget"; widget: WidgetImport } & PlacementPosition)
   | ({ type: "preset"; presetId: HomeDashboardPresetId } & PlacementPosition);
 
@@ -237,7 +237,7 @@ export type DashboardImportParseResult =
  */
 export function parseDashboardImport(
   text: string,
-  params: { isBetaEnabled: boolean },
+  params: { isV4: boolean },
 ): DashboardImportParseResult {
   let parsedJson: unknown;
   try {
@@ -301,7 +301,7 @@ export function parseDashboardImport(
     try {
       const result = parseImportedWidgetJson({
         parsedJson: placement.widget,
-        isBetaEnabled: params.isBetaEnabled,
+        isV4: params.isV4,
       });
       removedFilters = removedFilters || result.removedFilters;
       placements.push({ type: "widget", widget: result.widget, ...position });

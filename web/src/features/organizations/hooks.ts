@@ -14,7 +14,7 @@ export const useQueryOrganization = () => {
   );
 };
 
-export const useOrganization = (organizationId: string | null) => {
+const useOrganization = (organizationId: string | null) => {
   const session = useSession();
   const isAdmin = session.data?.user?.admin === true;
 

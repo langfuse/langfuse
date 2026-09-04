@@ -9,6 +9,7 @@ import { QueueJobs, QueueName } from "../queues";
 import { WebhookQueue } from "../redis/webhookQueue";
 import { getAutomations } from "../repositories/automation-repository";
 import { sendBlobStorageExportFailedEmail } from "../services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
+import { sendPostHogExportFailedEmail } from "../services/email/posthogExportFailed/sendPostHogExportFailedEmail";
 import { sendEvaluatorBlockedEmail } from "../services/email/evaluatorBlocked/sendEvaluatorBlockedEmail";
 import { getProjectAdminEmails } from "../services/getProjectAdminEmails";
 import { type ProjectNotificationEvent } from "./types";
@@ -176,12 +177,23 @@ async function sendEventAdminEmails({
       });
       return;
     }
+    case "posthog-export-failed": {
+      await sendPostHogExportFailedEmail({
+        env: emailEnv,
+        projectName: event.projectName,
+        settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/posthog`,
+        receiverEmails,
+        disabled: event.disabled ?? false,
+      });
+      return;
+    }
     case "evaluator-blocked": {
       const resolutionUrl = `${emailEnv.NEXTAUTH_URL}${getEvaluatorBlockResolutionPath(
         {
           projectId: event.projectId,
           blockReason: event.blockReason,
           templateId: event.evalTemplateId,
+          evaluatorId: event.evaluatorId,
         },
       )}`;
       await Promise.allSettled(
@@ -198,6 +210,12 @@ async function sendEventAdminEmails({
         ),
       );
       return;
+    }
+    default: {
+      const _exhaustiveCheck: never = event;
+      throw new Error(
+        `sendEventAdminEmails: unhandled event type ${(_exhaustiveCheck as ProjectNotificationEvent).eventType}`,
+      );
     }
   }
 }

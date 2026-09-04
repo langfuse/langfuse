@@ -1,29 +1,30 @@
 import {
   createInAppAgentMcpRunOverride,
   InAppAgentMcpRunOverrideSchema,
-} from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 describe("in-app agent MCP run override", () => {
   it("serializes the override as plain JSON", async () => {
     const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
 
     expect(JSON.parse(token)).toEqual({
       toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
   });
 
   it("accepts a matching plain JSON override", async () => {
     const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
 
     expect(InAppAgentMcpRunOverrideSchema.safeParse(JSON.parse(token))).toEqual(
       {
         success: true,
         data: {
-          toolName: "upsertDataset",
+          toolNames: ["upsertDataset"],
         },
       },
     );

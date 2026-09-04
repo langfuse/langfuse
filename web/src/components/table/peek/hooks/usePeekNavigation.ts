@@ -5,13 +5,16 @@ import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const PEEK_PARAM = "peek";
 // View-mode param shared with the peek component (cleared whenever the peek closes).
 const PEEK_VIEW_PARAM = "peekView";
 
 interface BasePeekConfig {
+  /** Analytics table identity for peek:* events. Forward from the owning table. */
+  tableName: string;
+  /** Surface dimension at the moment of the action. Do not derive from the global v4 flag. */
+  isV4: boolean;
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
   queryParams?: string[];
   /**
@@ -56,6 +59,9 @@ interface BasePeekNavigation {
   closePeek: () => void;
   /** Resolve the navigation path for a detail entry */
   resolveDetailNavigationPath: (entry: ListEntry) => string;
+  /** Analytics dimensions forwarded onto TablePeekView expand/resize events. */
+  tableName: string;
+  isV4: boolean;
 }
 
 interface PeekNavigation extends BasePeekNavigation {}
@@ -73,16 +79,16 @@ interface PeekNavigationWithExpand extends BasePeekNavigation {
 export function usePeekNavigation(
   config: PeekConfigWithExpand,
 ): PeekNavigationWithExpand;
-export function usePeekNavigation(config?: PeekConfig): PeekNavigation;
-export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
+export function usePeekNavigation(config: PeekConfig): PeekNavigation;
+export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
   // Every peek is opened/closed through this hook, so open/close/new-tab
   // analytics live here once instead of in each consuming table. Props are
   // metadata-only: `routePattern` is the Next.js route PATTERN
   // (`/project/[projectId]/traces`), never a concrete URL with ids.
   const routePattern = router.pathname;
+  const { isV4, tableName } = config;
 
   const openPeek = useCallback(
     (id?: string, row?: any) => {
@@ -94,7 +100,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       if (!id) {
         // Close peek view - clear all peek-related params
         if (currentPeekId !== null) {
-          capture("peek:closed", { routePattern, isV4 });
+          capture("peek:closed", { routePattern, isV4, tableName });
         }
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
@@ -106,6 +112,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
             routePattern,
             wasOpen: currentPeekId !== null,
             isV4,
+            tableName,
           });
         }
         // Clear all query params that are set in the config
@@ -137,7 +144,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
         { shallow: true },
       );
     },
-    [router, config, capture, routePattern, isV4],
+    [router, config, capture, routePattern, isV4, tableName],
   );
 
   const closePeek = useCallback(() => {
@@ -147,7 +154,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
 
     // Guarded so programmatic cleanup with no peek open emits nothing.
     if (params.get(PEEK_PARAM) !== null) {
-      capture("peek:closed", { routePattern, isV4 });
+      capture("peek:closed", { routePattern, isV4, tableName });
     }
 
     // Close peek view - clear all peek-related params
@@ -163,7 +170,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       undefined,
       { shallow: true },
     );
-  }, [router, config, capture, routePattern, isV4]);
+  }, [router, config, capture, routePattern, isV4, tableName]);
 
   const resolveDetailNavigationPath = useCallback(
     (entry: ListEntry) => {
@@ -242,20 +249,22 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       const pathnameWithQuery = `${pathname}?${queryParams}`;
 
       if (openInNewTab) {
-        capture("peek:open_in_new_tab", { routePattern, isV4 });
+        capture("peek:open_in_new_tab", { routePattern, isV4, tableName });
         const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathnameWithQuery}`;
         window.open(pathnameWithBasePath, "_blank");
       } else {
         router.push(pathnameWithQuery);
       }
     },
-    [router, config, capture, routePattern, isV4],
+    [router, config, capture, routePattern, isV4, tableName],
   );
 
   const baseNavigation = {
     openPeek,
     closePeek,
     resolveDetailNavigationPath,
+    tableName,
+    isV4,
   };
 
   if (config?.expandConfig) {

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import {
   type ScoreDomain,

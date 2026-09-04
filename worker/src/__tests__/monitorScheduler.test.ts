@@ -11,7 +11,7 @@ import {
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 import { prisma } from "@langfuse/shared/src/db";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
 type MonitorView =
@@ -698,5 +698,40 @@ describe("MonitorScheduler (integration)", () => {
     ).nextRunAt;
 
     expect(firstNext?.toISOString()).toBe(secondNext?.toISOString());
+  });
+});
+
+describe("MonitorScheduler (timeouts)", () => {
+  const stubDb = (rows: unknown[]) => {
+    const executeRawUnsafe = vi.fn().mockResolvedValue(0);
+    const queryRaw = vi.fn().mockResolvedValue(rows);
+    const transaction = vi.fn(async (ops: Promise<unknown>[]) =>
+      Promise.all(ops),
+    );
+    return {
+      db: {
+        $executeRawUnsafe: executeRawUnsafe,
+        $queryRaw: queryRaw,
+        $transaction: transaction,
+      } as unknown as PrismaClient,
+      executeRawUnsafe,
+      transaction,
+    };
+  };
+
+  it("claim: bounds the query with a statement timeout", async () => {
+    const { db, executeRawUnsafe, transaction } = stubDb([]);
+
+    await new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db,
+      publish: vi.fn(),
+    }).schedule(now);
+
+    expect(executeRawUnsafe).toHaveBeenCalledWith(
+      "SET LOCAL statement_timeout = 20000",
+    );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Array));
   });
 });

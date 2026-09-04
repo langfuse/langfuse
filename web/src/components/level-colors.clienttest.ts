@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getLevelColors, LevelColors } from "@/src/components/level-colors";
 
 describe("getLevelColors", () => {

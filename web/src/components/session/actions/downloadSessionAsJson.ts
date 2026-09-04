@@ -19,7 +19,7 @@ type CaptureSessionEvent = (
   eventName: "session_detail:download_button_click",
 ) => void;
 
-export function buildSessionExportData({
+function buildSessionExportData({
   session,
   sessionComments,
   traceCommentsByTraceId,

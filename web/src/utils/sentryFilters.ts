@@ -15,7 +15,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
  * Matched by URL path SUFFIX so an optional `NEXT_PUBLIC_BASE_PATH` prefix
  * (e.g. `/self-hosted/api/auth/session`) still matches.
  */
-export const HTTP_CLIENT_NOISE_PATHS = [
+const HTTP_CLIENT_NOISE_PATHS = [
   "/api/auth/session", // NextAuth session poll (5-min interval + on window focus)
   // The two probes below are defensive/inert: they are only fetched by infra
   // liveness/readiness checks, never by the browser, so they cannot actually
@@ -91,6 +91,38 @@ const TRANSPORT_FAILURE_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Browser-extension URL protocols already listed in `denyUrls`
+ * (`web/instrumentation-client.ts`). `denyUrls` matches stack-frame filenames;
+ * keep this list in sync so the message-level fallback covers the same origins.
+ */
+const BROWSER_EXTENSION_MODULE_URL_RE =
+  /^(?:chrome-extension|moz-extension|safari-extension|safari-web-extension|ms-browser-extension):\/\//i;
+
+/**
+ * Chrome's exact wording when a dynamic `import()` fails to load. Combined
+ * with {@link BROWSER_EXTENSION_MODULE_URL_RE} so a first-party chunk-load
+ * failure (`https://…/_next/static/chunks/…`) is NOT dropped.
+ */
+const DYNAMIC_IMPORT_FAILURE_MARKER =
+  "Failed to fetch dynamically imported module:";
+
+/**
+ * True when Chrome reported a failed dynamic `import()` whose MODULE URL
+ * (the text immediately after {@link DYNAMIC_IMPORT_FAILURE_MARKER}) uses a
+ * browser-extension protocol. Anchored to that URL so a first-party chunk
+ * failure that merely mentions `chrome-extension://` in a query, fragment, or
+ * trailing console text is KEPT.
+ */
+function isBrowserExtensionDynamicImportFailure(text: string): boolean {
+  const markerIndex = text.indexOf(DYNAMIC_IMPORT_FAILURE_MARKER);
+  if (markerIndex === -1) return false;
+  const failedModule = text
+    .slice(markerIndex + DYNAMIC_IMPORT_FAILURE_MARKER.length)
+    .trimStart();
+  return BROWSER_EXTENSION_MODULE_URL_RE.test(failedModule);
+}
+
+/**
  * Message prefixes emitted by non-Langfuse code (framework / vendor). These are
  * unambiguous, vendor-namespaced strings that our own code cannot produce, so
  * matching them by prefix cannot swallow a real app error.
@@ -152,6 +184,15 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
   // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
   "Object Not Found Matching Id:",
 ];
+
+/**
+ * Chromium Android WebView wording when a host-app `@JavascriptInterface`
+ * method fails. The method name is a Java identifier; the suffix is fixed.
+ * Observed: LANGFUSE-60G (`Error invoking batch: Java bridge method
+ * invocation error`).
+ */
+const ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE =
+  /^Error invoking [A-Za-z_][\w$]*: Java bridge method invocation error$/;
 
 /**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
@@ -248,6 +289,9 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *  - the chunk-load / stale-deploy `SyntaxError` family — GROUPED (not dropped)
  *    via {@link isStaleChunkParseErrorEvent} so a genuinely broken deploy still
  *    surfaces as a spike on one issue.
+ *  - first-party `Failed to fetch dynamically imported module` of a
+ *    `/_next/static/chunks/` URL — same Chrome wording as the extension
+ *    family, but our chunks (stale tab / CDN); kept.
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -269,6 +313,19 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // NextAuth, PostHog, non-JSON Response.json(), and the Next.js `_error.js`
     // falsy-error artifact). Anchored with startsWith, never a loose includes. ---
     if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
+      return true;
+    }
+
+    // --- A. Browser-extension dynamic import() failure (LANGFUSE-5ZS). ---
+    // Chrome logs `Failed to fetch dynamically imported module: <url>` when
+    // an extension's own `import()` fails. `denyUrls` already lists these
+    // protocols, but this family has no stack frames, so denyUrls never
+    // matches and captureConsoleIntegration mints a new issue per
+    // extension-id + hashed asset. The protocol is required on the FAILED
+    // module URL (not anywhere in the event text); a first-party
+    // `/_next/static/chunks/` URL is a real stale-chunk / CDN failure and
+    // is KEPT.
+    if (isBrowserExtensionDynamicImportFailure(messageText)) {
       return true;
     }
 
@@ -350,6 +407,27 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       /^Failed to read the '(localStorage|sessionStorage)' property from 'Window':/.test(
         exceptionValue,
       )
+    ) {
+      return true;
+    }
+
+    // Android WebView `@JavascriptInterface` methods only accept primitives.
+    // Chromium throws `Error invoking <method>: Java bridge method invocation
+    // error` when an injected host-app bridge fails — typically on `unload`,
+    // after the Java side is already torn down. Sentry's addEventListener wrap
+    // then captures the HOST APP's listener, not Langfuse code. We have no
+    // Java bridge (LANGFUSE-60G: Chrome Mobile WebView, anonymous `batch`
+    // frames only).
+    //
+    // Anchored to Chromium's exact wording (Java identifier method name) AND
+    // a Sentry browser-API / global-handler mechanism so an app-captured
+    // exception that merely quotes this phrase is KEPT. A first-party
+    // TypeError from our own listener is also KEPT (different message).
+    const mechanismType = exception?.mechanism?.type;
+    if (
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)
     ) {
       return true;
     }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -26,8 +26,9 @@ import {
   PromptType,
   StringNoHTMLNonEmpty,
   TracingSearchType,
+  orderBy,
+  singleFilter,
 } from "@langfuse/shared";
-import { orderBy, singleFilter } from "@langfuse/shared";
 import {
   orderByToPrismaSql,
   PromptService,
@@ -56,6 +57,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   const escapedPathPrefix = escapeSqlLikePattern(pathPrefix);
   return Prisma.sql` AND (p.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR p.name = ${pathPrefix})`;
 };
+
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),

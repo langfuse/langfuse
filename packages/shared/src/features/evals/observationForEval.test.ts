@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { zipObservationToolCalls } from "./observationForEval";
+import {
+  mapEventEvalFilterColumnIdToField,
+  type ObservationForEval,
+  zipObservationToolCalls,
+} from "./observationForEval";
 
 describe("zipObservationToolCalls", () => {
   it("zips ClickHouse parallel arrays into named tool calls with parsed arguments", () => {
@@ -75,5 +79,58 @@ describe("zipObservationToolCalls", () => {
         index: 2,
       },
     ]);
+  });
+});
+
+describe("mapEventEvalFilterColumnIdToField", () => {
+  it("maps filters backed directly by the evaluation payload", () => {
+    const observation = {
+      provided_model_name: "gpt-4o",
+      prompt_name: "support-agent",
+      prompt_version: 2,
+      release: "2026-08",
+      status_message: "rate limit exceeded",
+      experiment_name: "checkout-eval",
+    } as ObservationForEval;
+
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "providedModelName"),
+    ).toBe("gpt-4o");
+    expect(mapEventEvalFilterColumnIdToField(observation, "promptName")).toBe(
+      "support-agent",
+    );
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "promptVersion"),
+    ).toBe(2);
+    expect(mapEventEvalFilterColumnIdToField(observation, "release")).toBe(
+      "2026-08",
+    );
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "statusMessage"),
+    ).toBe("rate limit exceeded");
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "experimentName"),
+    ).toBe("checkout-eval");
+  });
+
+  it("maps the experiment root filter to a boolean", () => {
+    expect(
+      mapEventEvalFilterColumnIdToField(
+        {
+          span_id: "root-span",
+          experiment_item_root_span_id: "root-span",
+        } as ObservationForEval,
+        "isExperimentItemRootSpan",
+      ),
+    ).toBe(true);
+    expect(
+      mapEventEvalFilterColumnIdToField(
+        {
+          span_id: "child-span",
+          experiment_item_root_span_id: "root-span",
+        } as ObservationForEval,
+        "isExperimentItemRootSpan",
+      ),
+    ).toBe(false);
   });
 });

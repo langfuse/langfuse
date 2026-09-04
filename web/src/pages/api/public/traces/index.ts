@@ -14,8 +14,8 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  processEventBatch,
   createIngestionAttribution,
   eventTypes,
   logger,
@@ -33,11 +33,13 @@ import {
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
       name: "Create Trace (Legacy)",
+      action: "traces:create",
       bodySchema: PostTracesV1Body,
       responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
       rateLimitResource: "legacy-ingestion",
@@ -78,6 +80,7 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      action: "traces:read",
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
@@ -108,6 +111,35 @@ export default withMiddlewares(
             referenceDateMs - defaultDateRangeDays * 24 * 60 * 60 * 1000,
           ).toISOString();
         }
+
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: effectiveFromTimestamp,
+        });
+        effectiveFromTimestamp =
+          dataAccessWindow.effectiveFromTimestamp?.toISOString();
+
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "timestamp",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toTimestamp
+                ? [
+                    {
+                      column: "timestamp",
+                      operator: "<" as const,
+                      value: new Date(query.toTimestamp),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
 
         // 3. Apply default fields if configured and no fields query param provided
         let effectiveFields = query.fields ?? undefined;
@@ -142,12 +174,12 @@ export default withMiddlewares(
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
               orderBy: query.orderBy ?? null,
             }),
             getTracesCountFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
             }),
           ]);
 
@@ -169,12 +201,12 @@ export default withMiddlewares(
         const [items, count] = await Promise.all([
           generateTracesForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
             orderBy: query.orderBy ?? null,
           }),
           getTracesCountForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
           }),
         ]);
 
@@ -196,6 +228,7 @@ export default withMiddlewares(
 
     DELETE: createAuthedProjectAPIRoute({
       name: "Delete Multiple Traces",
+      action: "traces:delete",
       bodySchema: DeleteTracesV1Body,
       responseSchema: DeleteTracesV1Response,
       rateLimitResource: "trace-delete",

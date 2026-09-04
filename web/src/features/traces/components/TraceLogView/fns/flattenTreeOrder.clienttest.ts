@@ -1,6 +1,8 @@
+// @vitest-environment node
+
 // @vitest-environment jsdom
 
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/fns/flattenTreeOrder";
 import {
   createNode,

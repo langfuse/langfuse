@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
+import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { Button } from "@/src/components/ui/button";
@@ -14,7 +14,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
-import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
+import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
@@ -34,6 +34,7 @@ import { PersonalNotificationSettings } from "@/src/features/notifications/compo
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 type ProjectSettingsPage = {
   title: string;
@@ -50,6 +51,15 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
+  const showProjectNotificationChannels = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "automations:CUD",
+  });
+  const showScoreConfigSettings = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "scoreConfigs:read",
+  });
+  const showV4Migration = useV4UpgradeUiFlag();
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -61,6 +71,9 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
+    showProjectNotificationChannels,
+    showScoreConfigSettings,
+    showV4Migration,
   });
 }
 
@@ -71,6 +84,9 @@ export const getProjectSettingsPages = ({
   showRetentionSettings,
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
+  showProjectNotificationChannels,
+  showScoreConfigSettings,
+  showV4Migration,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -78,6 +94,9 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
+  showProjectNotificationChannels: boolean;
+  showScoreConfigSettings: boolean;
+  showV4Migration: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -115,13 +134,41 @@ export const getProjectSettingsPages = ({
               title: "Transfer ownership",
               description:
                 "Transfer this project to another organization where you have the ability to create projects.",
-              button: <TransferProjectButton />,
+              button: (
+                <TransferProjectDialogController
+                  project={project}
+                  organization={organization}
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      Transfer Project
+                    </Button>
+                  )}
+                </TransferProjectDialogController>
+              ),
             },
             {
               title: "Delete this project",
               description:
                 "Once you delete a project, there is no going back. Please be certain.",
-              button: <DeleteProjectButton />,
+              button: (
+                <DeleteProjectDialogController>
+                  {({ hasAccess, Trigger }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="destructive-secondary"
+                        disabled={!hasAccess}
+                      >
+                        Delete Project
+                      </Button>
+                    </Trigger>
+                  )}
+                </DeleteProjectDialogController>
+              ),
             },
           ]}
         />
@@ -192,6 +239,7 @@ export const getProjectSettingsPages = ({
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
+    show: showScoreConfigSettings,
   },
   {
     title: "Members",
@@ -245,7 +293,9 @@ export const getProjectSettingsPages = ({
     content: (
       <div className="flex flex-col gap-6">
         <PersonalNotificationSettings />
-        <ProjectNotificationChannels projectId={project.id} />
+        {showProjectNotificationChannels && (
+          <ProjectNotificationChannels projectId={project.id} />
+        )}
       </div>
     ),
   },
@@ -259,6 +309,12 @@ export const getProjectSettingsPages = ({
     title: "Organization Settings",
     slug: "organization",
     href: `/organization/${organization.id}/settings`,
+  },
+  {
+    title: "v4 Migration",
+    slug: "v4-migration",
+    href: "/v4-migration",
+    show: showV4Migration,
   },
 ];
 

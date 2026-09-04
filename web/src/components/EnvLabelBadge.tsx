@@ -7,7 +7,7 @@ import { cva } from "class-variance-authority";
 import { useMemo } from "react";
 
 const envLabelBadgeVariants = cva(
-  "flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
+  "flex h-5 cursor-pointer items-center gap-1 rounded-md px-1 text-xs whitespace-nowrap",
   {
     variants: {
       variant: {

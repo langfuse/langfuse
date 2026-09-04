@@ -11,7 +11,7 @@ import {
   type DimensionKey,
   type MetricKey,
 } from "../types";
-import { describeConfig } from "../vocab";
+import { describeConfig, getMetric } from "../vocab";
 import { ChartCanvas } from "./ChartCanvas";
 import {
   AggregationSelect,
@@ -54,6 +54,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   className?: string;
 }) {
   const [open, setOpen] = useState(true);
+  const metric = getMetric(config.metric);
 
   const onMetric = useCallback(
     (metric: MetricKey) => onConfigChange({ metric }),
@@ -100,8 +101,14 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
           ) : (
             <ChartCanvas
               data={data}
-              config={config}
-              emptyMessage={emptyMessage}
+              chartType={config.chartType}
+              breakdown={config.breakdown}
+              aggregation={config.aggregation}
+              metricLabel={metric.label}
+              metricUnit={metric.unit}
+              emptyMessage={
+                emptyMessage ?? "No events match the current filters."
+              }
             />
           )}
         </div>

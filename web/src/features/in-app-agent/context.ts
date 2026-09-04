@@ -1,12 +1,8 @@
-import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
-import {
-  isInAppAgentQuickActionContext,
-  type InAppAgentQuickActionAttribution,
-} from "@/src/features/in-app-agent/quickActions";
+import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
 
-type InAppAgentContext = AgUiRunAgentInput["context"];
+type InAppAgentContext = AgUiContext;
 
 export type InAppAgentScreenContextDescription =
   | { type: "page" }
@@ -23,24 +19,19 @@ export type InAppAgentScreenContextDescription =
   | { type: "dataset" }
   | { type: "datasetItem" }
   | { type: "experimentRun" }
-  | { type: "trace-list"; hasAppliedFilters: boolean }
-  | { type: "observations-list"; hasAppliedFilters: boolean }
-  | { type: "sessions-list"; hasAppliedFilters: boolean }
-  | { type: "prompts-list"; hasAppliedFilters: boolean }
-  | { type: "datasets-list"; hasAppliedFilters: boolean };
+  | { type: "trace-list" }
+  | { type: "observations-list" }
+  | { type: "sessions-list" }
+  | { type: "prompts-list" }
+  | { type: "datasets-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
-const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
-const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION = "quick_action_category";
-const MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION = "message_entry_point";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_PATH_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_HASH_LENGTH = 200;
 const MAX_SCREEN_CONTEXT_JSON_LENGTH = 4_000;
-const MAX_QUICK_ACTION_KEY_LENGTH = 80;
-const QUICK_ACTION_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const USER_CONTEXT_DESCRIPTIONS = new Set([
   "user_name",
   "current_timezone",
@@ -65,9 +56,6 @@ export function getInAppAgentScreenContextDescription(
   const detailId = routeSegments[1];
   const peekId = parsedUrl.searchParams.get("peek");
   const observationId = parsedUrl.searchParams.get("observation");
-  const hasAppliedFilters = ["filter", "search"].some((parameter) =>
-    Boolean(parsedUrl.searchParams.get(parameter)?.trim()),
-  );
 
   if (
     (section === "traces" && observationId && (detailId || peekId)) ||
@@ -81,11 +69,11 @@ export function getInAppAgentScreenContextDescription(
   }
 
   if (section === "traces" && !detailId) {
-    return { type: "trace-list", hasAppliedFilters };
+    return { type: "trace-list" };
   }
 
   if (section === "observations" && !detailId) {
-    return { type: "observations-list", hasAppliedFilters };
+    return { type: "observations-list" };
   }
 
   if (section === "prompts") {
@@ -123,7 +111,7 @@ export function getInAppAgentScreenContextDescription(
     }
 
     if (promptPathSegments.length === 0) {
-      return { type: "prompts-list", hasAppliedFilters };
+      return { type: "prompts-list" };
     }
   }
 
@@ -132,7 +120,7 @@ export function getInAppAgentScreenContextDescription(
   }
 
   if (section === "sessions" && !detailId) {
-    return { type: "sessions-list", hasAppliedFilters };
+    return { type: "sessions-list" };
   }
 
   if (section === "datasets" && detailId) {
@@ -148,7 +136,7 @@ export function getInAppAgentScreenContextDescription(
   }
 
   if (section === "datasets" && !detailId) {
-    return { type: "datasets-list", hasAppliedFilters };
+    return { type: "datasets-list" };
   }
 
   return { type: "page" };
@@ -210,99 +198,6 @@ export function sanitizeInAppAgentContext(
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
-}
-
-export function createInAppAgentQuickActionAttributionContext(
-  attribution: InAppAgentQuickActionAttribution,
-): InAppAgentContext {
-  return [
-    {
-      description: QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
-      value: attribution.key,
-    },
-    {
-      description: QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
-      value: attribution.category,
-    },
-  ];
-}
-
-// Attribution is telemetry only: it is validated by shape here and read for
-// trace metadata, but never forwarded into the model-visible sanitized context.
-export function getInAppAgentQuickActionAttribution(
-  context: InAppAgentContext,
-): InAppAgentQuickActionAttribution | undefined {
-  const quickActionKey = context
-    .find((item) => item.description === QUICK_ACTION_KEY_CONTEXT_DESCRIPTION)
-    ?.value.trim();
-  const quickActionCategory = context
-    .find(
-      (item) => item.description === QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
-    )
-    ?.value.trim();
-
-  if (
-    !quickActionKey ||
-    quickActionKey.length > MAX_QUICK_ACTION_KEY_LENGTH ||
-    !QUICK_ACTION_KEY_PATTERN.test(quickActionKey) ||
-    !quickActionCategory ||
-    !isInAppAgentQuickActionContext(quickActionCategory)
-  ) {
-    return undefined;
-  }
-
-  return { key: quickActionKey, category: quickActionCategory };
-}
-
-export function getInAppAgentQuickActionTraceMetadata(
-  context: InAppAgentContext,
-): Record<string, string> {
-  const attribution = getInAppAgentQuickActionAttribution(context);
-
-  return attribution
-    ? {
-        quick_action_key: attribution.key,
-        quick_action_category: attribution.category,
-      }
-    : {};
-}
-
-export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
-  "chat",
-  "add-widget-modal",
-] as const;
-
-export type InAppAgentMessageEntryPoint =
-  (typeof IN_APP_AGENT_MESSAGE_ENTRY_POINTS)[number];
-
-export function createInAppAgentMessageEntryPointContext(
-  entryPoint: InAppAgentMessageEntryPoint,
-): InAppAgentContext {
-  return [
-    {
-      description: MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
-      value: entryPoint,
-    },
-  ];
-}
-
-// Telemetry only, like quick-action attribution: read for trace metadata but
-// never forwarded into the model-visible sanitized context.
-export function getInAppAgentMessageEntryPointTraceMetadata(
-  context: InAppAgentContext,
-): Record<string, string> {
-  const entryPoint = context
-    .find(
-      (item) => item.description === MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
-    )
-    ?.value.trim();
-
-  return entryPoint &&
-    (IN_APP_AGENT_MESSAGE_ENTRY_POINTS as readonly string[]).includes(
-      entryPoint,
-    )
-    ? { message_entry_point: entryPoint }
-    : {};
 }
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {

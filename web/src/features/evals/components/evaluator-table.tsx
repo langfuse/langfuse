@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -9,26 +9,29 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { ExternalLinkIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
-import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
+import {
+  evalConfigTargetValues,
+  evalConfigTimeScopeValues,
+} from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   Dialog,
   DialogContent,
@@ -39,32 +42,35 @@ import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import {
-  TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
-function DeprecatedChipCell() {
+function DeprecatedChip() {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
-        Deprecated
-      </span>
-    </div>
+    <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      Deprecated
+    </span>
   );
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -85,6 +91,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const newFilterOptions = {
     status: ["ACTIVE", "PAUSED", "INACTIVE"],
     target: evalConfigTargetValues,
+    timeScope: evalConfigTimeScopeValues,
   };
 
   const queryFilter = useSidebarFilterState(
@@ -116,12 +123,47 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
   // Deprecated evaluators are read-only where new legacy setups are not
   // allowed (cloud); self-hosted deployments keep editing them.
   const { allowLegacy } = useEvalCapabilities(projectId);
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
+  const openEvaluatorUpgrade = useCallback(
+    (evaluatorId: string) => {
+      if (!v4UpgradeUiEnabled) return;
+
+      capture("v4_migration:update_required_badge_clicked", {
+        scope: "single",
+      });
+      window.open(
+        buildEvaluatorUpgradeUrl(
+          projectId,
+          evaluatorId,
+          encodeFiltersGeneric(queryFilter.filterState),
+        ),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    },
+    [capture, projectId, queryFilter.filterState, v4UpgradeUiEnabled],
+  );
+
+  const handleRowClick = useCallback(
+    (row: EvaluatorDataRow, event?: React.MouseEvent) => {
+      if (!v4UpgradeUiEnabled || !row.isLegacy) return;
+
+      // DataTable opens the peek only when the row click has not been
+      // prevented. Deprecated evaluators should go directly to upgrade.
+      event?.preventDefault();
+      openEvaluatorUpgrade(row.id);
+    },
+    [openEvaluatorUpgrade, v4UpgradeUiEnabled],
+  );
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -131,53 +173,67 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluators.isSuccess, evaluators.data]);
+  }, [evaluators.isSuccess, evaluators.data, setDetailPageList]);
 
   const columnHelper = createColumnHelper<EvaluatorDataRow>();
   const columns = [
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Generated Score Name",
-      size: 200,
+      enableSorting: true,
+      size: 320,
       cell: (row) => {
         const scoreName = row.getValue();
-        return scoreName ? <TableIdOrName value={scoreName} /> : undefined;
-      },
-    }),
-    columnHelper.accessor("status", {
-      header: "Status",
-      id: "status",
-      size: 80,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: (row) => {
-        const status = row.getValue();
+        if (!scoreName) return undefined;
+
         return (
-          <div className={status === "FINISHED" ? "pl-3" : undefined}>
-            <StatusBadge type={status.toLowerCase()} />
+          <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
+            <div className="min-w-[4px] flex-1">
+              <IdTableCell value={scoreName} />
+            </div>
+            {row.row.original.isLegacy ? (
+              <span className="ml-auto justify-self-end">
+                {v4UpgradeUiEnabled ? (
+                  <V4MigrationBadgeContent
+                    onClick={() => openEvaluatorUpgrade(row.row.original.id)}
+                    title="Upgrade now"
+                    showChevron={false}
+                    compact
+                  />
+                ) : (
+                  <DeprecatedChip />
+                )}
+              </span>
+            ) : null}
           </div>
         );
       },
     }),
-    columnHelper.accessor("totalCost", {
+    createStatusTableColumn<EvaluatorDataRow, string>({
+      accessorKey: "status",
+      header: "Status",
+      enableSorting: true,
+      size: 80,
+      getStatus: (status) => status?.toLowerCase(),
+    }),
+    createNumberTableColumn<EvaluatorDataRow>({
+      accessorKey: "totalCost",
       header: "Total Cost (7d)",
-      id: "totalCost",
+      enableSorting: false,
       size: 120,
-      cell: (row) => {
-        const totalCost = row.getValue();
+      emptyValue: "–",
+      formatter: (value) => usdFormatter(value, 2, 4),
+      getValue: (value, { row }) => {
+        if (row.original.isCostLoading) return { type: "loading" };
+        if (value === null || value === undefined) return undefined;
 
-        if (row.row.original.isCostLoading) {
-          return <Skeleton className="h-4 w-16" />;
-        }
-
-        if (totalCost != null) return usdFormatter(totalCost, 2, 4);
-
-        return "–";
+        return value;
       },
     }),
     columnHelper.accessor("result", {
       header: "Result",
       id: "result",
+      enableSorting: false,
       size: 150,
       cell: (row) => {
         const result = row.getValue();
@@ -192,6 +248,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("logs", {
       header: "Logs",
       id: "logs",
+      enableSorting: false,
       size: 150,
       loadingCell: <Skeleton className="h-6 w-16 rounded-md" />,
       cell: ({ row }) => {
@@ -204,7 +261,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             onClick={(e) => {
               e.stopPropagation();
               router.push(
-                `/project/${projectId}/evals/${encodeURIComponent(id)}`,
+                `/project/${projectId}/evals/legacy/${encodeURIComponent(id)}`,
               );
             }}
           >
@@ -217,11 +274,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("template", {
       id: "template",
       header: "Referenced Evaluator",
+      enableSorting: false,
       size: 200,
       loadingCell: (
         <div className="flex items-center gap-2">
-          <TableTextLoadingCell className="w-32" />
-          <TableBadgeLoadingCell className="w-6" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-5 w-6 shrink-0 rounded-sm" />
         </div>
       ),
       cell: ({ row }) => {
@@ -229,7 +287,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
-            <TableIdOrName value={template.name} />
+            <IdTableCell value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
             </div>
@@ -237,36 +295,23 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("createdAt", {
-      id: "createdAt",
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "createdAt",
       header: "Created At",
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.accessor("updatedAt", {
-      id: "updatedAt",
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "updatedAt",
       header: "Updated At",
       enableSorting: true,
       size: 150,
-    }),
-    columnHelper.accessor("isLegacy", {
-      id: "isLegacy",
-      header: "Eval Version",
-      size: 180,
-      enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: (row) => {
-        // Set by useEvaluatorTableData only for active legacy evaluators with
-        // a NEW time scope — the ones that actually require migration.
-        if (!row.row.original.isLegacy) return null;
-
-        return <DeprecatedChipCell />;
-      },
     }),
     columnHelper.accessor("target", {
       id: "target",
       header: "Runs on",
       size: 150,
+      enableSorting: true,
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.getValue();
@@ -280,6 +325,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "filter",
       header: "Filter",
       size: 200,
+      enableSorting: false,
       enableHiding: true,
       cell: (row) => {
         const filterState = row.getValue();
@@ -299,28 +345,22 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           return filter;
         });
 
-        return (
-          <div className="flex h-full overflow-x-auto">
-            <InlineFilterState filterState={newFilterState} />
-          </div>
-        );
+        return <EvaluatorFilterCell filterState={newFilterState} />;
       },
     }),
-    columnHelper.accessor("id", {
+    createIdTableColumn<EvaluatorDataRow>({
+      accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 100,
+      enableSorting: false,
       enableHiding: true,
-      cell: (row) => {
-        const id = row.getValue();
-        return id ? <TableIdOrName value={id} /> : undefined;
-      },
     }),
     columnHelper.accessor("actions", {
       header: "Actions",
       id: "actions",
+      enableSorting: false,
       size: 100,
-      loadingCell: <TableIconButtonLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-5 shrink-0 rounded-full" />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (
@@ -365,7 +405,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    tableName: evaluatorFilterConfig.tableName,
+    isV4: false,
+  });
 
   const peekConfig = useMemo(
     () => ({
@@ -434,6 +477,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               }}
               orderBy={orderByState}
               setOrderBy={setOrderByState}
+              onRowClick={handleRowClick}
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}
             />
@@ -442,6 +486,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <TablePeekViewEvaluatorConfigDetail
           {...peekConfig}
           projectId={projectId}
+          readOnly={false}
         />
       </div>
       <Dialog

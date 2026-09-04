@@ -98,7 +98,7 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
     );
 
     expect(filterList.apply().query).toMatch(
-      /^s\.timestamp >= \{dateTimeFilter[A-Za-z]{5}: DateTime64\(3\)\}$/,
+      /^s\.timestamp >= \{dateTimeFilter[A-Za-z]{5}: DateTime64\(3, 'UTC'\)\}$/,
     );
   });
 });

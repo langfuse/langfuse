@@ -23,7 +23,10 @@ import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  type PreferredClickhouseService,
+} from "../clickhouse/client";
 import { ScoreAggregate } from "../../features/scores";
 
 type DatasetItemIdsByTraceIdQuery = {
@@ -541,6 +544,7 @@ type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
   DatasetRunItemsTableQuery & {
     select: "count" | "rows";
     includeIO?: IncludeIO;
+    preferredClickhouseService?: PreferredClickhouseService;
   };
 
 // Phase 1: Find dataset item IDs or count that satisfy conditions across ALL runs
@@ -902,13 +906,16 @@ const getDatasetRunItemsTableInternal = async <
     },
     tags: { projectId },
     clickhouseConfigs: opts.clickhouseConfigs,
+    preferredClickhouseService: opts.preferredClickhouseService,
   });
 
   return res;
 };
 
 export const getDatasetRunItemsCh = async (
-  opts: DatasetRunItemsTableQuery,
+  opts: DatasetRunItemsTableQuery & {
+    preferredClickhouseService?: PreferredClickhouseService;
+  },
 ): Promise<DatasetRunItemDomain[]> => {
   const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
     ...opts,

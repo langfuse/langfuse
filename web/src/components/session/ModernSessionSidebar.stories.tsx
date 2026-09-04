@@ -177,7 +177,7 @@ const largeSessionTraces = largeSessionData.map(({ trace }) => trace);
 const largeSessionObservationsByTraceId = Object.fromEntries(
   largeSessionData.map(({ trace, observations }) => [trace.id, observations]),
 );
-const onExcludeObservation = fn();
+const onFilterObservationByName = fn();
 
 const toSidebarTraces = (
   sourceTraces: EventSessionTrace[],
@@ -240,7 +240,7 @@ const loadedArgs = {
   onSearchChange: fn(),
   expandedTraceIds: new Set(traces.map((trace) => trace.id)),
   onToggleTraceExpanded: fn(),
-  onExcludeObservation,
+  onFilterObservationByName,
   onSelect: fn(),
   onVisibleTraceIdsChange: fn(),
   hasMoreObservations: false,

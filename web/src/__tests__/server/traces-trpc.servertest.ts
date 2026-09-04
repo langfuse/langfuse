@@ -967,6 +967,25 @@ describe("traces trpc", () => {
   });
 
   describe("traces.getAgentGraphData", () => {
+    it("rejects invalid agent graph timestamps as a bad request", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      await expect(
+        caller.traces.getAgentGraphData({
+          projectId,
+          traceId: trace.id,
+          minStartTime: "'",
+          maxStartTime: "2026-08-08T22:25:00.000Z",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
     it("should allow unauthenticated access to public trace agent graph data", async () => {
       const unAuthedSession = createInnerTRPCContext({
         session: null,

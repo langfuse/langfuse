@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
 
 /**

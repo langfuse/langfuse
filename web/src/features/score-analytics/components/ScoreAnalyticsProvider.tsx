@@ -13,27 +13,17 @@ import {
 import { api } from "@/src/utils/api";
 
 // Re-export types for convenience
-export type {
-  ScoreAnalyticsQueryParams,
-  ScoreAnalyticsData,
-  ParsedScore,
-  DataType,
-  ObjectType,
-  ScoreStatistics,
-  ComparisonStatistics,
-  Distribution,
-  TimeSeries,
-} from "../hooks/useScoreAnalyticsQuery";
+export type { DataType } from "../hooks/useScoreAnalyticsQuery";
 
 // ============================================================================
 // Color Schemes
 // ============================================================================
 
-export interface SingleScoreColors {
+interface SingleScoreColors {
   score: string;
 }
 
-export interface TwoScoreColors {
+interface TwoScoreColors {
   score1: string;
   score2: string;
 }
@@ -56,7 +46,7 @@ function getScoreColors(mode: "single" | "two" | undefined): ScoreColors {
 // Context Definition
 // ============================================================================
 
-export interface EstimateData {
+interface EstimateData {
   score1Count: number;
   score2Count: number;
   estimatedMatchedCount: number;
@@ -248,26 +238,4 @@ export function useScoreAnalytics(): ScoreAnalyticsContextValue {
   }
 
   return context;
-}
-
-// ============================================================================
-// Type Guards
-// ============================================================================
-
-/**
- * Type guard to check if colors are for two scores
- */
-export function isTwoScoreColors(
-  colors: ScoreColors,
-): colors is TwoScoreColors {
-  return "score1" in colors && "score2" in colors;
-}
-
-/**
- * Type guard to check if colors are for single score
- */
-export function isSingleScoreColors(
-  colors: ScoreColors,
-): colors is SingleScoreColors {
-  return "score" in colors && !("score1" in colors);
 }

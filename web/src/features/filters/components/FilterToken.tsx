@@ -9,6 +9,12 @@ const filterTokenVariants = cva(
         true: "opacity-50 line-through decoration-1",
         false: "",
       },
+      // Pointer-independent hover treatment: the caret/keyboard path marks the
+      // token an open explanation refers to.
+      highlighted: {
+        true: "border-ring bg-accent",
+        false: "",
+      },
     },
   },
 );
@@ -16,7 +22,8 @@ const filterTokenVariants = cva(
 type FilterTokenProps = {
   children: ReactNode;
   deactivated: boolean;
-  title: string | undefined;
+  title?: string | undefined;
+  highlighted?: boolean;
 } & {
   [key: `data-${string}`]: string | boolean | undefined;
 };
@@ -25,6 +32,7 @@ export function FilterToken({
   children,
   deactivated,
   title,
+  highlighted = false,
   ...dataAttributes
 }: FilterTokenProps) {
   return (
@@ -32,7 +40,7 @@ export function FilterToken({
       {...dataAttributes}
       data-deactivated={deactivated || undefined}
       title={title}
-      className={filterTokenVariants({ deactivated })}
+      className={filterTokenVariants({ deactivated, highlighted })}
     >
       {children}
     </span>

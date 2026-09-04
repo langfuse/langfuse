@@ -51,12 +51,18 @@ vi.mock("../../features/evaluation/observationEval", () => ({
 }));
 
 // Mock logger and span
-vi.mock("@langfuse/shared/src/server", () => {
+vi.mock("@langfuse/shared/src/server", async () => {
   const getQueueInstance = vi.fn().mockReturnValue({
     add: vi.fn(),
   });
+  const { CodeEvalExecutionError } =
+    await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
+  const { CodeEvalDispatcherErrorCodes } =
+    await import("../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes");
 
   return {
+    CodeEvalDispatcherErrorCodes,
+    CodeEvalExecutionError,
     QueueName: {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
       EvaluationExecutionSecondaryQueue: "evaluation-execution-secondary-queue",
@@ -85,6 +91,8 @@ vi.mock("@langfuse/shared/src/server", () => {
       getInstance: getQueueInstance,
     },
     classifyEvaluatorLlmError: vi.fn(),
+    recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
   };
 });
 
@@ -108,6 +116,8 @@ import { processObservationEval } from "../../features/evaluation/observationEva
 import {
   LLMAsJudgeExecutionQueue,
   classifyEvaluatorLlmError,
+  recordDistribution,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
@@ -139,7 +149,15 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     }>,
   ) => Promise<unknown>;
 
-  const createMockJob = (overrides: Record<string, unknown> = {}): Job<any> => {
+  const createMockJob = (
+    overrides: {
+      data?: Record<string, unknown>;
+      attemptsMade?: number;
+      attemptsStarted?: number;
+      opts?: { attempts?: number };
+      timestamp?: number;
+    } = {},
+  ): Job<any> => {
     return {
       data: {
         id: "queue-job-123",
@@ -151,8 +169,12 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           observationS3Path,
         },
         retryBaggage: { attempt: 0 },
-        ...overrides,
+        ...overrides.data,
       },
+      timestamp: overrides.timestamp ?? Date.now(),
+      attemptsMade: overrides.attemptsMade ?? 0,
+      attemptsStarted: overrides.attemptsStarted ?? 1,
+      opts: overrides.opts ?? { attempts: 10 },
     } as Job<any>;
   };
 
@@ -167,12 +189,11 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     vi.clearAllMocks();
     vi.mocked(classifyEvaluatorLlmError).mockReturnValue(null);
     vi.mocked(isUnrecoverableError).mockReturnValue(false);
+    (processObservationEval as Mock).mockResolvedValue("completed");
   });
 
   describe("successful processing", () => {
     it("should process observation eval successfully and return true", async () => {
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
       const result = await llmAsJudgeExecutionQueueProcessor(job);
 
@@ -191,8 +212,6 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const mockSpan = { setAttribute: vi.fn() };
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(mockSpan);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
@@ -203,6 +222,58 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       expect(mockSpan.setAttribute).toHaveBeenCalledWith(
         "messaging.bullmq.job.input.projectId",
         projectId,
+      );
+    });
+
+    it("records schedule-to-first-attempt latency only for the logical first attempt", async () => {
+      const now = vi.spyOn(Date, "now").mockReturnValue(10_000);
+
+      await llmAsJudgeExecutionQueueProcessor(
+        createMockJob({ timestamp: 8_500 }),
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.time_to_first_attempt_ms",
+        1_500,
+        {
+          evaluator_type: "llm_as_judge",
+          unit: "milliseconds",
+        },
+      );
+
+      vi.mocked(recordDistribution).mockClear();
+      await llmAsJudgeExecutionQueueProcessor(
+        createMockJob({
+          attemptsMade: 0,
+          attemptsStarted: 2,
+          timestamp: 8_000,
+        }),
+      );
+      await llmAsJudgeExecutionQueueProcessor(
+        createMockJob({
+          data: { retryBaggage: { attempt: 1 } },
+          timestamp: 8_000,
+        }),
+      );
+      expect(recordDistribution).not.toHaveBeenCalled();
+
+      now.mockRestore();
+    });
+
+    it("records completed and cancelled terminal outcomes", async () => {
+      await llmAsJudgeExecutionQueueProcessor(createMockJob());
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "success" },
+      );
+
+      vi.mocked(recordIncrement).mockClear();
+      (processObservationEval as Mock).mockResolvedValue("cancelled");
+      await llmAsJudgeExecutionQueueProcessor(createMockJob());
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "cancelled" },
       );
     });
   });
@@ -241,6 +312,11 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           executionTraceId: "test-trace-id",
         }),
       });
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it("should not rethrow error after scheduling retry", async () => {
@@ -283,6 +359,11 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           executionTraceId: "test-trace-id",
         }),
       });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "upstream_error" },
+      );
     });
 
     it("should set ERROR when the retry queue is unavailable", async () => {
@@ -399,7 +480,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
-    it("should set ERROR status with generic message for unexpected errors", async () => {
+    it("should rethrow unexpected errors without persisting ERROR while BullMQ retries remain", async () => {
       const unexpectedError = new Error("Database connection failed");
       (processObservationEval as Mock).mockRejectedValue(unexpectedError);
 
@@ -410,17 +491,12 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Database connection failed",
       );
 
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-        data: expect.objectContaining({
-          status: JobExecutionStatus.ERROR,
-          error: "An internal error occurred",
-          executionTraceId: "test-trace-id",
-        }),
-      });
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it("should call traceException for unexpected errors", async () => {
@@ -448,6 +524,35 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Network timeout",
       );
     });
+
+    it("should persist ERROR on the final BullMQ attempt", async () => {
+      const unexpectedError = new Error("Database connection failed");
+      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+
+      await expect(
+        llmAsJudgeExecutionQueueProcessor(
+          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+        ),
+      ).rejects.toThrow(unexpectedError);
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.ERROR,
+          endTime: expect.any(Date),
+          error: "An internal error occurred",
+          executionTraceId: "test-trace-id",
+        },
+      });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "platform_error" },
+      );
+    });
   });
 
   describe("execution trace ID", () => {
@@ -470,10 +575,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const mockSpan = { setAttribute: vi.fn() };
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(mockSpan);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob({
-        retryBaggage: { attempt: 3 },
+        data: { retryBaggage: { attempt: 3 } },
       });
       await llmAsJudgeExecutionQueueProcessor(job as Job<any>);
 
@@ -487,8 +590,6 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const mockSpan = { setAttribute: vi.fn() };
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(mockSpan);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
       delete (job.data as { retryBaggage?: unknown }).retryBaggage;
 
@@ -505,8 +606,6 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should handle null span gracefully", async () => {
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(null);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
 
       // Should not throw

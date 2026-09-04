@@ -1,5 +1,8 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { buildAiContext } from "./ai-context";
 
 describe("buildAiContext", () => {
@@ -102,6 +105,23 @@ describe("buildAiContext", () => {
     expect(ctx).toContain(
       "traceScores.<name> (categorical): Hallucination Check",
     );
+  });
+
+  it("only grounds the model with columns supported by the selected registry", () => {
+    const ctx =
+      buildAiContext({
+        observed: {
+          traceTags: [{ value: "billing" }],
+          scores_avg: [{ value: "accuracy" }],
+        },
+        sampleMetadata: [],
+        resultCount: null,
+        registry: RULE_FIELD_REGISTRY,
+      }) ?? "";
+
+    expect(ctx).toContain("tags: billing");
+    expect(ctx).not.toContain("traceTags");
+    expect(ctx).not.toContain("scores.<name>");
   });
 
   it("caps observed value length and total context size", () => {

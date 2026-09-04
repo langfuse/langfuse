@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "grill-me": {
+      "source": "marksalpeter/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grill-me/SKILL.md",
+      "computedHash": "eddf87f160d17e64bbdd3ab72e47b18c44d09e25c7630bf03722e58d09c35ed8"
+    }
+  }
+}

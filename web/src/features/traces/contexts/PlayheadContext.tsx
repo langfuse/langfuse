@@ -28,7 +28,7 @@ import {
   buildNodeWindows,
   createPlayheadStore,
   type PlayheadStore,
-} from "./playheadStore";
+} from "../stores/playheadStore";
 
 const PlayheadStoreContext = createContext<PlayheadStore | null>(null);
 
@@ -78,7 +78,7 @@ export function PlayheadProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function usePlayheadStore(): PlayheadStore {
+function usePlayheadStore(): PlayheadStore {
   const store = useContext(PlayheadStoreContext);
   if (!store) {
     throw new Error("usePlayheadStore must be used within a PlayheadProvider");

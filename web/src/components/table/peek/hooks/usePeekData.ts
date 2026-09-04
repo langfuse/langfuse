@@ -1,4 +1,4 @@
-import { useTraceDetailData } from "@/src/features/traces/useTraceDetailData";
+import { useTraceDetailData } from "@/src/features/traces";
 
 type UsePeekDataProps = {
   projectId: string;

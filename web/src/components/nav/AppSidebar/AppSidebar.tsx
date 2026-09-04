@@ -50,11 +50,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Card,
   CardContent,
@@ -67,6 +63,11 @@ import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/Projec
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
+import {
+  APP_SHELL_CHROME_ROW_CLASS,
+  APP_SHELL_CHROME_ROW_TEST_ID,
+} from "@/src/components/layouts/app-shell-chrome";
+import { cn } from "@/src/utils/tailwind";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -206,18 +207,23 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
-        <div className="flex min-h-9 min-w-0 items-center py-2 pr-2 pl-3 group-data-[collapsible=icon]:p-3">
+        <div
+          data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
+          className={cn(
+            APP_SHELL_CHROME_ROW_CLASS,
+            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+          )}
+        >
           <Link href="/" className="flex items-center">
             <LangfuseLogo
               logoLightModeHref={logo.lightModeHref}
               logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
-          <div className="ml-auto flex min-w-0 items-center overflow-hidden pl-2 group-data-[collapsible=icon]:hidden">
+          <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
             <VersionLabel state={versionState} />
           </div>
         </div>
-        <div className="h-1 flex-1 border-b" />
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
       <SidebarContent>
@@ -430,13 +436,6 @@ function NavUser({
   items: UserNavigationItem[];
   isMobile: boolean;
 }) {
-  const initials = user.name
-    .split(" ")
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
   const renderMenuItem = (item: UserNavigationItem) => {
     if (item.type === "submenu") {
       return (
@@ -479,12 +478,12 @@ function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <Avatar
+                size="lg"
+                shape="rounded"
+                src={user.avatar}
+                displayName={user.name}
+              />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
                   {user.name}
@@ -504,12 +503,12 @@ function NavUser({
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
+                <Avatar
+                  size="lg"
+                  shape="rounded"
+                  src={user.avatar}
+                  displayName={user.name}
+                />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
                     {user.name}
@@ -597,7 +596,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 py-0.5 text-[0.625rem]"
+          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
         >
           <span className="truncate" title={versionText}>
             {versionText}

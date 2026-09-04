@@ -56,11 +56,12 @@ export function advanceFacetOrder(
 ): FacetOrder {
   const key = orderKey(promotedColumns);
   if (key === order.key) return order;
-  // Nothing promoted means there is no block to protect, so never hold a stale
-  // one: whatever emptied the filters (Clear all, a cleared search bar) must
-  // fall back to plain config order.
-  const holdOrder =
-    promotedColumns.length > 0 && interactionToken !== order.interactionToken;
+  // Attribution alone decides: clearing the sole remaining facet in-list must
+  // hold its place until the next settle, exactly like any other in-list
+  // clear. External empties (a cleared search bar) carry no new interaction
+  // and the owned boundaries (Clear all, AI apply) consume outstanding tokens
+  // via settleOnNextChange, so both still fall back to plain config order.
+  const holdOrder = interactionToken !== order.interactionToken;
   return holdOrder
     ? { promoted: order.promoted, key, interactionToken }
     : settleFacetOrder(promotedColumns, interactionToken);

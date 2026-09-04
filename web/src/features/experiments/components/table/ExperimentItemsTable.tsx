@@ -9,7 +9,7 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { LightbulbIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -28,13 +28,24 @@ import {
   BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  itemRegressionFilterAppliedProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
-import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
+import {
+  type RowSelectionState,
+  type VisibilityState,
+} from "@tanstack/react-table";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -50,10 +61,15 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import {
+  collectPresentScoreKeys,
+  revealScoreColumns,
+  withPresentScoreKeys,
+} from "@/src/features/scores/lib/scoreColumns";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
@@ -65,6 +81,7 @@ import {
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -92,12 +109,12 @@ function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
   }));
 }
 
-export const getDefaultExperimentFilterTarget = (props: {
+const getDefaultExperimentFilterTarget = (props: {
   baselineId?: string;
   comparisonIds: string[];
 }) => props.baselineId ?? props.comparisonIds[0];
 
-export const shouldEnableExperimentPeek = (props: {
+const shouldEnableExperimentPeek = (props: {
   hasBaseline: boolean;
   hideControls: boolean;
 }) => !props.hideControls && props.hasBaseline;
@@ -184,11 +201,10 @@ const StackedOutputRow = ({
           markerClass,
         )}
       />
-      <MemoizedIOTableCell
-        isLoading={false}
+      <ConnectedIOTableCell
         data={output}
         singleLine={singleLine}
-        className="bg-accent-light-green"
+        variant="output"
       />
     </div>
   );
@@ -236,11 +252,7 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <MemoizedIOTableCell
-                  isLoading={true}
-                  data={null}
-                  singleLine={singleLine}
-                />
+                <ConnectedIOTableCell isLoading singleLine={singleLine} />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -278,7 +290,7 @@ export default function ExperimentItemsTable({
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const {
@@ -339,10 +351,16 @@ export default function ExperimentItemsTable({
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
+  const capture = usePostHogClientCapture();
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
-    { stateLocation: "url", loading: isFilterOptionsLoading },
+    {
+      stateLocation: "url",
+      loading: isFilterOptionsLoading,
+      // v4-only surface — drives `isV4` on filters:* analytics.
+      isV4: true,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -412,12 +430,31 @@ export default function ExperimentItemsTable({
       }
 
       // Update the target for this filter
+      if (toExperimentId !== _fromExperimentId) {
+        const props = itemRegressionFilterAppliedProps({
+          tableName: "experiment-items",
+          column: _filter.column,
+          operator: _filter.operator,
+          toExperimentId,
+          baselineId,
+          comparisonIds,
+        });
+        if (props) {
+          capture("experiment:item_regression_filter_applied", props);
+        }
+      }
       setFilterTargets((prev) => ({
         ...prev,
         [originalIndex]: toExperimentId,
       }));
     },
-    [filterTargets, defaultFilterTargetExperimentId],
+    [
+      filterTargets,
+      defaultFilterTargetExperimentId,
+      baselineId,
+      comparisonIds,
+      capture,
+    ],
   );
 
   // Handler for removing a filter via pill
@@ -480,6 +517,32 @@ export default function ExperimentItemsTable({
       itemVisibility,
     });
 
+  // Running items without an expected output is common, so don't spend a column
+  // on it when nothing has one. Kept while IO loads so it doesn't flash.
+  //
+  // Whether the column exists is a property of the runs being compared, not of
+  // the page that happens to be loaded, so a page of items that all lack an
+  // expected output must not take the column away again. Latched per selection:
+  // once any page has shown one, the column stays until the selection changes.
+  const expectedOutputOnPage = useMemo(
+    () => (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    [items.rows],
+  );
+  const experimentSelectionKey = useMemo(
+    () => allExperimentIds.join(","),
+    [allExperimentIds],
+  );
+  const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    if (expectedOutputOnPage) setExpectedOutputSeenFor(experimentSelectionKey);
+  }, [expectedOutputOnPage, experimentSelectionKey]);
+  const showExpectedOutput =
+    ioLoading ||
+    expectedOutputOnPage ||
+    expectedOutputSeenFor === experimentSelectionKey;
+
   useEffect(() => {
     if (items.status === "success") {
       // Store all experiment targets for peek navigation
@@ -534,32 +597,54 @@ export default function ExperimentItemsTable({
     [hasBaseline, allExperimentIds],
   );
 
+  // A score column that is empty for every item in view is noise, so only keep
+  // the keys the items query actually returned. Undefined while items load, so
+  // columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (items.status !== "success") return undefined;
+    const experimentsInView = (items.rows ?? []).flatMap(
+      (row) => row.experiments,
+    );
+    return {
+      observation: collectPresentScoreKeys(
+        experimentsInView.map((exp) => exp.observationScores),
+      ),
+      trace: collectPresentScoreKeys(
+        experimentsInView.map((exp) => exp.traceScores),
+      ),
+    };
+  }, [items]);
+
   // Create score columns from the shared filter options data
   // This ensures sidebar filters and column visibility use the same data source
   const observationScoreColumns = useMemo(
     () =>
-      createScoreColumns<ExperimentItemData>(
-        toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
-        "observationScores",
-        "smart",
-        undefined,
-        undefined,
-        true,
-      ),
-    [scoreColumnDefs.observationScoreColumns],
+      createScoreColumns<ExperimentItemData>({
+        scoreColumns: withPresentScoreKeys(
+          toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
+          presentScoreKeys?.observation,
+        ),
+        scoreColumnKey: "observationScores",
+        displayFormat: "smart",
+        headerPrefix: "Observation",
+        rawKey: true,
+      }),
+    [scoreColumnDefs.observationScoreColumns, presentScoreKeys?.observation],
   );
 
   const traceScoreColumns = useMemo(
     () =>
-      createScoreColumns<ExperimentItemData>(
-        toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
-        "traceScores",
-        "smart",
-        "Trace",
-        true,
-        true,
-      ),
-    [scoreColumnDefs.traceScoreColumns],
+      createScoreColumns<ExperimentItemData>({
+        scoreColumns: withPresentScoreKeys(
+          toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
+          presentScoreKeys?.trace,
+        ),
+        scoreColumnKey: "traceScores",
+        displayFormat: "smart",
+        prefix: "Trace",
+        rawKey: true,
+      }),
+    [scoreColumnDefs.traceScoreColumns, presentScoreKeys?.trace],
   );
 
   // Use the shared loading state for both sidebar and columns
@@ -669,22 +754,29 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.observationScoreColumns.length > 0 &&
     scoreColumnDefs.traceScoreColumns.length > 0;
 
+  const expectedOutputColumn = createIOTableColumn<ExperimentItemsTableRow>({
+    accessorKey: "expectedOutput",
+    header: "Expected Output",
+    size: 300,
+    enableHiding: true,
+    // An empty expected output used to render as two literal quote characters.
+    getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    singleLine: ioSingleLine,
+    variant: "output",
+  }) as LangfuseColumnDef<ExperimentItemsTableRow>;
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    {
+    createIdTableColumn<ExperimentItemsTableRow>({
       accessorKey: "itemId",
-      id: "itemId",
       header: "Item ID",
       size: 150,
       enableHiding: true,
-      cell: ({ row }) => {
-        const itemId = row.original.itemId;
-        return <TableIdOrName value={itemId} />;
-      },
-    },
+    }),
     {
       accessorKey: "observationId",
       id: "observationId",
+      headerLabel: "Observation ID",
       header: () => renderExperimentSpecificHeader("Observation ID"),
       size: 180,
       enableHiding: true,
@@ -695,7 +787,7 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+            renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
       },
@@ -703,6 +795,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "startTime",
       id: "startTime",
+      headerLabel: getExperimentItemsColumnName("startTime"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("startTime"),
@@ -718,7 +811,15 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
+            renderValue={(exp) => {
+              const preparedDate = buildLocalIsoDatePresentation({
+                date: exp.startTime,
+              });
+
+              return preparedDate ? (
+                <span title={preparedDate.title}>{preparedDate.display}</span>
+              ) : null;
+            }}
           />
         );
       },
@@ -726,6 +827,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "level",
       id: "level",
+      headerLabel: getExperimentItemsColumnName("level"),
       header: () =>
         renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
       size: 120,
@@ -746,6 +848,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "totalCost",
       id: "totalCost",
+      headerLabel: getExperimentItemsColumnName("totalCost"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("totalCost"),
@@ -759,15 +862,13 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => (
-              <span>
-                {exp.totalCost != null ? (
-                  usdFormatter(exp.totalCost, 2, 6)
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )}
-              </span>
-            )}
+            renderValue={(exp) =>
+              exp.totalCost ? (
+                <span>{usdFormatter(exp.totalCost, 2, 6)}</span>
+              ) : (
+                <NotRecordedMetric metric="cost" />
+              )
+            }
           />
         );
       },
@@ -775,6 +876,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "latencyMs",
       id: "latencyMs",
+      headerLabel: getExperimentItemsColumnName("latencyMs"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("latencyMs"),
@@ -791,7 +893,9 @@ export default function ExperimentItemsTable({
             renderValue={(exp) =>
               exp.latencyMs != null ? (
                 <span>{latencyFormatter(exp.latencyMs)}</span>
-              ) : undefined
+              ) : (
+                <NotRecordedMetric metric="latency" />
+              )
             }
           />
         );
@@ -800,6 +904,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "experimentId",
       id: "experimentId",
+      headerLabel: "Experiment",
       header: () => renderExperimentSpecificHeader("Experiment"),
       size: 150,
       defaultHidden: true,
@@ -827,39 +932,15 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    {
+    createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
-      id: "input",
       header: "Input",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.input ?? null}
-            singleLine={ioSingleLine}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "expectedOutput",
-      id: "expectedOutput",
-      header: "Expected Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.expectedOutput ?? ""}
-            singleLine={ioSingleLine}
-            className="bg-accent-light-green"
-          />
-        );
-      },
-    },
+      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+      singleLine: ioSingleLine,
+    }),
+    ...(showExpectedOutput ? [expectedOutputColumn] : []),
     {
       accessorKey: "output",
       id: "output",
@@ -884,7 +965,6 @@ export default function ExperimentItemsTable({
       header: "Observation Scores",
       id: "observationScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationScoreColumnsLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -897,7 +977,6 @@ export default function ExperimentItemsTable({
       header: "Trace Scores",
       id: "traceScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isTraceScoreColumnsLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -907,10 +986,38 @@ export default function ExperimentItemsTable({
     },
   ];
 
+  const scoreColumnIds = useMemo(
+    () =>
+      [...observationScoreColumns, ...traceScoreColumns].map(
+        (column) => column.accessorKey,
+      ),
+    [observationScoreColumns, traceScoreColumns],
+  );
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone. It is consumed once and for
+  // good, so it waits for the score columns to be known rather than running
+  // against an empty or half-loaded set.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentItemsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          isFilterOptionsLoading
+            ? null
+            : revealScoreColumns(visibility, scoreColumnIds),
+      },
+    ],
+    [projectId, scoreColumnIds, isFilterOptionsLoading],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentItemsTableRow>(
       `experimentItemsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentItemsTableRow>(
@@ -926,6 +1033,8 @@ export default function ExperimentItemsTable({
       "traceId",
       "peekExperimentId",
     ],
+    tableName: experimentItemsFilterConfig.tableName,
+    isV4: true,
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
       // Use the explicit baseline when present. Without one, use the first
       // selected experiment only as the primary trace for URL-compatible peek
@@ -1057,6 +1166,20 @@ export default function ExperimentItemsTable({
     [filtersByExperiment, orderByState, allExperimentIds],
   );
 
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiment-items",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
   const tableActions: TableAction[] = hasEvalAccess
     ? [
         {
@@ -1067,7 +1190,7 @@ export default function ExperimentItemsTable({
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
-            scope: "evalJob:CUD",
+            scope: "evaluationRule:CUD",
           },
         } as TableAction,
       ]
@@ -1088,6 +1211,9 @@ export default function ExperimentItemsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={experimentItemsFilterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["datasetItemId"]}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}
@@ -1170,6 +1296,7 @@ export default function ExperimentItemsTable({
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   rowHeight={rowHeight}
+                  showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
                   traceScoreOrder={traceScoreOrder}

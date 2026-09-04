@@ -4,7 +4,7 @@
  * Responsibility:
  * - Wrap navigation content with header and collapsible layout structure
  * - Handle panel collapse/expand state for desktop
- * - Position TracePanelNavigationHiddenNotice above content
+ * - Position the truncation + hidden-observation notices above content
  * - Render graph view panel below tree/timeline when enabled
  * - Own the graph panel's collapse state: drag the divider down (or click the
  *   "Graph" bar) to collapse it to a slim bar; persisted per-project. Traces
@@ -34,6 +34,7 @@ import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphData
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { TracePanelNavigationHeader } from "../TracePanelNavigationHeader/TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./components/TracePanelNavigationHiddenNotice";
+import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
 
 // Height of the "Graph" bar — the panel's collapsed form. Must match the bar's
 // h-7 so a collapsed panel shows exactly the bar and nothing else.
@@ -168,6 +169,7 @@ export function TracePanelNavigationLayoutDesktop({
       />
       {!isNavigationPanelCollapsed && (
         <>
+          <TraceTruncationNotice />
           <TracePanelNavigationHiddenNotice />
           {secondaryContent ? (
             <ResizablePanelGroup

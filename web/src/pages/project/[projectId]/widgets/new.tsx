@@ -9,8 +9,10 @@ import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function NewWidget() {
   const router = useRouter();
@@ -18,10 +20,20 @@ export default function NewWidget() {
     projectId: string;
     dashboardId?: string;
   };
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4, isResolved } = useReadPath();
+  const capture = usePostHogClientCapture();
 
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // Which measure/aggregation/chart shapes do users actually save?
+      capture("dashboard:widget_saved", {
+        isNew: true,
+        view: variables.view,
+        chartType: variables.chartType,
+        measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
+        dimensionCount: variables.dimensions.length,
+        filterCount: variables.filters.length,
+      });
       showSuccessToast({
         title: "Widget created successfully",
         description: "Your widget has been created.",
@@ -67,6 +79,24 @@ export default function NewWidget() {
   const [dashboardDialogOpen, setDashboardDialogOpen] = useState(false);
   const [pendingWidgetId, setPendingWidgetId] = useState<string | null>(null);
 
+  // The form seeds its default view from the read path once, at mount — an
+  // unresolved session would permanently seed the v3 default for a v4 user.
+  if (!isResolved) {
+    return (
+      <Page
+        withPadding
+        headerProps={{
+          title: "New Widget",
+          help: {
+            description: "Create a new widget",
+          },
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+
   return (
     <Page
       withPadding
@@ -79,7 +109,7 @@ export default function NewWidget() {
     >
       <WidgetForm
         // No `key` on the beta flag: WidgetForm derives viewVersion (and its
-        // available views/measures/filter columns) reactively from isBetaEnabled
+        // available views/measures/filter columns) reactively from isV4
         // + the selected view, so a live beta toggle re-derives them without a
         // remount — preserving the in-progress form. The only tradeoff is that
         // an untouched form's default view no longer auto-switches on toggle;
@@ -89,7 +119,7 @@ export default function NewWidget() {
         initialValues={{
           name: "",
           description: "",
-          view: getDefaultView(isBetaEnabled),
+          view: getDefaultView(isV4),
           dimension: "none",
           measure: "count",
           aggregation: "count",

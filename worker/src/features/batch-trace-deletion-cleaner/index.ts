@@ -7,7 +7,7 @@ import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete
 
 const METRIC_PREFIX = "langfuse.batch_trace_deletion_cleaner";
 
-export const BATCH_TRACE_DELETION_CLEANER_LOCK_KEY =
+const BATCH_TRACE_DELETION_CLEANER_LOCK_KEY =
   "langfuse:batch-trace-deletion-cleaner";
 
 interface ProjectWorkload {

@@ -9,8 +9,12 @@ import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
-import { EvalTargetObjectSchema } from "../features/evals/types";
-import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
+import {
+  BatchEvalEvaluatorMappingSchema,
+  EvalTargetObjectSchema,
+  observationVariableMappingList,
+} from "../features/evals/types";
+import { EvalExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
   type MonitorQueueEventInput,
@@ -134,6 +138,11 @@ export const EvalExecutionEvent = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
   delay: z.number().nullish(),
+  // Evaluator v2 identity is carried by newly scheduled trace/dataset jobs.
+  // Jobs queued before the migration omit it. Their job-configuration id was
+  // preserved as the migrated rule id, which the worker resolves directly.
+  evaluatorId: z.string().optional(),
+  evaluationRuleId: z.string().optional(),
 });
 
 // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
@@ -141,7 +150,21 @@ export const ObservationEvalExecutionEventSchema = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
   observationS3Path: z.string(),
-  executionMode: JobConfigExecutionMode.optional(),
+  executionMode: EvalExecutionMode.optional(),
+  // Evaluator v2 identity, carried so the worker never has to re-derive which
+  // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
+  // reuses job-configuration ids for both rules and evaluators, so that id
+  // alone is ambiguous. Absent on jobs queued before evaluator v2; the worker
+  // resolves those through the migrated rule assignment first.
+  //
+  // No version is carried: a rule always runs its evaluator's current version,
+  // which the executor resolves on pickup and records on the execution.
+  evaluatorId: z.string().optional(),
+  evaluationRuleId: z.string().optional(),
+  // Ruleless manual batch runs have no assignment row to hold a mapping
+  // override. Optional for jobs queued before this field existed; those
+  // inherit the evaluator version mapping.
+  variableMapping: observationVariableMappingList.optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
@@ -244,6 +267,8 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       batchActionId: z.string(),
       evaluatorIds: z.array(z.string()),
+      evalVersion: z.literal("v2").optional(),
+      evaluatorMappings: z.array(BatchEvalEvaluatorMappingSchema).optional(),
     }),
   ],
 );
@@ -415,6 +440,7 @@ export enum QueueName {
   NotificationQueue = "notification-queue",
   MonitorQueue = "monitor-queue",
   InAppAgentRunQueue = "in-app-agent-run-queue",
+  V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
 }
 
 export enum QueueJobs {
@@ -453,6 +479,7 @@ export enum QueueJobs {
   NotificationJob = "notification-job",
   MonitorJob = "monitor-job",
   InAppAgentRunJob = "in-app-agent-run-job",
+  V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
 }
 
 export type TQueueJobTypes = {

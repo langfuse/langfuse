@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -10,7 +10,7 @@ import {
   type ExperimentItemsTableRow,
   getExperimentColorStyles,
 } from "./types";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
   type OnChangeFn,
@@ -20,7 +20,6 @@ import {
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
-import { type ReactNode } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
@@ -40,6 +39,8 @@ type ExperimentGridViewProps = {
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -71,6 +72,7 @@ export const ExperimentGridView = ({
   rows,
   isLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -201,36 +203,37 @@ export const ExperimentGridView = ({
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={singleLine}
-          />
-        ),
-      },
-      {
-        accessorKey: "expectedOutput",
-        id: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+      }),
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: "Expected Output",
+              size: 200,
+              getCell: (value) =>
+                isLoading ? { type: "loading" } : value || undefined,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [
+      experimentColumns,
+      isLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
   );
 
   return (

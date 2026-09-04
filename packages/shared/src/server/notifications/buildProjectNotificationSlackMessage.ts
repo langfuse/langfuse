@@ -9,6 +9,7 @@ import {
 /** projectNotificationTitle maps an event type to a human-readable Slack title. */
 const projectNotificationTitle: Record<ProjectNotificationEventType, string> = {
   "blob-export-failed": "Blob storage export failed",
+  "posthog-export-failed": "PostHog export failed",
   "evaluator-blocked": "Evaluator blocked",
 };
 

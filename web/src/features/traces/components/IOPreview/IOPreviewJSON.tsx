@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
-import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
+import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";
 import {
   MultiSectionJsonViewer,
   type MultiSectionJsonViewerHandle,
-} from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
+} from "@/src/features/traces/components/AdvancedJsonViewer/MultiSectionJsonViewer";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
-import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
+import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   HoverCard,
@@ -22,8 +22,8 @@ import {
 } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
-import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
-import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
+import { type CommentedPathsByField } from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
+import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import {
   decodeUnicodeInJson,
@@ -31,17 +31,32 @@ import {
 } from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
-import { LazyJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
+import { LazyJsonViewer } from "@/src/features/traces/components/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
 import {
   JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,
-} from "./lib/jsonViewSizeGate";
+} from "./fns/jsonViewSizeGate";
+import {
+  getStatusMessagePresentation,
+  parseStructuredStatusMessage,
+  type ObservationStatusMessage,
+} from "./components/statusMessagePresentation";
 
 // A field needing windowing is gated to the lazy byte-engine viewer, so the
 // gate row limit IS the virtualization threshold (single source of truth). The
 // eager virtualized viewer is therefore unreachable for trace I/O — see the
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
+
+const STATUS_MESSAGE_BACKGROUND_COLORS: Record<
+  ObservationStatusMessage["level"],
+  string
+> = {
+  ERROR: "var(--light-red)",
+  WARNING: "var(--light-yellow)",
+  DEBUG: "hsl(var(--muted) / 0.3)",
+  DEFAULT: "hsl(var(--card))",
+};
 
 /**
  * Decode a field's \uXXXX escapes, but only when it fits under the decoder's
@@ -60,6 +75,7 @@ function decodeIfWithinBudget(value: unknown, rowCount: number): unknown {
 export interface IOPreviewJSONProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
@@ -105,6 +121,7 @@ export interface IOPreviewJSONProps {
 function IOPreviewJSONInner({
   input,
   output,
+  status,
   metadata,
   parsedInput,
   parsedOutput,
@@ -128,6 +145,10 @@ function IOPreviewJSONInner({
   showCorrections = true,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
+  const inlineCommentPositionRect = selectionContext?.selection?.anchorRect
+    ? (selectionContext.selection.startRect ??
+      selectionContext.selection.anchorRect)
+    : null;
 
   const handleAddComment = useCallback(() => {
     if (selectionContext?.selection && onAddInlineComment) {
@@ -147,6 +168,9 @@ function IOPreviewJSONInner({
     }),
     [isDark],
   );
+  const statusPresentation = status
+    ? getStatusMessagePresentation(status.level)
+    : null;
 
   // Fall back to raw values when caller does not provide pre-parsed fields
   // (e.g. session events rows in v4 mode). Parse once here, BEFORE the decode
@@ -469,6 +493,15 @@ function IOPreviewJSONInner({
     });
 
     const result = [];
+    if (status && statusPresentation) {
+      result.push({
+        key: "status-message",
+        title: statusPresentation.title,
+        data: parseStructuredStatusMessage(status.message) ?? status.message,
+        backgroundColor: STATUS_MESSAGE_BACKGROUND_COLORS[status.level],
+        minHeight: "4px",
+      });
+    }
     if (showInput) {
       result.push(
         inputTooLarge
@@ -554,6 +587,8 @@ function IOPreviewJSONInner({
   }, [
     showInput,
     showOutput,
+    status,
+    statusPresentation,
     showMetadata,
     inputTooLarge,
     outputTooLarge,
@@ -617,10 +652,13 @@ function IOPreviewJSONInner({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-t border-b">
+    <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
       {/* Inline comment bubble - shows when text is selected */}
-      {enableInlineComments && (
-        <InlineCommentBubble onAddComment={handleAddComment} />
+      {enableInlineComments && inlineCommentPositionRect && (
+        <InlineCommentBubble
+          onAddComment={handleAddComment}
+          positionRect={inlineCommentPositionRect}
+        />
       )}
 
       {/* Header - matches LogViewToolbar styling */}

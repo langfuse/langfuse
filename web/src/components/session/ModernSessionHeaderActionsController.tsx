@@ -1,4 +1,4 @@
-import { CopyIcon, Share2, Star } from "lucide-react";
+import { CopyIcon, Share2 } from "lucide-react";
 import { type ReactNode } from "react";
 
 import {
@@ -19,7 +19,6 @@ import { api } from "@/src/utils/api";
 export function ModernSessionHeaderActionsController({
   projectId,
   sessionId,
-  bookmarked,
   isPublic,
   showCorrections,
   showInlineToolCalls,
@@ -31,7 +30,6 @@ export function ModernSessionHeaderActionsController({
 }: {
   projectId: string;
   sessionId: string;
-  bookmarked: boolean;
   isPublic: boolean;
   showCorrections: boolean;
   showInlineToolCalls: boolean;
@@ -44,16 +42,9 @@ export function ModernSessionHeaderActionsController({
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
   const utils = api.useUtils();
-  const hasBookmarkAccess = useHasProjectAccess({
-    projectId,
-    scope: "objects:bookmark",
-  });
   const hasPublishAccess = useHasProjectAccess({
     projectId,
     scope: "objects:publish",
-  });
-  const bookmarkMutation = api.sessions.bookmark.useMutation({
-    onSuccess: () => utils.sessions.invalidate(),
   });
   const publishMutation = api.sessions.publish.useMutation({
     onSuccess: () => utils.sessions.invalidate(),
@@ -63,27 +54,6 @@ export function ModernSessionHeaderActionsController({
     <DropdownMenu>
       {children}
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          disabled={!hasBookmarkAccess || bookmarkMutation.isPending}
-          onClick={() => {
-            capture("table:bookmark_button_click", {
-              table: "sessions",
-              id: sessionId,
-              value: !bookmarked,
-            });
-            bookmarkMutation.mutate({
-              projectId,
-              sessionId,
-              bookmarked: !bookmarked,
-            });
-          }}
-        >
-          <Star
-            className="mr-2 h-3.5 w-3.5"
-            fill={bookmarked ? "currentColor" : "none"}
-          />
-          {bookmarked ? "Remove from favourites" : "Add to favourites"}
-        </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!hasPublishAccess || publishMutation.isPending}
           onClick={() => {

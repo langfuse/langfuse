@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { DashboardService } from "@langfuse/shared/src/server";
-import { DashboardWidgetViews } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgProjectAndApiKey,
+  DashboardService,
+} from "@langfuse/shared/src/server";
+import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
@@ -220,11 +221,31 @@ describe("dashboard widget minVersion", () => {
       ]);
     });
 
-    it("maps Observation Release to the v2-only release field", () => {
+    it("keeps the retired Observation Release label on the release field", () => {
+      expect(
+        mapLegacyUiTableFilterToView("observations", [
+          {
+            column: "Observation Release",
+            operator: "=",
+            value: "2026.04",
+            type: "string",
+          },
+        ]),
+      ).toEqual([
+        {
+          column: "release",
+          operator: "=",
+          value: "2026.04",
+          type: "string",
+        },
+      ]);
+    });
+
+    it("maps an editor Release row to the v2 release field", () => {
       expect(
         mapWidgetUiTableFilterToView("observations", [
           {
-            column: "Observation Release",
+            column: "Release",
             operator: "=",
             value: "2026.04",
             type: "string",

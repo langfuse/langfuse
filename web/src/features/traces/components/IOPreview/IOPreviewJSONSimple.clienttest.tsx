@@ -29,7 +29,7 @@ vi.mock("@langfuse/shared", () => ({
 }));
 
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
-import { JSON_VIEW_RENDER_CHAR_LIMIT } from "./lib/jsonViewSizeGate";
+import { JSON_VIEW_RENDER_CHAR_LIMIT } from "./fns/jsonViewSizeGate";
 
 const FALLBACK_TEXT = /too large to render in JSON view/i;
 

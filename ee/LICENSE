@@ -13,14 +13,13 @@ END NOTE
 START OF LICENSE
 Langfuse Enterprise license (the “Enterprise License” or "EE license")
 
-Copyright (c) 2023-2026 Langfuse GmbH
+Copyright (c) 2023-2026 ClickHouse, Inc
 
 With regard to the Langfuse Enterprise Software:
 This software and associated documentation files (the "Software") may only be
 used, if you (and any entity that you represent) have agreed to,
-and are in compliance with, the applicable Langfuse Terms of Service, available
-at https://langfuse.com/terms (the “Enterprise Terms”), or other
-agreement governing the use of the Software, as agreed by you and Langfuse,
+and are in compliance with, the applicable agreement governing the use of the Software, 
+as agreed by you and Langfuse GmbH or ClickHouse, Inc. (including any successor or permitted assignee of either),
 and otherwise have a valid Langfuse Enterprise License.
 
 Subject to the foregoing sentence, you are free to

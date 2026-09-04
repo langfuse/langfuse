@@ -41,6 +41,9 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "observation_id",
     queryPrefix: "s",
+    // A score either has an observation id or it does not: the column is
+    // Nullable(String), so '' and NULL denote the same "trace-level" score.
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Session ID",
@@ -54,6 +57,20 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "name",
     clickhouseTableName: "scores",
     clickhouseSelect: "name",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluator_id",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluation_rule_id",
     queryPrefix: "s",
   },
   {

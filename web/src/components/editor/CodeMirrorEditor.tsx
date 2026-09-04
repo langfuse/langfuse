@@ -14,14 +14,17 @@ import {
   StateEffect,
   StateField,
 } from "@codemirror/state";
-import { SearchQuery, search, setSearchQuery } from "@codemirror/search";
+import { SearchQuery, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { useState, useCallback, useMemo, type RefObject } from "react";
-import { LanguageSupport, StreamLanguage } from "@codemirror/language";
-import type { StringStream } from "@codemirror/language";
+import {
+  LanguageSupport,
+  StreamLanguage,
+  type StringStream,
+} from "@codemirror/language";
 import {
   isValidVariableName,
   MULTILINE_VARIABLE_REGEX,
@@ -34,6 +37,7 @@ import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
+import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
@@ -475,7 +479,7 @@ export function CodeMirrorEditor({
       // mouseup capture listeners registering on every drag.
       ...(editable ? [autoScrollOnSelectionDrag()] : []),
       searchHighlightingSupport,
-      search(),
+      codeMirrorSearchPanel,
       // RTL/bidi support - must be early for proper line decoration
       ...bidiSupport,
       // Remove outline if field is focussed
@@ -564,7 +568,7 @@ export function CodeMirrorEditor({
       onChange={handleChange}
       onBlur={onBlur}
       className={cn(
-        "overflow-hidden overflow-y-auto rounded-md border text-xs",
+        "ph-no-capture overflow-hidden overflow-y-auto rounded-md border text-xs",
         className,
       )}
       editable={editable}

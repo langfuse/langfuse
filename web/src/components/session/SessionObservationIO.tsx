@@ -3,15 +3,16 @@ import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
+  useMedia,
+  type ChatMLParserResult,
   type IOPreviewContentMode,
   type ViewMode,
-} from "@/src/features/traces/components/IOPreview/IOPreview";
+} from "@/src/features/traces";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/components/session/actions/downloadSessionAsJson";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type ChatMLParserResult } from "@/src/features/traces/components/IOPreview/hooks/useChatMLParser";
 import { parseJsonIfString } from "@langfuse/shared";
 
 export type SessionTraceObservation =
@@ -19,6 +20,19 @@ export type SessionTraceObservation =
 
 /** Display cap of a preview section — matches the server's preview head. */
 const PREVIEW_DISPLAY_CHARS = 4_000;
+
+const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+
+/**
+ * A card renders up to 50 observations, so the media-link lookup is gated on
+ * the payload actually carrying a reference. This path ships I/O as raw
+ * strings (see `sessions.observationsForTraceFromEvents`).
+ */
+const referencesMedia = (observation: SessionTraceObservation): boolean =>
+  [observation.input, observation.output, observation.metadata].some(
+    (value) =>
+      typeof value === "string" && value.includes(MEDIA_REFERENCE_PREFIX),
+  );
 
 /**
  * One field of an over-limit observation: a bounded, non-interactive preview
@@ -37,7 +51,6 @@ const TruncatedIOSection = ({
   fullLength: number;
   truncated: boolean;
 }) => {
-  if (value === null || value === undefined || value === "") return null;
   const text = typeof value === "string" ? value : JSON.stringify(value);
   const shown =
     text.length > PREVIEW_DISPLAY_CHARS
@@ -111,6 +124,15 @@ export const SessionObservationIO = ({
     observation.inputTruncated || observation.outputTruncated,
   );
 
+  // Same media source as trace detail, so a media-bearing message renders
+  // identically on both surfaces (LFE-14815).
+  const observationMedia = useMedia({
+    projectId,
+    traceId,
+    observationId: observation.id,
+    enabled: !isIOTruncated && referencesMedia(observation),
+  });
+
   const onDownload = async () => {
     capture("session_detail:truncated_observation_download_click");
     setIsDownloading(true);
@@ -160,6 +182,7 @@ export const SessionObservationIO = ({
       metadata={observation.metadata ?? undefined}
       observationName={observation.name ?? undefined}
       hideIfNull
+      media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
       observationId={observation.id}
@@ -214,18 +237,26 @@ export const SessionObservationIO = ({
         This observation&apos;s input/output is too large to display in the
         session view.
       </p>
-      <TruncatedIOSection
-        label="Input"
-        value={observation.input}
-        fullLength={observation.inputLength}
-        truncated={observation.inputTruncated}
-      />
-      <TruncatedIOSection
-        label="Output"
-        value={observation.output}
-        fullLength={observation.outputLength}
-        truncated={observation.outputTruncated}
-      />
+      {observation.input !== null &&
+        observation.input !== undefined &&
+        observation.input !== "" && (
+          <TruncatedIOSection
+            label="Input"
+            value={observation.input}
+            fullLength={observation.inputLength}
+            truncated={observation.inputTruncated}
+          />
+        )}
+      {observation.output !== null &&
+        observation.output !== undefined &&
+        observation.output !== "" && (
+          <TruncatedIOSection
+            label="Output"
+            value={observation.output}
+            fullLength={observation.outputLength}
+            truncated={observation.outputTruncated}
+          />
+        )}
       {/* Metadata stays visible when I/O is truncated — it shipped with the
           observation and was always shown alongside I/O before the cap. */}
       {hasMetadataForDisplay && (

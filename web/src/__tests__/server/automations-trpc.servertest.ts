@@ -1,6 +1,6 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@langfuse/shared/src/db";
+import { type Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
@@ -12,8 +12,11 @@ import {
   type WebhookActionConfigWithSecrets,
   isWebhookAction,
 } from "@langfuse/shared";
-import { encrypt, decrypt } from "@langfuse/shared/encryption";
-import { generateWebhookSecret } from "@langfuse/shared/encryption";
+import {
+  encrypt,
+  decrypt,
+  generateWebhookSecret,
+} from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 
 const __orgIds: string[] = [];
@@ -2394,6 +2397,59 @@ describe("automations trpc", () => {
       expect(decryptedStoredSecret).toBe(response.webhookSecret);
     });
 
+    it("should preserve custom request headers when regenerating the secret", async () => {
+      const { project, caller } = await prepare();
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const encryptedAuthHeader = encrypt("Bearer super-secret-token");
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            headers: { "X-Legacy": "legacy-value" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+              Authorization: { secret: true, value: encryptedAuthHeader },
+            },
+            displayHeaders: {
+              "X-Legacy": { secret: false, value: "legacy-value" },
+              "Content-Type": { secret: false, value: "application/json" },
+              Authorization: { secret: true, value: "Bear...oken" },
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      await caller.automations.regenerateWebhookSecret({
+        projectId: project.id,
+        actionId: action.id,
+      });
+
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: action.id },
+      });
+      const updatedConfig =
+        updatedAction?.config as WebhookActionConfigWithSecrets;
+
+      // Rotating the signing secret must not drop the custom headers, and
+      // secret header values must stay encrypted at rest.
+      expect(updatedConfig.requestHeaders).toEqual({
+        "Content-Type": { secret: false, value: "application/json" },
+        Authorization: { secret: true, value: encryptedAuthHeader },
+      });
+      expect(updatedConfig.headers).toEqual({ "X-Legacy": "legacy-value" });
+      expect(decrypt(updatedConfig.requestHeaders!.Authorization.value)).toBe(
+        "Bearer super-secret-token",
+      );
+    });
+
     it("should throw error when action not found", async () => {
       const { project, caller } = await prepare();
 
@@ -2604,7 +2660,7 @@ describe("automations trpc", () => {
   });
 
   describe("automations.updateAutomation with GITHUB_DISPATCH", () => {
-    it("should update GitHub dispatch automation URL without requiring token", async () => {
+    it("should reject a GitHub dispatch URL update without a new token", async () => {
       const { project, caller } = await prepare();
 
       // Create initial automation
@@ -2643,42 +2699,34 @@ describe("automations trpc", () => {
         },
       });
 
-      // Update URL and event type without providing new token
-      const response = await caller.automations.updateAutomation({
-        projectId: project.id,
-        automationId: automation.id,
-        name: "Updated GitHub Dispatch",
-        eventSource: "prompt",
-        eventAction: ["created", "updated"],
-        filter: [],
-        status: JobConfigState.ACTIVE,
-        actionType: "GITHUB_DISPATCH",
-        actionConfig: {
-          type: "GITHUB_DISPATCH",
-          url: "https://api.github.com/repos/owner/new-repo/dispatches",
-          eventType: "new-event",
-          githubToken: "", // Empty token means keep existing
-        },
-      });
-
-      expect(response.action.id).toBe(action.id);
-      expect(response.action.type).toBe("GITHUB_DISPATCH");
-
-      const config = response.action.config as any;
-      expect(config.url).toBe(
-        "https://api.github.com/repos/owner/new-repo/dispatches",
+      await expect(
+        caller.automations.updateAutomation({
+          projectId: project.id,
+          automationId: automation.id,
+          name: "Updated GitHub Dispatch",
+          eventSource: "prompt",
+          eventAction: ["created", "updated"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+          actionType: "GITHUB_DISPATCH",
+          actionConfig: {
+            type: "GITHUB_DISPATCH",
+            url: "https://api.github.com/repos/owner/new-repo/dispatches",
+            eventType: "new-event",
+          },
+        }),
+      ).rejects.toThrow(
+        "GitHub Personal Access Token is required when changing the dispatch URL",
       );
-      expect(config.eventType).toBe("new-event");
-      expect(config.displayGitHubToken).toBe("ghp_...ken"); // Preserved
 
-      // Verify secrets not exposed in response
-      expect(config).not.toHaveProperty("githubToken");
-
-      // Verify the automation name was updated
-      const updatedAutomation = await prisma.automation.findFirst({
-        where: { id: automation.id },
+      const unchangedAction = await prisma.action.findUniqueOrThrow({
+        where: { id: action.id },
       });
-      expect(updatedAutomation?.name).toBe("Updated GitHub Dispatch");
+      const unchangedConfig = unchangedAction.config as any;
+      expect(unchangedConfig.url).toBe(
+        "https://api.github.com/repos/owner/repo/dispatches",
+      );
+      expect(decrypt(unchangedConfig.githubToken)).toBe("ghp_old_token");
     });
 
     it("should update GitHub dispatch automation with new token", async () => {
@@ -2720,7 +2768,7 @@ describe("automations trpc", () => {
         },
       });
 
-      // Update with new token
+      // Update the URL and rotate the token together.
       const response = await caller.automations.updateAutomation({
         projectId: project.id,
         automationId: automation.id,
@@ -2732,7 +2780,7 @@ describe("automations trpc", () => {
         actionType: "GITHUB_DISPATCH",
         actionConfig: {
           type: "GITHUB_DISPATCH",
-          url: "https://api.github.com/repos/owner/repo/dispatches",
+          url: "https://api.github.com/repos/owner/new-repo/dispatches",
           githubToken: "ghp_new_token_456",
         },
       });
@@ -2754,9 +2802,12 @@ describe("automations trpc", () => {
       const dbConfig = updatedAction?.config as any;
       expect(dbConfig.githubToken).not.toBe("ghp_new_token_456"); // Encrypted
       expect(decrypt(dbConfig.githubToken)).toBe("ghp_new_token_456"); // Can decrypt
+      expect(dbConfig.url).toBe(
+        "https://api.github.com/repos/owner/new-repo/dispatches",
+      );
     });
 
-    it("should preserve encrypted token when updating without providing new token", async () => {
+    it("should preserve encrypted token when updating an unchanged URL", async () => {
       const { project, caller } = await prepare();
 
       const originalToken = "ghp_original_token_xyz";
@@ -2781,7 +2832,7 @@ describe("automations trpc", () => {
           type: "GITHUB_DISPATCH",
           config: {
             type: "GITHUB_DISPATCH",
-            url: "https://api.github.com/repos/owner/repo/dispatches",
+            url: "https://github.com/api/v3/repos/owner/repo/dispatches",
             eventType: "original-event-type",
             githubToken: encryptedToken,
             displayGitHubToken: "ghp_...xyz",
@@ -2798,7 +2849,9 @@ describe("automations trpc", () => {
         },
       });
 
-      // Update URL without providing token
+      // Update the event type using an equivalent URL representation without
+      // providing a token. Hostnames are case-insensitive and :443 is the
+      // default port for HTTPS, so this remains the same destination.
       await caller.automations.updateAutomation({
         projectId: project.id,
         automationId: automation.id,
@@ -2810,7 +2863,7 @@ describe("automations trpc", () => {
         actionType: "GITHUB_DISPATCH",
         actionConfig: {
           type: "GITHUB_DISPATCH",
-          url: "https://api.github.com/repos/new-owner/new-repo/dispatches",
+          url: "https://GITHUB.COM:443/api/v3/repos/owner/repo/dispatches",
           eventType: "new-event-type",
           // githubToken intentionally omitted
         },
@@ -2831,9 +2884,133 @@ describe("automations trpc", () => {
 
       // Verify URL and eventType were updated
       expect(dbConfig.url).toBe(
-        "https://api.github.com/repos/new-owner/new-repo/dispatches",
+        "https://GITHUB.COM:443/api/v3/repos/owner/repo/dispatches",
       );
       expect(dbConfig.eventType).toBe("new-event-type");
+    });
+  });
+
+  describe("automations read path secret redaction", () => {
+    async function createGitHubDispatchAutomation(
+      projectId: string,
+      config: Prisma.InputJsonObject,
+    ) {
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config,
+        },
+      });
+
+      return prisma.automation.create({
+        data: {
+          projectId,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "GitHub Dispatch Read Path",
+        },
+      });
+    }
+
+    // VIEWER holds automations:read, the only scope both read routes require.
+    function viewerCaller(session: Session) {
+      const viewerSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER",
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
+        prisma,
+      });
+    }
+
+    it("should not expose the stored githubToken to a project VIEWER", async () => {
+      const { project, session } = await prepare();
+
+      const automation = await createGitHubDispatchAutomation(project.id, {
+        type: "GITHUB_DISPATCH",
+        url: "https://api.github.com/repos/owner/repo/dispatches",
+        eventType: "langfuse-prompt-created",
+        githubToken: encrypt("ghp_read_path_token_123"),
+        displayGitHubToken: "ghp_...123",
+      });
+
+      const caller = viewerCaller(session);
+
+      const automations = await caller.automations.getAutomations({
+        projectId: project.id,
+      });
+
+      expect(automations).toHaveLength(1);
+      const listedConfig = automations[0].action.config as Record<
+        string,
+        unknown
+      >;
+      expect(listedConfig).not.toHaveProperty("githubToken");
+      expect(listedConfig.displayGitHubToken).toBe("ghp_...123");
+
+      const single = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      const singleConfig = single.action.config as Record<string, unknown>;
+      expect(singleConfig).not.toHaveProperty("githubToken");
+      expect(singleConfig.displayGitHubToken).toBe("ghp_...123");
+    });
+
+    it("should not expose the githubToken of a config that fails to parse", async () => {
+      const { project, session } = await prepare();
+
+      // displayGitHubToken is missing, so the config does not parse as a
+      // GITHUB_DISPATCH config and only the field allowlist can strip it.
+      const automation = await createGitHubDispatchAutomation(project.id, {
+        type: "GITHUB_DISPATCH",
+        url: "https://api.github.com/repos/owner/repo/dispatches",
+        eventType: "langfuse-prompt-created",
+        githubToken: encrypt("ghp_read_path_token_456"),
+      });
+
+      const caller = viewerCaller(session);
+
+      const single = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      const config = single.action.config as Record<string, unknown>;
+      expect(config).not.toHaveProperty("githubToken");
+      expect(config.type).toBe("GITHUB_DISPATCH");
+      expect(config.eventType).toBe("langfuse-prompt-created");
     });
   });
 });

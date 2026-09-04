@@ -19,7 +19,10 @@ import {
   getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
-import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+import {
+  getEvaluatorDefinitionConfigurationError,
+  getEvaluatorDefinitionPreflightError,
+} from "@/src/features/evals/server/evaluator-preflight";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
@@ -104,6 +107,20 @@ describe("evaluator preflight", () => {
     });
 
     expect(result).toBeNull();
+    expect(mockTestModelCall).not.toHaveBeenCalled();
+  });
+
+  it("validates evaluator configuration without calling the provider", async () => {
+    const result = await getEvaluatorDefinitionConfigurationError({
+      projectId: "project_test",
+      template: {
+        name: "Answer correctness",
+        outputDefinition: numericOutputDefinition,
+      },
+    });
+
+    expect(result).toBeNull();
+    expect(mockFetchValidModelConfig).toHaveBeenCalledOnce();
     expect(mockTestModelCall).not.toHaveBeenCalled();
   });
 

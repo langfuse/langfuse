@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type PriceUnit } from "@/src/features/models/validation";
 
 export const PriceBreakdownTooltip = ({
@@ -20,7 +20,7 @@ export const PriceBreakdownTooltip = ({
   rowHeight,
 }: {
   modelName: string;
-  prices?: Record<string, number>;
+  prices: Record<string, number>;
   priceUnit: PriceUnit;
   rowHeight: RowHeight;
 }) => {
@@ -30,14 +30,12 @@ export const PriceBreakdownTooltip = ({
   const maxDecimals = useMemo(
     () =>
       Math.max(
-        ...Object.values(prices ?? {}).map((price) => {
+        ...Object.values(prices).map((price) => {
           return getMaxDecimals(price, priceUnitMultiplier);
         }),
       ),
     [prices, priceUnitMultiplier],
   );
-
-  if (!prices) return null;
 
   return (
     <>

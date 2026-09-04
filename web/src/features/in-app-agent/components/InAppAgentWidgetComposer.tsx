@@ -3,7 +3,7 @@ import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import type { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 const MAX_TEXTAREA_HEIGHT_PX = 160;
 
@@ -23,22 +23,18 @@ const getWidgetCreationPrompt = (request: string) =>
 
 export function InAppAgentWidgetComposer({
   onSubmitted,
+  openAssistant,
+  submit,
 }: {
   onSubmitted: () => void;
-}) {
-  const { isAvailable, isRunning, isSubmitting, openAssistant, submit } =
-    useInAppAiAgent();
+} & Pick<ReturnType<typeof useInAppAiAgent>, "openAssistant" | "submit">) {
   const [request, setRequest] = useState("");
-
-  if (!isAvailable) {
-    return null;
-  }
 
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedRequest = request.trim();
 
-    if (!trimmedRequest || isRunning || isSubmitting) {
+    if (!trimmedRequest) {
       return;
     }
 
@@ -102,7 +98,7 @@ export function InAppAgentWidgetComposer({
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
           aria-label="Add with Langfuse Assistant"
-          disabled={!request.trim() || isRunning || isSubmitting}
+          disabled={!request.trim()}
         >
           <SendHorizontal className="h-4 w-4" />
         </Button>

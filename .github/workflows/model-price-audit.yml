@@ -169,7 +169,7 @@ jobs:
       - name: Run Claude price audit
         id: claude-audit
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
-        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+        uses: anthropics/claude-code-action@fa2b2666b747000bf42767d1f332065b375e3c8f # v1.0.214
         env:
           API_TIMEOUT_MS: "900000"
           BASH_DEFAULT_TIMEOUT_MS: "120000"
@@ -241,7 +241,7 @@ jobs:
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
             --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
             --no-session-persistence
-            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/packages/shared/src/server/otel/OtelIngestionProcessor.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs:*),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
+            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/packages/shared/src/server/otel/OtelIngestionProcessor.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(uuidgen),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs:*),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
             --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"auditDate":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"pullRequestTitle":{"type":"string","maxLength":100},"modelsChecked":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string","minLength":1},"pricingChecked":{"type":"string","minLength":1},"priceConfirmed":{"type":"string","enum":["yes","no"]},"usageKeysChecked":{"type":"string","minLength":1},"usageKeyCoverageConfirmed":{"type":"string","enum":["yes","no"]},"tieringChecked":{"type":"string","minLength":1},"tieringCorrect":{"type":"string","enum":["yes","no","not_applicable"]},"change":{"type":"string","enum":["none","updated","added","unresolved"]},"officialSources":{"type":"array","items":{"type":"string"}},"comments":{"type":"string"}},"required":["provider","model","pricingChecked","priceConfirmed","usageKeysChecked","usageKeyCoverageConfirmed","tieringChecked","tieringCorrect","change","officialSources","comments"]}},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","auditDate","pullRequestTitle","modelsChecked","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
       - name: Mock Claude price audit
@@ -503,6 +503,16 @@ jobs:
             cat "$RUNNER_TEMP/claude-model-price-audit.txt"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Discard pricing-only formatting changes
+        run: |
+          set -euo pipefail
+
+          base_pricing_file="$RUNNER_TEMP/default-model-prices-before-audit.json"
+          git show "HEAD:worker/src/constants/default-model-prices.json" > "$base_pricing_file"
+          node scripts/model-price-audit/discard-formatting-only-pricing-diff.mjs \
+            --base "$base_pricing_file" \
+            --current worker/src/constants/default-model-prices.json
+
       - name: Validate audit diff
         run: |
           set -euo pipefail
@@ -596,12 +606,8 @@ jobs:
             esac
           done
 
-          CURRENT_PRICING_FILE="worker/src/constants/default-model-prices.json"
           BASE_PRICING_FILE="$RUNNER_TEMP/default-model-prices-base.json"
-          TYPES_DIFF_FILE="$RUNNER_TEMP/llm-types.diff"
-          git show "HEAD:$CURRENT_PRICING_FILE" > "$BASE_PRICING_FILE"
-          git diff --unified=0 -- "packages/shared/src/server/llm/types.ts" > "$TYPES_DIFF_FILE"
-          export BASE_PRICING_FILE CHANGED_MODEL_TYPES CHANGED_PRICING_JSON CURRENT_PRICING_FILE TYPES_DIFF_FILE
+          git show "HEAD:worker/src/constants/default-model-prices.json" > "$BASE_PRICING_FILE"
 
           mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
           if [ "${#untracked_files[@]}" -gt 0 ]; then
@@ -612,16 +618,6 @@ jobs:
             --base "$BASE_PRICING_FILE"
           node scripts/agents/sync-agent-shims.mjs --check
           git diff --check -- "${changed_files[@]}"
-
-          git config user.name "langfuse-bot"
-          git config user.email "langfuse-bot@langfuse.com"
-          git -c core.hooksPath=/dev/null checkout -b "$BOT_BRANCH"
-
-          STRUCTURED_OUTPUT_PATH="$RUNNER_TEMP/claude-model-price-audit.json"
-          PR_TITLE_PATH="$RUNNER_TEMP/model-price-audit-pr-title.txt"
-          export STRUCTURED_OUTPUT_PATH
-          node scripts/model-price-audit/prepare-metadata.mjs > "$PR_TITLE_PATH"
-          PR_TITLE="$(cat "$PR_TITLE_PATH")"
 
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -c core.hooksPath=/dev/null add -- "${changed_files[@]}"
           mapfile -t staged_files < <(git diff --cached --name-only)
@@ -650,10 +646,24 @@ jobs:
 
           staged_pricing_file="$RUNNER_TEMP/default-model-prices-staged.json"
           git show ":worker/src/constants/default-model-prices.json" > "$staged_pricing_file"
+          git diff --cached --binary > "$RUNNER_TEMP/model-price-audit-diagnostic.patch"
+          test -s "$RUNNER_TEMP/model-price-audit-diagnostic.patch"
+          CURRENT_PRICING_FILE="$staged_pricing_file"
+          TYPES_DIFF_FILE="$RUNNER_TEMP/llm-types.diff"
+          git diff --cached --unified=0 -- "packages/shared/src/server/llm/types.ts" > "$TYPES_DIFF_FILE"
+
+          STRUCTURED_OUTPUT_PATH="$RUNNER_TEMP/claude-model-price-audit.json"
+          PR_TITLE_PATH="$RUNNER_TEMP/model-price-audit-pr-title.txt"
+          export BASE_PRICING_FILE CHANGED_MODEL_TYPES CHANGED_PRICING_JSON CURRENT_PRICING_FILE STRUCTURED_OUTPUT_PATH TYPES_DIFF_FILE
+          node scripts/model-price-audit/prepare-metadata.mjs > "$PR_TITLE_PATH"
+          PR_TITLE="$(cat "$PR_TITLE_PATH")"
+
           node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
             "$staged_pricing_file" --base "$BASE_PRICING_FILE"
           git diff --cached --check -- "${staged_files[@]}"
 
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
           git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
           node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
             --base "$BASE_PRICING_FILE"
@@ -706,6 +716,17 @@ jobs:
             ${{ runner.temp }}/model-price-audit.patch
             ${{ runner.temp }}/model-price-audit-pr-body.md
           if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: model-price-audit-failure-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/model-price-audit-diagnostic.patch
+            ${{ runner.temp }}/claude-model-price-audit.txt
+          if-no-files-found: ignore
           retention-days: 1
 
   publish:
@@ -816,3 +837,24 @@ jobs:
           echo "Created or updated model price audit PR: $pr_url"
           echo "## Pull request" >> "$GITHUB_STEP_SUMMARY"
           echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
+
+  notify-slack-on-failure:
+    needs:
+      - audit
+      - publish
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ Model Price Audit Failed"
+          message: "❌ Model price audit failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

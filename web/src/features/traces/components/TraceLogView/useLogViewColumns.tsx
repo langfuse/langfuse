@@ -6,7 +6,7 @@
  */
 
 import { useMemo } from "react";
-import { type JSONTableViewColumn } from "@/src/features/traces/components/_shared/JSONTableView";
+import { type JSONTableViewColumn } from "@/src/features/traces/components/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewObservationCell } from "./LogViewObservationCell";
 import { formatRelativeTime, formatDuration } from "./log-view-formatters";

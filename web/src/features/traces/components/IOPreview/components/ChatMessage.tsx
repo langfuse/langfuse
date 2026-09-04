@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -20,8 +21,9 @@ import {
   parseToolCallsFromMessage,
   hasThinkingContent,
   hasRedactedThinkingContent,
-} from "./chat-message-utils";
-import { ThinkingBlock, RedactedThinkingBlock } from "./ThinkingBlock";
+  withoutUnsetFields,
+} from "../../../fns/chatMessageUtils";
+import { ThinkingBlock, RedactedThinkingBlock } from "../../ThinkingBlock";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 // View mode for pretty/json toggle
@@ -236,7 +238,7 @@ export function ChatMessage({
       <div className="hover:bg-muted transition-colors">
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
-          json={message}
+          json={withoutUnsetFields(message)}
           currentView={currentView}
         />
       </div>

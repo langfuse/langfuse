@@ -20,6 +20,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ScoreTypeContext } from "../lib/adapter";
 import { astEquals } from "../lib/ast";
 import { removeToken } from "../lib/edits";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
 import { foldDerivedNegation } from "../lib/filter-state-to-query";
 import { parse, type Diagnostic } from "../lib/langQ";
 import { scoreTypeContextEqual } from "../lib/observed-options";
@@ -40,10 +41,11 @@ export function draftsSemanticallyEqual(
   a: string,
   b: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): boolean {
   return astEquals(
-    foldDerivedNegation(parse(a).ast, scoreTypes),
-    foldDerivedNegation(parse(b).ast, scoreTypes),
+    foldDerivedNegation(parse(a, registry).ast, scoreTypes, registry),
+    foldDerivedNegation(parse(b, registry).ast, scoreTypes, registry),
   );
 }
 
@@ -97,27 +99,37 @@ export type SearchBarStoreState = {
 export type SearchBarStore = StoreApi<SearchBarStoreState>;
 
 /**
- * `resolveScoreTypes` lets draft validation route `scores.<name>` by observed
- * score type — the SAME context planCommit uses — so the store's draftValid
- * (which the editor's red-border gate reads) never disagrees with the commit
- * gate. A thunk so it always reads the latest observed options.
+ * The resolver thunks keep draft validation aligned with the same live score
+ * context and field registry that planCommit uses. This matters for registries
+ * whose allowed values arrive asynchronously.
  */
 export function createSearchBarStore(
   resolveScoreTypes?: () => ScoreTypeContext | undefined,
+  registryOrResolver:
+    | FieldRegistry
+    | (() => FieldRegistry) = EVENTS_FIELD_REGISTRY,
 ): SearchBarStore {
+  const resolveRegistry =
+    typeof registryOrResolver === "function"
+      ? registryOrResolver
+      : () => registryOrResolver;
+
   return createStore<SearchBarStoreState>((set, get) => {
     // The score-type context used by the most recent validation. revalidate()
     // bails when the context is set-equal to this, so observed-identity churn
     // (a relative range + auto-refresh rebuilds the context every tick) doesn't
     // re-parse the draft and emit a fresh diagnostics array for no change.
     let lastScoreTypes: ScoreTypeContext | undefined;
+    let lastRegistry: FieldRegistry | undefined;
     let hasValidated = false;
 
     const writeDraft = (next: string) => {
       const scoreTypes = resolveScoreTypes?.();
+      const registry = resolveRegistry();
       lastScoreTypes = scoreTypes;
+      lastRegistry = registry;
       hasValidated = true;
-      const res = validateQuery(next, scoreTypes);
+      const res = validateQuery(next, scoreTypes, registry);
       set({
         draft: next,
         // A real edit always ends a preview — the overlay must never sit over
@@ -156,11 +168,16 @@ export function createSearchBarStore(
           // Number-normalize numeric (not categorical) score values. It preserves
           // structure/order, so free-text canonicalization is kept.
           const scoreTypes = resolveScoreTypes?.();
-          if (draftsSemanticallyEqual(committedText, draft, scoreTypes)) return;
+          const registry = resolveRegistry();
+          if (
+            draftsSemanticallyEqual(committedText, draft, scoreTypes, registry)
+          )
+            return;
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
-          const next = removeToken(get().draft, { from, to });
+          const registry = resolveRegistry();
+          const next = removeToken(get().draft, { from, to }, registry);
           writeDraft(next);
           return next;
         },
@@ -175,16 +192,22 @@ export function createSearchBarStore(
         },
         revalidate: () => {
           const scoreTypes = resolveScoreTypes?.();
+          const registry = resolveRegistry();
           // Nothing to refresh: the draft was already validated against an
-          // equal context (writeDraft and revalidate both record it), so the
-          // result would be identical. Skip the parse + set to avoid a
-          // no-op re-render from the fresh diagnostics array.
-          if (hasValidated && scoreTypeContextEqual(scoreTypes, lastScoreTypes))
+          // equal context and registry (writeDraft and revalidate both record
+          // them), so the result would be identical. Skip the parse + set to
+          // avoid a no-op re-render from the fresh diagnostics array.
+          if (
+            hasValidated &&
+            registry === lastRegistry &&
+            scoreTypeContextEqual(scoreTypes, lastScoreTypes)
+          )
             return;
           lastScoreTypes = scoreTypes;
+          lastRegistry = registry;
           hasValidated = true;
           const wasValid = get().draftValid;
-          const res = validateQuery(get().draft, scoreTypes);
+          const res = validateQuery(get().draft, scoreTypes, registry);
           set({
             draftDiagnostics: res.diagnostics,
             draftValid: res.valid,

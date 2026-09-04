@@ -21,7 +21,7 @@ const monitorRow = (status: Monitor["status"]): Monitor =>
   ({ id: "mon-1", status }) as Monitor;
 
 describe("MonitorRowActions", () => {
-  it("write access: edit links to monitors/<id> and pause click toggles status", () => {
+  it("write access: edit links to alerts/<id> and pause click toggles status", () => {
     const onToggleStatus = vi.fn();
     render(
       <MonitorRowActions
@@ -36,14 +36,14 @@ describe("MonitorRowActions", () => {
 
     const editLink = screen.getByRole("link");
     expect(editLink.getAttribute("href")).toBe(
-      `/project/${PROJECT_ID}/monitors/mon-1`,
+      `/project/${PROJECT_ID}/alerts/mon-1`,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /pause/i }));
     expect(onToggleStatus).toHaveBeenCalledTimes(1);
   });
 
-  it("paused monitor: shows a Resume control", () => {
+  it("paused alert: shows a Resume control", () => {
     render(
       <MonitorRowActions
         monitor={monitorRow("PAUSED")}
@@ -87,7 +87,7 @@ describe("MonitorRowActions", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: /monitor actions/i }),
+      screen.getByRole("button", { name: /alert actions/i }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });

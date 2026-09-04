@@ -5,8 +5,8 @@
  * Reuses SpanContent from tree view for consistency.
  * Displays relative timestamps to show temporal context within the trace.
  */
+import type { TraceSearchListItem as TraceSearchListItemData } from "@/src/features/traces/types/traceSearchListItem";
 
-import { type TraceSearchListItem } from "../fns/types";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { SpanContent } from "./SpanContent";
 import { cn } from "@/src/utils/tailwind";
@@ -14,7 +14,7 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 interface TraceSearchListItemProps {
-  item: TraceSearchListItem;
+  item: TraceSearchListItemData;
   isSelected: boolean;
   onSelect: () => void;
   onHover?: () => void;

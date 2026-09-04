@@ -11,8 +11,9 @@ import { randomUUID } from "crypto";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -152,6 +153,19 @@ export async function handleDeleteProject(
       resourceId: projectId,
       before: project,
       action: "delete",
+    });
+
+    // Refresh org-scoped keys' baked projectIds now that a project is gone.
+    await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
+      scope.orgId,
+    );
+
+    // Soft-delete is the billing-relevant moment: the customer stops being
+    // billable now, not when the async hard-delete worker finishes.
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_DELETED",
+      orgId: scope.orgId,
+      projectId,
     });
 
     // Queue project deletion job

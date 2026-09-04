@@ -5,8 +5,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-/** @type {typeof import("typescript")} */
-const ts = require("typescript");
+/** @type {typeof import("@typescript/typescript6")} */
+const ts = require("@typescript/typescript6");
 
 /** @typedef {import("./detectors.mjs").ExportEntry} ExportEntry */
 

@@ -17,6 +17,7 @@ import {
   getCurrentSpan,
   applyCommentFilters,
   type CommentObjectType,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
@@ -31,6 +32,8 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   events: "OBSERVATION",
   sessions: "SESSION",
 };
+
+const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -180,6 +183,7 @@ export const handleBatchExportJob = async (
           ...parsedQuery.data,
           filter: processedFilter,
           fileFormat: jobDetails.format as BatchExportFileFormat,
+          preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
@@ -200,6 +204,7 @@ export const handleBatchExportJob = async (
               cutoffCreatedAt: jobDetails.createdAt,
               ...parsedQuery.data,
               filter: processedFilter,
+              preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
             });
 
   // Transform data to desired format

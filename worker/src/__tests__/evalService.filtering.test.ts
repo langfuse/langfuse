@@ -3,7 +3,7 @@ import {
   singleFilter,
   EvalTargetObject,
 } from "@langfuse/shared";
-import { JobConfiguration, prisma } from "@langfuse/shared/src/db";
+import { JobConfiguration, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   createOrgProjectAndApiKey,
@@ -128,7 +128,7 @@ const test = baseTest.extend<{
       },
     });
     await use(async (job) => {
-      await prisma.jobConfiguration.create({
+      const config = await prisma.jobConfiguration.create({
         data: {
           id: randomUUID(),
           projectId,
@@ -140,6 +140,45 @@ const test = baseTest.extend<{
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           ...job,
+        },
+      });
+      const evaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: config.scoreName,
+          type: "LLM_AS_JUDGE",
+          versions: {
+            create: {
+              version: 1,
+              prompt: evalTemplate.prompt,
+              model: evalTemplate.model,
+              provider: evalTemplate.provider,
+              modelParams: evalTemplate.modelParams ?? undefined,
+              vars: evalTemplate.vars,
+              outputDefinition:
+                evalTemplate.outputDefinition as Prisma.InputJsonValue,
+            },
+          },
+        },
+      });
+      await prisma.evaluationRule.create({
+        data: {
+          id: config.id,
+          projectId,
+          name: config.scoreName,
+          status: config.status,
+          targetObject: config.targetObject,
+          filter: config.filter as Prisma.InputJsonValue,
+          sampling: config.sampling,
+          delay: config.delay,
+          timeScope: config.timeScope,
+          assignments: {
+            create: {
+              projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: config.variableMapping as Prisma.InputJsonValue,
+            },
+          },
         },
       });
     });
@@ -446,6 +485,47 @@ describe("test eval filtering", () => {
     await createTwoEvalJobs();
 
     // Check that only the matching metadata's trace got a job
+    const jobs = await getJobs();
+
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
+    expect(jobs[0].status.toString()).toBe("PENDING");
+  }, 10_000);
+
+  test("does not create eval job for a trace missing the metadata key when filtering on contains empty string", async ({
+    expect,
+    upsertTwoTraces,
+    configureDefaultJobWithSingleFilter,
+    createTwoEvalJobs,
+    getJobs,
+    traceId1,
+  }) => {
+    // trace1 has the "turn" metadata key, trace2 never had it set at all.
+    await upsertTwoTraces([
+      {
+        metadata: { turn: "1" },
+      },
+      {
+        metadata: {},
+      },
+    ]);
+
+    // "contains ''" on a metadata key should behave as a key-existence
+    // check, not match every trace regardless of whether the key was ever
+    // set.
+    await configureDefaultJobWithSingleFilter({
+      type: "stringObject",
+      key: "turn",
+      value: "",
+      column: "metadata",
+      operator: "contains",
+    });
+
+    // No cachedTrace is passed here, so this exercises the database
+    // fallback query (legacy traces table Map-column filter), not the
+    // in-memory evaluator.
+    await createTwoEvalJobs();
+
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);

@@ -71,6 +71,17 @@ const TRACE_NAMES = [
   "classify-intent",
 ] as const;
 
+// Models a production edge: an outdated SDK that only posts scores (e.g. a CI
+// eval job) while tracing runs through a current SDK. Detection must flag it,
+// but its key renders as plain text in the migration panel — events_core has
+// no rows for it, so an events-table evidence link would open an empty result
+// (LFE-14859). Applied to the scores of python-current traces below.
+const SCORES_ONLY_ATTRIBUTION = {
+  key: "python-scores-only",
+  ingestion_sdk_name: "python",
+  ingestion_sdk_version: "4.5.0",
+} as const;
+
 const SDK_ATTRIBUTION_PROFILES = [
   {
     key: "python-legacy",
@@ -411,8 +422,20 @@ const run = async (
       );
     }
 
+    // python-current traces post their scores through the scores-only legacy
+    // SDK (see SCORES_ONLY_ATTRIBUTION); every other profile scores through
+    // the same SDK that traced.
+    const scoreAttribution =
+      sdkAttribution.key === "python-current"
+        ? {
+            ingestion_api_key: `pk-lf-seed-${ctx.idPrefix}-${SCORES_ONLY_ATTRIBUTION.key}`,
+            ingestion_sdk_name: SCORES_ONLY_ATTRIBUTION.ingestion_sdk_name,
+            ingestion_sdk_version:
+              SCORES_ONLY_ATTRIBUTION.ingestion_sdk_version,
+          }
+        : ingestionAttribution;
     for (const score of scores.slice(scoreStartIndex)) {
-      Object.assign(score, ingestionAttribution);
+      Object.assign(score, scoreAttribution);
     }
   }
 

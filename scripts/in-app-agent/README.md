@@ -2,38 +2,26 @@
 
 ## Skill Sync
 
-The generated in-app agent skills live at:
+The generic Langfuse skill catalog and its sync script live in the
+`@repo/langfuse-skills` package:
 
-`packages/shared/src/in-app-agent/server/skills/generated/raw`
-
-The generated TypeScript index lives at:
-
-`packages/shared/src/in-app-agent/server/skills/generated/skill-markdown.ts`
-
-The generated module inlines each markdown file as a string literal so it
-compiles under plain `tsc` in `@langfuse/shared`; the `raw/*.md` copies exist
-for reviewable diffs only.
-
-Use `sync-raw-skills.mjs` to download all markdown files from
-`https://github.com/langfuse/skills/tree/main/skills/langfuse/references` whose
-frontmatter either has no access requirements or only
-`LANGFUSE_PROJECT_INTERFACE` in `metadata.required_access`:
+`packages/langfuse-skills/src/generated/skills.ts`
 
 ```sh
-node scripts/in-app-agent/sync-raw-skills.mjs
+pnpm --filter @repo/langfuse-skills run sync
 ```
 
 To verify the checked-in generated skills match upstream without changing files:
 
 ```sh
-node scripts/in-app-agent/sync-raw-skills.mjs --check
+pnpm --filter @repo/langfuse-skills run sync:check
 ```
 
 ## Prompt Sync
 
 The canonical system prompt for the in-app agent lives at:
 
-`packages/shared/src/in-app-agent/server/prompts/in-app-agent-system-prompt.ts`
+`packages/shared/src/in-app-agent/server/systemPrompt.ts`
 
 The local Postgres seeder imports this module and creates the text prompt named
 `in-app-agent-system-prompt` in the seed project

@@ -1,6 +1,6 @@
+/* eslint-disable @repo/no-null-render */
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
@@ -16,18 +16,23 @@ import {
   TableViewPresetTableName,
   type Prisma,
   type TableViewPresetState,
+  ActionId,
+  BatchActionType,
+  BatchExportTableName,
 } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   createDatasetsTableStore,
   toFolderRowId,
@@ -37,13 +42,8 @@ import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/use
 import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import {
-  ActionId,
-  BatchActionType,
-  BatchExportTableName,
-} from "@langfuse/shared";
 import { type TableAction } from "@/src/features/table/types";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { Pen, Trash } from "lucide-react";
 
 type DatasetTableRow = {
@@ -318,81 +318,64 @@ export function DatasetsTable(props: { projectId: string }) {
 
   const columns: LangfuseColumnDef<DatasetTableRow>[] = [
     selectActionColumn,
-    {
+    createFolderKeyTableColumn<DatasetTableRow, DatasetTableRow["key"]>({
       accessorKey: "key",
       header: "Name",
-      id: "key",
       size: 150,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const key: DatasetTableRow["key"] = row.getValue("key");
+      getCell: (key, { row }) => {
+        if (!key) return undefined;
         const rowData = row.original;
 
         if (rowData.isFolder) {
-          return (
-            <FolderBreadcrumbLink
-              name={key.name}
-              onClick={() => navigateToFolder(rowData.folderPath)}
-            />
-          );
+          return {
+            type: "folder",
+            name: key.name,
+            onClick: () => navigateToFolder(rowData.folderPath),
+          };
         }
 
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}/items`}
-            value={key.name}
-          />
-        );
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}/items`,
+            value: key.name,
+          },
+        };
       },
-    },
-    {
+    }),
+    createTextTableColumn<DatasetTableRow>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: DatasetTableRow["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
-    {
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countItems",
       header: "Items",
-      id: "countItems",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countRuns",
       header: "Experiments",
-      id: "countRuns",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createDateTableColumn<DatasetTableRow>({
       accessorKey: "createdAt",
       header: "Created",
-      id: "createdAt",
       enableHiding: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: DatasetTableRow["createdAt"] = row.getValue("createdAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createDateTableColumn<DatasetTableRow>({
       accessorKey: "lastRunAt",
       header: "Last Run",
-      id: "lastRunAt",
       enableHiding: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "inputSchema",
       header: "Input Schema",
@@ -430,19 +413,14 @@ export function DatasetsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createIOTableColumn<DatasetTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",

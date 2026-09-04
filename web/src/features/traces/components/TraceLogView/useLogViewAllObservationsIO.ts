@@ -11,7 +11,7 @@ import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import chunk from "lodash/chunk";
 import { api } from "@/src/utils/api";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
 
@@ -40,7 +40,7 @@ export interface ObservationIOData {
  * Build the tRPC query key for an observation.
  * Must match the format used by api.observations.byId.useQuery
  */
-export function getObservationQueryKey(
+function getObservationQueryKey(
   observationId: string,
   traceId: string,
   projectId: string,

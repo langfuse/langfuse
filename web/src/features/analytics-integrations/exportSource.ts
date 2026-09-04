@@ -1,8 +1,12 @@
 import {
-  AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
+  defaultExportSource,
   EXPORT_SOURCE_OPTIONS,
   getAvailableExportSources,
   validateExportSource,
+  type AnalyticsIntegrationExportSource,
+  type V4WriteMode,
   type ExportSourceBlockedReason,
   type ExportSourceContext,
   type ExportSourceOption,
@@ -12,6 +16,31 @@ import {
 // PostHog, and Mixpanel settings forms. Policy and rationale live in
 // packages/shared/.../export-source-policy.ts.
 
+// The write mode is server-only, so every settings page receives it from its
+// tRPC get response and derives both capabilities here.
+export function buildExportSourceContext({
+  writeMode,
+  isCloud,
+  projectCreatedAt,
+  integrationCreatedAt,
+  exporterCutoff,
+}: {
+  writeMode: V4WriteMode;
+  isCloud: boolean;
+  projectCreatedAt?: Date;
+  integrationCreatedAt?: Date | null;
+  exporterCutoff?: Date;
+}): ExportSourceContext {
+  return {
+    isCloud,
+    enrichedAvailable: areEnrichedWritesActive(writeMode),
+    legacyWritesActive: areLegacyWritesActive(writeMode),
+    projectCreatedAt,
+    integrationCreatedAt,
+    exporterCutoff,
+  };
+}
+
 export function isExportSourceSelectable(
   source: AnalyticsIntegrationExportSource,
   ctx: ExportSourceContext,
@@ -20,19 +49,14 @@ export function isExportSourceSelectable(
 }
 
 // The persisted value always wins so initialize+save can never silently
-// rewrite it (LFE-10296); validation blocks the save if it is not selectable.
+// rewrite it; validation blocks the save if it is not selectable. A create
+// falls through to the shared policy default, which the routers use too, so the
+// page and the server agree on what a new integration gets.
 export function getExportSourceFormValue(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   ctx: ExportSourceContext,
 ): AnalyticsIntegrationExportSource {
-  if (persisted) return persisted;
-  const legacySelectable = isExportSourceSelectable(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    ctx,
-  );
-  return ctx.enrichedAvailable || !legacySelectable
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+  return persisted ?? defaultExportSource(ctx);
 }
 
 export type SelectableExportSourceOption = ExportSourceOption & {
@@ -51,7 +75,7 @@ export function shouldHideExportSourceSelector(
 
 // Selectable sources, plus the persisted one (marked unavailable) when it is
 // no longer selectable, so the conflict is visible rather than silently
-// rewritten (LFE-10296).
+// rewritten.
 export function getExportSourceOptions(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   ctx: ExportSourceContext,
@@ -64,13 +88,36 @@ export function getExportSourceOptions(
   });
 }
 
+export type ExportSourceFieldState = {
+  options: SelectableExportSourceOption[];
+  showField: boolean;
+  defaultValue: AnalyticsIntegrationExportSource;
+};
+
+// Visibility and the default have to agree: a hidden selector whose default is
+// not selectable blocks every save with no field left to fix it with. Both
+// therefore derive from the same option list, with no per-context override —
+// the persisted value survives even where it can no longer be chosen, so the
+// blocked-save alert names it instead of a save quietly replacing it.
+export function getExportSourceFieldState(
+  persisted: AnalyticsIntegrationExportSource | null | undefined,
+  ctx: ExportSourceContext,
+): ExportSourceFieldState {
+  const options = getExportSourceOptions(persisted ?? null, ctx);
+  return {
+    options,
+    showField: !shouldHideExportSourceSelector(options),
+    defaultValue: getExportSourceFormValue(persisted, ctx),
+  };
+}
+
 // Blocked-save alert body per policy reason.
 const EXPORT_SOURCE_UNAVAILABLE_MESSAGES: Record<
   ExportSourceBlockedReason,
   string
 > = {
   "enriched-unavailable":
-    "This integration is configured to export enriched observations, but enriched export is not available on this deployment. Saving is blocked until you select an available export source above. To keep the current configuration instead, re-enable enriched export (V4 preview opt-in) on your deployment.",
+    "This integration is configured to export enriched observations, but this deployment runs LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy and does not write the enriched observations table. Saving is blocked until you select an available export source above.",
   "cloud-cutoff":
     "This integration is configured to export legacy traces and observations, which is no longer available for this project. Saving is blocked until you select an available export source above.",
   // Self-hosted-operator-facing: naming the env var is intentional.

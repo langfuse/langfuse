@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type FilterState, encodeFiltersGeneric } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
-import type { FilterConfig } from "./lib/filter-config";
+import { omitFilterFacets, type FilterConfig } from "./lib/filter-config";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
 
 const queryParamStore = new Map<string, unknown>();
@@ -156,6 +156,25 @@ function SessionPersistenceHarness(props: { contextId?: string | null }) {
         Set oversized
       </button>
     </div>
+  );
+}
+
+// An embedded, entity-scoped surface: the page bounds this column with its own
+// hidden filter, so the facet is omitted (a user-detail traces table omits
+// User ID).
+const EMBEDDED_FILTER_CONFIG = omitFilterFacets(TEST_FILTER_CONFIG, ["name"]);
+
+function EmbeddedSurfaceHarness() {
+  const queryFilter = useSidebarFilterState(
+    EMBEDDED_FILTER_CONFIG,
+    TEST_OPTIONS,
+    { stateLocation: "urlAndSessionStorage", sessionFilterContextId: null },
+  );
+
+  return (
+    <pre data-testid="explicit-state">
+      {JSON.stringify(queryFilter.explicitFilterState)}
+    </pre>
   );
 }
 
@@ -355,6 +374,28 @@ describe("useSidebarFilterState session persistence", () => {
 
     fireEvent.click(screen.getByTestId("clear-filters"));
 
+    await waitFor(() => {
+      expect(queryParamStore.has("filter")).toBe(false);
+    });
+    expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+  });
+
+  it("never applies a filter on a column the surface omits (LFE-14824)", async () => {
+    // The project-wide table's persisted filter (or a deep link) reaching an
+    // embedded surface whose facet is omitted: applying it would AND an
+    // invisible constraint with the page's own scope and return nothing.
+    const sessionKey = buildSessionKey();
+    sessionStorage.setItem(sessionKey, encodeStoredState(encodedFilterA));
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<EmbeddedSurfaceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual([]);
+    });
+
+    // Scrubbed from both persistence channels, so what is stored stays equal to
+    // what the sidebar can show.
     await waitFor(() => {
       expect(queryParamStore.has("filter")).toBe(false);
     });

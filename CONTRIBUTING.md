@@ -37,6 +37,19 @@ _Before making any significant changes, please [open an issue](https://github.co
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 
+Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
+
+```bash
+pnpm run lint        # eslint; every package runs with --max-warnings 0, so a warning fails
+pnpm tc              # typecheck all packages
+pnpm exec knip       # unused files, exports and dependencies
+pnpm run test        # see "Running Unit Tests" below for the setup this needs
+```
+
+`lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
+
+If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one. `.agents/skills/pr-stack-workflow/SKILL.md` describes where to cut the slices and how to land them.
+
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Project Overview
@@ -117,7 +130,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.10.0
+- pnpm 12.3.1 as specified in `package.json`
 - Docker to run the database locally
 - Clickhouse client
 
@@ -163,6 +176,38 @@ Notes:
   PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
   variables in the Codex UI.
 
+### Cursor Cloud Setup
+
+Cursor Cloud Agents use the committed `.cursor/environment.json` and
+`.cursor/Dockerfile`. The environment build runs the shared setup script, and
+each agent run starts a branch-built six-service Docker Compose stack:
+
+```bash
+bash scripts/agents/setup.sh
+bash scripts/agents/start-cursor-cloud.sh
+```
+
+The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
+MinIO, then seeds the synthetic demo project and checks both application health
+endpoints. Cursor team administrators separately configure the read-only MCP
+catalog described in `.agents/README.md`; credentials and OAuth grants belong
+in Cursor, never in repository files.
+
+After local verification, a Cursor agent should open a same-repo reviewable
+PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
+Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+When handing work to a human, give a one-sentence TL;DR, a preview URL with
+exact test steps (including how to seed or hit the same path on
+`http://localhost:3000`), and proof of the fix for user-visible changes
+posted on the GitHub PR (screenshot, video, or before/after — not only in
+chat). Cursor agents that comment as Cursor may also leave one PR comment
+with that proof plus what a reviewer should doubt; Claude Code and other
+tools that comment as the human author must not.
+Prefer one or two human actions at a time; if you need more, keep each
+point simple and super readable. Preview data and any attached artifacts
+must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
+Europe/Berlin and are not woken with Cursor credentials.
+
 ### Shared Agent Setup
 
 This repository keeps the shared agent setup in source control so developers
@@ -185,17 +230,20 @@ MCP server catalog.
 - Tool-specific runtime shims generated locally from the shared config and not committed:
   - `.claude/settings.json`
   - `.codex/environments/environment.toml`
+- Cursor runtime contract generated from shared config and committed because
+  Cursor needs it before install:
   - `.cursor/environment.json`
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
-- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
+- Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
 
 When you change the shared MCP setup:
 
 1. Edit `.agents/config.json`
 2. Run `pnpm run agents:sync`
 3. Run `pnpm run agents:check`
-4. Do not commit the generated MCP config files or runtime shims
+4. Commit `.cursor/environment.json` when it changes; do not commit the other
+   generated MCP config files or runtime shims
 
 **Steps**
 
@@ -513,10 +561,12 @@ We maintain the API specifications manually to guarantee a high degree of unders
 To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
-npx fern-api export --api server web/public/generated/api/openapi.yml
-npx fern-api export --api client web/public/generated/api-client/openapi.yml
-npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
+pnpm run openapi:export
 ```
+
+Commit the updated files under `web/public/generated/`. CI re-runs this export on PRs that touch `fern/**` or the served specs and fails if they drift (`pnpm run openapi:check`).
+
+This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 
 To generate the server SDKs, run:
 

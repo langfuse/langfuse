@@ -72,7 +72,7 @@ export const parsePromptDependencyInnerContent = (
   };
 };
 
-export const getPromptReferenceUrl = (
+const getPromptReferenceUrl = (
   projectId: string,
   tag: ParsedPromptDependencyTag,
 ) => {

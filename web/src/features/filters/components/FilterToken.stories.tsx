@@ -16,6 +16,14 @@ export const Default = meta.story({
   },
 });
 
+export const Highlighted = meta.story({
+  args: {
+    children: "-environment:langfuse-experiments",
+    deactivated: false,
+    highlighted: true,
+  },
+});
+
 export const Deactivated = meta.story({
   args: {
     children: "environment:none of development",

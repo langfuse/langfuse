@@ -6,8 +6,13 @@ In general, provider adapters preprocess data → ChatMlSchema validates → UI 
 ## Usage
 
 ### Display (IOPreview)
+
 ```typescript
-import { normalizeInput, normalizeOutput, combineInputOutputMessages } from "@/src/utils/chatml";
+import {
+  normalizeInput,
+  normalizeOutput,
+  combineInputOutputMessages,
+} from "@/src/utils/chatml";
 
 const ctx = { metadata, observationName };
 const inResult = normalizeInput(input, ctx);
@@ -16,6 +21,7 @@ const allMessages = combineInputOutputMessages(inResult, outResult, output);
 ```
 
 ### Playground
+
 ```typescript
 import { normalizeInput } from "@/src/utils/chatml";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
@@ -29,6 +35,7 @@ const playgroundMessages = inResult.success
 ## Adding a Provider
 
 1. Create `adapters/yourprovider.ts`:
+
 ```typescript
 export const yourProviderAdapter: ProviderAdapter = {
   id: "yourprovider",

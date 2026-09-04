@@ -2,6 +2,7 @@ import type { ELK, ElkNode } from "elkjs";
 
 import {
   type GraphCanvasData,
+  type GraphNodeData,
   LANGFUSE_START_NODE_NAME,
   LANGFUSE_END_NODE_NAME,
   LANGGRAPH_START_NODE_NAME,
@@ -9,7 +10,7 @@ import {
 } from "../types";
 import { measureNode } from "./measureNode";
 
-export interface PositionedNode {
+interface PositionedNode {
   id: string;
   x: number;
   y: number;
@@ -17,7 +18,7 @@ export interface PositionedNode {
   height: number;
 }
 
-export interface PositionedEdge {
+interface PositionedEdge {
   id: string;
   source: string;
   target: string;
@@ -32,9 +33,11 @@ export interface GraphLayout {
   width: number;
   height: number;
   /**
-   * Set when the graph exceeded the layout budget: ELK was NOT run (it would
-   * freeze the tab), `nodes`/`edges` are empty, and the renderer shows a
-   * "too large to lay out" notice instead. See MAX_GRAPH_LAYOUT_* below.
+   * Set when the graph got no layout: past the count ceiling
+   * (MAX_GRAPH_LAYOUT_*, so ELK never ran), past the worker's wall-clock
+   * deadline, or elkjs overflowed its call stack on a graph still inside the
+   * count budget (deep/cyclic layered graphs). `nodes`/`edges` are empty and
+   * the renderer shows a "too large to lay out" notice.
    */
   tooLarge?: boolean;
   /** Distinct node / deduped-edge counts — surfaced in the "too large" notice. */
@@ -43,6 +46,20 @@ export interface GraphLayout {
 }
 
 export type GraphLayoutDirection = "DOWN" | "RIGHT";
+
+/**
+ * Everything ELK needs, and nothing else — this crosses the worker boundary, and
+ * `postMessage`'s structured clone is synchronous main-thread work. Edges are
+ * deduped and the observation map is reduced to per-node counter widths BEFORE
+ * the post, so we never clone the raw multigraph or the full id lists.
+ */
+export interface GraphLayoutRequest {
+  nodes: GraphNodeData[];
+  edges: GraphCanvasData["edges"];
+  /** [nodeId, extra label chars] — see buildCounterReserve. */
+  counterReserve: [string, number][];
+  direction: GraphLayoutDirection;
+}
 
 /**
  * ELK "layered" options for a deterministic DAG. Orthogonal routing + merged
@@ -69,36 +86,100 @@ const LAYOUT_OPTIONS: Record<string, string> = {
  * costs tens of seconds well before that. Above this bound the graph keeps
  * the RIGHT direction but skips wrapping (a plain ribbon lays out in
  * milliseconds at any size).
+ *
+ * Layout now runs in a Worker, whose stack is SMALLER than the main thread's —
+ * measured, a deep aggregated graph overflows around 500 layers there — so this
+ * bound stays conservative rather than being relaxed.
  */
 const MAX_WRAP_NODES = 300;
 
 /**
- * Layout budget for the aggregated (DOWN) graph. Aggregation collapses repeated
- * step names into one node, which turns a large trace into a small-but-DENSE,
- * often CYCLIC multigraph — the pathological input for ELK's layered algorithm
- * (cycle breaking + crossing minimization + orthogonal routing all blow up
- * super-linearly with edge density). Measured with the app's exact layout
- * options on dense cyclic graphs: ~40 nodes/200 edges ≈ 1.4s, 50/250 ≈ 5.8s,
- * 60/300 ≈ 10s, 80/600 ≈ 70s, 100/800 ≈ 177s — and a real reported trace fed
- * ELK 1,422 distinct edges and froze the tab for >110s (indefinite wedge /
- * "too much recursion" on small-stack browsers). elkjs runs synchronously on
- * the main thread, so once started it can't be interrupted or caught — the ONLY
- * safe fix is to not start it. Above the budget we skip layout and the renderer
- * shows a "too large" notice.
+ * Count ceiling for the aggregated (DOWN) graph — a memory and sanity bound, NOT
+ * a time budget. Layout cost tracks graph SHAPE far more than size: measured with
+ * these exact options at identical counts, 60 nodes / 300 edges lay out in ~0.35s
+ * when the edges concentrate on a few nodes and ~16s when they are spread
+ * uniformly (aggregation collapses repeated step names, which is what turns a
+ * large trace into a small-but-dense, often cyclic multigraph — the pathological
+ * input for the layered algorithm). No count can predict that, so the real budget
+ * is the wall-clock GRAPH_LAYOUT_DEADLINE_MS enforced by the layout worker's
+ * client; ELK stays uninterruptible even in a worker, hence a ceiling as well.
  *
- * Sized to sit well below the danger zone (worst-case dense layout at the cap
- * stays a few seconds, never minutes) while leaving large headroom over real
- * aggregated graphs, which have far fewer distinct name-pairs. SPARSE/acyclic
- * graphs of any size are cheap (3,840 acyclic edges lay out in ~0.6s), but the
- * aggregated view rarely reaches this many distinct nodes/edges without also
- * being dense — exactly the case we must protect against.
+ * Sized from the sparse case, which is what real aggregated graphs at this scale
+ * look like: 2,500 nodes / 2,499 edges lay out in ~0.45s using ~88MB. Edges are
+ * the expensive dimension (dense 1,000 / 3,000 ≈ 27s), so they get the tighter
+ * number; dense graphs inside the ceiling hit the deadline instead and get the
+ * "too large" notice — a graph the previous 250-edge budget refused outright now
+ * usually renders.
  *
  * The expanded (RIGHT) path is exempt: it unrolls loops into an ACYCLIC DAG and
  * is already bounded upstream (MAX_EXPANDED_EDGES + the MAX_WRAP_NODES wrapping
  * cap), so it lays out in ~2.5s even at its own limits.
  */
-export const MAX_GRAPH_LAYOUT_EDGES = 250;
-export const MAX_GRAPH_LAYOUT_NODES = 500;
+export const MAX_GRAPH_LAYOUT_EDGES = 2_000;
+export const MAX_GRAPH_LAYOUT_NODES = 2_500;
+
+/**
+ * Ceiling for a layout that must run on the CALLING thread — no Worker support, or
+ * the worker script failed to load. A wall-clock deadline is structurally
+ * impossible there (synchronous ELK cannot be interrupted), so counts are the only
+ * protection left, and these are deliberately the PRE-worker numbers: that path
+ * behaves exactly as the app did before layout moved off the main thread, RIGHT
+ * exemption included. Without this, the raised ceiling above would let a dense
+ * graph freeze the tab for minutes on the fallback path.
+ */
+const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
+export const MAX_MAIN_THREAD_LAYOUT_NODES = 500;
+
+/** True when a request is too big to lay out on the calling thread. */
+export function exceedsMainThreadBudget(request: GraphLayoutRequest): boolean {
+  return (
+    request.direction === "DOWN" &&
+    (request.nodes.length > MAX_MAIN_THREAD_LAYOUT_NODES ||
+      request.edges.length > MAX_MAIN_THREAD_LAYOUT_EDGES)
+  );
+}
+
+function elkErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return "";
+}
+
+/**
+ * elkjs's layered algorithm recurses per layer. On a deep or cyclic graph that
+ * still fits the count budget, that DFS overflows the (especially worker)
+ * stack: Chrome/Safari `RangeError: Maximum call stack size exceeded`,
+ * Firefox `InternalError: too much recursion`.
+ *
+ * Same user-visible outcome as the count/deadline gates — not an app crash.
+ */
+export function isElkCallStackOverflow(error: unknown): boolean {
+  const message = elkErrorMessage(error);
+  return (
+    /maximum call stack size exceeded/i.test(message) ||
+    /too much recursion/i.test(message)
+  );
+}
+
+function tooLargeLayout(request: GraphLayoutRequest): GraphLayout {
+  return {
+    nodes: [],
+    edges: [],
+    width: 0,
+    height: 0,
+    tooLarge: true,
+    nodeCount: request.nodes.length,
+    edgeCount: request.edges.length,
+  };
+}
 
 /**
  * Distinct, self-loop-free edges keyed by (from, to). The aggregated graph
@@ -124,14 +205,11 @@ export function dedupeEdges(
   return out;
 }
 
-/** Map our {nodes, edges} into an ELK graph. Edges are pre-deduped by the caller. */
-function buildElkGraph(
-  graph: GraphCanvasData,
-  dedupedEdges: GraphCanvasData["edges"],
-  counterReserve: Map<string, number>,
-  direction: GraphLayoutDirection,
-): ElkNode {
-  const children = graph.nodes.map((node) => {
+/** Map a layout request into an ELK graph. Edges are pre-deduped by the caller. */
+function buildElkGraph(request: GraphLayoutRequest): ElkNode {
+  const { nodes, edges: dedupedEdges, direction } = request;
+  const counterReserve = new Map(request.counterReserve);
+  const children = nodes.map((node) => {
     const { width, height } = measureNode(
       node,
       counterReserve.get(node.id) ?? 0,
@@ -177,7 +255,7 @@ function buildElkGraph(
       // rows near the panel's aspect ratio, so fit-zoom stays readable
       // instead of shrinking a 1×N ribbon to nothing (bounded — see
       // MAX_WRAP_NODES).
-      ...(direction === "RIGHT" && graph.nodes.length <= MAX_WRAP_NODES
+      ...(direction === "RIGHT" && nodes.length <= MAX_WRAP_NODES
         ? {
             "elk.layered.wrapping.strategy": "MULTI_EDGE",
             "elk.aspectRatio": "1.6",
@@ -192,9 +270,9 @@ function buildElkGraph(
 let elkInstance: Promise<ELK> | null = null;
 
 /**
- * Lazy-load ELK (~1MB) only when a graph is rendered, and reuse the instance.
- * Runs on the main thread for now; this is the seam to move into a Web Worker
- * for very large graphs without touching callers.
+ * Lazy-load ELK (~1MB) and reuse the instance. Only the main-thread fallback
+ * path uses this — the worker imports elkjs directly (see
+ * `workers/elk-layout.worker.ts`).
  */
 function getElk(): Promise<ELK> {
   if (!elkInstance) {
@@ -217,63 +295,96 @@ function getElk(): Promise<ELK> {
  */
 function buildCounterReserve(
   nodeToObservationsMap: Record<string, string[]>,
-): Map<string, number> {
-  const reserve = new Map<string, number>();
+): [string, number][] {
+  const reserve: [string, number][] = [];
   for (const [id, observations] of Object.entries(nodeToObservationsMap)) {
     if (observations.length > 1) {
-      reserve.set(
+      reserve.push([
         id,
         ` (${observations.length}/${observations.length})`.length,
-      );
+      ]);
     }
   }
   return reserve;
 }
 
-/** Compute a deterministic hierarchical layout for the graph via ELK. */
-export async function computeGraphLayout(
+/**
+ * Decided without running ELK: either the finished layout (empty graph, or one
+ * refused by the budget) or the request to hand to ELK — on the worker thread if
+ * one is available. All of this is O(nodes + edges) and safe on the main thread.
+ */
+export type PreparedGraphLayout =
+  | { kind: "layout"; layout: GraphLayout }
+  | { kind: "request"; request: GraphLayoutRequest };
+
+export function prepareGraphLayout(
   graph: GraphCanvasData,
   nodeToObservationsMap: Record<string, string[]> = {},
   direction: GraphLayoutDirection = "DOWN",
-): Promise<GraphLayout> {
+): PreparedGraphLayout {
   if (graph.nodes.length === 0) {
-    return { nodes: [], edges: [], width: 0, height: 0 };
+    return {
+      kind: "layout",
+      layout: { nodes: [], edges: [], width: 0, height: 0 },
+    };
   }
 
   const dedupedEdges = dedupeEdges(graph.edges);
 
   // Budget gate (aggregated DOWN layout only — see MAX_GRAPH_LAYOUT_* and the
-  // RIGHT-path exemption). elkjs is synchronous and uninterruptible, so a graph
-  // past the budget is refused BEFORE the layout call — the only way to avoid a
-  // multi-minute main-thread freeze / stack overflow.
+  // RIGHT-path exemption). Past the budget the layout is refused up front rather
+  // than started: ELK is uninterruptible even in a worker, and at these
+  // densities it would run for minutes and blow through memory.
   if (
     direction === "DOWN" &&
     (graph.nodes.length > MAX_GRAPH_LAYOUT_NODES ||
       dedupedEdges.length > MAX_GRAPH_LAYOUT_EDGES)
   ) {
     return {
-      nodes: [],
-      edges: [],
-      width: 0,
-      height: 0,
-      tooLarge: true,
-      nodeCount: graph.nodes.length,
-      edgeCount: dedupedEdges.length,
+      kind: "layout",
+      layout: {
+        nodes: [],
+        edges: [],
+        width: 0,
+        height: 0,
+        tooLarge: true,
+        nodeCount: graph.nodes.length,
+        edgeCount: dedupedEdges.length,
+      },
     };
   }
 
-  const elk = await getElk();
-  const counterReserve = buildCounterReserve(nodeToObservationsMap);
-  // Defensive guard around the synchronous elkjs call: a graph that slips past
-  // the budget could still throw (e.g. RangeError "too much recursion"). Rethrow
-  // so the renderer surfaces a recoverable error state instead of an unhandled
-  // rejection.
+  return {
+    kind: "request",
+    request: {
+      nodes: graph.nodes,
+      edges: dedupedEdges,
+      counterReserve: buildCounterReserve(nodeToObservationsMap),
+      direction,
+    },
+  };
+}
+
+/**
+ * Run ELK on a prepared request. Pure: no DOM, no bundler-specific imports — it
+ * runs identically in the layout worker and on the main thread.
+ */
+export async function runGraphLayout(
+  elk: ELK,
+  request: GraphLayoutRequest,
+): Promise<GraphLayout> {
+  // Defensive guard: elkjs can still throw on a graph inside the budget.
+  // Stack overflow is an expected ELK limitation — same "too large" state as
+  // the count/deadline gates, so the renderer does not treat it as a crash.
+  // Any other throw is rethrown as a real Error so the caller surfaces a
+  // recoverable layoutError.
   let result: ElkNode;
   try {
-    result = await elk.layout(
-      buildElkGraph(graph, dedupedEdges, counterReserve, direction),
-    );
+    result = await elk.layout(buildElkGraph(request));
   } catch (error) {
+    if (isElkCallStackOverflow(error)) {
+      return tooLargeLayout(request);
+    }
     throw error instanceof Error ? error : new Error(String(error));
   }
 
@@ -309,4 +420,28 @@ export async function computeGraphLayout(
     width: result.width ?? 0,
     height: result.height ?? 0,
   };
+}
+
+/**
+ * Lay a prepared request out on the CALLING thread — the fallback for browsers
+ * without Web Workers, and for a worker that failed to load.
+ */
+export async function layoutGraphOnThisThread(
+  request: GraphLayoutRequest,
+): Promise<GraphLayout> {
+  return runGraphLayout(await getElk(), request);
+}
+
+/**
+ * Whole layout pipeline on the calling thread. The renderer goes through the
+ * worker client instead; this is what the layout tests exercise.
+ */
+export async function computeGraphLayout(
+  graph: GraphCanvasData,
+  nodeToObservationsMap: Record<string, string[]> = {},
+  direction: GraphLayoutDirection = "DOWN",
+): Promise<GraphLayout> {
+  const prepared = prepareGraphLayout(graph, nodeToObservationsMap, direction);
+  if (prepared.kind === "layout") return prepared.layout;
+  return layoutGraphOnThisThread(prepared.request);
 }

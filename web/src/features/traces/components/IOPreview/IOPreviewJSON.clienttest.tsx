@@ -15,7 +15,7 @@ import { render, screen } from "@testing-library/react";
 // data (hideData=false) vs. is gated (hideData=true, tree never built), and
 // render its footer so the fallback is observable.
 vi.mock(
-  "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer",
+  "@/src/features/traces/components/AdvancedJsonViewer/MultiSectionJsonViewer",
   () => ({
     MultiSectionJsonViewer: (props: {
       sections: {
@@ -67,7 +67,7 @@ vi.mock("./components/CorrectedOutputField", () => ({
 // The lazy renderer runs a byte engine + virtualizer; stub it to a marker so
 // these tests assert the gated field is routed to it, not its internals.
 vi.mock(
-  "@/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonViewer",
+  "@/src/features/traces/components/AdvancedJsonViewer/lazy/react/LazyJsonViewer",
   () => ({
     LazyJsonViewer: () => <div data-testid="lazy-json-viewer" />,
   }),
@@ -82,7 +82,7 @@ vi.mock("next-themes", () => ({
 }));
 
 vi.mock(
-  "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences",
+  "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences",
   () => ({
     useJsonViewPreferences: () => ({
       stringWrapMode: "truncate",
@@ -110,7 +110,7 @@ vi.mock("@/src/utils/decodeUnicodeInJson", () => ({
 }));
 
 import { IOPreviewJSON } from "./IOPreviewJSON";
-import { JSON_VIEW_RENDER_ROW_LIMIT } from "./lib/jsonViewSizeGate";
+import { JSON_VIEW_RENDER_ROW_LIMIT } from "./fns/jsonViewSizeGate";
 
 const FALLBACK_TEXT = /too large to render in JSON view/i;
 
@@ -126,6 +126,23 @@ const manyRows = () =>
 // lazy viewer, same as any over-threshold field. Fixed count, independent of the
 // gate constant, so it keeps guarding the regression if the constant moves.
 const deadZoneRows = () => Array.from({ length: 5_000 }, (_, i) => i);
+
+describe("IOPreviewJSON session recording privacy", () => {
+  it("blocks trace input and output from session recordings", () => {
+    const { container } = render(
+      <IOPreviewJSON
+        input={{ secret: "input" }}
+        output={{ secret: "output" }}
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    expect(container.firstElementChild).toHaveClass("ph-no-capture");
+  });
+});
 
 describe("IOPreviewJSON node-count gating", () => {
   it("routes a dead-zone field (thousands of rows) to the lazy viewer, not the eager tree", () => {

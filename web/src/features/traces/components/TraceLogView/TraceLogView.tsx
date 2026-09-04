@@ -32,11 +32,11 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { JSONTableView } from "@/src/features/traces/components/_shared/JSONTableView";
+import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
@@ -54,7 +54,7 @@ import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json" | "json-beta";
+  currentView?: "pretty" | "pretty-beta" | "json" | "json-beta";
 }
 
 // Import configuration constants
@@ -66,8 +66,6 @@ const {
 } = TRACE_VIEW_CONFIG.logView;
 
 // Re-export thresholds for use in parent components
-export { LOG_VIEW_VIRTUALIZATION_THRESHOLD };
-
 export const TraceLogView = ({
   traceId,
   projectId,
@@ -317,7 +315,9 @@ export const TraceLogView = ({
       {/* Table view mode - render as expandable table */}
       {/* "json-beta" uses table mode since advanced I/O viewer works in expandable rows */}
       {flatItems.length > 0 &&
-        (currentView === "pretty" || currentView === "json-beta") && (
+        (currentView === "pretty" ||
+          currentView === "pretty-beta" ||
+          currentView === "json-beta") && (
           <JSONTableView
             items={flatItems}
             columns={columns}

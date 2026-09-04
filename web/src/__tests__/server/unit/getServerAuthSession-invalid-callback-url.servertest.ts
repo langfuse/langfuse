@@ -6,12 +6,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCookieName } from "@/src/server/utils/cookies";
 
-const { mockGetServerSession } = vi.hoisted(() => ({
-  mockGetServerSession: vi.fn(),
-}));
+const { mockAuthSpan, mockGetServerSession, mockInstrumentAsync } = vi.hoisted(
+  () => {
+    const mockAuthSpan = {
+      setAttributes: vi.fn(),
+    };
+
+    return {
+      mockAuthSpan,
+      mockGetServerSession: vi.fn(),
+      mockInstrumentAsync: vi.fn(
+        async (
+          _options: unknown,
+          callback: (span: typeof mockAuthSpan) => unknown,
+        ) => callback(mockAuthSpan),
+      ),
+    };
+  },
+);
 
 vi.mock("next-auth", () => ({
   getServerSession: mockGetServerSession,
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  instrumentAsync: mockInstrumentAsync,
 }));
 
 vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
@@ -110,5 +130,25 @@ describe("getServerAuthSession invalid callback URL handling", () => {
         baseUrl: "http://localhost:3000",
       }),
     ).toBe("http://localhost:3000");
+  });
+
+  it("does not attach the user email to the sign-in span", async () => {
+    const authOptions = await getAuthOptions();
+    const signIn = authOptions.callbacks?.signIn;
+    if (!signIn) throw new Error("Expected a sign-in callback");
+
+    await signIn({
+      user: { id: "user-1", email: "user@example.com" },
+      account: null,
+      profile: undefined,
+      email: undefined,
+      credentials: undefined,
+    });
+
+    expect(mockAuthSpan.setAttributes).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        "auth.email": "user@example.com",
+      }),
+    );
   });
 });

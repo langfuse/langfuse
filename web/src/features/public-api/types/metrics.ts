@@ -28,7 +28,7 @@ export const publicGranularities = granularities.extract([
 /**
  * Query Object Structure
  */
-export const MetricsQueryObject = z
+const MetricsQueryObject = z
   .object({
     // Pagination parameters
     // page: z.number().min(1).default(1),

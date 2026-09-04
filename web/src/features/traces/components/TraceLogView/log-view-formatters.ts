@@ -5,7 +5,7 @@
  * data transformation and component rendering.
  */
 
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 
 /**
  * Formats a node's display name for the log view.
@@ -57,19 +57,6 @@ export function formatRelativeTime(ms: number, showMs = false): string {
   }
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-/**
- * Formats depth as a visual indicator.
- *
- * @param depth - Tree depth (0 for root observations)
- * @returns Formatted depth string or empty for depth 0
- */
-export function formatDepthIndicator(depth: number): string {
-  if (depth <= 0) {
-    return "";
-  }
-  return `L${depth}`;
 }
 
 /**

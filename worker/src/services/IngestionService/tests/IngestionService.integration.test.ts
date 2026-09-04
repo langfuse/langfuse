@@ -139,7 +139,7 @@ describe("Ingestion end-to-end tests", () => {
     const secondSpanId = randomUUID();
     const wireStartTimeA = "2026-01-01T12:00:00.123456Z";
     const wireStartTimeB = "2026-01-01T12:00:00.123789Z";
-    const normalizedStartTime = Date.parse(wireStartTimeA) * 1000;
+    const normalizedStartTime = "2026-01-01 12:00:00.123";
 
     const eventRecords = await Promise.all(
       [
@@ -169,9 +169,6 @@ describe("Ingestion end-to-end tests", () => {
       normalizedStartTime,
       normalizedStartTime,
     ]);
-    expect(eventRecords.every((record) => record.start_time % 1000 === 0)).toBe(
-      true,
-    );
 
     await Promise.all(
       eventRecords.map((record) => ingestionService.writeEventRecord(record)),
@@ -2573,6 +2570,188 @@ describe("Ingestion end-to-end tests", () => {
   });
 
   describe("Tiered Pricing", () => {
+    it("applies an exact model parameter tier to direct event writes", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+      const modelName = `priority-tier-${randomUUID()}`;
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: `(?i)^(${modelName})$`,
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.000005, modelId },
+                    { usageType: "output", price: 0.00003, modelId },
+                  ],
+                },
+              },
+              {
+                name: "Priority",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    source: "model_parameters",
+                    key: "service_tier",
+                    operator: "in",
+                    values: ["priority"],
+                  },
+                ],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.0000125, modelId },
+                    { usageType: "output", price: 0.000075, modelId },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const eventRecord = await ingestionService.createEventRecord(
+        {
+          projectId,
+          traceId,
+          spanId: generationId,
+          name: "priority-generation",
+          type: "GENERATION",
+          environment,
+          startTimeISO: new Date().toISOString(),
+          modelName,
+          modelParameters: { service_tier: "priority" },
+          metadata: {},
+          providedUsageDetails: { input: 12, output: 21 },
+          source: "otel",
+        },
+        `otel/${projectId}/priority-generation.json`,
+      );
+
+      expect(eventRecord.usage_pricing_tier_name).toBe("Priority");
+      expect(eventRecord.cost_details.total).toBeCloseTo(0.001725, 9);
+    });
+
+    it("applies exact attribute tiers from a legacy usage event", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+      const modelName = `legacy-priority-tier-${randomUUID()}`;
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: `(?i)^(${modelName})$`,
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.000005, modelId },
+                    { usageType: "output", price: 0.00003, modelId },
+                  ],
+                },
+              },
+              {
+                name: "Priority US",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    source: "model_parameters",
+                    key: "service_tier",
+                    operator: "in",
+                    values: ["priority"],
+                  },
+                  {
+                    source: "metadata",
+                    key: "region",
+                    operator: "in",
+                    values: ["us"],
+                  },
+                ],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.0000125, modelId },
+                    { usageType: "output", price: 0.000075, modelId },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const observationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: "generation-create",
+          body: {
+            id: generationId,
+            traceId,
+            name: "legacy-priority-generation",
+            startTime: new Date().toISOString(),
+            model: modelName,
+            environment,
+          },
+        },
+        {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: "generation-update",
+          body: {
+            id: generationId,
+            traceId,
+            usage: {
+              input: 12,
+              output: 21,
+              unit: ModelUsageUnit.Tokens,
+            },
+            modelParameters: { service_tier: "priority" },
+            metadata: { region: "us" },
+            environment,
+          },
+        },
+      ];
+
+      await ingestionService.processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList,
+      });
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      expect(generation.usage_pricing_tier_name).toBe("Priority US");
+      expect(generation.cost_details.total).toBeCloseTo(0.001725, 9);
+    });
+
     it("should apply default tier for usage below threshold (Anthropic Claude example)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();

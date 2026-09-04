@@ -6,8 +6,7 @@ import {
   type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
-import { type CloudConfigSchema } from "@langfuse/shared";
-import { type Plan } from "@langfuse/shared";
+import { type CloudConfigSchema, type Plan } from "@langfuse/shared";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -27,6 +26,12 @@ declare module "next-auth" {
           admin?: PrismaUser["admin"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
+          // Whether this deployment shows the v4 migration UI (sidebar pill,
+          // organization-overview chips and banner, panel, status page). Derived
+          // from the write mode in the session callback — see
+          // isV4UpgradeUiAvailable. This is the gate every migration surface
+          // reads, via useV4UpgradeUiEnabled; there is no per-user opt-in.
+          v4UpgradeUiAvailable?: boolean;
           emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
           canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
           organizations: {
@@ -38,6 +43,7 @@ declare module "next-auth" {
             metadata: Record<string, unknown>;
             aiFeaturesEnabled: boolean;
             aiTelemetryEnabled: boolean;
+            featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
               name: PrismaProject["name"];
@@ -57,6 +63,13 @@ declare module "next-auth" {
     environment: {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
+      // Instance-wide in-app agent switch. Populated by the session callback.
+      // Optional so existing session mocks need not set it.
+      inAppAgentEnabled?: boolean;
+      // Whether LANGFUSE_AI_FEATURES_PROJECT_ID is set, so Cloud orgs can
+      // opt out of product traces. Optional so existing session mocks need
+      // not set it.
+      aiFeaturesTracingConfigured?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
       // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the

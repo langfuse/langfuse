@@ -9,9 +9,12 @@ import {
 import { type NextRouter, useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { StringParam, type UrlUpdateType } from "use-query-params";
+import {
+  StringParam,
+  type UrlUpdateType,
+  useQueryParam,
+} from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useQueryParam } from "use-query-params";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
@@ -23,7 +26,7 @@ import type { FilterStateMigration } from "@/src/features/filters/lib/filter-con
 /** How a saved view / preset apply was initiated — the `trigger` analytics
  * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
  * v4 category-chip toggle-off (applies the cleared/default state). */
-export type SavedViewApplyTrigger =
+type SavedViewApplyTrigger =
   | "select"
   | "permalink"
   | "default"
@@ -34,11 +37,6 @@ export type SavedViewApplyMeta = {
   trigger: SavedViewApplyTrigger;
   viewId?: string | null;
 };
-
-export type ApplyViewStateFn = (
-  viewData: TableViewPresetState,
-  meta?: SavedViewApplyMeta,
-) => void;
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
@@ -234,25 +232,30 @@ export function useTableViewManager({
       return;
     }
 
+    // Resolve the default before restoring session state so a stored default
+    // can use replace semantics.
+    if (isDefaultLoading) return;
+
     // Priority 1: Session storage (from a previous visit to this table)
     if (
       storedViewId &&
       (!isSystemPresetId(storedViewId) || allowBackendSystemPresets)
     ) {
-      setSelectedViewId(storedViewId);
+      setSelectedViewId(
+        storedViewId,
+        storedViewId === defaultViewId ? "replaceIn" : undefined,
+      );
       return;
     }
 
-    // Priority 2: Default view (wait for query to resolve)
-    if (isDefaultLoading) return;
-
+    // Priority 2: Default view
     if (defaultViewId) {
       if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
         handleSetViewId(null, { updateType: "replaceIn" });
         return;
       }
       setStoredViewId(defaultViewId);
-      setSelectedViewId(defaultViewId);
+      setSelectedViewId(defaultViewId, "replaceIn");
       return;
     }
 
@@ -484,10 +487,19 @@ export function useTableViewManager({
     // restore, and the resolved default view. Classify as "default" when the
     // applied view is the resolved default, else treat as a "permalink"
     // (deep-link / session-restore) entry (LFE-10781).
+    const isResolvedDefault = requestedViewId === defaultViewId;
     applyViewState(selectedViewData, {
-      trigger: requestedViewId === defaultViewId ? "default" : "permalink",
+      trigger: isResolvedDefault ? "default" : "permalink",
       viewId: requestedViewId,
     });
+    // Query-param writes are batched by the app provider, and the final
+    // setter's update type controls the single navigation. Re-setting the
+    // already-selected default viewId last therefore folds all synchronous
+    // saved-view state writes (filters/order/search) into the current history
+    // entry without changing deliberate view selections, which still push.
+    if (isResolvedDefault) {
+      setSelectedViewId(requestedViewId, "replaceIn");
+    }
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }
@@ -505,6 +517,7 @@ export function useTableViewManager({
     applyViewState,
     storedViewId,
     setStoredViewId,
+    setSelectedViewId,
     defaultViewId,
     isDefaultLoading,
   ]);

@@ -42,13 +42,13 @@ export const LangfuseLogo = ({
     <div className="flex items-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        className="-ml-1.5 max-h-6 max-w-22 group-data-[collapsible=icon]:hidden dark:hidden"
+        className="-ml-1.5 h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:hidden"
         src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
         alt="Langfuse Logo"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        className="-ml-1.5 hidden max-h-6 max-w-22 group-data-[collapsible=icon]:hidden dark:block"
+        className="-ml-1.5 hidden h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:block"
         src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
         alt="Langfuse Logo"
       />

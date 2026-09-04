@@ -346,8 +346,7 @@ const AddAutomationDropdown = ({
               <DialogHeader>
                 <DialogTitle>New automation</DialogTitle>
                 <DialogDescription>
-                  This automation stays available to every monitor in the
-                  project.
+                  This automation stays available to every alert in the project.
                 </DialogDescription>
               </DialogHeader>
               <DialogBody>

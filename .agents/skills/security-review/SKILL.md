@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Review Langfuse changes for SSRF, tenant isolation, secret handling, unsafe redirects or uploads, and RBAC drift. Use when a design or change accepts URLs or host fields, handles secrets or cross-tenant data, makes outbound requests, adds an integration, follows redirects, or widens permissions.
+description: Review Langfuse changes for SSRF, tenant isolation, secret handling, unsafe redirects or uploads, RBAC drift, and client telemetry privacy. Use when a design or change accepts URLs or host fields, handles secrets or cross-tenant data, makes outbound requests, adds an integration, follows redirects, widens permissions, or can send customer-controlled UI data through analytics, monitoring, or session replay.
 ---
 
 # Security Review
@@ -25,6 +25,8 @@ Apply this skill when the change touches any of:
 - secrets, API keys, signing secrets, or encryption-at-rest fields
 - redirect-following or cross-origin header handling
 - file uploads, image proxies, or other binary data flowing in or out
+- product analytics, browser monitoring, session replay, or another client-side
+  telemetry path that can transmit customer-controlled content
 
 Apply this skill during **plan mode** when designing a new integration so the
 correct validation surfaces land in the plan, not in a follow-up CVE.
@@ -35,9 +37,11 @@ correct validation surfaces land in the plan, not in a follow-up CVE.
    sweep against the change.
 2. For each bullet that fires, open the matching topic reference.
 
-| Topic | Open when | File |
-| --- | --- | --- |
-| SSRF and outbound URL validation | The change accepts or fetches a user-supplied URL, host, or endpoint | [references/outbound-url-validation.md](references/outbound-url-validation.md) |
+| Topic                               | Open when                                                                                              | File                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| SSRF and outbound URL validation    | The change accepts or fetches a user-supplied URL, host, or endpoint                                   | [references/outbound-url-validation.md](references/outbound-url-validation.md)   |
+| Secret read paths                   | The change shapes what a read route returns for an entity or config blob that also stores a credential | [references/secret-read-paths.md](references/secret-read-paths.md)               |
+| Client telemetry and session replay | The change records DOM, browser state, events, logs, or network data in a third-party system           | [references/client-telemetry-privacy.md](references/client-telemetry-privacy.md) |
 
 The catalog is intentionally short today. New topic files are added as new
 finding classes recur (see "Extending This Skill").
@@ -83,7 +87,6 @@ pointing at the new topic file, and add a row to the table above.
 Candidates for future references (do not add until a real finding recurs):
 
 - Tenant isolation (`projectId` filters across Prisma and ClickHouse)
-- Secret handling and encryption-at-rest read paths
 - Redirect mishandling and sensitive-header propagation
 - File upload validation and content-type sniffing
 - RBAC scope drift on new tRPC/public API endpoints

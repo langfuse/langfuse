@@ -28,7 +28,7 @@ describe("project API keys trpc", () => {
   async function createProjectCaller(
     projectRole: "ADMIN" | "MEMBER" = "ADMIN",
   ) {
-    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    const { projectId, orgId, publicKey } = await createOrgProjectAndApiKey();
 
     const session: Session = {
       expires: "1",
@@ -76,7 +76,7 @@ describe("project API keys trpc", () => {
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
 
-    return { caller, projectId };
+    return { caller, projectId, publicKey };
   }
 
   describe("projectApiKeys.byProjectId", () => {
@@ -97,6 +97,17 @@ describe("project API keys trpc", () => {
       expect(apiKeys.map((key) => key.note)).not.toContain(
         "In-app agent key hidden from project UI",
       );
+    });
+
+    // The settings page gates the list view on apiKeys:read, which MEMBERs
+    // hold without apiKeys:CUD. Pin that this read path stays open to them.
+    it("lists keys for MEMBER callers, who only hold apiKeys:read", async () => {
+      const { caller, projectId, publicKey } =
+        await createProjectCaller("MEMBER");
+
+      const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
+
+      expect(apiKeys.map((key) => key.publicKey)).toContain(publicKey);
     });
   });
 

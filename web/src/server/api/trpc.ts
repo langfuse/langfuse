@@ -65,7 +65,6 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 
   addUserToSpan({
     userId: session?.user?.id,
-    email: session?.user?.email ?? undefined,
   });
 
   return createInnerTRPCContext({ session, headers });
@@ -95,7 +94,7 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
-import { type Flag } from "@/src/features/feature-flags/types";
+import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
 
@@ -249,6 +248,12 @@ const withOtelTracingProcedure = t.procedure
 
 export const publicProcedure = withOtelTracingProcedure.use(withErrorHandling);
 
+/**
+ * Public procedure for secret-bearing inputs such as passwords and OTPs.
+ * Unlike `publicProcedure`, its input and result are not collected in traces.
+ */
+export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
+
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
@@ -281,6 +286,14 @@ export const protectedProcedureWithoutTracing = t.procedure
 const inputProjectSchema = z.object({
   projectId: z.string(),
 });
+
+const trackPosthogActivity = (
+  activity: Parameters<typeof recordBackendActivity>[0],
+) => {
+  recordBackendActivity(activity).catch((error) => {
+    logger.warn("Failed to track PostHog activity", { error });
+  });
+};
 
 /**
  * Protected (authenticated) procedure with project role
@@ -332,6 +345,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         projectId,
         orgId: dbProject.orgId,
       });
+      trackPosthogActivity({
+        userId: ctx.session.user.id,
+        organizationId: dbProject.orgId,
+        projectId,
+      });
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -362,6 +380,12 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
+  trackPosthogActivity({
+    userId: ctx.session.user.id,
+    organizationId: sessionProject.organization.id,
+    projectId,
+  });
+
   return next({
     ctx: {
       // infers the `session` as non-nullable
@@ -380,31 +404,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
-
-/** requireFeatureFlag gates a procedure behind a server-side feature flag. */
-export const requireFeatureFlag = (flag: Flag) =>
-  t.middleware(({ ctx, next }) => {
-    const session = ctx.session;
-    const enabled =
-      (session?.user?.featureFlags?.[flag] ?? false) ||
-      (session?.user?.admin ?? false) ||
-      (session?.environment?.enableExperimentalFeatures ?? false);
-    if (!enabled) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `Feature "${flag}" is not enabled for this user`,
-      });
-    }
-    return next();
-  });
-
-/** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
-export const requireLangfuseCloud = t.middleware(({ next }) => {
-  if (!isLangfuseCloud) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
-  }
-  return next();
-});
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
 export const requireV4Writes = t.middleware(({ next }) => {
@@ -456,6 +455,11 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
       orgId,
     });
   }
+
+  trackPosthogActivity({
+    userId: ctx.session.user.id,
+    organizationId: orgId,
+  });
 
   return next({
     ctx: {
@@ -772,13 +776,10 @@ export const adminProcedure = withOtelTracingProcedure
 
 // Export context types for easier reuse
 // Base context from createTRPCContext
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 // After `enforceUserIsAuthed`: session & user are non-null
 export type AuthedSession = NonNullable<TRPCContext["session"]> & {
   user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
-};
-export type AuthedContext = Omit<TRPCContext, "session"> & {
-  session: AuthedSession;
 };
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {

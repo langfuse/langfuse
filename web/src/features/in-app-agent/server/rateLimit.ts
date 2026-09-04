@@ -9,15 +9,15 @@ import {
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { RateLimitService } from "@/src/features/public-api/server";
 
 type SessionUser = NonNullable<Session["user"]>;
 
 /**
  * Build the org-scoped rate-limit scope for an in-app agent request.
  *
- * Shared by the foreground route and the background `startRun` mutation so a
- * user cannot bypass the cap by submitting through the other path.
+ * Used by `startRun` to build the same org-scoped API access shape as other
+ * authenticated project requests.
  *
  * TODO: this bucket is org-scoped only; a per-user submission cap needs the
  * rate-limit service to support non-org keys. Concurrency is capped per user by
@@ -68,7 +68,7 @@ export function getInAppAgentApiAccessScope(
   };
 }
 
-export async function checkInAppAgentRateLimit(
+async function checkInAppAgentRateLimit(
   scope: ApiAccessScope,
   resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
 ): Promise<RateLimitResult | undefined> {

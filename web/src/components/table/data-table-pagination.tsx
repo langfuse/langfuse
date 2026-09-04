@@ -107,23 +107,25 @@ export function DataTablePagination<TData>({
     setInputState(newPageIndex + 1);
   };
 
+  // Viewport md/lg breakpoints follow the window, not a split pane, so a
+  // wide screen with a ~400px detail table used to wrap "Page N of M" away
+  // from the nav buttons. Size chrome off this bar's own width instead.
+  const totalCountClassName =
+    "text-muted-foreground hidden text-sm font-normal whitespace-nowrap @min-[640px]/pagination:inline-flex @min-[640px]/pagination:items-center";
+
   return (
-    <div className="flex items-center justify-between">
-      <div className="text-muted-foreground flex-1 text-sm">
-        {/* {table.getFilteredSelectedRowModel().rows.length} of{" "}
-        {table.getFilteredRowModel().rows.length} row(s) selected. */}
-      </div>
-      <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
+    <div className="@container/pagination flex w-full min-w-0 items-center justify-end">
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2 @min-[520px]/pagination:gap-x-6 @min-[720px]/pagination:gap-x-8">
         {showExactTotal ? (
           // Result fits on the loaded page(s) — the total is exact, no estimate.
-          <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+          <span className={totalCountClassName}>
             Total&nbsp;{compactNumberFormatter(exactTotal)}
           </span>
         ) : showApproxTotal ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+                <span className={totalCountClassName}>
                   Total&nbsp;≈&nbsp;
                   {approxTotalCount != null ? (
                     compactNumberFormatter(approxTotalCount)
@@ -160,9 +162,11 @@ export function DataTablePagination<TData>({
             </Tooltip>
           </TooltipProvider>
         ) : null}
-        <div className="flex items-center space-x-2">
-          <p className="text-sm font-bold whitespace-nowrap md:hidden">Rows</p>
-          <p className="hidden text-sm font-bold whitespace-nowrap md:block">
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="text-sm font-bold whitespace-nowrap @min-[440px]/pagination:hidden">
+            Rows
+          </p>
+          <p className="hidden text-sm font-bold whitespace-nowrap @min-[440px]/pagination:block">
             Rows per page
           </p>
           <Select
@@ -186,120 +190,122 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-center gap-1 text-sm font-bold whitespace-nowrap">
-          {table.getPageCount() !== -1 ? (
-            <>
-              Page
-              {canJumpPages && (
-                <Input
-                  type="number"
-                  min={1}
-                  max={pageCount}
-                  value={inputState} // Ensure the value is within bounds
-                  onChange={(e) => {
-                    setInputState(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handlePageNavigation(e.currentTarget.value);
-                    }
-                  }}
-                  onBlur={(e) => {
-                    handlePageNavigation(e.target.value);
-                  }}
-                  className="h-8 appearance-none"
-                  style={{
-                    width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
-                  }}
-                />
-              )}
-              {!canJumpPages && <span>{currentPage}</span>}
-            </>
-          ) : (
-            `Page ${currentPage}`
-          )}
-          {!hideTotalCount && (
-            <>
-              {pageCount !== -1 ? (
-                <span>of {pageCount}</span>
-              ) : (
-                <span>
-                  of{" "}
-                  {isLoading ? (
-                    <span className="ml-1 inline-flex align-middle">
-                      <Spinner size="xxs" variant="muted" display="inline" />
-                    </span>
-                  ) : (
-                    1
-                  )}
-                </span>
-              )}
-            </>
-          )}
-        </div>
+        <div className="flex shrink-0 flex-nowrap items-center gap-x-4 @min-[520px]/pagination:gap-x-6">
+          <div className="flex items-center justify-center gap-1 text-sm font-bold whitespace-nowrap">
+            {table.getPageCount() !== -1 ? (
+              <>
+                Page
+                {canJumpPages && (
+                  <Input
+                    type="number"
+                    min={1}
+                    max={pageCount}
+                    value={inputState} // Ensure the value is within bounds
+                    onChange={(e) => {
+                      setInputState(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handlePageNavigation(e.currentTarget.value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      handlePageNavigation(e.target.value);
+                    }}
+                    className="h-8 appearance-none"
+                    style={{
+                      width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
+                    }}
+                  />
+                )}
+                {!canJumpPages && <span>{currentPage}</span>}
+              </>
+            ) : (
+              `Page ${currentPage}`
+            )}
+            {!hideTotalCount && (
+              <>
+                {pageCount !== -1 ? (
+                  <span>of {pageCount}</span>
+                ) : (
+                  <span>
+                    of{" "}
+                    {isLoading ? (
+                      <span className="ml-1 inline-flex align-middle">
+                        <Spinner size="xxs" variant="muted" display="inline" />
+                      </span>
+                    ) : (
+                      1
+                    )}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
 
-        <div className="flex items-center space-x-2">
-          {canJumpPages && (
+          <div className="flex items-center gap-2">
+            {canJumpPages && (
+              <Button
+                variant="outline"
+                className="hidden h-8 w-8 p-0 @min-[560px]/pagination:flex"
+                onClick={() => {
+                  table.setPageIndex(0);
+                  capture("table:pagination_button_click", {
+                    type: "firstPage",
+                  });
+                }}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <span className="sr-only">Go to first page</span>
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="outline"
-              className="hidden h-8 w-8 p-0 lg:flex"
+              className="h-8 w-8 p-0"
               onClick={() => {
-                table.setPageIndex(0);
+                table.previousPage();
                 capture("table:pagination_button_click", {
-                  type: "firstPage",
+                  type: "previousPage",
                 });
               }}
               disabled={!table.getCanPreviousPage()}
             >
-              <span className="sr-only">Go to first page</span>
-              <ChevronsLeft className="h-4 w-4" />
+              <span className="sr-only">Go to previous page</span>
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-          )}
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              table.previousPage();
-              capture("table:pagination_button_click", {
-                type: "previousPage",
-              });
-            }}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <span className="sr-only">Go to previous page</span>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              table.nextPage();
-              capture("table:pagination_button_click", {
-                type: "nextPage",
-              });
-            }}
-            disabled={!table.getCanNextPage() || pageCount === -1}
-          >
-            <span className="sr-only">Go to next page</span>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          {canJumpPages && (
             <Button
               variant="outline"
-              className="hidden h-8 w-8 p-0 lg:flex"
+              className="h-8 w-8 p-0"
               onClick={() => {
-                table.setPageIndex(pageCount - 1);
+                table.nextPage();
                 capture("table:pagination_button_click", {
-                  type: "lastPage",
+                  type: "nextPage",
                 });
               }}
               disabled={!table.getCanNextPage() || pageCount === -1}
             >
-              <span className="sr-only">Go to last page</span>
-              <ChevronsRight className="h-4 w-4" />
+              <span className="sr-only">Go to next page</span>
+              <ChevronRight className="h-4 w-4" />
             </Button>
-          )}
+            {canJumpPages && (
+              <Button
+                variant="outline"
+                className="hidden h-8 w-8 p-0 @min-[560px]/pagination:flex"
+                onClick={() => {
+                  table.setPageIndex(pageCount - 1);
+                  capture("table:pagination_button_click", {
+                    type: "lastPage",
+                  });
+                }}
+                disabled={!table.getCanNextPage() || pageCount === -1}
+              >
+                <span className="sr-only">Go to last page</span>
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

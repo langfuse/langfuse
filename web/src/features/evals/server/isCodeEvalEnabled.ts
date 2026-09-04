@@ -44,6 +44,13 @@ export function isCodeEvalEnabled(): boolean {
   return getCodeEvalCapabilities().enabled;
 }
 
+/** Empty when code evals are disabled, so callers can filter on it directly. */
+export function getSupportedCodeEvalTemplateLanguages(): EvalTemplateSourceCodeLanguage[] {
+  const capabilities = getCodeEvalCapabilities();
+
+  return capabilities.enabled ? capabilities.supportedSourceCodeLanguages : [];
+}
+
 export function isCodeEvalSourceCodeLanguageSupported(
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null | undefined,
 ): boolean {

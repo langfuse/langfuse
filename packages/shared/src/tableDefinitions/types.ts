@@ -64,6 +64,8 @@ export type ColumnDefinition =
       step?: number;
       /** Minimum value for number inputs. */
       min?: number;
+      /** Optional suggestions whose values are persisted while displayValue is rendered. */
+      options?: Array<SingleValueOption>;
     }
   | {
       name: string;
@@ -121,8 +123,8 @@ export const tableNames = [
   "sessions",
   "prompts",
   "users",
-  "job_configurations",
   "job_executions",
+  "evaluation_rules",
   "dataset_items",
   "annotation_queue_assignments",
   "dataset_item_events",

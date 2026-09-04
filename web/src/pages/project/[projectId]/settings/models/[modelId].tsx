@@ -14,7 +14,7 @@ import { TestModelMatchButton } from "@/src/features/models/components/test-matc
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
@@ -35,7 +35,17 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { useEffect } from "react";
+
+const resolvePricingTier = <T extends { id: string }>(
+  tiers: T[],
+  selectedTierId: string | null,
+  defaultTier: T | null,
+): T | null => {
+  if (selectedTierId) {
+    return tiers.find((tier) => tier.id === selectedTierId) ?? defaultTier;
+  }
+  return defaultTier;
+};
 
 export default function ModelDetailPage() {
   const router = useRouter();
@@ -59,31 +69,18 @@ export default function ModelDetailPage() {
     return model.pricingTiers.find((t) => t.isDefault) || model.pricingTiers[0];
   }, [model?.pricingTiers]);
 
-  // State for selected pricing tier - initialize from URL param
-  const [selectedTierId, setSelectedTierId] = useState<string | null>(
-    pricingTierParam ?? null,
-  );
-
-  // Sync with URL parameter when it changes
-  useEffect(() => {
-    if (pricingTierParam && model?.pricingTiers) {
-      const tierExists = model.pricingTiers.some(
-        (t) => t.id === pricingTierParam,
-      );
-      if (tierExists) {
-        setSelectedTierId(pricingTierParam);
-      }
-    }
-  }, [pricingTierParam, model?.pricingTiers]);
+  // Keep user selection local and derive the initial linked tier during render.
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
 
   // Get the active tier (selected or default)
   const activeTier = useMemo(() => {
     if (!model?.pricingTiers) return null;
-    if (selectedTierId) {
-      return model.pricingTiers.find((t) => t.id === selectedTierId) || null;
-    }
-    return defaultTier;
-  }, [model?.pricingTiers, selectedTierId, defaultTier]);
+    return resolvePricingTier(
+      model.pricingTiers,
+      selectedTierId ?? pricingTierParam ?? null,
+      defaultTier,
+    );
+  }, [model?.pricingTiers, selectedTierId, pricingTierParam, defaultTier]);
 
   const maxDecimals = useMemo(
     () =>
@@ -300,7 +297,7 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-2">
+        <Card className="col-span-2 min-w-0">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Model observations</span>
@@ -315,8 +312,8 @@ export default function ModelDetailPage() {
               </Button>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex max-h-[calc(100vh-20rem)] flex-col">
+          <CardContent className="min-w-0">
+            <div className="flex h-[calc(100vh-20rem)] min-h-0 min-w-0 flex-col overflow-hidden">
               <Generations
                 projectId={projectId}
                 omittedFilter={["model"]}

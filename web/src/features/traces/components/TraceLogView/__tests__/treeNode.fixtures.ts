@@ -1,4 +1,4 @@
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 
 /** Creates a minimal TreeNode for testing. */
 export function createNode(

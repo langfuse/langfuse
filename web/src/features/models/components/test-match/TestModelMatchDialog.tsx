@@ -12,6 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { UsageDetailsEditor } from "./UsageDetailsEditor";
+import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
@@ -26,6 +27,9 @@ type TestModelMatchDialogProps = {
 
 export type { TestModelMatchDialogProps };
 
+const validStringMap = (entries: Array<[string, string]>) =>
+  Object.fromEntries(entries.filter(([key]) => key.trim().length > 0));
+
 export function TestModelMatchDialog({
   projectId,
   open,
@@ -33,7 +37,15 @@ export function TestModelMatchDialog({
 }: TestModelMatchDialogProps) {
   const [modelName, setModelName] = useState("");
   const [usageDetails, setUsageDetails] = useState<Record<string, number>>({});
+  const [modelParameterEntries, setModelParameterEntries] = useState<
+    Array<[string, string]>
+  >([]);
+  const [metadataEntries, setMetadataEntries] = useState<
+    Array<[string, string]>
+  >([]);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const modelParameters = validStringMap(modelParameterEntries);
+  const metadata = validStringMap(metadataEntries);
 
   // Query for match result - only enabled after submit
   const { data, isLoading, error, refetch } = api.models.testMatch.useQuery(
@@ -41,6 +53,8 @@ export function TestModelMatchDialog({
       projectId,
       modelName,
       usageDetails,
+      modelParameters,
+      metadata,
     },
     {
       enabled: false, // Manual trigger only
@@ -61,6 +75,8 @@ export function TestModelMatchDialog({
     if (!open) {
       setModelName("");
       setUsageDetails({});
+      setModelParameterEntries([]);
+      setMetadataEntries([]);
       setHasSubmitted(false);
     }
   }, [open]);
@@ -100,6 +116,20 @@ export function TestModelMatchDialog({
                 <UsageDetailsEditor
                   usageDetails={usageDetails}
                   onChange={setUsageDetails}
+                />
+
+                <StringMapEditor
+                  title="Model Parameters"
+                  description="Add top-level model parameters used by pricing tier conditions."
+                  entries={modelParameterEntries}
+                  onChange={setModelParameterEntries}
+                />
+
+                <StringMapEditor
+                  title="Metadata"
+                  description="Add top-level metadata used by pricing tier conditions."
+                  entries={metadataEntries}
+                  onChange={setMetadataEntries}
                 />
               </div>
 

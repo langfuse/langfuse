@@ -5,35 +5,7 @@ import {
 import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
-import { API_KEY_CACHE_KEY_PREFIX } from "../auth/apiKeyCache";
 import { logger } from "../logger";
-
-// type CallbackFn<T> = () => T;
-
-/**
- * IORedis request hook that records the full Redis command as a span attribute.
- * Redacts credentials from AUTH/HELLO and values from API key cache operations.
- */
-export function ioredisRequestHook(
-  span: opentelemetry.Span,
-  { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
-): void {
-  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
-  const cmd = cmdName.toUpperCase();
-  // AUTH and HELLO carry raw credentials — redact all args
-  if (cmd === "AUTH" || cmd === "HELLO") {
-    span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);
-    return;
-  }
-  const args = [...cmdArgs].map(String);
-  // Redact API key cache values.
-  if (args[0]?.includes(API_KEY_CACHE_KEY_PREFIX)) {
-    for (let i = 1; i < args.length; i++) {
-      args[i] = "[REDACTED]";
-    }
-  }
-  span.setAttribute("redis.full_command", `${cmdName} ${args.join(" ")}`);
-}
 
 export type TCarrier = {
   traceparent?: string;
@@ -210,7 +182,6 @@ export const addUserToSpan = (
   attributes: {
     userId?: string;
     projectId?: string;
-    email?: string;
     orgId?: string;
     plan?: string;
     apiKeyId?: string;
@@ -234,12 +205,6 @@ export const addUserToSpan = (
       value: attributes.userId,
     });
     activeSpan.setAttribute("user.id", attributes.userId);
-  }
-  if (attributes.email) {
-    baggage = baggage.setEntry("user.email", {
-      value: attributes.email,
-    });
-    activeSpan.setAttribute("user.email", attributes.email);
   }
   if (attributes.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {

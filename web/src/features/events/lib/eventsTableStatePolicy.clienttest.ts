@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 
 describe("getEventsTableStatePolicy", () => {

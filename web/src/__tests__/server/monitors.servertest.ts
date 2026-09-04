@@ -9,11 +9,10 @@ vi.hoisted(() => {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import { type Role } from "@langfuse/shared/src/db";
 import {
   MonitorNoDataModeSchema,
   MonitorSeveritySchema,
@@ -168,6 +167,118 @@ describe("monitors trpc", () => {
       expect(list.monitors.map((m) => m.id)).toContain(created.id);
     });
 
+    it("does not suggest a title when AI features are unavailable", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.monitors.suggestName({
+          projectId: project.id,
+          description: "Count of observations is above 100",
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it.each([
+      {
+        name: "equals",
+        filter: {
+          column: "evaluatorId",
+          type: "string" as const,
+          operator: "=" as const,
+          value: "evaluator-1",
+        },
+      },
+      {
+        name: "contains",
+        filter: {
+          column: "evaluatorId",
+          type: "string" as const,
+          operator: "contains" as const,
+          value: "valuator-1",
+        },
+      },
+      {
+        name: "starts with",
+        filter: {
+          column: "evaluatorId",
+          type: "string" as const,
+          operator: "starts with" as const,
+          value: "evaluator-",
+        },
+      },
+      {
+        name: "any of",
+        filter: {
+          column: "evaluatorId",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["evaluator-2", "evaluator-1"],
+        },
+      },
+    ])(
+      "returns alerts whose $name filter matches the evaluator id",
+      async ({ name, filter }) => {
+        const { project, caller } = await prepare();
+        const monitor = await caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: `${name} evaluator`,
+          filters: [filter],
+        });
+
+        const linked = await caller.monitors.linkedEvaluatorAlerts({
+          projectId: project.id,
+          evaluatorId: "evaluator-1",
+        });
+
+        expect(linked.data.map(({ id }) => id)).toEqual([monitor.id]);
+        expect(linked.hasMore).toBe(false);
+      },
+    );
+
+    it("returns aggregate evaluator spend alerts", async () => {
+      const { project, caller } = await prepare();
+
+      const aggregate = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "All evaluator spend",
+        metric: { measure: "totalCost", aggregation: "sum" },
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "string",
+            operator: "is not empty",
+            value: "",
+          },
+          {
+            column: "isEvaluatorTest",
+            type: "boolean",
+            operator: "=",
+            value: false,
+          },
+        ],
+      });
+
+      await expect(
+        caller.monitors.linkedAllEvaluatorSpendAlerts({
+          projectId: project.id,
+        }),
+      ).resolves.toEqual({
+        data: [
+          {
+            id: aggregate.id,
+            name: "All evaluator spend",
+            status: MonitorStatusSchema.enum.ACTIVE,
+            severity: MonitorSeveritySchema.enum.UNKNOWN,
+            metric: { measure: "totalCost", aggregation: "sum" },
+            thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
+            alertThreshold: 100,
+            alertedAt: null,
+          },
+        ],
+        hasMore: false,
+      });
+    });
+
     it("returns ERROR_BAD_QUERY monitors verbatim (scheduler-owned status survives a read)", async () => {
       const { project, caller } = await prepare();
 
@@ -199,7 +310,7 @@ describe("monitors trpc", () => {
       ).rejects.toThrow(/access/i);
     });
 
-    it("allows monitors.create from MEMBER role (monitors:CUD)", async () => {
+    it("allows monitors.create from MEMBER role (alerts:CUD)", async () => {
       const { project, caller } = await prepare({ projectRole: "MEMBER" });
 
       const created = await caller.monitors.create(
@@ -208,7 +319,7 @@ describe("monitors trpc", () => {
       expect(created.id).toBeDefined();
     });
 
-    it("allows monitors.all from VIEWER role (read-only scope)", async () => {
+    it("allows monitor reads from VIEWER role (read-only scope)", async () => {
       const { project, caller } = await prepare({ projectRole: "VIEWER" });
 
       const list = await caller.monitors.all({
@@ -217,7 +328,16 @@ describe("monitors trpc", () => {
         page: 1,
         limit: 50,
       });
+      const linkedAlerts = await caller.monitors.linkedEvaluatorAlerts({
+        projectId: project.id,
+        evaluatorId: "evaluator-1",
+      });
+      const spendAlerts = await caller.monitors.linkedAllEvaluatorSpendAlerts({
+        projectId: project.id,
+      });
       expect(list.totalCount).toBe(0);
+      expect(linkedAlerts).toEqual({ data: [], hasMore: false });
+      expect(spendAlerts).toEqual({ data: [], hasMore: false });
     });
   });
 
@@ -416,12 +536,38 @@ describe("monitors trpc", () => {
       expect(result.monitors.map((m) => m.name)).toEqual(["Tagged"]);
     });
 
-    it("filterOptions returns distinct tags for the project", async () => {
+    it("filterOptions returns tags and evaluators with specific alerts", async () => {
       const { project, caller } = await prepare();
+      const linkedEvaluatorId = v4();
+      const unlinkedEvaluatorId = v4();
+      await prisma.evaluator.createMany({
+        data: [
+          {
+            id: linkedEvaluatorId,
+            projectId: project.id,
+            name: "Linked evaluator",
+            type: "CODE",
+          },
+          {
+            id: unlinkedEvaluatorId,
+            projectId: project.id,
+            name: "Unlinked evaluator",
+            type: "CODE",
+          },
+        ],
+      });
       await caller.monitors.create({
         ...validMonitorInput(project.id),
         name: "A",
         tags: ["prod", "latency"],
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "string",
+            operator: "contains",
+            value: linkedEvaluatorId.slice(1, -1),
+          },
+        ],
       });
       await caller.monitors.create({
         ...validMonitorInput(project.id),
@@ -433,6 +579,25 @@ describe("monitors trpc", () => {
         projectId: project.id,
       });
       expect(opts.tags.map((t) => t.value).sort()).toEqual(["latency", "prod"]);
+      expect(opts.evaluators).toEqual([
+        { value: linkedEvaluatorId, displayValue: "Linked evaluator" },
+      ]);
+
+      const filtered = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "evaluatorId",
+            operator: "any of",
+            value: [linkedEvaluatorId],
+          },
+        ],
+      });
+      expect(filtered.monitors.map((monitor) => monitor.name)).toEqual(["A"]);
     });
   });
 
@@ -456,6 +621,38 @@ describe("monitors trpc", () => {
         }),
       ).rejects.toThrow(/monitor-count/i);
     });
+
+    it("does not admit more monitors than the limit under concurrent requests", async () => {
+      // Counting outside a transaction lets concurrent requests all observe
+      // the same pre-insert count and all pass the check, so the limit only
+      // holds if the count-check-create sequence is serialized.
+      const { project, caller } = await prepare();
+      // Seed up to one seat below the limit, so exactly one of the concurrent
+      // requests may succeed — otherwise a race that admits `monitorLimit`
+      // rows would satisfy the limit by coincidence.
+      await seedMonitors(caller, project.id, monitorLimit - 1);
+
+      const results = await Promise.allSettled(
+        Array.from({ length: 5 }, (_, i) =>
+          caller.monitors.create({
+            ...validMonitorInput(project.id),
+            name: `Concurrent monitor ${i + 1}`,
+          }),
+        ),
+      );
+
+      const created = await prisma.monitor.count({
+        where: { projectId: project.id },
+      });
+      expect(created).toBe(monitorLimit);
+
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(results.length - rejected.length).toBe(1);
+      // every loser lost to the limit check, not to an incidental error
+      for (const result of rejected) {
+        expect(String(result.reason)).toMatch(/monitor-count/i);
+      }
+    }, 25_000);
 
     it("counts monitors with non-ACTIVE status toward the limit", async () => {
       const { project, caller } = await prepare();

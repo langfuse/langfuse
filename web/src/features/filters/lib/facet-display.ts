@@ -167,6 +167,10 @@ export function getFacetSummaryValue(filter: UIFilter): string | null {
   return null;
 }
 
+/** Better of two ranks when either string may not match at all. */
+const bestRank = (a: number | null, b: number | null): number | null =>
+  a === null ? b : b === null ? a : Math.min(a, b);
+
 /**
  * Rank a facet's option values for its search box the way the search bar
  * ranks completions (prefix matches before substring matches, stable within
@@ -180,19 +184,49 @@ export function rankFacetOptions(
 ): string[] {
   return options
     .map((option) => {
-      const valueRank = filterRank(option, query);
       const display = displayByValue?.get(option);
-      const displayRank =
-        display !== undefined ? filterRank(display, query) : null;
-      const rank =
-        valueRank === null
-          ? displayRank
-          : displayRank === null
-            ? valueRank
-            : Math.min(valueRank, displayRank);
+      const rank = bestRank(
+        filterRank(option, query),
+        display !== undefined ? filterRank(display, query) : null,
+      );
       return { option, rank };
     })
     .filter((x): x is { option: string; rank: number } => x.rank !== null)
     .sort((a, b) => a.rank - b.rank)
     .map((x) => x.option);
+}
+
+/** A facet as the name search sees it: its visible label and its column key. */
+type NamedFacet = { label: string; column: string };
+
+/**
+ * Rank of a facet against the sidebar's facet-NAME search, or null when it
+ * does not match. The one matching authority for both name-search surfaces
+ * (the facet list and the "Add filter" picker), so they agree.
+ *
+ * Matches the column key as well as the label because the label is spaced and
+ * the key is not: "userid" has to find "User ID".
+ */
+export function facetNameRank(facet: NamedFacet, query: string): number | null {
+  return bestRank(
+    filterRank(facet.label, query),
+    filterRank(facet.column, query),
+  );
+}
+
+/**
+ * Facets matching a name search, best match first (prefix before substring,
+ * stable within a rank). For pickers, where match quality is the only order
+ * that matters; the facet LIST filters with facetNameRank instead and keeps
+ * its own deliberate order (promoted block first, then config order).
+ */
+export function rankFacetsByName<T extends NamedFacet>(
+  facets: readonly T[],
+  query: string,
+): T[] {
+  return facets
+    .map((facet) => ({ facet, rank: facetNameRank(facet, query) }))
+    .filter((x): x is { facet: T; rank: number } => x.rank !== null)
+    .sort((a, b) => a.rank - b.rank)
+    .map((x) => x.facet);
 }

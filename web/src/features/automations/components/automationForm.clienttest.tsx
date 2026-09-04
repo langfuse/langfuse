@@ -54,7 +54,7 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
 }));
 
-// Cloud-only: the Monitor option in the event-source picker is gated on this.
+// Cloud-only: the Alert option in the event-source picker is gated on this.
 vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "US" }),
 }));
@@ -127,7 +127,7 @@ describe("AutomationForm handleActionTypeChange", () => {
 
     // comboboxes: [0] eventSource, [1] actionType.
     fireEvent.click(screen.getAllByRole("combobox")[0]);
-    fireEvent.click(await screen.findByRole("option", { name: "Monitor" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Alert" }));
 
     fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
       target: { value: "My automation" },

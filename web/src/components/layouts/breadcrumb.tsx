@@ -49,7 +49,7 @@ const BreadcrumbComponent = ({
       <BreadcrumbList>
         {organization && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="text-primary flex items-center gap-1 text-sm">
+            <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none">
               {organization?.name ?? "Organization"}
               {isCloudPlan(organization?.plan) &&
                 organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
@@ -77,7 +77,7 @@ const BreadcrumbComponent = ({
               <Slash />
             </BreadcrumbSeparator>
             <DropdownMenu>
-              <DropdownMenuTrigger className="text-primary flex items-center gap-1">
+              <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
                 {project?.name ?? "Project"}
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>

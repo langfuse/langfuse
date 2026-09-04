@@ -20,7 +20,7 @@ declare global {
 
 globalThis.sigtermReceived = globalThis.sigtermReceived ?? false;
 
-export const setSigtermReceived = () => {
+const setSigtermReceived = () => {
   console.log("Set sigterm received to true");
   globalThis.sigtermReceived = true;
 };

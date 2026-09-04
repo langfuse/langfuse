@@ -108,6 +108,20 @@ export async function parseCsvClient(
   options: ParseOptions,
 ): Promise<CsvPreviewResult> {
   return new Promise((resolve, reject) => {
+    const isTruncatedPreview =
+      Boolean(options.isPreview) && file.size > PREVIEW_FILE_SIZE_BYTES;
+    const rejectWithTruncationHint = (error: Error) => {
+      if (isTruncatedPreview && error.message.includes("Quote Not Closed")) {
+        reject(
+          new Error(
+            "The file's single dataset items are too large. CSV imports are intended for text and structured JSON dataset items. Use the UI item editor or API/SDKs for multi-modal or very large dataset items: https://langfuse.com/docs/evaluation/experiments/datasets#multi-modal-dataset-items",
+          ),
+        );
+        return;
+      }
+      reject(error);
+    };
+
     const fileToRead = options.isPreview
       ? file.slice(0, PREVIEW_FILE_SIZE_BYTES)
       : file;
@@ -115,7 +129,12 @@ export async function parseCsvClient(
     const reader = new FileReader();
 
     reader.onload = async () => {
-      const parser = await createParser(options, resolve, reject, file.name);
+      const parser = await createParser(
+        options,
+        resolve,
+        rejectWithTruncationHint,
+        file.name,
+      );
       parser.write(reader.result as string);
       parser.end();
     };

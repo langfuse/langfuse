@@ -1,9 +1,10 @@
 import {
+  areEnrichedWritesActive,
   areLegacyWritesActive,
   validateExportSource,
   type AnalyticsIntegrationExportSource,
 } from "@langfuse/shared";
-import { env, v4WritesToEventsTable } from "../env";
+import { env } from "../env";
 
 /**
  * Write-mode guard for the export workers (blob storage, PostHog, Mixpanel);
@@ -22,7 +23,9 @@ export function assertExportSourceWritable(
   const validation = validateExportSource(exportSource, {
     // No dates: the Cloud cutoffs gate writes, not running exports.
     isCloud: false,
-    enrichedAvailable: v4WritesToEventsTable(env),
+    enrichedAvailable: areEnrichedWritesActive(
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    ),
     legacyWritesActive: areLegacyWritesActive(
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     ),

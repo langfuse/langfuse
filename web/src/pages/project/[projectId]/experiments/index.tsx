@@ -37,6 +37,9 @@ export default function Experiments() {
     await Promise.all([
       utils.experiments.all.invalidate(),
       utils.experiments.countAll.invalidate(),
+      // The empty-window fallback is its own query, and a new run belongs in
+      // it: without this it keeps serving its cached list.
+      utils.experiments.mostRecent.invalidate(),
     ]);
   };
 
@@ -60,7 +63,7 @@ export default function Experiments() {
     <Page
       headerProps={{
         title: "Experiments",
-        titleBadges: <V4MigrationDelayBadge />,
+        titleBadges: <V4MigrationDelayBadge page="experiments" />,
         actionButtonsRight: (
           <div className="flex items-center gap-2">
             <Dialog

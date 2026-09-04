@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import {
   buildDashboardExport,
@@ -93,17 +95,17 @@ describe("parseDashboardImport", () => {
   it("ignores payloads without the dashboard envelope", () => {
     expect(
       parseDashboardImport(JSON.stringify({ widgets: [] }), {
-        isBetaEnabled: false,
+        isV4: false,
       }),
     ).toEqual({ status: "not-dashboard" });
-    expect(
-      parseDashboardImport("plain text", { isBetaEnabled: false }),
-    ).toEqual({ status: "not-dashboard" });
+    expect(parseDashboardImport("plain text", { isV4: false })).toEqual({
+      status: "not-dashboard",
+    });
   });
 
   it("round-trips an exported dashboard", () => {
     const result = parseDashboardImport(JSON.stringify(validExport()), {
-      isBetaEnabled: false,
+      isV4: false,
     });
 
     expect(result.status).toBe("dashboard");
@@ -131,7 +133,7 @@ describe("parseDashboardImport", () => {
         ...validExport(),
         version: DASHBOARD_FILE_FORMAT_VERSION + 1,
       }),
-      { isBetaEnabled: false },
+      { isV4: false },
     );
 
     expect(result.status).toBe("invalid");
@@ -150,7 +152,7 @@ describe("parseDashboardImport", () => {
     });
 
     const result = parseDashboardImport(JSON.stringify(payload), {
-      isBetaEnabled: false,
+      isV4: false,
     });
 
     expect(result.status).toBe("dashboard");
@@ -166,7 +168,7 @@ describe("parseDashboardImport", () => {
     widgets[0].widget = { ...widgets[0].widget, chartConfig: { type: "PIE" } };
 
     const result = parseDashboardImport(JSON.stringify(payload), {
-      isBetaEnabled: false,
+      isV4: false,
     });
 
     expect(result.status).toBe("invalid");
@@ -183,7 +185,7 @@ describe("parseDashboardImport", () => {
         name: "Empty",
         widgets: [],
       }),
-      { isBetaEnabled: false },
+      { isV4: false },
     );
 
     expect(result.status).toBe("invalid");
@@ -203,7 +205,7 @@ describe("parseDashboardImport", () => {
           },
         ],
       }),
-      { isBetaEnabled: false },
+      { isV4: false },
     );
 
     expect(result.status).toBe("invalid");
@@ -253,19 +255,19 @@ describe("isPasteablePlacementPayload", () => {
       isPasteablePlacementPayload(
         JSON.stringify(buildWidgetExport(baseWidget)),
         {
-          isBetaEnabled: false,
+          isV4: false,
         },
       ),
     ).toBe(true);
     expect(
       isPasteablePlacementPayload(
         JSON.stringify(buildPresetExport(HOME_DASHBOARD_PRESET_IDS[0])),
-        { isBetaEnabled: false },
+        { isV4: false },
       ),
     ).toBe(true);
     expect(
       isPasteablePlacementPayload('{"hello": "world"}', {
-        isBetaEnabled: false,
+        isV4: false,
       }),
     ).toBe(false);
   });

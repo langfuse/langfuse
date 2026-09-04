@@ -1,4 +1,5 @@
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+/* eslint-disable @repo/no-style-props */
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -17,7 +18,7 @@ import {
   type CellRowDef,
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
@@ -37,10 +38,12 @@ import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { getScoreDataTypeExplanation } from "@/src/features/scores/lib/scoreColumns";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -274,6 +277,11 @@ const ScoreItem = ({
                 <span className="text-muted-foreground">Type:</span>
                 <span className="capitalize">{dataType.toLowerCase()}</span>
               </div>
+              {/* The side-by-side layout has no score column headers, so the
+                  type is explained here instead. */}
+              <p className="text-muted-foreground max-w-[260px]">
+                {getScoreDataTypeExplanation(dataType)}
+              </p>
             </div>
           </HoverCardContent>
         </HoverCard>
@@ -478,14 +486,20 @@ export const ExperimentGridCell = ({
       {
         accessorKey: "output",
         header: "Output",
-        cell: ({ data }) => (
-          <MemoizedIOTableCell
-            isLoading={data.isLoading}
-            data={data.output ?? null}
-            className="bg-accent-light-green min-h-8"
-            singleLine={singleLine}
-          />
-        ),
+        cell: ({ data }) =>
+          data.isLoading ? (
+            <ConnectedIOTableCell
+              isLoading
+              variant="output"
+              singleLine={singleLine}
+            />
+          ) : (
+            <ConnectedIOTableCell
+              data={data.output ?? null}
+              variant="output"
+              singleLine={singleLine}
+            />
+          ),
       },
       // Keep all score levels together. Individual score visibility still
       // follows the list-view columns.
@@ -549,28 +563,36 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "level",
             cell: ({ data }) => (
-              <MetadataItem label="Level">
+              <MetadataItem label="Status">
                 <span className="text-xs">{data.level}</span>
               </MetadataItem>
             ),
           },
           {
             accessorKey: "startTime",
-            cell: ({ data }) => (
-              <MetadataItem label="Start Time">
-                <LocalIsoDate date={data.startTime} className="text-xs" />
-              </MetadataItem>
-            ),
+            cell: ({ data }) => {
+              const preparedDate = buildLocalIsoDatePresentation({
+                date: data.startTime,
+              });
+
+              return (
+                <MetadataItem label="Start Time">
+                  <span className="text-xs" title={preparedDate?.title}>
+                    {preparedDate?.display}
+                  </span>
+                </MetadataItem>
+              );
+            },
           },
           {
             accessorKey: "totalCost",
             cell: ({ data }) => (
               <MetadataItem label="Total Cost">
                 <span className="inline-flex items-center gap-1 text-xs">
-                  {data.totalCost != null ? (
+                  {data.totalCost ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <NotRecordedMetric metric="cost" />
                   )}
                   {data.totalCostDiff && (
                     <DiffLabel
@@ -591,7 +613,7 @@ export const ExperimentGridCell = ({
                   {data.latencyMs != null ? (
                     latencyFormatter(data.latencyMs)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <NotRecordedMetric metric="latency" />
                   )}
                   {data.latencyDiff && (
                     <DiffLabel
@@ -646,7 +668,7 @@ export const ExperimentGridCell = ({
         const isFirst = index === 0;
         const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for MemoizedIOTableCell
+        // Output section - special handling for IOTableCell
         if (row.accessorKey === "output" && row.cell) {
           return (
             <Fragment key={row.accessorKey}>

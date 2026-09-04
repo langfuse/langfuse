@@ -129,4 +129,16 @@ describe("WorkerManager queue metrics", () => {
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
     ]);
   });
+
+  it("emits a rate counter for completed jobs but not for active ones", () => {
+    // Own queue name: register() no-ops on the statically registered one above.
+    WorkerManager.register("trace-upsert" as never, async () => "processed");
+
+    mocks.handlers.get("active")?.({ id: "job-id", name: "job" });
+    mocks.handlers.get("completed")?.({ id: "job-id", name: "job" });
+
+    expect(mocks.recordIncrement.mock.calls).toEqual([
+      ["langfuse.queue.trace_upsert.rate", 1, { type: "completed" }],
+    ]);
+  });
 });

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { aggregateEvents, floorToGranularity } from "./aggregate";
 import { type PrototypeEvent } from "../types";
 import { DEFAULT_CONFIG } from "../vocab";

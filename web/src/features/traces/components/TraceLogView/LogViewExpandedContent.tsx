@@ -7,7 +7,7 @@
 
 import { memo, useMemo } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
@@ -15,7 +15,7 @@ export interface LogViewExpandedContentProps {
   node: TreeNode;
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json" | "json-beta";
+  currentView?: "pretty" | "pretty-beta" | "json" | "json-beta";
   /** Optional external expansion state for JSON tree (non-virtualized mode) */
   externalExpansionState?: Record<string, boolean> | boolean;
   /** Callback when expansion state changes (non-virtualized mode) */
@@ -83,8 +83,12 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {jsonData && !isLoading && (
         <PrettyJsonView
           json={jsonData}
-          // Map "json-beta" to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
-          currentView={currentView === "json-beta" ? "pretty" : currentView}
+          // Map beta modes to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
+          currentView={
+            currentView === "json-beta" || currentView === "pretty-beta"
+              ? "pretty"
+              : currentView
+          }
           isLoading={false}
           showNullValues={false}
           stickyTopLevelKey={false}

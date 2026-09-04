@@ -13,11 +13,23 @@ import {
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { createW3CTraceId } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
+import {
+  getCodeEvalTerminalErrorOutcome,
+  recordEvalTerminalOutcome,
+  recordEvalTimeToFirstAttempt,
+} from "../features/evaluation/evalExecutionMetrics";
 
 export const codeEvalExecutionQueueProcessorBuilder = (
   _queueName: string,
 ): Processor => {
   return async (job: Job<TQueueJobTypes[QueueName.CodeEvalExecution]>) => {
+    if (job.attemptsStarted === 1) {
+      recordEvalTimeToFirstAttempt(
+        EvalTemplateType.CODE,
+        Math.max(0, Date.now() - job.timestamp),
+      );
+    }
+
     try {
       logger.debug("Executing Code Evaluation Observation Job", job.data);
 
@@ -34,10 +46,16 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         );
       }
 
-      await processObservationEval({
+      const outcome = await processObservationEval({
         event: job.data.payload,
         executionType: EvalTemplateType.CODE,
       });
+
+      if (outcome === "completed") {
+        recordEvalTerminalOutcome(EvalTemplateType.CODE, "success");
+      } else if (outcome === "cancelled") {
+        recordEvalTerminalOutcome(EvalTemplateType.CODE, "cancelled");
+      }
 
       return true;
     } catch (e) {
@@ -45,7 +63,9 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         job.data.payload.jobExecutionId,
       );
 
-      const isTerminalError = isUnrecoverableError(e);
+      const isTerminalError =
+        isUnrecoverableError(e) ||
+        (e instanceof CodeEvalExecutionError && !e.retryable);
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -65,6 +85,10 @@ export const codeEvalExecutionQueueProcessorBuilder = (
             executionTraceId,
           },
         });
+        recordEvalTerminalOutcome(
+          EvalTemplateType.CODE,
+          getCodeEvalTerminalErrorOutcome(e),
+        );
       }
 
       if (isTerminalError) return;

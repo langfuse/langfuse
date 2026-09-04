@@ -19,7 +19,7 @@ import {
   PostDashboardPlacementResponse,
   PostUnstableDashboardResponse,
 } from "@/src/features/public-api/types/unstable-dashboards";
-import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
@@ -178,7 +178,7 @@ describe("unstable dashboard API", () => {
     );
     expect(duplicatePlacement.status).toBe(409);
     expect(
-      UnstablePublicApiErrorResponse.parse(duplicatePlacement.body).code,
+      StructuredPublicApiErrorResponse.parse(duplicatePlacement.body).code,
     ).toBe("conflict");
 
     const blockedDelete = await makeAPICall(
@@ -188,9 +188,9 @@ describe("unstable dashboard API", () => {
       auth,
     );
     expect(blockedDelete.status).toBe(409);
-    expect(UnstablePublicApiErrorResponse.parse(blockedDelete.body).code).toBe(
-      "conflict",
-    );
+    expect(
+      StructuredPublicApiErrorResponse.parse(blockedDelete.body).code,
+    ).toBe("conflict");
 
     const moved = await makeZodVerifiedAPICall(
       PatchDashboardPlacementResponse,

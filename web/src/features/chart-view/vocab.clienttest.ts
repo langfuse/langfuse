@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { coerceConfig, describeConfig, DEFAULT_CONFIG } from "./vocab";
 import { type ChartViewConfig } from "./types";
 

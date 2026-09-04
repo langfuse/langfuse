@@ -842,6 +842,144 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         ),
       ).toBe(true);
+
+      // A key that doesn't exist on the object must not match, even for an
+      // empty-string comparison value. Otherwise `contains ""` would match
+      // every row regardless of whether the key was ever set.
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "missingKey",
+              operator: "contains",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "missingKey",
+              operator: "=",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // A key present with an explicit JSON-null value is not a missing key —
+      // ClickHouse stores it as the literal string "null" (ingestion runs
+      // JSON.stringify on non-string metadata values). `= ""` must not match
+      // it, the same way it wouldn't match the stored "null" string.
+      const dataWithNullMetadataValue = {
+        ...mockData,
+        metadata: { ...mockData.metadata, nullField: null },
+      };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithNullMetadataValue,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "nullField",
+              operator: "=",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithNullMetadataValue,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "nullField",
+              operator: "=",
+              value: "null",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // A filter key that collides with an inherited Object.prototype name
+      // (e.g. "toString") must be treated as absent, not resolved to the
+      // inherited property, which would silently bypass the key-existence
+      // guard above.
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "toString",
+              operator: "contains",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Array/object metadata values are stored in ClickHouse via
+      // JSON.stringify, not the array/object's own `.toString()` (which
+      // drops brackets for arrays and is useless for plain objects). The
+      // in-memory representation must match that stored string exactly, the
+      // same way it now does for null.
+      const dataWithStructuredMetadataValues = {
+        ...mockData,
+        metadata: {
+          ...mockData.metadata,
+          arrayField: [1, 2],
+          objectField: { a: 1 },
+        },
+      };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithStructuredMetadataValues,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "arrayField",
+              operator: "starts with",
+              value: "[",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithStructuredMetadataValues,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "objectField",
+              operator: "contains",
+              value: '{"a":1}',
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
     });
 
     test("evaluates numberObject filters correctly", () => {

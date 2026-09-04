@@ -13,7 +13,7 @@ import {
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../shared/traceDownloadConfig";
+import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 export type TraceExportSession = {
   user: {

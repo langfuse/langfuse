@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // @vitest-environment jsdom
 
 import { filterBySearch } from "@/src/features/traces/components/TraceLogView/fns/filterBySearch";

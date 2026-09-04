@@ -26,10 +26,11 @@ describe("getOrganizationPlanServerSide (cloud)", () => {
   });
 
   it.each([
-    ["core", "cloud:core"],
-    ["pro", "cloud:pro"],
-    ["team", "cloud:team"],
-    ["enterprise", "cloud:enterprise"],
+    ["LANGFUSE_HOBBY", "cloud:hobby"],
+    ["LANGFUSE_CORE", "cloud:core"],
+    ["LANGFUSE_PRO", "cloud:pro"],
+    ["LANGFUSE_PRO_TEAMS", "cloud:team"],
+    ["LANGFUSE_ENTERPRISE", "cloud:enterprise"],
   ])("maps CHB plan code %s to %s", (planCode, expected) => {
     expect(
       getOrganizationPlanServerSide(
@@ -64,7 +65,7 @@ describe("getOrganizationPlanServerSide (cloud)", () => {
       getOrganizationPlanServerSide(
         cloudConfig({
           plan: "Enterprise",
-          clickhouse: { organizationId: CHB_ORG_ID, planCode: "core" },
+          clickhouse: { organizationId: CHB_ORG_ID, planCode: "LANGFUSE_CORE" },
         }),
       ),
     ).toBe("cloud:enterprise");

@@ -77,6 +77,27 @@ export function useLayerContainer(name: LayerName): HTMLElement | null {
 }
 
 /**
+ * Wraps a wheel/touch-move handler so the event stops at the overlay it happened
+ * in, for overlay content that does NOT own the page scroll lock.
+ *
+ * A Dialog/Sheet/Drawer locks page scrolling with `react-remove-scroll`, whose
+ * document-level listener cancels wheel/touch-move events that occur outside the
+ * locked subtree. Content in a layer container is always outside it, so a
+ * scrollable list inside a Popover or HoverCard opened from a dialog would be
+ * frozen for wheel and touch (keyboard still works). Keeping the event local
+ * exempts the overlay. Primitives that bring their own lock — Select, modal
+ * DropdownMenu — need none of this.
+ */
+export function stopScrollPropagation<E extends React.SyntheticEvent>(
+  handler?: (event: E) => void,
+) {
+  return (event: E) => {
+    event.stopPropagation();
+    handler?.(event);
+  };
+}
+
+/**
  * Renders its children into the named overlay layer (see {@link LAYER_ORDER}),
  * escaping ancestor `overflow` clipping and stacking contexts. Renders nothing
  * until mounted, so it is SSR-safe. Children position themselves (`fixed` /

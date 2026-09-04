@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
 
 const { mockCaptureException } = vi.hoisted(() => ({

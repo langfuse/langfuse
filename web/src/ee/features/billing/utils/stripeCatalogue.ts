@@ -116,7 +116,7 @@ export const stripeProducts: StripeProduct[] = [
   },
 ];
 
-export const stripeUsageProduct = {
+const stripeUsageProduct = {
   id: isTestEnvironment
     ? "prod_T2DaIcLiiR78rs" // sandbox
     : "prod_T4nLLI2vn876J2",
@@ -139,7 +139,7 @@ export const isUpgrade = (
   return (oldProduct?.orderKey ?? 0) < (newProduct?.orderKey ?? 0);
 };
 
-export const isValidCheckoutProduct = (id: string) => {
+const isValidCheckoutProduct = (id: string) => {
   return stripeProducts.some(
     (p) => Boolean(p.checkout) && p.stripeProductId === id,
   );
