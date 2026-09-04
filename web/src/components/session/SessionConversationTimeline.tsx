@@ -155,7 +155,7 @@ function SessionTimelineObservation({
             : "py-1",
       )}
     >
-      <div className="flex w-full min-w-0 items-center gap-2">
+      <div className="flex w-full min-w-0 items-center gap-0.5">
         <button
           type="button"
           onClick={onOpenInTraceView}
@@ -163,12 +163,29 @@ function SessionTimelineObservation({
         >
           {renderFilterIcon(observation.type ?? "EVENT")}
           <span
-            className="min-w-0 truncate text-xs font-bold group-hover:underline"
+            className="min-w-0 truncate text-xs font-normal group-hover:underline"
             title={observation.name ?? observation.id}
           >
             {observation.name ?? observation.id}
           </span>
         </button>
+        {isTool ? (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            aria-expanded={isToolExpanded}
+            aria-label={`${isToolExpanded ? "Collapse" : "Expand"} ${observation.name ?? observation.id}`}
+            onClick={() => setIsToolExpanded((current) => !current)}
+          >
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                !isToolExpanded && "-rotate-90",
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        ) : null}
         <span className="ml-auto flex shrink-0 items-center gap-2">
           {hasNoConversationalContent ? (
             <span
@@ -187,23 +204,6 @@ function SessionTimelineObservation({
           <time className="text-muted-foreground font-mono text-[10px]">
             {observation.startTime.toLocaleTimeString()}
           </time>
-          {isTool ? (
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-              aria-expanded={isToolExpanded}
-              aria-label={`${isToolExpanded ? "Collapse" : "Expand"} ${observation.name ?? observation.id}`}
-              onClick={() => setIsToolExpanded((current) => !current)}
-            >
-              <ChevronDown
-                className={cn(
-                  "h-3.5 w-3.5 transition-transform",
-                  !isToolExpanded && "-rotate-90",
-                )}
-                aria-hidden="true"
-              />
-            </button>
-          ) : null}
         </span>
       </div>
       {isTool && isToolExpanded ? (

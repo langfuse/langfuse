@@ -68,12 +68,14 @@ function CollapsiblePart({
   icon: Icon,
   status,
   variant,
+  alignment,
   children,
 }: {
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
   status?: "success" | "error";
   variant: "plain" | "card";
+  alignment: "start" | "center";
   children: React.ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -82,13 +84,17 @@ function CollapsiblePart({
     <div
       className={cn(
         "overflow-hidden",
+        alignment === "center" && "w-full",
         variant === "card" &&
           "border-border bg-background/80 w-fit max-w-full rounded-md border px-2",
       )}
     >
       <button
         type="button"
-        className="text-foreground flex max-w-full items-center gap-1.5 py-1 text-left font-mono text-xs font-bold transition-colors hover:opacity-80"
+        className={cn(
+          "text-foreground flex max-w-full items-center gap-1.5 py-1 text-left font-mono text-xs transition-colors hover:opacity-80",
+          alignment === "center" ? "mx-auto font-normal" : "font-bold",
+        )}
         aria-expanded={isExpanded}
         onClick={() => setIsExpanded((current) => !current)}
       >
@@ -113,7 +119,14 @@ function CollapsiblePart({
         />
       </button>
       {isExpanded ? (
-        <div className="border-border ml-1.5 border-l py-2 pl-4">
+        <div
+          className={cn(
+            "py-2",
+            alignment === "center"
+              ? "mx-auto w-fit max-w-full"
+              : "border-border ml-1.5 border-l pl-4",
+          )}
+        >
           {children}
         </div>
       ) : null}
@@ -126,7 +139,12 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
 
   if (content.kind === "text") {
     return (
-      <CollapsiblePart label="Reasoning" icon={Brain} variant="plain">
+      <CollapsiblePart
+        label="Reasoning"
+        icon={Brain}
+        variant="plain"
+        alignment="start"
+      >
         <MarkdownView markdown={content.text} className="px-0 py-0" />
       </CollapsiblePart>
     );
@@ -134,7 +152,12 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
 
   if (content.kind === "data") {
     return (
-      <CollapsiblePart label="Reasoning data" icon={Brain} variant="plain">
+      <CollapsiblePart
+        label="Reasoning data"
+        icon={Brain}
+        variant="plain"
+        alignment="start"
+      >
         <PrettyJsonView json={content.value} currentView="pretty" />
       </CollapsiblePart>
     );
@@ -149,6 +172,7 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
       }
       icon={Brain}
       variant="plain"
+      alignment="start"
     >
       <pre className="text-muted-foreground overflow-hidden font-mono text-xs break-all whitespace-pre-wrap">
         {content.data}
@@ -164,6 +188,7 @@ function SessionTimelineToolCall({ part }: { part: ToolCallPart }) {
       icon={part.invalid ? CircleAlert : Cog}
       status={part.invalid ? "error" : "success"}
       variant="card"
+      alignment="start"
     >
       <div className="flex flex-col gap-3">
         {part.toolCallId ? (
@@ -264,10 +289,11 @@ function SessionTimelineSystemMessage({
   message: NormalizedMessage;
 }) {
   return (
-    <div className="ph-no-capture flex w-full justify-end">
+    <div className="ph-no-capture flex w-full justify-center">
       <CollapsiblePart
         label={message.senderName ?? "System prompt"}
         variant="plain"
+        alignment="center"
       >
         <div className="flex flex-col gap-2 text-sm leading-6">
           {message.parts

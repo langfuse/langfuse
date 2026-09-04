@@ -93,9 +93,11 @@ describe("SessionConversationTimeline", () => {
       screen.getByRole("button", { name: /trace 1.*trace-1/i }),
     ).toBeInTheDocument();
     expect(screen.getByText("+10 min idle")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Generate answer/i }),
-    ).not.toHaveClass("sr-only");
+    const observationButton = screen.getByRole("button", {
+      name: /Generate answer/i,
+    });
+    expect(observationButton).not.toHaveClass("sr-only");
+    expect(observationButton.querySelector("span")).toHaveClass("font-normal");
     expect(screen.getByText("How does it work?")).toBeInTheDocument();
     expect(
       screen.getByText("It uses normalized messages."),
@@ -233,8 +235,19 @@ describe("SessionConversationTimeline", () => {
     });
 
     expect(screen.queryByText("Secret prompt")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "System prompt" }));
-    expect(screen.getByText("Secret prompt")).toBeVisible();
+    const systemPromptButton = screen.getByRole("button", {
+      name: "System prompt",
+    });
+    expect(systemPromptButton.closest(".ph-no-capture")).toHaveClass(
+      "justify-center",
+    );
+    expect(systemPromptButton).toHaveClass("font-normal");
+    expect(systemPromptButton).not.toHaveClass("font-bold");
+
+    fireEvent.click(systemPromptButton);
+    const systemPrompt = screen.getByText("Secret prompt");
+    expect(systemPrompt).toBeVisible();
+    expect(systemPrompt.closest(".border-l")).toBeNull();
   });
 
   it("reports omitted metadata while preserving parsed messages", () => {
@@ -275,9 +288,16 @@ describe("SessionConversationTimeline", () => {
 
     expect(screen.queryByText('{"query":"session timeline"}')).toBeNull();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Expand Search documentation" }),
-    );
+    const observationButton = screen.getByRole("button", {
+      name: "Search documentation",
+    });
+    const expandButton = screen.getByRole("button", {
+      name: "Expand Search documentation",
+    });
+
+    expect(expandButton.previousElementSibling).toBe(observationButton);
+
+    fireEvent.click(expandButton);
     expect(screen.getByText('{"query":"session timeline"}')).toBeVisible();
     expect(screen.getByText('{"matches":3}')).toBeVisible();
 

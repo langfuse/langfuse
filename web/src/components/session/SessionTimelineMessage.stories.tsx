@@ -144,11 +144,12 @@ export const ExpandSystemPrompt = meta.story({
     const canvas = within(canvasElement);
     const content =
       "Answer using the product documentation and cite relevant sources.";
+    const trigger = canvas.getByRole("button", { name: "System prompt" });
+    const initialLeft = trigger.getBoundingClientRect().left;
 
     await expect(canvas.queryByText(content)).not.toBeInTheDocument();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "System prompt" }),
-    );
+    await userEvent.click(trigger);
     await expect(canvas.getByText(content)).toBeVisible();
+    await expect(trigger.getBoundingClientRect().left).toBe(initialLeft);
   },
 });
