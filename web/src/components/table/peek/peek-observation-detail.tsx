@@ -14,7 +14,7 @@ import {
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -25,7 +25,7 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
-  const aggregationLevel =
+  const requestedAggregationLevel =
     router.query.aggregation === "session" ||
     router.query.aggregation === "observation"
       ? router.query.aggregation
@@ -50,9 +50,30 @@ export const TablePeekViewObservationDetail = (
     projectId,
     traceId,
     timestamp,
-    aggregationLevel: aggregationLevel === "session" ? "session" : "trace",
+    aggregationLevel:
+      requestedAggregationLevel === "session" ? "session" : "trace",
     readPath: props.isV4 ? "v4" : "v3",
   });
+  const aggregationLevel =
+    requestedAggregationLevel === "session" && trace.isSessionScopeUnavailable
+      ? "trace"
+      : requestedAggregationLevel;
+
+  useEffect(() => {
+    if (
+      requestedAggregationLevel !== "session" ||
+      !trace.isSessionScopeUnavailable
+    ) {
+      return;
+    }
+
+    const query = { ...router.query };
+    delete query.aggregation;
+    router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  }, [requestedAggregationLevel, router, trace.isSessionScopeUnavailable]);
+
   const isSessionScope =
     !!trace.data &&
     "sessionTraceEntries" in trace.data &&

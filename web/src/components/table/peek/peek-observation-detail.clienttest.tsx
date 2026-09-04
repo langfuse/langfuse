@@ -65,10 +65,12 @@ vi.mock("@/src/features/traces", () => ({
   getTraceDetailModeTitle: (aggregationLevel: string) =>
     aggregationLevel === "observation" ? "Observation name" : "Trace",
   TraceAggregationToggle: ({
+    aggregationLevel,
     canSelectSession,
     observationType,
     onAggregationLevelChange,
   }: {
+    aggregationLevel: "trace" | "session" | "observation";
     canSelectSession: boolean;
     observationType: string | null;
     onAggregationLevelChange: (
@@ -76,6 +78,7 @@ vi.mock("@/src/features/traces", () => ({
     ) => void;
   }) => (
     <>
+      <div data-testid="aggregation-level">{aggregationLevel}</div>
       <div data-testid="observation-type">{observationType}</div>
       <button
         role="tab"
@@ -183,5 +186,53 @@ describe("TablePeekViewObservationDetail", () => {
       "Observation name",
     );
     expect(screen.getByTestId("width-mode")).toHaveTextContent("observation");
+  });
+
+  it("switches to trace mode when the next observation has no session", () => {
+    mockRouter.query = {
+      ...mockRouter.query,
+      aggregation: "session",
+    };
+    mockUsePeekData.mockReturnValue({
+      data: {
+        id: "t",
+        projectId: "p",
+        public: false,
+        sessionId: null,
+        observations: [{ id: "o", traceId: "t", type: "GENERATION" }],
+      },
+      canAggregateBySession: false,
+      isSessionScopeUnavailable: true,
+      truncatedAtObservations: undefined,
+    });
+
+    render(
+      <TablePeekViewObservationDetail
+        projectId="p"
+        itemType="TRACE"
+        closePeek={vi.fn()}
+        tableName="events"
+        isV4
+      />,
+    );
+
+    expect(mockUsePeekData).toHaveBeenCalledWith(
+      expect.objectContaining({ aggregationLevel: "session" }),
+    );
+    expect(screen.getByTestId("aggregation-level")).toHaveTextContent("trace");
+    expect(mockRouter.replace).toHaveBeenCalledWith(
+      {
+        pathname: mockRouter.pathname,
+        query: {
+          projectId: "p",
+          peek: "o",
+          observation: "o",
+          traceId: "t",
+          timestamp: "2026-09-03T11:33:49.981Z",
+        },
+      },
+      undefined,
+      { shallow: true },
+    );
   });
 });

@@ -187,4 +187,26 @@ describe("useEventsTraceData", () => {
     expect(result.current.data).toBeUndefined();
     expect(result.current.error).toBe(error);
   });
+
+  it("returns trace data when session scope is unavailable", () => {
+    mockEventsQuery.mockReturnValue({
+      data: {
+        observations: [{ ...rootObservation, sessionId: null }],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() =>
+      useEventsTraceData({
+        projectId: "project-1",
+        traceId: "trace-1",
+        scopeToSession: true,
+      }),
+    );
+
+    expect(result.current.isSessionScopeUnavailable).toBe(true);
+    expect(result.current.data?.id).toBe("trace-1");
+    expect(result.current.data).not.toHaveProperty("sessionTraceEntries");
+  });
 });
