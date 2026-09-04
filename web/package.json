@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.29.0",
+  "version": "4.30.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -166,7 +166,7 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
     "use-query-params": "^2.2.2",
-    "uuid": "^14.0.0",
+    "uuid": "^14.0.2",
     "vaul": "^1.1.2",
     "yaml": "^2.9.0",
     "zod": "^4.3.6",
