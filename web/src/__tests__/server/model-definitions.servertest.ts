@@ -7,6 +7,7 @@ import {
   DeleteModelV1Response,
   GetModelV1Response,
   GetModelsV1Response,
+  PatchModelV1Response,
   PostModelsV1Response,
   PutModelV1Response,
 } from "@/src/features/public-api/types/models";
@@ -664,5 +665,276 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(modelsAfterDelete.status).toBe(200);
+  });
+
+  describe("PATCH /models/{modelId}", () => {
+    it("updates matchPattern and tokenizer on an existing project-owned model", async () => {
+      const create = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName: `gpt-patch-${v4()}`,
+          matchPattern: "(.*)old-pattern(.*)",
+          startDate: "2023-12-01",
+          inputPrice: 0.001,
+          outputPrice: 0.002,
+          unit: "TOKENS",
+        },
+        auth,
+      );
+      expect(create.status).toBe(200);
+
+      const patched = await makeZodVerifiedAPICall(
+        PatchModelV1Response,
+        "PATCH",
+        `/api/public/models/${create.body.id}`,
+        {
+          matchPattern: "(.*)new-pattern(.*)",
+          tokenizerId: "openai",
+          tokenizerConfig: { tokensPerMessage: 4 },
+          unit: "TOKENS",
+        },
+        auth,
+      );
+      expect(patched.status).toBe(200);
+      expect(patched.body.id).toBe(create.body.id);
+      expect(patched.body.matchPattern).toBe("(.*)new-pattern(.*)");
+      expect(patched.body.tokenizerId).toBe("openai");
+      expect(patched.body.tokenizerConfig).toEqual({ tokensPerMessage: 4 });
+      expect(patched.body.modelName).toBe(create.body.modelName);
+
+      // Audit log records the update with both before and after.
+      const audit = await prisma.auditLog.findFirst({
+        where: {
+          resourceType: "model",
+          resourceId: create.body.id,
+          action: "update",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(audit).not.toBeNull();
+
+      // Cleanup
+      await makeZodVerifiedAPICall(
+        DeleteModelV1Response,
+        "DELETE",
+        `/api/public/models/${create.body.id}`,
+        undefined,
+        auth,
+      );
+    });
+
+    it("returns 404 when the model does not exist in the project", async () => {
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/models/${v4()}`,
+        { matchPattern: "(.*)x(.*)" },
+        auth,
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 400 when matchPattern is not a valid regex", async () => {
+      const create = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName: `gpt-patch-bad-${v4()}`,
+          matchPattern: "(.*)ok(.*)",
+          startDate: "2023-12-01",
+          inputPrice: 0.001,
+          outputPrice: 0.002,
+          unit: "TOKENS",
+        },
+        auth,
+      );
+      expect(create.status).toBe(200);
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/models/${create.body.id}`,
+        { matchPattern: "[unterminated" },
+        auth,
+      );
+      expect(res.status).toBe(400);
+
+      await makeZodVerifiedAPICall(
+        DeleteModelV1Response,
+        "DELETE",
+        `/api/public/models/${create.body.id}`,
+        undefined,
+        auth,
+      );
+    });
+
+    it("rejects modelName and pricing fields with 400", async () => {
+      const create = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName: `gpt-patch-strict-${v4()}`,
+          matchPattern: "(.*)ok(.*)",
+          startDate: "2023-12-01",
+          inputPrice: 0.001,
+          outputPrice: 0.002,
+          unit: "TOKENS",
+        },
+        auth,
+      );
+      expect(create.status).toBe(200);
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/models/${create.body.id}`,
+        { modelName: "renamed", inputPrice: 0.5 },
+        auth,
+      );
+      expect(res.status).toBe(400);
+
+      await makeZodVerifiedAPICall(
+        DeleteModelV1Response,
+        "DELETE",
+        `/api/public/models/${create.body.id}`,
+        undefined,
+        auth,
+      );
+    });
+
+    it("returns 400 when the body is empty", async () => {
+      const create = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName: `gpt-patch-empty-${v4()}`,
+          matchPattern: "(.*)ok(.*)",
+          startDate: "2023-12-01",
+          inputPrice: 0.001,
+          outputPrice: 0.002,
+          unit: "TOKENS",
+        },
+        auth,
+      );
+      expect(create.status).toBe(200);
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/models/${create.body.id}`,
+        {},
+        auth,
+      );
+      expect(res.status).toBe(400);
+
+      await makeZodVerifiedAPICall(
+        DeleteModelV1Response,
+        "DELETE",
+        `/api/public/models/${create.body.id}`,
+        undefined,
+        auth,
+      );
+    });
+
+    it("returns 404 when patching a built-in (projectId=null) model", async () => {
+      // Built-in models have projectId=null and visibleModelsWhere should
+      // not return them for project-scoped reads/updates.
+      const builtInId = v4();
+      await prisma.model.create({
+        data: {
+          id: builtInId,
+          projectId: null,
+          modelName: `built-in-${v4()}`,
+          matchPattern: "(.*)built-in(.*)",
+          unit: "TOKENS",
+        },
+      });
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/models/${builtInId}`,
+        { matchPattern: "(.*)hijack(.*)" },
+        auth,
+      );
+      expect(res.status).toBe(404);
+
+      // Cleanup
+      await prisma.model.delete({ where: { id: builtInId } });
+    });
+
+    it("returns 404 when patching a model owned by a different project (IDOR)", async () => {
+      const { auth: otherAuth, projectId: otherProjectId } =
+        await createOrgProjectAndApiKey();
+      const otherModelId = v4();
+      await prisma.model.create({
+        data: {
+          id: otherModelId,
+          projectId: otherProjectId,
+          modelName: `gpt-other-${v4()}`,
+          matchPattern: "(.*)other(.*)",
+          unit: "TOKENS",
+        },
+      });
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/models/${otherModelId}`,
+        { matchPattern: "(.*)hijack(.*)" },
+        auth, // primary auth, NOT otherAuth
+      );
+      expect(res.status).toBe(404);
+
+      // Verify the model was untouched.
+      const stillThere = await prisma.model.findUnique({
+        where: { id: otherModelId },
+      });
+      expect(stillThere?.matchPattern).toBe("(.*)other(.*)");
+
+      // Cleanup
+      await prisma.model.delete({ where: { id: otherModelId } });
+      // Unused otherAuth captured so lint does not complain
+      expect(otherAuth).toBeDefined();
+    });
+
+    it("only updates the fields provided in the body", async () => {
+      const create = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName: `gpt-partial-${v4()}`,
+          matchPattern: "(.*)original(.*)",
+          startDate: "2023-12-01",
+          inputPrice: 0.001,
+          outputPrice: 0.002,
+          unit: "TOKENS",
+        },
+        auth,
+      );
+      expect(create.status).toBe(200);
+
+      // PATCH only `unit`. matchPattern and prices must be unchanged.
+      const patched = await makeZodVerifiedAPICall(
+        PatchModelV1Response,
+        "PATCH",
+        `/api/public/models/${create.body.id}`,
+        { unit: "CHARACTERS" },
+        auth,
+      );
+      expect(patched.status).toBe(200);
+      expect(patched.body.unit).toBe("CHARACTERS");
+      expect(patched.body.matchPattern).toBe("(.*)original(.*)");
+      expect(patched.body.inputPrice).toBe(0.001);
+      expect(patched.body.outputPrice).toBe(0.002);
+
+      await makeZodVerifiedAPICall(
+        DeleteModelV1Response,
+        "DELETE",
+        `/api/public/models/${create.body.id}`,
+        undefined,
+        auth,
+      );
+    });
   });
 });
