@@ -1,9 +1,9 @@
 ---
 name: incident-alert-tickets
 description: |
-  Read and, after human approval, update the Linear `incident-alert` knowledge
-  base. Use before and after investigating a named Datadog monitor, incident.io
-  alert or incident, or on-call page to find or record root causes.
+  Read and record root causes in the Linear `incident-alert` knowledge base. Use
+  before and after investigating a named Datadog monitor, incident.io alert or
+  incident, or on-call page to find or record root causes.
 ---
 
 # Incident Alert Tickets
@@ -85,35 +85,45 @@ signals and classify:
   investigation before any Datadog sweep.
 - **New cause on existing ticket** — the monitor has a ticket but no section
   matches the evidence. Propose appending a dated section.
-- **No ticket** — no ticket matches the monitor. Propose creating one.
+- **No ticket** — no ticket matches the monitor. Propose creating one, and file
+  it once that is approved.
 
 Treat a partial match — some "Recognize it" signals fit, others do not — as a
 **new cause**, never as a known one: do not recommend a documented "Fix"
 whose recognition signals only partially match. Name the near-miss section in
-the draft so the human can judge the overlap.
+the proposed ticket so the human can judge the overlap.
 
-## Write-Back (Human Approval Gate)
+## Write-Back
 
-Never create or update a ticket without explicit human approval. Present the
-proposal first:
+Appending a cause section to a ticket that already exists is a description edit,
+which agents do autonomously. A monitor with no ticket needs a parentless one,
+which is the single write that asks first — see
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md) for the policy this
+follows, and read it before your first write.
 
-| ID | Alert / Monitor | Classification | Proposed Action | Draft Content | Human Decision |
-| --- | --- | --- | --- | --- | --- |
+- **Append: do it.** Insert the new `---`-separated dated block after the
+  existing cause sections, above the `Your cause is not listed?` trailer; leave
+  everything else untouched. Mark the block as agent-written in its own text and
+  label the ticket `AI edited`. Never reflow or rewrite the human-written prose
+  around it.
+- **Create: show it, then file it.** Prepare the issue — title
+  `[ENV] <Monitor title>`, the `incident-alert` label, description = alert header,
+  the first dated cause section, and the `Your cause is not listed?` trailer —
+  show it for a go-ahead, and once you have one, create it yourself and label it
+  `AI created`. One go-ahead covers the whole run's proposed tickets.
 
-- `Proposed Action`: `append cause section to LFE-XXXX`, `create ticket`, or
-  `none (known cause)`.
-- `Draft Content`: the dated section (or full ticket body) exactly as it would
-  be written.
-- `Human Decision`: leave blank for the human to choose.
+Report what you did either way:
 
-Wait for the human to select row IDs and actions before writing. On approval:
+| ID | Alert / Monitor | Classification | Action | Content |
+| --- | --- | --- | --- | --- |
 
-- **Append**: insert the new `---`-separated dated block after the existing
-  cause sections, above the `Your cause is not listed?` trailer; leave
-  everything else untouched.
-- **Create**: new Engineering (LFE) issue titled `[ENV] <Monitor title>` with
-  the `incident-alert` label; description = alert header, the first dated
-  cause section, and the `Your cause is not listed?` trailer.
+- `Action`: `appended to <key> (AI edited)`, `awaiting your go-ahead`,
+  `filed <key> (AI created)`, or `none (known cause)`.
+- `Content`: the dated section, or the full ticket body exactly as it will be
+  filed — that text is what the go-ahead is given against.
+
+If Linear is unreachable in this environment, say so and return every row as text
+ready to paste rather than skipping the write-back silently.
 
 ## Division of Labor
 
