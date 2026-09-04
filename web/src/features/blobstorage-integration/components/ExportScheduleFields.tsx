@@ -25,8 +25,10 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 // mode requires one).
 export const ExportScheduleFields = ({
   control,
+  projectCreatedAt,
 }: {
   control: BlobStorageFormControl;
+  projectCreatedAt?: Date;
 }) => {
   const watchedExportMode = useWatch({ control, name: "exportMode" });
 
@@ -135,10 +137,12 @@ export const ExportScheduleFields = ({
               <FormControl>
                 <Input
                   type="date"
-                  max={(() => {
-                    const t = new Date();
-                    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-                  })()}
+                  min={
+                    projectCreatedAt
+                      ? projectCreatedAt.toISOString().slice(0, 10)
+                      : undefined
+                  }
+                  max={new Date().toISOString().slice(0, 10)}
                   value={
                     field.value instanceof Date
                       ? field.value.toISOString().split("T")[0]

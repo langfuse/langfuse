@@ -43,7 +43,7 @@ import { randomUUID } from "crypto";
 import {
   createObservation,
   createObservationsCh,
-  createOrgProjectAndApiKey,
+  createOrgProjectAndApiKey as createOrgProjectAndApiKeyNow,
   createTraceScore,
   createSessionScore,
   createDatasetRunScore,
@@ -70,6 +70,24 @@ import {
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+
+const PROJECT_HISTORY_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Tests often set lastSyncAt / exportStartDate in the past on a freshly
+// created project. Flooring the export start at project.createdAt would
+// otherwise clamp those windows to "now" and skip the run. Age the project
+// so the fixtures predate the export cursor.
+const createOrgProjectAndApiKey = async (
+  props?: Parameters<typeof createOrgProjectAndApiKeyNow>[0],
+) => {
+  const result = await createOrgProjectAndApiKeyNow(props);
+  const createdAt = new Date(Date.now() - PROJECT_HISTORY_MS);
+  await prisma.project.update({
+    where: { id: result.projectId },
+    data: { createdAt },
+  });
+  return { ...result, project: { ...result.project, createdAt } };
+};
 
 // Skip tests that use Azurite in Azure mode due to known Azurite limitations
 // with multipart uploads. These tests use MinIO explicitly or are skipped.
@@ -758,6 +776,68 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   maybeDescribe("events table export tests", () => {
+    it("starts a first FULL_HISTORY export from events-only history instead of skipping as empty", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportMode: "FULL_HISTORY",
+          exportStartDate: null,
+          exportSource: "EVENTS",
+          lastSyncAt: null,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name: "Events-only history",
+          start_time: dataTime * 1000,
+          end_time: (dataTime + 5000) * 1000,
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration?.lastSyncAt).not.toBeNull();
+      expect(updatedIntegration?.lastSyncAt?.getUTCFullYear()).toBeGreaterThan(
+        1971,
+      );
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      expect(files.some((f) => f.file.includes("/observations_v2/"))).toBe(
+        true,
+      );
+      expect(files.some((f) => f.file.includes("1970-"))).toBe(false);
+    });
+
     it("should export traces, generations, and scores to S3", async () => {
       // Setup
       const { projectId } = await createOrgProjectAndApiKey();
@@ -1694,6 +1774,167 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(recentTrace.id);
       }
     });
+
+    it("should skip a first FULL_HISTORY export when the project has no data instead of starting at Unix epoch", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      // An old empty project is the production failure mode: clamping to
+      // createdAt alone would still walk years of empty daily windows.
+      const twoYearsAgo = new Date("2024-01-15T00:00:00.000Z");
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { createdAt: twoYearsAgo },
+      });
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportMode: "FULL_HISTORY",
+          exportStartDate: null,
+          lastSyncAt: null,
+          compressed: false,
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration?.lastSyncAt).toBeNull();
+      expect(updatedIntegration?.nextSyncAt).not.toBeNull();
+      expect(updatedIntegration?.nextSyncAt?.getUTCFullYear()).toBeGreaterThan(
+        1971,
+      );
+
+      const files = await storageService.listFiles(s3Prefix);
+      expect(
+        files.some(
+          (f) => f.file.includes("1970-") || f.file.includes("2024-01-15"),
+        ),
+      ).toBe(false);
+    });
+
+    maybeIt(
+      "should clamp a custom start date older than the project createdAt",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
+
+        const projectCreatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { createdAt: projectCreatedAt },
+        });
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportMode: "FROM_CUSTOM_DATE" as const,
+            exportStartDate: new Date(0),
+            lastSyncAt: null,
+            compressed: false,
+          },
+        });
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const updatedIntegration =
+          await prisma.blobStorageIntegration.findUnique({
+            where: { projectId },
+          });
+
+        expect(updatedIntegration?.lastSyncAt).toBeDefined();
+        expect(
+          updatedIntegration!.lastSyncAt!.getTime(),
+        ).toBeGreaterThanOrEqual(projectCreatedAt.getTime());
+        expect(
+          updatedIntegration!.lastSyncAt!.getUTCFullYear(),
+        ).toBeGreaterThan(1971);
+      },
+    );
+
+    maybeIt(
+      "should clamp a lastSyncAt older than the project createdAt",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
+
+        const projectCreatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { createdAt: projectCreatedAt },
+        });
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportMode: "FULL_HISTORY",
+            exportStartDate: null,
+            lastSyncAt: new Date(0),
+            compressed: false,
+          },
+        });
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const updatedIntegration =
+          await prisma.blobStorageIntegration.findUnique({
+            where: { projectId },
+          });
+
+        expect(updatedIntegration?.lastSyncAt).toBeDefined();
+        expect(
+          updatedIntegration!.lastSyncAt!.getTime(),
+        ).toBeGreaterThanOrEqual(projectCreatedAt.getTime());
+        expect(
+          updatedIntegration!.lastSyncAt!.getUTCFullYear(),
+        ).toBeGreaterThan(1971);
+      },
+    );
   });
 
   describe("Chunked historic exports", () => {

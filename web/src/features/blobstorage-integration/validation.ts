@@ -12,6 +12,16 @@ export function exportStartDateNotInFuture(d: Date | null | undefined) {
 export const EXPORT_START_DATE_FUTURE_ERROR =
   "Export start date must not be in the future (27 h tolerance for timezone differences)";
 
+export function clampExportStartDateToProjectCreatedAt(
+  start: Date | null,
+  projectCreatedAt: Date,
+): Date | null {
+  if (!start) return start;
+  return start.getTime() < projectCreatedAt.getTime()
+    ? projectCreatedAt
+    : start;
+}
+
 export function validateExportFieldGroups(
   data: { exportFieldGroups: unknown[] },
   ctx: z.RefinementCtx,
