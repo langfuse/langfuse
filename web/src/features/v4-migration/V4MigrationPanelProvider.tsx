@@ -1,7 +1,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -9,10 +8,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import {
-  occupyExclusiveRightPanel,
-  registerExclusiveRightPanel,
-} from "@/src/components/layouts/app-layout/right-drawer/exclusiveRightPanels";
 
 export type V4MigrationTargetProject = {
   id: string;
@@ -57,17 +52,8 @@ export function V4MigrationPanelProvider({
   const [targetProject, setTargetProject] =
     useState<V4MigrationTargetProject | null>(null);
 
-  useEffect(() => {
-    return registerExclusiveRightPanel("migration", () => {
-      setRequestedOpen(false);
-    });
-  }, []);
-
   const open = v4UpgradeUiEnabled && requestedOpen;
   const setOpen = (nextOpen: boolean) => {
-    if (nextOpen && v4UpgradeUiEnabled) {
-      occupyExclusiveRightPanel("migration");
-    }
     setRequestedOpen(v4UpgradeUiEnabled && nextOpen);
   };
   // Every open path goes through here (setOpen callers only ever close), so
@@ -79,7 +65,6 @@ export function V4MigrationPanelProvider({
     source: V4MigrationPanelOpenSource,
   ) => {
     if (!v4UpgradeUiEnabled) return;
-    occupyExclusiveRightPanel("migration");
     if (!open || project.id !== targetProject?.id)
       capture("v4_migration:panel_opened", { source });
     // Entry points that only appear for actionable projects may omit readiness.
