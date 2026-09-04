@@ -39,10 +39,20 @@
 
 @media (prefers-reduced-motion: reduce) {
   .highlight {
-    opacity: 1;
-    animation: none;
     border-color: hsl(var(--primary-accent));
     box-shadow: 0 0 0 3px
       color-mix(in srgb, hsl(var(--primary-accent)) 35%, transparent);
+    animation: assistant-update-highlight-reduced 2.4s step-end forwards;
+  }
+}
+
+@keyframes assistant-update-highlight-reduced {
+  0%,
+  99% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
