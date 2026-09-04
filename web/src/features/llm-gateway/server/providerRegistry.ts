@@ -13,6 +13,34 @@ export type GatewayProviderName = (typeof gatewayProviders)[number];
 export type GatewayMetadata = Record<string, string | number | boolean>;
 
 export const GatewayApiFormatSchema = z.enum(gatewayApiFormats);
+export const GatewayResolveResponseSchema = z
+  .object({
+    connection: z
+      .object({
+        api_format: GatewayApiFormatSchema,
+        base_url: z.url(),
+        auth: z.union([
+          z.object({ type: z.literal("Bearer"), token: z.string() }).strict(),
+          z
+            .object({
+              type: z.literal("x-api-key"),
+              header: z.literal("x-api-key"),
+              value: z.string(),
+            })
+            .strict(),
+        ]),
+      })
+      .strict(),
+    ingestion: z
+      .object({
+        access_token: z.string(),
+        token_type: z.literal("Bearer"),
+        expires_in: z.number().int().positive(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);

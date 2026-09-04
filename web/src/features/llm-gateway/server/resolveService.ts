@@ -75,7 +75,16 @@ export class GatewayResolveService {
       throw new GatewayResolveError("Invalid gateway key", 401);
     }
 
-    const config = await this.repository.getConfig(organizationId);
+    const supportedProviders = gatewayProviders.filter((provider) =>
+      providerSupportsApiFormat(provider, params.apiFormat),
+    ) as GatewayProvider[];
+    const [config, connection] = await Promise.all([
+      this.repository.getConfig(organizationId),
+      this.repository.selectConnectionWithCredential({
+        organizationId,
+        providers: supportedProviders,
+      }),
+    ]);
     if (
       !config?.defaultIngestionProjectId ||
       !config.defaultIngestionProject ||
@@ -88,13 +97,6 @@ export class GatewayResolveService {
       );
     }
 
-    const supportedProviders = gatewayProviders.filter((provider) =>
-      providerSupportsApiFormat(provider, params.apiFormat),
-    ) as GatewayProvider[];
-    const connection = await this.repository.selectConnectionWithCredential({
-      organizationId,
-      providers: supportedProviders,
-    });
     if (!connection) {
       throw new GatewayResolveError(
         "No enabled gateway connection supports this API format",
@@ -106,7 +108,6 @@ export class GatewayResolveService {
     const credential = decrypt(connection.encryptedCredential);
     const response = {
       connection: {
-        provider: connection.provider.toLowerCase(),
         api_format: params.apiFormat,
         base_url: provider.baseUrl,
         auth:

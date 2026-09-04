@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -30,8 +29,10 @@ export function GatewayModelsPage({
   const connectionsQuery = api.llmGateway.listConnections.useQuery({
     orgId: organizationId,
   });
-  const refreshModels = api.llmGateway.refreshModels.useMutation();
-  const [results, setResults] = useState<RefreshResult[] | null>(null);
+  const modelsQuery = api.llmGateway.refreshModels.useQuery(
+    { orgId: organizationId },
+    { enabled: connectionsQuery.isSuccess },
+  );
 
   if (connectionsQuery.isPending) {
     return <ModelsSkeleton />;
@@ -42,20 +43,15 @@ export function GatewayModelsPage({
   }
 
   const connections = connectionsQuery.data;
+  const results = modelsQuery.data ?? null;
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
 
-  const sync = async () => {
-    try {
-      setResults(
-        await refreshModels.mutateAsync({
-          orgId: organizationId,
-        }),
-      );
-    } catch (error) {
-      reportNonTrpcError(error, "llm-gateway-models");
-    }
-  };
+  const sync = () =>
+    modelsQuery
+      .refetch()
+      .then(() => undefined)
+      .catch((error) => reportNonTrpcError(error, "llm-gateway-models"));
 
   return (
     <GatewayModelsView
@@ -64,8 +60,8 @@ export function GatewayModelsPage({
       providerCount={results?.length ?? connections.length}
       hasProviders={connections.length > 0}
       hasSynced={results !== null}
-      isLoading={refreshModels.isPending}
-      syncError={refreshModels.isError}
+      isLoading={modelsQuery.isPending || modelsQuery.isFetching}
+      syncError={modelsQuery.isError}
       onSync={sync}
     />
   );

@@ -6,6 +6,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
   GatewayConnectionStatus,
@@ -71,7 +72,7 @@ export const llmGatewayRouter = createTRPCRouter({
       return new GatewayProviderService(ctx.prisma).list(input.orgId);
     }),
 
-  createConnection: protectedOrganizationProcedure
+  createConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
         name: z.string().trim().min(1).max(200),
@@ -98,7 +99,7 @@ export const llmGatewayRouter = createTRPCRouter({
       return connection;
     }),
 
-  updateConnection: protectedOrganizationProcedure
+  updateConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
         id: z.string(),
@@ -182,18 +183,11 @@ export const llmGatewayRouter = createTRPCRouter({
 
   refreshModels: protectedOrganizationProcedure
     .input(organizationInput)
-    .mutation(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const result = await new GatewayProviderService(
-        ctx.prisma,
-      ).refreshAllModels(input.orgId);
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: input.orgId,
-        action: "refreshModels",
-      });
-      return result;
+      return new GatewayProviderService(ctx.prisma).refreshAllModels(
+        input.orgId,
+      );
     }),
 
   retryConnection: protectedOrganizationProcedure

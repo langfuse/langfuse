@@ -273,8 +273,8 @@ model GatewayAiConnection {
   organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name                String
   provider            GatewayProvider
-  encryptedCredential String                  @map("encrypted_credential")
-  displaySecret       String                  @map("display_secret")
+  encryptedCredential String                  @map("encrypted_credentials")
+  displaySecret       String                  @map("display_secret_key")
   createdById         String?                 @map("created_by_id")
   createdBy           User?                   @relation("GatewayAiConnectionCreatedByUser", fields: [createdById], references: [id], onDelete: SetNull)
   routingPriority     Int                     @map("routing_priority")

@@ -234,7 +234,6 @@ describe("LLM gateway control plane", () => {
 
     expect(openRouter.routingPriority).toBe(0);
     expect(result.connection).toEqual({
-      provider: "openrouter",
       api_format: apiFormat,
       base_url: "https://openrouter.ai/api/v1",
       auth: { type: "Bearer", token: "sk-test-openrouter" },
@@ -284,6 +283,18 @@ describe("LLM gateway control plane", () => {
         select: { status: true },
       }),
     ).toEqual({ status: "ERROR" });
+    await expect(
+      caller.llmGateway.updateConnection({
+        orgId: org.id,
+        id: connection.id,
+        status: "ENABLED",
+      }),
+    ).rejects.toThrow("credential update or successful retry");
+    const automaticRefresh = vi.fn<typeof fetch>();
+    await new GatewayProviderService(prisma, automaticRefresh).refreshAllModels(
+      org.id,
+    );
+    expect(automaticRefresh).not.toHaveBeenCalled();
 
     const failingFetch = vi
       .fn<typeof fetch>()

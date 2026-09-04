@@ -2,7 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
-import { GatewayApiFormatSchema } from "@/src/features/llm-gateway/server/providerRegistry";
+import {
+  GatewayApiFormatSchema,
+  GatewayResolveResponseSchema,
+} from "@/src/features/llm-gateway/server/providerRegistry";
 import {
   GatewayResolveError,
   GatewayResolveService,
@@ -72,7 +75,7 @@ export default async function handler(
         req.headers["langfuse-gateway-authorization"],
       ),
     });
-    return res.status(200).json(result);
+    return res.status(200).json(GatewayResolveResponseSchema.parse(result));
   } catch (error) {
     if (error instanceof GatewayResolveError) {
       return res.status(error.status).json({ error: error.message });

@@ -71,8 +71,20 @@ export class GatewayProviderService {
     credential?: string;
     status?: GatewayConnectionStatus;
   }) {
-    const existing = await this.repository.getSafeConnection(params);
+    const existing = await this.repository.getSafeConnection({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
     if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    if (
+      existing.status === "ERROR" &&
+      params.status === "ENABLED" &&
+      !params.credential
+    ) {
+      throw new InvalidRequestError(
+        "Errored gateway connections require a credential update or successful retry",
+      );
+    }
     if (params.credential) {
       await this.validateCredential({
         provider: existing.provider,
@@ -132,13 +144,15 @@ export class GatewayProviderService {
   ): Promise<ModelRefreshResult[]> {
     const connections = await this.repository.listConnections(organizationId);
     return Promise.all(
-      connections.map((connection) =>
-        this.refreshModels({
-          organizationId,
-          connectionId: connection.id,
-          explicitRetry: false,
-        }),
-      ),
+      connections
+        .filter((connection) => connection.status === "ENABLED")
+        .map((connection) =>
+          this.refreshModels({
+            organizationId,
+            connectionId: connection.id,
+            explicitRetry: false,
+          }),
+        ),
     );
   }
 
