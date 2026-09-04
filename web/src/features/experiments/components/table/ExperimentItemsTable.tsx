@@ -970,6 +970,12 @@ export default function ExperimentItemsTable({
 
         return {
           ...scoreCol,
+          // The header holds this column's analysis, so it also sets the
+          // column's floor: the shared table's default lets a column be dragged
+          // to 20px, which is narrower than `−0.12 ↗1 ↘14` and would clip a
+          // count into a different, wrong number. 120px holds the delta and the
+          // movement counts whole.
+          minSize: 120,
           // The header carries the column's aggregate over the items in view, and
           // the movement against the comparison. Keeps the plain name for the
           // column picker.
