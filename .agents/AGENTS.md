@@ -235,7 +235,9 @@ A check that passed is not always a check that ran:
   visual and your confidence is high, say what you changed, hand over the exact
   URL, and let the developer glance at it — that is faster for them than watching
   you automate a confirmation of something you already know. Offering is not
-  punting; silently skipping is.
+  punting; silently skipping is — so name what you did not check, and offer only
+  while somebody is there to take it. If nobody is around and the change is
+  user-visible, check it yourself.
 
 ## Generated Files
 
