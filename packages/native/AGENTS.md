@@ -34,7 +34,10 @@
 - After touching `scripts/build.mjs` or `builder.Dockerfile`:
   `LANGFUSE_NATIVE_BUILD=docker pnpm --filter @langfuse/native run build`, then
   the worker `nativeHello` test against the produced binary.
-- `pnpm --filter worker run typecheck` and
-  `pnpm --filter worker run test nativeHello` after a build.
+- `pnpm --filter @langfuse/native run build`, then
+  `pnpm --filter worker run typecheck` and
+  `pnpm --filter worker run test nativeHello`. The test loads the compiled
+  addon; `pnpm turbo run test --filter=worker` builds it first, a direct
+  vitest run does not.
 - When touching the build pipeline, build the worker image:
   `docker build -f worker/Dockerfile .` and check `/api/health` on it.

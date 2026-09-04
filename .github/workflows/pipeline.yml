@@ -1043,6 +1043,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -1146,6 +1148,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       - name: Load default env
         run: |
           cp .env.dev.example .env

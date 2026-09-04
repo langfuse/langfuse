@@ -152,9 +152,10 @@ langfuse/
 - `web/**`: `pnpm run lint` plus targeted web tests.
 - `worker/**`: `pnpm run lint` plus targeted worker tests.
 - `packages/native/**`: `pnpm --filter @langfuse/native run lint` (rustfmt +
-  clippy), then `pnpm --filter worker run typecheck` and the worker
-  `nativeHello` test. Building the worker needs a Rust toolchain
-  (`rustup`); see `packages/native/AGENTS.md`.
+  clippy), then `pnpm --filter @langfuse/native run build`,
+  `pnpm --filter worker run typecheck`, and the worker `nativeHello` test,
+  which loads the compiled addon. Building the worker needs a Rust
+  toolchain (`rustup`); see `packages/native/AGENTS.md`.
 - `packages/shared/**` non-schema changes:
   `pnpm run lint` plus one targeted web check and one targeted worker check.
 - `packages/shared/prisma/**` or `packages/shared/clickhouse/**`:

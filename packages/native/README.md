@@ -88,9 +88,10 @@ pnpm --filter @langfuse/native run build:debug  # unoptimised build (local strat
 pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo clippy -D warnings
 ```
 
-`pnpm run dev`, `pnpm run build`, and the worker's `typecheck`/`lint` tasks
-build this package first through turbo, so the addon is always present when
-the worker starts.
+`pnpm run dev`, `pnpm run build`, `pnpm run test`, and the worker's
+`typecheck`/`lint` tasks build this package first through turbo, so the addon
+is always present when the worker starts or its tests run. A direct
+`pnpm --filter worker run test` bypasses turbo and needs a prior build.
 
 ## Adding a function
 
