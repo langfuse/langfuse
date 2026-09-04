@@ -5,9 +5,6 @@ import { Input } from "@/src/components/ui/input";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
-export const MAX_EVALUATOR_BACKFILL_ITEMS = 25_000;
-export const DEFAULT_EVALUATOR_BACKFILL_ITEMS = 5_000;
-
 export type EvaluatorBackfillWindow =
   | "24-hours"
   | "7-days"

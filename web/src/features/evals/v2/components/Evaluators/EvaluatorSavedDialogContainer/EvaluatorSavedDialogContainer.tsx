@@ -28,12 +28,14 @@ import { cn } from "@/src/utils/tailwind";
 import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
 import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
 import {
-  DEFAULT_EVALUATOR_BACKFILL_ITEMS,
   EvaluatorBackfillSettings,
-  MAX_EVALUATOR_BACKFILL_ITEMS,
   type EvaluatorBackfillRange,
   type EvaluatorBackfillWindow,
 } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorBackfillSettings";
+import {
+  DEFAULT_EVALUATOR_BACKFILL_ITEMS,
+  MAX_EVALUATOR_BACKFILL_ITEMS,
+} from "@/src/features/evals/v2/constants/evaluatorBackfill";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
@@ -103,7 +105,6 @@ export function EvaluatorSavedDialogContainer({
   const estimateRequestId = useRef(0);
   const backfillEstimateRequestId = useRef(0);
   const hasScheduledBackfill = useRef(false);
-  const backfillIdempotencyKey = useRef(crypto.randomUUID());
   // Strict Mode replays mount effects; this mutation must run once per dialog.
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -162,10 +163,13 @@ export function EvaluatorSavedDialogContainer({
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
       onError: trpcErrorToast,
     });
-  const runEvaluation =
-    api.batchAction.runEvaluation.createBackfill.useMutation({
+  const prepareBackfill =
+    api.batchAction.runEvaluation.prepareBackfill.useMutation({
       onError: trpcErrorToast,
     });
+  const runEvaluation = api.batchAction.runEvaluation.create.useMutation({
+    onError: trpcErrorToast,
+  });
 
   const finish = async () => {
     await onFinish();
@@ -240,8 +244,24 @@ export function EvaluatorSavedDialogContainer({
       backfillMaxItems,
       historicEvaluationLimit.data ?? backfillMaxItems,
     );
+    const prepared = await prepareBackfill.mutateAsync({
+      projectId,
+      query: {
+        filter,
+        orderBy: { column: "startTime", order: "DESC" },
+        useEventsTable: true,
+      },
+      sampling,
+      rowLimit: effectiveRowLimit,
+      timeRange: range,
+    });
+    if (!prepared.query) {
+      hasScheduledBackfill.current = true;
+      return;
+    }
     await runEvaluation.mutateAsync({
       projectId,
+      query: prepared.query,
       evaluatorIds: [evaluator.id],
       evaluatorMappings: [
         {
@@ -251,15 +271,6 @@ export function EvaluatorSavedDialogContainer({
       ],
       evalVersion: "v2",
       sourceTable: BatchEvalSourceTable.EVENTS,
-      idempotencyKey: backfillIdempotencyKey.current,
-      sampling,
-      rowLimit: effectiveRowLimit,
-      backfillTimeRange: range,
-      query: {
-        filter,
-        orderBy: { column: "startTime", order: "DESC" },
-        useEventsTable: true,
-      },
     });
     hasScheduledBackfill.current = true;
   };
@@ -770,6 +781,7 @@ export function EvaluatorSavedDialogContainer({
       isSubmitting={
         attach.isPending ||
         createOrAttachFromEvaluatorFilters.isPending ||
+        prepareBackfill.isPending ||
         runEvaluation.isPending ||
         isCompleting
       }
