@@ -1,7 +1,6 @@
 const mocks = vi.hoisted(() => ({
   applyCommentFilters: vi.fn(),
   getObservationsCountFromEventsTable: vi.fn(),
-  getObservationsWithModelDataFromEventsTable: vi.fn(),
   getObservationsTableCount: vi.fn(),
   queueAdd: vi.fn(),
 }));
@@ -14,8 +13,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     applyCommentFilters: mocks.applyCommentFilters,
     getObservationsCountFromEventsTable:
       mocks.getObservationsCountFromEventsTable,
-    getObservationsWithModelDataFromEventsTable:
-      mocks.getObservationsWithModelDataFromEventsTable,
     getObservationsTableCount: mocks.getObservationsTableCount,
     BatchActionQueue: {
       getInstance: vi.fn(() => ({ add: mocks.queueAdd })),
@@ -194,9 +191,6 @@ describe("event batch-action comment filter preflight", () => {
     mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
     Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.getObservationsCountFromEventsTable.mockResolvedValue(1);
-    mocks.getObservationsWithModelDataFromEventsTable.mockResolvedValue([
-      { id: "matching-observation" },
-    ]);
     mocks.getObservationsTableCount.mockResolvedValue(1);
     mocks.queueAdd.mockResolvedValue(undefined);
   });
@@ -284,9 +278,6 @@ describe("batched evaluation version selection", () => {
     mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
     Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.getObservationsCountFromEventsTable.mockResolvedValue(1);
-    mocks.getObservationsWithModelDataFromEventsTable.mockResolvedValue([
-      { id: "matching-observation" },
-    ]);
     mocks.queueAdd.mockResolvedValue(undefined);
     resolveComments();
   });
@@ -326,75 +317,30 @@ describe("batched evaluation version selection", () => {
     );
   });
 
-  it("prepares a capped, deduplicated backfill cohort", async () => {
+  it("allows a capped batch when more observations match", async () => {
     const context = prepare({ v4BetaEnabled: true });
+    mocks.getObservationsCountFromEventsTable.mockResolvedValue(100_000);
 
-    const result = await context.runEvaluation.prepareBackfill({
+    await context.runEvaluation.create({
       projectId,
       query,
-      sampling: 1,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      evalVersion: "v2",
+      sampling: 0.25,
       rowLimit: 5_000,
-      timeRange: {
-        from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
-        to: new Date(),
-      },
     });
 
-    expect(
-      mocks.getObservationsWithModelDataFromEventsTable,
-    ).toHaveBeenCalledWith(
+    expect(mocks.queueAdd).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        dedupeBySpanId: true,
-        limit: 5_000,
-        orderBy: { column: "startTime", order: "DESC" },
+        payload: expect.objectContaining({
+          sampling: 0.25,
+          rowLimit: 5_000,
+        }),
       }),
+      expect.anything(),
     );
-    expect(result.query?.filter).toEqual([
-      expect.objectContaining({
-        column: "id",
-        value: ["matching-observation"],
-      }),
-    ]);
-    expect(context.batchActionCreate).not.toHaveBeenCalled();
-    expect(mocks.queueAdd).not.toHaveBeenCalled();
-  });
-
-  it("returns no query when deterministic sampling selects no observations", async () => {
-    const context = prepare({ v4BetaEnabled: true });
-
-    const result = await context.runEvaluation.prepareBackfill({
-      projectId,
-      query,
-      sampling: 0,
-      rowLimit: 5_000,
-      timeRange: {
-        from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
-        to: new Date(),
-      },
-    });
-
-    expect(result).toEqual({ query: null });
-    expect(context.batchActionCreate).not.toHaveBeenCalled();
-    expect(mocks.queueAdd).not.toHaveBeenCalled();
-  });
-
-  it("rejects backfills above the 25,000 observation cap", async () => {
-    const context = prepare({ v4BetaEnabled: true });
-
-    await expect(
-      context.runEvaluation.prepareBackfill({
-        projectId,
-        query,
-        sampling: 1,
-        rowLimit: 25_001,
-        timeRange: {
-          from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
-          to: new Date(),
-        },
-      }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-
-    expect(mocks.queueAdd).not.toHaveBeenCalled();
   });
 
   it("rejects evaluator v2 for users outside fast preview", async () => {
@@ -454,6 +400,8 @@ describe("batched evaluation version selection", () => {
       sourceTable: BatchEvalSourceTable.EVENTS,
       evalVersion: "v2",
       evaluatorMappings,
+      sampling: 0.25,
+      rowLimit: 5_000,
     });
 
     expect(context.prisma.evaluator.findMany).toHaveBeenCalledWith(
@@ -470,6 +418,8 @@ describe("batched evaluation version selection", () => {
           config: expect.objectContaining({
             evalVersion: "v2",
             evaluatorMappings,
+            sampling: 0.25,
+            rowLimit: 5_000,
           }),
         }),
       }),
@@ -480,6 +430,8 @@ describe("batched evaluation version selection", () => {
         payload: expect.objectContaining({
           evalVersion: "v2",
           evaluatorMappings,
+          sampling: 0.25,
+          rowLimit: 5_000,
         }),
       }),
       expect.anything(),

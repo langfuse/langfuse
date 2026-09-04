@@ -21,25 +21,11 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-import {
-  CreateObservationBatchEvaluationActionSchema,
-  PrepareObservationEvaluatorBackfillActionSchema,
-} from "../validation";
+import { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
-import { prepareEvaluatorBackfill } from "./prepareEvaluatorBackfill";
 
 export const runEvaluationRouter = createTRPCRouter({
-  prepareBackfill: protectedProjectProcedure
-    .input(PrepareObservationEvaluatorBackfillActionSchema)
-    .mutation(({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "evaluationRule:CUD",
-      });
-      return prepareEvaluatorBackfill(input, ctx);
-    }),
   create: protectedProjectProcedure
     .input(CreateObservationBatchEvaluationActionSchema)
     .mutation(async ({ input, ctx }) => {
@@ -56,6 +42,8 @@ export const runEvaluationRouter = createTRPCRouter({
           evaluatorIds: rawEvaluatorIds,
           sourceTable = BatchEvalSourceTable.EVENTS,
           evaluatorMappings: rawEvaluatorMappings,
+          sampling,
+          rowLimit,
         } = input;
 
         if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
@@ -159,7 +147,10 @@ export const runEvaluationRouter = createTRPCRouter({
           ? 0
           : await getObservationsCountFromEventsTable(countQueryOpts);
 
-        if (observationCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT) {
+        if (
+          rowLimit === undefined &&
+          observationCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `Too many observations selected. Maximum allowed is ${env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT}, but ${observationCount} observations match your filters. Please refine your filters to reduce the count.`,
@@ -171,6 +162,8 @@ export const runEvaluationRouter = createTRPCRouter({
           evaluatorIds,
           ...(input.evalVersion ? { evalVersion: input.evalVersion } : {}),
           ...(evaluatorMappings ? { evaluatorMappings } : {}),
+          ...(sampling !== undefined ? { sampling } : {}),
+          ...(rowLimit !== undefined ? { rowLimit } : {}),
         };
 
         logger.info(
@@ -220,6 +213,8 @@ export const runEvaluationRouter = createTRPCRouter({
                 ? { evalVersion: batchConfig.evalVersion }
                 : {}),
               ...(evaluatorMappings ? { evaluatorMappings } : {}),
+              ...(sampling !== undefined ? { sampling } : {}),
+              ...(rowLimit !== undefined ? { rowLimit } : {}),
             },
           },
           {

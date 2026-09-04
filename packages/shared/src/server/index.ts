@@ -5,7 +5,6 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
-export * from "./evaluation/deterministicSampling";
 export * from "./media";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";

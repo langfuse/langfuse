@@ -163,10 +163,6 @@ export function EvaluatorSavedDialogContainer({
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
       onError: trpcErrorToast,
     });
-  const prepareBackfill =
-    api.batchAction.runEvaluation.prepareBackfill.useMutation({
-      onError: trpcErrorToast,
-    });
   const runEvaluation = api.batchAction.runEvaluation.create.useMutation({
     onError: trpcErrorToast,
   });
@@ -244,24 +240,27 @@ export function EvaluatorSavedDialogContainer({
       backfillMaxItems,
       historicEvaluationLimit.data ?? backfillMaxItems,
     );
-    const prepared = await prepareBackfill.mutateAsync({
+    await runEvaluation.mutateAsync({
       projectId,
       query: {
-        filter,
+        filter: [
+          ...filter,
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: ">=",
+            value: range.from,
+          },
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: "<=",
+            value: range.to,
+          },
+        ],
         orderBy: { column: "startTime", order: "DESC" },
         useEventsTable: true,
       },
-      sampling,
-      rowLimit: effectiveRowLimit,
-      timeRange: range,
-    });
-    if (!prepared.query) {
-      hasScheduledBackfill.current = true;
-      return;
-    }
-    await runEvaluation.mutateAsync({
-      projectId,
-      query: prepared.query,
       evaluatorIds: [evaluator.id],
       evaluatorMappings: [
         {
@@ -271,6 +270,8 @@ export function EvaluatorSavedDialogContainer({
       ],
       evalVersion: "v2",
       sourceTable: BatchEvalSourceTable.EVENTS,
+      sampling,
+      rowLimit: effectiveRowLimit,
     });
     hasScheduledBackfill.current = true;
   };
@@ -781,7 +782,6 @@ export function EvaluatorSavedDialogContainer({
       isSubmitting={
         attach.isPending ||
         createOrAttachFromEvaluatorFilters.isPending ||
-        prepareBackfill.isPending ||
         runEvaluation.isPending ||
         isCompleting
       }

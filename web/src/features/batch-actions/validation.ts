@@ -1,5 +1,4 @@
 import z from "zod";
-import { endOfDay, startOfDay, subMonths } from "date-fns";
 import {
   ObservationAddToDatasetConfigSchema,
   BatchActionQuerySchema,
@@ -27,6 +26,8 @@ export const CreateObservationBatchEvaluationActionSchema = z
       .array(BatchEvalEvaluatorMappingSchema)
       .max(BATCH_EVAL_EVALUATOR_LIMIT)
       .optional(),
+    sampling: z.number().min(0).max(1).optional(),
+    rowLimit: z.number().int().positive().max(25_000).optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.evaluatorMappings) return;
@@ -60,30 +61,6 @@ export const CreateObservationBatchEvaluationActionSchema = z
       mappingIds.add(mapping.evaluatorId);
     }
   });
-
-export const PrepareObservationEvaluatorBackfillActionSchema = z.object({
-  projectId: z.string(),
-  query: BatchActionQuerySchema,
-  sampling: z.number().min(0).max(1),
-  rowLimit: z.number().int().positive().max(25_000),
-  timeRange: z
-    .object({
-      from: z.date(),
-      to: z.date(),
-    })
-    .refine(({ from, to }) => from <= to, {
-      message: "The backfill start must be before its end.",
-      path: ["from"],
-    })
-    .refine(({ from }) => from >= startOfDay(subMonths(new Date(), 6)), {
-      message: "The backfill cannot start more than six months ago.",
-      path: ["from"],
-    })
-    .refine(({ to }) => to <= endOfDay(new Date()), {
-      message: "The backfill cannot end in the future.",
-      path: ["to"],
-    }),
-});
 
 export const GetBatchActionByIdSchema = z.object({
   projectId: z.string(),
