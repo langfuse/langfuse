@@ -57,7 +57,7 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
       {showInput && (
         <PrettyJsonView
           title="Input"
@@ -68,6 +68,7 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={inputExpansionState}
           onExternalExpansionChange={onInputExpansionChange}
+          hoverControls
         />
       )}
       {showOutput && (
@@ -80,6 +81,7 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
+          hoverControls
         />
       )}
     </div>
@@ -297,7 +299,7 @@ export function IOPreviewPretty({
       ) : null}
 
       {shouldRenderMessages ? (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <ChatMessageList
             messages={allMessages}
             shouldRenderMarkdown={shouldRenderMarkdown}
@@ -351,6 +353,7 @@ export function IOPreviewPretty({
             externalExpansionState={metadataExpansionState}
             onExternalExpansionChange={onMetadataExpansionChange}
             metadataActions={metadataActions}
+            hoverControls
           />
         </div>
       )}

@@ -25,10 +25,13 @@ export function CollapsibleBadgeRow({
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
 
-  // Desktop: unchanged full wrapped badge row.
+  // Desktop: full wrapped row. gap-x-3: the row holds muted TEXT metadata now
+  // (not chips), and text items need breathing room to scan as separate facts.
   if (!isMobile) {
     return (
-      <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      <div
+        className={cn("flex flex-wrap items-center gap-x-3 gap-y-1", className)}
+      >
         {children}
       </div>
     );
@@ -39,7 +42,7 @@ export function CollapsibleBadgeRow({
     <div className="flex items-start gap-1">
       <div
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-1",
+          "flex min-w-0 flex-1 items-center gap-x-3",
           // Collapsed: one clipped line. `[&>*]:shrink-0` stops flex from
           // squeezing badges below their content width (which made long ones
           // like "Time to first token" wrap vertically into a multi-line row);

@@ -1,7 +1,6 @@
 /* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -138,18 +137,18 @@ export const DetailPageNav = (props: {
   }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
 
   if (entries.length > 1) {
+    // Ghost icon buttons; the K/J hints live in the tooltips.
     const buttonClassName = (active: boolean) =>
       cn(
         "transition-[background-color,border-color,box-shadow,color] duration-150",
-        !compact && "gap-1.5 px-2",
-        active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+        active && "bg-accent/60 ring-primary/20 ring-2",
       );
     return (
       <div className="flex flex-row gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={compact ? "ghost" : "outline"}
+              variant="ghost"
               type="button"
               size={compact ? "icon-xs" : size}
               className={buttonClassName(shortcutPulse === "previous")}
@@ -161,11 +160,6 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowUp className="h-4 w-4" />
-              {!compact && (
-                <span className="hidden md:inline-flex">
-                  <KeyboardShortcut keys={["K"]} />
-                </span>
-              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -177,7 +171,7 @@ export const DetailPageNav = (props: {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={compact ? "ghost" : "outline"}
+              variant="ghost"
               type="button"
               size={compact ? "icon-xs" : size}
               className={buttonClassName(shortcutPulse === "next")}
@@ -189,11 +183,6 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              {!compact && (
-                <span className="hidden md:inline-flex">
-                  <KeyboardShortcut keys={["J"]} />
-                </span>
-              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>

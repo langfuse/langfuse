@@ -81,14 +81,11 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
-  /**
-   * Item-specific header actions (star / publish / delete …), shared with the
-   * full detail page so the peek and the page expose the same controls.
-   */
+  /** Always-visible item action (share) rendered inline in the header. */
   actions?: React.ReactNode;
   /**
-   * The same actions rendered as labeled menu rows — shown in the header's
-   * overflow "…" menu when the peek is too narrow for the inline icon row.
+   * Item-specific header actions (delete …) as labeled menu rows — always
+   * shown in the header's "…" menu.
    */
   actionsMenu?: React.ReactNode;
   // Content

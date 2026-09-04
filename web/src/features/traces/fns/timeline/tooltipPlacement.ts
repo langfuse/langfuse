@@ -1,3 +1,4 @@
+import type React from "react";
 /**
  * Where a pointer-anchored tooltip goes, in viewport coordinates.
  *
@@ -59,5 +60,16 @@ export function tooltipPlacement(input: {
     top: clientY + (flipY ? -OFFSET_PX : OFFSET_PX),
     transform: `translate(${flipX ? "-100%" : "0"}, ${flipY ? "-100%" : "0"})`,
     maxWidth: Math.max(Math.min(MAX_WIDTH_PX, roomX), MIN_WIDTH_PX),
+  };
+}
+
+/** The placement as inline style. Split out so the geometry stays pure. */
+export function tooltipStyle(placement: TooltipPlacement): React.CSSProperties {
+  return {
+    left: `${Math.round(placement.left)}px`,
+    top: `${Math.round(placement.top)}px`,
+    transform: placement.transform,
+    maxWidth: `${Math.round(placement.maxWidth)}px`,
+    fontSize: "10px",
   };
 }

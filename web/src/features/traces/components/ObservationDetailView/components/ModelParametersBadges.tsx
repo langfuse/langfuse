@@ -5,7 +5,6 @@
  */
 
 import { type JsonNested } from "@langfuse/shared";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function ModelParametersBadges({
   modelParameters,
@@ -37,8 +36,15 @@ export function ModelParametersBadges({
 
         const text = `${key}: ${valueString}`;
         return (
-          <span key={key} className="inline-flex max-w-md">
-            <Badge text={text} title={text} />
+          <span
+            key={key}
+            title={text}
+            className="text-muted-foreground inline-flex max-w-md truncate text-xs"
+          >
+            {key}:{" "}
+            <span className="text-foreground/80 truncate" title={text}>
+              {valueString}
+            </span>
           </span>
         );
       })}

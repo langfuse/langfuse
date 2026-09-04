@@ -28,6 +28,7 @@ import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTime
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
+import { TraceSummaryStrip } from "@/src/features/traces/components/TraceSummaryStrip";
 
 import { useMemo } from "react";
 
@@ -36,6 +37,7 @@ export type TraceProps = {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
+    latency?: number;
   };
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
@@ -189,17 +191,23 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph } = useViewPreferences();
+  // Graph is a view: desktop via the Tree/Timeline/Graph switch, mobile via
+  // its Graph tab — both gated only on graph data being available.
   const { isGraphViewAvailable } = useTraceGraphData();
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
+  // Annotation mode is a focused surface — no trace-level summary strip.
+  const { isAnnotationMode } = useViewPreferences();
 
-  return isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
-  ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      {!isAnnotationMode && <TraceSummaryStrip />}
+      <div className="min-h-0 flex-1">
+        {isMobile ? (
+          <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
+        ) : (
+          <DesktopTraceContent desktopLayout={desktopLayout} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -212,18 +220,14 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
  * - Navigation panel (left) + Detail panel (right)
  */
 function DesktopTraceContent({
-  shouldShowGraph,
   desktopLayout,
 }: {
-  shouldShowGraph: boolean;
   desktopLayout: DesktopLayout;
 }) {
   return (
     <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
+        <TracePanelNavigationLayoutDesktop>
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.NavigationPanel>

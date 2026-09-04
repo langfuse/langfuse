@@ -24,7 +24,7 @@ import { ObservationLevelBadge } from "@/src/features/traces/components/Observat
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
 import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
@@ -90,13 +90,10 @@ export function SpanContent({
   const shouldRenderSubtreeDuration =
     shouldRenderDuration && subtreeWallClockOverflowMs != null;
 
-  const shouldRenderCostTokens =
-    showCostTokens &&
-    Boolean(
-      node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
-    );
+  // Rows carry only duration and cost; token counts live in the detail panel.
+  const shouldRenderCost = showCostTokens && Boolean(totalCost);
 
-  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
+  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCost;
 
   const nodeScores = selectNodeScores(
     mergedScores,
@@ -183,20 +180,8 @@ export function SpanContent({
               </span>
             ) : null}
 
-            {/* Token counts */}
-            {shouldRenderCostTokens &&
-            (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-foreground-tertiary text-xs">
-                {formatTokenCounts(
-                  node.inputUsage,
-                  node.outputUsage,
-                  node.totalUsage,
-                )}
-              </span>
-            ) : null}
-
             {/* Cost */}
-            {shouldRenderCostTokens && totalCost ? (
+            {shouldRenderCost && totalCost ? (
               <span
                 title={
                   node.children.length > 0 || node.type === "TRACE"
@@ -213,7 +198,6 @@ export function SpanContent({
                     }),
                 )}
               >
-                {node.children.length > 0 || node.type === "TRACE" ? "∑ " : ""}
                 {usdFormatter(totalCost.toNumber())}
               </span>
             ) : null}
@@ -227,6 +211,7 @@ export function SpanContent({
           <div className="flex flex-wrap gap-1">
             <GroupedScoreBadges
               compact
+              hideLevels
               scores={nodeScores}
               maxVisible={MAX_INLINE_SCORE_GROUPS}
             />

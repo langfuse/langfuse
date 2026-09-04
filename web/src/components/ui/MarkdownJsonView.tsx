@@ -16,34 +16,41 @@ import { cn } from "@/src/utils/tailwind";
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-  canEnableMarkdown?: boolean;
   controlButtons?: React.ReactNode;
   /** When set, the header hosts expand/collapse so a long body is not the
-      only place to find the control. */
+      only place to find the control. `subject` names what collapses in the
+      accessible labels (defaults to "system prompt", its original use). */
   collapseControl?: {
     isCollapsed: boolean;
     onToggle: () => void;
+    subject?: string;
   };
   inset?: boolean;
+  /** Hosts that render their own copy control (e.g. inside the content box)
+      suppress the header's. */
+  hideCopyButton?: boolean;
+  /** Reveal the right-side controls only while hovering the hosting section
+      (requires a `group/iosection` ancestor). */
+  hoverRevealControls?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
   collapseControl,
   inset = false,
+  hideCopyButton = false,
+  hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
+  const collapseSubject = collapseControl?.subject ?? "system prompt";
   const collapseLabel = collapseControl
     ? collapseControl.isCollapsed
-      ? "Expand system prompt"
-      : "Collapse system prompt"
+      ? `Expand ${collapseSubject}`
+      : `Collapse ${collapseSubject}`
     : undefined;
   // Keep the visible title in the title-button name (WCAG 2.5.3). A generic
   // aria-label would hide message `name`s from assistive tech.
@@ -92,7 +99,13 @@ export function MarkdownJsonViewHeader({
           titleContent
         )}
       </div>
-      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1">
+      <div
+        className={cn(
+          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
+          hoverRevealControls &&
+            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100",
+        )}
+      >
         {collapseControl ? (
           <Button
             variant="ghost"
@@ -106,24 +119,26 @@ export function MarkdownJsonViewHeader({
           </Button>
         ) : null}
         {controlButtons}
-        <Button
-          title="Copy to clipboard"
-          variant="ghost"
-          size="icon-xs"
-          type="button"
-          onClick={(event) => {
-            setIsCopied(true);
-            handleOnCopy(event);
-            setTimeout(() => setIsCopied(false), 1000);
-          }}
-          className="hover:bg-border -mr-2"
-        >
-          {isCopied ? (
-            <Check className="h-3 w-3" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
-        </Button>
+        {!hideCopyButton && (
+          <Button
+            title="Copy to clipboard"
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            onClick={(event) => {
+              setIsCopied(true);
+              handleOnCopy(event);
+              setTimeout(() => setIsCopied(false), 1000);
+            }}
+            className="hover:bg-border -mr-2"
+          >
+            {isCopied ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -159,6 +174,7 @@ export function MarkdownJsonView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  hoverControls,
 }: {
   content?: unknown;
   title?: string;
@@ -172,6 +188,8 @@ export function MarkdownJsonView({
   /** Collapse long content to a preview (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
+  /** Header controls reveal on section hover instead of rendering always. */
+  hoverControls?: boolean;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -196,6 +214,7 @@ export function MarkdownJsonView({
           controlButtons={controlButtons}
           afterHeader={afterHeader}
           isSystemPrompt={isSystemPrompt}
+          hoverControls={hoverControls}
         />
       ) : (
         <PrettyJsonView
@@ -203,6 +222,7 @@ export function MarkdownJsonView({
           title={title}
           titleIcon={titleIcon}
           className={className}
+          hoverControls={hoverControls}
           media={media}
           currentView="pretty"
           controlButtons={controlButtons}

@@ -167,22 +167,22 @@ describe("UpsertModelFormDialog price editor", () => {
     upsertMutateAsync.mockClear();
   });
 
-  it("keeps an unlinked model badge intact as the dialog trigger", () => {
+  it("renders an unlinked model as a link to model settings (no inline dialog)", () => {
     render(
       <ModelBadge
         model="claude-sonnet-4-5"
         internalModelId={null}
         projectId="p1"
-        usageDetails={undefined}
       />,
     );
 
-    const trigger = screen.getByTitle("Create model definition");
-    const label = within(trigger).getByText("claude-sonnet-4-5");
+    const link = screen.getByTitle(
+      "Model has no pricing definition — view model settings",
+    );
+    within(link).getByText("claude-sonnet-4-5");
 
-    expect(trigger.tagName).toBe("BUTTON");
-    expect(label.parentElement).toHaveClass("bg-tertiary");
-    expect(label.parentElement?.querySelector("svg")).not.toBeNull();
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/project/p1/settings/models");
   });
 
   it("keeps every keystroke of a usage type that extends an existing one", () => {

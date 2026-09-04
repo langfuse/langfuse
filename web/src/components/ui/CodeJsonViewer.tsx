@@ -16,8 +16,6 @@ import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
@@ -33,10 +31,11 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
 export function JSONView(props: {
-  canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
   hideTitle?: boolean;
+  /** Header controls (copy, expand) reveal on section hover instead of always. */
+  hoverControls?: boolean;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -57,8 +56,6 @@ export function JSONView(props: {
     [props.json],
   );
   const { resolvedTheme } = useTheme();
-  const { setIsMarkdownEnabled } = useMarkdownContext();
-  const capture = usePostHogClientCapture();
   const promptReferenceProjectId = usePromptReferenceProjectId();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
 
@@ -80,13 +77,6 @@ export function JSONView(props: {
     if (event) {
       event.currentTarget.focus();
     }
-  };
-
-  const handleOnValueChange = () => {
-    setIsMarkdownEnabled(true);
-    capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: true,
-    });
   };
 
   const handleToggleCollapse = () => {
@@ -192,9 +182,8 @@ export function JSONView(props: {
     >
       {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
+          hoverRevealControls={props.hoverControls}
           title={props.title}
-          canEnableMarkdown={props.canEnableMarkdown ?? false}
-          handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>

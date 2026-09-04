@@ -27,6 +27,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   TabsBar,
   TabsBarContent,
@@ -49,6 +50,8 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
@@ -84,6 +87,8 @@ export function ConnectedObservationDetailView({
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
@@ -174,6 +179,13 @@ export function ConnectedObservationDetailView({
     if (tab === "scores") {
       refreshTraceScores();
     }
+    if (tab !== selectedTab) {
+      capture("trace_detail:detail_tab_switch", {
+        tab,
+        target: "observation",
+        ...analyticsDimensions,
+      });
+    }
     setGlobalSelectedTab(tab);
   };
 
@@ -211,10 +223,14 @@ export function ConnectedObservationDetailView({
 
   const handleBetaToggle = useCallback(
     (enabled: boolean) => {
+      capture("trace_detail:json_beta_toggle", {
+        enabled,
+        ...analyticsDimensions,
+      });
       setJsonBetaEnabled(enabled);
       setJsonViewPreference(enabled ? "json-beta" : "json");
     },
-    [setJsonBetaEnabled, setJsonViewPreference],
+    [setJsonBetaEnabled, setJsonViewPreference, capture, analyticsDimensions],
   );
 
   // states for the inline comments
@@ -351,7 +367,20 @@ export function ConnectedObservationDetailView({
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {showScoresTab ? (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                <TabsBarTrigger value="scores" className="gap-1">
+                  Scores
+                  {/* Match the tab's table: observation scores, plus the
+                      trace-level ones when this node stands in for the trace. */}
+                  <ActionButtonCountBadge
+                    count={
+                      observationScores.length +
+                      (ownsTraceLevelScores
+                        ? scores.filter((score) => !score.observationId).length
+                        : 0)
+                    }
+                    variant="muted"
+                  />
+                </TabsBarTrigger>
               ) : null}
               {showLogViewTab ? (
                 <TabsBarTrigger value="log">
@@ -465,7 +494,6 @@ export function ConnectedObservationDetailView({
         >
           <ObservationPreview
             currentView={currentView}
-            tags={isRoot ? observation.traceTags : undefined}
             previewKey={observation.id}
             onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
             previewProps={{
