@@ -43,6 +43,7 @@ jobs:
   validate-v3-release-tag:
     if: ${{ github.event_name == 'push' && github.ref_type == 'tag' && (github.ref_name == 'v3' || startsWith(github.ref_name, 'v3.')) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
