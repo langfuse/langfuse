@@ -17,21 +17,19 @@ vi.mock("@/src/utils/api", () => ({
 const SCORE_OPTIONS_DATA = {
   obs_scores_avg: ["groundedness"],
   obs_score_categories: [],
-  trace_scores_avg: [],
-  trace_score_categories: [],
   experiment_scores_avg: [],
   experiment_score_categories: [],
 };
 
 /**
- * Two trace-level scores as the score-options endpoint returns them: booleans
- * are listed under `*_scores_avg` too, and only `*_score_columns` says which
- * they are.
+ * Two observation-level scores as the score-options endpoint returns them:
+ * booleans are listed under `*_scores_avg` too, and only `*_score_columns`
+ * says which they are.
  */
 const MIXED_SCORE_OPTIONS_DATA = {
   ...SCORE_OPTIONS_DATA,
-  trace_scores_avg: ["answered_in_right_language", "groundedness"],
-  trace_score_columns: [
+  obs_scores_avg: ["answered_in_right_language", "groundedness"],
+  obs_score_columns: [
     {
       name: "answered_in_right_language",
       dataType: "BOOLEAN",
@@ -137,14 +135,14 @@ describe("useExperimentStripMetric", () => {
       <Harness
         experimentIds={["e1"]}
         scoreCoverage={{
-          trace: new Map([
+          obs: new Map([
             ["answered_in_right_language", 300],
             ["groundedness", 30],
           ]),
         }}
       />,
     );
-    expect(state()).toBe("ready:trace-score-numeric:groundedness");
+    expect(state()).toBe("ready:obs-score-numeric:groundedness");
   });
 
   it("falls back to cost when the options query fails", () => {

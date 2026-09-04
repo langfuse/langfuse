@@ -46,17 +46,17 @@ describe("pickDefaultStripMetric", () => {
     expect(
       pickDefaultStripMetric(
         buildMetricOptions({
-          trace_scores_avg: ["answered_in_right_language", "groundedness"],
-          trace_score_booleans: ["answered_in_right_language"],
+          obs_scores_avg: ["answered_in_right_language", "groundedness"],
+          obs_score_booleans: ["answered_in_right_language"],
         }),
         {
-          trace: new Map([
+          obs: new Map([
             ["answered_in_right_language", 400],
             ["groundedness", 12],
           ]),
         },
       ),
-    ).toBe("trace-score-numeric:groundedness");
+    ).toBe("obs-score-numeric:groundedness");
   });
 
   // Coverage is per level, and the aggregate keys it is counted under carry
@@ -64,14 +64,14 @@ describe("pickDefaultStripMetric", () => {
   it("resolves coverage per level and through name normalization", () => {
     const options = buildMetricOptions({
       obs_scores_avg: ["judge.verdict"],
-      trace_scores_avg: ["judge.verdict"],
+      experiment_scores_avg: ["judge.verdict"],
     });
     expect(
       pickDefaultStripMetric(options, {
         obs: new Map([["judge_verdict", 2]]),
-        trace: new Map([["judge_verdict", 90]]),
+        experiment: new Map([["judge_verdict", 90]]),
       }),
-    ).toBe("trace-score-numeric:judge.verdict");
+    ).toBe("experiment-score-numeric:judge.verdict");
   });
 
   // Without coverage the order must still be total, so the strip does not
@@ -79,7 +79,7 @@ describe("pickDefaultStripMetric", () => {
   it("is stable when no coverage is known", () => {
     const options = buildMetricOptions({
       obs_scores_avg: ["groundedness"],
-      trace_scores_avg: ["groundedness"],
+      experiment_scores_avg: ["groundedness"],
     });
     expect(pickDefaultStripMetric(options)).toBe(
       "obs-score-numeric:groundedness",
