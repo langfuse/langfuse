@@ -595,6 +595,10 @@ async function seedLlmGateway(params: {
         secretKey: "sk-lf-gateway-seed",
       },
     }));
+  await prisma.apiKey.update({
+    where: { id: key.id },
+    data: { isGatewayKey: true },
+  });
   await prisma.gatewayApiKeyAssociation.upsert({
     where: { apiKeyId: key.id },
     create: {
