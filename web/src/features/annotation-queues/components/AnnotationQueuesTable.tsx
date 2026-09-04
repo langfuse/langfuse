@@ -209,6 +209,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   return (
     <>
       <DataTableToolbar
+        tableName="annotation-queues"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

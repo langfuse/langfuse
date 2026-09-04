@@ -1474,6 +1474,7 @@ function ObservationsDataTableToolbar({
 
   return (
     <DataTableToolbar
+      tableName="observations"
       {...toolbarProps}
       orderByState={orderByState}
       actionButtons={[

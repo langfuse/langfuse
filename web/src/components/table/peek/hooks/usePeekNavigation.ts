@@ -11,7 +11,13 @@ const PEEK_PARAM = "peek";
 const PEEK_VIEW_PARAM = "peekView";
 
 interface BasePeekConfig {
-  /** Analytics table identity for peek:* events. Forward from the owning table. */
+  /**
+   * Which table this peek belongs to, for the `peek:*` analytics.
+   * `routePattern` alone cannot separate two tables on one route (the dataset
+   * run items by-run / by-item views, the experiments results layouts), so the
+   * table names itself. Required on purpose: an optional dimension is one a new
+   * table forgets to pass.
+   */
   tableName: string;
   /** Surface dimension at the moment of the action. Do not derive from the global v4 flag. */
   isV4: boolean;
@@ -86,7 +92,8 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
   // Every peek is opened/closed through this hook, so open/close/new-tab
   // analytics live here once instead of in each consuming table. Props are
   // metadata-only: `routePattern` is the Next.js route PATTERN
-  // (`/project/[projectId]/traces`), never a concrete URL with ids.
+  // (`/project/[projectId]/traces`), never a concrete URL with ids, and
+  // `tableName` is the table's own analytics identity.
   const routePattern = router.pathname;
   const { isV4, tableName } = config;
 
