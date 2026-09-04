@@ -192,15 +192,15 @@ describe("UpdateMonitorSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a disallowed filter column (validateQuery is wired)", () => {
+  it("rejects a filter with duplicate set values (validateQuery is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       filters: [
         {
-          type: "string",
-          column: "metadata",
-          operator: "=",
-          value: "x",
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["prod", "prod"],
         },
       ],
     });

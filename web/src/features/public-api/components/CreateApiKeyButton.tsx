@@ -1,11 +1,14 @@
+/* eslint-disable @repo/no-null-render */
+import {
+  useHasProjectAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { ApiKeyCreateDialogContent } from "@/src/features/public-api/components/ApiKeyCreateDialogContent";
 
@@ -68,9 +71,7 @@ export function CreateApiKeyButton(props: {
           });
           capture(`${props.scope}_settings:api_key_create`);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutCreateOrgApiKey
         .mutateAsync({
@@ -84,9 +85,7 @@ export function CreateApiKeyButton(props: {
           });
           capture(`${props.scope}_settings:api_key_create`);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
 

@@ -102,10 +102,7 @@ export function SelectDashboardDialog({
                           selectedDashboardId === d.id ? "bg-muted" : ""
                         }`}
                       >
-                        <TableCell
-                          density="comfortable"
-                          className="font-medium"
-                        >
+                        <TableCell density="comfortable" className="font-bold">
                           {d.name}
                         </TableCell>
                         <TableCell

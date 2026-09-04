@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -10,8 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
 type WebCalloutTarget = {
@@ -102,7 +102,7 @@ export function WebCalloutMenuItem({
           title={action.endpointName}
         >
           <span>Call </span>
-          <span className="font-semibold">{action.endpointName}</span>
+          <span className="font-bold">{action.endpointName}</span>
         </span>
       </DropdownMenuItem>
       {withSeparator && <DropdownMenuSeparator />}
@@ -115,7 +115,16 @@ export function WebCalloutButton({
   traceId,
   observationId,
   sessionId,
-}: WebCalloutTarget) {
+  layout = "toolbar",
+}: WebCalloutTarget & {
+  /**
+   * "toolbar" (default) is the inline icon button; "menu" renders the same
+   * action as a full-width labeled row for the mobile header overflow popover.
+   * (WebCalloutMenuItem is a Radix DropdownMenuItem and only works inside a
+   * DropdownMenu, so the plain-popover mobile menu uses this row instead.)
+   */
+  layout?: "toolbar" | "menu";
+}) {
   const action = useWebCalloutAction({
     projectId,
     traceId,
@@ -128,6 +137,26 @@ export function WebCalloutButton({
   }
 
   const label = `Call ${action.endpointName}`;
+
+  if (layout === "menu") {
+    return (
+      <Button
+        aria-label={label}
+        variant="ghost"
+        size="sm"
+        loading={action.isLoading}
+        className="w-full justify-start gap-2 font-normal"
+        onClick={() => {
+          action.invokeCallout().catch(() => undefined);
+        }}
+      >
+        <Webhook className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 truncate text-sm" title={label}>
+          {label}
+        </span>
+      </Button>
+    );
+  }
 
   return (
     <Tooltip>

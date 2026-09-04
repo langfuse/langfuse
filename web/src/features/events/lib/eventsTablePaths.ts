@@ -1,8 +1,8 @@
-import { type FilterState } from "@langfuse/shared";
 import {
+  type FilterState,
   decodeFiltersGeneric,
   encodeFiltersGeneric,
-} from "@/src/features/filters/lib/filter-query-encoding";
+} from "@langfuse/shared";
 
 type BuildEventsTablePathForSpanNameParams = {
   currentPath: string;

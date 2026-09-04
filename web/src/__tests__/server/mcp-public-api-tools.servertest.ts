@@ -1,3 +1,7 @@
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
@@ -58,12 +62,12 @@ import {
   handleListAnnotationQueueItems,
   handleListAnnotationQueues,
   handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/features/annotationQueues/tools";
+} from "@/src/features/mcp/server/annotationQueues/tools";
 import {
   handleCreateComment,
   handleGetComment,
   handleListComments,
-} from "@/src/features/mcp/features/comments/tools";
+} from "@/src/features/mcp/server/comments/tools";
 import {
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
@@ -78,18 +82,18 @@ import {
   handleUpsertDataset,
   handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/features/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
+} from "@/src/features/mcp/server/datasets/tools";
+import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
 import {
   handleCreateModel,
   handleDeleteModel,
   handleGetModel,
   handleListModels,
-} from "@/src/features/mcp/features/models/tools";
-import { handleCreateScoreConfig } from "@/src/features/mcp/features/scores/tools/createScoreConfig";
-import { handleGetScoreConfig } from "@/src/features/mcp/features/scores/tools/getScoreConfig";
-import { handleListScoreConfigs } from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
-import { handleUpdateScoreConfig } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/models/tools";
+import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
+import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
+import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
+import { handleUpdateScoreConfig } from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -149,15 +153,20 @@ describe("MCP public API tools", () => {
         "createAnnotationQueue",
         "createComment",
         "listEvaluators",
+        "listManagedEvaluatorTemplates",
         "getEvaluator",
-        "upsertEvaluator",
+        "createEvaluator",
+        "updateEvaluator",
         "listEvaluationRules",
         "getEvaluationRule",
         "createEvaluationRule",
+        "createDashboardWidget",
         "listDatasets",
         "getHealth",
         "listScores",
         "getScore",
+        "listAlerts",
+        "getAlert",
         "createModel",
         "createScoreConfig",
       ]),
@@ -189,13 +198,16 @@ describe("MCP public API tools", () => {
     await expect(
       toolRegistry.getEnabledTool("createModel", context),
     ).resolves.toBeUndefined();
+    await expect(
+      toolRegistry.getEnabledTool("createDashboardWidget", context),
+    ).resolves.toBeUndefined();
   });
 
-  it("resolves only the overridden mutating tool for in-app agent keys", async () => {
+  it("resolves allowlisted mutating tools plus reads for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "upsertDataset",
+        permissions: "tool-allowlist",
+        allowedToolNames: ["upsertDataset"],
       },
     });
 
@@ -207,6 +219,22 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
     await expect(
       toolRegistry.getEnabledTool("listDatasets", context),
+    ).resolves.toBeTruthy();
+  });
+
+  it("resolves the dashboard widget creation override for in-app agent keys", async () => {
+    const context = mockServerContext({
+      inAppAgent: {
+        permissions: "tool-allowlist",
+        allowedToolNames: ["createDashboardWidget"],
+      },
+    });
+
+    await expect(
+      toolRegistry.getEnabledTool("createDashboardWidget", context),
+    ).resolves.toBeTruthy();
+    await expect(
+      toolRegistry.getEnabledTool("upsertDataset", context),
     ).resolves.toBeUndefined();
   });
 
@@ -222,22 +250,34 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
+        "addDashboardPlacement",
+        "attachEvaluatorToEvaluationRule",
         "createChatPrompt",
+        "createDashboard",
+        "createDashboardWidget",
         "createEvaluationRule",
-        "upsertEvaluator",
+        "createEvaluator",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",
         "deleteAnnotationQueueItem",
+        "deleteDashboard",
+        "deleteDashboardPlacement",
+        "deleteDashboardWidget",
         "deleteDatasetItem",
         "deleteDatasetRun",
         "deleteEvaluationRule",
         "deleteEvaluator",
         "deleteModel",
         "deleteScoreConfig",
+        "detachEvaluatorFromEvaluationRule",
         "updateAnnotationQueueItem",
+        "updateDashboard",
+        "updateDashboardPlacement",
+        "updateDashboardWidget",
         "updateEvaluationRule",
+        "updateEvaluator",
         "updatePromptLabels",
         "updateScoreConfig",
         "upsertDataset",
@@ -279,7 +319,7 @@ describe("MCP public API tools", () => {
         queueId: queue.id,
         objectId: uuidv4(),
         objectType: "TRACE",
-      },
+      } as unknown as Parameters<typeof handleCreateAnnotationQueueItem>[0],
       context,
     )) as { id: string; status: string };
     expect(queueItem.status).toBe("PENDING");
@@ -706,7 +746,12 @@ describe("MCP public API tools", () => {
   it("covers health public API route and cross-project recent-event checks", async () => {
     const { context } = await createMcpTestSetup();
 
-    await expect(handleGetHealth({}, context)).resolves.toMatchObject({
+    await expect(
+      handleGetHealth(
+        {} as unknown as Parameters<typeof handleGetHealth>[0],
+        context,
+      ),
+    ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
     });
@@ -729,7 +774,12 @@ describe("MCP public API tools", () => {
     ]);
 
     await expect(
-      handleGetHealth({ failIfNoRecentEvents: true }, context),
+      handleGetHealth(
+        { failIfNoRecentEvents: true } as unknown as Parameters<
+          typeof handleGetHealth
+        >[0],
+        context,
+      ),
     ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
@@ -831,7 +881,7 @@ describe("MCP public API tools", () => {
         dataType: "NUMERIC",
         numericMinValue: 0,
         numericMaxValue: 1,
-      },
+      } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
       context,
     )) as { id: string; name: string };
     expect(scoreConfig.name).toBe(scoreConfigName);
@@ -862,5 +912,59 @@ describe("MCP public API tools", () => {
       id: scoreConfig.id,
       description: "Updated through MCP",
     });
+  });
+});
+
+describe("MCP tool schema interoperability", () => {
+  /** Recursively collect all JSON Schema `pattern` values with their location. */
+  const collectPatterns = (
+    schema: unknown,
+    path: string[] = [],
+  ): { path: string; pattern: string }[] => {
+    if (typeof schema !== "object" || schema === null) return [];
+
+    if (Array.isArray(schema)) {
+      return schema.flatMap((item, index) =>
+        collectPatterns(item, [...path, String(index)]),
+      );
+    }
+
+    const obj = schema as Record<string, unknown>;
+    const ownPattern =
+      typeof obj.pattern === "string"
+        ? [{ path: path.join("."), pattern: obj.pattern }]
+        : [];
+
+    return [
+      ...ownPattern,
+      ...Object.entries(obj).flatMap(([key, value]) =>
+        collectPatterns(value, [...path, key]),
+      ),
+    ];
+  };
+
+  const getAllToolPatterns = () =>
+    toolRegistry.getFeatures().flatMap((feature) =>
+      feature.tools.flatMap((tool) =>
+        collectPatterns(tool.definition.inputSchema).map((entry) => ({
+          tool: tool.definition.name,
+          ...entry,
+        })),
+      ),
+    );
+
+  it("advertises no pattern that requires the ECMAScript `u` flag", () => {
+    // JSON Schema `pattern` is an ECMA-262 regex compiled WITHOUT the `u` flag.
+    // Unicode-only escapes (`\p{...}`, `\P{...}`, `\u{...}`) don't merely fail
+    // OpenAI/Vertex validation — without `u` they silently degrade instead of
+    // throwing: e.g. `^[\p{L}\p{N}_ .()-]+$` collapses to a literal class
+    // `[pLN{}...]` that REJECTS valid ASCII like "quality". Because those
+    // providers validate the whole tool catalog atomically, a single such
+    // pattern disables every Langfuse MCP tool.
+    const offending = getAllToolPatterns().filter(({ pattern }) =>
+      /\\[pP]\{|\\u\{/.test(pattern),
+    );
+
+    expect(offending).toEqual([]);
   });
 });

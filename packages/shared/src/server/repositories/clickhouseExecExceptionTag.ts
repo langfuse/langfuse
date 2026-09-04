@@ -9,7 +9,7 @@
 // Caveat (like rawPassthrough): pre-25.11 the tag header is absent → detection off.
 
 import { Transform } from "stream";
-import { extractErrorAtTheEndOfChunk } from "@clickhouse/client-common";
+import { extractErrorAtTheEndOfChunk } from "@clickhouse/client";
 
 // Literal prefix of the error trailer; the per-query tag is appended at runtime.
 export const EXCEPTION_TRAILER_MARKER = Buffer.from("\r\n__exception__\r\n");

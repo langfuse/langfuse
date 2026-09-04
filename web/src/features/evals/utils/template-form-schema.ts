@@ -7,15 +7,7 @@ import {
   getCategoricalCategoryRuleViolations,
   getMinimumCategoricalCategoriesMessage,
   ScoreDataTypeEnum,
-  ZodModelConfig,
 } from "@langfuse/shared";
-import { EvalReferencedEvaluators } from "@/src/features/evals/types";
-
-const selectedModelSchema = z.object({
-  provider: z.string().min(1, "Select a provider"),
-  model: z.string().min(1, "Select a model"),
-  modelParams: ZodModelConfig,
-});
 
 const categoricalOptionSchema = z.object({
   value: z.string().trim().min(1, "Enter a category value"),
@@ -58,10 +50,6 @@ export const templateFormSchema = z
     reasoningDescription: z.string().optional(),
     categories: z.array(categoricalOptionSchema).default([]),
     shouldAllowMultipleMatches: z.boolean().default(false),
-    referencedEvaluators: z
-      .enum(EvalReferencedEvaluators)
-      .optional()
-      .default(EvalReferencedEvaluators.PERSIST),
     shouldUseDefaultModel: z.boolean().default(true),
   })
   .superRefine((value, ctx) => {
@@ -130,7 +118,3 @@ export const templateFormSchema = z
       }
     }
   });
-
-export type TemplateFormSchema = z.infer<typeof templateFormSchema>;
-
-export { selectedModelSchema, categoricalOptionSchema };

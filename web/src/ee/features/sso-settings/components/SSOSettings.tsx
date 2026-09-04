@@ -1,4 +1,6 @@
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +15,7 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
   Dialog,
   DialogBody,
@@ -51,9 +53,7 @@ import {
 } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 import { api } from "@/src/utils/api";
@@ -148,13 +148,12 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <VerifiedDomainsSettings orgId={orgId} />
         <div>
           {heading}
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Not available</AlertTitle>
-            <AlertDescription>
+          <Alert icon={AlertCircle}>
+            <Alert.Title>Not available</Alert.Title>
+            <Alert.Description>
               Enterprise SSO is not available on your plan. Please upgrade to
               access this feature.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </div>
       </div>
@@ -168,10 +167,10 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <div>
           {heading}
           <Alert>
-            <AlertTitle>Access Denied</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>Access Denied</Alert.Title>
+            <Alert.Description>
               You do not have permission to configure SSO for this organization.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </div>
       </div>
@@ -613,7 +612,7 @@ function SsoConfigDialog({
             <AlertDialogDescription>
               <span className="block">
                 Saving will activate SSO for{" "}
-                <span className="font-medium">@{domain}</span> within 1 hour.
+                <span className="font-bold">@{domain}</span> within 1 hour.
                 Every user at that domain will be redirected to your identity
                 provider on sign-in &mdash; they will not be able to use Google,
                 GitHub, password, or any other method until SSO is deleted.
@@ -647,7 +646,7 @@ function SsoConfigDialog({
 function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-medium">Callback URL</p>
+      <p className="mb-2 text-sm font-bold">Callback URL</p>
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>

@@ -1,6 +1,7 @@
 import { Langfuse } from "langfuse";
 import { type FilterCondition, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 
 let langfuseClient: Langfuse | null = null;
 
@@ -43,7 +44,10 @@ export function getLangfuseClient(
     langfuseClient = new Langfuse({
       publicKey,
       secretKey,
-      baseUrl,
+      // Without LANGFUSE_AI_FEATURES_HOST the SDK would default to
+      // cloud.langfuse.com; self-referential deployments (e.g. PR previews)
+      // must talk to themselves instead.
+      baseUrl: baseUrl ?? getProductBaseUrl().toString(),
       enabled: enabled ?? true,
     });
   }

@@ -4,6 +4,7 @@ import {
   createTracesCh,
   createObservation,
   createObservationsCh,
+  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
@@ -220,7 +221,8 @@ describe("selfServeDashboards", () => {
     // Count recent production traces (within the last hour)
     stats.recentProductionTraces = traces.filter(
       (t) =>
-        t.environment === "production" && t.timestamp >= oneHourAgo.getTime(),
+        t.environment === "production" &&
+        t.timestamp >= convertDateToClickhouseDateTime(oneHourAgo),
     ).length;
   });
 
@@ -479,8 +481,8 @@ describe("selfServeDashboards", () => {
         );
 
         expect(modelRow).toBeDefined();
-        expect(modelRow.sum_totalCost).toBeDefined();
-        expect(modelRow.sum_totalTokens).toBeDefined();
+        expect(modelRow!.sum_totalCost).toBeDefined();
+        expect(modelRow!.sum_totalTokens).toBeDefined();
 
         // We could add more specific assertions about the expected costs and tokens
         // if we had that information calculated from our sample data
@@ -569,8 +571,8 @@ describe("selfServeDashboards", () => {
         );
 
         expect(modelRow).toBeDefined();
-        expect(modelRow.sum_totalCost).toBeGreaterThan(500);
-        expect(Number(modelRow.sum_totalTokens)).toBeGreaterThan(10000);
+        expect(modelRow!.sum_totalCost).toBeGreaterThan(500);
+        expect(Number(modelRow!.sum_totalTokens)).toBeGreaterThan(10000);
       });
     });
   });
@@ -852,11 +854,11 @@ describe("selfServeDashboards", () => {
         );
 
         expect(userRow).toBeDefined();
-        expect(userRow.count_count).toBeDefined();
+        expect(userRow!.count_count).toBeDefined();
 
         // Verify the count matches what we expect based on our sample data
         // We could add more specific assertions if needed
-        expect(Number(userRow.count_count)).toBeGreaterThan(0);
+        expect(Number(userRow!.count_count)).toBeGreaterThan(0);
       });
 
       // Verify the total number of traces across all users matches our expected total

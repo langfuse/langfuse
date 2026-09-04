@@ -1,13 +1,14 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
+import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
-import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -20,6 +21,8 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -38,9 +41,14 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
   const showAuditLogs = useHasEntitlement("audit-logs");
+  const canUpdateOrganization = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:update",
+  });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const showV4Migration = useV4UpgradeUiFlag();
 
   if (!organization) return [];
 
@@ -50,6 +58,9 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showOrgApiKeySettings,
     showAuditLogs,
     isLangfuseCloud,
+    showV4Migration,
+    showFeaturePreviews:
+      canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
 }
 
@@ -59,12 +70,16 @@ export const getOrganizationSettingsPages = ({
   showOrgApiKeySettings,
   showAuditLogs,
   isLangfuseCloud,
+  showV4Migration,
+  showFeaturePreviews,
 }: {
   organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
+  showV4Migration: boolean;
+  showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
@@ -94,12 +109,31 @@ export const getOrganizationSettingsPages = ({
               title: "Delete this organization",
               description:
                 "Once you delete an organization, there is no going back. Please be certain.",
-              button: <DeleteOrganizationButton />,
+              button: (
+                <DeleteOrganizationDialogController>
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      Delete Organization
+                    </Button>
+                  )}
+                </DeleteOrganizationDialogController>
+              ),
             },
           ]}
         />
       </div>
     ),
+  },
+  {
+    title: "Feature Previews",
+    slug: "feature-previews",
+    cmdKKeywords: ["feature", "preview", "flags", "beta"],
+    content: <OrganizationFeaturePreviewsSettings orgId={organization.id} />,
+    show: showFeaturePreviews,
   },
   {
     title: "API Keys",
@@ -163,6 +197,12 @@ export const getOrganizationSettingsPages = ({
     title: "Projects",
     slug: "projects",
     href: `/organization/${organization.id}`,
+  },
+  {
+    title: "v4 Migration",
+    slug: "v4-migration",
+    href: "/v4-migration",
+    show: showV4Migration,
   },
 ];
 

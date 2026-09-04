@@ -32,13 +32,11 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { api, type RouterOutputs } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { DialogFooter } from "@/src/components/ui/dialog";
-import { DialogBody } from "@/src/components/ui/dialog";
+import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
@@ -417,9 +415,9 @@ export function CreateLLMApiKeyForm({
           </FormDescription>
           {currentAdapter === LLMAdapter.Azure && (
             <FormDescription className="text-dark-yellow">
-              {
-                "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
-              }
+              For Azure, the model name should be the same as the deployment
+              name in Azure. For evals, choose a model with function calling
+              capabilities.
             </FormDescription>
           )}
 
@@ -659,9 +657,7 @@ export function CreateLLMApiKeyForm({
         form.reset();
         onSuccess();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
   }
 
   return (
@@ -793,33 +789,27 @@ export function CreateLLMApiKeyForm({
                           Select how Langfuse should authenticate to Bedrock.
                         </FormDescription>
                         <FormControl>
-                          <Tabs
-                            value={field.value}
-                            onValueChange={(value) =>
-                              field.onChange(value as BedrockAuthMethod)
-                            }
-                            className="w-full"
-                          >
-                            <TabsList
-                              className={cn(
-                                "grid h-auto w-full gap-1",
-                                "grid-cols-2",
-                              )}
+                          <div className="w-full">
+                            <Tabs
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value as BedrockAuthMethod)
+                              }
                             >
-                              <TabsTrigger
-                                value={AuthMethod.AccessKeys}
-                                className="text-xs"
-                              >
-                                AWS access keys
-                              </TabsTrigger>
-                              <TabsTrigger
-                                value={AuthMethod.ApiKey}
-                                className="text-xs"
-                              >
-                                API key
-                              </TabsTrigger>
-                            </TabsList>
-                          </Tabs>
+                              <Tabs.List layout="full" gap="sm" size="auto">
+                                <Tabs.Trigger
+                                  value={AuthMethod.AccessKeys}
+                                  size="sm"
+                                  label="AWS access keys"
+                                />
+                                <Tabs.Trigger
+                                  value={AuthMethod.ApiKey}
+                                  size="sm"
+                                  label="API key"
+                                />
+                              </Tabs.List>
+                            </Tabs>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1292,7 +1282,7 @@ export function CreateLLMApiKeyForm({
                           <FormDescription>
                             Google Cloud region (e.g., global, us-central1,
                             europe-west4). Defaults to{" "}
-                            <span className="font-medium">global</span> as
+                            <span className="font-bold">global</span> as
                             required for Gemini 3 models.
                           </FormDescription>
                           <FormControl>

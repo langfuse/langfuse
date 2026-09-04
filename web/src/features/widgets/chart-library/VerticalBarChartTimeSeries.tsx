@@ -6,7 +6,7 @@ import {
   ChartTooltipContent,
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -23,6 +23,7 @@ import {
   TimeSeriesLegend,
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -42,12 +43,13 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
+  legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
   syncId,
   subtleFill = false,
+  hideXAxisLabels = false,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
@@ -66,13 +68,15 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
+        { hideCategoryTickLabels: hideXAxisLabels },
       ),
-    [groupedData, maxTicks],
+    [groupedData, maxTicks, hideXAxisLabels],
   );
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
     data,
     dimensions,
+    config,
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
@@ -101,14 +105,6 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {legendPosition === "above" && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={formatValue}
-        />
-      )}
       <SeriesOverflowNote
         visibleCount={dimensions.length}
         totalCount={series.total}
@@ -124,6 +120,14 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           syncId={syncId}
           syncMethod="value"
         >
+          {/* Horizontal only: y-gridlines make bar heights gaugeable like the
+              line/area charts; the bars themselves already mark the x-rhythm,
+              so vertical lines would only add noise between them. (LFE-10576) */}
+          <CartesianGrid
+            stroke="hsl(var(--chart-grid))"
+            vertical={false}
+            syncWithTicks
+          />
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"
@@ -133,6 +137,10 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
             {...timeAxis.tickProps}
+            {...temporalAxisTickProp(
+              timeAxis,
+              groupedData.at(-1)?.time_dimension,
+            )}
           />
           <YAxis
             type="number"
@@ -185,8 +193,15 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           />
         </BarChart>
       </ChartContainer>
+      {(legendPosition === "below" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
+        <TimeSeriesLegend
+          items={legendItems}
+          interaction={legendInteraction}
+          onItemClick={onLegendClick}
+          formatSummary={formatValue}
+        />
+      )}
     </div>
   );
 };
-
-export default VerticalBarChartTimeSeries;

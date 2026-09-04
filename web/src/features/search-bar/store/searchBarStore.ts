@@ -1,4 +1,4 @@
-// Per-mount search-bar store — DRAFT ONLY.
+// Per-mount search-bar store — DRAFT ONLY (plus an ephemeral preview overlay).
 //
 // Data direction is deliberately dumb and one-way: the table's URL filter
 // state (FilterState + searchQuery/searchType) is the single source of truth.
@@ -8,12 +8,19 @@
 // and nothing here ever writes back to the filter state (that happens in the
 // container's commit workflow). This removes the reconciliation/loop-guard the
 // old two-source design needed.
+//
+// `previewText` is a display-only overlay on top of that model (a hovered
+// preset row shows the query it would apply). It is rendered instead of the
+// draft while active but is not an edit buffer: it never merges into the
+// draft, never commits, and any real draft write clears it — so previews are
+// non-destructive by construction, not by careful restore logic.
 
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ScoreTypeContext } from "../lib/adapter";
 import { astEquals } from "../lib/ast";
 import { removeToken } from "../lib/edits";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
 import { foldDerivedNegation } from "../lib/filter-state-to-query";
 import { parse, type Diagnostic } from "../lib/langQ";
 import { scoreTypeContextEqual } from "../lib/observed-options";
@@ -34,16 +41,25 @@ export function draftsSemanticallyEqual(
   a: string,
   b: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): boolean {
   return astEquals(
-    foldDerivedNegation(parse(a).ast, scoreTypes),
-    foldDerivedNegation(parse(b).ast, scoreTypes),
+    foldDerivedNegation(parse(a, registry).ast, scoreTypes, registry),
+    foldDerivedNegation(parse(b, registry).ast, scoreTypes, registry),
   );
 }
 
 export type SearchBarStoreState = {
   /** Live editing buffer. */
   draft: string;
+  /**
+   * Ephemeral preview overlay (a preset row being hovered/focused shows the
+   * query it would apply). Rendered INSTEAD of the draft while non-null; it
+   * never merges into the draft, so ending a preview cannot lose in-progress
+   * typing — the draft was simply never touched. Any real draft write clears
+   * it (an edit always ends a preview).
+   */
+  previewText: string | null;
   /** Pure derivations of `draft`, cached on write to avoid re-parsing. */
   draftDiagnostics: Diagnostic[];
   draftValid: boolean;
@@ -73,35 +89,52 @@ export type SearchBarStoreState = {
      * after the draft was typed, so `draftValid` doesn't stay stale.
      */
     revalidate: () => void;
+    /** Show `text` in the bar as a non-destructive preview overlay. */
+    setPreview: (text: string) => void;
+    /** End the preview; the untouched draft shows again. Safe to call twice. */
+    clearPreview: () => void;
   };
 };
 
 export type SearchBarStore = StoreApi<SearchBarStoreState>;
 
 /**
- * `resolveScoreTypes` lets draft validation route `scores.<name>` by observed
- * score type — the SAME context planCommit uses — so the store's draftValid
- * (which the editor's red-border gate reads) never disagrees with the commit
- * gate. A thunk so it always reads the latest observed options.
+ * The resolver thunks keep draft validation aligned with the same live score
+ * context and field registry that planCommit uses. This matters for registries
+ * whose allowed values arrive asynchronously.
  */
 export function createSearchBarStore(
   resolveScoreTypes?: () => ScoreTypeContext | undefined,
+  registryOrResolver:
+    | FieldRegistry
+    | (() => FieldRegistry) = EVENTS_FIELD_REGISTRY,
 ): SearchBarStore {
+  const resolveRegistry =
+    typeof registryOrResolver === "function"
+      ? registryOrResolver
+      : () => registryOrResolver;
+
   return createStore<SearchBarStoreState>((set, get) => {
     // The score-type context used by the most recent validation. revalidate()
     // bails when the context is set-equal to this, so observed-identity churn
     // (a relative range + auto-refresh rebuilds the context every tick) doesn't
     // re-parse the draft and emit a fresh diagnostics array for no change.
     let lastScoreTypes: ScoreTypeContext | undefined;
+    let lastRegistry: FieldRegistry | undefined;
     let hasValidated = false;
 
     const writeDraft = (next: string) => {
       const scoreTypes = resolveScoreTypes?.();
+      const registry = resolveRegistry();
       lastScoreTypes = scoreTypes;
+      lastRegistry = registry;
       hasValidated = true;
-      const res = validateQuery(next, scoreTypes);
+      const res = validateQuery(next, scoreTypes, registry);
       set({
         draft: next,
+        // A real edit always ends a preview — the overlay must never sit over
+        // a draft that changed underneath it.
+        previewText: null,
         draftDiagnostics: res.diagnostics,
         draftValid: res.valid,
         invalidRevealDraft: null,
@@ -110,6 +143,7 @@ export function createSearchBarStore(
 
     return {
       draft: "",
+      previewText: null,
       draftDiagnostics: [],
       draftValid: true,
       invalidRevealDraft: null,
@@ -134,27 +168,46 @@ export function createSearchBarStore(
           // Number-normalize numeric (not categorical) score values. It preserves
           // structure/order, so free-text canonicalization is kept.
           const scoreTypes = resolveScoreTypes?.();
-          if (draftsSemanticallyEqual(committedText, draft, scoreTypes)) return;
+          const registry = resolveRegistry();
+          if (
+            draftsSemanticallyEqual(committedText, draft, scoreTypes, registry)
+          )
+            return;
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
-          const next = removeToken(get().draft, { from, to });
+          const registry = resolveRegistry();
+          const next = removeToken(get().draft, { from, to }, registry);
           writeDraft(next);
           return next;
         },
         revealInvalid: () => set({ invalidRevealDraft: get().draft }),
+        setPreview: (text) => {
+          if (get().previewText === text) return;
+          set({ previewText: text });
+        },
+        clearPreview: () => {
+          if (get().previewText === null) return;
+          set({ previewText: null });
+        },
         revalidate: () => {
           const scoreTypes = resolveScoreTypes?.();
+          const registry = resolveRegistry();
           // Nothing to refresh: the draft was already validated against an
-          // equal context (writeDraft and revalidate both record it), so the
-          // result would be identical. Skip the parse + set to avoid a
-          // no-op re-render from the fresh diagnostics array.
-          if (hasValidated && scoreTypeContextEqual(scoreTypes, lastScoreTypes))
+          // equal context and registry (writeDraft and revalidate both record
+          // them), so the result would be identical. Skip the parse + set to
+          // avoid a no-op re-render from the fresh diagnostics array.
+          if (
+            hasValidated &&
+            registry === lastRegistry &&
+            scoreTypeContextEqual(scoreTypes, lastScoreTypes)
+          )
             return;
           lastScoreTypes = scoreTypes;
+          lastRegistry = registry;
           hasValidated = true;
           const wasValid = get().draftValid;
-          const res = validateQuery(get().draft, scoreTypes);
+          const res = validateQuery(get().draft, scoreTypes, registry);
           set({
             draftDiagnostics: res.diagnostics,
             draftValid: res.valid,

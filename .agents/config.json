@@ -1,6 +1,6 @@
 {
   "shared": {
-    "setupScript": "bash scripts/codex/setup.sh",
+    "setupScript": "bash scripts/agents/setup.sh",
     "devCommand": "pnpm run dev",
     "devTerminalDescription": "Main development terminal running the development server"
   },
@@ -53,6 +53,24 @@
   },
   "cursor": {
     "environment": {
+      "name": "langfuse",
+      "user": "ubuntu",
+      "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+      },
+      "install": "bash scripts/agents/setup-cursor-cloud.sh",
+      "start": "bash scripts/agents/start-cursor-cloud.sh",
+      "ports": [
+        {
+          "name": "Langfuse web",
+          "port": 3000
+        },
+        {
+          "name": "Langfuse worker health",
+          "port": 3030
+        }
+      ],
       "agentCanUpdateSnapshot": false
     }
   }

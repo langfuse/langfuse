@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -38,6 +38,19 @@ export const projectApiKeysRouter = createTRPCRouter({
           note: true,
           publicKey: true,
           displaySecretKey: true,
+          createdByUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          createdByApiKey: {
+            select: {
+              id: true,
+              publicKey: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -63,6 +76,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         entityId: input.projectId,
         note: input.note,
         scope: "PROJECT",
+        createdByUserId: ctx.session.user.id,
       });
 
       await auditLog({

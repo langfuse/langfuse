@@ -1,13 +1,16 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { type OrderByState } from "@langfuse/shared";
-import { type RowSelectionState } from "@tanstack/react-table";
-import { type OnChangeFn, type VisibilityState } from "@tanstack/react-table";
-import { type ColumnOrderState } from "@tanstack/react-table";
+import {
+  type RowSelectionState,
+  type OnChangeFn,
+  type VisibilityState,
+  type ColumnOrderState,
+  type PaginationState,
+} from "@tanstack/react-table";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ExperimentItemsTableRow } from "./types";
-import { type PaginationState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
 const LIST_VIEW_ROW_HEIGHTS = {
@@ -72,7 +75,7 @@ export const ExperimentCompareTable = ({
   return (
     <DataTable
       key={`experiment-items-table-${dataUpdatedAt}`}
-      tableName={"experiment-items"}
+      tableName="experiment-items"
       columns={columns}
       peekView={peekView}
       noResultsMessage={noResultsMessage}

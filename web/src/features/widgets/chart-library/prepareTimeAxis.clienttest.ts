@@ -20,6 +20,17 @@ describe("prepareTimeAxis", () => {
     expect(MONTH_DAY.test(label)).toBe(false); // never a date on a time-scale tick
   });
 
+  it("temporal axes opt into vertical grid lines; categorical axes stay clean", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const temporal = Array.from({ length: 24 }, (_, h) =>
+      iso(start + h * HOUR),
+    );
+    expect(prepareTimeAxis(temporal, 6).showVerticalGrid).toBe(true);
+
+    const categorical = ["run-alpha", "run-beta", "run-gamma"];
+    expect(prepareTimeAxis(categorical, 6).showVerticalGrid).toBe(false);
+  });
+
   it("span >24h uses date mode (no hour-only ticks repeating across midnight)", () => {
     // 36 hourly buckets ≈ 35h span — must NOT be time mode (would duplicate hours).
     const start = Date.UTC(2026, 5, 28, 0);
@@ -171,20 +182,62 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip(runs[1])).toBe(runs[1]);
   });
 
-  it("short categorical labels are not truncated and time ticks stay flat + numeric (dashboards unchanged)", () => {
+  it("short categorical labels are not truncated and time ticks stay flat + numeric", () => {
     const shortCategories = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
     expect(shortCategories.formatTick("run-a")).toBe("run-a");
     expect(shortCategories.tickProps.angle).toBeLessThan(0);
 
-    // Time-mode ticks are unchanged: flat tickProps AND a numeric index step, so
-    // dashboards render pixel-identically (no width-aware equidistant thinning).
+    // Time-mode ticks stay flat with a numeric index step (no width-aware
+    // equidistant thinning). They also pad the right edge so the last date
+    // has a small gutter past the end-anchored label.
     const start = Date.UTC(2026, 5, 28, 0);
     const timeVals = Array.from({ length: 24 }, (_, h) =>
       iso(start + h * HOUR),
     );
     const timeAxis = prepareTimeAxis(timeVals, 6);
-    expect(timeAxis.tickProps).toEqual({});
+    expect(timeAxis.tickProps.angle).toBeUndefined();
+    expect(timeAxis.tickProps.padding?.right).toBeGreaterThanOrEqual(16);
     expect(typeof timeAxis.interval).toBe("number");
+  });
+
+  it("date-mode axes also pad the right edge so the last date is not clipped", () => {
+    const values = Array.from({ length: 14 }, (_, d) =>
+      iso(Date.UTC(2026, 7, 1) + d * DAY),
+    );
+    const axis = prepareTimeAxis(values, 6);
+    expect(axis.mode).toBe("date");
+    expect(axis.tickProps.padding?.right).toBeGreaterThanOrEqual(16);
+    expect(axis.tickProps.angle).toBeUndefined();
+  });
+
+  it("hideCategoryTickLabels blanks the entity axis but keeps the full name in the tooltip", () => {
+    // Opt-in for the experiments / dataset-compare charts: long entity names are
+    // hidden from the axis and surfaced only on hover.
+    const runs = [
+      "demo-dataset-run-0-demo-english-transcription-dataset",
+      "demo-dataset-run-1-demo-english-transcription-dataset",
+    ];
+    const axis = prepareTimeAxis(runs, 6, { hideCategoryTickLabels: true });
+    expect(axis.mode).toBe("category");
+    // Every tick drawn (interval 0), but the label is blank…
+    expect(axis.interval).toBe(0);
+    expect(axis.formatTick(runs[0])).toBe("");
+    // …no angle needed, just a slim axis…
+    expect(axis.tickProps.angle).toBeUndefined();
+    expect(axis.tickProps.height).toBeGreaterThan(0);
+    // …and the full name is still available for the tooltip.
+    expect(axis.formatTooltip(runs[0])).toBe(runs[0]);
+  });
+
+  it("hideCategoryTickLabels leaves a temporal axis untouched (timestamp labels stay)", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const timeVals = Array.from({ length: 24 }, (_, h) =>
+      iso(start + h * HOUR),
+    );
+    const axis = prepareTimeAxis(timeVals, 6, { hideCategoryTickLabels: true });
+    expect(axis.mode).toBe("time");
+    // The flag only affects the categorical branch — time ticks still render.
+    expect(axis.formatTick(timeVals[0]).length).toBeGreaterThan(0);
   });
 
   it("does not coerce bare numeric strings into epoch dates", () => {
@@ -203,5 +256,53 @@ describe("prepareTimeAxis", () => {
       Date.UTC(2026, 5, 28, 23, 0, 0),
     );
     expect(parseChartTimestamp("not a date")).toBeNull();
+  });
+
+  describe("UTC calendar labels when the browser is west of UTC", () => {
+    const previousTz = process.env.TZ;
+
+    beforeEach(() => {
+      process.env.TZ = "America/Los_Angeles";
+    });
+
+    afterEach(() => {
+      if (previousTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTz;
+      }
+    });
+
+    it("date ticks and tooltips use the UTC calendar day, not the local previous evening", () => {
+      // UTC midnight Jun 28 is still Jun 27 evening in PT. Formatting in local
+      // time made the axis read one day early.
+      const values = Array.from({ length: 14 }, (_, d) =>
+        iso(Date.UTC(2026, 5, 28) + d * DAY),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("date");
+      expect(axis.formatTick(values[0])).toBe("Jun 28");
+      expect(axis.formatTooltip(values[0])).toBe("Jun 28, 2026");
+      expect(axis.formatTick("2026-06-28")).toBe("Jun 28");
+    });
+
+    it("month ticks use the UTC month (UTC midnight Jun 1 is still May locally)", () => {
+      const values = Array.from({ length: 200 }, (_, d) =>
+        iso(Date.UTC(2026, 5, 1) + d * DAY),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("month");
+      expect(axis.formatTick(values[0])).toBe("Jun 2026");
+    });
+
+    it("intraday time ticks stay in local time", () => {
+      const start = Date.UTC(2026, 5, 28, 18); // 11 AM PT
+      const values = Array.from({ length: 12 }, (_, h) =>
+        iso(start + h * HOUR),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("time");
+      expect(axis.formatTick(values[0])).toMatch(/11\s?AM/i);
+    });
   });
 });

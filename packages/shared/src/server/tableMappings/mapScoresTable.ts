@@ -1,5 +1,11 @@
 import { UiColumnMappings } from "../../tableDefinitions";
 
+// Lowercased boolean string_value ('true'/'false', '' for non-boolean rows) —
+// matches the lowercase options offered by the scores view's Boolean Value
+// facet. Shared with mapScoresColumnsTable so the two mappings cannot drift.
+export const SCORE_BOOLEAN_VALUE_SQL =
+  "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')";
+
 export const scoresTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "ID",
@@ -35,6 +41,9 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "observation_id",
     queryPrefix: "s",
+    // A score either has an observation id or it does not: the column is
+    // Nullable(String), so '' and NULL denote the same "trace-level" score.
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Session ID",
@@ -51,11 +60,32 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "s",
   },
   {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluator_id",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluation_rule_id",
+    queryPrefix: "s",
+  },
+  {
     uiTableName: "Value",
     uiTableId: "value",
     clickhouseTableName: "scores",
     clickhouseSelect: "value",
     queryPrefix: "s",
+  },
+  {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect: SCORE_BOOLEAN_VALUE_SQL,
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Source",

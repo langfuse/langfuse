@@ -1,7 +1,7 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useCallback, useMemo } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { StreamLanguage } from "@codemirror/language";
-import type { StringStream } from "@codemirror/language";
+import { StreamLanguage, type StringStream } from "@codemirror/language";
 import { useTheme } from "next-themes";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
@@ -155,7 +155,7 @@ export function JsonPathInput({
         onBlur={onBlur}
         placeholder={placeholder}
         className={cn(
-          "overflow-hidden rounded-md border text-sm",
+          "ph-no-capture overflow-hidden rounded-md border text-sm",
           displayError && "border-destructive",
           showWarning && "border-amber-500/50",
           className,

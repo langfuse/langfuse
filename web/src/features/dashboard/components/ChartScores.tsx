@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
@@ -17,7 +18,7 @@ import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashb
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 // Static — hoisted so its reference is stable across re-renders (keeps the
 // memoized <Chart> from reconciling on dashboard scheduler re-renders).
@@ -35,7 +36,7 @@ export function ChartScores(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
 }) {
@@ -118,13 +119,16 @@ export function ChartScores(props: {
       isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
-        <div className="min-h-80">
+        // The height is the flex basis (floor); grow lets the chart absorb
+        // extra tile height. On grid (lg) screens the floor is smaller so
+        // tiles fit narrow viewports — grow recovers the height above the
+        // grid's rowHeight floor. (LFE-10813)
+        <div className="h-80 w-full shrink-0 grow lg:h-56">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={chartData}
             rowLimit={100}
             chartConfig={SCORES_CHART_CONFIG}
-            legendPosition="above"
             syncId={props.syncId}
           />
         </div>
@@ -133,7 +137,7 @@ export function ChartScores(props: {
           isLoading={props.isLoading || scores.isPending}
           description="Scores evaluate LLM quality and can be created manually or using the SDK."
           href="https://langfuse.com/docs/evaluation/overview"
-          className="h-full"
+          className="h-auto grow"
         />
       )}
     </DashboardCard>

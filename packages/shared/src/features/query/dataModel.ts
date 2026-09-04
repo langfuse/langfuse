@@ -4,8 +4,16 @@ import {
   type ViewDeclarationType,
   type DimensionsDeclarationType,
   type views,
+  SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
 import { InvalidRequestError } from "../../errors";
+import {
+  eventsTableIsRootObservationSqlForAlias,
+  eventsTableTraceNameAggregationSqlForAlias,
+  eventsTableTraceNameSqlForAlias,
+} from "../../eventsTable";
+import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -86,6 +94,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "observations",
       description: "Unique observations linked to the trace.",
       unit: "observations",
+      defaultAggregation: "sum",
     },
     scoresCount: {
       sql: "uniq(scores.id)",
@@ -94,6 +103,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the trace.",
       unit: "scores",
+      defaultAggregation: "sum",
     },
     uniqueUserIds: {
       sql: "uniq(traces.user_id)",
@@ -117,6 +127,7 @@ export const traceView: ViewDeclarationType = {
       description:
         "Elapsed time between the first and last observation inside the trace.",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     totalTokens: {
       sql: "sumMap(observations.usage_details)['total']",
@@ -125,6 +136,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "observations",
       description: "Sum of tokens consumed by all observations in the trace.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     totalCost: {
       sql: "sum(observations.total_cost)",
@@ -133,6 +145,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "observations",
       description: "Total cost accumulated across observations in the trace.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
   },
   tableRelations: {
@@ -159,23 +172,27 @@ export const eventsTracesView: ViewDeclarationType = {
   description:
     "Traces built from events table aggregation - mirrors v1 traces view with 100% API compatibility.",
   dimensions: {
+    // This is an internal compatibility declaration for persisted v1 trace
+    // widgets. Keep id/userId/sessionId cardinality metadata aligned with v1:
+    // enabling V4 must not invalidate existing time-series breakdowns. New
+    // traces widgets remain unavailable through the public V4 widget path. Do
+    // not add highCardinality here: v1 does not set it for these dimensions.
     id: {
       sql: "events_traces.trace_id",
       alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
-      highCardinality: true,
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "COALESCE(nullIf(events_traces.trace_name, ''), if(events_traces.parent_span_id = '', nullIf(events_traces.name, ''), NULL))",
+      sql: eventsTableTraceNameSqlForAlias("events_traces"),
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
       // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
-        "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
+        eventsTableTraceNameAggregationSqlForAlias("events_traces"),
       // Pruning columns for WHERE: OR'd together to help ClickHouse skip blocks,
       // then dimension.sql is AND'd for exact row-level match.
       filterSql: {
@@ -197,7 +214,6 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Identifier of the user triggering the trace.",
       aggregationFunction:
         "argMaxIf(events_traces.user_id, events_traces.event_ts, events_traces.user_id <> '')",
-      highCardinality: true,
     },
     sessionId: {
       sql: "nullIf(events_traces.session_id, '')",
@@ -206,7 +222,6 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Identifier of the session triggering the trace.",
       aggregationFunction:
         "argMaxIf(events_traces.session_id, events_traces.event_ts, events_traces.session_id <> '')",
-      highCardinality: true,
     },
     release: {
       sql: "nullIf(events_traces.release, '')",
@@ -255,6 +270,7 @@ export const eventsTracesView: ViewDeclarationType = {
       type: "integer",
       description: "Unique observations linked to the trace.",
       unit: "observations",
+      defaultAggregation: "sum",
     },
     scoresCount: {
       sql: "uniq(scores.id)",
@@ -263,24 +279,51 @@ export const eventsTracesView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the trace.",
       unit: "scores",
+      defaultAggregation: "sum",
     },
     uniqueUserIds: {
-      sql: "@@AGG@@(nullIf(events_traces.user_id, ''))",
-      aggs: { agg: "any" },
+      // Keep this numeric base aligned with v1: persisted widgets may use any
+      // numeric aggregation. The count/uniq overrides below preserve distinct
+      // identifier semantics over the denormalized events table.
+      sql: "uniq(nullIf(events_traces.user_id, ''))",
       alias: "uniqueUserIds",
-      type: "string",
-      description:
-        "User identifier; apply uniq aggregation to count distinct users.",
+      type: "integer",
+      description: "Count of unique userIds.",
       unit: "users",
+      aggregationOverrides: {
+        // Legacy widgets called this aggregation `count`, but its intended
+        // result is distinct users. Remap only the generated query to `uniq`
+        // while preserving the persisted aggregation and `count_*` alias.
+        count: {
+          sql: "argMaxIf(nullIf(events_traces.user_id, ''), events_traces.event_ts, events_traces.user_id <> '')",
+          type: "string",
+          queryAggregation: "uniq",
+        },
+        uniq: {
+          sql: "argMaxIf(nullIf(events_traces.user_id, ''), events_traces.event_ts, events_traces.user_id <> '')",
+          type: "string",
+        },
+      },
     },
     uniqueSessionIds: {
-      sql: "@@AGG@@(nullIf(events_traces.session_id, ''))",
-      aggs: { agg: "any" },
+      sql: "uniq(nullIf(events_traces.session_id, ''))",
       alias: "uniqueSessionIds",
-      type: "string",
-      description:
-        "Session identifier; apply uniq aggregation to count distinct sessions.",
+      type: "integer",
+      description: "Count of unique sessionIds.",
       unit: "sessions",
+      aggregationOverrides: {
+        // See uniqueUserIds: keep the legacy `count` contract while executing
+        // the aggregation with distinct-value semantics.
+        count: {
+          sql: "argMaxIf(nullIf(events_traces.session_id, ''), events_traces.event_ts, events_traces.session_id <> '')",
+          type: "string",
+          queryAggregation: "uniq",
+        },
+        uniq: {
+          sql: "argMaxIf(nullIf(events_traces.session_id, ''), events_traces.event_ts, events_traces.session_id <> '')",
+          type: "string",
+        },
+      },
     },
     latency: {
       sql: "date_diff('millisecond', minIf(events_traces.start_time, events_traces.parent_span_id != ''), maxIf(events_traces.end_time, events_traces.parent_span_id != ''))",
@@ -289,6 +332,7 @@ export const eventsTracesView: ViewDeclarationType = {
       description:
         "Elapsed time between the first and last observation inside the trace.",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     totalTokens: {
       sql: "sumMapIf(events_traces.usage_details, events_traces.parent_span_id != '')['total']",
@@ -296,6 +340,7 @@ export const eventsTracesView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of tokens consumed by all observations in the trace.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     totalCost: {
       sql: "sumIf(toNullable(events_traces.total_cost), events_traces.parent_span_id != '')",
@@ -303,6 +348,7 @@ export const eventsTracesView: ViewDeclarationType = {
       type: "decimal",
       description: "Total cost accumulated across observations in the trace.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
   },
   tableRelations: {
@@ -315,17 +361,40 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "start_time",
+  // Trace aggregation can use either semantic-root representation without
+  // changing result cardinality, so app roots remain useful here.
   rootEventCondition: {
     column: "trace_id",
-    condition: "parent_span_id = ''",
+    condition: eventsTableIsRootObservationSqlForAlias("events_traces"),
   },
   baseCte: `events_core events_traces`,
 };
 
+const createEvaluatorDimensions = (
+  tableAlias: string,
+): DimensionsDeclarationType => ({
+  evaluatorId: {
+    sql: `coalesce(nullIf(${tableAlias}.evaluator_id, ''), ${tableAlias}.evaluation_rule_id)`,
+    alias: "evaluatorId",
+    type: "string",
+    description:
+      "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
+    highCardinality: true,
+    uiHidden: true,
+  },
+  isEvaluatorTest: {
+    sql: `${tableAlias}.evaluator_execution_is_test`,
+    alias: "isEvaluatorTest",
+    type: "boolean",
+    description: "Whether this row belongs to an evaluator test run.",
+    uiHidden: true,
+  },
+});
+
 export const observationsView: ViewDeclarationType = {
   name: "observations",
   description:
-    "Observations represent individual requests or operations within a trace. They are grouped into Spans, Generations, and Events.",
+    "Observations represent individual requests or operations within a trace, such as Spans, Generations, Events, and agent-specific types like Agents and Tools.",
   dimensions: {
     id: {
       sql: "observations.id",
@@ -364,7 +433,7 @@ export const observationsView: ViewDeclarationType = {
       alias: "type",
       type: "string",
       description:
-        "Type of the observation. Can be a SPAN, GENERATION, or EVENT.",
+        "Type of the observation, e.g. SPAN, GENERATION, EVENT, AGENT, TOOL, CHAIN, RETRIEVER, EVALUATOR, EMBEDDING, or GUARDRAIL.",
     },
     name: {
       sql: "observations.name",
@@ -406,7 +475,7 @@ export const observationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "observations.prompt_version",
       alias: "promptVersion",
-      type: "string",
+      type: "number",
       description: "Version of the prompt used for the observation.",
     },
     userId: {
@@ -451,7 +520,7 @@ export const observationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "observations.tool_call_names",
+      sql: "arrayDistinct(observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -475,6 +544,7 @@ export const observationsView: ViewDeclarationType = {
       description:
         "Latency of an individual observation (start time to end time).",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     streamingLatency: {
       // Return NULL if `completion_start_time` is NULL to avoid misleading latency values
@@ -485,6 +555,7 @@ export const observationsView: ViewDeclarationType = {
       description:
         "Latency of the generation step (completion start time to end time).",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     inputTokens: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(usage_details))))",
@@ -493,6 +564,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of input tokens consumed by the observation.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     outputTokens: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
@@ -501,6 +573,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of output tokens produced by the observation.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     totalTokens: {
       sql: "@@AGG1@@(usage_details)['total']",
@@ -509,6 +582,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     outputTokensPerSecond: {
       // Calculate average output tokens per second. Denominator uses seconds to align
@@ -521,6 +595,7 @@ export const observationsView: ViewDeclarationType = {
       description:
         "Average number of output tokens produced per second between completion start time and span end time.",
       unit: "tokens/s",
+      defaultAggregation: "avg",
     },
     tokensPerSecond: {
       sql: "@@AGG1@@(usage_details)['total'] / nullIf(date_diff('second', @@AGG2@@(observations.start_time), @@AGG2@@(observations.end_time)), 0)",
@@ -530,6 +605,7 @@ export const observationsView: ViewDeclarationType = {
       description:
         "Average number of tokens consumed per second by the observation.",
       unit: "tokens/s",
+      defaultAggregation: "avg",
     },
     inputCost: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(cost_details))))",
@@ -538,6 +614,7 @@ export const observationsView: ViewDeclarationType = {
       type: "decimal",
       description: "Sum of input cost incurred by the observation.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
     outputCost: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(cost_details))))",
@@ -546,6 +623,7 @@ export const observationsView: ViewDeclarationType = {
       type: "decimal",
       description: "Sum of output cost incurred by the observation.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
     totalCost: {
       sql: "@@AGG1@@(total_cost)",
@@ -554,6 +632,7 @@ export const observationsView: ViewDeclarationType = {
       type: "decimal",
       description: "Total cost incurred by the observation.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
     timeToFirstToken: {
       // Return NULL if `completion_start_time` is NULL to represent unknown TTFT
@@ -563,6 +642,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description: "Time to first token for the observation.",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     countScores: {
       sql: "uniq(scores.id)",
@@ -571,6 +651,7 @@ export const observationsView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the observation.",
       unit: "scores",
+      defaultAggregation: "sum",
     },
     toolDefinitions: {
       sql: "nullIf(length(mapKeys(@@AGG1@@(tool_definitions))), 0)",
@@ -579,14 +660,28 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description: "Number of available tools per observation.",
       unit: "tools",
+      defaultAggregation: "avg",
     },
     toolCalls: {
       sql: "nullIf(length(@@AGG1@@(tool_calls)), 0)",
       aggs: { agg1: "any" },
       alias: "toolCalls",
       type: "integer",
-      description: "Number of tool calls per observation.",
+      description:
+        "Number of tool calls made by the observation, including parallel calls. Use the Sum aggregation to get the total number of tool calls.",
       unit: "calls",
+      defaultAggregation: "sum",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+      unit: "calls",
+      defaultAggregation: "sum",
     },
   },
   tableRelations: {
@@ -675,7 +770,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   observationPromptVersion: {
     sql: "observations.prompt_version",
     alias: "observationPromptVersion",
-    type: "string",
+    type: "number",
     relationTable: "observations",
     description: "Version of the prompt used for the observation.",
   },
@@ -702,7 +797,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
-    sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
+    sql: eventsTableTraceNameSqlForAlias("events_traces"),
     alias: "traceName",
     type: "string",
     relationTable: "events_traces",
@@ -762,7 +857,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   observationPromptVersion: {
     sql: "events_observations.prompt_version",
     alias: "observationPromptVersion",
-    type: "string",
+    type: "number",
     relationTable: "events_observations",
     description: "Version of the prompt used for the observation.",
   },
@@ -812,6 +907,30 @@ const createScoreSpecificDimensions = (
     alias: "name",
     type: "string",
     description: "Name of the score (e.g., accuracy, toxicity).",
+  },
+  evaluatorId: {
+    sql: `${tableAlias}.evaluator_id`,
+    alias: "evaluatorId",
+    type: "string",
+    description: "Identifier of the evaluator that produced the score.",
+    highCardinality: true,
+    uiHidden: true,
+  },
+  ruleId: {
+    sql: `${tableAlias}.evaluation_rule_id`,
+    alias: "ruleId",
+    type: "string",
+    description:
+      "Identifier of the evaluation rule, including legacy job configurations.",
+    highCardinality: true,
+    uiHidden: true,
+  },
+  isEvaluatorTest: {
+    sql: `toBool(${tableAlias}.metadata['${EvalExecutionMetadataKey.EVALUATOR_TEST}'] = 'true')`,
+    alias: "isEvaluatorTest",
+    type: "boolean",
+    description: "Whether this score belongs to an evaluator test run.",
+    uiHidden: true,
   },
   source: {
     sql: `${tableAlias}.source`,
@@ -892,6 +1011,11 @@ const createScoreTableRelations = (
   return {
     events_traces: {
       name: "events_core",
+      // Legacy and dual-write ingestion materialize a parentless synthetic
+      // trace event and propagate trace metadata to it. Native V4 may not, but
+      // its app roots come from newer SDKs and are expected to carry trace_name.
+      // A semantic-root join can match both rows in dual-write data and
+      // multiply scores for little fallback value.
       joinConditionSql:
         "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
       timeDimension: "start_time",
@@ -937,6 +1061,7 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
         alias: "value",
         type: "number",
         description: "Value of the score.",
+        defaultAggregation: "avg",
       },
     },
     tableRelations: createScoreTableRelations(version),
@@ -995,8 +1120,59 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
   };
 }
 
+function scoresBooleanViewBase(version: "v1" | "v2"): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_boolean",
+    description:
+      "Scores are flexible objects that are used for evaluations. This view contains boolean scores.",
+    dimensions: {
+      ...baseDimensions,
+      ...createScoreSpecificDimensions("scores_boolean", version === "v2"),
+      booleanValue: {
+        sql: "toBool(scores_boolean.value)",
+        alias: "booleanValue",
+        type: "boolean",
+        description: "Boolean value of the score.",
+      },
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores.",
+        unit: "scores",
+      },
+      value: {
+        sql: "any(value)",
+        alias: "value",
+        type: "number",
+        description:
+          "Numeric 0/1 value of the score. Its average is the true-rate.",
+        defaultAggregation: "avg",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        operator: "=" as const,
+        value: "BOOLEAN",
+        type: "string" as const,
+      },
+    ],
+    timeDimension: "timestamp",
+    baseCte: `scores scores_boolean FINAL`,
+  };
+}
+
 export const scoresNumericView: ViewDeclarationType =
   scoresNumericViewBase("v1");
+
+export const scoresBooleanView: ViewDeclarationType =
+  scoresBooleanViewBase("v1");
 
 export const scoresCategoricalView: ViewDeclarationType =
   scoresCategoricalViewBase("v1");
@@ -1005,14 +1181,69 @@ export const scoresCategoricalView: ViewDeclarationType =
 export const scoresNumericViewV2: ViewDeclarationType =
   scoresNumericViewBase("v2");
 
+export const scoresBooleanViewV2: ViewDeclarationType =
+  scoresBooleanViewBase("v2");
+
 export const scoresCategoricalViewV2: ViewDeclarationType =
   scoresCategoricalViewBase("v2");
+
+/**
+ * Count-only view scoped to every listable score type (see
+ * `LISTABLE_SCORE_TYPES`), unlike `scores-numeric`/`scores-categorical`
+ * which each cover only a subset. Powers `ScoresOutlierStrip`'s "Count"
+ * mode; deliberately has no `value` measure, since categorical/text rows
+ * carry no real numeric value — "Value" mode stays a separate query against
+ * the unchanged `scores-numeric` view instead.
+ */
+function scoresListableCountViewBase(
+  version: "v1" | "v2",
+): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_listable_count",
+    description:
+      "Internal-only, count-only view scoping to every listable score type. Powers the scores overview strip's Count mode; not part of the public views enum.",
+    dimensions: {
+      ...baseDimensions,
+      ...createScoreSpecificDimensions(
+        "scores_listable_count",
+        version === "v2",
+      ),
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores across every listable score type.",
+        unit: "scores",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        operator: "any of" as const,
+        value: [...LISTABLE_SCORE_TYPES],
+        type: "stringOptions" as const,
+      },
+    ],
+    timeDimension: "timestamp",
+    baseCte: `scores scores_listable_count FINAL`,
+  };
+}
+
+export const scoresListableCountView: ViewDeclarationType =
+  scoresListableCountViewBase("v1");
+export const scoresListableCountViewV2: ViewDeclarationType =
+  scoresListableCountViewBase("v2");
 
 // Events-Observations View - queries from events table instead of observations table
 export const eventsObservationsView: ViewDeclarationType = {
   name: "events_observations",
   description:
-    "Observations represent individual requests or operations within a trace. They are grouped into Spans, Generations, and Events.",
+    "Observations represent individual requests or operations within a trace, such as Spans, Generations, Events, and agent-specific types like Agents and Tools.",
   dimensions: {
     id: {
       sql: "events_observations.span_id",
@@ -1022,6 +1253,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
       uiHidden: true,
     },
+    ...createEvaluatorDimensions("events_observations"),
     traceId: {
       sql: "events_observations.trace_id",
       alias: "traceId",
@@ -1045,12 +1277,20 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
       uiHidden: true,
     },
+    isRootObservation: {
+      sql: `toBool(${eventsTableIsRootObservationSqlForAlias("events_observations")})`,
+      alias: "isRootObservation",
+      type: "boolean",
+      description:
+        "Whether the observation is a semantic root, including app roots with an external parent.",
+      uiHidden: true,
+    },
     type: {
       sql: "events_observations.type",
       alias: "type",
       type: "string",
       description:
-        "Type of the observation. Can be a SPAN, GENERATION, or EVENT.",
+        "Type of the observation, e.g. SPAN, GENERATION, EVENT, AGENT, TOOL, CHAIN, RETRIEVER, EVALUATOR, EMBEDDING, or GUARDRAIL.",
     },
     name: {
       sql: "events_observations.name",
@@ -1099,7 +1339,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     },
     // Backwards-compatible field definitions (for API parity with v1)
     traceName: {
-      sql: "COALESCE(nullIf(events_observations.trace_name, ''), if(events_observations.parent_span_id = '', nullIf(events_observations.name, ''), NULL))",
+      sql: eventsTableTraceNameSqlForAlias("events_observations"),
       alias: "traceName",
       type: "string",
       description: "Name of the parent trace (backwards-compatible with v1).",
@@ -1133,7 +1373,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "events_observations.prompt_version",
       alias: "promptVersion",
-      type: "string",
+      type: "number",
       description: "Version of the prompt used for the observation.",
     },
     startTimeMonth: {
@@ -1150,7 +1390,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "events_observations.tool_call_names",
+      sql: "arrayDistinct(events_observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -1245,6 +1485,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Latency of an individual observation (start time to end time).",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     streamingLatency: {
       sql: "if(isNull(@@AGG1@@(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(events_observations.completion_start_time), @@AGG1@@(events_observations.end_time)))",
@@ -1254,6 +1495,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Latency of the generation step (completion start time to end time).",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     inputTokens: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(usage_details))))",
@@ -1262,6 +1504,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of input tokens consumed by the observation.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     outputTokens: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
@@ -1270,6 +1513,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of output tokens produced by the observation.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     totalTokens: {
       sql: "@@AGG1@@(usage_details)['total']",
@@ -1278,6 +1522,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
+      defaultAggregation: "sum",
     },
     outputTokensPerSecond: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details)))) / nullIf(date_diff('second', @@AGG1@@(events_observations.completion_start_time), @@AGG1@@(events_observations.end_time)), 0)",
@@ -1287,6 +1532,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Average number of output tokens produced per second between completion start time and span end time.",
       unit: "tokens/s",
+      defaultAggregation: "avg",
     },
     tokensPerSecond: {
       sql: "@@AGG1@@(usage_details)['total'] / nullIf(date_diff('second', @@AGG2@@(events_observations.start_time), @@AGG2@@(events_observations.end_time)), 0)",
@@ -1296,6 +1542,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Average number of tokens consumed per second by the observation.",
       unit: "tokens/s",
+      defaultAggregation: "avg",
     },
     inputCost: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(cost_details))))",
@@ -1304,6 +1551,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "decimal",
       description: "Sum of input cost incurred by the observation.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
     outputCost: {
       sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(cost_details))))",
@@ -1312,6 +1560,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "decimal",
       description: "Sum of output cost incurred by the observation.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
     totalCost: {
       sql: "@@AGG1@@(toNullable(total_cost))",
@@ -1320,6 +1569,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "decimal",
       description: "Total cost incurred by the observation.",
       unit: "USD",
+      defaultAggregation: "sum",
     },
     timeToFirstToken: {
       sql: "if(isNull(@@AGG1@@(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.completion_start_time)))",
@@ -1328,6 +1578,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description: "Time to first token for the observation.",
       unit: "millisecond",
+      defaultAggregation: "avg",
     },
     countScores: {
       sql: "uniq(scores.id)",
@@ -1336,6 +1587,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the observation.",
       unit: "scores",
+      defaultAggregation: "sum",
     },
     toolDefinitions: {
       sql: "nullIf(length(mapKeys(@@AGG1@@(events_observations.tool_definitions))), 0)",
@@ -1344,20 +1596,35 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description: "Number of available tools per observation.",
       unit: "tools",
+      defaultAggregation: "avg",
     },
     toolCalls: {
       sql: "nullIf(length(@@AGG1@@(events_observations.tool_calls)), 0)",
       aggs: { agg1: "any" },
       alias: "toolCalls",
       type: "integer",
-      description: "Number of tool calls per observation.",
+      description:
+        "Number of tool calls made by the observation, including parallel calls. Use the Sum aggregation to get the total number of tool calls.",
       unit: "calls",
+      defaultAggregation: "sum",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+      unit: "calls",
+      defaultAggregation: "sum",
     },
     costByType: {
       sql: "cost_value",
       alias: "costByType",
       type: "decimal",
       unit: "USD",
+      defaultAggregation: "sum",
       requiresDimension: "costType",
       description:
         "Sum of cost per category. The costType dimension is auto-included to emit the ARRAY JOIN that brings cost_value into scope.",
@@ -1367,6 +1634,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "usageByType",
       type: "integer",
       unit: "tokens",
+      defaultAggregation: "sum",
       requiresDimension: "usageType",
       description:
         "Sum of token usage per category. The usageType dimension is auto-included to emit the ARRAY JOIN that brings usage_value into scope.",
@@ -1387,7 +1655,7 @@ export const eventsObservationsView: ViewDeclarationType = {
 };
 
 // Define versioned structure type
-// Both v1 and v2 have all views (traces, observations, scores-numeric, scores-categorical)
+// Both v1 and v2 have all views (traces, observations, and score views)
 // v1 uses normalized tables (traces, observations), v2 uses events table
 type VersionedViewDeclarations = {
   readonly [version in ViewVersion]: {
@@ -1401,21 +1669,35 @@ export const viewDeclarations: VersionedViewDeclarations = {
     traces: traceView,
     observations: observationsView, // Old: observations table
     "scores-numeric": scoresNumericView,
+    "scores-boolean": scoresBooleanView,
     "scores-categorical": scoresCategoricalView,
   },
   v2: {
     traces: eventsTracesView,
     observations: eventsObservationsView,
     "scores-numeric": scoresNumericViewV2,
+    "scores-boolean": scoresBooleanViewV2,
     "scores-categorical": scoresCategoricalViewV2,
   },
 } as const;
 
 // Helper function for view resolution
+const internalViewDeclarations: Record<ViewVersion, ViewDeclarationType> = {
+  v1: scoresListableCountView,
+  v2: scoresListableCountViewV2,
+};
+
 export function getViewDeclaration(
-  viewName: z.infer<typeof views>,
+  // Widened (not just `z.infer<typeof views>`) so the handful of
+  // server-only callers that know about `SCORES_LISTABLE_COUNT_VIEW` can
+  // resolve it too, without adding it to the public `views` enum.
+  viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   version: ViewVersion = "v1",
 ): ViewDeclarationType {
+  if (viewName === SCORES_LISTABLE_COUNT_VIEW) {
+    return internalViewDeclarations[version];
+  }
+
   const versionViews = viewDeclarations[version];
 
   // TypeScript knows the exact shape of each version now

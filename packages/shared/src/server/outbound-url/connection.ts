@@ -2,7 +2,9 @@ import dns from "node:dns";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 import type { LookupFunction } from "node:net";
-import { Agent as UndiciAgent } from "undici";
+import { Agent as UndiciAgent, type Dispatcher, ProxyAgent } from "undici";
+import { env } from "../../env";
+import { shouldBypassProxy } from "./noProxy";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { validateOutboundResolvedIp } from "./validation";
 
@@ -30,16 +32,20 @@ const secureOutboundHttpAgentsByPolicy = new Map<
   string,
   { httpAgent: HttpAgent; httpsAgent: HttpsAgent }
 >();
+const proxyAgentsByUri = new Map<string, ProxyAgent>();
+const proxyRoutingDispatchersByPolicy = new Map<string, Dispatcher>();
 
 export function addSecureOutboundConnectionValidation(
   options: RequestInit,
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): RequestInit {
   if ((options as RequestInitWithDispatcher).dispatcher) {
-    // A dispatcher is already attached (today: HTTPS_PROXY routing via
-    // secureLlmFetch). Forward proxies own DNS resolution at the proxy hop,
-    // so a connect.lookup hook on our Agent would not see the target host
-    // anyway. Pre-fetch URL validation and redirect validation still run.
+    // A dispatcher is already attached (today: the NO_PROXY-aware
+    // HTTPS_PROXY routing dispatcher from secureLlmFetch). It sends NO_PROXY
+    // matches through the secure-lookup dispatcher itself, and forward
+    // proxies own DNS resolution at the proxy hop, so a connect.lookup hook
+    // on our Agent would not see the target host anyway. Pre-fetch URL
+    // validation and redirect validation still run.
     return options;
   }
 
@@ -47,6 +53,56 @@ export function addSecureOutboundConnectionValidation(
     ...options,
     dispatcher: getSecureOutboundDispatcher(validationOptions),
   } as RequestInit & { dispatcher: UndiciAgent };
+}
+
+/**
+ * Returns the dispatcher for outbound requests when the operator configured a
+ * forward proxy via HTTPS_PROXY, or undefined when no proxy is configured.
+ *
+ * The returned dispatcher decides per request (mirroring undici's
+ * EnvHttpProxyAgent): origins matching NO_PROXY connect directly through the
+ * secure-lookup dispatcher, so they keep connection-time DNS/IP validation;
+ * every other origin traverses the proxy. Routing at dispatch time rather
+ * than once per fetch keeps redirect chains correct when a hop crosses the
+ * NO_PROXY boundary in either direction.
+ */
+export function getOutboundProxyDispatcher(
+  validationOptions: OutboundUrlConnectionValidationOptions,
+): Dispatcher | undefined {
+  const proxyUri = env.HTTPS_PROXY;
+  if (!proxyUri) return undefined;
+
+  // Lowercase wins when both are set, mirroring undici and curl.
+  const noProxyValue = env.no_proxy ?? env.NO_PROXY ?? "";
+  const policyKey = JSON.stringify({
+    proxyUri,
+    noProxyValue,
+    validation: getConnectionValidationPolicyKey(validationOptions),
+  });
+
+  return getOrCreatePolicyResource(
+    proxyRoutingDispatchersByPolicy,
+    policyKey,
+    "proxy routing dispatcher",
+    () => {
+      const proxyAgent = getOrCreatePolicyResource(
+        proxyAgentsByUri,
+        proxyUri,
+        "proxy agent",
+        () => new ProxyAgent(proxyUri),
+      );
+      const directDispatcher = getSecureOutboundDispatcher(validationOptions);
+
+      return proxyAgent.compose((dispatch) => (dispatchOptions, handler) => {
+        // fetch always sets options.origin; undici's EnvHttpProxyAgent makes
+        // the same assumption when it parses the origin for NO_PROXY matching.
+        const origin = new URL(String(dispatchOptions.origin));
+        return shouldBypassProxy(origin, noProxyValue)
+          ? directDispatcher.dispatch(dispatchOptions, handler)
+          : dispatch(dispatchOptions, handler);
+      });
+    },
+  );
 }
 
 export function createSecureOutboundLookup(

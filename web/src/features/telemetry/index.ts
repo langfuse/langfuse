@@ -237,6 +237,17 @@ async function posthogTelemetry({
       0,
     );
 
+    // Count Langfuse Assistant runs. Counted unconditionally: zero on an
+    // instance that never enabled the Assistant is itself the answer.
+    const countAssistantRuns = await prisma.inAppAgentRun.count({
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+    });
+
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
       SELECT
@@ -263,6 +274,7 @@ async function posthogTelemetry({
         datasetItems: countDatasetItems,
         datasetRuns: countDatasetRuns,
         datasetRunItems: countDatasetRunItems,
+        assistantRuns: countAssistantRuns,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,

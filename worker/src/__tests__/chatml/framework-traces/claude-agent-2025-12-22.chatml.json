@@ -51,11 +51,13 @@
   },
   "e9aac170e5d48125": {
     "input": {
-      "success": false,
-      "error": {
-        "name": "ZodError",
-        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
-      }
+      "success": true,
+      "data": [
+        {
+          "content": "What's the weather like in Berlin and New York?",
+          "role": "user"
+        }
+      ]
     },
     "output": {
       "success": true,

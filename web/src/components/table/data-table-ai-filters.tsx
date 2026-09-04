@@ -11,7 +11,7 @@ import { Info } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
 interface DataTableAIFiltersProps {
@@ -48,11 +48,14 @@ export function DataTableAIFilters({
           onFiltersGenerated(result.filters as FilterState);
           setAiPrompt("");
         } else {
-          console.error(result);
+          console.error(
+            "dataTable.aiFilters: invalid response format",
+            JSON.stringify(result),
+          );
           setAiError("Invalid response format from API");
         }
       } catch (error) {
-        console.error("Error calling tRPC API:", error);
+        reportNonTrpcError(error, "ai-filters");
         setAiError(
           error instanceof Error ? error.message : "Failed to generate filters",
         );
@@ -74,7 +77,7 @@ export function DataTableAIFilters({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Filter with AI</span>
+        <span className="text-sm font-bold">Filter with AI</span>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

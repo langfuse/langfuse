@@ -25,12 +25,14 @@ import { createPortal } from "react-dom";
  * `@repo/no-overlay-zindex` lint rule guards the z-index half of this.
  *
  * The bands, low → high:
+ * - `panel`   — docked/side surfaces like Sheet, Drawer, and the table peek.
+ *   Above `#__next`, below the in-app assistant and true blocking modals.
  * - `agent`   — the in-app assistant window: a persistent, draggable/resizable
- *   panel that floats above page content but BELOW every transient overlay, so
- *   dropdowns, dialogs, popovers, tooltips and toasts (incl. ones opened from
- *   inside the window itself, e.g. its conversation-history menu) all paint
- *   above it. First (lowest) overlay rung — above `#__next`, below the rest.
- * - `modal`   — Dialog, AlertDialog, Sheet (incl. the table peek), Drawer.
+ *   panel that floats above page content and app panels but BELOW every true
+ *   modal/transient overlay, so dialogs, dropdowns, popovers, tooltips and
+ *   toasts (incl. ones opened from inside the window itself, e.g. its
+ *   conversation-history menu) all paint above it.
+ * - `modal`   — true blocking Dialog and AlertDialog surfaces.
  * - `popover` — Popover, DropdownMenu, Select, HoverCard. ABOVE `modal` so a
  *   Select/Popover/Dropdown opened *inside* a Dialog renders above it (matches
  *   the old "newest-opened wins" z-50 behaviour; the common in-form case).
@@ -39,6 +41,7 @@ import { createPortal } from "react-dom";
  *   (incl. a non-modal peek) by DOM order alone — no z-index needed.
  */
 export const LAYER_ORDER = [
+  "panel",
   "agent",
   "modal",
   "popover",
@@ -71,6 +74,27 @@ export function useLayerContainer(name: LayerName): HTMLElement | null {
     );
   }, [name]);
   return container;
+}
+
+/**
+ * Wraps a wheel/touch-move handler so the event stops at the overlay it happened
+ * in, for overlay content that does NOT own the page scroll lock.
+ *
+ * A Dialog/Sheet/Drawer locks page scrolling with `react-remove-scroll`, whose
+ * document-level listener cancels wheel/touch-move events that occur outside the
+ * locked subtree. Content in a layer container is always outside it, so a
+ * scrollable list inside a Popover or HoverCard opened from a dialog would be
+ * frozen for wheel and touch (keyboard still works). Keeping the event local
+ * exempts the overlay. Primitives that bring their own lock — Select, modal
+ * DropdownMenu — need none of this.
+ */
+export function stopScrollPropagation<E extends React.SyntheticEvent>(
+  handler?: (event: E) => void,
+) {
+  return (event: E) => {
+    event.stopPropagation();
+    handler?.(event);
+  };
 }
 
 /**

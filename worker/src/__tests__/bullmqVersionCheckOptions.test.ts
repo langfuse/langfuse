@@ -194,20 +194,12 @@ describe("BullMQ Redis version check options", () => {
         error: vi.fn(),
         info: vi.fn(),
       },
-      recordGauge: vi.fn(),
-      recordHistogram: vi.fn(),
+      recordDistribution: vi.fn(),
       recordIncrement: vi.fn(),
       traceException: vi.fn(),
     }));
 
-    vi.doMock("../env", () => ({
-      env: {
-        LANGFUSE_QUEUE_METRICS_SAMPLE_RATE: 0,
-      },
-    }));
-
     vi.doMock("../queues/shardedQueueRegistry", () => ({
-      resolveQueueInstance: vi.fn(),
       SHARDED_QUEUE_BASE_NAMES: [],
     }));
 

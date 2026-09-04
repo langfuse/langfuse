@@ -2,10 +2,8 @@ import {
   createObservation,
   createTrace,
   createTracesCh,
-  createEvent,
+  createEvent as createEventBase,
   createOrgProjectAndApiKey,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createEventsCh,
 } from "@langfuse/shared/src/server";
@@ -16,6 +14,15 @@ import {
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+
+// The events tables carry metadata as flattened `metadata_names` /
+// `metadata_values` arrays. The fixture below also passes the nested object
+// form for readability; it is not a column and is ignored by the insert.
+const createEvent = (
+  event: Parameters<typeof createEventBase>[0] & {
+    metadata?: Record<string, unknown>;
+  },
+) => createEventBase(event);
 
 // Helper type for creating observation data
 type ObservationData = {
@@ -709,7 +716,7 @@ describe("/api/public/observations API Endpoint", () => {
               undefined,
               auth,
             );
-            fail("Should have thrown an error");
+            throw new Error("Should have thrown an error");
           } catch (error) {
             expect(error).toBeDefined();
           }
@@ -812,17 +819,19 @@ describe("/api/public/observations API Endpoint", () => {
             : baseTimestamp;
 
           // Create two traces with different userIds
+          // traces.timestamp is DateTime64(3) millisecond ticks. timeValue is
+          // microseconds when the events table is enabled — do not reuse it here.
           const trace1 = createTrace({
             id: trace1Id,
             project_id: projectId,
-            timestamp: timeValue,
+            timestamp: baseTimestamp,
             user_id: "user-A",
           });
 
           const trace2 = createTrace({
             id: trace2Id,
             project_id: projectId,
-            timestamp: timeValue,
+            timestamp: baseTimestamp,
             user_id: "user-B",
           });
 

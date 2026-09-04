@@ -49,6 +49,7 @@ export async function handleCreateApiKey(
   res: NextApiResponse,
   projectId: string,
   orgId: string,
+  createdByApiKeyId?: string,
 ) {
   // Validate the request body
   const createApiKeySchema = z.object({
@@ -99,6 +100,7 @@ export async function handleCreateApiKey(
       entityId: projectId,
       note,
       scope: "PROJECT",
+      createdByApiKeyId,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });

@@ -1,0 +1,24 @@
+diff --git a/dist/index.js b/dist/index.js
+index b49982f5a62521aaf0be8831ad7c86d661ab04a0..be7e8833cc63f8f6b6f2c8c2ef88999bb13e5652 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -250,6 +250,7 @@ function getFocusIntent(event, orientation, dir) {
+ function focusFirst(candidates, preventScroll = false) {
+   const PREVIOUSLY_FOCUSED_ELEMENT = document.activeElement;
+   for (const candidate of candidates) {
++    if (!candidate) continue;
+     if (candidate === PREVIOUSLY_FOCUSED_ELEMENT) return;
+     candidate.focus({ preventScroll });
+     if (document.activeElement !== PREVIOUSLY_FOCUSED_ELEMENT) return;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 08aaabcdb5402c74bcbd935a34e2b7f4a50fdfc0..497b7f08f6a8bce319148ab43bf7e660ff4fe1db 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -211,6 +211,7 @@ function getFocusIntent(event, orientation, dir) {
+ function focusFirst(candidates, preventScroll = false) {
+   const PREVIOUSLY_FOCUSED_ELEMENT = document.activeElement;
+   for (const candidate of candidates) {
++    if (!candidate) continue;
+     if (candidate === PREVIOUSLY_FOCUSED_ELEMENT) return;
+     candidate.focus({ preventScroll });
+     if (document.activeElement !== PREVIOUSLY_FOCUSED_ELEMENT) return;

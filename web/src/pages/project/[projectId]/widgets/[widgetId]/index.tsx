@@ -2,12 +2,13 @@ import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
+import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type DashboardWidgetChartType } from "@langfuse/shared";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { type WidgetChartConfig } from "@/src/features/widgets/utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export default function EditWidget() {
   const router = useRouter();
@@ -19,6 +20,10 @@ export default function EditWidget() {
 
   // Fetch the widget details
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  // The form derives its view/version declaration from the read path at
+  // mount — an unresolved session would seed a v4 user's editor as v3.
+  const { isResolved } = useReadPath();
   const { data: widgetData, isLoading: isWidgetLoading } =
     api.dashboardWidgets.get.useQuery(
       {
@@ -35,7 +40,16 @@ export default function EditWidget() {
     onSettled: () => {
       utils.dashboardWidgets.invalidate();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Which measure/aggregation/chart shapes do users actually save?
+      capture("dashboard:widget_saved", {
+        isNew: false,
+        view: variables.view,
+        chartType: variables.chartType,
+        measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
+        dimensionCount: variables.dimensions.length,
+        filterCount: variables.filters.length,
+      });
       showSuccessToast({
         title: "Widget updated successfully",
         description: "Your widget has been updated.",
@@ -55,17 +69,7 @@ export default function EditWidget() {
   });
 
   // Handle update widget
-  const handleUpdateWidget = (widgetFormData: {
-    name: string;
-    description: string;
-    view: string;
-    dimensions: { field: string }[];
-    metrics: { measure: string; agg: string }[];
-    filters: any[];
-    chartType: DashboardWidgetChartType;
-    chartConfig: WidgetChartConfig;
-    minVersion: number;
-  }) => {
+  const handleUpdateWidget = (widgetFormData: WidgetSavePayload) => {
     if (!widgetId) return;
 
     updateWidgetMutation.mutate({
@@ -82,7 +86,6 @@ export default function EditWidget() {
       filters: widgetFormData.filters,
       chartType: widgetFormData.chartType,
       chartConfig: widgetFormData.chartConfig,
-      minVersion: widgetFormData.minVersion,
     });
   };
 
@@ -96,8 +99,11 @@ export default function EditWidget() {
         },
       }}
     >
-      {!isWidgetLoading && widgetData ? (
+      {!isWidgetLoading && widgetData && isResolved ? (
         <WidgetForm
+          // Remount when the edited widget changes so its loaded values seed
+          // the form defaults once, rather than syncing via an effect.
+          key={widgetId}
           projectId={projectId}
           widgetId={widgetId}
           onSave={handleUpdateWidget}

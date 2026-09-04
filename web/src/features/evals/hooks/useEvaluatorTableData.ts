@@ -12,14 +12,14 @@ import {
   useLazyEvaluatorExecutionCountsByIds,
 } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 
 export type EvaluatorDataRow = {
   id: string;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   maintainer: string;
   rawStatus: string;
   template?: {
@@ -109,8 +109,8 @@ export const useEvaluatorTableData = ({
           id: jobConfig.id,
           status,
           rawStatus: jobConfig.status,
-          createdAt: jobConfig.createdAt.toLocaleString(),
-          updatedAt: jobConfig.updatedAt.toLocaleString(),
+          createdAt: jobConfig.createdAt,
+          updatedAt: jobConfig.updatedAt,
           template: jobConfig.evalTemplate
             ? {
                 id: jobConfig.evalTemplate.id,
@@ -136,7 +136,11 @@ export const useEvaluatorTableData = ({
                 : "Langfuse maintained"
             : "Not available",
           totalCost: costData,
-          isLegacy: isLegacyEvalTarget(jobConfig.targetObject),
+          isLegacy: requiresLegacyMigrationAction({
+            targetObject: jobConfig.targetObject,
+            status: jobConfig.status,
+            timeScope: jobConfig.timeScope,
+          }),
         } satisfies EvaluatorDataRow;
       }),
     [
@@ -151,8 +155,7 @@ export const useEvaluatorTableData = ({
     evaluators,
     rows,
     totalCount: evaluators.data?.totalCount ?? null,
-    hasLegacyEvals: rows.some(
-      (row) => row.status === "ACTIVE" && Boolean(row.isLegacy),
-    ),
+    // isLegacy already requires ACTIVE status and a NEW time scope
+    hasLegacyEvals: rows.some((row) => Boolean(row.isLegacy)),
   };
 };

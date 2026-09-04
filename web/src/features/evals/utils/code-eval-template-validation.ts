@@ -1,4 +1,4 @@
-import type * as ts from "typescript";
+import type * as ts from "@typescript/typescript6";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import {
   PYTHON_CODE_EVAL_CONTRACT,
@@ -9,6 +9,8 @@ import {
 export {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
+  PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
@@ -18,11 +20,11 @@ export {
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
-export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
+const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 
-export type CodeEvalDiagnosticSeverity = "error" | "warning";
+type CodeEvalDiagnosticSeverity = "error" | "warning";
 
-export type CodeEvalDiagnostic = {
+type CodeEvalDiagnostic = {
   from: number;
   to: number;
   severity: CodeEvalDiagnosticSeverity;
@@ -68,6 +70,9 @@ interface Array<T> {
   flatMap<U>(
     callbackfn: (value: T, index: number, array: T[]) => U | U[],
   ): U[];
+  filter<S extends T>(
+    predicate: (value: T, index: number, array: T[]) => value is S,
+  ): S[];
   filter(callbackfn: (value: T, index: number, array: T[]) => unknown): T[];
   find(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
   findIndex(callbackfn: (value: T, index: number, array: T[]) => unknown): number;
@@ -576,9 +581,13 @@ declare class URLSearchParams {
 const IGNORED_DIAGNOSTIC_CODES = new Set([2318]);
 const PYTHON_RUFF_SETTINGS = {
   "line-length": 88,
-  "indent-width": 4,
+  "indent-width": 2,
   lint: {
     select: ["E4", "E7", "E9", "F"],
+    // The contract is prepended to the user's source before linting (and at
+    // execution time), so user imports are never at the literal top of the
+    // file — E402 would flag every import.
+    ignore: ["E402"],
   },
 };
 const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
@@ -587,7 +596,6 @@ const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
   "F822",
   "F823",
 ]);
-const PYTHON_CONTRACT_PREFIX = "from dataclasses import dataclass";
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)\s*def\s+evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 let ruffWorkspacePromise: Promise<RuffWorkspace> | null = null;
@@ -606,10 +614,10 @@ export async function validateCodeEvalSourceWithLanguage({
   return validateCodeEvalSourceWithTypescript(source);
 }
 
-export async function validateCodeEvalSourceWithTypescript(
+async function validateCodeEvalSourceWithTypescript(
   source: string,
 ): Promise<CodeEvalValidationResult> {
-  const tsModule = await import("typescript");
+  const tsModule = await import("@typescript/typescript6");
   return validateCodeEvalSource(source, tsModule);
 }
 
@@ -618,7 +626,7 @@ export async function validateCodeEvalSourceWithPython(
 ): Promise<CodeEvalValidationResult> {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
-  const validationSource = source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)
+  const validationSource = hasPythonContractDeclarations(source)
     ? source
     : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${source}`;
 
@@ -679,7 +687,7 @@ export async function formatPythonCodeEvalSourceWithRuff(source: string) {
   return ruffWorkspace.format(source);
 }
 
-export function validateCodeEvalSource(
+function validateCodeEvalSource(
   source: string,
   tsModule: TypeScriptModule,
 ): CodeEvalValidationResult {
@@ -825,6 +833,17 @@ function hasTypeScriptContractDeclarations(source: string) {
     /\btype\s+EvaluationContext\s*=/.test(source) &&
     /\btype\s+Score\s*=/.test(source) &&
     /\btype\s+EvaluationResult\s*=/.test(source)
+  );
+}
+
+// Like hasTypeScriptContractDeclarations: detect the declarations themselves
+// instead of an exact contract prefix, so user code that happens to share the
+// contract's first line still gets the hidden contract injected.
+function hasPythonContractDeclarations(source: string) {
+  return (
+    /\bclass\s+EvaluationContext\b/.test(source) &&
+    /\bclass\s+Score\b/.test(source) &&
+    /\bclass\s+EvaluationResult\b/.test(source)
   );
 }
 
@@ -1001,15 +1020,6 @@ function collectPythonContractDiagnostics(
 ) {
   if (source.trim().length === 0) return;
 
-  if (!source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)) {
-    diagnostics.push({
-      from: 0,
-      to: Math.min(source.length, PYTHON_CONTRACT_PREFIX.length),
-      severity: "warning",
-      message: `Python evaluators should start with \`${PYTHON_CONTRACT_PREFIX}\`.`,
-    });
-  }
-
   if (
     hasPythonEvaluateFunction(source) &&
     !PYTHON_EVALUATE_SIGNATURE_PATTERN.test(source)
@@ -1136,6 +1146,6 @@ function sortDiagnostics(diagnostics: CodeEvalDiagnostic[]) {
   return [...diagnostics].sort((a, b) => a.from - b.from || a.to - b.to);
 }
 
-export function getUtf8ByteLength(value: string) {
+function getUtf8ByteLength(value: string) {
   return new TextEncoder().encode(value).length;
 }

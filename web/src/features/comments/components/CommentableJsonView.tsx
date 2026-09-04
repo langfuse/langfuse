@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * CommentableJsonView - Wrapper component that enables text selection for inline comments
  *

@@ -31,6 +31,27 @@ describe("KeyValueFilterBuilder", () => {
     expect(screen.getAllByText("missing-key")).not.toHaveLength(0);
   });
 
+  it("keeps a facet with nothing enumerated on free text while typing a key", () => {
+    // A project with no scores offers no keys, so the pick-only combobox would
+    // trap the user: it must not appear just because the row now holds a
+    // half-typed key of its own.
+    render(
+      <KeyValueFilterBuilder
+        mode="numeric"
+        keyOptions={[]}
+        activeFilters={[]}
+        onChange={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Add filter"));
+    const key = screen.getByPlaceholderText("Key");
+    fireEvent.change(key, { target: { value: "a" } });
+    fireEvent.change(key, { target: { value: "accuracy" } });
+
+    expect(screen.getByPlaceholderText("Key")).toHaveValue("accuracy");
+  });
+
   it("preserves incomplete local filters across equivalent parent rerenders", () => {
     const { rerender } = render(
       <KeyValueFilterBuilder

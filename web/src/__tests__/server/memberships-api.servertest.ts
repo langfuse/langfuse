@@ -327,7 +327,7 @@ describe("Memberships APIs", () => {
         expect(membershipBefore).not.toBeNull();
 
         // Delete the membership
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ message: string; userId: string }>(
           "DELETE",
           `/api/public/projects/${testProjectId}/memberships`,
           {
@@ -510,7 +510,7 @@ describe("Memberships APIs", () => {
         expect(membershipBefore).not.toBeNull();
 
         // Delete the membership
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ message: string; userId: string }>(
           "DELETE",
           `/api/public/organizations/memberships`,
           {

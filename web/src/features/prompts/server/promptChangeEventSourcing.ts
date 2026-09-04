@@ -44,7 +44,7 @@ export const promptChangeEventSourcing = async (
       event,
     );
 
-    logger.info(
+    logger.debug(
       `Queued entity change event for prompt ${promptData.id} in project ${promptData.projectId} with action ${action}`,
     );
   } catch (error) {

@@ -78,6 +78,8 @@ const buildSession = ({
         plan: "cloud:hobby",
         cloudConfig: undefined,
         metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
         projects: [
           {
             id: projectId,
@@ -85,7 +87,9 @@ const buildSession = ({
             name: "Test Project",
             deletedAt: null,
             retentionDays: null,
+            hasTraces: false,
             metadata: {},
+            createdAt: new Date().toISOString(),
           },
         ],
       },
@@ -93,6 +97,10 @@ const buildSession = ({
     featureFlags: {
       templateFlag: true,
       excludeClickhouseRead: false,
+      searchBar: false,
+      v4BetaToggleVisible: false,
+      observationEvals: false,
+      experimentsV4Enabled: false,
     },
     admin: false,
     v4BetaEnabled: false,

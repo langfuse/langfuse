@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   Collapsible,
@@ -24,7 +25,7 @@ export const ExperimentMetadataSection = ({
             type="button"
             className="flex w-full items-center justify-between text-left"
           >
-            <span className="text-sm font-medium">Metadata</span>
+            <span className="text-sm font-bold">Metadata</span>
             {isOpen ? (
               <ChevronDown className="text-muted-foreground h-4 w-4" />
             ) : (

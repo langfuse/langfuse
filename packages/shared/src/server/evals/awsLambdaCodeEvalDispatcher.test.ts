@@ -12,18 +12,21 @@ const mocks = vi.hoisted(() => {
   return {
     span,
     instrumentAsync: vi.fn(async (_ctx, callback) => callback(span)),
+    recordDistribution: vi.fn(),
     traceException: vi.fn(),
+    loggerWarn: vi.fn(),
   };
 });
 
 vi.mock("../instrumentation", () => ({
   instrumentAsync: mocks.instrumentAsync,
+  recordDistribution: mocks.recordDistribution,
   traceException: mocks.traceException,
 }));
 
 vi.mock("../logger", () => ({
   logger: {
-    warn: vi.fn(),
+    warn: mocks.loggerWarn,
   },
 }));
 
@@ -41,6 +44,7 @@ const baseInput: DispatchInput = {
       input: null,
       output: null,
       metadata: null,
+      toolCalls: [],
     },
   },
 };
@@ -48,6 +52,18 @@ const baseInput: DispatchInput = {
 function expectSpanAttributes(attributes: Record<string, unknown>): void {
   expect(mocks.span.setAttributes).toHaveBeenCalledWith(
     expect.objectContaining(attributes),
+  );
+}
+
+function expectDispatchDurationRecorded(): void {
+  expect(mocks.recordDistribution).toHaveBeenCalledExactlyOnceWith(
+    "langfuse.code_eval.dispatch_duration",
+    expect.any(Number),
+    {
+      project_id: "project-1",
+      language: "TYPESCRIPT",
+      unit: "milliseconds",
+    },
   );
 }
 
@@ -106,6 +122,7 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "aws.sdk.attempts": 2,
       "aws.sdk.total_retry_delay_ms": 15,
     });
+    expectDispatchDurationRecorded();
   });
 
   it("records the original AWS SDK error before throwing the derived dispatcher error", async () => {
@@ -145,6 +162,7 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "aws.sdk.attempts": 3,
       "aws.sdk.total_retry_delay_ms": 25,
     });
+    expectDispatchDurationRecorded();
   });
 
   it("records dispatch context and error code for preflight limit failures", async () => {
@@ -175,6 +193,46 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "langfuse.code_eval.error.retryable": false,
     });
   });
+
+  it.each([
+    {
+      errorType: "Runtime.OutOfMemory",
+      errorMessage: "Runtime exited with error: signal: killed",
+    },
+    {
+      errorType: "Runtime.ExitError",
+      errorMessage: "Runtime exited with error: signal: killed",
+    },
+  ])(
+    "classifies Lambda $errorType failures as evaluator memory errors",
+    async ({ errorType, errorMessage }) => {
+      const dispatcher = new AwsLambdaCodeEvalDispatcher({
+        lambdaClient: {
+          send: vi.fn().mockResolvedValue({
+            StatusCode: 200,
+            FunctionError: "Unhandled",
+            Payload: Buffer.from(JSON.stringify({ errorMessage, errorType })),
+            $metadata: {
+              requestId: "request-oom",
+              httpStatusCode: 200,
+              attempts: 1,
+              totalRetryDelay: 0,
+            },
+          }),
+        } as any,
+      });
+
+      await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+        code: "OUT_OF_MEMORY",
+        retryable: false,
+      });
+      expectSpanAttributes({
+        "langfuse.code_eval.error.code": "OUT_OF_MEMORY",
+        "langfuse.code_eval.error.retryable": false,
+      });
+      expect(mocks.loggerWarn).not.toHaveBeenCalled();
+    },
+  );
 
   it("records the original Lambda FunctionError before throwing the derived user-facing error", async () => {
     const dispatcher = new AwsLambdaCodeEvalDispatcher({

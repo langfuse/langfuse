@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useMemo,
+  type ComponentProps,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -45,8 +46,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
+
+export type ColumnGroupTogglePayload = {
+  groupId: string;
+  enabledCount: number;
+  totalCount: number;
+};
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -54,7 +61,23 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
+  triggerSize?: ComponentProps<typeof Button>["size"];
+  tableName?: string;
+  isV4?: boolean;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
+
+/**
+ * A column's name for the picker: its own label before its rendered header, so
+ * a column whose header carries more than its name still reads here.
+ */
+const getColumnLabel = <TData, TValue>(
+  column: LangfuseColumnDef<TData, TValue>,
+) =>
+  column.headerLabel ??
+  (typeof column.header === "string" && column.header
+    ? column.header
+    : column.accessorKey);
 
 const calculateColumnCounts = <TData, TValue>(
   columns: LangfuseColumnDef<TData, TValue>[],
@@ -104,6 +127,8 @@ function ColumnVisibilityListItem<TData, TValue>({
     });
 
   const isChecked = columnVisibility[column.accessorKey] && column.enableHiding;
+  const isLocked = !column.enableHiding || isFixedPosition;
+  const checkboxId = `col-${column.accessorKey}`;
 
   return (
     <div
@@ -123,19 +148,18 @@ function ColumnVisibilityListItem<TData, TValue>({
     >
       <div className="flex items-center gap-2">
         <Checkbox
-          id={`col-${column.accessorKey}`}
-          checked={isChecked || !column.enableHiding || isFixedPosition}
+          id={checkboxId}
+          checked={isChecked || isLocked}
           onCheckedChange={() => {
-            if (column.enableHiding && !isFixedPosition)
-              toggleColumn(column.accessorKey);
+            if (!isLocked) toggleColumn(column.accessorKey);
           }}
-          disabled={!column.enableHiding || isFixedPosition}
-          className="h-4 w-4"
+          disabled={isLocked}
         />
-        <span
+        <label
+          htmlFor={checkboxId}
           className={cn(
             "text-sm capitalize",
-            (!column.enableHiding || isFixedPosition) && "opacity-50",
+            isLocked ? "opacity-50" : "cursor-pointer",
           )}
           title={
             !column.enableHiding
@@ -145,10 +169,8 @@ function ColumnVisibilityListItem<TData, TValue>({
                 : undefined
           }
         >
-          {column.header && typeof column.header === "string"
-            ? column.header
-            : column.accessorKey}
-        </span>
+          {getColumnLabel(column)}
+        </label>
         {column.headerTooltip && (
           <DocPopup
             description={column.headerTooltip.description}
@@ -215,11 +237,7 @@ function GroupVisibilityHeader<TData, TValue>({
         >
           <div className="flex items-center gap-2">
             <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-medium">
-              {column.header && typeof column.header === "string"
-                ? column.header
-                : column.accessorKey}
-            </span>
+            <span className="text-sm font-bold">{getColumnLabel(column)}</span>
             <span className="text-muted-foreground text-xs">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
@@ -296,6 +314,10 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnVisibility,
   columnOrder,
   setColumnOrder,
+  triggerSize,
+  tableName = "unknown",
+  isV4 = false,
+  onColumnGroupToggle,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -317,23 +339,25 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       // calculate target state outside of setState to make it idempotent
       const currentValue = columnVisibility[columnId];
       const targetValue = !currentValue;
-      setColumnVisibility((old: any) => {
-        const newColumnVisibility = {
-          ...old,
-          [columnId]: targetValue,
-        };
-        const selectedColumns = Object.keys(newColumnVisibility).filter(
-          (key) => newColumnVisibility[key],
-        );
-        capture("table:column_visibility_changed", {
-          selectedColumns: selectedColumns,
-        });
-        return newColumnVisibility;
+      // The event belongs to the click, not to the state updater: an updater
+      // must be pure, and React invokes it twice under StrictMode — which
+      // double-counted every toggle. Same payload, emitted once.
+      const nextVisibility = { ...columnVisibility, [columnId]: targetValue };
+      capture("table:column_visibility_changed", {
+        selectedColumns: Object.keys(nextVisibility).filter(
+          (key) => nextVisibility[key],
+        ),
+        tableName,
+        isV4,
       });
+      setColumnVisibility((old: any) => ({
+        ...old,
+        [columnId]: targetValue,
+      }));
     },
     // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility, columnVisibility],
+    [setColumnVisibility, columnVisibility, tableName, isV4],
   );
 
   const toggleAllColumns = useCallback(
@@ -395,15 +419,19 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     >
       <Drawer modal={false}>
         <DrawerTrigger asChild>
-          <Button variant="outline" title="Show/hide columns">
+          <Button
+            variant="outline"
+            size={triggerSize}
+            title="Show/hide columns"
+          >
             <span>Columns</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>
-        <DrawerContent overlayClassName="bg-primary/10">
+        <DrawerContent portalLayer="popover" overlayClassName="bg-primary/10">
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
             <div className="sticky top-0 z-10">
-              <DrawerHeader className="bg-background flex flex-row items-center justify-between rounded-sm px-3 py-2">
+              <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-2">
                 <DrawerTitle>Column Visibility</DrawerTitle>
                 <div className="flex flex-row gap-2">
                   <Button
@@ -439,7 +467,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                     className="hover:bg-transparent!"
                     onClick={() => toggleAllColumns(count, total)}
                   >
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-bold">
                       {count === total
                         ? "Deselect All Columns"
                         : "Select All Columns"}
@@ -482,11 +510,18 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                               column.header &&
                               typeof column.header === "string"
                             ) {
+                              const enabling =
+                                groupVisibleCount !== groupTotalCount;
                               toggleAllColumns(
                                 groupVisibleCount,
                                 groupTotalCount,
                                 column.header,
                               );
+                              onColumnGroupToggle?.({
+                                groupId: column.accessorKey,
+                                enabledCount: enabling ? groupTotalCount : 0,
+                                totalCount: groupTotalCount,
+                              });
                             }
                           }}
                         >

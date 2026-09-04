@@ -19,7 +19,7 @@ import { logger } from "@langfuse/shared/src/server";
  *
  * Combines tool definition (for MCP protocol) with handler (for execution)
  */
-export interface RegisteredTool<TName extends string = string> {
+interface RegisteredTool<TName extends string = string> {
   /** Tool definition for MCP protocol */
   definition: ToolDefinition<TName>;
 
@@ -176,8 +176,13 @@ class ToolRegistry {
       return tool.definition.annotations?.readOnlyHint === true;
     }
 
-    if (context.inAppAgent.permissions === "single-tool-override") {
-      return context.inAppAgent.allowedToolName === tool.definition.name;
+    if (context.inAppAgent.permissions === "tool-allowlist") {
+      return (
+        tool.definition.annotations?.readOnlyHint === true ||
+        context.inAppAgent.allowedToolNames.some(
+          (allowedToolName) => allowedToolName === tool.definition.name,
+        )
+      );
     }
 
     return false;

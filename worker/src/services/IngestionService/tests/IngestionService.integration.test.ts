@@ -24,6 +24,7 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  getObservationsV2FromEventsTableForPublicApi,
   queryClickhouse,
   setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
@@ -31,6 +32,10 @@ import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
+import {
+  clickhouseTableExists,
+  skipUnlessClickhouseTablesExist,
+} from "../../../__tests__/helpers/clickhouseTables";
 
 let projectId = "";
 const environment = "default";
@@ -39,7 +44,14 @@ const testIngestionAttribution = {
   ingestionSdkName: "langfuse-test",
   ingestionSdkVersion: "0.0.0",
 };
-let observationsBatchStagingTableEnabled: boolean | undefined;
+
+async function skipUnlessEventsTablesExist(ctx: TestContext): Promise<void> {
+  await skipUnlessClickhouseTablesExist(
+    ctx,
+    [TableName.EventsFull],
+    "events ClickHouse tables are not enabled",
+  );
+}
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -117,6 +129,103 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.output).toBe("bar");
     expect(trace.session_id).toBeNull();
     expect(trace.timestamp).toBe(timestamp);
+  });
+
+  it("should paginate events with sub-millisecond wire timestamps after ingestion normalization", async (ctx) => {
+    await skipUnlessEventsTablesExist(ctx);
+
+    const traceId = randomUUID();
+    const firstSpanId = randomUUID();
+    const secondSpanId = randomUUID();
+    const wireStartTimeA = "2026-01-01T12:00:00.123456Z";
+    const wireStartTimeB = "2026-01-01T12:00:00.123789Z";
+    const normalizedStartTime = "2026-01-01 12:00:00.123";
+
+    const eventRecords = await Promise.all(
+      [
+        { spanId: firstSpanId, startTimeISO: wireStartTimeA },
+        { spanId: secondSpanId, startTimeISO: wireStartTimeB },
+      ].map((event) =>
+        ingestionService.createEventRecord(
+          {
+            projectId,
+            traceId,
+            spanId: event.spanId,
+            parentSpanId: "",
+            name: `sub-ms-cursor-${event.spanId}`,
+            type: "SPAN",
+            environment,
+            startTimeISO: event.startTimeISO,
+            endTimeISO: "2026-01-01T12:00:00.124000Z",
+            metadata: {},
+            source: "test",
+          },
+          `sub-ms-cursor/${event.spanId}.json`,
+        ),
+      ),
+    );
+
+    expect(eventRecords.map((record) => record.start_time)).toEqual([
+      normalizedStartTime,
+      normalizedStartTime,
+    ]);
+
+    await Promise.all(
+      eventRecords.map((record) => ingestionService.writeEventRecord(record)),
+    );
+    await clickhouseWriter.flushAll(true);
+
+    await waitForExpect(async () => {
+      const rows = await queryClickhouse<{ count: string }>({
+        query: `
+          SELECT count() AS count
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+            AND span_id IN ({spanIds: Array(String)})
+        `,
+        params: {
+          projectId,
+          traceId,
+          spanIds: [firstSpanId, secondSpanId],
+        },
+      });
+
+      expect(Number(rows[0]?.count ?? 0)).toBe(2);
+    }, 5_000);
+
+    const firstPageItems = await getObservationsV2FromEventsTableForPublicApi({
+      projectId,
+      traceId,
+      page: 1,
+      limit: 1,
+      fields: ["core"],
+    });
+    const firstPage = firstPageItems.slice(0, 1);
+    expect(firstPage).toHaveLength(1);
+
+    const firstItem = firstPage[0]!;
+    expect(firstItem.startTime.getTime()).toBe(Date.parse(wireStartTimeA));
+
+    const secondPageItems = await getObservationsV2FromEventsTableForPublicApi({
+      projectId,
+      traceId,
+      page: 1,
+      limit: 1,
+      fields: ["core"],
+      cursor: {
+        lastStartTimeTo: firstItem.startTime,
+        lastTraceId: firstItem.traceId!,
+        lastId: firstItem.id,
+      },
+    });
+    const secondPage = secondPageItems.slice(0, 1);
+    expect(secondPage).toHaveLength(1);
+
+    expect(secondPage[0]!.id).not.toBe(firstItem.id);
+    expect(new Set([firstItem.id, secondPage[0]!.id])).toEqual(
+      new Set([firstSpanId, secondSpanId]),
+    );
   });
 
   it("should write ingestion attribution to observation staging records", async (ctx) => {
@@ -2461,6 +2570,188 @@ describe("Ingestion end-to-end tests", () => {
   });
 
   describe("Tiered Pricing", () => {
+    it("applies an exact model parameter tier to direct event writes", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+      const modelName = `priority-tier-${randomUUID()}`;
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: `(?i)^(${modelName})$`,
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.000005, modelId },
+                    { usageType: "output", price: 0.00003, modelId },
+                  ],
+                },
+              },
+              {
+                name: "Priority",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    source: "model_parameters",
+                    key: "service_tier",
+                    operator: "in",
+                    values: ["priority"],
+                  },
+                ],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.0000125, modelId },
+                    { usageType: "output", price: 0.000075, modelId },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const eventRecord = await ingestionService.createEventRecord(
+        {
+          projectId,
+          traceId,
+          spanId: generationId,
+          name: "priority-generation",
+          type: "GENERATION",
+          environment,
+          startTimeISO: new Date().toISOString(),
+          modelName,
+          modelParameters: { service_tier: "priority" },
+          metadata: {},
+          providedUsageDetails: { input: 12, output: 21 },
+          source: "otel",
+        },
+        `otel/${projectId}/priority-generation.json`,
+      );
+
+      expect(eventRecord.usage_pricing_tier_name).toBe("Priority");
+      expect(eventRecord.cost_details.total).toBeCloseTo(0.001725, 9);
+    });
+
+    it("applies exact attribute tiers from a legacy usage event", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+      const modelName = `legacy-priority-tier-${randomUUID()}`;
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: `(?i)^(${modelName})$`,
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.000005, modelId },
+                    { usageType: "output", price: 0.00003, modelId },
+                  ],
+                },
+              },
+              {
+                name: "Priority US",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    source: "model_parameters",
+                    key: "service_tier",
+                    operator: "in",
+                    values: ["priority"],
+                  },
+                  {
+                    source: "metadata",
+                    key: "region",
+                    operator: "in",
+                    values: ["us"],
+                  },
+                ],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.0000125, modelId },
+                    { usageType: "output", price: 0.000075, modelId },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const observationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: "generation-create",
+          body: {
+            id: generationId,
+            traceId,
+            name: "legacy-priority-generation",
+            startTime: new Date().toISOString(),
+            model: modelName,
+            environment,
+          },
+        },
+        {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: "generation-update",
+          body: {
+            id: generationId,
+            traceId,
+            usage: {
+              input: 12,
+              output: 21,
+              unit: ModelUsageUnit.Tokens,
+            },
+            modelParameters: { service_tier: "priority" },
+            metadata: { region: "us" },
+            environment,
+          },
+        },
+      ];
+
+      await ingestionService.processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList,
+      });
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      expect(generation.usage_pricing_tier_name).toBe("Priority US");
+      expect(generation.cost_details.total).toBeCloseTo(0.001725, 9);
+    });
+
     it("should apply default tier for usage below threshold (Anthropic Claude example)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -3067,28 +3358,7 @@ type RecordReadType<T extends TableName> = T extends TableName.Scores
       : never;
 
 async function isObservationsBatchStagingEnabled(): Promise<boolean> {
-  if (observationsBatchStagingTableEnabled !== undefined) {
-    return observationsBatchStagingTableEnabled;
-  }
-
-  try {
-    const rows = await queryClickhouse<{ count: number | string }>({
-      query: `
-        SELECT count() AS count
-        FROM system.tables
-        WHERE database = currentDatabase()
-          AND name = {table: String}
-      `,
-      params: {
-        table: TableName.ObservationsBatchStaging,
-      },
-    });
-    observationsBatchStagingTableEnabled = Number(rows[0]?.count ?? 0) > 0;
-  } catch {
-    observationsBatchStagingTableEnabled = false;
-  }
-
-  return observationsBatchStagingTableEnabled;
+  return clickhouseTableExists(TableName.ObservationsBatchStaging);
 }
 
 async function skipUnlessObservationsBatchStagingEnabled(

@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_USER: "default",
     CLICKHOUSE_PASSWORD: "",
     CLICKHOUSE_DB: "default",
+    LANGFUSE_JSON_BAD_UNICODE_ESCAPE: undefined as
+      | "auto"
+      | "no_throw"
+      | "sanitize"
+      | undefined,
     CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: 9000,
     CLICKHOUSE_MAX_OPEN_CONNECTIONS: 25,
     CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined,
@@ -19,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: "alter_update",
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
+    CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -40,16 +46,18 @@ import { setClickHouseCompatibilityVersionForTests } from "./compatibility";
 describe("ClickHouseClientManager compatibility settings", () => {
   beforeEach(async () => {
     await ClickHouseClientManager.getInstance().closeAllConnections();
+    mocks.env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE = undefined;
 
     mocks.close.mockClear();
     mocks.createClient.mockReset();
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
+    mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
     setClickHouseCompatibilityVersionForTests(null);
   });
 
   it("applies resolved compatibility settings globally", () => {
-    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+    setClickHouseCompatibilityVersionForTests("26.5.5.8");
 
     clickhouseClient();
 
@@ -57,29 +65,29 @@ describe("ClickHouseClientManager compatibility settings", () => {
     expect(
       mocks.createClient.mock.calls[0][0].clickhouse_settings,
     ).toMatchObject({
-      query_plan_optimize_lazy_materialization: 0,
+      query_plan_top_k_through_join: 0,
     });
   });
 
   it("lets explicit client settings override compatibility settings", () => {
-    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+    setClickHouseCompatibilityVersionForTests("26.5.5.8");
 
     clickhouseClient({
       clickhouse_settings: {
-        query_plan_optimize_lazy_materialization: 1,
+        query_plan_top_k_through_join: 1,
       } as ClickHouseSettings,
     });
 
     expect(mocks.createClient).toHaveBeenCalledTimes(1);
     expect(
       mocks.createClient.mock.calls[0][0].clickhouse_settings
-        .query_plan_optimize_lazy_materialization,
+        .query_plan_top_k_through_join,
     ).toBe(1);
   });
 
   it("uses a new cached client key after compatibility settings change", () => {
     clickhouseClient();
-    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+    setClickHouseCompatibilityVersionForTests("26.5.5.8");
     clickhouseClient();
 
     expect(mocks.createClient).toHaveBeenCalledTimes(2);
@@ -122,5 +130,45 @@ describe("ClickHouseClientManager compatibility settings", () => {
       timeout_before_checking_execution_speed: 10,
       max_execution_time: 60,
     });
+  });
+
+  it.each([
+    ["no_throw", null, 0, "undefined"],
+    ["auto", "24.3.0.0", undefined, "function"],
+  ] as const)(
+    "configures %s JSON handling",
+    (
+      mode,
+      clickHouseVersion,
+      expectedClickHouseSetting,
+      expectedStringifyType,
+    ) => {
+      mocks.env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE = mode;
+      setClickHouseCompatibilityVersionForTests(clickHouseVersion);
+
+      clickhouseClient();
+
+      const config = mocks.createClient.mock.calls[0][0];
+      expect(
+        config.clickhouse_settings
+          .input_format_json_throw_on_bad_escape_sequence,
+      ).toBe(expectedClickHouseSetting);
+      expect(typeof config.json?.stringify).toBe(expectedStringifyType);
+    },
+  );
+
+  it("uses a new cached client when automatic JSON handling changes", () => {
+    mocks.env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE = "auto";
+    const opts = {
+      clickhouse_settings: {
+        input_format_json_throw_on_bad_escape_sequence: 0,
+      } as ClickHouseSettings,
+    };
+
+    clickhouseClient(opts);
+    setClickHouseCompatibilityVersionForTests("24.4.0.0");
+    clickhouseClient(opts);
+
+    expect(mocks.createClient).toHaveBeenCalledTimes(2);
   });
 });

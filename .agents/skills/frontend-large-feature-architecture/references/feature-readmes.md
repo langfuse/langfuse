@@ -69,21 +69,18 @@ Use an update-in-place style rather than a changelog. For example:
   batch action workflow into an action file; split route/query glue from view
   components.
 
-This makes small PRs reviewable while keeping the feature migration plan
-visible. Do not wait for a perfect reorganization before documenting the
+This keeps each improvement reviewable while keeping the feature migration
+plan visible. Do not wait for a perfect reorganization before documenting the
 current state.
 
-## PR-Scale Guidance
+## Matching Updates To The Change
 
-Feature README updates should match the PR size:
+Feature README updates should match what actually changed:
 
-- For a small state/action extraction, add or update only the relevant
+- For a state/action extraction, add or update only the relevant
   migration-state bullets.
 - For a new feature folder structure, include the owner map and external
   consumers before moving logic into the folder.
-- For a rename-only PR, document intended structure but avoid changing behavior.
-- For behavior PRs, avoid unrelated file moves unless they are required for the
-  boundary being improved.
 
 The README should help the next contributor avoid falling back into the same
 large component, not argue that the migration is complete.

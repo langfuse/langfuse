@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -21,6 +22,7 @@ import {
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { normalizeBlobStorageRegion } from "../../utils/stringChecks";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import {
@@ -232,6 +234,57 @@ function createSecureAzureBlobRequestPolicyFactory(
   };
 }
 
+async function storageBodyToBytes(body: unknown): Promise<Uint8Array> {
+  if (!body) return new Uint8Array();
+  if (body instanceof Uint8Array) return body;
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+
+  const candidate = body as {
+    transformToByteArray?: () => Promise<Uint8Array>;
+    arrayBuffer?: () => Promise<ArrayBuffer>;
+    getReader?: () => ReadableStreamDefaultReader<Uint8Array>;
+    [Symbol.asyncIterator]?: () => AsyncIterator<unknown>;
+  };
+  if (candidate.transformToByteArray) {
+    return candidate.transformToByteArray();
+  }
+  if (candidate.arrayBuffer) {
+    return new Uint8Array(await candidate.arrayBuffer());
+  }
+
+  const chunks: Uint8Array[] = [];
+  if (candidate[Symbol.asyncIterator]) {
+    for await (const chunk of body as AsyncIterable<unknown>) {
+      chunks.push(
+        chunk instanceof Uint8Array
+          ? chunk
+          : new Uint8Array(Buffer.from(chunk as string)),
+      );
+    }
+  } else if (candidate.getReader) {
+    const reader = candidate.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+  } else {
+    throw new TypeError("Unsupported storage download body");
+  }
+
+  const byteLength = chunks.reduce(
+    (total, chunk) => total + chunk.byteLength,
+    0,
+  );
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
 
@@ -252,6 +305,8 @@ export interface StorageService {
 
   download(path: string): Promise<string>;
 
+  downloadBytes(path: string): Promise<Uint8Array>;
+
   listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
 
   getSignedUrl(
@@ -270,6 +325,11 @@ export interface StorageService {
 
   deleteFiles(paths: string[]): Promise<void>;
 }
+
+// Keys per S3 DeleteObjects request. The API hard limit is 1000; 900 leaves a
+// margin. Exported so callers that batch their own deletes can size a batch to
+// exactly one request instead of duplicating the number.
+export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
 
 export class StorageServiceFactory {
   /**
@@ -537,6 +597,21 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      await this.createContainerIfNotExists();
+      const response = await this.client.getBlobClient(path).download();
+      if (!response.readableStreamBody) throw Error("No stream body available");
+      return storageBodyToBytes(response.readableStreamBody);
+    } catch (err) {
+      logger.error(
+        `Failed to download bytes from Azure Blob Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "download bytes from Azure Blob Storage");
+    }
+  }
+
   public async deleteFiles(paths: string[]): Promise<void> {
     await backOff(() => this.deleteFileNonRetrying(paths), {
       numOfAttempts: 3,
@@ -690,12 +765,16 @@ class S3StorageService implements StorageService {
         : undefined;
 
     const requestHandler = createS3RequestHandler(params.connectionValidation);
+    const region =
+      params.region === undefined
+        ? undefined
+        : normalizeBlobStorageRegion(params.region);
 
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
-      region: params.region,
+      region,
       forcePathStyle: params.forcePathStyle,
       // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
@@ -707,7 +786,7 @@ class S3StorageService implements StorageService {
     addS3DiagnosticsMiddleware(this.client, {
       bucketName: params.bucketName,
       endpoint: params.endpoint,
-      region: params.region,
+      region,
       forcePathStyle: params.forcePathStyle,
     });
 
@@ -718,7 +797,7 @@ class S3StorageService implements StorageService {
       ? new S3Client({
           credentials,
           endpoint: params.externalEndpoint,
-          region: params.region,
+          region,
           forcePathStyle: params.forcePathStyle,
           requestChecksumCalculation: "WHEN_REQUIRED",
           responseChecksumValidation: "WHEN_REQUIRED",
@@ -871,6 +950,18 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucketName, Key: path }),
+      );
+      return storageBodyToBytes(response.Body);
+    } catch (err) {
+      logger.error(`Failed to download bytes from S3 ${path}`, err);
+      handleStorageError(err, "download bytes from S3");
+    }
+  }
+
   public async listFiles(
     prefix: string,
   ): Promise<{ file: string; createdAt: Date }[]> {
@@ -925,7 +1016,7 @@ class S3StorageService implements StorageService {
   }
 
   async deleteFilesNonRetrying(paths: string[]): Promise<void> {
-    const chunkSize = 900;
+    const chunkSize = S3_DELETE_OBJECTS_CHUNK_SIZE;
     const chunks = [];
 
     for (let i = 0; i < paths.length; i += chunkSize) {
@@ -936,6 +1027,11 @@ class S3StorageService implements StorageService {
       for (const chunk of chunks) {
         const command = new DeleteObjectsCommand({
           Bucket: this.bucketName,
+          // Unset keeps the SDK default (CRC32). Some S3-compatible stores
+          // reject CRC32 with 400 MissingContentMD5 and need "MD5", which the
+          // SDK sends as the legacy Content-MD5 header, e.g. MinIO before
+          // RELEASE.2025-02-03 (langfuse/langfuse-k8s#356).
+          ChecksumAlgorithm: env.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM,
           Delete: {
             Objects: chunk.map((path) => ({ Key: path })),
             Quiet: true,
@@ -1041,19 +1137,8 @@ class GoogleCloudStorageService implements StorageService {
         await file.save(data, options);
         return;
       } else if (data instanceof Readable) {
-        return new Promise((resolve, reject) => {
-          const writeStream = file.createWriteStream(options);
-
-          data
-            .pipe(writeStream)
-            .on("error", (err: unknown) => {
-              reject(err);
-            })
-            .on("finish", () => {
-              resolve();
-            });
-          return;
-        });
+        await pipeline(data, file.createWriteStream(options));
+        return;
       }
 
       throw new Error("Unsupported data type. Must be Readable or string.");
@@ -1129,6 +1214,19 @@ class GoogleCloudStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "download file from Google Cloud Storage");
+    }
+  }
+
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      const [content] = await this.bucket.file(path).download();
+      return new Uint8Array(content);
+    } catch (err) {
+      logger.error(
+        `Failed to download bytes from Google Cloud Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "download bytes from Google Cloud Storage");
     }
   }
 
@@ -1602,6 +1700,24 @@ class OCIObjectStorageService implements StorageService {
     }
   }
 
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const response = await client.getObject({
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+      });
+      return storageBodyToBytes((response as any).value);
+    } catch (err) {
+      logger.error(
+        `Failed to download bytes from OCI Object Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "download bytes from OCI Object Storage");
+    }
+  }
+
   public async listFiles(
     prefix: string,
   ): Promise<{ file: string; createdAt: Date }[]> {
@@ -1611,6 +1727,8 @@ class OCIObjectStorageService implements StorageService {
         namespaceName,
         bucketName: this.bucketName,
         prefix,
+        // Object summaries only carry `name` unless asked for more.
+        fields: "name,timeCreated",
       };
       const resp = await client.listObjects(req);
       const objects = ((resp as any).listObjects?.objects ?? []) as Array<{

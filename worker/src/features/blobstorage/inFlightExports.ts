@@ -71,7 +71,6 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
       // Survivors at a graceful shutdown were aborted by the SIGTERM teardown.
       abortReason: "shutdown",
       table: entry.table,
-      projectId: entry.projectId,
     });
   }
 };

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   InputCommand,
@@ -63,7 +64,7 @@ export const ModelSelectorPopover = ({
                 )}
               />
               <span>
-                <p className="font-semibold">Select All</p>
+                <p className="font-bold">Select All</p>
               </span>
             </InputCommandItem>
             <InputCommandSeparator className="my-1" />
@@ -107,7 +108,7 @@ export const useModelSelection = (
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
-  metricsVersion?: ViewVersion,
+  metricsVersion: ViewVersion,
   options?: {
     enabled?: boolean;
     queryId: string;

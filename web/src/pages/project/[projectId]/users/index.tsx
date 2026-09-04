@@ -9,15 +9,13 @@ import {
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import TableLink from "@/src/components/table/table-link";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -27,12 +25,12 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import { Badge } from "@/src/components/ui/badge";
 
 type RowData = {
   userId: string;
@@ -47,13 +45,13 @@ type RowData = {
 export default function UsersPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Check if the user has any users
   const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
     { projectId },
     {
-      enabled: !!projectId && !isBetaEnabled,
+      enabled: !!projectId && !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -67,7 +65,7 @@ export default function UsersPage() {
     api.users.hasAnyFromEvents.useQuery(
       { projectId },
       {
-        enabled: !!projectId && isBetaEnabled,
+        enabled: !!projectId && isV4,
         trpc: {
           context: {
             skipBatch: true,
@@ -77,8 +75,8 @@ export default function UsersPage() {
       },
     );
 
-  const hasUsers = isBetaEnabled ? hasAnyUserFromEvents : hasAnyUser;
-  const isLoadingUsers = isBetaEnabled ? isLoadingFromEvents : isLoading;
+  const hasUsers = isV4 ? hasAnyUserFromEvents : hasAnyUser;
+  const isLoadingUsers = isV4 ? isLoadingFromEvents : isLoading;
   const showOnboarding = !isLoadingUsers && !hasUsers;
 
   return (
@@ -111,13 +109,19 @@ export default function UsersPage() {
       {showOnboarding ? (
         <UsersOnboarding />
       ) : (
-        <UsersTable isBetaEnabled={isBetaEnabled} />
+        <UsersTable isV4={isV4} showControlsInPageHeader />
       )}
     </Page>
   );
 }
 
-const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
+const UsersTable = ({
+  isV4,
+  showControlsInPageHeader = false,
+}: {
+  isV4: boolean;
+  showControlsInPageHeader?: boolean;
+}) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -134,6 +138,8 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  // The picker renders in the page header via the header controls slot; this
+  // reads the same shared per-project range to filter the table.
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
@@ -202,7 +208,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
       projectId,
       searchQuery: searchQuery ?? undefined,
     },
-    { enabled: !isBetaEnabled },
+    { enabled: !isV4 },
   );
 
   const userMetricsV3 = api.users.metrics.useQuery(
@@ -212,7 +218,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
       filter: filterState,
     },
     {
-      enabled: usersV3.isSuccess && !isBetaEnabled,
+      enabled: usersV3.isSuccess && !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -229,7 +235,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
       projectId,
       searchQuery: searchQuery ?? undefined,
     },
-    { enabled: isBetaEnabled },
+    { enabled: isV4 },
   );
 
   const userMetricsV4 = api.users.metricsFromEvents.useQuery(
@@ -239,7 +245,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
       filter: filterState,
     },
     {
-      enabled: usersV4.isSuccess && isBetaEnabled,
+      enabled: usersV4.isSuccess && isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -249,8 +255,8 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   );
 
   // Select the active query based on beta state
-  const users = isBetaEnabled ? usersV4 : usersV3;
-  const userMetrics = isBetaEnabled ? userMetricsV4 : userMetricsV3;
+  const users = isV4 ? usersV4 : usersV3;
+  const userMetrics = isV4 ? userMetricsV4 : userMetricsV3;
 
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
@@ -284,7 +290,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   }, [users.isSuccess, users.data]);
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData>({
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
@@ -294,71 +300,45 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
-      cell: ({ row }) => {
-        const value: RowData["userId"] = row.getValue("userId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createBadgeTableColumn<RowData>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["environment"] = row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "firstEvent",
       header: "First Event",
       headerTooltip: {
         description: "The earliest trace recorded for this user.",
       },
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["firstEvent"] = row.getValue("firstEvent");
-        if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return typeof value === "string" ? value : undefined;
-      },
-    },
-    {
+      mapValue: (value) =>
+        userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "lastEvent",
       header: "Last Event",
       headerTooltip: {
         description: "The latest trace recorded for this user.",
       },
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["lastEvent"] = row.getValue("lastEvent");
-        if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return typeof value === "string" ? value : undefined;
-      },
-    },
-    {
+      mapValue: (value) =>
+        userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "totalEvents",
       header: "Total Events",
       headerTooltip: {
@@ -367,16 +347,10 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["totalEvents"] = row.getValue("totalEvents");
-        if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return typeof value === "string" ? value : undefined;
-      },
-    },
-    {
+      mapValue: (value) =>
+        userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "totalTokens",
       header: "Total Tokens",
       headerTooltip: {
@@ -385,16 +359,10 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["totalTokens"] = row.getValue("totalTokens");
-        if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return typeof value === "string" ? value : undefined;
-      },
-    },
-    {
+      mapValue: (value) =>
+        userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "totalCost",
       header: "Total Cost",
       headerTooltip: {
@@ -402,26 +370,27 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["totalCost"] = row.getValue("totalCost");
-        if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return typeof value === "string" ? value : undefined;
-      },
-    },
+      mapValue: (value) =>
+        userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
   ];
 
   return (
     <>
+      {showControlsInPageHeader && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+      )}
       <DataTableToolbar
+        tableName="users"
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
+        timeRange={showControlsInPageHeader ? undefined : timeRange}
+        setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
         searchConfig={{
           metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,
@@ -437,7 +406,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         }}
       />
       <DataTable
-        tableName={"users"}
+        tableName="users"
         columns={columns}
         data={
           users.isLoading
@@ -460,7 +429,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
                       lastEvent:
                         t.lastTrace?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
-                        isBetaEnabled
+                        isV4
                           ? Number(t.totalObservations ?? 0)
                           : Number(t.totalTraces ?? 0) +
                               Number(t.totalObservations ?? 0),

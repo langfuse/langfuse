@@ -44,4 +44,17 @@ describe("MCP request security", () => {
       validateMcpRequestSecurity(mockRequest({ host: "evil.example.com" })),
     ).toThrow("Invalid Host header: evil.example.com");
   });
+
+  it("disables host and origin validation when LANGFUSE_MCP_ALLOWED_HOSTS is *", () => {
+    mockEnv.env.LANGFUSE_MCP_ALLOWED_HOSTS = ["*"];
+
+    expect(
+      validateMcpRequestSecurity(
+        mockRequest({
+          host: "any-host.example.com",
+          origin: "https://any-origin.example.com",
+        }),
+      ),
+    ).toBe("https://any-origin.example.com");
+  });
 });

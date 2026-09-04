@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useState, useCallback } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type OrderByState } from "@langfuse/shared";
@@ -6,7 +7,7 @@ import {
   type ViewVersion,
   getResultUnit,
 } from "@langfuse/shared/query";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -17,21 +18,23 @@ import {
   formatMetricName,
   shouldUseWidgetSSE,
   getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface WidgetMetricConfig {
+interface WidgetMetricConfig {
   measure: string;
   agg: string;
 }
 
-export interface WidgetDimensionConfig {
+interface WidgetDimensionConfig {
   field: string;
 }
 
@@ -73,71 +76,17 @@ export interface WidgetContentProps {
    * Optional presentation-only labels for entity_dimension values.
    */
   entityDimensionLabelMap?: Record<string, string>;
-}
-
-export interface WidgetHeaderProps {
-  title: string;
-  description?: string;
   /**
-   * Action buttons to render on the right side of the header
+   * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
+   * stays in the hover tooltip. Off by default. Opt in on entity-dimension
+   * charts (experiments) whose long names clutter the axis.
    */
-  actions?: React.ReactNode;
-  className?: string;
-}
-
-export interface WidgetWrapperProps {
-  children: React.ReactNode;
-  className?: string;
+  hideXAxisLabels?: boolean;
 }
 
 // ============================================================================
 // Components
 // ============================================================================
-
-/**
- * Simple wrapper providing consistent widget styling (border, padding, background).
- */
-export function WidgetWrapper({ children, className }: WidgetWrapperProps) {
-  return (
-    <div
-      className={cn(
-        "bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * Widget header with title, description, and optional action buttons.
- */
-export function WidgetHeader({
-  title,
-  description,
-  actions,
-  className,
-}: WidgetHeaderProps) {
-  return (
-    <div className={cn("mb-4", className)}>
-      <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={title}>
-          {title}
-        </span>
-        {actions && <div className="flex space-x-2">{actions}</div>}
-      </div>
-      {description && (
-        <div
-          className="text-muted-foreground truncate text-sm"
-          title={description}
-        >
-          {description}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const getXAxisValue = (
   item: Record<string, unknown>,
@@ -178,8 +127,11 @@ export function WidgetContent({
   onSortChange,
   className,
   entityDimensionLabelMap,
+  hideXAxisLabels,
 }: WidgetContentProps) {
-  const { isBetaEnabled } = useV4Beta();
+  // Transport-only: `version` is a prop here, so an unresolved session can
+  // never change WHAT is queried — only whether it streams (SSE) or not.
+  const { isV4 } = useReadPath();
   const [retryCount, setRetryCount] = useState(0);
 
   const handleRetry = useCallback(() => {
@@ -201,11 +153,11 @@ export function WidgetContent({
       },
       queryId: schedulerId,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version,
       }),
       enabled: !isExternalLoading,
@@ -254,14 +206,42 @@ export function WidgetContent({
         xAxisValue = String(item["time_dimension"]);
       }
 
+      const isTimeSeries = isTimeSeriesChart(chartType);
+      const dimensionValue = item[dimensionField];
+
+      // A gap-filled empty bucket arrives as a row with no dimension and the
+      // metric column's type default: NULL for nullable aggregations
+      // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+      // as a pure bucket marker (holds the spot on the x axis) instead of
+      // inventing an "n/a" series. The 0 form is only treated as filler for
+      // additive metrics, where the marker is lossless (prepareDenseSeries
+      // re-derives the honest 0 for any series that exists); a real
+      // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+      const isFillerMetricValue =
+        metricValue == null ||
+        (getWidgetMissingBucketValue(metric.agg) === "zero" &&
+          Number(metricValue) === 0);
+      if (
+        isTimeSeries &&
+        (dimensionValue === null || dimensionValue === "") &&
+        isFillerMetricValue
+      ) {
+        return {
+          time_dimension: xAxisValue,
+          dimension: undefined,
+          metric: null,
+        };
+      }
+
       // Handle series dimension (for legend)
       let seriesDimension: string;
-      if (item[dimensionField] !== undefined) {
-        const val = item[dimensionField];
-        if (typeof val === "string") {
-          seriesDimension = val;
-        } else if (val === null || val === undefined || val === "") {
+      if (dimensionValue !== undefined) {
+        const val = dimensionValue;
+        // Empty first: "" is a string, so the order matters. (LFE-10694)
+        if (val === null || val === undefined || val === "") {
           seriesDimension = "n/a";
+        } else if (typeof val === "string") {
+          seriesDimension = val;
         } else if (Array.isArray(val)) {
           seriesDimension = val.join(", ");
         } else {
@@ -277,7 +257,11 @@ export function WidgetContent({
         dimension: seriesDimension,
         metric: Array.isArray(metricValue)
           ? metricValue
-          : Number(metricValue || 0),
+          : // On a time series a missing value stays null — the chart renders
+            // it by the metric's missing-bucket semantics instead of a fake 0.
+            isTimeSeries && metricValue == null
+            ? null
+            : Number(metricValue || 0),
       };
     });
 
@@ -335,7 +319,7 @@ export function WidgetContent({
   });
 
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version,
   });
 
@@ -384,9 +368,7 @@ export function WidgetContent({
 
   if (isExternalLoading) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -408,6 +390,8 @@ export function WidgetContent({
         onSortChange={chartType === "PIVOT_TABLE" ? onSortChange : undefined}
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
+        missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
+        hideXAxisLabels={hideXAxisLabels}
       />
       <ChartLoadingState
         isLoading={chartLoadingState.isLoading}

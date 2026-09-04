@@ -3,7 +3,6 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
-    "outDir": "dist",
     "plugins": [
       {
         "name": "next"

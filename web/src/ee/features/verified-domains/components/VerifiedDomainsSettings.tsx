@@ -1,4 +1,6 @@
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,9 +44,7 @@ import {
 } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, ChevronRight, TrashIcon } from "lucide-react";
@@ -91,13 +91,12 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     return (
       <div>
         {heading}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Not available</AlertTitle>
-          <AlertDescription>
+        <Alert icon={AlertCircle}>
+          <Alert.Title>Not available</Alert.Title>
+          <Alert.Description>
             Verified Domains and Enterprise SSO are not available on your plan.
             Please upgrade to access this feature.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -108,11 +107,11 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
       <div>
         {heading}
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to manage verified domains for this
             organization.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -273,7 +272,7 @@ function DnsInstructions({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium">
+      <p className="text-sm font-bold">
         Add the following TXT record to your DNS provider:
       </p>
       <Card className="overflow-hidden">
@@ -306,7 +305,7 @@ function DnsInstructions({
       </Card>
       <p className="text-muted-foreground text-xs">
         DNS changes may take up to 24h to propagate. After adding the record,
-        click <span className="font-medium">Verify</span>.
+        click <span className="font-bold">Verify</span>.
       </p>
     </div>
   );

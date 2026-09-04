@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
 import {
   Combobox,

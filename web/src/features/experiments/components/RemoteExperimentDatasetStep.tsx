@@ -89,7 +89,7 @@ export const RemoteExperimentDatasetStep = ({
           <Skeleton className="h-24 w-full" />
         ) : datasets.data && datasets.data.length > 0 ? (
           <div className="space-y-2">
-            <div className="text-sm font-medium">Dataset</div>
+            <div className="text-sm font-bold">Dataset</div>
             <Popover
               open={datasetPopoverOpen}
               onOpenChange={setDatasetPopoverOpen}
@@ -146,7 +146,7 @@ export const RemoteExperimentDatasetStep = ({
           </div>
         ) : (
           <div className="rounded-md border p-4 text-sm">
-            <div className="font-medium">No datasets found</div>
+            <div className="font-bold">No datasets found</div>
             <p className="text-muted-foreground mt-1">
               Create a dataset before setting up a remote experiment trigger.
             </p>

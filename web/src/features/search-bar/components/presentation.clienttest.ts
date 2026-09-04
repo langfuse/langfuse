@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { optionDomId } from "./presentation";
 
 describe("optionDomId", () => {

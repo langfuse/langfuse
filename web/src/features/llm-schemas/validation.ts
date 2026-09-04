@@ -9,7 +9,7 @@ export const LLMSchemaNameSchema = z
   )
   .min(1, "Name is required");
 
-export const LLMSchemaInput = z.object({
+const LLMSchemaInput = z.object({
   name: LLMSchemaNameSchema,
   description: z.string(),
   schema: LLMJSONSchema,

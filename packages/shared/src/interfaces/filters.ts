@@ -3,7 +3,14 @@ import { z } from "zod";
 // Make sure to update the InMemoryFilterService if you add new filter types
 export const filterOperators = {
   datetime: [">", "<", ">=", "<="],
-  string: ["=", "contains", "does not contain", "starts with", "ends with"],
+  string: [
+    "=",
+    "contains",
+    "does not contain",
+    "starts with",
+    "ends with",
+    "is not empty",
+  ],
   stringOptions: ["any of", "none of"],
   categoryOptions: ["any of", "none of"],
   arrayOptions: ["any of", "none of", "all of"],
@@ -16,6 +23,7 @@ export const filterOperators = {
     "ends with",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
+  booleanObject: ["=", "<>"],
   boolean: ["=", "<>"],
   null: ["is null", "is not null"],
   positionInTrace: ["="],
@@ -70,7 +78,7 @@ export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
   key: z.string(), // eg metadata --> "environment"
-  operator: z.enum(filterOperators.string),
+  operator: z.enum(filterOperators.stringObject),
   value: z.string(),
 });
 export const numberObjectFilter = z.object({
@@ -79,6 +87,13 @@ export const numberObjectFilter = z.object({
   key: z.string(), // eg scores --> "accuracy"
   operator: z.enum(filterOperators.number),
   value: z.number(),
+});
+export const booleanObjectFilter = z.object({
+  type: z.literal("booleanObject"),
+  column: z.string(),
+  key: z.string(), // eg scores --> "is_hallucination"
+  operator: z.enum(filterOperators.booleanObject),
+  value: z.boolean(),
 });
 export const booleanFilter = z.object({
   type: z.literal("boolean"),
@@ -126,6 +141,7 @@ export const singleFilter = z.discriminatedUnion("type", [
   arrayOptionsFilter,
   stringObjectFilter,
   numberObjectFilter,
+  booleanObjectFilter,
   booleanFilter,
   nullFilter,
   positionInTraceFilter,
@@ -158,6 +174,7 @@ export const eventsTableSingleFilter = z.discriminatedUnion("type", [
   arrayOptionsFilter,
   eventsTableStringObjectFilter,
   numberObjectFilter,
+  booleanObjectFilter,
   booleanFilter,
   nullFilter,
   positionInTraceFilter,

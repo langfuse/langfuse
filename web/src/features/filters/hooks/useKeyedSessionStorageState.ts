@@ -11,7 +11,7 @@ function readSessionStorageValue<T>(params: {
     const storedValue = sessionStorage.getItem(storageKey);
     return storedValue ? (JSON.parse(storedValue) as T) : fallback;
   } catch (error) {
-    console.error("Error reading from session storage", error);
+    console.warn("Error reading from session storage", error);
     return fallback;
   }
 }
@@ -48,7 +48,7 @@ export function useKeyedSessionStorageState<T>(
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(state.value));
     } catch (error) {
-      console.error("Error writing to session storage", error);
+      console.warn("Error writing to session storage", error);
     }
   }, [state.key, state.value, storageKey]);
 
@@ -76,7 +76,7 @@ export function useKeyedSessionStorageState<T>(
       try {
         sessionStorage.removeItem(storageKey);
       } catch (error) {
-        console.error("Error clearing session storage", error);
+        console.warn("Error clearing session storage", error);
       }
     }
 

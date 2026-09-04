@@ -40,7 +40,8 @@ describe("ClickHouse insert string edge cases", () => {
     maybeIt("should handle prompt_version as numeric string '42'", async () => {
       const event = createEvent({
         project_id: projectId,
-        prompt_version: "42",
+        // Intentionally invalid type: exercises ClickHouse string parsing.
+        prompt_version: "42" as unknown as number,
       });
       await expect(createEventsCh([event])).resolves.not.toThrow();
     });
@@ -60,7 +61,8 @@ describe("ClickHouse insert string edge cases", () => {
         // prompt_version = "local" cannot be parsed as UInt16 by ClickHouse.
         const event = createEvent({
           project_id: projectId,
-          prompt_version: "local",
+          // Intentionally invalid type: reproduces the production error.
+          prompt_version: "local" as unknown as number,
         });
 
         await expect(createEventsCh([event])).rejects.toThrow(/Cannot parse/);
@@ -72,7 +74,8 @@ describe("ClickHouse insert string edge cases", () => {
       async () => {
         const event = createEvent({
           project_id: projectId,
-          prompt_version: "v1.0.0",
+          // Intentionally invalid type: exercises ClickHouse string parsing.
+          prompt_version: "v1.0.0" as unknown as number,
         });
 
         await expect(createEventsCh([event])).rejects.toThrow(/Cannot parse/);

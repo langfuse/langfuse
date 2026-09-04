@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { CardDescription } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
@@ -7,7 +6,7 @@ import { ClipboardPen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Page from "@/src/components/layouts/page";
@@ -20,15 +19,20 @@ import {
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 
-export default function QueueItems() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const queueId = router.query.queueId as string;
-
-  const queue = api.annotationQueues.byId.useQuery({
-    queueId,
-    projectId,
-  });
+export default function QueueItems({
+  projectId,
+  queueId,
+}: {
+  projectId: string;
+  queueId: string;
+}) {
+  const queue = api.annotationQueues.byId.useQuery(
+    {
+      queueId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(queueId) },
+  );
 
   const hasReadAccess = useHasProjectAccess({
     projectId,

@@ -20,6 +20,7 @@ import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ExternalLinkIcon } from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { getPromptDetailHref } from "@/src/features/prompts/utils";
 
 type PromptSelectionDialogProps = {
   isOpen: boolean;
@@ -196,7 +197,7 @@ export function PromptSelectionDialog({
                   </Select>
                   {selectedVersionOrLabel && (
                     <Link
-                      href={`/project/${projectId}/prompts/${selectedPromptName}?${selectionType}=${selectedVersionOrLabel}`}
+                      href={`${getPromptDetailHref(projectId, selectedPromptName)}?${selectionType}=${encodeURIComponent(selectedVersionOrLabel)}`}
                       target="_blank"
                       passHref
                     >

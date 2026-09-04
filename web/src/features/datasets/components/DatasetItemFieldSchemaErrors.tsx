@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { AlertCircle } from "lucide-react";
 
 type DatasetError = {
@@ -25,13 +26,13 @@ export const DatasetItemFieldSchemaErrors: React.FC<
       <div className="flex items-start gap-2">
         <AlertCircle className="text-destructive mt-0.5 h-4 w-4" />
         <div className="flex-1 space-y-2">
-          <p className="text-destructive text-sm font-medium">
+          <p className="text-destructive text-sm font-bold">
             Schema validation failed
           </p>
           {errors.map((error, idx) => (
             <div key={`${error.datasetId}-${idx}`} className="space-y-1">
               {showDatasetName && (
-                <p className="text-muted-foreground text-xs font-medium">
+                <p className="text-muted-foreground text-xs font-bold">
                   {error.datasetName}
                 </p>
               )}

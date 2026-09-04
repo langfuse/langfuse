@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import {
   type CategoricalDiff,
@@ -32,7 +33,7 @@ export function DiffLabel({
       <Badge
         size="sm"
         variant={getVariant(diff.direction, preferNegativeDiff)}
-        className={cn("font-semibold", className)}
+        className={cn("font-bold", className)}
       >
         {diff.direction}
         {formatValue(diff.absoluteDifference)}
@@ -41,7 +42,7 @@ export function DiffLabel({
   }
   if (diff.isDifferent)
     return (
-      <Badge size="sm" variant="warning" className="font-semibold">
+      <Badge size="sm" variant="warning" className="font-bold">
         Varies
       </Badge>
     );

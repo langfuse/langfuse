@@ -1,30 +1,38 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
+import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   buildEventBucketPrefix,
+  compileLangfuseMediaMessages,
+  createLLMOutput,
   DefaultEvalModelService,
-  fetchLLMCompletion,
+  generateLLMText,
   IngestionQueue,
   LLMAdapter,
+  mapLegacyLLMCompletionParams,
   QueueJobs,
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
+  type ChatMessage,
 } from "@langfuse/shared/src/server";
-import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 
-type StructuredOutputSchema = NonNullable<
-  Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
->;
+type StructuredOutputSchema = z.ZodObject<{
+  reasoning: z.ZodString;
+  score: z.ZodType;
+}>;
+
+const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
+  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
 
 /**
  * Result of fetching model configuration.
  */
-export type ModelConfigResult =
+type ModelConfigResult =
   | {
       valid: true;
       config: {
@@ -46,8 +54,8 @@ export type ModelConfigResult =
 /**
  * Parameters for calling the LLM.
  */
-export interface LLMCallParams {
-  messages: ReturnType<typeof buildEvalMessages>;
+interface LLMCallParams {
+  messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {
@@ -56,13 +64,14 @@ export interface LLMCallParams {
     traceName: string;
     environment: string;
     metadata: Record<string, unknown>;
+    evaluationContext?: EvalExecutionContext;
   };
 }
 
 /**
  * Update data for job execution status.
  */
-export interface UpdateJobExecutionData {
+interface UpdateJobExecutionData {
   status: JobExecutionStatus;
   endTime?: Date;
   jobOutputScoreId?: string;
@@ -72,7 +81,7 @@ export interface UpdateJobExecutionData {
 /**
  * Parameters for uploading a score to S3.
  */
-export interface UploadScoreParams {
+interface UploadScoreParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -82,7 +91,7 @@ export interface UploadScoreParams {
 /**
  * Parameters for enqueueing score ingestion.
  */
-export interface EnqueueScoreIngestionParams {
+interface EnqueueScoreIngestionParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -91,7 +100,7 @@ export interface EnqueueScoreIngestionParams {
 /**
  * Parameters for updating a job execution.
  */
-export interface UpdateJobExecutionParams {
+interface UpdateJobExecutionParams {
   id: string;
   projectId: string;
   data: UpdateJobExecutionData;
@@ -100,7 +109,7 @@ export interface UpdateJobExecutionParams {
 /**
  * Parameters for fetching model configuration.
  */
-export interface FetchModelConfigParams {
+interface FetchModelConfigParams {
   projectId: string;
   provider?: string;
   model?: string;
@@ -140,6 +149,12 @@ function serializeSchemaForEgress(schema: unknown): string {
   } catch {
     return JSON.stringify(schema);
   }
+}
+
+function serializeProviderMessagesForEgress(messages: unknown): string {
+  return JSON.stringify(messages, (_key, value) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
+  );
 }
 
 /**
@@ -206,45 +221,70 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     },
 
     callLLM: async (params) => {
-      // Type assertion needed because the deps interface uses a simplified apiKey type for testability
-      // while the actual fetchLLMCompletion requires a full LlmApiKey type
-      const llmConnection = params.modelConfig.apiKey as unknown as Parameters<
-        typeof fetchLLMCompletion
-      >[0]["llmConnection"];
+      // The dependency interface deliberately keeps the stored connection
+      // shape small for testability. The boundary mapper owns conversion from
+      // persisted Langfuse settings into the native AI SDK call contract.
+      const connection = params.modelConfig.apiKey as unknown as Parameters<
+        typeof mapLegacyLLMCompletionParams
+      >[0]["connection"];
 
       const adapter = params.modelConfig.apiKey
         .adapter as unknown as Parameters<
-        typeof fetchLLMCompletion
+        typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      // llmaj egress: serialized request body (messages + schema), uncompressed.
-      const bytes =
-        Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
-        (params.structuredOutputSchema
-          ? Buffer.byteLength(
-              serializeSchemaForEgress(params.structuredOutputSchema),
-              "utf8",
-            )
-          : 0);
-
-      const result = await fetchLLMCompletion({
-        streaming: false,
-        llmConnection,
+      const modelParams = {
+        provider: params.modelConfig.provider,
+        model: params.modelConfig.model,
+        adapter,
+        ...params.modelConfig.modelParams,
+      };
+      const llmParams = mapLegacyLLMCompletionParams({
+        connection,
         messages: params.messages,
-        modelParams: {
-          provider: params.modelConfig.provider,
-          model: params.modelConfig.model,
+        modelParams,
+      });
+      const { providerMessages, traceMessages } =
+        await compileLangfuseMediaMessages({
+          projectId: params.traceSinkParams.targetProjectId,
+          messages: params.messages,
           adapter,
-          ...params.modelConfig.modelParams,
-        },
-        structuredOutputSchema: params.structuredOutputSchema,
+        });
+
+      // Keep the evaluator contract unchanged while the model-facing schema
+      // resolves custom output instructions into the supported fields.
+      const modelFacingStructuredOutputSchema = z
+        .object({
+          scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+          score: params.structuredOutputSchema.shape.score,
+        })
+        .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
+
+      // llmaj egress: provider-bound messages (including base64-expanded inline
+      // media) plus schema, uncompressed.
+      const bytes =
+        Buffer.byteLength(
+          serializeProviderMessagesForEgress(providerMessages),
+          "utf8",
+        ) +
+        Buffer.byteLength(
+          serializeSchemaForEgress(modelFacingStructuredOutputSchema),
+          "utf8",
+        );
+
+      const result = await generateLLMText({
+        ...llmParams,
+        messages: providerMessages,
+        traceInput: traceMessages,
+        output: createLLMOutput(modelFacingStructuredOutputSchema),
         maxRetries: 1,
-        traceSinkParams: {
+        trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,
           traceName: params.traceSinkParams.traceName,
           environment: params.traceSinkParams.environment,
           metadata: params.traceSinkParams.metadata,
+          evaluationContext: params.traceSinkParams.evaluationContext,
           eventsWriter: createInternalEventsWriter(),
         },
       });
@@ -256,7 +296,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         projectId: params.traceSinkParams.targetProjectId,
       });
 
-      return result;
+      return {
+        score: result.output.score,
+        reasoning: result.output.scoreExplanation,
+      };
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {

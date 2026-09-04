@@ -6,6 +6,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -18,38 +19,42 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the search bar preview, leaving other flags intact", async () => {
+  it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "searchBar",
+      flag: "modernSession",
       enabled: true,
     });
 
-    expect(result).toEqual({ success: true, flag: "searchBar", enabled: true });
+    expect(result).toEqual({
+      success: true,
+      flag: "modernSession",
+      enabled: true,
+    });
 
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag", "searchBar"]);
+    expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
-  it("disables a preview flag without touching the others", async () => {
+  it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "searchBar"],
+      featureFlags: ["templateFlag", "modernSession"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "searchBar",
+      flag: "modernSession",
       enabled: false,
     });
 
     expect(result).toEqual({
       success: true,
-      flag: "searchBar",
+      flag: "modernSession",
       enabled: false,
     });
 
@@ -57,7 +62,10 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag"]);
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("modernSession"),
+    ]);
   });
 
   it("rejects enabling in self-hosted deployments", async () => {
@@ -66,7 +74,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 
     await expect(
       caller.userAccount.setFeaturePreviewEnabled({
-        flag: "searchBar",
+        flag: "modernSession",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -78,11 +86,15 @@ async function createCaller({
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
+  emailDomain = "example.com",
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
   includeProjectInSession?: boolean;
+  // Domain only — the local part is always unique so reruns against the same
+  // database do not trip the users.email unique constraint.
+  emailDomain?: string;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -106,7 +118,7 @@ async function createCaller({
   const user = await prisma.user.create({
     data: {
       id: userId,
-      email: `${userId}@example.com`,
+      email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
     },
@@ -146,6 +158,7 @@ async function createCaller({
         },
       ],
       featureFlags: {
+        modernSession: featureFlags.includes("modernSession"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,

@@ -1,3 +1,5 @@
+/* eslint-disable @repo/no-null-render */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";
@@ -12,10 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { api, reportNonTrpcError } from "@/src/utils/api";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
@@ -46,10 +47,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
       <div>
         <Header title="LLM Connections" />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to view LLM API keys for this project.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -194,9 +195,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
             capture("project_settings:llm_api_key_delete");
             setOpen(false);
           })
-          .catch((error) => {
-            console.error(error);
-          });
+          .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
       }}
     />
   );

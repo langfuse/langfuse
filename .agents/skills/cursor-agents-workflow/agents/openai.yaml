@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cursor Agents Workflow"
+  short_description: "Linear branches, PR proof, and review notes"
+  default_prompt: "Use $cursor-agents-workflow for Cursor agent branch names, reviewable (non-draft) PRs, Claude/Greptile/Codex review comments, human preview test steps, proof-of-work posted on the GitHub PR, and review-doubt PR notes."

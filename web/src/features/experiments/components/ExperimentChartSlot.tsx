@@ -182,9 +182,7 @@ export function ExperimentChartSlot({
           <SelectContent>
             {Array.from(groupedOptions.entries()).map(([group, options]) => (
               <SelectGroup key={group}>
-                <SelectLabel className="text-xs font-semibold">
-                  {group}
-                </SelectLabel>
+                <SelectLabel className="text-xs font-bold">{group}</SelectLabel>
                 {options.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
                     {option.label}
@@ -216,6 +214,10 @@ export function ExperimentChartSlot({
             isExternalLoading={isExternalLoading}
             layoutHint="compact"
             entityDimensionLabelMap={entityDimensionLabelMap}
+            // Experiment names are long and add clutter on the x-axis; show them
+            // on hover instead. The axis is always an entity (experiment/run)
+            // dimension here.
+            hideXAxisLabels={Boolean(widgetConfig.entityDimension)}
           />
         ) : (
           <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">

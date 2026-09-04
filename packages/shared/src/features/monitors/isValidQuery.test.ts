@@ -25,7 +25,7 @@ describe("isValidQuery", () => {
     }
   });
 
-  it("rejects a `metadata` filter column: too expensive at evaluation cadence", () => {
+  it("accepts a `metadata` stringObject filter column", () => {
     const result = isValidQuery({
       view: "observations",
       metrics: [{ measure: "count", aggregation: "count" }],
@@ -39,11 +39,7 @@ describe("isValidQuery", () => {
         },
       ],
     });
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.reason).toContain("metadata");
-      expect(result.reason).toContain("not supported for monitors");
-    }
+    expect(result.valid).toBe(true);
   });
 
   it("rejects when the view itself is unknown", () => {
@@ -111,28 +107,6 @@ describe("isValidQuery", () => {
     }
   });
 
-  it("rejects a non-stringObject filter on the metadata column too", () => {
-    // Metadata is disallowed regardless of filter type — the column itself
-    // is not a valid monitor filter.
-    const result = isValidQuery({
-      view: "observations",
-      metrics: [{ measure: "count", aggregation: "count" }],
-      filters: [
-        {
-          type: "string",
-          column: "metadata",
-          operator: "=",
-          value: "acme",
-        },
-      ],
-    });
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.reason).toContain("metadata");
-      expect(result.reason).toContain("not supported for monitors");
-    }
-  });
-
   it("partitions a mixed batch: keeps valid metrics, rejects only the invalid ones", () => {
     const valid = { measure: "count", aggregation: "count" as const };
     const invalid = { measure: "bogus_measure", aggregation: "count" as const };
@@ -170,11 +144,10 @@ describe("isValidQuery", () => {
       metrics,
       filters: [
         {
-          type: "stringObject",
-          column: "metadata",
-          key: "tenant",
-          operator: "=",
-          value: "acme",
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["prod", "prod"],
         },
       ],
     });
@@ -182,7 +155,7 @@ describe("isValidQuery", () => {
     if (!result.valid) {
       expect(result.accepted).toEqual([]);
       expect(result.rejected).toEqual(metrics);
-      expect(result.reason).toContain("metadata");
+      expect(result.reason).toContain("unique");
     }
   });
 });

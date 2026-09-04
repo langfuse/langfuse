@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { isPresent, type ScoreConfigDomain } from "@langfuse/shared";
 import React from "react";
@@ -8,7 +9,7 @@ export function ScoreConfigDetails({ config }: { config: ScoreConfigDomain }) {
   const isNameTruncated = name.length > 20;
 
   return (
-    <div className="bg-background p-2 text-xs font-light text-wrap">
+    <div className="bg-background p-2 text-xs text-wrap">
       {!!description && <p>{`Description: ${description}`}</p>}
       {isNumericDataType(dataType) &&
       (isPresent(minValue) || isPresent(maxValue)) ? (

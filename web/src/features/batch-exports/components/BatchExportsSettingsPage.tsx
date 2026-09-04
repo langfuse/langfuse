@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { BatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export function BatchExportsSettingsPage(props: { projectId: string }) {
@@ -16,8 +16,8 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
       <p className="mb-4 text-sm">
         Export large datasets in your preferred format via the export buttons
         across Langfuse. Exports are processed asynchronously and remain
-        available for download for one hour. You will receive an email
-        notification once your export is ready.
+        available for download until the expiry shown for each export below. You
+        will receive an email notification once your export is ready.
       </p>
       {hasAccess ? (
         <SettingsTableCard>
@@ -25,10 +25,10 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
         </SettingsTableCard>
       ) : (
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to view batch exports.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
     </>

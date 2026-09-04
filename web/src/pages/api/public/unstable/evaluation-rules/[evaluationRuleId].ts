@@ -4,9 +4,9 @@ import {
   updatePublicEvaluationRule,
 } from "@/src/features/evals/server/unstable-public-api";
 import {
-  createUnstablePublicEvalsRoute,
-  withUnstablePublicEvalsMiddlewares,
-} from "@/src/features/public-api/server/unstable-public-evals-route";
+  createUnstablePublicApiRoute,
+  withUnstablePublicApiMiddlewares,
+} from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   DeleteUnstableEvaluationRuleQuery,
   DeleteUnstableEvaluationRuleResponse,
@@ -17,8 +17,8 @@ import {
   PatchUnstableEvaluationRuleResponse,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 
-export default withUnstablePublicEvalsMiddlewares({
-  GET: createUnstablePublicEvalsRoute({
+export default withUnstablePublicApiMiddlewares({
+  GET: createUnstablePublicApiRoute({
     name: "Get Unstable Evaluation Rule",
     querySchema: GetUnstableEvaluationRuleQuery,
     responseSchema: GetUnstableEvaluationRuleResponse,
@@ -28,7 +28,7 @@ export default withUnstablePublicEvalsMiddlewares({
         evaluationRuleId: query.evaluationRuleId,
       }),
   }),
-  PATCH: createUnstablePublicEvalsRoute({
+  PATCH: createUnstablePublicApiRoute({
     name: "Update Unstable Evaluation Rule",
     querySchema: PatchUnstableEvaluationRuleQuery,
     bodySchema: PatchUnstableEvaluationRuleBody,
@@ -42,7 +42,7 @@ export default withUnstablePublicEvalsMiddlewares({
         auditScope: auth.scope,
       }),
   }),
-  DELETE: createUnstablePublicEvalsRoute({
+  DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Evaluation Rule",
     querySchema: DeleteUnstableEvaluationRuleQuery,
     responseSchema: DeleteUnstableEvaluationRuleResponse,

@@ -6,10 +6,12 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   LLMAdapter,
   supportedModels,
+  type ModelParams,
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import { getModelNameKey, getModelProviderKey } from "../storage/keys";
+import { getEnabledModelParamState } from "@/src/utils/getFinalModelParams";
 
 type PromptConfigModel = {
   selectionKey?: string;
@@ -19,6 +21,7 @@ type PromptConfigModel = {
 
 type UseModelParamsOptions = {
   promptConfigModel?: PromptConfigModel | null;
+  initialModel?: ModelParams;
 };
 
 /**
@@ -32,10 +35,14 @@ export const useModelParams = (
   windowId?: string,
   options?: UseModelParamsOptions,
 ) => {
-  const [modelParams, setModelParams] = useState<UIModelParams>({
-    ...getDefaultAdapterParams(LLMAdapter.OpenAI),
-    provider: { value: "", enabled: true },
-    model: { value: "", enabled: true },
+  const [modelParams, setModelParams] = useState<UIModelParams>(() => {
+    const initialModel = options?.initialModel;
+    return {
+      ...getDefaultAdapterParams(initialModel?.adapter ?? LLMAdapter.OpenAI),
+      ...getEnabledModelParamState(initialModel ?? {}),
+      provider: { value: initialModel?.provider ?? "", enabled: true },
+      model: { value: initialModel?.model ?? "", enabled: true },
+    };
   });
 
   // Set initial model params
@@ -46,6 +53,7 @@ export const useModelParams = (
     },
     { enabled: Boolean(projectId) },
   );
+  const hasLoadedLlmConnections = availableLLMApiKeys.data !== undefined;
 
   // Generate window-specific localStorage keys
   const modelNameKey = getModelNameKey(windowId ?? "");
@@ -200,8 +208,10 @@ export const useModelParams = (
   ]);
 
   useEffect(() => {
+    if (!hasLoadedLlmConnections) return;
+
     if (
-      (availableModels.length > 0 && !modelParams.model.value) ||
+      !modelParams.model.value ||
       !availableModels.includes(modelParams.model.value)
     ) {
       if (persistedModelName && availableModels.includes(persistedModelName)) {
@@ -211,6 +221,7 @@ export const useModelParams = (
       }
     }
   }, [
+    hasLoadedLlmConnections,
     availableModels,
     modelParams.model.value,
     updateModelParamValue,
@@ -239,7 +250,10 @@ export const useModelParams = (
 
   // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
-    if (selectedProviderApiKey?.adapter) {
+    if (
+      selectedProviderApiKey?.adapter &&
+      selectedProviderApiKey.adapter !== modelParams.adapter.value
+    ) {
       setModelParams((prev) => ({
         ...prev,
         adapter: {
@@ -275,7 +289,7 @@ export const useModelParams = (
         },
       }));
     }
-  }, [selectedProviderApiKey?.adapter]);
+  }, [modelParams.adapter.value, selectedProviderApiKey?.adapter]);
 
   return {
     modelParams,

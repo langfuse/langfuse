@@ -5,15 +5,19 @@ import {
   DeleteModelV1Response,
   GetModelV1Query,
   GetModelV1Response,
+  PostModelsV1Body,
+  PutModelV1Response,
 } from "@/src/features/public-api/types/models";
 import {
   deleteModelForApi,
   getModelForApi,
+  upsertModelForApi,
 } from "@/src/features/models/server/publicApiModelService";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get model definitions",
+    isAdminApiKeyAuthAllowed: true,
     querySchema: GetModelV1Query,
     responseSchema: GetModelV1Response,
     fn: async ({ query, auth }) => {
@@ -24,8 +28,25 @@ export default withMiddlewares({
     },
   }),
 
+  PUT: createAuthedProjectAPIRoute({
+    name: "Upsert custom model definition",
+    isAdminApiKeyAuthAllowed: true,
+    querySchema: GetModelV1Query,
+    bodySchema: PostModelsV1Body,
+    responseSchema: PutModelV1Response,
+    fn: async ({ query, body, auth }) => {
+      return await upsertModelForApi({
+        projectId: auth.scope.projectId,
+        modelId: query.modelId,
+        input: body,
+        auditScope: auth.scope,
+      });
+    },
+  }),
+
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete model",
+    isAdminApiKeyAuthAllowed: true,
     querySchema: DeleteModelV1Query,
     responseSchema: DeleteModelV1Response,
     fn: async ({ query, auth }) => {

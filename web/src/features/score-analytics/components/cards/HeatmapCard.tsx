@@ -48,7 +48,7 @@ function HeatmapTooltipContent({
     <div className="space-y-2">
       {/* Header Section */}
       <div className="border-border border-b pb-2">
-        <p className="text-muted-foreground text-sm font-medium">
+        <p className="text-muted-foreground text-sm font-bold">
           {dataType === "NUMERIC"
             ? `Bin ${cell.row}×${cell.col}`
             : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
@@ -57,7 +57,7 @@ function HeatmapTooltipContent({
 
       {/* Primary Metrics Section */}
       <div className="space-y-1">
-        <p className="text-foreground text-base font-semibold">
+        <p className="text-foreground text-base font-bold">
           {cell.value.toLocaleString()} observations
         </p>
         <p className="text-muted-foreground text-xs">
@@ -222,7 +222,7 @@ export function HeatmapCard() {
             showLabels={true}
             showAxisLabels={true}
           />
-          <p className="text-muted-foreground text-center text-sm font-light">
+          <p className="text-muted-foreground text-center text-sm">
             Select a second score to view comparison heatmap
           </p>
         </CardContent>

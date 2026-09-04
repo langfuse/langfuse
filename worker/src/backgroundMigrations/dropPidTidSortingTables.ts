@@ -1,10 +1,11 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { commandClickhouse, logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
+import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
 import {
-  checkPredecessorMigrationFinalized,
-  onClusterClause,
-} from "./utils/backfillBase";
+  PID_TID_SORTING_TABLE,
+  buildDropScratchTableQuery,
+} from "./utils/v4BackfillDdl";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match the
 // Prisma migration that registers this row.
@@ -50,7 +51,7 @@ export default class DropPidTidSortingTables implements IBackgroundMigration {
   async run(_args: Record<string, unknown>): Promise<void> {
     logger.info(`${LOG_PREFIX} Starting cleanup of V4 backfill scratch tables`);
 
-    const tables = ["observations_pid_tid_sorting"];
+    const tables = [PID_TID_SORTING_TABLE];
 
     for (const table of tables) {
       if (this.isAborted) {
@@ -58,11 +59,7 @@ export default class DropPidTidSortingTables implements IBackgroundMigration {
         return;
       }
 
-      const onCluster = onClusterClause();
-      // `IF EXISTS` keeps the migration idempotent — re-running the row (or
-      // running it on a deployment that never created the scratch tables) is
-      // a no-op rather than an error.
-      const sql = `DROP TABLE IF EXISTS ${table} ${onCluster} SYNC`.trim();
+      const sql = buildDropScratchTableQuery(table);
 
       logger.info(`${LOG_PREFIX} Dropping ${table}`);
       try {

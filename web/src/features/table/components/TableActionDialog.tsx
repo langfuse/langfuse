@@ -24,7 +24,7 @@ import {
 import { useForm } from "react-hook-form";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionTargetOptions } from "@/src/features/table/components/TableActionTargetOptions";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
 import { type BatchExportTableName } from "@langfuse/shared";
@@ -59,7 +59,10 @@ export function TableActionDialog({
   const isInProgress = api.table.getIsBatchActionInProgress.useQuery(
     {
       projectId,
-      tableName,
+      // Batch action rows are keyed by (projectId, actionId, tableName); an
+      // action that registers under a different table than the hosting view
+      // overrides the poll target via action.tableName.
+      tableName: action.tableName ?? tableName,
       actionId: action.id,
     },
     {

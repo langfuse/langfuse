@@ -13,7 +13,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const projectId = context.params.projectId as string;
   const evaluatorId = context.params.configId as string;
 
-  const evaluator = await prisma.jobConfiguration.findUnique({
+  const evaluator = await prisma.evaluationRule.findUnique({
     where: {
       id: evaluatorId,
       projectId,
@@ -35,7 +35,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   return {
     redirect: {
-      destination: `/project/${projectId}/evals/${evaluatorId}`,
+      destination: `/project/${projectId}/evals/legacy/${evaluatorId}`,
       permanent: false,
     },
   };

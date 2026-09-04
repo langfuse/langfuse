@@ -1,16 +1,18 @@
+/* eslint-disable @repo/no-null-render */
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Lock, Plus } from "lucide-react";
 import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   getEvalsTabs,
   EVALS_TABS,
 } from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -18,12 +20,12 @@ export default function TemplatesPage() {
   const capture = usePostHogClientCapture();
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evaluator:read",
   });
 
   if (!hasReadAccess) {
@@ -34,6 +36,7 @@ export default function TemplatesPage() {
     <Page
       headerProps={{
         title: "Evaluators",
+        titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
           description: "View all langfuse managed and custom evaluators.",
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
@@ -68,6 +71,7 @@ export default function TemplatesPage() {
             </Button>
           </>
         ),
+        actionButtonsRightClassName: "justify-end",
       }}
     >
       <EvalsTemplateTable projectId={projectId} />

@@ -1,5 +1,10 @@
 import z from "zod";
-import { orderBy, singleFilter, TableViewPresetTableName } from "../../..";
+import {
+  orderBy,
+  singleFilter,
+  SystemTableViewPresetCategory,
+  TableViewPresetTableName,
+} from "../../..";
 
 export const CreateTableViewPresetsInput = z.object({
   projectId: z.string(),
@@ -40,6 +45,9 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
     tableName: z.enum(TableViewPresetTableName),
     description: z.string().optional(),
     isSystem: z.boolean().optional(),
+    // Present on categorized system presets that surface as quick-access chips
+    // beneath the search bar; undefined for user views and uncategorized presets.
+    category: z.enum(SystemTableViewPresetCategory).optional(),
     createdBy: z.string().nullable(),
     createdByUser: z
       .object({

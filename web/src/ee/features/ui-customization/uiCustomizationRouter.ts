@@ -5,6 +5,10 @@ import {
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { getVisibleProductModules } from "@/src/ee/features/ui-customization/productModuleSchema";
+import { parseInstanceLinks } from "@/src/ee/features/ui-customization/instanceLinks";
+
+// Parsed once per process so invalid configuration warns once, not per query.
+const instanceLinks = parseInstanceLinks(env.LANGFUSE_UI_INSTANCE_LINKS);
 
 export const uiCustomizationRouter = createTRPCRouter({
   get: authenticatedProcedure.query(({ ctx }) => {
@@ -25,6 +29,7 @@ export const uiCustomizationRouter = createTRPCRouter({
       defaultBaseUrlOpenAI: env.LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI,
       defaultBaseUrlAnthropic: env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
       defaultBaseUrlAzure: env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+      instanceLinks,
       visibleModules: getVisibleProductModules(
         env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
         env.LANGFUSE_UI_HIDDEN_PRODUCT_MODULES,

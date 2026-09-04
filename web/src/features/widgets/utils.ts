@@ -1,4 +1,5 @@
 import startCase from "lodash/startCase";
+import { type z } from "zod";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
@@ -7,7 +8,11 @@ import {
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
-import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type MetricFormatterFunction,
+  type MissingBucketValue,
+} from "@/src/features/widgets/chart-library/chart-props";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -58,6 +63,50 @@ export function sanitizePivotTableDefaultSort(
 }
 
 /**
+ * Merges a widget's own filters with the dashboard-injected global filters (the
+ * dashboard's environment selector + its filter bar) for the dashboard query.
+ * Both sets are ANDed together in the query.
+ *
+ * A widget's own environment filter WINS: when the widget declares its own
+ * environment filter, the dashboard's global environment filter is dropped for
+ * that widget. Otherwise the two AND together into an impossible predicate
+ * (e.g. `environment IN ("langfuse-llm-as-a-judge") AND environment IN
+ * ("production", "default")`) that returns zero rows, so the widget renders
+ * blank on the dashboard while showing fine in the edit screen (which applies
+ * only the widget's own filter). Widgets WITHOUT their own environment filter
+ * still receive the dashboard's global environment filter, preserving the
+ * default-hide-`langfuse-*` behavior. The override is scoped to the
+ * `environment` column only; every other dashboard-global filter still merges
+ * as before. (LFE-14333; keeps LFE-7448 intact.)
+ */
+export function mergeWidgetAndDashboardFilters({
+  view,
+  widgetFilters,
+  dashboardFilters,
+}: {
+  view: z.infer<typeof views>;
+  widgetFilters: FilterState;
+  dashboardFilters: FilterState;
+}): FilterState {
+  const mappedWidgetFilters = mapLegacyUiTableFilterToView(view, widgetFilters);
+  const mappedDashboardFilters = mapLegacyUiTableFilterToView(
+    view,
+    dashboardFilters,
+  );
+  const widgetHasEnvironmentFilter = mappedWidgetFilters.some(
+    (filter) => filter.column === "environment",
+  );
+  return [
+    ...mappedWidgetFilters,
+    ...(widgetHasEnvironmentFilter
+      ? mappedDashboardFilters.filter(
+          (filter) => filter.column !== "environment",
+        )
+      : mappedDashboardFilters),
+  ];
+}
+
+/**
  * Formats a metric name for display, handling special cases like count_count -> Count
  */
 export function formatMetricName(metricName: string): string {
@@ -69,7 +118,7 @@ export function formatMetricName(metricName: string): string {
 /**
  * Formats multiple metric names for display, showing first 3 and "+ X more" if needed
  */
-export function formatMultipleMetricNames(metricNames: string[]): string {
+function formatMultipleMetricNames(metricNames: string[]): string {
   if (metricNames.length === 0) return "No Metrics";
   if (metricNames.length === 1) return formatMetricName(metricNames[0]);
 
@@ -111,6 +160,10 @@ export function buildWidgetName({
     if (measure.toLowerCase() === "count") {
       // For count measures, ignore aggregation and only show the measure
       base = meas;
+    } else if (measure === "toolCalls" && aggregation.toLowerCase() === "sum") {
+      // Summing the per-observation call count is simply "the number of tool
+      // calls" — surface the meaning, not the aggregation mechanics.
+      base = "Number of Tool Calls";
     } else {
       const agg = startCase(aggregation.toLowerCase());
       base = `${agg} ${meas}`;
@@ -154,6 +207,9 @@ export function buildWidgetDescription({
 
     if (measure.toLowerCase() === "count") {
       sentence = `Shows the count of ${viewLabel}`;
+    } else if (measure === "toolCalls" && aggregation.toLowerCase() === "sum") {
+      // Mirrors buildWidgetName: sum(toolCalls) is the number of tool calls.
+      sentence = `Shows the number of tool calls of ${viewLabel}`;
     } else {
       const aggLabel = startCase(aggregation.toLowerCase());
       sentence = `Shows the ${aggLabel.toLowerCase()} ${measLabel.toLowerCase()} of ${viewLabel}`;
@@ -181,12 +237,11 @@ export function buildWidgetDescription({
 /**
  * Returns the default view for the new widget form.
  * When v4 beta is enabled, defaults to "observations" because "traces"
- * is excluded from viewsV2 (no v2-specific API support).
+ * remains excluded from the public `viewsV2` API enum. Existing trace widgets
+ * are still supported by the internal events-backed v2 query declaration.
  */
-export function getDefaultView(
-  isBetaEnabled: boolean,
-): "traces" | "observations" {
-  return isBetaEnabled ? "observations" : "traces";
+export function getDefaultView(isV4: boolean): "traces" | "observations" {
+  return isV4 ? "observations" : "traces";
 }
 
 /**
@@ -215,6 +270,17 @@ const widgetUnitLabels: Record<string, string> = {
   tools: "Tools",
   calls: "Calls",
 };
+
+/**
+ * Decides what a widget's time-series chart shows for a bucket its metric has
+ * no data point in, from the metric's aggregation: counting and additive
+ * aggregations (count, uniq, sum) have an honest `0` — nothing happened —
+ * while avg/min/max/percentiles have no honest value and must render a gap
+ * instead of a fabricated number. (LFE-10694)
+ */
+export function getWidgetMissingBucketValue(agg: string): MissingBucketValue {
+  return agg === "count" || agg === "uniq" || agg === "sum" ? "zero" : "gap";
+}
 
 export function getWidgetMetricPresentation(params: {
   metric: { measure: string; agg: string };
