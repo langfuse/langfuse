@@ -187,6 +187,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const prices: Record<string, number> | undefined =
           row.getValue("prices");
 
+        if (!prices) return;
+
         return (
           <PriceBreakdownTooltip
             modelName={row.original.modelName}

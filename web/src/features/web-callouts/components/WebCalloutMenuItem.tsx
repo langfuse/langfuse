@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -21,11 +20,12 @@ type WebCalloutTarget = {
   sessionId?: string | null;
 };
 
-function useWebCalloutAction(props: WebCalloutTarget) {
+export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
   const endpoint = api.webCallouts.enabled.useQuery(
     { projectId: props.projectId },
     {
       staleTime: 60_000,
+      enabled,
     },
   );
   const invokeMutation = api.webCallouts.invoke.useMutation({
@@ -58,34 +58,26 @@ function useWebCalloutAction(props: WebCalloutTarget) {
     });
   };
 
+  if (!enabled || endpoint.data?.enabled !== true) {
+    return undefined;
+  }
+
   return {
     endpointName: endpoint.data?.name ?? "Web callout",
     isLoading: invokeMutation.isPending,
-    isVisible: endpoint.data?.enabled === true,
     invokeCallout,
   };
 }
 
+type WebCalloutAction = NonNullable<ReturnType<typeof useWebCalloutAction>>;
+
 export function WebCalloutMenuItem({
-  projectId,
-  traceId,
-  observationId,
-  sessionId,
+  action,
   withSeparator,
-}: WebCalloutTarget & {
+}: {
+  action: WebCalloutAction;
   withSeparator?: boolean;
 }) {
-  const action = useWebCalloutAction({
-    projectId,
-    traceId,
-    observationId,
-    sessionId,
-  });
-
-  if (!action.isVisible) {
-    return null;
-  }
-
   return (
     <>
       <DropdownMenuItem
@@ -111,12 +103,10 @@ export function WebCalloutMenuItem({
 }
 
 export function WebCalloutButton({
-  projectId,
-  traceId,
-  observationId,
-  sessionId,
+  action,
   layout = "toolbar",
-}: WebCalloutTarget & {
+}: {
+  action: WebCalloutAction;
   /**
    * "toolbar" (default) is the inline icon button; "menu" renders the same
    * action as a full-width labeled row for the mobile header overflow popover.
@@ -125,17 +115,6 @@ export function WebCalloutButton({
    */
   layout?: "toolbar" | "menu";
 }) {
-  const action = useWebCalloutAction({
-    projectId,
-    traceId,
-    observationId,
-    sessionId,
-  });
-
-  if (!action.isVisible) {
-    return null;
-  }
-
   const label = `Call ${action.endpointName}`;
 
   if (layout === "menu") {

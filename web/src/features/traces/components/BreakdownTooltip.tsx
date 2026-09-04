@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import {
   Tooltip,
   TooltipContent,
@@ -52,6 +51,17 @@ export const BreakdownTooltip = ({
 
   const formatValue = (value: number) =>
     isCost ? usdFormatter(value, 2, 12) : value ? value.toLocaleString() : "0";
+  const otherEntries = Object.entries(aggregatedDetails)
+    .filter(
+      ([key]) =>
+        !key.includes("input") && !key.includes("output") && key !== "total",
+    )
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+  const otherTotal = otherEntries.reduce((acc, [, value]) => {
+    if (typeof value !== "number") return acc;
+
+    return acc + value;
+  }, 0);
 
   return (
     <TooltipProvider>
@@ -117,11 +127,23 @@ export const BreakdownTooltip = ({
             />
 
             {/* Other Section */}
-            <OtherSection
-              details={aggregatedDetails}
-              isCost={isCost}
-              formatValue={formatValue}
-            />
+            {otherEntries.length > 0 && (
+              <div className="flex min-w-0 flex-col gap-2">
+                <BreakdownRow
+                  label={isCost ? "Other cost" : "Other usage"}
+                  value={formatValue(otherTotal)}
+                  variant="section"
+                />
+                {otherEntries.map(([key, value]) => (
+                  <BreakdownRow
+                    key={key}
+                    label={key}
+                    value={formatValue(value ?? 0)}
+                    variant="item"
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Total */}
             <BreakdownRow
@@ -199,47 +221,6 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
         variant="section"
       />
       {filteredEntries.map(([key, value]) => (
-        <BreakdownRow
-          key={key}
-          label={key}
-          value={formatValue(value ?? 0)}
-          variant="item"
-        />
-      ))}
-    </div>
-  );
-};
-
-interface OtherSectionProps {
-  details: Details;
-  isCost: boolean;
-  formatValue: (value: number) => string;
-}
-
-const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
-  const otherEntries = Object.entries(details)
-    .filter(
-      ([key]) =>
-        !key.includes("input") && !key.includes("output") && key !== "total",
-    )
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
-
-  if (otherEntries.length === 0) return null;
-
-  const otherTotal = otherEntries.reduce((acc, val) => {
-    if (typeof val[1] !== "number") return acc;
-
-    return acc + (val[1] ?? 0);
-  }, 0);
-
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <BreakdownRow
-        label={isCost ? "Other cost" : "Other usage"}
-        value={formatValue(otherTotal)}
-        variant="section"
-      />
-      {otherEntries.map(([key, value]) => (
         <BreakdownRow
           key={key}
           label={key}
