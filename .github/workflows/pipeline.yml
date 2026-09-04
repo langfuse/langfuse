@@ -154,9 +154,11 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
+      - select-vitest-suites
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # condition evaluate despite the skipped dependency). Package ESLint follows
+    # the selector; agents:check and typecheck still run on every CI event.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -209,11 +211,31 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-      - name: lint web
+      - name: lint packages
         # Turbo runs up to three packages at once. The largest overlap is web's
         # four ESLint workers plus two packages with two workers each, matching
-        # this runner's eight vCPUs.
-        run: pnpm turbo run lint --concurrency=3
+        # this runner's eight vCPUs. Docs-only PRs skip this step; merge groups
+        # and full-test PRs still lint every package.
+        env:
+          LINT_WEB: ${{ needs.select-vitest-suites.outputs.web }}
+          LINT_WORKER: ${{ needs.select-vitest-suites.outputs.worker }}
+          LINT_SHARED: ${{ needs.select-vitest-suites.outputs.shared }}
+        run: |
+          filters=()
+          if [[ "$LINT_WEB" == "true" ]]; then
+            filters+=(--filter=web --filter=@langfuse/ee)
+          fi
+          if [[ "$LINT_WORKER" == "true" ]]; then
+            filters+=(--filter=worker)
+          fi
+          if [[ "$LINT_SHARED" == "true" ]]; then
+            filters+=(--filter=@langfuse/shared)
+          fi
+          if [[ ${#filters[@]} -eq 0 ]]; then
+            echo "No lint scopes selected; skipping package lint"
+            exit 0
+          fi
+          pnpm turbo run lint --concurrency=3 "${filters[@]}"
       - name: typecheck
         run: pnpm run typecheck
 
@@ -403,10 +425,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # Stories import production web cells and @langfuse/shared. Worker-only PRs
+    # skip this job; merge groups and full-test PRs still run it.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
+    if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.shared == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     timeout-minutes: 10
     env:
       NODE_ENV: test
@@ -1063,10 +1087,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # Playwright hits the web app. Shared-package changes can break those
+    # flows; worker-only PRs skip this job. Merge groups and full-test PRs
+    # still run it. !cancelled() lets this condition evaluate when pre-job
+    # is skipped on pull-request and merge-group events.
+    if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.shared == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
     steps:
@@ -1187,10 +1213,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # Colocated web servertests against a built Next server. Shared-package
+    # changes can break those flows; worker-only PRs skip this job. Merge
+    # groups and full-test PRs still run it. !cancelled() lets this condition
+    # evaluate when pre-job is skipped on pull-request and merge-group events.
+    if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.shared == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
     steps:

@@ -62,6 +62,6 @@ if (process.env.GITHUB_STEP_SUMMARY) {
     .join(", ");
   await appendFile(
     process.env.GITHUB_STEP_SUMMARY,
-    `## Vitest selection\n\nSelected scopes: ${selected || "none"}\n`,
+    `## Vitest selection\n\nSelected scopes: ${selected || "none"}\n\nStorybook, Playwright e2e, server e2e, and package lint follow the web/shared/worker scopes. Merge groups and \`full-test\` PRs select every scope.\n`,
   );
 }

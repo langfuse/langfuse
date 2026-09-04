@@ -22,7 +22,8 @@ test("selects package test jobs before their builds", () => {
   const file = (path: string) => join(repositoryRoot, path);
 
   // Empty changed-since (merge_group, push, or the `full-test` PR label)
-  // selects every package job.
+  // selects every package job. Docs-only changes select none, so CI skips
+  // Storybook, both e2e jobs, and package lint as well as Vitest.
   assert.deepEqual(selectTestScopes([], repositoryRoot, false), {
     full: true,
     shared: true,
@@ -49,6 +50,8 @@ test("selects package test jobs before their builds", () => {
     selectTestScopes([file("worker/src/example.ts")], repositoryRoot),
     { full: false, shared: false, web: false, worker: true },
   );
+  // Docs-only selects no scopes, so Storybook, both e2e jobs, and package
+  // lint skip along with Vitest.
   assert.deepEqual(
     selectTestScopes([file("docs/example.md")], repositoryRoot),
     { full: false, shared: false, web: false, worker: false },
