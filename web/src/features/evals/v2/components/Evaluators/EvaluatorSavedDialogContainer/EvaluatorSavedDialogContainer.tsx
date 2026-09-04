@@ -7,7 +7,7 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { ChevronDown } from "lucide-react";
-import { subDays, subHours, subMonths } from "date-fns";
+import { endOfDay, startOfDay, subDays, subHours, subMonths } from "date-fns";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -214,6 +214,7 @@ export function EvaluatorSavedDialogContainer({
         );
       } catch (error) {
         if (backfillEstimateRequestId.current === requestId) {
+          setBackfillMatchingObservations(0);
           trpcErrorToast(error);
         }
       } finally {
@@ -462,9 +463,13 @@ export function EvaluatorSavedDialogContainer({
 
   const selectNewRule = () => {
     estimateRequestId.current += 1;
+    backfillEstimateRequestId.current += 1;
     setActivationOpen(false);
     setSelectedRuleId(null);
     setIsEstimating(false);
+    setIsEstimatingBackfill(false);
+    setBackfillEnabled(false);
+    setBackfillMatchingObservations(0);
   };
 
   useEffect(() => {
@@ -496,6 +501,11 @@ export function EvaluatorSavedDialogContainer({
     setSelectedRuleId(
       nextMode === "different-scope" && !rulesPending ? null : undefined,
     );
+    if (nextMode === "different-scope" && !mostUsedRule && !rulesPending) {
+      backfillEstimateRequestId.current += 1;
+      setBackfillEnabled(false);
+      setBackfillMatchingObservations(0);
+    }
     setIsEstimating(false);
     if (nextMode === "test-filters") {
       setActivationSampling(testFilterSampling);
@@ -512,11 +522,17 @@ export function EvaluatorSavedDialogContainer({
   const updateBackfillRange = (range: EvaluatorBackfillRange) => {
     const now = new Date();
     const earliestAllowedStart = subMonths(now, 6);
-    const nextRange = {
-      from:
-        range.from < earliestAllowedStart ? earliestAllowedStart : range.from,
-      to: range.to > now ? now : range.to,
-    };
+    let from =
+      range.from < earliestAllowedStart ? earliestAllowedStart : range.from;
+    let to = range.to > now ? now : range.to;
+    if (from > to) {
+      if (range.from.getTime() !== backfillRange.from.getTime()) {
+        to = endOfDay(from);
+      } else {
+        from = startOfDay(to);
+      }
+    }
+    const nextRange = { from, to };
     setBackfillRange(nextRange);
     const filter =
       mode === "test-filters" ? supportedRuleFilters : selectedRule?.filter;
