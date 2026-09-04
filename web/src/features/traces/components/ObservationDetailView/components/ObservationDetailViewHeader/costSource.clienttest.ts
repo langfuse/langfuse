@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveObservationCostSource } from "./ObservationDetailViewHeader";
+import { resolveObservationCostSource } from "./costSource";
 
 describe("resolveObservationCostSource", () => {
-  it("omits the source for subtree rollups even when totals match", () => {
+  it("omits the source for subtree rollups", () => {
     expect(
       resolveObservationCostSource({
         hasSubtreeMetrics: true,

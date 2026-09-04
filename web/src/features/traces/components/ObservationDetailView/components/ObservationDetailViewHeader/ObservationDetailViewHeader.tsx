@@ -46,7 +46,7 @@ import {
   CostBadge,
   UsageBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import type { CostSource } from "@/src/features/traces/components/BreakdownTooltip";
+import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
@@ -91,18 +91,6 @@ import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
-
-export function resolveObservationCostSource({
-  hasSubtreeMetrics,
-  hasProvidedCostDetails,
-}: {
-  hasSubtreeMetrics: boolean;
-  hasProvidedCostDetails: boolean;
-}): CostSource | undefined {
-  if (hasSubtreeMetrics) return undefined;
-
-  return hasProvidedCostDetails ? "provided" : "calculated";
-}
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
