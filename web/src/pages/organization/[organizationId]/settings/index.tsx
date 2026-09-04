@@ -23,6 +23,10 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/Org
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
+import { GatewayConfigurationPage } from "@/src/features/llm-gateway/components/GatewayConfigurationPage";
+import { GatewayProvidersPage } from "@/src/features/llm-gateway/components/GatewayProvidersPage";
+import { GatewayModelsPage } from "@/src/features/llm-gateway/components/GatewayModelsPage";
+import { GatewayApiKeysPage } from "@/src/features/llm-gateway/components/GatewayApiKeysPage";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -59,6 +63,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
+    showLlmGateway: canUpdateOrganization,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -71,14 +76,25 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
+  showLlmGateway,
   showFeaturePreviews,
 }: {
-  organization: { id: string; name: string; metadata: Record<string, unknown> };
+  organization: {
+    id: string;
+    name: string;
+    metadata: Record<string, unknown>;
+    projects: Array<{
+      id: string;
+      name: string;
+      deletedAt?: Date | string | null;
+    }>;
+  };
   showBillingSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
+  showLlmGateway: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -134,6 +150,46 @@ export const getOrganizationSettingsPages = ({
     cmdKKeywords: ["feature", "preview", "flags", "beta"],
     content: <OrganizationFeaturePreviewsSettings orgId={organization.id} />,
     show: showFeaturePreviews,
+  },
+  {
+    title: "LLM Gateway",
+    slug: "llm-gateway",
+    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
+    content: (
+      <GatewayConfigurationPage
+        organizationId={organization.id}
+        projects={organization.projects}
+      />
+    ),
+    show: showLlmGateway,
+  },
+  {
+    title: "Gateway Providers",
+    slug: "llm-gateway-providers",
+    cmdKKeywords: [
+      "gateway",
+      "providers",
+      "credentials",
+      "openai",
+      "anthropic",
+      "openrouter",
+    ],
+    content: <GatewayProvidersPage organizationId={organization.id} />,
+    show: showLlmGateway,
+  },
+  {
+    title: "Gateway Models",
+    slug: "llm-gateway-models",
+    cmdKKeywords: ["gateway", "models", "discovery", "sync"],
+    content: <GatewayModelsPage organizationId={organization.id} />,
+    show: showLlmGateway,
+  },
+  {
+    title: "Gateway API Keys",
+    slug: "llm-gateway-api-keys",
+    cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
+    content: <GatewayApiKeysPage organizationId={organization.id} />,
+    show: showLlmGateway,
   },
   {
     title: "API Keys",

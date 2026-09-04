@@ -17,6 +17,7 @@ export default withMiddlewares({
     responseSchema: GetMediaUploadUrlResponseSchema,
     successStatusCode: 201,
     rateLimitResource: "media-upload",
+    allowGatewayIngestionToken: true,
     fn: async ({ body, auth }) => {
       // Check if ingestion is suspended due to usage threshold
       if (auth.scope.isIngestionSuspended) {
