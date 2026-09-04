@@ -286,13 +286,13 @@ function EvaluatorSourceCodeValue({
         type="button"
         variant="ghost"
         size="xs"
-        className="text-muted-foreground hover:text-foreground ml-1 gap-1 align-middle text-xs"
+        className="bg-surface-code text-muted-foreground hover:bg-border hover:text-foreground relative top-px ml-1 gap-1 text-xs"
         onClick={(event) => {
           event.stopPropagation();
           onShowCode();
         }}
       >
-        <Code2 className="size-3 -translate-y-px" aria-hidden="true" />
+        <Code2 className="size-3" aria-hidden="true" />
         Show in code block
       </Button>
       <br />
