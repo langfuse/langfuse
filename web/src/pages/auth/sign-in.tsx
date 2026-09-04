@@ -1,3 +1,4 @@
+import { SIGN_IN_PAGE_TITLE } from "@/src/features/auth/pageMetadata";
 import { type GetServerSideProps } from "next";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
@@ -861,7 +862,7 @@ export default function SignIn({
     return (
       <>
         <Head>
-          <title>Sign in | Langfuse</title>
+          <title>{SIGN_IN_PAGE_TITLE}</title>
         </Head>
         <Spinner message={`Signing in as ${PREVIEW_DEMO_USER_EMAIL}`} />
       </>
