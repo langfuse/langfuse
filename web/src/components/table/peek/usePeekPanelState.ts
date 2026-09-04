@@ -205,6 +205,13 @@ export function usePeekPanelState({
   useLayoutEffect(() => {
     const state = store.getState();
     if (state.widthMode === widthMode) return;
+    if (
+      state.widthMode === "observation" &&
+      widthMode === "split" &&
+      navigationWidthPx === 0
+    ) {
+      return;
+    }
     const viewportWidth = window.innerWidth;
     if (!(viewportWidth > 0)) return;
     const navigationWidthFraction = navigationWidthPx / viewportWidth;

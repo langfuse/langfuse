@@ -5,6 +5,7 @@ import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState
 import { PEEK_DEFAULT_WIDTH_FRACTION } from "@/src/components/table/peek/store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
+const OBSERVATION_STORAGE_KEY = "peekObservationViewWidthFraction";
 const ORIGINAL_VIEWPORT_WIDTH = window.innerWidth;
 // Widget width is `min(<n>vw, calc(100vw - <sidebar>px))` — pull the leading
 // vw fraction (the widget's own width) out of the min() wrapper.
@@ -159,6 +160,35 @@ describe("usePeekPanelState", () => {
 
     rerender({ isExpanded: false, widthMode: "observation" });
     expect(widthFraction(result.current.panelStyle)).toBeCloseTo(0.5);
+
+    peek.remove();
+  });
+
+  it("grows on the first switch when navigation mounts with split mode", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      value: 1000,
+      configurable: true,
+    });
+    window.localStorage.setItem(STORAGE_KEY, "0.7");
+    window.localStorage.setItem(OBSERVATION_STORAGE_KEY, "0.5");
+    const peek = document.createElement("div");
+    peek.dataset.peekContent = "";
+    document.body.appendChild(peek);
+
+    const { result, rerender } = setup(false, "observation");
+    const navigation = document.createElement("div");
+    navigation.dataset.traceNavigationPanel = "";
+    vi.spyOn(navigation, "getBoundingClientRect").mockReturnValue({
+      width: 200,
+    } as DOMRect);
+
+    await act(async () => {
+      peek.appendChild(navigation);
+      rerender({ isExpanded: false, widthMode: "split" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(widthFraction(result.current.panelStyle)).toBeCloseTo(0.7);
 
     peek.remove();
   });
