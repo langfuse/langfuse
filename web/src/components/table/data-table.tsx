@@ -25,14 +25,6 @@ import {
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
 import { type ModelTableRow } from "@/src/components/table/use-cases/models";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -54,6 +46,75 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+
+type TableDensity = "compact" | "comfortable";
+
+const TableHeader = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+));
+TableHeader.displayName = "TableHeader";
+
+const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody
+    ref={ref}
+    className={cn("text-xs [&_tr:last-child]:border-0", className)}
+    {...props}
+  />
+));
+TableBody.displayName = "TableBody";
+
+const TableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement>
+>(({ className, ...props }, ref) => (
+  <tr
+    ref={ref}
+    className={cn(
+      "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+      className,
+    )}
+    {...props}
+  />
+));
+TableRow.displayName = "TableRow";
+
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    className={cn(
+      "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+      className,
+    )}
+    {...props}
+  />
+));
+TableHead.displayName = "TableHead";
+
+const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement> & { density?: TableDensity }
+>(({ className, density = "compact", ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn(
+      "h-full align-middle [&:has([role=checkbox])]:pr-0",
+      density === "comfortable" ? "p-2" : "px-2 py-0",
+      "border-b [:last-child_>_&]:border-b-0",
+      className,
+    )}
+    {...props}
+  />
+));
+TableCell.displayName = "TableCell";
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
@@ -462,7 +523,7 @@ export function DataTable<TData extends object, TValue>({
               active={refetchBar.active && !data.isLoading}
             />
           </div>
-          <Table>
+          <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
             <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -635,7 +696,7 @@ export function DataTable<TData extends object, TValue>({
                 cellPadding={cellPadding}
               />
             )}
-          </Table>
+          </table>
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (

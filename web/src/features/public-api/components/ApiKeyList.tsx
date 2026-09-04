@@ -5,15 +5,9 @@ import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { Input } from "@/src/components/ui/input";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableCellWithCopyButton,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import {
@@ -21,13 +15,18 @@ import {
   useHasProjectAccess,
 } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { TrashIcon } from "lucide-react";
+import { Check, Copy, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import startCase from "lodash/startCase";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { type RouterOutput } from "@/src/utils/types";
 
 type ApiKeyScope = "project" | "organization";
+type ApiKeyRow =
+  | RouterOutput["projectApiKeys"]["byProjectId"][number]
+  | RouterOutput["organizationApiKeys"]["byOrganizationId"][number];
 type ApiKeyEntity = { id: string; note: string | null };
 type ApiKeyCreator = {
   createdByUser: {
@@ -80,6 +79,46 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const apiKeysQuery =
     props.scope === "project" ? projectApiKeysQuery : organizationApiKeysQuery;
 
+  const columns: LangfuseColumnDef<ApiKeyRow>[] = [
+    createTextTableColumn<ApiKeyRow, Date>({
+      accessorKey: "createdAt",
+      header: "Created",
+      mapValue: (value) => value?.toLocaleDateString(),
+    }),
+    {
+      accessorKey: "createdByUser",
+      header: "Created By",
+      cell: ({ row }) => <ApiKeyCreatedBy apiKey={row.original} />,
+    },
+    {
+      accessorKey: "note",
+      header: "Note",
+      cell: ({ row }) => (
+        <ApiKeyNote apiKey={row.original} entityId={entityId} scope={scope} />
+      ),
+    },
+    {
+      accessorKey: "publicKey",
+      header: "Public Key",
+      cell: ({ row }) => <PublicKeyCell publicKey={row.original.publicKey} />,
+    },
+    createTextTableColumn<ApiKeyRow>({
+      accessorKey: "displaySecretKey",
+      header: "Secret Key",
+    }),
+    {
+      accessorKey: "id",
+      header: "",
+      cell: ({ row }) => (
+        <DeleteApiKeyButton
+          entityId={entityId}
+          apiKeyId={row.original.id}
+          scope={scope}
+        />
+      ),
+    },
+  ];
+
   if (!hasAccess) {
     return (
       <div>
@@ -117,83 +156,48 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         copiedToClipboardMessage="Secrets are not included, create a new key to copy them."
       />
       <Card className="mb-4 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-primary hidden md:table-cell">
-                Created
-              </TableHead>
-              <TableHead className="text-primary hidden md:table-cell">
-                Created By
-              </TableHead>
-              <TableHead className="text-primary">Note</TableHead>
-              <TableHead className="text-primary">Public Key</TableHead>
-              <TableHead className="text-primary">Secret Key</TableHead>
-              {/* <TableHead className="text-primary">Last used</TableHead> */}
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody className="text-muted-foreground">
-            {apiKeysQuery.data?.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  density="comfortable"
-                  colSpan={6}
-                  className="text-center"
-                >
-                  None
-                </TableCell>
-              </TableRow>
-            ) : (
-              apiKeysQuery.data?.map((apiKey) => (
-                <TableRow
-                  key={apiKey.id}
-                  className="hover:bg-primary-foreground"
-                >
-                  <TableCell
-                    density="comfortable"
-                    className="hidden md:table-cell"
-                  >
-                    {apiKey.createdAt.toLocaleDateString()}
-                  </TableCell>
-                  <TableCell
-                    density="comfortable"
-                    className="hidden md:table-cell"
-                  >
-                    <ApiKeyCreatedBy apiKey={apiKey} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <ApiKeyNote
-                      apiKey={apiKey}
-                      entityId={entityId}
-                      scope={scope}
-                    />
-                  </TableCell>
-                  <TableCellWithCopyButton
-                    density="comfortable"
-                    text={apiKey.publicKey}
-                    className="truncate font-mono"
-                    title={apiKey.publicKey}
-                  />
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.displaySecretKey}
-                  </TableCell>
-                  {/* <TableCell>
-                  {apiKey.lastUsedAt?.toLocaleDateString() ?? "Never"}
-                </TableCell> */}
-                  <TableCell density="comfortable">
-                    <DeleteApiKeyButton
-                      entityId={entityId}
-                      apiKeyId={apiKey.id}
-                      scope={scope}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <SimpleDataTable
+          columns={columns}
+          data={apiKeysQuery.data ?? []}
+          isLoading={apiKeysQuery.isLoading}
+          noResults="None"
+          bodyTone="muted"
+          rowVariant="primary-hover"
+        />
       </Card>
+    </div>
+  );
+}
+
+function PublicKeyCell({ publicKey }: { publicKey: string }) {
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <div className="relative min-w-0 truncate pr-8 font-mono" title={publicKey}>
+      <span>{publicKey}</span>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="absolute top-1/2 right-2 -translate-y-1/2"
+        title="Copy to clipboard"
+        aria-label="Copy to clipboard"
+        onClick={async (event) => {
+          event.preventDefault();
+          const button = event.currentTarget;
+          try {
+            await copy(publicKey);
+          } catch {
+            // Clipboard failures are intentionally silent.
+          }
+          button.focus();
+        }}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
     </div>
   );
 }

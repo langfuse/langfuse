@@ -16,6 +16,9 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   Dialog,
   DialogBody,
@@ -42,15 +45,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableCellWithCopyButton,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -58,10 +52,11 @@ import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/comp
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, TrashIcon } from "lucide-react";
+import { AlertCircle, Check, Copy, TrashIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 const SSO_PROVIDERS: ReadonlyArray<{
   id: SsoProviderSchema["authProvider"];
@@ -123,6 +118,11 @@ type SsoConfigRow = {
   authConfig: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+type SsoConfigTableRow = {
+  domain: string;
+  config: SsoConfigRow | null;
 };
 
 export const SSOSettings = ({ orgId }: { orgId: string }) => {
@@ -193,12 +193,17 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
   const ssoConfigsQuery = api.ssoConfig.get.useQuery({ orgId });
 
   const verifiedDomains = useMemo(
-    () => verifiedDomainsQuery.data?.filter((d) => d.verifiedAt != null) ?? [],
+    () =>
+      verifiedDomainsQuery.data?.filter(
+        (domain: { verifiedAt: Date | null }) => domain.verifiedAt != null,
+      ) ?? [],
     [verifiedDomainsQuery.data],
   );
   const configByDomain = useMemo(() => {
     const map = new Map<string, SsoConfigRow>();
-    ssoConfigsQuery.data?.forEach((cfg) => map.set(cfg.domain, cfg));
+    ssoConfigsQuery.data?.forEach((config: SsoConfigRow) =>
+      map.set(config.domain, config),
+    );
     return map;
   }, [ssoConfigsQuery.data]);
 
@@ -212,68 +217,69 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
     );
   }
 
-  return (
-    <Card className="mb-4 overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-primary pl-2.5">Domain</TableHead>
-            <TableHead className="text-primary">Provider</TableHead>
-            <TableHead className="text-primary hidden md:table-cell">
-              Updated
-            </TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody className="text-muted-foreground">
-          {verifiedDomains.map((row) => (
-            <SsoConfigRow
-              key={row.domain}
-              orgId={orgId}
-              domain={row.domain}
-              config={configByDomain.get(row.domain) ?? null}
-            />
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+  const data: SsoConfigTableRow[] = verifiedDomains.map(
+    (domain: { domain: string }) => ({
+      domain: domain.domain,
+      config: configByDomain.get(domain.domain) ?? null,
+    }),
   );
-}
 
-function SsoConfigRow({
-  orgId,
-  domain,
-  config,
-}: {
-  orgId: string;
-  domain: string;
-  config: SsoConfigRow | null;
-}) {
-  return (
-    <TableRow className="hover:bg-primary-foreground">
-      <TableCell density="comfortable" className="font-mono">
-        {domain}
-      </TableCell>
-      <TableCell density="comfortable">
-        {config ? (
-          <Badge variant="default">{providerLabel(config.authProvider)}</Badge>
+  const columns: LangfuseColumnDef<SsoConfigTableRow>[] = [
+    createTextTableColumn<SsoConfigTableRow>({
+      accessorKey: "domain",
+      header: "Domain",
+    }),
+    {
+      accessorKey: "config",
+      header: "Provider",
+      cell: ({ row }) =>
+        row.original.config ? (
+          <Badge variant="default">
+            {providerLabel(row.original.config.authProvider)}
+          </Badge>
         ) : (
           <Badge variant="secondary">Not configured</Badge>
-        )}
-      </TableCell>
-      <TableCell density="comfortable" className="hidden md:table-cell">
-        {config ? config.updatedAt.toLocaleDateString() : "—"}
-      </TableCell>
-      <TableCell
-        density="comfortable"
-        className="flex items-center justify-end gap-2"
-      >
-        <SsoConfigDialog orgId={orgId} domain={domain} existing={config} />
-        {config ? (
-          <DeleteSsoConfigButton orgId={orgId} domain={domain} />
-        ) : null}
-      </TableCell>
-    </TableRow>
+        ),
+    },
+    {
+      accessorKey: "config",
+      id: "updatedAt",
+      header: "Updated",
+      cell: ({ row }) =>
+        row.original.config
+          ? row.original.config.updatedAt.toLocaleDateString()
+          : "—",
+    },
+    {
+      accessorKey: "domain",
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-2">
+          <SsoConfigDialog
+            orgId={orgId}
+            domain={row.original.domain}
+            existing={row.original.config}
+          />
+          {row.original.config ? (
+            <DeleteSsoConfigButton orgId={orgId} domain={row.original.domain} />
+          ) : null}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <Card className="mb-4 overflow-hidden">
+      <SimpleDataTable
+        columns={columns}
+        data={data}
+        isLoading={false}
+        noResults={null}
+        bodyTone="muted"
+        rowVariant="primary-hover"
+      />
+    </Card>
   );
 }
 
@@ -644,30 +650,58 @@ function SsoConfigDialog({
 }
 
 function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
+  const columns: LangfuseColumnDef<{ url: string }>[] = [
+    {
+      accessorKey: "url",
+      header: "URL",
+      cell: ({ getValue }) => (
+        <CopyableCallbackUrl value={getValue<string>()} />
+      ),
+    },
+  ];
+
   return (
     <div>
       <p className="mb-2 text-sm font-bold">Callback URL</p>
       <Card className="overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>URL</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCellWithCopyButton
-                density="comfortable"
-                text={callbackUrl}
-                className="py-3 font-mono break-all"
-              />
-            </TableRow>
-          </TableBody>
-        </Table>
+        <SimpleDataTable
+          columns={columns}
+          data={[{ url: callbackUrl }]}
+          isLoading={false}
+          noResults={null}
+        />
       </Card>
       <p className="text-muted-foreground mt-2 text-xs">
         Add this URL as an authorized redirect URI in your identity provider.
       </p>
+    </div>
+  );
+}
+
+function CopyableCallbackUrl({ value }: { value: string }) {
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <div className="relative pr-8 font-mono break-all">
+      <span>{value}</span>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="absolute top-1/2 right-0 -translate-y-1/2"
+        title="Copy to clipboard"
+        aria-label="Copy to clipboard"
+        onClick={async (event) => {
+          event.preventDefault();
+          await copy(value).catch(() => undefined);
+          event.currentTarget.focus();
+        }}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
     </div>
   );
 }
