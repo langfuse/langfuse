@@ -26,6 +26,7 @@ export const config = {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "OTel Traces",
+    action: "traces:create",
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",

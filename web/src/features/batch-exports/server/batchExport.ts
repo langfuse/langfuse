@@ -52,7 +52,8 @@ const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
     entitlement: "audit-logs",
     sessionUser: session.user,
     projectId,
-  }) && hasProjectAccess({ session, projectId, scope: "auditLogs:read" });
+  }) &&
+  hasProjectAccess({ session, projectId, scope: "projectAuditLogs:read" });
 
 // An audit-log export holds actor identifiers and admin actions, so reading
 // one needs the audit-log gates too, not just the batch-export ones.
@@ -62,7 +63,11 @@ const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
     sessionUser: session.user,
     projectId,
   });
-  throwIfNoProjectAccess({ session, projectId, scope: "auditLogs:read" });
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "projectAuditLogs:read",
+  });
 };
 
 const isDownloadWindowExpired = (batchExport: {
