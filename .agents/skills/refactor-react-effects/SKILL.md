@@ -145,7 +145,8 @@ Run, at minimum:
 - ESLint on the migrated path, then `pnpm --filter web run lint`;
 - type checking when state or action interfaces changed;
 - a real-browser review for user-visible flows, using seeded data where
-  applicable;
+  applicable — yours where the outcome is uncertain, otherwise the developer's,
+  per `.agents/AGENTS.md`;
 - the effect inventory again to prove the intended scope is clean.
 
 Report the exact command summary lines and any retained effects with their
