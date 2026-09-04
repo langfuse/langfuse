@@ -54,7 +54,7 @@ export function InAppAgentToolPayload({
     ) : (
       <pre
         className={cn(
-          "max-h-80 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap",
+          "max-h-64 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap",
           variant === "default" && "bg-muted text-muted-foreground",
           variant === "failed" && "bg-destructive/10 text-destructive",
           variant === "denied" && "bg-light-yellow text-dark-yellow",
@@ -112,7 +112,7 @@ function StructuredToolPayload({ value }: { value: unknown }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <div className="max-h-80 min-h-0 overflow-y-auto">
+      <div className="max-h-64 min-h-0 overflow-y-auto">
         <JSONView
           json={jsonValue}
           isLoading={false}
@@ -159,7 +159,7 @@ function StructuredToolPayload({ value }: { value: unknown }) {
               Path: {activeCode.path}
             </code>
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-64 overflow-y-auto">
             <CodeBlock
               language={activeCode.language}
               value={activeCode.value}
