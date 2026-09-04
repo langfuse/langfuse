@@ -21,10 +21,10 @@ checkout:
   fetch-depth: 0
 
 # opus 5: this workflow does multi-day timing analysis and root-cause
-# investigation, which benefits from the deeper model. Plain model id only: the
-# `<model>?effort=` alias suffix is rejected by Claude Code and rewritten by the
-# awf api-proxy's middle-power fallback to sonnet-4-5, so earlier runs silently
-# used sonnet. Effort cannot be set via frontmatter in gh-aw v0.86.
+# investigation, which benefits from the deeper model. Plain model id only. Do
+# not append the `?effort=` alias suffix: Claude Code rejects it and the awf
+# api-proxy remaps it to a fallback model. gh-aw v0.86 has no frontmatter knob
+# for effort, so Claude Code uses its default effort for this model.
 model: claude-opus-5
 
 engine:
