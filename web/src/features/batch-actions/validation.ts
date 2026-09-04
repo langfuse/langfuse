@@ -9,7 +9,7 @@ import {
 
 /** Matches the evaluator options page size used by the run-evaluation dialog. */
 export const BATCH_EVAL_EVALUATOR_LIMIT = 100;
-export const EVALUATOR_BACKFILL_ITEM_LIMIT = 25_000;
+const EVALUATOR_BACKFILL_ITEM_LIMIT = 25_000;
 
 export const CreateObservationAddToDatasetActionSchema = z.object({
   projectId: z.string(),
