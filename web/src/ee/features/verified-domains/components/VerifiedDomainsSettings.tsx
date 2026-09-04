@@ -36,7 +36,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { TableCell, TableRow } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -197,14 +196,17 @@ function DomainsTable({ orgId }: { orgId: string }) {
 
   const renderDetailRow = (row: Row<DomainRowData>) =>
     !row.original.verifiedAt && !collapsedRows.has(row.original.id) ? (
-      <TableRow className="bg-muted/30">
-        <TableCell colSpan={4} className="py-4">
+      <tr className="bg-muted/30 hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors">
+        <td
+          colSpan={4}
+          className="h-full border-b px-2 py-4 align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0"
+        >
           <DnsInstructions
             recordHost={row.original.recordHost}
             recordValue={row.original.recordValue}
           />
-        </TableCell>
-      </TableRow>
+        </td>
+      </tr>
     ) : null;
 
   return (

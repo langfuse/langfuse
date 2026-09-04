@@ -6,14 +6,6 @@ import {
 } from "@tanstack/react-table";
 import { Fragment, type ReactNode } from "react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
@@ -56,23 +48,27 @@ export function SimpleDataTable<TData extends object>({
   const visibleColumns = table.getVisibleLeafColumns();
 
   return (
-    <Table
-      className={
-        presentation === "wide" ? "min-w-[60rem] table-auto" : undefined
-      }
+    <table
+      className={cn(
+        "w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm",
+        presentation === "wide" && "min-w-[60rem] table-auto",
+      )}
     >
-      <TableHeader
-        className={
-          presentation === "dense"
-            ? "bg-background sticky top-0 z-10"
-            : undefined
-        }
+      <thead
+        className={cn(
+          "[&_tr]:border-b",
+          presentation === "dense" && "bg-background sticky top-0 z-10",
+        )}
       >
         {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
+          <tr
+            key={headerGroup.id}
+            className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors"
+          >
             {headerGroup.headers.map((header) => (
-              <TableHead
+              <th
                 key={header.id}
+                className="bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0"
                 style={
                   header.column.columnDef.size === undefined
                     ? undefined
@@ -85,28 +81,34 @@ export function SimpleDataTable<TData extends object>({
                       header.column.columnDef.header,
                       header.getContext(),
                     )}
-              </TableHead>
+              </th>
             ))}
-          </TableRow>
+          </tr>
         ))}
-      </TableHeader>
-      <TableBody
-        className={bodyTone === "muted" ? "text-muted-foreground" : undefined}
+      </thead>
+      <tbody
+        className={cn(
+          "text-xs [&_tr:last-child]:border-0",
+          bodyTone === "muted" && "text-muted-foreground",
+        )}
       >
         {isLoading ? (
           Array.from({ length: 3 }).map((_, rowIndex) => (
-            <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
+            <tr
+              key={`loading-row-${rowIndex}`}
+              aria-hidden="true"
+              className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors"
+            >
               {visibleColumns.map((column) => {
                 const loadingCell = column.columnDef.loadingCell;
                 return (
-                  <TableCell
+                  <td
                     key={column.id}
-                    density={
-                      column.columnDef.cellPadding === "compact"
-                        ? "compact"
-                        : "comfortable"
-                    }
                     className={cn(
+                      "h-full border-b align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
+                      column.columnDef.cellPadding === "compact"
+                        ? "px-2 py-0"
+                        : "p-2",
                       column.columnDef.cellPadding === "none" && "p-0",
                     )}
                   >
@@ -117,26 +119,26 @@ export function SimpleDataTable<TData extends object>({
                     ) : (
                       <Skeleton className="h-4 w-1/2" />
                     )}
-                  </TableCell>
+                  </td>
                 );
               })}
-            </TableRow>
+            </tr>
           ))
         ) : table.getRowModel().rows.length === 0 ? (
-          <TableRow>
-            <TableCell
-              density="comfortable"
+          <tr className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors">
+            <td
               colSpan={visibleColumns.length}
-              className="text-center"
+              className="h-full border-b p-2 text-center align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0"
             >
               {noResults}
-            </TableCell>
-          </TableRow>
+            </td>
+          </tr>
         ) : (
           table.getRowModel().rows.map((row) => (
             <Fragment key={row.id}>
-              <TableRow
+              <tr
                 className={cn(
+                  "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
                   onRowClick && "cursor-pointer",
                   presentation === "dense" && "text-xs",
                   rowVariant === "muted-hover" && "hover:bg-muted",
@@ -155,26 +157,25 @@ export function SimpleDataTable<TData extends object>({
                 tabIndex={onRowClick ? 0 : undefined}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell
+                  <td
                     key={cell.id}
-                    density={
-                      cell.column.columnDef.cellPadding === "compact"
-                        ? "compact"
-                        : "comfortable"
-                    }
                     className={cn(
+                      "h-full border-b align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
+                      cell.column.columnDef.cellPadding === "compact"
+                        ? "px-2 py-0"
+                        : "p-2",
                       cell.column.columnDef.cellPadding === "none" && "p-0",
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+                  </td>
                 ))}
-              </TableRow>
+              </tr>
               {renderDetailRow?.(row)}
             </Fragment>
           ))
         )}
-      </TableBody>
-    </Table>
+      </tbody>
+    </table>
   );
 }

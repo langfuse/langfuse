@@ -1,5 +1,12 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
@@ -30,14 +37,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import {
@@ -49,6 +48,75 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+
+type TableDensity = "compact" | "comfortable";
+
+const TableHeader = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+));
+TableHeader.displayName = "TableHeader";
+
+const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody
+    ref={ref}
+    className={cn("text-xs [&_tr:last-child]:border-0", className)}
+    {...props}
+  />
+));
+TableBody.displayName = "TableBody";
+
+const TableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement>
+>(({ className, ...props }, ref) => (
+  <tr
+    ref={ref}
+    className={cn(
+      "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+      className,
+    )}
+    {...props}
+  />
+));
+TableRow.displayName = "TableRow";
+
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    className={cn(
+      "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+      className,
+    )}
+    {...props}
+  />
+));
+TableHead.displayName = "TableHead";
+
+const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement> & { density?: TableDensity }
+>(({ className, density = "compact", ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn(
+      "h-full align-middle [&:has([role=checkbox])]:pr-0",
+      density === "comfortable" ? "p-2" : "px-2 py-0",
+      "border-b [:last-child_>_&]:border-b-0",
+      className,
+    )}
+    {...props}
+  />
+));
+TableCell.displayName = "TableCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   convertRowIdToKeyPath,
@@ -688,7 +756,7 @@ function JsonPrettyTable({
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
-      <Table>
+      <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup, index) => (
             <TableRow
@@ -740,7 +808,7 @@ function JsonPrettyTable({
             />
           ))}
         </TableBody>
-      </Table>
+      </table>
     </div>
   );
 }
