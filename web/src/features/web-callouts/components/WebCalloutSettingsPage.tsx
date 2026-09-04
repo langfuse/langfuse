@@ -7,7 +7,10 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -32,14 +35,6 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import {
   Tooltip,
   TooltipContent,
@@ -170,6 +165,62 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
     setDialogOpen(true);
   };
 
+  const columns: LangfuseColumnDef<WebCalloutEndpoint>[] = [
+    createTextTableColumn<WebCalloutEndpoint>({
+      accessorKey: "name",
+      header: "Name",
+    }),
+    createTextTableColumn<WebCalloutEndpoint>({
+      accessorKey: "url",
+      header: "Endpoint",
+    }),
+    {
+      accessorKey: "toastMessage",
+      header: "Toast Message",
+      cell: ({ row }) => <ToastMessageCell endpoint={row.original} />,
+    },
+    {
+      accessorKey: "requestHeaderKeys",
+      header: "Headers",
+      cell: ({ row }) => <HeaderList endpoint={row.original} />,
+    },
+    createStatusTableColumn<WebCalloutEndpoint, boolean>({
+      accessorKey: "enabled",
+      header: "Status",
+      getStatus: (enabled) => (enabled ? "active" : "disabled"),
+    }),
+    {
+      accessorKey: "id",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openEditDialog(row.original)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit endpoint</TooltipContent>
+          </Tooltip>
+          <DeleteEndpointButton
+            endpoint={row.original}
+            onDelete={(id) => {
+              deleteMutation.mutate({
+                projectId: props.projectId,
+                id,
+              });
+            }}
+            loading={deleteMutation.isPending}
+          />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <p className="text-primary mb-4 text-sm">
@@ -208,82 +259,16 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
       </div>
 
       <Card className="overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-primary">Name</TableHead>
-              <TableHead className="text-primary">Endpoint</TableHead>
-              <TableHead className="text-primary">Toast Message</TableHead>
-              <TableHead className="text-primary">Headers</TableHead>
-              <TableHead className="text-primary">Status</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {endpoints.data?.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  density="comfortable"
-                  colSpan={6}
-                  className="text-muted-foreground text-center"
-                >
-                  No callout endpoint configured.
-                </TableCell>
-              </TableRow>
-            ) : (
-              endpoints.data?.map((endpoint) => (
-                <TableRow key={endpoint.id}>
-                  <TableCell density="comfortable" className="font-bold">
-                    {endpoint.name}
-                  </TableCell>
-                  <TableCell
-                    density="comfortable"
-                    className="max-w-xl font-mono break-all"
-                  >
-                    {endpoint.url}
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <ToastMessageCell endpoint={endpoint} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <HeaderList endpoint={endpoint} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <StatusBadge
-                      type={endpoint.enabled ? "active" : "disabled"}
-                    />
-                  </TableCell>
-                  <TableCell density="comfortable" className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(endpoint)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit endpoint</TooltipContent>
-                      </Tooltip>
-                      <DeleteEndpointButton
-                        endpoint={endpoint}
-                        onDelete={(id) => {
-                          deleteMutation.mutate({
-                            projectId: props.projectId,
-                            id,
-                          });
-                        }}
-                        loading={deleteMutation.isPending}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <SimpleDataTable
+          columns={columns}
+          data={endpoints.data ?? []}
+          isLoading={endpoints.isLoading}
+          noResults={
+            <span className="text-muted-foreground">
+              No callout endpoint configured.
+            </span>
+          }
+        />
       </Card>
     </div>
   );
@@ -658,7 +643,7 @@ const endpointToFormValues = (
   url: endpoint?.url ?? "",
   enabled: endpoint?.enabled ?? true,
   toastMessage: endpoint?.toastMessage ?? "Callout sent",
-  headers: (endpoint?.requestHeaderKeys ?? []).map((name) => ({
+  headers: (endpoint?.requestHeaderKeys ?? []).map((name: string) => ({
     name,
     value: "",
   })),
@@ -684,7 +669,7 @@ const hasExistingHeaderName = (
 
   return (
     endpoint?.requestHeaderKeys.some(
-      (headerName) => headerName.toLowerCase() === normalizedName,
+      (headerName: string) => headerName.toLowerCase() === normalizedName,
     ) ?? false
   );
 };
