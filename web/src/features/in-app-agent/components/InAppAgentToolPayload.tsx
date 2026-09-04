@@ -2,8 +2,9 @@
 
 import { deepParseJson } from "@langfuse/shared";
 import { useMemo, useState } from "react";
-import { WandSparkles } from "lucide-react";
+import { Code2 } from "lucide-react";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
 
@@ -281,17 +282,19 @@ function EvaluatorSourceCodeValue({
 
   return (
     <span className="inline">
-      <button
+      <Button
         type="button"
-        className="text-muted-foreground hover:text-foreground ml-1 inline-flex items-center gap-1 text-xs underline underline-offset-2"
+        variant="ghost"
+        size="xs"
+        className="text-muted-foreground hover:text-foreground ml-1 gap-1 align-middle text-xs"
         onClick={(event) => {
           event.stopPropagation();
           onShowCode();
         }}
       >
-        <WandSparkles className="size-3" aria-hidden="true" />
+        <Code2 className="size-3" aria-hidden="true" />
         Show in code block
-      </button>
+      </Button>
       <br />
       <span>&quot;{displayedValue}&quot;</span>
       {isTruncated ? (
