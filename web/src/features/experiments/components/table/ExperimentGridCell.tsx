@@ -856,8 +856,13 @@ export const ExperimentGridCell = ({
     }))
     .filter((section) => section.content !== null);
 
+  // The cell is the scrollport in this layout: the output section keeps its
+  // content's height as its base, so a long output makes the cell taller than
+  // the row and the reader scrolls the cell to reach the scores under it.
+  // `scrollbar-visible` is what says so — under the platform's overlay
+  // scrollbars a cell with more to show reads as one that was cut off.
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
+    <div className="scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
       {sectionsToRender.map((section, index) => {
         const { row, content } = section;
         const isFirst = index === 0;
