@@ -3,7 +3,8 @@
  *
  * Responsibility:
  * - Decide which detail view to show (Trace/Observation)
- * - Minimal wrapper (scrollable container) for layout consistency
+ * - Keep the trace summary visible above the selected detail view
+ * - Delegate scrolling to the selected detail view
  *
  * Hooks:
  * - useSelection() - for selected node state

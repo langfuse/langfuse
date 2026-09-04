@@ -24,7 +24,7 @@ export function TraceSummaryBar({
   costDetails,
 }: TraceSummaryBarProps) {
   return (
-    <div className="bg-muted/20 @container shrink-0 border-b px-2 py-1.5">
+    <div className="bg-muted/20 shrink-0 border-b px-2 py-1.5">
       <p className="text-muted-foreground mb-1 text-xs">Trace summary</p>
       <CollapsibleBadgeRow>
         <LatencyBadge latencySeconds={latencySeconds} />

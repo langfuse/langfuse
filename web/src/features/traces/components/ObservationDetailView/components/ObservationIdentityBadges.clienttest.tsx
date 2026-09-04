@@ -38,4 +38,19 @@ describe("ObservationIdentityBadges", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("User ID: observation-user")).toBeInTheDocument();
   });
+
+  it("does not add identity badges when only the trace has values", () => {
+    render(
+      <ObservationIdentityBadges
+        projectId="project"
+        observationSessionId={undefined}
+        observationUserId={null}
+        traceSessionId="trace-session"
+        traceUserId="trace-user"
+      />,
+    );
+
+    expect(screen.queryByText(/Session:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/User ID:/)).not.toBeInTheDocument();
+  });
 });

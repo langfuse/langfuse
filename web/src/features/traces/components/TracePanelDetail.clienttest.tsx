@@ -121,6 +121,25 @@ describe("TracePanelDetail", () => {
     render(<TracePanelDetail />);
 
     expect(screen.getByTestId("trace-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("trace-summary")).toBeInTheDocument();
+  });
+
+  it("does not render an empty trace summary", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-t" });
+    const traceData = mockUseTraceData();
+    mockUseTraceData.mockReturnValue({
+      ...traceData,
+      trace: { id: "t", projectId: "p" },
+      aggregatedMetrics: {
+        ...traceData.aggregatedMetrics,
+        totalCost: null,
+        costDetails: undefined,
+      },
+    });
+
+    render(<TracePanelDetail />);
+
+    expect(screen.queryByTestId("trace-summary")).not.toBeInTheDocument();
   });
 
   it("preserves annotation mode without the trace summary", () => {
