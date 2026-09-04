@@ -867,6 +867,56 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getObservationByIdFromEventsTable startTimeLowerBound", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    it("prunes on start_time while absorbing trace-to-observation skew", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const observationStart = Date.now() - 5 * DAY_MS;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          start_time: observationStart,
+        }),
+      ]);
+
+      const atStart = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart),
+      });
+      expect(atStart?.id).toBe(observationId);
+
+      // Anchor one day after start (e.g. a trace whose timestamp trails the
+      // observation): still returned because the 2-day skew lookback covers it.
+      const withinSkew = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart + DAY_MS),
+      });
+      expect(withinSkew?.id).toBe(observationId);
+
+      // Anchor three days after start: the lower bound (anchor - 2 days) now
+      // excludes the observation, proving the bound actually prunes.
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: observationId,
+          projectId,
+          traceId,
+          startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
   maybe("getObservationsCountFromEventsTable", () => {
     it("should return 0 for non-existent project", async () => {
       const nonExistentProjectId = randomUUID();
