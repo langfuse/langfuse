@@ -4,18 +4,21 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  throwIfNoOrganizationAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
   getEnvironmentsForProject,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
@@ -66,6 +69,9 @@ export const projectsRouter = createTRPCRouter({
         action: "create",
         after: project,
       });
+
+      // Refresh org-scoped keys' baked projectIds now that a project exists.
+      await invalidateCachedOrgApiKeys(input.orgId);
 
       // Best-effort CHB metering signal; no-op unless the org is CHB-billed
       emitChbProjectEvent({
@@ -218,6 +224,9 @@ export const projectsRouter = createTRPCRouter({
         action: "delete",
       });
 
+      // Refresh org-scoped keys' baked projectIds now that a project is gone.
+      await invalidateCachedOrgApiKeys(ctx.session.orgId);
+
       // Soft-delete is the billing-relevant moment: the customer stops being
       // billable now, not when the async hard-delete worker finishes.
       emitChbProjectEvent({
@@ -314,6 +323,10 @@ export const projectsRouter = createTRPCRouter({
         ctx.prisma,
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
+
+      // Both orgs' org-scoped keys bake a projectId set that just changed.
+      await invalidateCachedOrgApiKeys(ctx.session.orgId);
+      await invalidateCachedOrgApiKeys(input.targetOrgId);
 
       // A transfer is a delete for the source org and a create for the
       // destination one. CHB's registry is keyed by (organizationId,

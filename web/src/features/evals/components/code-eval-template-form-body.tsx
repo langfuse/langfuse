@@ -1,3 +1,4 @@
+import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
   EditorView,
@@ -34,7 +35,6 @@ import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,

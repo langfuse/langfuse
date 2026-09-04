@@ -94,6 +94,7 @@ const session = {
 function prepare({
   v4BetaEnabled = false,
   foundEvaluatorIds = [evaluatorId],
+  missingPromptVariable = false,
 } = {}) {
   const batchActionCreate = vi
     .fn()
@@ -107,7 +108,37 @@ function prepare({
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
     },
     evaluator: {
-      findMany: vi.fn(async () => foundEvaluatorIds.map((id) => ({ id }))),
+      findMany: vi.fn(async (args?: { select?: { id?: boolean } }) => {
+        if (args?.select?.id) {
+          return foundEvaluatorIds.map((id) => ({ id }));
+        }
+        return foundEvaluatorIds.map((id) => ({
+          id,
+          name: "Quality",
+          type: "LLM_AS_JUDGE",
+          versions: [
+            {
+              prompt: missingPromptVariable
+                ? "Evaluate {{output}} {{input}}"
+                : "Evaluate {{output}}",
+              promptMessages: [
+                {
+                  role: "user",
+                  content: missingPromptVariable
+                    ? "Evaluate {{output}} {{input}}"
+                    : "Evaluate {{output}}",
+                },
+              ],
+              variableMapping: [
+                {
+                  templateVariable: "output",
+                  selectedColumnId: "output",
+                },
+              ],
+            },
+          ],
+        }));
+      }),
     },
   } as unknown as PrismaClient;
   const ctx = {
@@ -323,5 +354,144 @@ describe("batched evaluation version selection", () => {
 
     expect(context.batchActionCreate).not.toHaveBeenCalled();
     expect(mocks.queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("queues mapping overrides on the batch-eval payload", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+    const evaluatorMappings = [
+      {
+        evaluatorId,
+        variableMapping: [
+          { templateVariable: "output", selectedColumnId: "input" },
+        ],
+      },
+    ];
+
+    await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      evalVersion: "v2",
+      evaluatorMappings,
+    });
+
+    expect(context.prisma.evaluator.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { id: true } }),
+    );
+    expect(context.prisma.evaluator.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({ versions: expect.anything() }),
+      }),
+    );
+    expect(context.batchActionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          config: expect.objectContaining({
+            evalVersion: "v2",
+            evaluatorMappings,
+          }),
+        }),
+      }),
+    );
+    expect(mocks.queueAdd).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          evalVersion: "v2",
+          evaluatorMappings,
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("rejects mapping overrides without evaluator v2", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evaluatorMappings: [
+          {
+            evaluatorId,
+            variableMapping: [
+              { templateVariable: "output", selectedColumnId: "output" },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mapping override for an unselected evaluator", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+        evaluatorMappings: [
+          {
+            evaluatorId: "other-evaluator",
+            variableMapping: null,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than 100 evaluators", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: Array.from(
+          { length: 101 },
+          (_, index) => `evaluator-${index}`,
+        ),
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+  });
+
+  it("names the evaluator when a mapping is incomplete", async () => {
+    const context = prepare({
+      v4BetaEnabled: true,
+      missingPromptVariable: true,
+    });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+        evaluatorMappings: [{ evaluatorId, variableMapping: null }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining('Evaluator "Quality"'),
+    });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
   });
 });

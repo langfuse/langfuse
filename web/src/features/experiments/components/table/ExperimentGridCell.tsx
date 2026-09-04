@@ -38,10 +38,12 @@ import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { getScoreDataTypeExplanation } from "@/src/features/scores/lib/scoreColumns";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -275,6 +277,11 @@ const ScoreItem = ({
                 <span className="text-muted-foreground">Type:</span>
                 <span className="capitalize">{dataType.toLowerCase()}</span>
               </div>
+              {/* The side-by-side layout has no score column headers, so the
+                  type is explained here instead. */}
+              <p className="text-muted-foreground max-w-[260px]">
+                {getScoreDataTypeExplanation(dataType)}
+              </p>
             </div>
           </HoverCardContent>
         </HoverCard>
@@ -582,10 +589,10 @@ export const ExperimentGridCell = ({
             cell: ({ data }) => (
               <MetadataItem label="Total Cost">
                 <span className="inline-flex items-center gap-1 text-xs">
-                  {data.totalCost != null ? (
+                  {data.totalCost ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <NotRecordedMetric metric="cost" />
                   )}
                   {data.totalCostDiff && (
                     <DiffLabel
@@ -606,7 +613,7 @@ export const ExperimentGridCell = ({
                   {data.latencyMs != null ? (
                     latencyFormatter(data.latencyMs)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <NotRecordedMetric metric="latency" />
                   )}
                   {data.latencyDiff && (
                     <DiffLabel

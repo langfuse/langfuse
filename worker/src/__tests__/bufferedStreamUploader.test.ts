@@ -125,61 +125,166 @@ describe("BufferedStreamUploader", () => {
       expect(mock.uploadedParts[0].data.byteLength).toBe(10);
       expect(mock.uploadedParts[1].data.byteLength).toBe(5);
     });
+  });
 
-    it("should emit exact partSizeBytes for every non-final part when chunks do not divide evenly", async () => {
+  describe("equal-sized non-final parts", () => {
+    it("emits exact partSizeBytes non-final parts, splitting a chunk across a boundary", async () => {
       const mock = createMockStrategy();
       const uploader = new BufferedStreamUploader({
         ...defaultParams(mock.strategy),
         partSizeBytes: 10,
       });
 
-      // 7+6=13 and 3+9=12: flushing the whole buffer would emit unequal
-      // non-final parts. Slice to exact partSizeBytes instead.
-      const chunks = ["1234567", "abcdef", "xyz", "123456789"];
-      await uploader.upload(streamFrom(chunks));
-
-      expect(mock.uploadedParts).toHaveLength(3);
-      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[1].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[2].data.byteLength).toBe(5);
-      expect(
-        Buffer.concat(mock.uploadedParts.map((p) => p.data)).toString(),
-      ).toBe(chunks.join(""));
-    });
-
-    it("should coerce a fractional partSizeBytes to an integer byte length", async () => {
-      const mock = createMockStrategy();
-      const uploader = new BufferedStreamUploader({
-        ...defaultParams(mock.strategy),
-        partSizeBytes: 10.5,
-      });
-
-      // 15 bytes: floor(10.5)=10 full part + 5-byte remainder. A float
-      // part size would throw in Buffer.concat before this change.
-      await uploader.upload(streamFrom(["aaaaaaaaaa", "bbbbb"]));
+      // 4-byte chunks that do not align to the 10-byte boundary: "cccc" must
+      // be split so part 1 is exactly 10 bytes.
+      await uploader.upload(streamFrom(["aaaa", "bbbb", "cccc", "dddd"]));
 
       expect(mock.uploadedParts).toHaveLength(2);
-      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[1].data.byteLength).toBe(5);
+      expect(mock.uploadedParts[0].data).toEqual(Buffer.from("aaaabbbbcc"));
+      expect(mock.uploadedParts[1].data).toEqual(Buffer.from("ccdddd"));
     });
 
-    it("should slice a single oversized chunk into exact partSizeBytes parts", async () => {
+    it("splits a single oversized chunk into exact parts plus a remainder", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const mock = createMockStrategy();
+        const uploader = new BufferedStreamUploader({
+          ...defaultParams(mock.strategy),
+          partSizeBytes: 10,
+        });
+
+        await uploader.upload(streamFrom(["x".repeat(25)]));
+
+        expect(mock.uploadedParts.map((p) => p.data.byteLength)).toEqual([
+          10, 10, 5,
+        ]);
+        expect(Buffer.concat(mock.uploadedParts.map((p) => p.data))).toEqual(
+          Buffer.from("x".repeat(25)),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("returns an oversized chunk's non-final parts as their own allocation, not a view pinning the whole chunk", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const mock = createMockStrategy();
+        // Above Node's Buffer pool threshold so a copied slice gets a
+        // dedicated ArrayBuffer sized to the slice, while a subarray view
+        // would keep the full coalesced backing buffer.
+        const partSizeBytes = 8192;
+        const uploader = new BufferedStreamUploader({
+          ...defaultParams(mock.strategy),
+          partSizeBytes,
+        });
+
+        // One chunk spanning >2 parts: part 1 leaves >= a full part over.
+        await uploader.upload(
+          streamFrom(["x".repeat(partSizeBytes * 2 + 100)]),
+        );
+
+        const parts = [...mock.uploadedParts].sort(
+          (a, b) => a.partNumber - b.partNumber,
+        );
+        expect(parts.map((p) => p.data.byteLength)).toEqual([
+          partSizeBytes,
+          partSizeBytes,
+          100,
+        ]);
+        // Part 1 is copied, so its backing buffer is exactly the slice size
+        // rather than the full ~16 KiB coalesced chunk.
+        expect(parts[0].data.buffer.byteLength).toBe(partSizeBytes);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("splits a single chunk spanning many parts without a quadratic slowdown", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const mock = createMockStrategy();
+        const partSizeBytes = 1024;
+        const numParts = 2000; // one ~2 MiB chunk sliced into 2000 parts
+        const uploader = new BufferedStreamUploader({
+          ...defaultParams(mock.strategy),
+          partSizeBytes,
+          maxConcurrentParts: 5,
+        });
+
+        // Re-concatenating/re-copying the shrinking leftover on each of the
+        // 2000 slices would be O(chunkSize^2) and blow the test timeout;
+        // view-based slicing keeps it O(chunkSize).
+        await uploader.upload(
+          streamFrom(["x".repeat(partSizeBytes * numParts)]),
+        );
+
+        const parts = [...mock.uploadedParts].sort(
+          (a, b) => a.partNumber - b.partNumber,
+        );
+        expect(parts).toHaveLength(numParts);
+        expect(parts.every((p) => p.data.byteLength === partSizeBytes)).toBe(
+          true,
+        );
+        expect(parts.reduce((sum, p) => sum + p.data.byteLength, 0)).toBe(
+          partSizeBytes * numParts,
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("floors a fractional partSizeBytes so Buffer.concat does not throw", async () => {
       const mock = createMockStrategy();
       const uploader = new BufferedStreamUploader({
         ...defaultParams(mock.strategy),
-        partSizeBytes: 10,
+        partSizeBytes: 10.7,
       });
 
-      const largeChunk = "a".repeat(25);
-      await uploader.upload(streamFrom([largeChunk]));
+      await uploader.upload(streamFrom(["a".repeat(20)]));
 
-      expect(mock.uploadedParts).toHaveLength(3);
-      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[1].data.byteLength).toBe(10);
-      expect(mock.uploadedParts[2].data.byteLength).toBe(5);
-      expect(
-        Buffer.concat(mock.uploadedParts.map((p) => p.data)).toString(),
-      ).toBe(largeChunk);
+      expect(mock.uploadedParts.map((p) => p.data.byteLength)).toEqual([
+        10, 10,
+      ]);
+    });
+
+    it("coalesces very many small chunks into equal parts without a quadratic slowdown", async () => {
+      const mock = createMockStrategy();
+      const partSizeBytes = 1024 * 1024; // 1 MiB
+      const chunkBytes = 20;
+      const numChunks = 100_000; // ~52k chunks land in a single part
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        partSizeBytes,
+        maxConcurrentParts: 3,
+      });
+
+      // A generator stream avoids materializing all chunks in an array. This
+      // many chunks in a single part finishes near-instantly only if part
+      // assembly is linear in the byte count; a quadratic-per-chunk assembly
+      // would blow the test timeout.
+      const stream = Readable.from(
+        (function* () {
+          for (let i = 0; i < numChunks; i++) yield "x".repeat(chunkBytes);
+        })(),
+      );
+
+      await uploader.upload(stream);
+
+      const totalBytes = numChunks * chunkBytes;
+      const parts = [...mock.uploadedParts].sort(
+        (a, b) => a.partNumber - b.partNumber,
+      );
+      // Every part except the last must be exactly partSizeBytes.
+      for (const part of parts.slice(0, -1)) {
+        expect(part.data.byteLength).toBe(partSizeBytes);
+      }
+      expect(parts[parts.length - 1].data.byteLength).toBeLessThanOrEqual(
+        partSizeBytes,
+      );
+      expect(parts.reduce((sum, p) => sum + p.data.byteLength, 0)).toBe(
+        totalBytes,
+      );
     });
   });
 

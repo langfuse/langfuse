@@ -106,6 +106,17 @@ export type ListMonitorSeverityFilter = z.infer<
   typeof ListMonitorSeverityFilterSchema
 >;
 
+/** ListMonitorEvaluatorIdFilterSchema matches alerts connected to selected evaluators. */
+export const ListMonitorEvaluatorIdFilterSchema = z.object({
+  type: z.literal("stringOptions"),
+  column: z.literal("evaluatorId"),
+  operator: z.enum(["any of", "none of"]),
+  value: z.array(z.string()).min(1),
+});
+export type ListMonitorEvaluatorIdFilter = z.infer<
+  typeof ListMonitorEvaluatorIdFilterSchema
+>;
+
 /** ListMonitorTagsFilterSchema is the tags row of a ListMonitorFilter. */
 export const ListMonitorTagsFilterSchema = z.object({
   type: z.literal("arrayOptions"),
@@ -124,6 +135,7 @@ export const ListMonitorFilterSchema = z
   .array(
     z.discriminatedUnion("column", [
       ListMonitorSeverityFilterSchema,
+      ListMonitorEvaluatorIdFilterSchema,
       ListMonitorTagsFilterSchema,
     ]),
   )

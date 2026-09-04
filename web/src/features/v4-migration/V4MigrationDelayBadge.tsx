@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -6,7 +7,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {

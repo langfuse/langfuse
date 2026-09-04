@@ -313,7 +313,7 @@ types:
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
-      providedModelName:
+      model:
         type: optional<nullable<string>>
         docs: The model name as provided by the user
       internalModelId:

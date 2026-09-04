@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/src/components/ui/alert-dialog";
 import { useState } from "react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 type BatchExportRow = RouterOutputs["batchExport"]["all"]["exports"][number];
