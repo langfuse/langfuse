@@ -22,10 +22,9 @@ export default withMiddlewares({
     rateLimitResource: "datasets",
     // Writes a dataset-run-item event into the legacy dataset_run_items
     // ClickHouse table. events_only deployments no longer populate that table,
-    // so instead of writing anything we return a stable experiment id (== the
+    // so instead of writing a DRI we return a stable experiment id (== the
     // dataset run id) derived deterministically from (projectId, datasetId,
-    // runName). The trace ↔ experiment link is established through OTel
-    // experiment span attributes on ingestion instead.
+    // runName) and stamp experiment_* columns onto the linked trace's events.
     fn: async ({ body, auth, res }) => {
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
         return await buildStableDatasetRunItemResponseEventsOnly({
