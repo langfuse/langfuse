@@ -4,6 +4,7 @@ import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
   clickHouseQueryOutcomeRouteLabel,
+  clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "./queryOutcome";
 
@@ -51,6 +52,58 @@ describe("ClickHouse query outcome metric", () => {
         expect(clickHouseQueryOutcomeRouteLabel(route)).toBe("other");
       },
     );
+
+    // tRPC procedure paths and MCP tool names carry no method prefix and are
+    // code-defined, so they are matched verbatim against the bare allowlist.
+    it.each([
+      ["events.all", "events.all"],
+      ["listObservations", "listObservations"],
+    ])("labels the bare route %s verbatim", (route, expected) => {
+      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(expected);
+    });
+
+    it("counts an unlisted bare route under the catch-all label", () => {
+      expect(clickHouseQueryOutcomeRouteLabel("traces.byId")).toBe("other");
+    });
+  });
+
+  describe("table labels", () => {
+    it.each([
+      [
+        "SELECT * FROM events_full WHERE project_id = {p:String}",
+        "events_full",
+      ],
+      ["SELECT count() FROM events_core FINAL", "events_core"],
+      [
+        "SELECT * FROM observations o WHERE o.project_id = {p:String}",
+        "observations",
+      ],
+      ["SELECT * FROM traces WHERE id = {id:String}", "traces"],
+      ["SELECT * FROM scores WHERE project_id = {p:String}", "scores"],
+    ])("labels %s as %s", (query, expected) => {
+      expect(clickHouseQueryTableLabel(query)).toBe(expected);
+    });
+
+    it("prefers the events tables when several tables appear", () => {
+      expect(
+        clickHouseQueryTableLabel(
+          "SELECT * FROM events_full LEFT JOIN traces USING (id)",
+        ),
+      ).toBe("events_full");
+    });
+
+    it("does not match a table name inside a longer identifier", () => {
+      expect(
+        clickHouseQueryTableLabel("SELECT * FROM observations_batch_staging"),
+      ).toBe("other");
+      expect(clickHouseQueryTableLabel("SELECT * FROM traces_null")).toBe(
+        "other",
+      );
+    });
+
+    it("falls back to other for an unrecognised table", () => {
+      expect(clickHouseQueryTableLabel("SELECT 1")).toBe("other");
+    });
   });
 
   it("maps every ClickHouse resource error type to an outcome", () => {
@@ -62,15 +115,19 @@ describe("ClickHouse query outcome metric", () => {
   });
 
   it("emits the outcome with bounded tags", () => {
-    recordClickHouseQueryOutcome("timeout", {
-      tag_schema_version: "1",
-      surface: "publicapi",
-      route: "GET /api/public/v2/observations",
-      projectId: "project-1",
-      sdkName: "python",
-      sdkVersion: "3.12.0",
-      userAgent: "python-httpx/0.28.1",
-    });
+    recordClickHouseQueryOutcome(
+      "timeout",
+      {
+        tag_schema_version: "1",
+        surface: "publicapi",
+        route: "GET /api/public/v2/observations",
+        projectId: "project-1",
+        sdkName: "python",
+        sdkVersion: "3.12.0",
+        userAgent: "python-httpx/0.28.1",
+      },
+      "events_full",
+    );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -80,20 +137,30 @@ describe("ClickHouse query outcome metric", () => {
         outcome: "timeout",
         surface: "publicapi",
         route: "get_/api/public/v2/observations",
+        table: "events_full",
       },
     );
   });
 
   it("keeps unknown surfaces and unlabelled routes queryable", () => {
-    recordClickHouseQueryOutcome("success", {
-      tag_schema_version: "1",
-      surface: "unknown",
-    });
+    recordClickHouseQueryOutcome(
+      "success",
+      {
+        tag_schema_version: "1",
+        surface: "unknown",
+      },
+      "other",
+    );
 
     expect(recordIncrement).toHaveBeenCalledWith(
       CLICKHOUSE_QUERY_OUTCOME_METRIC,
       1,
-      { outcome: "success", surface: "unknown", route: "other" },
+      {
+        outcome: "success",
+        surface: "unknown",
+        route: "other",
+        table: "other",
+      },
     );
   });
 });
