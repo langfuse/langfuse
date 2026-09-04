@@ -79,7 +79,7 @@ describe("getActivationCostEstimates", () => {
     vi.useRealTimers();
   });
 
-  it("rejects backfill ranges longer than six months", () => {
+  it("rejects backfill ranges that start more than six months ago", () => {
     expect(() =>
       ActivationCostEstimatesSchema.parse({
         projectId: "project-id",
@@ -91,7 +91,7 @@ describe("getActivationCostEstimates", () => {
           to: new Date("2026-08-12T08:00:00.000Z"),
         },
       }),
-    ).toThrow("The time range cannot exceed six months.");
+    ).toThrow("The time range cannot start more than six months ago.");
   });
 
   it("scopes reads to the project and estimates the sampled seven-day total", async () => {

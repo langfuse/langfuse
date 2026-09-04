@@ -154,9 +154,13 @@ export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
       message: "The start of the time range must be before its end.",
       path: ["from"],
     })
-    .refine(({ from, to }) => from >= subMonths(to, 6), {
-      message: "The time range cannot exceed six months.",
+    .refine(({ from }) => from >= subMonths(new Date(), 6), {
+      message: "The time range cannot start more than six months ago.",
       path: ["from"],
+    })
+    .refine(({ to }) => to <= new Date(), {
+      message: "The time range cannot end in the future.",
+      path: ["to"],
     })
     .optional(),
 }).refine(

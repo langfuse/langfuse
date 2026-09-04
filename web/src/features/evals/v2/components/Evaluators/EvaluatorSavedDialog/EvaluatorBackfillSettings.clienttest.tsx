@@ -30,6 +30,15 @@ function renderSettings(
 }
 
 describe("EvaluatorBackfillSettings", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-04T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps advanced backfill controls collapsed by default", () => {
     const props = renderSettings();
 

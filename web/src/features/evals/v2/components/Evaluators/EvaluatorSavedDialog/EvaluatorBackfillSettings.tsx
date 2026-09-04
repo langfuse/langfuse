@@ -123,7 +123,7 @@ export function EvaluatorBackfillSettings({
                 type="date"
                 className="w-36"
                 value={format(range.from, "yyyy-MM-dd")}
-                min={format(subMonths(range.to, 6), "yyyy-MM-dd")}
+                min={format(subMonths(new Date(), 6), "yyyy-MM-dd")}
                 max={format(range.to, "yyyy-MM-dd")}
                 onChange={(event) => {
                   if (!event.target.value) return;

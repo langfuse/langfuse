@@ -480,10 +480,12 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const updateBackfillRange = (range: EvaluatorBackfillRange) => {
-    const latestAllowedStart = subMonths(range.to, 6);
+    const now = new Date();
+    const earliestAllowedStart = subMonths(now, 6);
     const nextRange = {
-      from: range.from < latestAllowedStart ? latestAllowedStart : range.from,
-      to: range.to > new Date() ? new Date() : range.to,
+      from:
+        range.from < earliestAllowedStart ? earliestAllowedStart : range.from,
+      to: range.to > now ? now : range.to,
     };
     setBackfillRange(nextRange);
     const filter =
