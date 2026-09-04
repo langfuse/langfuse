@@ -5,8 +5,9 @@ import { useMemo, useState } from "react";
 import { WandSparkles } from "lucide-react";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { cn } from "@/src/utils/tailwind";
+
+const SOURCE_CODE_PLACEHOLDER = "__langfuseInAppAgentSourceCodePath";
 
 type PayloadCode = {
   language: "python" | "typescript";
@@ -103,24 +104,25 @@ function unwrapMcpTextResult(value: unknown) {
 
 function StructuredToolPayload({ value }: { value: unknown }) {
   const codes = useMemo(() => findEvaluatorSourceCodes(value), [value]);
+  const jsonValue = useMemo(
+    () => replaceEvaluatorSourceCodes(value, codes),
+    [value, codes],
+  );
   const [activeCode, setActiveCode] = useState<PayloadCode | null>(null);
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="max-h-80 min-h-0 overflow-y-auto">
         <JSONView
-          json={value}
+          json={jsonValue}
           isLoading={false}
           collapseDepth={4}
           externalJsonCollapsed={activeCode !== null}
           onToggleCollapse={() => {
             setActiveCode(null);
           }}
-          customizeNode={({ node, indexOrName }) => {
-            const code =
-              indexOrName === "sourceCode"
-                ? codes.find(({ value }) => value === node)
-                : undefined;
+          customizeNode={({ node }) => {
+            const code = getPlaceholderSourceCode(node, codes);
 
             return code ? (
               <EvaluatorSourceCodeValue
@@ -168,6 +170,96 @@ function StructuredToolPayload({ value }: { value: unknown }) {
       ) : null}
     </div>
   );
+}
+
+function replaceEvaluatorSourceCodes(value: unknown, codes: PayloadCode[]) {
+  if (codes.length === 0) {
+    return value;
+  }
+
+  return replaceEvaluatorSourceCodesRecursive(
+    value,
+    new Map(codes.map((code) => [code.path, code])),
+    0,
+    "",
+  );
+}
+
+function replaceEvaluatorSourceCodesRecursive(
+  value: unknown,
+  codesByPath: Map<string, PayloadCode>,
+  depth: number,
+  path: string,
+): unknown {
+  if (depth > 6) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trimStart();
+    if (
+      value.length > 500_000 ||
+      (trimmedValue[0] !== "{" && trimmedValue[0] !== "[")
+    ) {
+      return value;
+    }
+
+    const nestedValue = deepParseJson(value, { maxDepth: 1 });
+    return nestedValue === value
+      ? value
+      : replaceEvaluatorSourceCodesRecursive(
+          nestedValue,
+          codesByPath,
+          depth + 1,
+          path,
+        );
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry, index) =>
+      replaceEvaluatorSourceCodesRecursive(
+        entry,
+        codesByPath,
+        depth + 1,
+        appendJsonPath(path, index),
+      ),
+    );
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const replacement: Record<string, unknown> = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nestedPath = appendJsonPath(path, key);
+    Object.defineProperty(replacement, key, {
+      configurable: true,
+      enumerable: true,
+      value: codesByPath.has(nestedPath)
+        ? { [SOURCE_CODE_PLACEHOLDER]: nestedPath }
+        : replaceEvaluatorSourceCodesRecursive(
+            nestedValue,
+            codesByPath,
+            depth + 1,
+            nestedPath,
+          ),
+      writable: true,
+    });
+  }
+
+  return replacement;
+}
+
+function getPlaceholderSourceCode(value: unknown, codes: PayloadCode[]) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const path = value[SOURCE_CODE_PLACEHOLDER];
+  return typeof path === "string"
+    ? codes.find((code) => code.path === path)
+    : undefined;
 }
 
 function EvaluatorSourceCodeValue({
@@ -320,16 +412,11 @@ function readEvaluatorSourceCodeFields(
     return null;
   }
 
-  const decodedSourceCode = decodeUnicodeInJson(value.sourceCode);
-
   return {
     language: value.sourceCodeLanguage === "PYTHON" ? "python" : "typescript",
     label: value.sourceCodeLanguage === "PYTHON" ? "Python" : "TypeScript",
     path: appendJsonPath(path, "sourceCode"),
-    value:
-      typeof decodedSourceCode === "string"
-        ? decodedSourceCode
-        : value.sourceCode,
+    value: value.sourceCode,
   } satisfies PayloadCode;
 }
 

@@ -156,6 +156,11 @@ const approvalToolErrorCountArguments = JSON.stringify({
       ...toolErrorCountDefinition.versions[0],
       sourceCode: `${toolErrorCountSource}\n\nconst healthMarker = "\\u2713";`,
     },
+    {
+      ...toolErrorCountDefinition.versions[0],
+      version: 2,
+      sourceCode: `${toolErrorCountSource}\n\nconst healthMarker = "\\u2713";`,
+    },
   ],
 });
 
@@ -490,9 +495,11 @@ export const ApprovalRequiredWithCode = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
-    await expect(canvas.getByText("sourceCode")).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Show in code block" }),
-    ).toBeVisible();
+    const showCodeButtons = canvas.getAllByRole("button", {
+      name: "Show in code block",
+    });
+    await expect(showCodeButtons).toHaveLength(2);
+    await userEvent.click(showCodeButtons[1]);
+    await expect(canvas.getByTitle("versions[1].sourceCode")).toBeVisible();
   },
 });
