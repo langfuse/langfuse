@@ -362,7 +362,11 @@ function LaneRows({
                   v.showBarLabels && "px-1",
                   OBSERVATION_TYPE_COLOR[type] ??
                     OBSERVATION_TYPE_FALLBACK_COLOR,
-                  isSelected && "ring-foreground/80 ring-1",
+                  // Selection: accent ring (the selection color of the tree
+                  // and timeline rows), offset so it reads on any bar color;
+                  // z-bump keeps the ring above later-painted neighbors.
+                  isSelected &&
+                    "ring-primary-accent ring-offset-background z-[1] ring-2 ring-offset-1",
                 )}
                 style={{
                   left: `${left}px`,
