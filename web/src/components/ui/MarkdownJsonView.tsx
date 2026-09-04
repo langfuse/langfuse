@@ -16,9 +16,7 @@ import { cn } from "@/src/utils/tailwind";
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-  canEnableMarkdown?: boolean;
   controlButtons?: React.ReactNode;
   /** When set, the header hosts expand/collapse so a long body is not the
       only place to find the control. */
@@ -32,9 +30,7 @@ type MarkdownJsonViewHeaderProps = {
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
   collapseControl,
   inset = false,

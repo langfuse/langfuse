@@ -49,6 +49,8 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
@@ -84,6 +86,8 @@ export function ConnectedObservationDetailView({
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
@@ -174,6 +178,13 @@ export function ConnectedObservationDetailView({
     if (tab === "scores") {
       refreshTraceScores();
     }
+    if (tab !== selectedTab) {
+      capture("trace_detail:detail_tab_switch", {
+        tab,
+        target: "observation",
+        ...analyticsDimensions,
+      });
+    }
     setGlobalSelectedTab(tab);
   };
 
@@ -211,10 +222,14 @@ export function ConnectedObservationDetailView({
 
   const handleBetaToggle = useCallback(
     (enabled: boolean) => {
+      capture("trace_detail:json_beta_toggle", {
+        enabled,
+        ...analyticsDimensions,
+      });
       setJsonBetaEnabled(enabled);
       setJsonViewPreference(enabled ? "json-beta" : "json");
     },
-    [setJsonBetaEnabled, setJsonViewPreference],
+    [setJsonBetaEnabled, setJsonViewPreference, capture, analyticsDimensions],
   );
 
   // states for the inline comments

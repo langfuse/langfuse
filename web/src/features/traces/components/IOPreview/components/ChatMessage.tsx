@@ -145,7 +145,6 @@ export function ChatMessage({
       <div className="hover:bg-muted transition-colors">
         <MarkdownJsonViewHeader
           title={title}
-          handleOnValueChange={() => {}}
           handleOnCopy={() => {
             // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
             // string fields are copied as real characters, like the rendered

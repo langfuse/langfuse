@@ -26,7 +26,6 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
-    "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -56,6 +55,17 @@ const events = {
     // Raw download from the JSON-view fallback shown when a field is too large
     // to render in the unvirtualized viewer (LFE-10989).
     "json_view_large_field_download",
+    // Detail-panel tab switch (Preview / Log View / Scores). `tab` is the
+    // target tab, `target` is trace vs observation. Answers whether the Log
+    // View and Scores tabs earn their place.
+    "detail_tab_switch",
+    // The JSON-view Beta switch (legacy JSON ↔ virtualized json-beta).
+    // `enabled` is the new value. Decides whether json-beta graduates.
+    "json_beta_toggle",
+    // Whole-section collapse chevrons on Input/Output/Metadata/Corrected
+    // Output. `section` is a fixed enum (never content), `collapsed` the new
+    // state. Informs future default-collapsed decisions.
+    "io_section_collapse_toggle",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
