@@ -105,6 +105,18 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
   return Object.keys(result).length > 0 ? result : undefined;
 });
 
+// OpenAI reports prompt-cache writes as `cache_write_tokens` inside
+// `prompt_tokens_details` / `input_tokens_details`. They are stored under
+// `input_cache_creation`, the usage type the OTel usage normalization emits for
+// cache writes and the one model prices carry, instead of the generic
+// `input_`-prefixed key.
+const OPENAI_INPUT_TOKENS_DETAILS_KEY_MAP: Record<string, string> = {
+  cache_write_tokens: "input_cache_creation",
+};
+
+const openAIInputTokensDetailsKey = (key: string): string =>
+  OPENAI_INPUT_TOKENS_DETAILS_KEY_MAP[key] ?? `input_${key}`;
+
 const OpenAICompletionUsageSchema = z
   .object({
     prompt_tokens: z.number().int().nonnegative(),
@@ -141,7 +153,7 @@ const OpenAICompletionUsageSchema = z
     if (prompt_tokens_details) {
       for (const [key, value] of Object.entries(prompt_tokens_details)) {
         if (value !== null && value !== undefined) {
-          result[`input_${key}`] = value;
+          result[openAIInputTokensDetailsKey(key)] = value;
           result.input = Math.max(result.input - (value ?? 0), 0);
         }
       }
@@ -196,7 +208,7 @@ const OpenAIResponseUsageSchema = z
     if (input_tokens_details) {
       for (const [key, value] of Object.entries(input_tokens_details)) {
         if (value !== null && value !== undefined) {
-          result[`input_${key}`] = value;
+          result[openAIInputTokensDetailsKey(key)] = value;
           result.input = Math.max(result.input - (value ?? 0), 0);
         }
       }
