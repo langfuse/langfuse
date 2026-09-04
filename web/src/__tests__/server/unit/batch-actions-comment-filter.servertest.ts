@@ -103,10 +103,11 @@ function prepare({
   const batchActionCreate = vi
     .fn()
     .mockResolvedValue({ id: "batch-action-id" });
+  const batchActionFindUnique = vi.fn().mockResolvedValue(null);
   const prisma = {
     batchAction: {
       create: batchActionCreate,
-      findUnique: vi.fn().mockResolvedValue(null),
+      findUnique: batchActionFindUnique,
     },
     jobConfiguration: {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
@@ -162,6 +163,7 @@ function prepare({
   return {
     prisma,
     batchActionCreate,
+    batchActionFindUnique,
     addToDataset: addToDatasetRouter.createCaller(ctx),
     runEvaluation: runEvaluationRouter.createCaller(ctx),
   };
@@ -415,7 +417,7 @@ describe("batched evaluation version selection", () => {
 
   it("returns an existing backfill for a repeated idempotency key", async () => {
     const context = prepare({ v4BetaEnabled: true });
-    context.prisma.batchAction.findUnique.mockResolvedValue({
+    context.batchActionFindUnique.mockResolvedValue({
       id: backfillIdempotencyKey,
       projectId,
       actionType: "observation-run-batched-evaluation",
