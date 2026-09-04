@@ -31,7 +31,7 @@ import {
   EvaluatorBackfillSettings,
   type EvaluatorBackfillRange,
   type EvaluatorBackfillWindow,
-} from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorBackfillSettings";
+} from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/EvaluatorBackfillSettings";
 import {
   DEFAULT_EVALUATOR_BACKFILL_ITEMS,
   MAX_EVALUATOR_BACKFILL_ITEMS,

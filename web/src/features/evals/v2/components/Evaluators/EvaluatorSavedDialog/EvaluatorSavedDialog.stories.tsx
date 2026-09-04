@@ -6,7 +6,7 @@ import { fn } from "storybook/test";
 import { EvaluatorSavedCostSummary } from "./EvaluatorSavedCostSummary";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
 import { EvaluatorSavedRuleFilterPreview } from "./EvaluatorSavedRuleFilterPreview";
-import { EvaluatorBackfillSettings } from "./EvaluatorBackfillSettings";
+import { EvaluatorBackfillSettings } from "../EvaluatorBackfillSettings/EvaluatorBackfillSettings";
 
 const meta = preview.meta({ component: EvaluatorSavedDialog });
 
