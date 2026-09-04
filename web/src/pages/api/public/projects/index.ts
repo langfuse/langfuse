@@ -1,10 +1,21 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  verifyOrgAuth,
+  verifyProjectAuthDirect,
+} from "@/src/features/auth/policy/shadow.direct";
+
+/** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
+const projectKeyRequired =
+  "Invalid API key. Are you using an organization key?";
+
+/** orgKeyRequired is the 403 body when the organization-scoped POST receives a non-organization key. */
+const orgKeyRequired =
+  "Invalid API key. Organization-scoped API key required for this operation.";
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,26 +30,21 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  }
-  // END CHECK AUTH
-
   if (req.method === "GET") {
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
-      return res.status(403).json({
-        message: "Invalid API key. Are you using an organization key?",
+    const authCheck = await verifyProjectAuthDirect({
+      req,
+      name: "Get Project",
+      action: "project:read",
+      scopeDeniedMessage: projectKeyRequired,
+    });
+    if (!authCheck.validKey) {
+      return res.status(authCheck.status).json({
+        message: authCheck.error,
       });
+    }
+    const projectId = authCheck.scope.projectId;
+    if (!projectId) {
+      return res.status(403).json({ message: projectKeyRequired });
     }
 
     try {
@@ -58,7 +64,7 @@ export default async function handler(
           },
         },
         where: {
-          id: authCheck.scope.projectId,
+          id: projectId,
           deletedAt: null,
         },
       });
@@ -84,14 +90,15 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    // Check if using an organization API key
-    if (
-      authCheck.scope.accessLevel !== "organization" ||
-      !authCheck.scope.orgId
-    ) {
-      return res.status(403).json({
-        message:
-          "Invalid API key. Organization-scoped API key required for this operation.",
+    const authCheck = await verifyOrgAuth({
+      req,
+      name: "Create Project",
+      action: "projects:read",
+      scopeDeniedMessage: orgKeyRequired,
+    });
+    if (!authCheck.validKey) {
+      return res.status(authCheck.status).json({
+        message: authCheck.error,
       });
     }
 
