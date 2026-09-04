@@ -1,6 +1,6 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 
-import { basename, dirname, resolve } from "path";
+import { dirname, resolve } from "path";
 
 import { fileURLToPath } from "url";
 import {
@@ -10,40 +10,6 @@ import {
 } from "./storybook-flat-story-titles";
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
-const DESIGN_COMPONENT_STORIES = [
-  "Accordion/Accordion",
-  "Alert/Alert",
-  "Avatar/Avatar",
-  "Badge/Badge",
-  "Callout/Callout",
-  "Checkbox/Checkbox",
-  "Codeblock/Codeblock",
-  "Dropzone/Dropzone",
-  "KeyboardShortcut/KeyboardShortcut",
-  "LangfuseIcon/LangfuseIcon",
-  "LangfuseLogo/LangfuseLogo",
-  "PasswordInput/PasswordInput",
-  "Progress/Progress",
-  "RadioGroup/RadioGroup",
-  "SearchInput/SearchInput",
-  "Spinner/Spinner",
-  "Switch/Switch",
-  "Tabs/Tabs",
-  "TextLink/TextLink",
-  "Toggle/Toggle",
-  "table/components/IOTableCell/IOTableCell",
-  "table/columns/createBadgeTableColumn",
-  "table/columns/createDateTableColumn",
-  "table/columns/createDropdownTableColumn",
-  "table/columns/createDurationTableColumn",
-  "table/columns/createIdTableColumn",
-  "table/columns/createItemBadgeTableColumn",
-  "table/columns/createNumberTableColumn",
-  "table/columns/createStatusTableColumn",
-  "table/columns/createTagsTableColumn",
-  "table/columns/createTextTableColumn",
-  "table/columns/createTokenUsageTableColumn",
-] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
 // Directories that get their own sidebar section instead of the flat
@@ -102,12 +68,12 @@ const config: StorybookConfig = {
       files: "**/*.mdx",
       titlePrefix: "Playground/Docs",
     },
-    // Reviewed components that are part of the design-system reference.
-    ...DESIGN_COMPONENT_STORIES.map((storyPath) => ({
+    // Components in the design-system are automatically shown under Design.
+    {
       directory: "../src/components/design-system",
-      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      files: `**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
-    })),
+    },
     // Design-system reference pages shown directly under Design.
     ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
       directory: "./docs",
@@ -117,15 +83,12 @@ const config: StorybookConfig = {
     // All other component stories belong to the flat Playground by default.
     // Outside components/design-system the exclusion is by path, so a generic
     // basename like Charts.stories.tsx elsewhere still reaches the Playground;
-    // inside design-system the curated names are negated by basename, which is
-    // safe there because those files are exactly the curated ones. Disjoint
-    // globs because !(...) matches a single path segment — which also means
+    // the design-system directory is excluded in full. Disjoint globs because
+    // !(...)
+    // matches a single path segment — which also means
     // `!(dir)/**` requires at least one leading segment, so files sitting
     // directly in the entry's directory need their own `*.stories` entry
-    // (hence the depth-one entries below). Caveat: picomatch
-    // treats !(Name) as a prefix negation here, so a design-system story whose
-    // basename merely starts with a curated name (e.g. ColorPicker) would be
-    // skipped too; give such a story a non-colliding basename or its own entry.
+    // (hence the depth-one entries below).
     {
       directory: "../src",
       files: `*.stories.${STORY_EXTENSIONS}`,
@@ -144,13 +107,6 @@ const config: StorybookConfig = {
     {
       directory: "../src/components",
       files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
-      titlePrefix: "Playground",
-    },
-    {
-      directory: "../src/components/design-system",
-      files: `**/!(${[...DESIGN_COMPONENT_STORIES, ...DESIGN_REFERENCE_STORIES]
-        .map((storyPath) => basename(storyPath))
-        .join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
   ],
