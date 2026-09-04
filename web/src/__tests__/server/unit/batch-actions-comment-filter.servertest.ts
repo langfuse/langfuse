@@ -317,6 +317,32 @@ describe("batched evaluation version selection", () => {
     );
   });
 
+  it("allows a capped batch when more observations match", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+    mocks.getObservationsCountFromEventsTable.mockResolvedValue(100_000);
+
+    await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      evalVersion: "v2",
+      sampling: 0.25,
+      rowLimit: 5_000,
+    });
+
+    expect(mocks.queueAdd).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          sampling: 0.25,
+          rowLimit: 5_000,
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
   it("rejects evaluator v2 for users outside fast preview", async () => {
     const context = prepare();
 
@@ -374,6 +400,8 @@ describe("batched evaluation version selection", () => {
       sourceTable: BatchEvalSourceTable.EVENTS,
       evalVersion: "v2",
       evaluatorMappings,
+      sampling: 0.25,
+      rowLimit: 5_000,
     });
 
     expect(context.prisma.evaluator.findMany).toHaveBeenCalledWith(
@@ -390,6 +418,8 @@ describe("batched evaluation version selection", () => {
           config: expect.objectContaining({
             evalVersion: "v2",
             evaluatorMappings,
+            sampling: 0.25,
+            rowLimit: 5_000,
           }),
         }),
       }),
@@ -400,6 +430,8 @@ describe("batched evaluation version selection", () => {
         payload: expect.objectContaining({
           evalVersion: "v2",
           evaluatorMappings,
+          sampling: 0.25,
+          rowLimit: 5_000,
         }),
       }),
       expect.anything(),

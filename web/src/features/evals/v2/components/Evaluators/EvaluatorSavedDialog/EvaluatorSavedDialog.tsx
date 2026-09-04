@@ -41,6 +41,8 @@ export function EvaluatorSavedDialog({
   open,
   mode,
   modeContentByMode,
+  backfillContent,
+  backfillExpanded,
   costSummary,
   canSubmit,
   isSubmitting,
@@ -54,6 +56,8 @@ export function EvaluatorSavedDialog({
   open: boolean;
   mode: EvaluatorSavedMode;
   modeContentByMode: Record<EvaluatorSavedMode, ReactNode>;
+  backfillContent: ReactNode;
+  backfillExpanded: boolean;
   costSummary: ReactNode;
   canSubmit: boolean;
   isSubmitting: boolean;
@@ -79,11 +83,16 @@ export function EvaluatorSavedDialog({
         <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1">
           <DialogTitle>Evaluator saved</DialogTitle>
           <DialogDescription>
-            Would you like to run this evaluator on incoming observations?
+            Choose which observations this evaluator should score.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="gap-0 p-0">
-          <div className="grid h-[22rem] grid-cols-[minmax(0,1fr)_15rem] overflow-hidden">
+          <div
+            className={cn(
+              "grid grid-cols-[minmax(0,1fr)_15rem] overflow-hidden",
+              backfillExpanded ? "h-[36rem]" : "h-[24rem]",
+            )}
+          >
             <div className="min-w-0 overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
               <h3 className="mb-2 text-sm font-bold">
                 Set up rule to run on incoming observations
@@ -137,6 +146,7 @@ export function EvaluatorSavedDialog({
                           <div className="mt-3 ml-6 min-w-0 pr-1">
                             {modeContentByMode[option.value]}
                           </div>
+                          {backfillContent}
                         </CollapsibleContent>
                       </div>
                     </Collapsible>

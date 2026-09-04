@@ -6,6 +6,7 @@ import { fn } from "storybook/test";
 import { EvaluatorSavedCostSummary } from "./EvaluatorSavedCostSummary";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
 import { EvaluatorSavedRuleFilterPreview } from "./EvaluatorSavedRuleFilterPreview";
+import { EvaluatorBackfillSettings } from "../EvaluatorBackfillSettings/EvaluatorBackfillSettings";
 
 const meta = preview.meta({ component: EvaluatorSavedDialog });
 
@@ -120,6 +121,26 @@ const unsupportedFilterModeContent = {
 const sharedArgs = {
   open: true,
   modeContentByMode,
+  backfillContent: (
+    <EvaluatorBackfillSettings
+      enabled={false}
+      canEnable
+      selectedWindow="7-days"
+      range={{
+        from: new Date("2026-08-28T00:00:00"),
+        to: new Date("2026-09-04T23:59:59.999"),
+      }}
+      maxItems={5_000}
+      maxAllowedItems={25_000}
+      matchingObservations={4_400}
+      isEstimating={false}
+      onEnabledChange={fn()}
+      onWindowChange={fn()}
+      onRangeChange={fn()}
+      onMaxItemsChange={fn()}
+    />
+  ),
+  backfillExpanded: false,
   canSubmit: true,
   isSubmitting: false,
   onModeChange: fn(),
@@ -149,9 +170,95 @@ export const FromTestFilters = meta.story({
         sampling={0.4}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
+        backfill={{ enabled: false }}
         onSamplingChange={fn()}
       />
     ),
+    primaryActionLabel: "Execute",
+  },
+});
+
+const backfillCostSummary = (
+  <EvaluatorSavedCostSummary
+    estimates={[
+      {
+        evaluatorId: "evaluator-1",
+        evaluatorName: "Conciseness",
+        matchingObservations: 4_400,
+        sampling: 1,
+        testRunCostUsd: 0.0017,
+        estimatedCostUsd: 7.48,
+      },
+    ]}
+    unavailableEstimateCount={0}
+    matchingObservations={4_400}
+    sampling={1}
+    isEstimating={false}
+    evaluatorType="LLM_AS_JUDGE"
+    backfill={{
+      enabled: true,
+      matchingObservations: 4_400,
+      maxItems: 5_000,
+      isEstimating: false,
+    }}
+    onSamplingChange={fn()}
+  />
+);
+
+export const WithBackfill = meta.story({
+  args: {
+    ...sharedArgs,
+    mode: "test-filters",
+    backfillContent: (
+      <EvaluatorBackfillSettings
+        enabled
+        canEnable
+        selectedWindow="7-days"
+        range={{
+          from: new Date("2026-08-28T00:00:00"),
+          to: new Date("2026-09-04T23:59:59.999"),
+        }}
+        maxItems={5_000}
+        maxAllowedItems={25_000}
+        matchingObservations={4_400}
+        isEstimating={false}
+        onEnabledChange={fn()}
+        onWindowChange={fn()}
+        onRangeChange={fn()}
+        onMaxItemsChange={fn()}
+      />
+    ),
+    backfillExpanded: true,
+    costSummary: backfillCostSummary,
+    primaryActionLabel: "Execute",
+  },
+});
+
+export const WithCustomBackfill = meta.story({
+  args: {
+    ...sharedArgs,
+    mode: "test-filters",
+    backfillContent: (
+      <EvaluatorBackfillSettings
+        enabled
+        canEnable
+        selectedWindow="custom"
+        range={{
+          from: new Date("2026-08-01T00:00:00"),
+          to: new Date("2026-09-04T23:59:59.999"),
+        }}
+        maxItems={5_000}
+        maxAllowedItems={25_000}
+        matchingObservations={21_420}
+        isEstimating={false}
+        onEnabledChange={fn()}
+        onWindowChange={fn()}
+        onRangeChange={fn()}
+        onMaxItemsChange={fn()}
+      />
+    ),
+    backfillExpanded: true,
+    costSummary: backfillCostSummary,
     primaryActionLabel: "Execute",
   },
 });
@@ -178,6 +285,7 @@ export const UnsupportedFilters = meta.story({
         sampling={0.4}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
+        backfill={{ enabled: false }}
         onSamplingChange={fn()}
       />
     ),
@@ -206,6 +314,7 @@ export const ExistingRule = meta.story({
         sampling={0.25}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
+        backfill={{ enabled: false }}
         onSamplingChange={null}
       />
     ),

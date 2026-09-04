@@ -15,6 +15,8 @@ const renderDialog = () => {
           "test-filters": null,
           "different-scope": null,
         }}
+        backfillContent={null}
+        backfillExpanded={false}
         costSummary={null}
         canSubmit
         isSubmitting={false}
