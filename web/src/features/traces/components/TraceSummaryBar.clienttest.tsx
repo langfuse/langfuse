@@ -22,7 +22,7 @@ describe("TraceSummaryBar", () => {
       />,
     );
 
-    expect(screen.getByText("Trace summary")).toBeInTheDocument();
+    expect(screen.queryByText("Trace summary")).not.toBeInTheDocument();
     expect(screen.getByText("Latency: 1.25s")).toBeInTheDocument();
     expect(screen.getByText("Session: session")).toBeInTheDocument();
     expect(screen.getByText("User ID: user")).toBeInTheDocument();

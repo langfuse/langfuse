@@ -1,7 +1,10 @@
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
+import {
+  TraceDataProvider,
+  useTraceData,
+} from "@/src/features/traces/contexts/TraceDataContext";
 import {
   ViewPreferencesProvider,
   useViewPreferences,
@@ -28,6 +31,7 @@ import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTime
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
+import { TraceSummaryBar } from "@/src/features/traces/components/TraceSummaryBar";
 
 import { useMemo } from "react";
 
@@ -190,17 +194,40 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph } = useViewPreferences();
+  const { showGraph, isAnnotationMode } = useViewPreferences();
+  const { trace, aggregatedMetrics } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
+  const hasTraceSummary =
+    trace.latency != null ||
+    Boolean(trace.sessionId) ||
+    Boolean(trace.userId) ||
+    (aggregatedMetrics.totalCost != null &&
+      aggregatedMetrics.costDetails != null);
 
-  return isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
-  ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      {!isAnnotationMode && hasTraceSummary ? (
+        <TraceSummaryBar
+          projectId={trace.projectId}
+          latencySeconds={trace.latency ?? null}
+          sessionId={trace.sessionId}
+          userId={trace.userId}
+          totalCost={aggregatedMetrics.totalCost}
+          costDetails={aggregatedMetrics.costDetails}
+        />
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {isMobile ? (
+          <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+        ) : (
+          <DesktopTraceContent
+            shouldShowGraph={shouldShowGraph}
+            desktopLayout={desktopLayout}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 

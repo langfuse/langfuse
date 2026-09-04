@@ -3,8 +3,7 @@
  *
  * Responsibility:
  * - Decide which detail view to show (Trace/Observation)
- * - Keep the trace summary visible above the selected detail view
- * - Delegate scrolling to the selected detail view
+ * - Minimal wrapper (scrollable container) for layout consistency
  *
  * Hooks:
  * - useSelection() - for selected node state
@@ -24,8 +23,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
-import { TraceSummaryBar } from "@/src/features/traces/components/TraceSummaryBar";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -38,20 +35,12 @@ function PanelMessage({ title, body }: { title: string; body: string }) {
 
 export function TracePanelDetail() {
   const { selectedNodeId } = useSelection();
-  const { isAnnotationMode } = useViewPreferences();
   const {
     trace,
     observations,
     serverScores: scores,
     corrections,
-    aggregatedMetrics,
   } = useTraceData();
-  const hasTraceSummary =
-    trace.latency != null ||
-    Boolean(trace.sessionId) ||
-    Boolean(trace.userId) ||
-    (aggregatedMetrics.totalCost != null &&
-      aggregatedMetrics.costDetails != null);
 
   // Resolved from the selected id, not from the tree: the observation list is
   // capped, so a selected observation may be missing from the tree while its
@@ -104,18 +93,6 @@ export function TracePanelDetail() {
   }, [selected, trace, observations, scores, corrections]);
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
-      {!isAnnotationMode && hasTraceSummary ? (
-        <TraceSummaryBar
-          projectId={trace.projectId}
-          latencySeconds={trace.latency ?? null}
-          sessionId={trace.sessionId}
-          userId={trace.userId}
-          totalCost={aggregatedMetrics.totalCost}
-          costDetails={aggregatedMetrics.costDetails}
-        />
-      ) : null}
-      <div className="min-h-0 flex-1">{content}</div>
-    </div>
+    <div className="bg-background h-full w-full overflow-y-auto">{content}</div>
   );
 }
