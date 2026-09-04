@@ -1,0 +1,68 @@
+{
+  "prefix": "otel-poc-s42-200x10h2",
+  "seed": 42,
+  "args": {
+    "filesTotal": 200,
+    "windows": 10,
+    "hugeFiles": 2
+  },
+  "sizeAnchors": "PRODUCTION_SCALE.md event-size quantiles, log-interpolated",
+  "hugeWindows": [
+    0,
+    7
+  ],
+  "generatedAt": "2026-08-20T14:38:36.238Z",
+  "complete": true,
+  "windows": [
+    {
+      "windowId": "w0000",
+      "files": 21,
+      "bytes": 77508309
+    },
+    {
+      "windowId": "w0001",
+      "files": 20,
+      "bytes": 27707631
+    },
+    {
+      "windowId": "w0002",
+      "files": 20,
+      "bytes": 14391288
+    },
+    {
+      "windowId": "w0003",
+      "files": 20,
+      "bytes": 21456018
+    },
+    {
+      "windowId": "w0004",
+      "files": 20,
+      "bytes": 17816434
+    },
+    {
+      "windowId": "w0005",
+      "files": 20,
+      "bytes": 18535816
+    },
+    {
+      "windowId": "w0006",
+      "files": 20,
+      "bytes": 29358159
+    },
+    {
+      "windowId": "w0007",
+      "files": 21,
+      "bytes": 87917508
+    },
+    {
+      "windowId": "w0008",
+      "files": 20,
+      "bytes": 14589733
+    },
+    {
+      "windowId": "w0009",
+      "files": 20,
+      "bytes": 19366398
+    }
+  ]
+}

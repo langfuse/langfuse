@@ -1,0 +1,8 @@
+{
+  "name": "poc-ch-load-bearing",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "protobufjs": "^7.6.5"
+  }
+}
