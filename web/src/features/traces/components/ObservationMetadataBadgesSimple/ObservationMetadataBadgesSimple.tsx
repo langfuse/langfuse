@@ -1,10 +1,16 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * Simple metadata badges for ObservationDetailView
- * Each badge handles its own null checks and returns null when data is unavailable
+ * Metadata text for the trace/observation headers and the trace summary strip.
+ *
+ * Two visual tiers, deliberately NOT chips (chips are for user-defined tags):
+ * - Measured metrics (latency, TTFT): plain muted text — measurements read as
+ *   typography, importance maps to visual weight.
+ * - User-supplied context (env, release, version): muted `key: value` text,
+ *   rendered only when set.
+ * Each element handles its own null checks and returns null when unavailable.
  */
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Clock } from "lucide-react";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({
@@ -14,7 +20,15 @@ export function LatencyBadge({
 }) {
   if (latencySeconds == null) return null;
 
-  return <Badge text={`Latency: ${formatIntervalSeconds(latencySeconds)}`} />;
+  return (
+    <span
+      title="Latency"
+      className="text-muted-foreground inline-flex items-center gap-1 text-xs"
+    >
+      <Clock className="size-3 shrink-0" aria-hidden />
+      {formatIntervalSeconds(latencySeconds)}
+    </span>
+  );
 }
 
 export function TimeToFirstTokenBadge({
@@ -25,9 +39,25 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <Badge
-      text={`Time to first token: ${formatIntervalSeconds(timeToFirstToken)}`}
-    />
+    <span title="Time to first token" className="text-muted-foreground text-xs">
+      TTFT {formatIntervalSeconds(timeToFirstToken)}
+    </span>
+  );
+}
+
+function KeyValueText({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  if (!value) return null;
+
+  return (
+    <span className="text-muted-foreground text-xs">
+      {label}: <span className="text-foreground/80">{value}</span>
+    </span>
   );
 }
 
@@ -36,9 +66,7 @@ export function EnvironmentBadge({
 }: {
   environment: string | null | undefined;
 }) {
-  if (!environment) return null;
-
-  return <Badge text={`Env: ${environment}`} />;
+  return <KeyValueText label="env" value={environment} />;
 }
 
 export function ReleaseBadge({
@@ -46,9 +74,7 @@ export function ReleaseBadge({
 }: {
   release: string | null | undefined;
 }) {
-  if (!release) return null;
-
-  return <Badge text={`Release: ${release}`} />;
+  return <KeyValueText label="release" value={release} />;
 }
 
 export function VersionBadge({
@@ -56,7 +82,5 @@ export function VersionBadge({
 }: {
   version: string | null | undefined;
 }) {
-  if (!version) return null;
-
-  return <Badge text={`Version: ${version}`} />;
+  return <KeyValueText label="version" value={version} />;
 }

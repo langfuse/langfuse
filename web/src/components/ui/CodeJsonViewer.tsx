@@ -34,6 +34,8 @@ export function JSONView(props: {
   json?: unknown;
   title?: string;
   hideTitle?: boolean;
+  /** Header controls (copy, expand) reveal on section hover instead of always. */
+  hoverControls?: boolean;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -180,6 +182,7 @@ export function JSONView(props: {
     >
       {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
+          hoverRevealControls={props.hoverControls}
           title={props.title}
           handleOnCopy={handleOnCopy}
           controlButtons={

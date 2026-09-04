@@ -12,6 +12,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -30,7 +31,6 @@ import {
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
-import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
@@ -114,9 +114,6 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  // Both formatted variants share the pretty layout; JSON views differ.
-  const isPrettyLikeView =
-    currentView === "pretty" || currentView === "pretty-beta";
 
   // A persisted "pretty-beta" preference clamps to "pretty" when the beta
   // tab is unavailable, so the highlighted tab matches the rendered parser.
@@ -291,7 +288,15 @@ export function TraceDetailView({
                 </TabsBarTrigger>
               )}
               {showScoresTab && (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                <TabsBarTrigger value="scores" className="gap-1">
+                  Scores
+                  {/* All scores of the trace (incl. observation-level) — the
+                      count must match what the tab's table lists. */}
+                  <ActionButtonCountBadge
+                    count={scores.length}
+                    variant="muted"
+                  />
+                </TabsBarTrigger>
               )}
 
               {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
@@ -399,21 +404,7 @@ export function TraceDetailView({
                 : "overflow-auto pb-4"
             }`}
           >
-            {/* Tags Section - scrolls with content except in JSON Beta (virtualized) */}
-            {trace.tags.length > 0 && (
-              <>
-                <div
-                  className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                >
-                  Tags
-                </div>
-                <div
-                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                >
-                  <TagList selectedTags={trace.tags} isLoading={false} />
-                </div>
-              </>
-            )}
+            {/* Tags render in the persistent TraceSummaryStrip, not here. */}
 
             {/* I/O Preview (includes metadata in both views) */}
             <IOPreview

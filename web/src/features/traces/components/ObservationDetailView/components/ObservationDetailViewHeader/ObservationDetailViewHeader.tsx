@@ -27,7 +27,20 @@ import { AnnotateDrawerController } from "@/src/features/scores/components/Annot
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import {
+  JumpToPlaygroundDropdownMenuController,
+  useJumpToPlayground,
+} from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import { JumpToPlaygroundMenu } from "@/src/features/playground/page/components/JumpToPlaygroundMenu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -37,13 +50,10 @@ import {
   VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
+  hasRenderableUsage,
   UsageBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
@@ -62,6 +72,7 @@ import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   ChevronDown,
+  Database,
   EllipsisVertical,
   ListPlus,
   LockIcon,
@@ -160,6 +171,23 @@ export const ObservationDetailViewHeader = memo(
     const datasetCount = existingDatasetItems.length;
     const hasExistingDatasetItems = datasetCount > 0;
 
+    // Playground availability for the combined "Add to" menu. The hook must
+    // run unconditionally; without IO it resolves to unavailable.
+    const playground = useJumpToPlayground({
+      source: "generation",
+      generation: observationWithIO ?? {
+        ...observation,
+        traceId: observation.traceId ?? null,
+        input: null,
+        output: null,
+        metadata: null,
+      },
+      analyticsEventName: "trace_detail:test_in_playground_button_click",
+    });
+    const showPlaygroundEntry = Boolean(
+      observationWithIO && isGenerationLike(observationWithIO.type),
+    );
+
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
@@ -193,14 +221,14 @@ export const ObservationDetailViewHeader = memo(
       subtreeMetrics?.costDetails ?? observation.costDetails;
 
     return (
-      <div className="@container shrink-0 space-y-2 border-b p-2">
+      <div className="@container shrink-0 space-y-2 p-3">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-center gap-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
+            <ItemBadge type={observation.type as ObservationType} />
             <span
               className={cn(
-                "mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
+                "mb-0 line-clamp-2 min-w-0 text-base font-bold break-all md:break-normal md:wrap-break-word",
                 isMobile && "flex-1",
               )}
             >
@@ -462,7 +490,7 @@ export const ObservationDetailViewHeader = memo(
                         ) : (
                           <MessageSquare className="h-4 w-4" />
                         )}
-                        <span className="text-sm">Add comment</span>
+                        <span className="text-sm">Comment</span>
                         {!disabled && commentCount ? (
                           <ActionButtonCountBadge count={commentCount} />
                         ) : null}
@@ -495,38 +523,64 @@ export const ObservationDetailViewHeader = memo(
                     >
                       {({ Anchor, openDropdown }) => (
                         <Anchor>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={!hasDatasetAccess}
-                            onClick={() => {
-                              if (hasExistingDatasetItems) {
-                                openDropdown();
-                                return;
-                              }
-
-                              captureNewDatasetItemFormOpen();
-                              openDialog();
-                            }}
-                          >
-                            {!hasExistingDatasetItems && hasDatasetAccess ? (
-                              <PlusIcon
-                                className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                            {hasExistingDatasetItems
-                              ? `In ${datasetCount} dataset(s)`
-                              : "Add to datasets"}
-                            {hasExistingDatasetItems ? (
-                              <ChevronDown className="ml-2 h-3 w-3" />
-                            ) : !hasDatasetAccess ? (
-                              <LockIcon
-                                className="ml-1.5 h-3 w-3"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                          </Button>
+                          {/* One "Add to" menu for the send-this-somewhere verbs
+                              (dataset, playground). */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="secondary" size="sm">
+                                <PlusIcon
+                                  className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
+                                  aria-hidden="true"
+                                />
+                                Add to
+                                <ChevronDown className="ml-2 h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                disabled={!hasDatasetAccess}
+                                onSelect={() => {
+                                  if (hasExistingDatasetItems) {
+                                    openDropdown();
+                                    return;
+                                  }
+                                  captureNewDatasetItemFormOpen();
+                                  openDialog();
+                                }}
+                              >
+                                <Database className="mr-2 h-4 w-4" />
+                                {hasExistingDatasetItems
+                                  ? `Dataset — in ${datasetCount}`
+                                  : "Dataset"}
+                                {!hasDatasetAccess && (
+                                  <LockIcon className="ml-auto h-3 w-3" />
+                                )}
+                              </DropdownMenuItem>
+                              {showPlaygroundEntry && (
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger
+                                    disabled={!playground.isAvailable}
+                                    title={playground.tooltipMessage}
+                                  >
+                                    <Terminal className="mr-2 h-4 w-4" />
+                                    Playground
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    <JumpToPlaygroundMenu
+                                      source="generation"
+                                      includeOutput={playground.includeOutput}
+                                      onIncludeOutputChange={
+                                        playground.setIncludeOutput
+                                      }
+                                      onPlaygroundAction={
+                                        playground.handlePlaygroundAction
+                                      }
+                                    />
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </Anchor>
                       )}
                     </ExistingDatasetItemsDropdownMenuController>
@@ -608,9 +662,9 @@ export const ObservationDetailViewHeader = memo(
                         variant="secondary"
                         size="sm"
                         disabled={disabled !== undefined}
-                        className="rounded-l-none rounded-r-md border-l-2"
+                        className="rounded-l-none rounded-r-md border-l px-1.5"
                       >
-                        <span className="relative mr-1 text-xs">
+                        <span className="relative text-xs">
                           <ChevronDown className="h-3 w-3" />
                           {totalCount > 0 && (
                             <AnnotationQueueItemCountBadge
@@ -624,35 +678,6 @@ export const ObservationDetailViewHeader = memo(
                   </AnnotationQueueItemDropdownMenuController>
                 </div>
               )}
-              {observationWithIO &&
-                isGenerationLike(observationWithIO.type) && (
-                  <JumpToPlaygroundDropdownMenuController
-                    source="generation"
-                    generation={observationWithIO}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                  >
-                    {({ Trigger, disabled, title }) => (
-                      <Trigger asChild>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={disabled}
-                          title={title}
-                          className={cn(
-                            "flex items-center gap-1",
-                            disabled
-                              ? "cursor-not-allowed opacity-50"
-                              : "cursor-pointer",
-                          )}
-                        >
-                          <Terminal className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Playground</span>
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </Trigger>
-                    )}
-                  </JumpToPlaygroundDropdownMenuController>
-                )}
               <CommentDrawerController
                 projectId={projectId}
                 objectId={observation.id}
@@ -677,7 +702,7 @@ export const ObservationDetailViewHeader = memo(
                     ) : (
                       <>
                         <MessageSquare className="h-3.5 w-3.5" />
-                        <span>Add comment</span>
+                        <span>Comment</span>
                         {!!commentCount ? (
                           <ActionButtonCountBadge count={commentCount} />
                         ) : null}
@@ -690,39 +715,28 @@ export const ObservationDetailViewHeader = memo(
           )}
         </div>
 
-        {/* Metadata badges */}
+        {/* Timestamp on its own line: sharing the title row broke with long
+            observation names. */}
+        {preparedDate ? (
+          <div
+            title={preparedDate.title}
+            className="text-muted-foreground text-xs"
+          >
+            {preparedDate.display}
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-2">
-          {/* Timestamp */}
-          {preparedDate ? (
-            <div className="flex flex-wrap items-center gap-1 text-sm">
-              <span title={preparedDate.title}>{preparedDate.display}</span>
-            </div>
-          ) : null}
-
           {/* Other badges */}
           {!isAnnotationMode && (
             <CollapsibleBadgeRow>
+              {/* Measured metrics, then user-supplied context, then specialty
+                  badges. Session/user render once in the TraceSummaryStrip —
+                  in v4 every observation carries the trace's values. */}
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
-                projectId={projectId}
-              />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
-              />
-              <EvaluatorBadge
-                evaluatorId={evaluatorId}
-                evaluatorName={evaluator.data?.name}
-                environment={observation.environment}
-                projectId={projectId}
-              />
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
               {displayedTotalCost != null && displayedCostDetails && (
                 <CostBadge
                   totalCost={displayedTotalCost}
@@ -749,7 +763,13 @@ export const ObservationDetailViewHeader = memo(
               )}
               {subtreeMetrics
                 ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails && (
+                  subtreeMetrics.usageDetails &&
+                  hasRenderableUsage({
+                    inputUsage: subtreeMetrics.inputUsage,
+                    outputUsage: subtreeMetrics.outputUsage,
+                    totalUsage: subtreeMetrics.totalUsage,
+                    usageDetails: subtreeMetrics.usageDetails,
+                  }) && (
                     <UsageBadge
                       inputUsage={subtreeMetrics.inputUsage}
                       outputUsage={subtreeMetrics.outputUsage}
@@ -758,7 +778,13 @@ export const ObservationDetailViewHeader = memo(
                     />
                   )
                 : isGenerationLike(observation.type) &&
-                  observation.usageDetails && (
+                  observation.usageDetails &&
+                  hasRenderableUsage({
+                    inputUsage,
+                    outputUsage,
+                    totalUsage,
+                    usageDetails: observation.usageDetails,
+                  }) && (
                     <UsageBadge
                       inputUsage={inputUsage}
                       outputUsage={outputUsage}
@@ -766,12 +792,19 @@ export const ObservationDetailViewHeader = memo(
                       usageDetails={observation.usageDetails}
                     />
                   )}
-              <VersionBadge version={observation.version} />
               <ModelBadge
                 model={observation.model}
                 internalModelId={observation.internalModelId}
                 projectId={projectId}
-                usageDetails={observation.usageDetails}
+              />
+              <EnvironmentBadge environment={observation.environment} />
+              <ReleaseBadge release={observation.release} />
+              <VersionBadge version={observation.version} />
+              <EvaluatorBadge
+                evaluatorId={evaluatorId}
+                evaluatorName={evaluator.data?.name}
+                environment={observation.environment}
+                projectId={projectId}
               />
               <ModelParametersBadges
                 modelParameters={observation.modelParameters}
