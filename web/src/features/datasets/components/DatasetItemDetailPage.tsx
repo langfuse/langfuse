@@ -60,10 +60,16 @@ export const DatasetItemDetailPage = ({
     (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
   );
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const routeReady =
+    Boolean(projectId) && Boolean(datasetId) && Boolean(itemId);
+
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: routeReady },
+  );
   const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
@@ -71,6 +77,7 @@ export const DatasetItemDetailPage = ({
       datasetItemId: itemId,
     },
     {
+      enabled: routeReady,
       refetchOnWindowFocus: false, // breaks dirty form state
     },
   );
