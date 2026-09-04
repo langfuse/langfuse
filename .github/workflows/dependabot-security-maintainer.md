@@ -130,7 +130,10 @@ steps:
             cve: $m.cve,
             package: $m.pkg,
             installed_version: $m.ver,
-            image: ((.most_recent_instance.category // "") | split("/") | .[2]),
+            image: ((.most_recent_instance.category // "")
+                    | if startswith("snyk-container-") then ltrimstr("snyk-container-")
+                      elif startswith("Snyk/Container/") then (split("/") | .[2])
+                      else null end),
             location: .most_recent_instance.location.path,
             title: .rule.description,
             fix: (((.rule.help // "") | capture("(?<fix>Upgrade [^\\n]*? or higher\\.)") | .fix) // null),
