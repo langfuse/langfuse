@@ -1,0 +1,251 @@
+name: Langfuse Skills Sync
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: langfuse-skills-sync
+  cancel-in-progress: true
+
+env:
+  BOT_BRANCH: langfuse-skills-sync-bot
+
+jobs:
+  sync:
+    if: github.repository == 'langfuse/langfuse'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    outputs:
+      has_changes: ${{ steps.prepare.outputs.has_changes }}
+      branch_name: ${{ steps.prepare.outputs.branch_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install skill sync dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm --filter @repo/langfuse-skills install --frozen-lockfile
+
+      - name: Refresh embedded skills
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm --filter @repo/langfuse-skills run sync
+
+      - name: Validate and prepare pull request artifact
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No skill changes detected."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "branch_name=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          allowed_file='packages/langfuse-skills/src/generated/skills.js'
+          for changed_file in "${changed_files[@]}"; do
+            if [ "$changed_file" != "$allowed_file" ]; then
+              echo "::error::Skill sync changed a file outside the generated catalog: $changed_file"
+              exit 1
+            fi
+          done
+
+          mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
+          if [ "${#untracked_files[@]}" -gt 0 ]; then
+            git add -N -- "${untracked_files[@]}"
+          fi
+
+          pnpm --filter @repo/langfuse-skills run sync:check
+          git diff --check -- "${changed_files[@]}"
+
+          changed_line_count="$(
+            git diff --numstat -- "${changed_files[@]}" \
+              | awk '{ added += $1; deleted += $2 } END { print added + deleted + 0 }'
+          )"
+          if [ "$changed_line_count" -gt 10000 ]; then
+            echo "::error::Skill sync diff is unexpectedly large: ${changed_line_count} changed lines"
+            exit 1
+          fi
+
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git \
+            -c core.hooksPath=/dev/null add -- "${changed_files[@]}"
+          mapfile -t staged_files < <(git diff --cached --name-only)
+          if [ "${#staged_files[@]}" -ne 1 ] || [ "${staged_files[0]}" != "$allowed_file" ]; then
+            echo "::error::Refusing to commit unexpected staged files"
+            exit 1
+          fi
+
+          staged_blob="$RUNNER_TEMP/langfuse-skills.js"
+          git show ":$allowed_file" > "$staged_blob"
+          if ! cmp -s "$allowed_file" "$staged_blob"; then
+            echo "::error::Staged skill catalog differs from the worktree"
+            exit 1
+          fi
+          node --check "$staged_blob"
+          git diff --cached --check -- "${staged_files[@]}"
+
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
+          git -c core.hooksPath=/dev/null commit --no-verify \
+            -m "chore(skills): refresh embedded Langfuse skills"
+
+          pnpm --filter @repo/langfuse-skills run sync:check
+          git format-patch -1 --stdout HEAD > "$RUNNER_TEMP/langfuse-skills-sync.patch"
+          test -s "$RUNNER_TEMP/langfuse-skills-sync.patch"
+
+          {
+            echo "Automated refresh of the embedded Langfuse skill catalog."
+            echo
+            echo "## Scope"
+            echo
+            echo "- Refreshes \`packages/langfuse-skills/src/generated/skills.js\` from the upstream Langfuse skills repository."
+            echo
+            echo "## Validation"
+            echo
+            echo "- \`pnpm --filter @repo/langfuse-skills run sync:check\`"
+            echo "- \`node --check\` on the staged generated module"
+            echo "- \`git diff --check\`"
+            echo
+            echo "## Diff Stat"
+            echo
+            echo '```text'
+            git show --stat --oneline HEAD
+            echo '```'
+          } > "$RUNNER_TEMP/langfuse-skills-sync-pr-body.md"
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BOT_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pull request artifact
+        if: steps.prepare.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: langfuse-skills-sync-pr
+          path: |
+            ${{ runner.temp }}/langfuse-skills-sync.patch
+            ${{ runner.temp }}/langfuse-skills-sync-pr-body.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: sync
+    if: needs.sync.outputs.has_changes == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - name: Download pull request artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: langfuse-skills-sync-pr
+          path: ${{ runner.temp }}/langfuse-skills-sync-pr
+
+      - name: Push branch and create or update pull request
+        env:
+          BRANCH_NAME: ${{ needs.sync.outputs.branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          PATCH_PATH="$RUNNER_TEMP/langfuse-skills-sync-pr/langfuse-skills-sync.patch"
+          BODY_PATH="$RUNNER_TEMP/langfuse-skills-sync-pr/langfuse-skills-sync-pr-body.md"
+          PUSH_REPO="$RUNNER_TEMP/push-langfuse-skills-sync"
+          SOURCE_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags --depth=100 \
+            "$SOURCE_REPO_URL" "$GITHUB_REF"
+          if ! "$GIT_BIN" -C "$PUSH_REPO" cat-file -e "$GITHUB_SHA^{commit}"; then
+            echo "::error::Triggering commit $GITHUB_SHA was not found in $GITHUB_REF history"
+            exit 1
+          fi
+
+          "$GIT_BIN" -C "$PUSH_REPO" checkout -q -b "$BRANCH_NAME" "$GITHUB_SHA"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.name "langfuse-bot"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.email "langfuse-bot@langfuse.com"
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" -c core.hooksPath=/dev/null am --3way "$PATCH_PATH"
+
+          mapfile -t applied_files < <(
+            "$GIT_BIN" -C "$PUSH_REPO" diff-tree --no-commit-id --name-only -r HEAD
+          )
+          if [ "${#applied_files[@]}" -ne 1 ] || \
+            [ "${applied_files[0]}" != "packages/langfuse-skills/src/generated/skills.js" ]; then
+            echo "::error::Refusing to push a patch with unexpected files"
+            exit 1
+          fi
+          "$GIT_BIN" -C "$PUSH_REPO" diff --check HEAD^ HEAD
+
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$BRANCH_NAME"
+
+          pr_number="$(
+            "$GH_BIN" pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$BRANCH_NAME" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [ -n "$pr_number" ]; then
+            "$GH_BIN" pr edit \
+              --repo "$GITHUB_REPOSITORY" \
+              "$pr_number" \
+              --title "chore(skills): refresh embedded Langfuse skills" \
+              --body-file "$BODY_PATH"
+            pr_url="$(
+              "$GH_BIN" pr view \
+                --repo "$GITHUB_REPOSITORY" \
+                "$pr_number" \
+                --json url \
+                --jq '.url'
+            )"
+          else
+            pr_url="$(
+              "$GH_BIN" pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --head "$BRANCH_NAME" \
+                --base main \
+                --title "chore(skills): refresh embedded Langfuse skills" \
+                --body-file "$BODY_PATH"
+            )"
+          fi
+
+          echo "Created or updated Langfuse skill sync PR: $pr_url"
+          echo "## Pull request" >> "$GITHUB_STEP_SUMMARY"
+          echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
