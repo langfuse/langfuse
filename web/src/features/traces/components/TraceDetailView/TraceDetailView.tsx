@@ -51,6 +51,7 @@ import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -242,7 +243,7 @@ export function TraceDetailView({
         parsedMetadata={parsedMetadata}
         projectId={projectId}
         traceScores={traceScores}
-        commentCount={comments.get(trace.id)}
+        commentCount={comments.get(traceNodeId(trace.id))}
         pendingSelection={pendingSelection}
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
