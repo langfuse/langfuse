@@ -148,40 +148,42 @@ function SessionTimelineObservation({
           {observation.startTime.toLocaleTimeString()}
         </time>
       </button>
-      <div className="flex min-w-0 flex-col gap-3">
-        {observation.metadataTruncated && !isTruncated ? (
-          <p className="text-muted-foreground text-xs">
-            Metadata was omitted because it is too large. Messages are parsed
-            from input and output only.
-          </p>
-        ) : null}
-        {isTruncated ? (
-          <TruncatedObservation
-            observation={observation}
-            onOpenInTraceView={onOpenInTraceView}
-          />
-        ) : parsed.type === "error" ? (
-          <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
-            <span className="text-destructive text-xs">
-              This observation could not be parsed.
-            </span>
-            <Button variant="outline" size="sm" onClick={onOpenInTraceView}>
-              Open trace
-            </Button>
-          </div>
-        ) : visibleMessages.length > 0 ? (
-          visibleMessages.map((message, index) => (
-            <SessionTimelineMessage
-              key={message.id ?? `${message.source}-${message.role}-${index}`}
-              message={message}
+      {observation.type !== "TOOL" ? (
+        <div className="flex min-w-0 flex-col gap-3">
+          {observation.metadataTruncated && !isTruncated ? (
+            <p className="text-muted-foreground text-xs">
+              Metadata was omitted because it is too large. Messages are parsed
+              from input and output only.
+            </p>
+          ) : null}
+          {isTruncated ? (
+            <TruncatedObservation
+              observation={observation}
+              onOpenInTraceView={onOpenInTraceView}
             />
-          ))
-        ) : parsed.messages.length === 0 || hasTimelineContent ? (
-          <div className="text-muted-foreground rounded-lg border border-dashed p-3 text-xs">
-            No conversational content
-          </div>
-        ) : null}
-      </div>
+          ) : parsed.type === "error" ? (
+            <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
+              <span className="text-destructive text-xs">
+                This observation could not be parsed.
+              </span>
+              <Button variant="outline" size="sm" onClick={onOpenInTraceView}>
+                Open trace
+              </Button>
+            </div>
+          ) : visibleMessages.length > 0 ? (
+            visibleMessages.map((message, index) => (
+              <SessionTimelineMessage
+                key={message.id ?? `${message.source}-${message.role}-${index}`}
+                message={message}
+              />
+            ))
+          ) : parsed.messages.length === 0 || hasTimelineContent ? (
+            <div className="text-muted-foreground rounded-lg border border-dashed p-3 text-xs">
+              No conversational content
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
