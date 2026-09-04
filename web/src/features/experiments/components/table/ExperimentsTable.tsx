@@ -428,13 +428,19 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
-    useExperimentsTableData({
-      projectId,
-      filterState,
-      orderByState,
-      paginationState,
-    });
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentCount,
+  } = useExperimentsTableData({
+    projectId,
+    filterState,
+    orderByState,
+    paginationState,
+  });
 
   // A score column that is empty for every experiment in view is noise, so only
   // create columns for the keys the metrics query actually returned. Undefined
@@ -920,6 +926,7 @@ export default function ExperimentsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              mergeSettingsIntoPopover
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               actionButtons={[
@@ -932,6 +939,16 @@ export default function ExperimentsTable({
               ]}
             />
           </div>
+
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentCount === 1
+                ? "most recent run"
+                : `${mostRecentCount} most recent runs`}{" "}
+              instead.
+            </div>
+          )}
 
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
