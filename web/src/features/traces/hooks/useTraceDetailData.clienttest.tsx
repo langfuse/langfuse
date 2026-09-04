@@ -10,12 +10,14 @@ const {
   mockUseEventsTraceData,
   mockTracesQuery,
   mockTraceReadConfigQuery,
+  mockIsProjectMember,
 } = vi.hoisted(() => ({
   mockUseReadPath: vi.fn(),
   mockUseSession: vi.fn(),
   mockUseEventsTraceData: vi.fn(),
   mockTracesQuery: vi.fn(),
   mockTraceReadConfigQuery: vi.fn(),
+  mockIsProjectMember: vi.fn(),
 }));
 
 vi.mock("@/src/features/events/hooks/useReadPath", () => ({
@@ -23,6 +25,9 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
+}));
+vi.mock("@/src/features/auth/hooks", () => ({
+  useIsAuthenticatedAndProjectMember: () => mockIsProjectMember(),
 }));
 vi.mock("@/src/features/events/hooks/useEventsTraceData", () => ({
   useEventsTraceData: (args: unknown) => mockUseEventsTraceData(args),
@@ -55,6 +60,7 @@ describe("useTraceDetailData (beta / events path)", () => {
     vi.clearAllMocks();
     mockUseReadPath.mockReturnValue({ isV4: true });
     mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockIsProjectMember.mockReturnValue(true);
     mockTraceReadConfigQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -127,6 +133,7 @@ describe("useTraceDetailData endpoint routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseReadPath.mockReturnValue({ isV4: false });
+    mockIsProjectMember.mockReturnValue(true);
     mockTraceReadConfigQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -248,6 +255,32 @@ describe("useTraceDetailData endpoint routing", () => {
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true, scopeToSession: true }),
     );
+  });
+
+  it("does not offer or fetch session scope for authenticated non-members", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockUseReadPath.mockReturnValue({ isV4: true });
+    mockIsProjectMember.mockReturnValue(false);
+    mockUseEventsTraceData.mockReturnValue({
+      data: { id: "t", sessionId: "s", public: true },
+      isLoading: false,
+      error: null,
+      isSessionScopeUnavailable: false,
+      truncatedAtObservations: undefined,
+    });
+
+    const { result } = renderHook(() =>
+      useTraceDetailData({
+        projectId: "p",
+        traceId: "t",
+        aggregationLevel: "session",
+      }),
+    );
+
+    expect(mockUseEventsTraceData).toHaveBeenCalledWith(
+      expect.objectContaining({ scopeToSession: false }),
+    );
+    expect(result.current.canAggregateBySession).toBe(false);
   });
 
   it("uses legacy endpoints for authenticated non-beta users", () => {

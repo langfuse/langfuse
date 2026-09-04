@@ -2,6 +2,7 @@ import { api } from "@/src/utils/api";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 import { useSession } from "next-auth/react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 /**
  * Single source of truth for fetching a trace's detail data, beta-aware (events
@@ -28,6 +29,7 @@ export function useTraceDetailData({
   const { isV4 } = useReadPath();
   const { status: sessionStatus } = useSession();
   const isUnauthenticated = sessionStatus === "unauthenticated";
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const traceReadConfig = api.public.traceReadConfig.useQuery(undefined, {
     enabled: isUnauthenticated,
     staleTime: Infinity,
@@ -81,7 +83,7 @@ export function useTraceDetailData({
       useEventsTraceSource,
     // A public trace grant does not grant access to sibling traces in its
     // potentially private session. Keep unauthenticated public reads trace-scoped.
-    scopeToSession: aggregationLevel === "session" && !isUnauthenticated,
+    scopeToSession: aggregationLevel === "session" && isProjectMember,
   });
 
   if (isTraceSourceLoading) {
@@ -124,7 +126,7 @@ export function useTraceDetailData({
           !eventsData.isSessionScopeUnavailable),
       isUnauthorized,
       isSessionScopeUnavailable: eventsData.isSessionScopeUnavailable,
-      canAggregateBySession: !isUnauthenticated && !!eventsData.data?.sessionId,
+      canAggregateBySession: isProjectMember && !!eventsData.data?.sessionId,
       isEventsTraceSource: true,
       truncatedAtObservations: eventsData.truncatedAtObservations,
     };
