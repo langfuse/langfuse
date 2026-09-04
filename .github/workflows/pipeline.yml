@@ -141,6 +141,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm i
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       # postinstall regenerates the shims, so a repairable drift is silently
       # fixed in the working tree rather than reported. Fail if that repair
       # changed anything tracked or produced a missing shim, so the committed
@@ -646,6 +648,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       - name: Load default env
         run: |
           write_test_env() {
@@ -841,6 +845,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
@@ -927,6 +933,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \

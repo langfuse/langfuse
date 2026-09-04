@@ -71,6 +71,7 @@ langfuse/
 |- web/                     # Next.js app (UI + tRPC + public REST)
 |- worker/                  # Queue consumers and background processing
 |- packages/shared/         # Shared domain, DB, queue contracts, repositories
+|- packages/native/         # Rust addon (napi-rs) loaded in-process by worker
 |- ee/                      # Enterprise package consumed by web
 |- generated/               # Generated API clients (do not hand-edit)
 |- fern/                    # API definition sources
@@ -79,7 +80,7 @@ langfuse/
 
 - Dependency direction:
   - `web` -> `@langfuse/shared`, `@langfuse/ee`
-  - `worker` -> `@langfuse/shared`
+  - `worker` -> `@langfuse/shared`, `@langfuse/native`
   - `@langfuse/ee` -> `@langfuse/shared`
   - `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
 - Queue payload schemas and queue-name contracts are owned by
@@ -150,6 +151,10 @@ langfuse/
 
 - `web/**`: `pnpm run lint` plus targeted web tests.
 - `worker/**`: `pnpm run lint` plus targeted worker tests.
+- `packages/native/**`: `pnpm --filter @langfuse/native run lint` (rustfmt +
+  clippy), then `pnpm --filter worker run typecheck` and the worker
+  `nativeHello` test. Building the worker needs a Rust toolchain
+  (`rustup`); see `packages/native/AGENTS.md`.
 - `packages/shared/**` non-schema changes:
   `pnpm run lint` plus one targeted web check and one targeted worker check.
 - `packages/shared/prisma/**` or `packages/shared/clickhouse/**`:

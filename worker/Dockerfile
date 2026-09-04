@@ -30,6 +30,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 
 WORKDIR /app
 
+# @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build`.
+# Alpine's packaged toolchain targets musl, which is what the runtime image
+# links against. Keep packages/native/rust-toolchain.toml on the same version.
+RUN apk add --no-cache rust cargo
+
 # First install the dependencies (as they change less often)
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml

@@ -13,3 +13,6 @@ README.md
 **/*.tsbuildinfo
 .git
 **/node_modules
+packages/native/target
+packages/native/*.node
+packages/native/*.node.sha256

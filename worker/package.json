@@ -36,6 +36,7 @@
     "@ag-ui/mastra": "1.1.1",
     "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
+    "@langfuse/native": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@aws-sdk/client-lambda-microvms": "catalog:",
     "@mastra/core": "1.46.0",

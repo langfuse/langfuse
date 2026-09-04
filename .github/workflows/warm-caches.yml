@@ -73,6 +73,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install Rust toolchain for @langfuse/native
+        uses: ./.github/actions/setup-rust
       - name: Load default env
         # Must stay byte-identical to the matching pipeline job: Turbo hashes
         # the whole .env, so even test-only differences invalidate the build.

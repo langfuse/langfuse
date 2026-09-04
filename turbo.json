@@ -130,7 +130,17 @@
     },
     "worker#dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      // The worker loads the Rust addon at startup, so it must be compiled
+      // before tsx starts the process.
+      "dependsOn": ["db:generate", "@langfuse/native#build"]
+    },
+    // `napi build` compiles a host-specific binary and Cargo already caches
+    // incrementally in target/, so never replay this task from the turbo cache.
+    "@langfuse/native#build": {
+      "dependsOn": [],
+      "cache": false,
+      "outputs": []
     }
   }
 }
