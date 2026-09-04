@@ -1,0 +1,137 @@
+---
+name: linear-work-rhythm
+description: |
+  Answer "what should I do today" for a Langfuse maintainer, from the tracker
+  rather than from memory: which projects you lead, which owe an update before
+  Monday planning, what shipped but is not finished, what is waiting on your
+  decision. Use on "what should I do today", "what's on my plate", "what should
+  I work on next", "prep my Monday update", "what did I say last week".
+---
+
+# The working rhythm, read live
+
+**Answer from the tracker, never from recall.** Ownership, health and dates
+change daily, and a plausible answer assembled from memory is worse than no
+answer because nobody can tell it is stale.
+
+Who the person is comes from `~/.config/langfuse/me.md`. If that file does not
+exist, run [`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) first — do
+not guess, and do not answer this question for an outside contributor, who owns
+none of it.
+
+**The rules behind every check below are the working agreement**, published in
+`content/handbook/tools-and-processes/using-linear.mdx` in
+`langfuse/langfuse-docs`. Read it rather than trusting this file for *what* is
+required; this file is only the set of queries that reveal where you stand
+against it. When the two disagree, the handbook wins and this file is the bug.
+
+## Do not hand-maintain the responsibility zone
+
+Derive it. What someone owns is exactly "the projects where they are lead", and
+that answer is one call old:
+
+```
+list_projects(member: "me", state: "started",
+              fields: [name, status, lead, targetDate, priority, labels, teams, url])
+```
+
+A local list of someone's projects is stale within a week — this repo has been
+burned by exactly that. `me.md` holds only the durable half: name, role, and the
+focus they described in their own words.
+
+## The five checks
+
+Run them, then report as **a short ranked list with the reason attached**, not a
+status dump. Ranking beats completeness: the point is what to do next, and a
+40-row table answers nothing.
+
+### 1. Updates owed before Monday planning
+
+The heaviest recurring obligation and the easiest to miss, because nothing
+notifies you.
+
+```
+get_status_updates(type: "project", user: "me", createdAt: "-P14D")
+```
+
+Compare against the in-progress projects from above. Any project with no update
+since the last Monday owes one. Say how stale each is in days — "last update 11
+days ago" lands, "stale" does not.
+
+An update carries health, progress since the last one, next step, blockers or
+decisions needed, and any target-date change. **The previous update's "next step"
+is where this week's goal already is** — read it before writing the new one, and
+say whether it happened. That is the whole value of the sequence.
+
+### 2. Shipped but not finished
+
+Issues sitting in **Merged** are the staging area between a merged PR and `Done`,
+and they exist so follow-ups get captured before the work leaves your view.
+
+```
+list_issues(assignee: "me", state: "Merged",
+            fields: [title, status, project, labels, updatedAt, url])
+```
+
+For each, ask the three questions the agreement puts at this step, and ask them
+out loud rather than assuming the answer is no:
+
+- **Does this need a docs page or an edit?** User-visible behaviour usually does.
+  The docs live in `langfuse/langfuse-docs` under `content/docs/`. If that repo is
+  not checked out, say so and give the clone command — a missing checkout is why
+  documentation silently stops happening.
+- **Does it need a changelog entry?** `changelog-writing` owns the shape.
+- **Did a customer ask for this?** If a customer request is linked, they get told.
+
+Then it can move to `Done` — by a human. Moving tracker state is not an agent's
+to do; propose it.
+
+An issue that has been in `Merged` for weeks is the signal this step is not
+running. Count them and lead with the number.
+
+### 3. Waiting on your decision
+
+Triage normally gets a decision within one working day. Check the triage state on
+your teams, and your own inbox-shaped work: things assigned to you that you have
+not moved, and requests routed to you as a feature owner.
+
+### 4. Your open bugs
+
+A weekly look at your own bugs, to catch what is slipping.
+
+```
+list_issues(assignee: "me", label: "bug", state: "started")
+```
+
+Also check unstarted bugs assigned to you — a bug nobody has begun is the one
+that slips.
+
+### 5. Lifecycle compliance, but only where it changes what you do
+
+Report a gap only when fixing it is the next action. In-progress projects need a
+*specific* target date; planned ones need owner, priority, a quarter-level target
+date, and a pod or function label. Missing labels across every project is one
+finding, not eight.
+
+Do not turn this into an audit. One line naming the pattern is more useful than
+a per-project table, and the agreement is explicit that this system stays
+lightweight.
+
+## Writing anything back
+
+Every write follows [`linear-agent-writes`](../linear-agent-writes/SKILL.md) —
+read it first. Two things specific to this skill:
+
+- **A project update is a status update, not a description edit or a comment.**
+  It is the owner's voice on their own project. Draft it, show it, and let them
+  post it or tell you to. Do not post one as if it were theirs.
+- **State changes are theirs**: moving `Merged` to `Done`, re-prioritising,
+  changing a target date, reassigning. Surface them as the recommendation they
+  are.
+
+## What this does not cover
+
+Clearing the notification inbox, support queues and pull-request review load are
+[`housekeeping`](../housekeeping/SKILL.md); this skill is the project-lead layer
+above it. For the reasoning behind a specific piece of work rather than its
+status, use [`linear-context-handover`](../linear-context-handover/SKILL.md).
