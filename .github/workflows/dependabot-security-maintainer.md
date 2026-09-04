@@ -87,7 +87,7 @@ tools:
 
 steps:
   - name: Setup pnpm
-    uses: pnpm/setup@v2.0.2
+    uses: pnpm/setup@v2.1.0
     with:
       dest: ${{ runner.temp }}/gh-aw/pnpm
       install: false
