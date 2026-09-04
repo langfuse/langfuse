@@ -54,6 +54,11 @@ than two sentences they read.
 
 ## How To Work
 
+- Know who you are working for before you assume what they may do. An outside
+  contributor and a Langfuse maintainer get different halves of this repo, and
+  the difference is derivable — `~/.config/langfuse/me.md` if it exists, else
+  `gh api repos/langfuse/langfuse --jq .permissions`. `langfuse-onboarding`
+  establishes it once and records it; never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file

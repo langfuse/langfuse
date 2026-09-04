@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 
 interface UseExperimentSearchProps {
@@ -20,18 +20,25 @@ export function useExperimentSearch({ projectId }: UseExperimentSearchProps) {
 
   const { experimentNames, isLoading } = useExperimentNames({ projectId });
 
-  // apply search query to experiment names
-  const filteredExperimentNames = experimentNames?.filter((name) =>
-    name.experimentName
-      .toLowerCase()
-      .includes(debouncedSearchQuery.toLowerCase()),
-  );
+  // Match the run name or its dataset, so typing a dataset name scopes the list
+  // the way the dataset filter does on the experiments table.
+  const filteredExperimentNames = useMemo(() => {
+    const needle = debouncedSearchQuery.trim().toLowerCase();
+    if (!needle) return experimentNames;
+
+    return experimentNames.filter(
+      (experiment) =>
+        experiment.experimentName.toLowerCase().includes(needle) ||
+        experiment.datasetName?.toLowerCase().includes(needle),
+    );
+  }, [experimentNames, debouncedSearchQuery]);
 
   return {
     searchQuery,
     setSearchQuery,
-    searchResults: filteredExperimentNames ?? [],
+    searchResults: filteredExperimentNames,
+    isSearchActive: debouncedSearchQuery.trim().length > 0,
     isLoading,
-    availableExperimentNames: experimentNames ?? [],
+    availableExperimentNames: experimentNames,
   };
 }
