@@ -599,6 +599,72 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("H. drops Next.js App Router Invalid URL on data: documents", () => {
+    // Real shape (LANGFUSE-60K): Electron loads the Next.js HTML as a
+    // `data:text/html,…` document. App Router does
+    // `new URL(canonicalUrl, window.location.href)` and Chromium throws
+    // because a data: URL is not a valid base. Mechanism is the global
+    // onerror handler; stack is Next.js Router only.
+    const dataDocumentInvalidUrlEvent = (
+      value: string,
+      url: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+        request: { url },
+      }) as ErrorEvent;
+
+    it("drops the Chromium constructor TypeError on a data: page URL", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          dataDocumentInvalidUrlEvent(
+            "Failed to construct 'URL': Invalid URL",
+            "data:text/html,<!DOCTYPE html><html></html>",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same TypeError when only tags.url is the data: document", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Failed to construct 'URL': Invalid URL",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+        tags: { url: "data:text/html,probe" },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(true);
+    });
+
+    it("drops the Firefox constructor wording on a data: page URL", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          dataDocumentInvalidUrlEvent(
+            "URL constructor: /health is not a valid URL",
+            "data:text/html,probe",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -921,6 +987,69 @@ describe("isDenylistedNoiseEvent", () => {
             },
           ],
         },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the same Invalid URL TypeError on an https page (real app bug)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Failed to construct 'URL': Invalid URL",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+        request: { url: "https://cloud.langfuse.com/project/abc/traces" },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Invalid URL TypeError even on a data: page", () => {
+      // Mechanism guard: captureException / capture_console must still surface.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("Failed to construct 'URL': Invalid URL", "TypeError"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Failed to construct 'URL': Invalid URL",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+        request: { url: "data:text/html,probe" },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a different TypeError on a data: page", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+        request: { url: "data:text/html,probe" },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
