@@ -879,6 +879,96 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
+  it("nests approval wait and continued tool under the parent invoke-model", () => {
+    const parentModelObservationId = getInAppAgentLlmCallObservationId(
+      "parent-run-1",
+      3,
+    );
+    const instrumentation = createInstrumentation({
+      forwardedProps: {
+        command: {
+          resume: {
+            approved: true,
+            rootRunId: "root-run-1",
+            approvalRequestedAt: "2026-08-14T10:00:05.000Z",
+            approvalDecidedAt: "2026-08-14T10:02:05.000Z",
+            approvalRequest: {
+              type: "tool_approval_request",
+              toolCallId: "tool-1",
+              toolName: "langfuse_updateDashboardWidget",
+              args: { name: "errors" },
+              runId: "parent-run-1",
+              parentModelObservationId,
+            },
+          },
+        },
+      },
+    });
+
+    instrumentation.recordToolCallApproval({
+      toolCallId: "tool-1",
+      status: "approved",
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "langfuse_updateDashboardWidget",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"name":"errors"}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: '{"updated":true}',
+      },
+    ]);
+    instrumentation.recordModelCallStart({
+      prompt: [{ role: "user", content: "hello" }],
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+    });
+
+    const parentTraceId = getInAppAgentInstrumentationTraceId("root-run-1");
+    const rootObservationId =
+      getInAppAgentInstrumentationObservationId("root-run-1");
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "span-create",
+      expect.objectContaining({
+        id: `${runId}-approval-wait`,
+        traceId: parentTraceId,
+        parentObservationId: parentModelObservationId,
+        name: "waiting for user approval for tool langfuse_updateDashboardWidget",
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "tool-create",
+      expect.objectContaining({
+        id: "tool-1",
+        traceId: parentTraceId,
+        parentObservationId: parentModelObservationId,
+        name: "langfuse_updateDashboardWidget",
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-create",
+      expect.objectContaining({
+        traceId: parentTraceId,
+        parentObservationId: rootObservationId,
+      }),
+    );
+  });
+
   it.each([
     { approved: true, status: "approved" as const },
     { approved: false, status: "rejected" as const },

@@ -142,6 +142,7 @@ type ApprovalContinuation = {
   rootRunId: string;
   toolCallId: string;
   toolName: string;
+  parentModelObservationId?: string;
   traceStartedAt?: Date;
   approvalRequestedAt?: Date;
   approvalDecidedAt?: Date;
@@ -296,8 +297,13 @@ export class InAppAgentInstrumentation {
     // Create the root observation immediately so tool/generation children
     // emitted during the run have a parent that already exists (avoids
     // orphans that attach to the trace as siblings of the late agent).
+    this.seedApprovalContinuationParents();
     this.emitRootAgentObservation({ metadata: this.metadata });
     this.emitApprovalWaitObservation();
+  }
+
+  getLastModelObservationId(): string | undefined {
+    return this.openModelObservationId ?? this.lastModelObservationId;
   }
 
   recordEvents(events: AgUiEvent[]) {
@@ -1059,6 +1065,19 @@ export class InAppAgentInstrumentation {
     return [...priorMessages, ...this.agentRunOutputMessages];
   }
 
+  private seedApprovalContinuationParents() {
+    const continuation = this.approvalContinuation;
+    if (!continuation?.parentModelObservationId) {
+      return;
+    }
+
+    this.lastModelObservationId = continuation.parentModelObservationId;
+    this.toolCallToModelObservationId.set(
+      continuation.toolCallId,
+      continuation.parentModelObservationId,
+    );
+  }
+
   private emitApprovalWaitObservation() {
     const continuation = this.approvalContinuation;
     if (!continuation) {
@@ -1076,7 +1095,8 @@ export class InAppAgentInstrumentation {
     this.enqueueObservation("span-create", {
       id: `${this.runId}-approval-wait`,
       traceId: this.traceId,
-      parentObservationId: this.rootObservationId,
+      parentObservationId:
+        continuation.parentModelObservationId ?? this.rootObservationId,
       name: `waiting for user approval for tool ${continuation.toolName}`,
       startTime: requestedAt,
       endTime,
@@ -1118,6 +1138,9 @@ function getApprovalContinuation(
     rootRunId,
     toolCallId: approvalRequest.toolCallId,
     toolName: approvalRequest.toolName,
+    ...(approvalRequest.parentModelObservationId
+      ? { parentModelObservationId: approvalRequest.parentModelObservationId }
+      : {}),
     ...(traceStartedAt ? { traceStartedAt: new Date(traceStartedAt) } : {}),
     ...(approvalRequestedAt
       ? { approvalRequestedAt: new Date(approvalRequestedAt) }
