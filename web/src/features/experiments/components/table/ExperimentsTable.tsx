@@ -467,7 +467,6 @@ export default function ExperimentsTable({
     const rows = experiments.rows ?? [];
     return {
       obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),
-      trace: collectScoreNameCoverage(rows.map((r) => r.traceItemScores)),
       experiment: collectScoreNameCoverage(rows.map((r) => r.experimentScores)),
     };
   }, [experiments, metricsLoading]);
