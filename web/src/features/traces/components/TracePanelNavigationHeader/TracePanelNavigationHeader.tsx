@@ -21,10 +21,7 @@ import {
   UnfoldVertical,
   Download,
   Loader2,
-  ListTree,
-  GanttChartSquare,
-  MoreHorizontal,
-  type LucideIcon,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,16 +33,12 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
-import {
-  TraceSettingsDropdown,
-  TraceViewOptionsMenuItems,
-} from "../TraceSettingsDropdown";
+import { TraceViewOptionsMenuItems } from "../TraceSettingsDropdown";
 import {
   downloadLegacyTraceAsJson,
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -56,7 +49,6 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
   onTogglePanel: () => void;
-  shouldPulseToggle?: boolean;
 }
 
 export function TracePanelNavigationHeader(
@@ -71,14 +63,12 @@ export function TracePanelNavigationHeader(
 function TracePanelNavigationHeaderCollapsed({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   return (
     <div className="flex w-full flex-row items-center justify-center p-2">
       <TracePanelNavigationButton
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={onTogglePanel}
-        shouldPulseToggle={shouldPulseToggle}
       />
     </div>
   );
@@ -87,7 +77,6 @@ function TracePanelNavigationHeaderCollapsed({
 function TracePanelNavigationHeaderExpanded({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
@@ -176,26 +165,20 @@ function TracePanelNavigationHeaderExpanded({
       }
     }, [isV4, observations, trace, capture, analyticsDimensions]);
 
-  const isTimelineView = viewMode === "timeline";
+  const activeView: TraceViewMode =
+    viewMode === "timeline"
+      ? "timeline"
+      : viewMode === "graph" && isGraphViewAvailable
+        ? "graph"
+        : "tree";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      {/* Responsive toolbar via container queries on this row's own width — no JS
-          measurement. The breakpoints are tuned to the row's actual content
-          minimums (all fixed-size icon buttons plus the search input's
-          min-width, so the sums are font-independent). Measured states:
-
-            ≥ 440px   switcher labels, minor tools and transport all inline
-            360-440   switcher icons-only, tools and transport still inline
-            < 360px   tools AND transport folded into the "…" menu; this row
-                      first overflows at 188px, well under the 260px panel min
-
-          Hence: labels < 440px → hidden; tools and the transport < 360px →
-          folded; search < 300px → narrower min-width (covers dragging to the
-          panel min). If you ADD anything to this row, re-measure and retune all
-          three — stale thresholds show up as a clipped switcher at default
-          widths, which is what the folding exists to prevent. */}
-      <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
+      {/* Toolbar: search, download, view-options menu, view switch. flex-wrap
+          lets the switch drop to its own line on a narrow panel instead of
+          clipping (text segments cannot shrink). A container query cannot
+          reach into the menu's portal, so menu contents never depend on it. */}
+      <div className="@container/navheader flex flex-row flex-wrap items-center justify-between gap-y-1 pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
             collapse the full-width tree/timeline into). */}
@@ -204,7 +187,6 @@ function TracePanelNavigationHeaderExpanded({
             <TracePanelNavigationButton
               isPanelCollapsed={isPanelCollapsed}
               onTogglePanel={onTogglePanel}
-              shouldPulseToggle={shouldPulseToggle}
             />
           </div>
         )}
@@ -222,53 +204,33 @@ function TracePanelNavigationHeaderExpanded({
           />
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
-          {/* Minor tools — inline when the panel is wide enough. */}
-          <div className="hidden flex-row items-center gap-0.5 @min-[360px]/navheader:flex">
-            <Button
-              onClick={handleToggleTreeNodes}
-              variant="ghost"
-              size="icon"
-              title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
-              className="h-7 w-7"
-            >
-              {isEverythingCollapsed ? (
-                <UnfoldVertical className="h-3.5 w-3.5" />
-              ) : (
-                <FoldVertical className="h-3.5 w-3.5" />
-              )}
-            </Button>
+          {/* Download stays inline (heavily used); lower-traffic tools live
+              in the view-options menu. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            title="Download trace as JSON"
+            className="h-7 w-7"
+          >
+            {isDownloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+          </Button>
 
-            <TraceSettingsDropdown
-              isGraphViewAvailable={isGraphViewAvailable}
-            />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleDownload}
-              disabled={isDownloading}
-              title="Download trace as JSON"
-              className="h-7 w-7"
-            >
-              {isDownloading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </div>
-
-          {/* …and folded into an overflow menu when it's narrow. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                title="More"
-                aria-label="More options"
-                className="h-7 w-7 @min-[360px]/navheader:hidden"
+                title="View options"
+                aria-label="View options"
+                className="h-7 w-7"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <SlidersHorizontal className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-64">
@@ -280,79 +242,74 @@ function TracePanelNavigationHeaderExpanded({
                 )}
                 {isEverythingCollapsed ? "Expand all" : "Collapse all"}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => handleDownload()}
-                disabled={isDownloading}
-              >
-                <Download className="mr-2 h-3.5 w-3.5" />
-                Download trace as JSON
-              </DropdownMenuItem>
-              <PlaybackMenuItems />
               <DropdownMenuSeparator />
-              <TraceViewOptionsMenuItems
-                isGraphViewAvailable={isGraphViewAvailable}
-              />
+              <TraceViewOptionsMenuItems />
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Playback transport + circular time-progress ring. View-agnostic:
-              shown in both Tree and Timeline views (see PlaybackControls) — and
-              folded into the overflow menu on a narrow panel, like the tools
-              above it. Two more 28px buttons are what tipped this row over: the
-              search input collapsed to "Se" and the switch clipped. */}
-          <div className="hidden flex-row items-center @min-[360px]/navheader:flex">
-            <PlaybackControls />
-          </div>
-
-          {/* Tree / Timeline segmented switch (labels collapse to icons when
-              the panel is narrow — see @container/navheader). */}
-          <ViewModeSwitch
-            isTimelineView={isTimelineView}
-            onSelect={(timeline) => {
-              // Clicking the already-active segment is a no-op — don't count it.
-              if (timeline !== isTimelineView) {
-                capture("trace_detail:view_mode_switch", {
-                  viewMode: timeline ? "timeline" : "tree",
-                  ...analyticsDimensions,
-                });
-              }
-              setViewMode(timeline ? "timeline" : null);
-            }}
-          />
           {/* When the detail panel is closed it shows its own collapsed rail
               with a "Show detail panel" button on the right edge (DetailPanel in
               TraceLayoutDesktop, mirroring the navigation panel's rail), so the
               header needs no re-open button of its own. */}
+        </div>
+        {/* The view switch is its own flex item so it wraps to a second line
+            on a narrow panel instead of clipping at the panel edge. */}
+        <div className="flex shrink-0 items-center">
+          <ViewModeSwitch
+            activeView={activeView}
+            showGraphSegment={isGraphViewAvailable}
+            onSelect={(view) => {
+              // Clicking the already-active segment is a no-op — don't count it.
+              if (view !== activeView) {
+                capture("trace_detail:view_mode_switch", {
+                  viewMode: view,
+                  ...analyticsDimensions,
+                });
+              }
+              setViewMode(view === "tree" ? null : view);
+            }}
+          />
         </div>
       </div>
     </Command>
   );
 }
 
+export type TraceViewMode = "tree" | "timeline" | "graph";
+
 function ViewModeSwitch({
-  isTimelineView,
+  activeView,
+  showGraphSegment,
   onSelect,
 }: {
-  isTimelineView: boolean;
-  onSelect: (timeline: boolean) => void;
+  activeView: TraceViewMode;
+  showGraphSegment: boolean;
+  onSelect: (view: TraceViewMode) => void;
 }) {
   return (
     <div className="bg-muted/60 ml-2 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
       <ViewModeSegment
-        active={!isTimelineView}
-        onClick={() => onSelect(false)}
-        icon={ListTree}
+        active={activeView === "tree"}
+        onClick={() => onSelect("tree")}
         label="Tree"
       />
       {/* One Timeline. What it IS depends on the Compact Timeline feature
           preview — see TracePanelNavigation — rather than on a third segment
           the user has to understand. */}
       <ViewModeSegment
-        active={isTimelineView}
-        onClick={() => onSelect(true)}
-        icon={GanttChartSquare}
+        active={activeView === "timeline"}
+        onClick={() => onSelect("timeline")}
         label="Timeline"
       />
+      {/* Graph is a full view, not a side panel — the segment only exists for
+          traces that have graph data (agent traces under the node cap). */}
+      {showGraphSegment && (
+        <ViewModeSegment
+          active={activeView === "graph"}
+          onClick={() => onSelect("graph")}
+          label="Graph"
+        />
+      )}
     </div>
   );
 }
@@ -360,12 +317,10 @@ function ViewModeSwitch({
 function ViewModeSegment({
   active,
   onClick,
-  icon: Icon,
   label,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: LucideIcon;
   label: string;
 }) {
   return (
@@ -375,14 +330,13 @@ function ViewModeSegment({
       aria-pressed={active}
       title={label}
       className={cn(
-        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
+        "flex h-6 items-center rounded-md px-2 text-xs font-bold transition-colors",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="@max-[440px]/navheader:hidden">{label}</span>
+      {label}
     </button>
   );
 }
