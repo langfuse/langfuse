@@ -944,38 +944,40 @@ export default function ExperimentItemsTable({
                     summary={summary}
                     comparisonName={primaryComparisonName}
                     filterMenu={
-                      <ScoreColumnFilterMenu
-                        targets={comparisonTargets}
-                        hasOrder={dataType !== "CATEGORICAL"}
-                        active={activeComparisonFilter}
-                        onSelect={(operator, comparisonExperimentId) => {
-                          if (!key) return;
-                          const nextFilter = {
-                            level,
-                            scoreKey: key,
-                            operator,
-                            comparisonExperimentId,
-                          };
-                          setScoreComparisonFilter(nextFilter);
-                        }}
-                        onClear={() =>
-                          activeComparisonFilter &&
-                          removeScoreComparisonFilter(activeComparisonFilter)
-                        }
-                      >
-                        {({ Trigger }) => (
-                          // The header cell sorts on click, so opening the menu
-                          // must not also reorder the table.
-                          <Trigger
-                            asChild
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <ScoreColumnFilterMenuTrigger
-                              isActive={Boolean(activeComparisonFilter)}
-                            />
-                          </Trigger>
-                        )}
-                      </ScoreColumnFilterMenu>
+                      comparisonTargets.length === 0 ? undefined : (
+                        <ScoreColumnFilterMenu
+                          targets={comparisonTargets}
+                          hasOrder={dataType !== "CATEGORICAL"}
+                          active={activeComparisonFilter}
+                          onSelect={(operator, comparisonExperimentId) => {
+                            if (!key) return;
+                            const nextFilter = {
+                              level,
+                              scoreKey: key,
+                              operator,
+                              comparisonExperimentId,
+                            };
+                            setScoreComparisonFilter(nextFilter);
+                          }}
+                          onClear={() =>
+                            activeComparisonFilter &&
+                            removeScoreComparisonFilter(activeComparisonFilter)
+                          }
+                        >
+                          {({ Trigger }) => (
+                            // The header cell sorts on click, so opening the menu
+                            // must not also reorder the table.
+                            <Trigger
+                              asChild
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <ScoreColumnFilterMenuTrigger
+                                isActive={Boolean(activeComparisonFilter)}
+                              />
+                            </Trigger>
+                          )}
+                        </ScoreColumnFilterMenu>
+                      )
                     }
                   />
                 ),
@@ -1865,10 +1867,12 @@ export default function ExperimentItemsTable({
         )}
 
         {/* Score comparison filters — evaluated over the loaded page */}
-        <ScoreComparisonFilterPills
-          pills={scoreComparisonPills}
-          onRemove={removeScoreComparisonFilter}
-        />
+        {scoreComparisonPills.length > 0 && (
+          <ScoreComparisonFilterPills
+            pills={scoreComparisonPills}
+            onRemove={removeScoreComparisonFilter}
+          />
+        )}
 
         {/* Filter Pills with Experiment Targeting */}
         {filtersByExperiment.length > 0 && (
