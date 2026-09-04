@@ -317,9 +317,9 @@ test("uses the pricing delta when the same model also becomes selectable", () =>
 test("rejects automated selectable-model removal", () => {
   const model = "gpt-4o";
   const { result } = runContract({
-    baseTypes: typesSource({ openAI: ["gpt-4.1", model] }),
+    baseTypes: typesSource({ openAI: ["gpt-4.1", model, "gpt-5"] }),
     basePrices: [pricingEntry(model)],
-    currentTypes: typesSource({ openAI: ["gpt-4.1"] }),
+    currentTypes: typesSource({ openAI: ["gpt-4.1", "gpt-5"] }),
     output: {
       ...structuredOutput([auditRow({ model, change: "updated" })]),
       pullRequestTitle: "chore(pricing): remove gpt-4o from playground",
@@ -414,7 +414,14 @@ test("clears model-controlled changedModels for non-model diffs", () => {
   const { normalizedOutput, result } = runContract({
     basePrices: [pricingEntry(model)],
     output: {
-      ...structuredOutput([auditRow({ model })]),
+      ...structuredOutput([
+        auditRow({
+          model,
+          officialSources: [],
+          priceConfirmed: "no",
+          usageKeyCoverageConfirmed: "yes",
+        }),
+      ]),
       changedModels: ["invented-model (added)"],
       pullRequestTitle: "chore(pricing): tighten audit workflow contract",
     },
@@ -423,10 +430,22 @@ test("clears model-controlled changedModels for non-model diffs", () => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(normalizedOutput.changedModels, []);
+  assert.equal(
+    normalizedOutput.modelsChecked[0].usageKeyCoverageConfirmed,
+    "no",
+  );
 });
 
 test("parses the checked-in selectable-model arrays", () => {
   const types = fs.readFileSync(repositoryTypesPath, "utf8");
+  assert.deepEqual(collectTypeModelChanges(types, types, ""), []);
+});
+
+test("tolerates pre-existing comments inside selectable-model arrays", () => {
+  const types = typesSource().replace(
+    '  "gpt-4o",',
+    '  // Current flagship\n  "gpt-4o",',
+  );
   assert.deepEqual(collectTypeModelChanges(types, types, ""), []);
 });
 
@@ -461,6 +480,18 @@ test("runs formatting cleanup before the extracted output contract", () => {
   assert.match(
     workflow,
     /run: node --test scripts\/model-price-audit\/\*\.test\.mjs/,
+  );
+  assert.equal(
+    workflow.match(
+      /run: node --test scripts\/model-price-audit\/\*\.test\.mjs/g,
+    ).length,
+    2,
+  );
+  assert.ok(
+    workflow.lastIndexOf(
+      "run: node --test scripts/model-price-audit/*.test.mjs",
+    ) > workflow.indexOf("      - name: Run Claude price audit"),
+    "guardrail tests must rerun after permitted workflow self-edits",
   );
   assert.doesNotMatch(workflow, /node <<'NODE' \| tee/);
 });

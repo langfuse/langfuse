@@ -98,7 +98,7 @@ const readSelectableModelArrays = (source, label) =>
       const models = match[1]
         .split("\n")
         .map((line) => line.trim())
-        .filter(Boolean)
+        .filter((line) => line && !line.startsWith("//"))
         .map((line) => {
           const modelMatch = line.match(/^"([^"]+)",(?:\s*\/\/.*)?$/u);
           if (!modelMatch) {
@@ -124,6 +124,15 @@ export function collectTypeModelChanges(baseTypes, currentTypes, typesDiff) {
   for (const { name } of selectableModelArrays) {
     const before = baseArrays.get(name);
     const after = currentArrays.get(name);
+    const currentModelNames = new Set(after.models.map(normalize));
+    const removedModels = before.models.filter(
+      (modelName) => !currentModelNames.has(normalize(modelName)),
+    );
+    if (removedModels.length > 0) {
+      throw new Error(
+        `Automated selectable-model removal is not allowed: ${removedModels.join(", ")}`,
+      );
+    }
     if (before.models[0] !== after.models[0]) {
       throw new Error(`${name} must keep its first default model unchanged`);
     }
@@ -143,15 +152,6 @@ export function collectTypeModelChanges(baseTypes, currentTypes, typesDiff) {
           provider: after.provider,
         });
       }
-    }
-    if (baseIndex !== before.models.length) {
-      const currentModelNames = new Set(after.models.map(normalize));
-      const removedModels = before.models.filter(
-        (modelName) => !currentModelNames.has(normalize(modelName)),
-      );
-      throw new Error(
-        `Automated selectable-model removal is not allowed: ${removedModels.join(", ")}`,
-      );
     }
   }
 
@@ -285,6 +285,30 @@ export function reconcileAuditOutput(
       "chore(pricing): record model price audit snapshot";
   }
 
+  const pricingChanges = collectPricingModelChanges(basePrices, currentPrices);
+  const typeModelChanges = collectTypeModelChanges(
+    baseTypes,
+    currentTypes,
+    typesDiff,
+  );
+  const removedPricingModels = pricingChanges.filter(
+    (change) => change.expectedChange === "removed",
+  );
+  if (removedPricingModels.length > 0) {
+    throw new Error(
+      `Automated pricing-entry removal is not allowed: ${removedPricingModels
+        .map((change) => change.modelName)
+        .join(", ")}`,
+    );
+  }
+  const expectedModelChanges = mergeModelChanges(
+    pricingChanges,
+    typeModelChanges,
+  );
+  const changedModelKeys = new Set(
+    expectedModelChanges.map((change) => normalize(change.modelName)),
+  );
+
   const modelKeys = new Set();
   for (const row of output.modelsChecked) {
     const key = `${row.provider}\u0000${row.model}`.toLowerCase();
@@ -308,7 +332,7 @@ export function reconcileAuditOutput(
     }
 
     if (unsupportedConfirmations.length > 0) {
-      if (hasRepositoryDiff) {
+      if (changedModelKeys.has(normalizeReportedModel(row.model))) {
         throw new Error(
           `Confirmed audit rows require an official source: ${row.model}`,
         );
@@ -338,31 +362,11 @@ export function reconcileAuditOutput(
     }
   }
 
-  const pricingChanges = collectPricingModelChanges(basePrices, currentPrices);
-  const typeModelChanges = collectTypeModelChanges(
-    baseTypes,
-    currentTypes,
-    typesDiff,
-  );
-  const removedPricingModels = pricingChanges.filter(
-    (change) => change.expectedChange === "removed",
-  );
-  if (removedPricingModels.length > 0) {
-    throw new Error(
-      `Automated pricing-entry removal is not allowed: ${removedPricingModels
-        .map((change) => change.modelName)
-        .join(", ")}`,
-    );
-  }
   const rowsByModel = new Map();
   for (const row of output.modelsChecked) {
     const key = normalizeReportedModel(row.model);
     rowsByModel.set(key, [...(rowsByModel.get(key) ?? []), row]);
   }
-  const expectedModelChanges = mergeModelChanges(
-    pricingChanges,
-    typeModelChanges,
-  );
   const expectedChangesByModel = new Map(
     expectedModelChanges.map((change) => [normalize(change.modelName), change]),
   );

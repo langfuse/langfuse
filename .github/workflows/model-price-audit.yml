@@ -326,6 +326,9 @@ jobs:
             echo "JSON"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Re-test audit guardrails after agent edits
+        run: node --test scripts/model-price-audit/*.test.mjs
+
       - name: Discard pricing-only formatting changes
         run: |
           set -euo pipefail
