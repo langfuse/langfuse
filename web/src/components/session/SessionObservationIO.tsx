@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import React from "react";
 import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -52,7 +51,6 @@ const TruncatedIOSection = ({
   fullLength: number;
   truncated: boolean;
 }) => {
-  if (value === null || value === undefined || value === "") return null;
   const text = typeof value === "string" ? value : JSON.stringify(value);
   const shown =
     text.length > PREVIEW_DISPLAY_CHARS
@@ -239,18 +237,26 @@ export const SessionObservationIO = ({
         This observation&apos;s input/output is too large to display in the
         session view.
       </p>
-      <TruncatedIOSection
-        label="Input"
-        value={observation.input}
-        fullLength={observation.inputLength}
-        truncated={observation.inputTruncated}
-      />
-      <TruncatedIOSection
-        label="Output"
-        value={observation.output}
-        fullLength={observation.outputLength}
-        truncated={observation.outputTruncated}
-      />
+      {observation.input !== null &&
+        observation.input !== undefined &&
+        observation.input !== "" && (
+          <TruncatedIOSection
+            label="Input"
+            value={observation.input}
+            fullLength={observation.inputLength}
+            truncated={observation.inputTruncated}
+          />
+        )}
+      {observation.output !== null &&
+        observation.output !== undefined &&
+        observation.output !== "" && (
+          <TruncatedIOSection
+            label="Output"
+            value={observation.output}
+            fullLength={observation.outputLength}
+            truncated={observation.outputTruncated}
+          />
+        )}
       {/* Metadata stays visible when I/O is truncated — it shipped with the
           observation and was always shown alongside I/O before the cap. */}
       {hasMetadataForDisplay && (
