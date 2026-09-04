@@ -74,6 +74,18 @@ export function TracePage({
       />
     );
 
+  if (trace.isError)
+    return (
+      <ErrorPage
+        title="Could not load trace"
+        message="Loading this trace failed. Reload the page to try again."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => window.location.reload(),
+        }}
+      />
+    );
+
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
   const isSessionScope =

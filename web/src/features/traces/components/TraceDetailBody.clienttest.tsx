@@ -101,4 +101,11 @@ describe("TraceDetailBody", () => {
 
     expect(screen.getByText("Observation details only")).toBeInTheDocument();
   });
+
+  it("renders an error instead of a loading skeleton when loading failed", () => {
+    render(<TraceDetailBody trace={undefined} context="peek" isError />);
+
+    expect(screen.getByText("Could not load trace")).toBeInTheDocument();
+    expect(screen.queryByTestId("trace state")).not.toBeInTheDocument();
+  });
 });

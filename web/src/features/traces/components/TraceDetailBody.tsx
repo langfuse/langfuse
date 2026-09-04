@@ -19,6 +19,7 @@ export function TraceDetailBody({
   truncatedAtObservations,
   showObservationOnly = false,
   sessionScopeRequested = false,
+  isError = false,
 }: {
   trace: TraceDetailData | undefined;
   context: "peek" | "fullscreen" | "annotation";
@@ -27,8 +28,21 @@ export function TraceDetailBody({
   truncatedAtObservations?: number;
   showObservationOnly?: boolean;
   sessionScopeRequested?: boolean;
+  isError?: boolean;
 }) {
-  if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
+  if (!trace) {
+    if (isError) {
+      return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-4 text-center">
+          <p className="text-sm font-bold">Could not load trace</p>
+          <p className="text-muted-foreground max-w-sm text-sm">
+            Loading this trace failed. Reload the page to try again.
+          </p>
+        </div>
+      );
+    }
+    return <Skeleton className="h-full w-full rounded-none" />;
+  }
   const sessionTraceEntries =
     "sessionTraceEntries" in trace ? trace.sessionTraceEntries : undefined;
   const traceKey =
