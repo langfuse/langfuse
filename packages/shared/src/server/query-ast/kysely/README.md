@@ -50,9 +50,15 @@ is where tenancy is enforced:
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
-3. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
+3. `DedupLoweringPlugin` applies the table's declared read idiom
+   (`none` / `limitBy` / `final`). `events_core` is `none` — immutable at
+   read time, so the pass does not inject LIMIT BY or FINAL. `limitBy` is
+   the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
+   `final` is fail-closed until an emitter exists. The pass restamps the
+   rewritten root.
+4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails.
-4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
+5. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
    `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
    own keyword fragments (`asc`/`desc`) are not relations.
 

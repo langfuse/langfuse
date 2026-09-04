@@ -1,6 +1,6 @@
 /**
  * Single source of truth for the physical ClickHouse relations the Kysely
- * compiler targets. One table declaration drives all three downstream views:
+ * compiler targets. One table declaration drives the downstream views:
  *
  *  - `ClickHouseDatabase` — the Kysely row types (column autocomplete and typed
  *    comparisons).
@@ -8,12 +8,14 @@
  *    pass consults (`typecheck.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
+ *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
+ *    (`dedup.ts`). Each table names an existing production mechanism; the
+ *    pass does not invent a new one.
  *
- * Deriving all three from one declaration keeps them from drifting apart.
+ * Deriving every view from one declaration keeps them from drifting apart.
  *
  * Column sets cover the relations the compiler targets, not a full schema
- * dump. Physical tuning metadata (partition / sort / dedup keys) is not
- * modeled here; dedup lowering will extend this same declaration.
+ * dump. Partition / sort keys stay unmodeled until a pass needs them.
  */
 
 /**
@@ -50,6 +52,26 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Map(String, Float)": "map",
 };
 
+/**
+ * Per-table read idiom. Must match a mechanism already used in production
+ * SQL for that table — the pass applies the declaration, it does not invent
+ * a new collapse.
+ *
+ *  - `none` — rows are treated as immutable at read time. No FINAL, no
+ *    LIMIT BY. Used for `events_core` / `events_full`.
+ *  - `limitBy` — the existing legacy idiom
+ *    `ORDER BY <version> DESC LIMIT 1 BY <key>` (traces / observations /
+ *    scores point and list reads).
+ *  - `final` — the existing `FROM <table> FINAL` idiom. Declaring it
+ *    without an emitter is a compile error (fail-closed).
+ */
+export type DedupStrategy = "none" | "limitBy" | "final";
+
+export type DedupSpec =
+  | { strategy: "none" }
+  | { strategy: "limitBy"; key: readonly string[]; version: string }
+  | { strategy: "final" };
+
 function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   columns: Cols;
   /**
@@ -59,8 +81,17 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
    * only for a genuinely global relation.
    */
   tenant?: boolean;
+  /**
+   * Existing read-time collapse for this table. Omit until the family is
+   * migrated; `none` is an explicit "do not collapse" (immutable rows).
+   */
+  dedup?: DedupSpec;
 }) {
-  return { columns: spec.columns, tenant: spec.tenant ?? true };
+  return {
+    columns: spec.columns,
+    tenant: spec.tenant ?? true,
+    dedup: spec.dedup,
+  };
 }
 
 const TABLE_REGISTRY = {
@@ -95,6 +126,8 @@ const TABLE_REGISTRY = {
       metadata_names: "Array(String)",
       metadata_values: "Array(String)",
     },
+    // Immutable at read time. Do not inject LIMIT BY or FINAL.
+    dedup: { strategy: "none" },
   }),
   scores: defineTable({
     columns: {
@@ -137,4 +170,11 @@ export const TENANTED_TABLES = new Set<string>(
   Object.entries(TABLE_REGISTRY)
     .filter(([, spec]) => spec.tenant)
     .map(([name]) => name),
+);
+
+/** Derived per-table read idioms, keyed by table name. */
+export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
+  Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
+    spec.dedup ? [[name, spec.dedup]] : [],
+  ),
 );

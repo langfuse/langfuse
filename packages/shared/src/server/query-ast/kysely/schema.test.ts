@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { COLUMN_DATA_TYPES, TENANTED_TABLES } from "./schema";
+import { COLUMN_DATA_TYPES, DEDUP_SPECS, TENANTED_TABLES } from "./schema";
 import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
 
 describe("table registry derivation", () => {
@@ -25,6 +25,13 @@ describe("table registry derivation", () => {
     expect(COLUMN_DATA_TYPES.timestamp).toBe("date");
     expect(COLUMN_DATA_TYPES.metadata_names).toBe("array");
     expect(COLUMN_DATA_TYPES.cost_details).toBe("map");
+  });
+
+  it("declares events_core as immutable and leaves legacy tables undeclared", () => {
+    expect(DEDUP_SPECS.events_core).toEqual({ strategy: "none" });
+    expect(DEDUP_SPECS.traces).toBeUndefined();
+    expect(DEDUP_SPECS.observations).toBeUndefined();
+    expect(DEDUP_SPECS.scores).toBeUndefined();
   });
 
   // The assertions themselves are compile-time (`tsc` is the test); this only
