@@ -15,19 +15,10 @@ interface Props {
   showLanguage?: boolean;
   /** Match immutable form fields instead of using the recessed code surface. */
   variant?: "default" | "read-only";
-  /** Constrain long read-only code to its own scroll area. */
-  maxHeight?: string | number;
 }
 
 const CodeBlock: FC<Props> = memo(
-  ({
-    language,
-    value,
-    theme,
-    showLanguage = true,
-    variant = "default",
-    maxHeight,
-  }) => {
+  ({ language, value, theme, showLanguage = true, variant = "default" }) => {
     const [isCopied, setIsCopied] = useState(false);
     const { resolvedTheme } = useTheme();
     const appliedTheme = theme ?? resolvedTheme;
@@ -95,7 +86,6 @@ const CodeBlock: FC<Props> = memo(
                 fontSize: "0.75rem",
                 fontFamily: "var(--font-mono)",
                 overflow: "auto",
-                maxHeight,
               }}
             >
               {tokens.map((line, i) => (

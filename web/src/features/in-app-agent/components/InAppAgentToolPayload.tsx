@@ -102,8 +102,8 @@ function unwrapMcpTextResult(value: unknown) {
 }
 
 function StructuredToolPayload({ value }: { value: unknown }) {
-  const code = findEvaluatorSourceCode(value);
-  const [isCodeView, setIsCodeView] = useState(false);
+  const codes = useMemo(() => findEvaluatorSourceCodes(value), [value]);
+  const [activeCode, setActiveCode] = useState<PayloadCode | null>(null);
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -112,34 +112,39 @@ function StructuredToolPayload({ value }: { value: unknown }) {
           json={value}
           isLoading={false}
           collapseDepth={4}
-          externalJsonCollapsed={isCodeView}
+          externalJsonCollapsed={activeCode !== null}
           onToggleCollapse={() => {
-            setIsCodeView(false);
+            setActiveCode(null);
           }}
-          customizeNode={({ node, indexOrName }) =>
-            code && indexOrName === "sourceCode" && node === code.value ? (
+          customizeNode={({ node, indexOrName }) => {
+            const code =
+              indexOrName === "sourceCode"
+                ? codes.find(({ value }) => value === node)
+                : undefined;
+
+            return code ? (
               <EvaluatorSourceCodeValue
                 code={code}
                 onShowCode={() => {
-                  setIsCodeView(true);
+                  setActiveCode(code);
                 }}
               />
-            ) : undefined
-          }
+            ) : undefined;
+          }}
         />
       </div>
-      {code && isCodeView ? (
+      {activeCode ? (
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground text-xs">
-                {code.label}
+                {activeCode.label}
               </span>
               <button
                 type="button"
                 className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
                 onClick={() => {
-                  setIsCodeView(false);
+                  setActiveCode(null);
                 }}
               >
                 Expand JSON
@@ -147,17 +152,18 @@ function StructuredToolPayload({ value }: { value: unknown }) {
             </div>
             <code
               className="text-muted-foreground min-w-0 truncate font-mono text-xs"
-              title={code.path}
+              title={activeCode.path}
             >
-              Path: {code.path}
+              Path: {activeCode.path}
             </code>
           </div>
-          <CodeBlock
-            language={code.language}
-            value={code.value}
-            variant="read-only"
-            maxHeight="20rem"
-          />
+          <div className="max-h-80 overflow-y-auto">
+            <CodeBlock
+              language={activeCode.language}
+              value={activeCode.value}
+              variant="read-only"
+            />
+          </div>
         </div>
       ) : null}
     </div>
@@ -209,17 +215,17 @@ function EvaluatorSourceCodeValue({
   );
 }
 
-function findEvaluatorSourceCode(value: unknown): PayloadCode | null {
-  return findEvaluatorSourceCodeRecursive(value, 0, "");
+function findEvaluatorSourceCodes(value: unknown): PayloadCode[] {
+  return findEvaluatorSourceCodesRecursive(value, 0, "");
 }
 
-function findEvaluatorSourceCodeRecursive(
+function findEvaluatorSourceCodesRecursive(
   value: unknown,
   depth: number,
   path: string,
-): PayloadCode | null {
+): PayloadCode[] {
   if (depth > 6) {
-    return null;
+    return [];
   }
 
   if (typeof value === "string") {
@@ -228,61 +234,62 @@ function findEvaluatorSourceCodeRecursive(
       value.length > 500_000 ||
       (trimmedValue[0] !== "{" && trimmedValue[0] !== "[")
     ) {
-      return null;
+      return [];
     }
 
     const nestedValue = deepParseJson(value, { maxDepth: 1 });
 
     return nestedValue === value
-      ? null
-      : findEvaluatorSourceCodeRecursive(nestedValue, depth + 1, path);
+      ? []
+      : findEvaluatorSourceCodesRecursive(nestedValue, depth + 1, path);
   }
 
   if (Array.isArray(value)) {
+    let codes: PayloadCode[] = [];
     for (const [index, entry] of value.entries()) {
-      const code = findEvaluatorSourceCodeRecursive(
-        entry,
-        depth + 1,
-        appendJsonPath(path, index),
+      codes = codes.concat(
+        findEvaluatorSourceCodesRecursive(
+          entry,
+          depth + 1,
+          appendJsonPath(path, index),
+        ),
       );
-      if (code) {
-        return code;
-      }
     }
 
-    return null;
+    return codes;
   }
 
   if (!isRecord(value)) {
-    return null;
+    return [];
   }
 
-  const code = readEvaluatorSourceCode(value, path);
-  if (code) {
-    return code;
-  }
+  let codes = readEvaluatorSourceCodes(value, path);
 
   for (const [key, nestedValue] of Object.entries(value)) {
-    const nestedCode = findEvaluatorSourceCodeRecursive(
-      nestedValue,
-      depth + 1,
-      appendJsonPath(path, key),
+    codes = codes.concat(
+      findEvaluatorSourceCodesRecursive(
+        nestedValue,
+        depth + 1,
+        appendJsonPath(path, key),
+      ),
     );
-    if (nestedCode) {
-      return nestedCode;
-    }
   }
 
-  return null;
+  return codes;
 }
 
-function readEvaluatorSourceCode(value: Record<string, unknown>, path: string) {
-  const directCode = readEvaluatorSourceCodeFields(value, path);
-  if (value.type === "CODE" && directCode) {
-    return directCode;
+function readEvaluatorSourceCodes(
+  value: Record<string, unknown>,
+  path: string,
+) {
+  if (value.type !== "CODE") {
+    return [];
   }
 
-  if (value.type === "CODE" && Array.isArray(value.versions)) {
+  const directCode = readEvaluatorSourceCodeFields(value, path);
+  let codes = directCode ? [directCode] : [];
+
+  if (Array.isArray(value.versions)) {
     for (const [index, version] of value.versions.entries()) {
       if (!isRecord(version)) {
         continue;
@@ -293,12 +300,12 @@ function readEvaluatorSourceCode(value: Record<string, unknown>, path: string) {
         appendJsonPath(appendJsonPath(path, "versions"), index),
       );
       if (versionCode) {
-        return versionCode;
+        codes.push(versionCode);
       }
     }
   }
 
-  return null;
+  return codes;
 }
 
 function readEvaluatorSourceCodeFields(
