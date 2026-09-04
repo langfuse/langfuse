@@ -9,7 +9,6 @@ import {
 import { InvalidRequestError } from "../../errors";
 import {
   eventsTableIsRootObservationSqlForAlias,
-  eventsTableScoreTraceRootSqlForAlias,
   eventsTableTraceNameAggregationSqlForAlias,
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
@@ -883,29 +882,6 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     highCardinality: true,
     uiHidden: true,
   },
-  // The same two fields for trace-attached scores. A trace-level score has no
-  // `observation_id`, so the `events_observations` join above never matches and
-  // the dimensions next to it read null — which is where an LLM-as-judge on a
-  // dataset run writes. These read the experiment off the trace's root event
-  // instead.
-  traceExperimentName: {
-    sql: "nullIf(events_traces.experiment_name, '')",
-    alias: "traceExperimentName",
-    type: "string",
-    relationTable: "events_traces",
-    description: "Name of the experiment the scored trace belongs to.",
-    highCardinality: true,
-    uiHidden: true,
-  },
-  traceExperimentId: {
-    sql: "nullIf(events_traces.experiment_id, '')",
-    alias: "traceExperimentId",
-    type: "string",
-    relationTable: "events_traces",
-    description: "ID of the experiment the scored trace belongs to.",
-    highCardinality: true,
-    uiHidden: true,
-  },
 };
 
 // Factory for shared score-specific dimensions (both numeric and categorical)
@@ -1040,9 +1016,8 @@ const createScoreTableRelations = (
       // its app roots come from newer SDKs and are expected to carry trace_name.
       // A semantic-root join can match both rows in dual-write data and
       // multiply scores for little fallback value.
-      joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ${eventsTableScoreTraceRootSqlForAlias(
-        "events_traces",
-      )}`,
+      joinConditionSql:
+        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
       timeDimension: "start_time",
       useFinal: false,
     },

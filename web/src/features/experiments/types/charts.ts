@@ -30,9 +30,6 @@ export type ScoreFilterOptions = {
   obs_scores_avg?: string[];
   obs_score_categories?: Record<string, string[]>;
   obs_score_booleans?: string[];
-  trace_scores_avg?: string[];
-  trace_score_categories?: Record<string, string[]>;
-  trace_score_booleans?: string[];
   experiment_scores_avg?: string[];
   experiment_score_categories?: Record<string, string[]>;
   experiment_score_booleans?: string[];
@@ -53,7 +50,13 @@ export type ExperimentItemScoreFilterOptions = {
   score_name_levels_boolean?: ScoreNameLevels;
 };
 
-export type ScoreLevel = "obs" | "trace" | "experiment";
+/**
+ * Levels the strip can chart. Trace level is deliberately absent: grouping a
+ * trace-attached score by experiment needs a single-row-per-trace join the
+ * query builder's relation model cannot express, so those scores are read from
+ * the score columns and the score matrix instead of plotted here.
+ */
+export type ScoreLevel = "obs" | "experiment";
 export type ScoreChartDataType = "numeric" | "categorical";
 
 export type ScoreMetricSpec = Record<
