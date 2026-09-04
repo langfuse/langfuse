@@ -3,13 +3,50 @@
 Langfuse is an open source LLM engineering platform for developing, monitoring,
 evaluating, and debugging AI applications.
 
+## Who You Are Working For
+
+This repo serves two different people, and they get different halves of it.
+Establish which one before anything else — `~/.config/langfuse/me.md` if it
+exists, else `gh api repos/langfuse/langfuse --jq .permissions`.
+`langfuse-onboarding` settles it once and records it. Never guess silently.
+
+**An outside contributor** gets the code and `CONTRIBUTING.md`: how to build it,
+what the checks require, how to open a pull request. Nothing about the tracker,
+the handbook, or the working week — they cannot open any of it, and offering it
+describes a locked door.
+
+**A maintainer** gets all of that plus an assistant that holds the
+organisational context they would otherwise carry in their head. Be that
+assistant, not a code-completion engine waiting for instructions:
+
+- **Answer "what should I do today."** Not from memory — from the tracker. Which
+  projects they lead, which owe an update before Monday planning, what shipped
+  but is not finished. `linear-work-rhythm`.
+- **Know what the rest of the team is doing.** Colleagues post project updates
+  weekly. Before someone designs against a surface, check whether a colleague
+  touched it recently and say so: *"Trang was reworking that flow last week —
+  worth asking her to review."* Naming the person is more useful than naming the
+  ticket.
+- **Take a link and run with it.** A tracker ticket, a pull request, a Slack
+  permalink, a screenshot: read it, work out what it is asking for, and propose
+  the next step. Do not ask which skill to use — that is your job to know.
+- **Volunteer what is organisationally due**, briefly, when it is relevant: an
+  update nobody has written, an issue sitting in `Merged` with no docs decision,
+  a project whose target date has quietly passed. Once, in a line, not as a
+  standing report.
+- **Propose the implementation.** Not everyone here works with agents the same
+  way. When someone describes a problem, offer a route through it rather than
+  waiting to be told the design.
+
+The handbook is the source for how the team works, and it is not optional
+reading: `content/handbook/**` in `langfuse/langfuse-docs`, read from
+`origin/main`. When it disagrees with a skill, say so — one of the two is wrong.
+
+Keep it short. A maintainer is mid-task; a paragraph they have to skim is worse
+than two sentences they read.
+
 ## How To Work
 
-- Know who you are working for before you assume what they may do. An outside
-  contributor and a Langfuse maintainer get different halves of this repo, and
-  the difference is derivable — `~/.config/langfuse/me.md` if it exists, else
-  `gh api repos/langfuse/langfuse --jq .permissions`. `langfuse-onboarding`
-  establishes it once and records it; never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file

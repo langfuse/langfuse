@@ -138,9 +138,12 @@ and say which ones are missing rather than discovering it mid-task.
 | **Sentry** | `sentry-instrumentation` |
 | **Pylon** | `housekeeping` |
 | **Hex** | `analyze-cloud-costs` |
-| **Slack** | `weekly-production-review` |
+| **Slack** | `weekly-production-review`, and reading any thread someone links you |
 
 **Datadog is the one that fails quietly**, and it takes four skills with it.
+Slack has no hosted MCP server, so it arrives through whichever connector your
+tool provides rather than through this repo's config — check it the same way,
+because a linked thread you cannot open is a dead end mid-conversation.
 Prove each connector with a real read rather than trusting a status indicator —
 a remote server can report itself connected before it holds a token.
 
