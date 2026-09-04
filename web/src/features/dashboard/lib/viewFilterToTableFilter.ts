@@ -112,6 +112,7 @@ const VIEW_DIMENSION_TO_TABLE_COL_V3: Record<ViewName, TableColumnMap> = {
 
 const V4_SCORE_VIEW_DIMENSION_TO_TABLE_COL: TableColumnMap = {
   ...V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL,
+  traceSessionId: "sessionId",
   traceRelease: null,
 };
 
