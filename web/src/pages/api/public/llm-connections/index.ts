@@ -27,7 +27,22 @@ export default withMiddlewares({
     responseSchema: GetLlmConnectionsV1Response,
     isAdminApiKeyAuthAllowed: true,
     fn: async ({ query, auth }) => {
-      const { limit, page } = query;
+      const { limit, page, fromTimestamp, toTimestamp } = query;
+
+      // Build the time-window filter on `createdAt`. Both params are
+      // independently optional; together they form a half-open
+      // `[fromTimestamp, toTimestamp)` range. The window composes with the
+      // existing project scope — it can only narrow the result set, never
+      // widen it.
+      const createdAtFilter =
+        fromTimestamp || toTimestamp
+          ? {
+              createdAt: {
+                ...(fromTimestamp ? { gte: new Date(fromTimestamp) } : {}),
+                ...(toTimestamp ? { lt: new Date(toTimestamp) } : {}),
+              },
+            }
+          : {};
 
       // Explicitly select only safe fields to prevent secret leakage
       const llmConnections = await prisma.llmApiKeys.findMany({
@@ -47,6 +62,7 @@ export default withMiddlewares({
         },
         where: {
           projectId: auth.scope.projectId,
+          ...createdAtFilter,
         },
         orderBy: {
           createdAt: "desc",
@@ -58,6 +74,7 @@ export default withMiddlewares({
       const totalItems = await prisma.llmApiKeys.count({
         where: {
           projectId: auth.scope.projectId,
+          ...createdAtFilter,
         },
       });
 
