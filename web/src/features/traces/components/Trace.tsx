@@ -191,21 +191,20 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph, isAnnotationMode } = useViewPreferences();
+  // Graph is a view: desktop via the Tree/Timeline/Graph switch, mobile via
+  // its Graph tab — both gated only on graph data being available.
   const { isGraphViewAvailable } = useTraceGraphData();
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
+  // Annotation mode is a focused surface — no trace-level summary strip.
+  const { isAnnotationMode } = useViewPreferences();
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {!isAnnotationMode && <TraceSummaryStrip />}
       <div className="min-h-0 flex-1">
         {isMobile ? (
-          <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+          <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
         ) : (
-          <DesktopTraceContent
-            shouldShowGraph={shouldShowGraph}
-            desktopLayout={desktopLayout}
-          />
+          <DesktopTraceContent desktopLayout={desktopLayout} />
         )}
       </div>
     </div>
@@ -221,18 +220,14 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
  * - Navigation panel (left) + Detail panel (right)
  */
 function DesktopTraceContent({
-  shouldShowGraph,
   desktopLayout,
 }: {
-  shouldShowGraph: boolean;
   desktopLayout: DesktopLayout;
 }) {
   return (
     <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
+        <TracePanelNavigationLayoutDesktop>
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.NavigationPanel>

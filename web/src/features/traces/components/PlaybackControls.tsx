@@ -1,16 +1,13 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * PlaybackControls - transport for the trace playhead, in the navigation
- * header. The play/pause button is wrapped in a circular progress ring that
- * fills as the playhead sweeps the trace's total time — a compact "where are
- * we in the trace" indicator that isn't tied to the gantt. Stop resets it.
+ * PlaybackControls - transport for the trace playhead. The play/pause button
+ * is wrapped in a circular progress ring that fills as the playhead sweeps the
+ * trace's total time — a compact "where are we in the trace" indicator. Stop
+ * resets it.
  *
- * Shown only when there is something to WATCH play: the timeline view (the
- * sweeping playhead) or a visible graph panel (the node glow). In the default
- * tree view without a graph the transport is hidden — the row glow alone
- * isn't a playback surface — but it never disappears while a playhead is
- * actively placed, so an in-flight playback keeps its controls across view
- * switches.
+ * Mounted only inside the graph view's mode bar (the node glow is the one
+ * playback surface with controls); the timeline keeps its playhead and
+ * scrubbing but carries no transport buttons.
  *
  * The ring is driven imperatively off the playhead position feed, so it
  * animates at 60fps without re-rendering (only the play/pause icon flips, via
@@ -19,7 +16,6 @@
 
 import { useEffect, useRef } from "react";
 import { Pause, Play, Square } from "lucide-react";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -28,9 +24,6 @@ import {
   useShowPlayhead,
 } from "@/src/features/traces/contexts/PlayheadContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
@@ -41,41 +34,19 @@ const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
 
 /**
- * Whether a playback surface exists to drive.
- *
- * Shared, because the transport has two homes now: inline in the header, and
- * folded into its overflow menu when the panel is too narrow for it. One rule for
- * both — a second copy would drift the moment either home changed.
- *
- * A playback surface exists in the timeline view (unless a search query has
- * replaced it with the search list) or when the graph panel renders — a
- * COLLAPSED panel still counts (the surface is one click away; hiding the
- * transport when the user collapses the panel would make it undiscoverable), and
- * a pending graph query counts too, so graph-eligible traces don't get a
- * transport pop-in after first load. An actively-placed playhead keeps its
- * controls regardless.
+ * Whether there is anything to play: the transport mounts only inside the
+ * graph view's chrome (its one playback surface), so the only remaining guard
+ * is a trace with actual duration.
  */
 function useHasPlayback(): boolean {
   const { traceDuration } = useTraceData();
-  const { isGraphViewAvailable, isLoading: isGraphDataLoading } =
-    useTraceGraphData();
-  const { showGraph } = useViewPreferences();
-  const { searchQuery } = useSearch();
-  const [viewMode] = useQueryParam("view", StringParam);
-  const showPlayhead = useShowPlayhead();
-
-  const isSearching = searchQuery.trim().length > 0;
-  const hasPlaybackSurface =
-    (viewMode === "timeline" && !isSearching) ||
-    (showGraph && (isGraphViewAvailable || isGraphDataLoading));
-  return traceDuration > 0 && (hasPlaybackSurface || showPlayhead);
+  return traceDuration > 0;
 }
 
 /**
- * Shared play/pause/stop handlers for the header buttons and the overflow
- * menu. Capture at this click seam (not the store's play/pause/stop): auto-pause
- * at end-of-trace must not look like a user stop, and a programmatic reset
- * must not inflate usage.
+ * Play/pause/stop click handlers. Capture at this click seam (not the store's
+ * play/pause/stop): auto-pause at end-of-trace must not look like a user stop,
+ * and a programmatic reset must not inflate usage.
  */
 function usePlaybackClickHandlers() {
   const capture = usePostHogClientCapture();
@@ -89,7 +60,11 @@ function usePlaybackClickHandlers() {
   // Tree is stored as a null query param; anything else is still tree.
   const props = {
     viewMode:
-      viewMode === "timeline" ? ("timeline" as const) : ("tree" as const),
+      viewMode === "timeline"
+        ? ("timeline" as const)
+        : viewMode === "graph"
+          ? ("graph" as const)
+          : ("tree" as const),
     observationCount: observations.length,
     ...analyticsDimensions,
   };
@@ -140,7 +115,7 @@ export function PlaybackControls() {
   if (!hasPlayback) return null;
 
   return (
-    <div className="ml-1 flex shrink-0 flex-row items-center gap-0.5">
+    <div className="flex shrink-0 flex-row items-center gap-0.5">
       <Button
         type="button"
         variant="ghost"
@@ -198,37 +173,5 @@ export function PlaybackControls() {
         <Square className="h-2.5 w-2.5" />
       </Button>
     </div>
-  );
-}
-
-/**
- * The transport as menu items, for the overflow menu the header folds into below
- * ~360px. Two 28px buttons plus their ring are what tipped that row over: the
- * search input collapsed to "Se" and the segmented switch clipped. Play is a
- * verb, so it reads fine as a menu entry — and unlike hiding it, the transport
- * stays reachable while a playhead is placed.
- */
-export function PlaybackMenuItems() {
-  const hasPlayback = useHasPlayback();
-  const { isPlaying, showPlayhead, handlePlayPause, handleStop } =
-    usePlaybackClickHandlers();
-
-  if (!hasPlayback) return null;
-
-  return (
-    <>
-      <DropdownMenuItem onSelect={handlePlayPause}>
-        {isPlaying ? (
-          <Pause className="mr-2 h-3.5 w-3.5" />
-        ) : (
-          <Play className="mr-2 h-3.5 w-3.5" />
-        )}
-        {isPlaying ? "Pause playback" : "Play trace over time"}
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={handleStop} disabled={!showPlayhead}>
-        <Square className="mr-2 h-3 w-3" />
-        Stop playback
-      </DropdownMenuItem>
-    </>
   );
 }
