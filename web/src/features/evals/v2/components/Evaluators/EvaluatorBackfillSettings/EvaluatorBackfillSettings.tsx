@@ -66,12 +66,14 @@ export function EvaluatorBackfillSettings({
   return (
     <section className="mt-5 border-t pt-4">
       <div className="flex items-start gap-2">
-        <Checkbox
-          id="evaluator-backfill-enabled"
-          checked={enabled}
-          disabled={!canEnable}
-          onCheckedChange={(checked) => onEnabledChange(checked === true)}
-        />
+        <div className="-mt-0.5">
+          <Checkbox
+            id="evaluator-backfill-enabled"
+            checked={enabled}
+            disabled={!canEnable}
+            onCheckedChange={(checked) => onEnabledChange(checked === true)}
+          />
+        </div>
         <div>
           <label
             htmlFor="evaluator-backfill-enabled"
