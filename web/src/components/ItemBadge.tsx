@@ -102,6 +102,28 @@ export function renderFilterIcon(value: string): React.ReactNode {
   );
 }
 
+/**
+ * Bare type icon without the badge chrome (background/border) — for rows where
+ * an opaque box would fight the row's own hover/selection highlight.
+ */
+export function ItemIcon({
+  type,
+  className,
+}: {
+  type: LangfuseItemType;
+  className?: string;
+}) {
+  const Icon = iconMap[type] || ListTree;
+  const label =
+    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
+  return (
+    <Icon
+      aria-label={label}
+      className={cn("shrink-0", iconVariants({ type }), className)}
+    />
+  );
+}
+
 export function ItemBadge({
   type,
   showLabel = false,
