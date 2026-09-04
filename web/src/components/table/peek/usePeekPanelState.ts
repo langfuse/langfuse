@@ -165,22 +165,41 @@ export function usePeekPanelState({
   const [navigationWidthPx, setNavigationWidthPx] = useState(0);
   useLayoutEffect(() => {
     if (!isOpen || widthMode !== "split") return;
-    const navigation = document.querySelector<HTMLElement>(
-      "[data-peek-content] [data-trace-navigation-panel]",
-    );
-    if (!navigation) return;
+    const peek = document.querySelector<HTMLElement>("[data-peek-content]");
+    if (!peek) return;
 
-    const measure = () => {
-      const next = Math.round(navigation.getBoundingClientRect().width);
-      setNavigationWidthPx((current) => (current === next ? current : next));
+    let observedNavigation: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    const observeNavigation = () => {
+      const navigation = peek.querySelector<HTMLElement>(
+        "[data-trace-navigation-panel]",
+      );
+      if (navigation === observedNavigation) return;
+
+      resizeObserver?.disconnect();
+      observedNavigation = navigation;
+      if (!navigation) return;
+
+      const measure = () => {
+        const next = Math.round(navigation.getBoundingClientRect().width);
+        if (next <= 0) return;
+        setNavigationWidthPx((current) => (current === next ? current : next));
+      };
+      measure();
+      resizeObserver =
+        typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(measure)
+          : null;
+      resizeObserver?.observe(navigation);
     };
-    measure();
-    const observer =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(measure)
-        : null;
-    observer?.observe(navigation);
-    return () => observer?.disconnect();
+
+    observeNavigation();
+    const mutationObserver = new MutationObserver(observeNavigation);
+    mutationObserver.observe(peek, { childList: true, subtree: true });
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+    };
   }, [isOpen, widthMode]);
 
   useLayoutEffect(() => {

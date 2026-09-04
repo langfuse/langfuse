@@ -135,6 +135,34 @@ describe("usePeekPanelState", () => {
     peek.remove();
   });
 
+  it("shrinks on the first switch when navigation mounts after the hook", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      value: 1000,
+      configurable: true,
+    });
+    window.localStorage.setItem(STORAGE_KEY, "0.7");
+    const peek = document.createElement("div");
+    peek.dataset.peekContent = "";
+    document.body.appendChild(peek);
+
+    const { result, rerender } = setup(false, "split");
+    const navigation = document.createElement("div");
+    navigation.dataset.traceNavigationPanel = "";
+    vi.spyOn(navigation, "getBoundingClientRect").mockReturnValue({
+      width: 200,
+    } as DOMRect);
+
+    await act(async () => {
+      peek.appendChild(navigation);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    rerender({ isExpanded: false, widthMode: "observation" });
+    expect(widthFraction(result.current.panelStyle)).toBeCloseTo(0.5);
+
+    peek.remove();
+  });
+
   it("subtracts the measured navigation width while expanded", () => {
     Object.defineProperty(window, "innerWidth", {
       value: 1000,
