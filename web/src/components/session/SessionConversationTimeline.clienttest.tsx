@@ -89,7 +89,7 @@ describe("SessionConversationTimeline", () => {
     renderTimeline();
 
     expect(
-      screen.getByRole("button", { name: /turn 1.*trace-1/i }),
+      screen.getByRole("button", { name: /trace 1.*trace-1/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Generate answer/i }),
@@ -159,7 +159,9 @@ describe("SessionConversationTimeline", () => {
     });
 
     expect(screen.queryByText("Secret prompt")).not.toBeInTheDocument();
-    expect(screen.getByText("No conversational content")).toBeInTheDocument();
+    expect(
+      screen.getByText("No conversational content").closest("button"),
+    ).toHaveTextContent("Generate answer");
   });
 
   it("reports omitted metadata while preserving parsed messages", () => {

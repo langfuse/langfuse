@@ -7,10 +7,12 @@ import {
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { cn } from "@/src/utils/tailwind";
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
@@ -121,16 +123,31 @@ function SessionTimelineObservation({
     parsed.messages.some((message) =>
       message.parts.some((part) => part.type !== "tool-result"),
     );
+  const hasNoConversationalContent =
+    observation.type !== "TOOL" &&
+    !isTruncated &&
+    parsed.type === "loaded" &&
+    visibleMessages.length === 0 &&
+    (parsed.messages.length === 0 || hasTimelineContent);
+  const hasObservationBody =
+    observation.type !== "TOOL" &&
+    (isTruncated ||
+      parsed.type === "error" ||
+      visibleMessages.length > 0 ||
+      observation.metadataTruncated);
 
   return (
     <section
       data-session-observation-id={observation.id}
-      className="flex scroll-mt-16 flex-col gap-3"
+      className={cn(
+        "flex scroll-mt-16 flex-col",
+        hasObservationBody ? "gap-4 py-2" : "py-1",
+      )}
     >
       <button
         type="button"
         onClick={onOpenInTraceView}
-        className="group -ml-1 flex min-w-0 items-center gap-2 self-start rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="group flex w-full min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         {renderFilterIcon(observation.type ?? "EVENT")}
         <span
@@ -139,14 +156,21 @@ function SessionTimelineObservation({
         >
           {observation.name ?? observation.id}
         </span>
-        {observation.latency !== null && observation.type !== "EVENT" ? (
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-            {formatIntervalSeconds(observation.latency)}
-          </span>
+        {hasNoConversationalContent ? (
+          <Badge variant="secondary" size="sm" className="shrink-0">
+            No conversational content
+          </Badge>
         ) : null}
-        <time className="text-muted-foreground shrink-0 font-mono text-[10px]">
-          {observation.startTime.toLocaleTimeString()}
-        </time>
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {observation.latency !== null && observation.type !== "EVENT" ? (
+            <span className="text-muted-foreground font-mono text-[11px]">
+              {formatIntervalSeconds(observation.latency)}
+            </span>
+          ) : null}
+          <time className="text-muted-foreground font-mono text-[10px]">
+            {observation.startTime.toLocaleTimeString()}
+          </time>
+        </span>
       </button>
       {observation.type !== "TOOL" ? (
         <div className="flex min-w-0 flex-col gap-3">
@@ -177,10 +201,6 @@ function SessionTimelineObservation({
                 message={message}
               />
             ))
-          ) : parsed.messages.length === 0 || hasTimelineContent ? (
-            <div className="text-muted-foreground rounded-lg border border-dashed p-3 text-xs">
-              No conversational content
-            </div>
           ) : null}
         </div>
       ) : null}
@@ -212,7 +232,7 @@ export function SessionConversationTimeline({
           onClick={onOpenTrace}
           title={`${trace.name ?? "Trace"} (${trace.id})`}
         >
-          turn {turnNumber} · {trace.id}
+          trace {turnNumber} · {trace.id}
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
       </div>
@@ -228,7 +248,7 @@ export function SessionConversationTimeline({
           {state.message}
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1">
           {state.observations.map((observation) => (
             <SessionTimelineObservation
               key={observation.id}
