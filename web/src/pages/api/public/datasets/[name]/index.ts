@@ -9,6 +9,7 @@ import { getDatasetByNameForApi } from "@/src/features/datasets/server/publicDat
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Dataset",
+    action: "datasets:read",
     querySchema: GetDatasetV1Query,
     responseSchema: GetDatasetV1Response,
     rateLimitResource: "datasets",

@@ -176,10 +176,12 @@ export function SessionTraceActionButtons({
             >
               <span className="relative mr-1 text-xs">
                 <ChevronDown className="h-3 w-3" />
-                <AnnotationQueueItemCountBadge
-                  totalCount={totalCount}
-                  layout="toolbar"
-                />
+                {totalCount > 0 && (
+                  <AnnotationQueueItemCountBadge
+                    totalCount={totalCount}
+                    layout="toolbar"
+                  />
+                )}
               </span>
             </Button>
           )}
