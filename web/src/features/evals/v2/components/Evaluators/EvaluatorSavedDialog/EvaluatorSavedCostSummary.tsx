@@ -18,6 +18,7 @@ export function EvaluatorSavedCostSummary({
   isEstimating,
   onSamplingChange,
   evaluatorType,
+  backfill,
 }: {
   estimates: ActivationEstimate[];
   unavailableEstimateCount: number;
@@ -26,6 +27,14 @@ export function EvaluatorSavedCostSummary({
   isEstimating: boolean;
   onSamplingChange: ((sampling: number) => void) | null;
   evaluatorType: EvalTemplateType;
+  backfill:
+    | { enabled: false }
+    | {
+        enabled: true;
+        matchingObservations: number;
+        maxItems: number;
+        isEstimating: boolean;
+      };
 }) {
   const estimate = estimates[0];
   const sampledObservations = Math.round(matchingObservations * sampling);
@@ -88,6 +97,9 @@ export function EvaluatorSavedCostSummary({
             </div>
           ) : (
             <>
+              <p className="text-muted-foreground mb-1 font-mono text-[10px] tracking-wider uppercase">
+                Recurring
+              </p>
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-lg font-bold tabular-nums">
                   {estimatedCostUsd === null
@@ -113,6 +125,48 @@ export function EvaluatorSavedCostSummary({
                   test was available.
                 </p>
               ) : null}
+            </>
+          )}
+        </section>
+      ) : null}
+
+      {evaluatorType !== EvalTemplateTypeEnum.CODE && backfill.enabled ? (
+        <section className="border-t border-dashed pt-4">
+          {backfill.isEstimating ? (
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          ) : (
+            <>
+              <p className="text-muted-foreground mb-1 font-mono text-[10px] tracking-wider uppercase">
+                One-time backfill
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-lg font-bold tabular-nums">
+                  {estimate
+                    ? `≈ ${usdFormatter(
+                        Math.min(
+                          backfill.matchingObservations,
+                          backfill.maxItems,
+                        ) *
+                          sampling *
+                          estimate.testRunCostUsd,
+                        2,
+                        2,
+                      )}`
+                    : "Unavailable"}
+                </span>
+                <InfoTooltip label="How estimated backfill costs are calculated">
+                  The estimate applies this evaluator&apos;s observed per-run
+                  cost and the selected sampling rate to up to{" "}
+                  {compactNumberFormatter(backfill.maxItems, 1)} matching
+                  observations.
+                </InfoTooltip>
+              </div>
+              <p className="text-muted-foreground text-xs">
+                estimated LLM costs, once
+              </p>
             </>
           )}
         </section>

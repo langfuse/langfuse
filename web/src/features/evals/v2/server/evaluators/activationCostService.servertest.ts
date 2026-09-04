@@ -29,6 +29,7 @@ vi.mock("./testEvaluator", () => ({
 }));
 
 import { getActivationCostEstimates } from "./activationCostService";
+import { ActivationCostEstimatesSchema } from "./evaluatorTypes";
 
 const evaluator = {
   id: "evaluator-id",
@@ -76,6 +77,21 @@ describe("getActivationCostEstimates", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("rejects backfill ranges longer than six months", () => {
+    expect(() =>
+      ActivationCostEstimatesSchema.parse({
+        projectId: "project-id",
+        evaluatorIds: ["evaluator-id"],
+        filter: [],
+        sampling: 1,
+        timeRange: {
+          from: new Date("2026-02-11T08:00:00.000Z"),
+          to: new Date("2026-08-12T08:00:00.000Z"),
+        },
+      }),
+    ).toThrow("The time range cannot exceed six months.");
   });
 
   it("scopes reads to the project and estimates the sampled seven-day total", async () => {
@@ -130,6 +146,43 @@ describe("getActivationCostEstimates", () => {
         estimatedCostUsd: 3.5,
       },
     ]);
+  });
+
+  it("uses an explicit historical range for backfill estimates", async () => {
+    const timeRange = {
+      from: new Date("2026-05-01T00:00:00.000Z"),
+      to: new Date("2026-08-01T23:59:59.999Z"),
+    };
+
+    await getActivationCostEstimates({
+      orgId: "org-id",
+      projectId: "project-id",
+      evaluatorIds: ["evaluator-id"],
+      filter: [],
+      sampling: 0.5,
+      shouldReadFromObservationsTable: false,
+      timeRange,
+    });
+
+    expect(mocks.getObservationsCountFromEventsTable).toHaveBeenCalledWith({
+      projectId: "project-id",
+      filter: [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: timeRange.from,
+        },
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: "<=",
+          value: timeRange.to,
+        },
+      ],
+      limit: 1,
+      offset: 0,
+    });
   });
 
   it("loads evaluators and counts matching observations once for the batch", async () => {

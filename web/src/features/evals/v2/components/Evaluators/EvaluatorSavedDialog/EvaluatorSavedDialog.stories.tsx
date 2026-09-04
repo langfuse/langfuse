@@ -120,6 +120,7 @@ const unsupportedFilterModeContent = {
 const sharedArgs = {
   open: true,
   modeContentByMode,
+  backfillContent: null,
   canSubmit: true,
   isSubmitting: false,
   onModeChange: fn(),
@@ -149,6 +150,7 @@ export const FromTestFilters = meta.story({
         sampling={0.4}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
+        backfill={{ enabled: false }}
         onSamplingChange={fn()}
       />
     ),
@@ -178,6 +180,7 @@ export const UnsupportedFilters = meta.story({
         sampling={0.4}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
+        backfill={{ enabled: false }}
         onSamplingChange={fn()}
       />
     ),
@@ -206,6 +209,7 @@ export const ExistingRule = meta.story({
         sampling={0.25}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
+        backfill={{ enabled: false }}
         onSamplingChange={null}
       />
     ),

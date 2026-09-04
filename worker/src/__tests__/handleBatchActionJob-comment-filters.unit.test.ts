@@ -213,6 +213,8 @@ describe("event batch-action comment filter wiring", () => {
       ...createPayload("observation-run-batched-evaluation"),
       evaluatorIds: ["evaluator-with-rule", "standalone-evaluator"],
       evalVersion: "v2",
+      sampling: 0.25,
+      rowLimit: 5_000,
     });
 
     expect(mocks.findEvaluators).toHaveBeenCalledWith(
@@ -233,6 +235,9 @@ describe("event batch-action comment filter wiring", () => {
           expect.objectContaining({
             id: "rule-1",
             ruleId: null,
+            sampling: expect.objectContaining({
+              toString: expect.any(Function),
+            }),
           }),
           expect.objectContaining({
             id: "standalone-evaluator",
@@ -240,6 +245,12 @@ describe("event batch-action comment filter wiring", () => {
           }),
         ],
       }),
+    );
+    expect(
+      mocks.processBatchedObservationEval.mock.calls[0]?.[0].evaluators[0].sampling.toString(),
+    ).toBe("0.25");
+    expect(mocks.getEventsStreamForEval).toHaveBeenCalledWith(
+      expect.objectContaining({ rowLimit: 5_000 }),
     );
   });
 

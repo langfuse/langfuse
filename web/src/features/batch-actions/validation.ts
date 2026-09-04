@@ -26,6 +26,8 @@ export const CreateObservationBatchEvaluationActionSchema = z
       .array(BatchEvalEvaluatorMappingSchema)
       .max(BATCH_EVAL_EVALUATOR_LIMIT)
       .optional(),
+    sampling: z.number().min(0).max(1).optional(),
+    rowLimit: z.number().int().positive().optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.evaluatorMappings) return;

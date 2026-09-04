@@ -1,11 +1,13 @@
 /* eslint-disable @repo/no-null-render */
 import {
+  BatchEvalSourceTable,
   EvalTemplateType,
   EvalTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { ChevronDown } from "lucide-react";
+import { subDays, subHours, subMonths } from "date-fns";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -25,9 +27,31 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
 import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
+import {
+  DEFAULT_EVALUATOR_BACKFILL_ITEMS,
+  EvaluatorBackfillSettings,
+  type EvaluatorBackfillRange,
+  type EvaluatorBackfillWindow,
+} from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorBackfillSettings";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
+
+function getBackfillRange(
+  window: Exclude<EvaluatorBackfillWindow, "custom">,
+  now = new Date(),
+): EvaluatorBackfillRange {
+  switch (window) {
+    case "24-hours":
+      return { from: subHours(now, 24), to: now };
+    case "7-days":
+      return { from: subDays(now, 7), to: now };
+    case "30-days":
+      return { from: subDays(now, 30), to: now };
+    case "90-days":
+      return { from: subDays(now, 90), to: now };
+  }
+}
 
 export function EvaluatorSavedDialogContainer({
   projectId,
@@ -62,7 +86,20 @@ export function EvaluatorSavedDialogContainer({
   >(undefined);
   const [isEstimating, setIsEstimating] = useState(false);
   const [testFilterSampling, setTestFilterSampling] = useState(1);
+  const [backfillEnabled, setBackfillEnabled] = useState(false);
+  const [backfillWindow, setBackfillWindow] =
+    useState<EvaluatorBackfillWindow>("7-days");
+  const [backfillRange, setBackfillRange] = useState<EvaluatorBackfillRange>(
+    () => getBackfillRange("7-days"),
+  );
+  const [backfillMaxItems, setBackfillMaxItems] = useState(
+    DEFAULT_EVALUATOR_BACKFILL_ITEMS,
+  );
+  const [backfillMatchingObservations, setBackfillMatchingObservations] =
+    useState(0);
+  const [isEstimatingBackfill, setIsEstimatingBackfill] = useState(false);
   const estimateRequestId = useRef(0);
+  const backfillEstimateRequestId = useRef(0);
   // Strict Mode replays mount effects; this mutation must run once per dialog.
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -118,6 +155,9 @@ export function EvaluatorSavedDialogContainer({
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
       onError: trpcErrorToast,
     });
+  const runEvaluation = api.batchAction.runEvaluation.create.useMutation({
+    onError: trpcErrorToast,
+  });
 
   const finish = async () => {
     await onFinish();
@@ -135,6 +175,91 @@ export function EvaluatorSavedDialogContainer({
     ]);
   };
 
+  const requestBackfillEstimate = useCallback(
+    async ({
+      filter,
+      sampling,
+      range,
+    }: {
+      filter: FilterState;
+      sampling: number;
+      range: EvaluatorBackfillRange;
+    }) => {
+      const requestId = ++backfillEstimateRequestId.current;
+      setIsEstimatingBackfill(true);
+      try {
+        const result =
+          await utils.client.evalsV2.activationCostEstimates.mutate({
+            projectId,
+            evaluatorIds: [evaluator.id],
+            filter,
+            sampling,
+            shouldRunMissingTest: false,
+            timeRange: range,
+          });
+        if (backfillEstimateRequestId.current !== requestId) return;
+        setBackfillMatchingObservations(
+          Math.max(
+            0,
+            ...result.map(({ matchingObservations }) => matchingObservations),
+          ),
+        );
+      } catch (error) {
+        if (backfillEstimateRequestId.current === requestId) {
+          trpcErrorToast(error);
+        }
+      } finally {
+        if (backfillEstimateRequestId.current === requestId) {
+          setIsEstimatingBackfill(false);
+        }
+      }
+    },
+    [evaluator.id, projectId, utils.client],
+  );
+
+  const scheduleBackfill = async ({
+    filter,
+    sampling,
+  }: {
+    filter: FilterState;
+    sampling: number;
+  }) => {
+    if (!backfillEnabled) return;
+    await runEvaluation.mutateAsync({
+      projectId,
+      evaluatorIds: [evaluator.id],
+      evaluatorMappings: [
+        {
+          evaluatorId: evaluator.id,
+          variableMapping: null,
+        },
+      ],
+      evalVersion: "v2",
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      sampling,
+      rowLimit: backfillMaxItems,
+      query: {
+        filter: [
+          ...filter,
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: ">=",
+            value: backfillRange.from,
+          },
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: "<=",
+            value: backfillRange.to,
+          },
+        ],
+        orderBy: { column: "startTime", order: "DESC" },
+        useEventsTable: true,
+      },
+    });
+  };
+
   const attachToRule = async (rule: Rule) => {
     await attach.mutateAsync({
       projectId,
@@ -147,6 +272,7 @@ export function EvaluatorSavedDialogContainer({
       evaluatorCount: 1,
       source: "evaluator_create",
     });
+    await scheduleBackfill({ filter: rule.filter, sampling: rule.sampling });
     await invalidateRuleQueries();
     await finish();
   };
@@ -173,6 +299,7 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create_test_filters",
       });
     }
+    await scheduleBackfill({ filter: supportedRuleFilters, sampling });
     await invalidateRuleQueries();
     await finish();
   };
@@ -286,8 +413,21 @@ export function EvaluatorSavedDialogContainer({
       requestEstimate({ filter: rule.filter, sampling: rule.sampling }).catch(
         () => undefined,
       );
+      if (backfillEnabled) {
+        requestBackfillEstimate({
+          filter: rule.filter,
+          sampling: rule.sampling,
+          range: backfillRange,
+        }).catch(() => undefined);
+      }
     },
-    [requestEstimate, setActivationSampling],
+    [
+      backfillEnabled,
+      backfillRange,
+      requestBackfillEstimate,
+      requestEstimate,
+      setActivationSampling,
+    ],
   );
 
   const selectNewRule = () => {
@@ -329,6 +469,62 @@ export function EvaluatorSavedDialogContainer({
     setIsEstimating(false);
     if (nextMode === "test-filters") {
       setActivationSampling(testFilterSampling);
+      if (backfillEnabled) {
+        requestBackfillEstimate({
+          filter: supportedRuleFilters,
+          sampling: testFilterSampling,
+          range: backfillRange,
+        }).catch(() => undefined);
+      }
+    }
+  };
+
+  const updateBackfillRange = (range: EvaluatorBackfillRange) => {
+    const latestAllowedStart = subMonths(range.to, 6);
+    const nextRange = {
+      from: range.from < latestAllowedStart ? latestAllowedStart : range.from,
+      to: range.to > new Date() ? new Date() : range.to,
+    };
+    setBackfillRange(nextRange);
+    const filter =
+      mode === "test-filters" ? supportedRuleFilters : selectedRule?.filter;
+    if (filter) {
+      requestBackfillEstimate({
+        filter,
+        sampling:
+          mode === "test-filters"
+            ? testFilterSampling
+            : (selectedRule?.sampling ?? 1),
+        range: nextRange,
+      }).catch(() => undefined);
+    }
+  };
+
+  const handleBackfillEnabledChange = (enabled: boolean) => {
+    setBackfillEnabled(enabled);
+    if (!enabled) {
+      backfillEstimateRequestId.current += 1;
+      setIsEstimatingBackfill(false);
+      return;
+    }
+    const filter =
+      mode === "test-filters" ? supportedRuleFilters : selectedRule?.filter;
+    if (filter) {
+      requestBackfillEstimate({
+        filter,
+        sampling:
+          mode === "test-filters"
+            ? testFilterSampling
+            : (selectedRule?.sampling ?? 1),
+        range: backfillRange,
+      }).catch(() => undefined);
+    }
+  };
+
+  const handleBackfillWindowChange = (window: EvaluatorBackfillWindow) => {
+    setBackfillWindow(window);
+    if (window !== "custom") {
+      updateBackfillRange(getBackfillRange(window));
     }
   };
 
@@ -336,6 +532,9 @@ export function EvaluatorSavedDialogContainer({
     if (mode === "test-filters") {
       capture("evaluators:saved_dialog_submit", {
         action: "test_filters",
+        hasBackfill: backfillEnabled,
+        backfillWindow: backfillEnabled ? backfillWindow : undefined,
+        backfillMaxItems: backfillEnabled ? backfillMaxItems : undefined,
       });
       resolveFromTestFilters().catch(() => undefined);
       return;
@@ -343,11 +542,15 @@ export function EvaluatorSavedDialogContainer({
     if (selectedRule) {
       capture("evaluators:saved_dialog_submit", {
         action: "existing_rule",
+        hasBackfill: backfillEnabled,
+        backfillWindow: backfillEnabled ? backfillWindow : undefined,
+        backfillMaxItems: backfillEnabled ? backfillMaxItems : undefined,
       });
       attachToRule(selectedRule).catch(() => undefined);
     } else {
       capture("evaluators:saved_dialog_submit", {
         action: "new_rule",
+        hasBackfill: false,
       });
       openCreateRule();
     }
@@ -422,6 +625,21 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const hasConfiguredScope = mode === "test-filters" || Boolean(selectedRule);
+  const backfillContent = (
+    <EvaluatorBackfillSettings
+      enabled={backfillEnabled}
+      canEnable={hasConfiguredScope}
+      selectedWindow={backfillWindow}
+      range={backfillRange}
+      maxItems={backfillMaxItems}
+      matchingObservations={backfillMatchingObservations}
+      isEstimating={isEstimatingBackfill}
+      onEnabledChange={handleBackfillEnabledChange}
+      onWindowChange={handleBackfillWindowChange}
+      onRangeChange={updateBackfillRange}
+      onMaxItemsChange={setBackfillMaxItems}
+    />
+  );
   const costSummary = hasConfiguredScope ? (
     <EvaluatorSavedCostSummary
       estimates={activation.estimate.estimates}
@@ -434,6 +652,16 @@ export function EvaluatorSavedDialogContainer({
       }
       isEstimating={isEstimating}
       evaluatorType={evaluator.type}
+      backfill={
+        backfillEnabled
+          ? {
+              enabled: true,
+              matchingObservations: backfillMatchingObservations,
+              maxItems: backfillMaxItems,
+              isEstimating: isEstimatingBackfill,
+            }
+          : { enabled: false }
+      }
       onSamplingChange={
         mode === "test-filters"
           ? (sampling) => {
@@ -457,13 +685,17 @@ export function EvaluatorSavedDialogContainer({
       open={dialogPhase === "saved"}
       mode={mode}
       modeContentByMode={modeContentByMode}
+      backfillContent={backfillContent}
       costSummary={costSummary}
       canSubmit={
         !isEstimating &&
+        (!backfillEnabled || !isEstimatingBackfill) &&
         (mode === "test-filters" || selectedRuleId !== undefined)
       }
       isSubmitting={
-        attach.isPending || createOrAttachFromEvaluatorFilters.isPending
+        attach.isPending ||
+        createOrAttachFromEvaluatorFilters.isPending ||
+        runEvaluation.isPending
       }
       primaryActionLabel={
         mode === "test-filters"
