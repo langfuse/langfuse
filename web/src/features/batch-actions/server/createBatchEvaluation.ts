@@ -1,10 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import {
-  createTRPCRouter,
-  protectedProjectProcedure,
-  type ProjectAuthedContext,
-} from "@/src/server/api/trpc";
+import { auditLog } from "@/src/features/audit-logs/server";
+import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import {
   BatchActionQueue,
   logger,
@@ -28,10 +23,10 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-import {
+import type {
   CreateObservationBatchEvaluationActionSchema,
   CreateObservationEvaluatorBackfillActionSchema,
-} from "../validation";
+} from "@/src/features/batch-actions/validation";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
 
@@ -80,7 +75,7 @@ async function enqueueBatchEvaluation(params: {
   );
 }
 
-async function createBatchEvaluation({
+export async function createBatchEvaluation({
   input,
   ctx,
 }: {
@@ -88,12 +83,6 @@ async function createBatchEvaluation({
   ctx: ProjectAuthedContext;
 }) {
   try {
-    throwIfNoProjectAccess({
-      session: ctx.session,
-      projectId: input.projectId,
-      scope: "evaluationRule:CUD",
-    });
-
     const {
       projectId,
       query: requestedQuery,
@@ -384,12 +373,3 @@ async function createBatchEvaluation({
     });
   }
 }
-
-export const runEvaluationRouter = createTRPCRouter({
-  create: protectedProjectProcedure
-    .input(CreateObservationBatchEvaluationActionSchema)
-    .mutation(createBatchEvaluation),
-  createBackfill: protectedProjectProcedure
-    .input(CreateObservationEvaluatorBackfillActionSchema)
-    .mutation(createBatchEvaluation),
-});
