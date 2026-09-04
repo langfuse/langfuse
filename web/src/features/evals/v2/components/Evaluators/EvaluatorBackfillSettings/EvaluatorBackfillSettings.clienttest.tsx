@@ -46,7 +46,9 @@ describe("EvaluatorBackfillSettings", () => {
     expect(
       screen.queryByLabelText("Backfill start date"),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText("Also run on past observations"));
+    fireEvent.click(
+      screen.getByLabelText("Also apply these filters to past observations"),
+    );
 
     expect(props.onEnabledChange).toHaveBeenCalledWith(true);
   });
