@@ -2,9 +2,10 @@
 
 import { deepParseJson } from "@langfuse/shared";
 import { useMemo, useState } from "react";
-import { Code2 } from "lucide-react";
+import { Check, Code2, Copy } from "lucide-react";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
 
 const SOURCE_CODE_PLACEHOLDER = "__langfuseInAppAgentSourceCodePath";
@@ -273,6 +274,8 @@ function EvaluatorSourceCodeValue({
   onShowCode: () => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const { copy, isCopied } = useCopyToClipboard();
   const previewLength = 500;
   const isTruncated = !isExpanded && code.value.length > previewLength;
   const displayedValue = isTruncated
@@ -280,23 +283,53 @@ function EvaluatorSourceCodeValue({
     : code.value;
 
   return (
-    <span className="inline">
-      <button
-        type="button"
-        className="text-muted-foreground hover:text-foreground ml-1 text-xs underline underline-offset-2"
-        onClick={(event) => {
-          event.stopPropagation();
-          onShowCode();
-        }}
-      >
-        <Code2
-          className="mr-1 inline-block size-3 !align-middle"
-          aria-hidden="true"
-        />
-        View as code
-      </button>
+    <span
+      className="inline"
+      onMouseEnter={() => {
+        setIsHovered(true);
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+      }}
+    >
+      {isHovered ? (
+        <>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground ml-1 text-xs underline underline-offset-2"
+            onClick={(event) => {
+              event.stopPropagation();
+              onShowCode();
+            }}
+          >
+            <Code2
+              className="mr-1 inline-block size-3 !align-middle"
+              aria-hidden="true"
+            />
+            View as code
+          </button>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground ml-1 text-xs"
+            aria-label="Copy source code"
+            title="Copy source code"
+            onClick={(event) => {
+              event.stopPropagation();
+              copy(code.value).catch(() => undefined);
+            }}
+          >
+            {isCopied ? (
+              <Check className="inline-block size-3 !align-middle" />
+            ) : (
+              <Copy className="inline-block size-3 !align-middle" />
+            )}
+          </button>
+        </>
+      ) : null}
       <br />
-      <span>&quot;{displayedValue}&quot;</span>
+      <span aria-label={`Source code at ${code.path}`}>
+        &quot;{displayedValue}&quot;
+      </span>
       {isTruncated ? (
         <button
           type="button"
