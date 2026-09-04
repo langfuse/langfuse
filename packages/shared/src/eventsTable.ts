@@ -7,6 +7,22 @@ export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
 };
 export const eventsTableIsRootObservationSql =
   eventsTableIsRootObservationSqlForAlias("e");
+
+/**
+ * The row the `scores -> events_traces` relation resolves a trace through:
+ * strictly the parentless one, and deliberately NOT the semantic root that
+ * `eventsTableIsRootObservationSqlForAlias` matches. Joining on a semantic root
+ * can match two rows in dual-write data and multiply a score, which is why that
+ * relation has always been narrow.
+ *
+ * The cost is that a trace whose only root is an app root (a newer SDK marking
+ * its own root under an upstream parent) is not attributable to an experiment
+ * through this relation at all. So anything that decides WHICH traces the
+ * relation can attribute has to use this predicate, not the semantic one, or it
+ * offers something the join cannot resolve.
+ */
+export const eventsTableScoreTraceRootSqlForAlias = (alias: string) =>
+  `${alias}.parent_span_id = ''`;
 export const eventsTableTraceNameSqlForAlias = (alias: string) =>
   `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
 export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
