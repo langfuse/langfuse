@@ -103,7 +103,7 @@ export function buildWidgetConfigFromId(chartId: string) {
 }
 
 /** Order two entries for the same score name take: obs, trace, then run. */
-const LEVEL_SORT_ORDER: ScoreLevel[] = ["obs", "trace", "experiment"];
+const LEVEL_SORT_ORDER: ScoreLevel[] = ["obs", "experiment"];
 
 /**
  * Build all available metric options from score filter options for the dropdown.
