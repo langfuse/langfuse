@@ -237,7 +237,7 @@ function SessionTimelineObservation({
           ) : null}
         </div>
       ) : !isTool ? (
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-5">
           {observation.metadataTruncated && !isTruncated ? (
             <p className="text-muted-foreground text-xs">
               Metadata was omitted because it is too large. Messages are parsed
