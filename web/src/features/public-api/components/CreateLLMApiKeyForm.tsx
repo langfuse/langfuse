@@ -32,9 +32,8 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
@@ -790,33 +789,27 @@ export function CreateLLMApiKeyForm({
                           Select how Langfuse should authenticate to Bedrock.
                         </FormDescription>
                         <FormControl>
-                          <Tabs
-                            value={field.value}
-                            onValueChange={(value) =>
-                              field.onChange(value as BedrockAuthMethod)
-                            }
-                            className="w-full"
-                          >
-                            <TabsList
-                              className={cn(
-                                "grid h-auto w-full gap-1",
-                                "grid-cols-2",
-                              )}
+                          <div className="w-full">
+                            <Tabs
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value as BedrockAuthMethod)
+                              }
                             >
-                              <TabsTrigger
-                                value={AuthMethod.AccessKeys}
-                                className="text-xs"
-                              >
-                                AWS access keys
-                              </TabsTrigger>
-                              <TabsTrigger
-                                value={AuthMethod.ApiKey}
-                                className="text-xs"
-                              >
-                                API key
-                              </TabsTrigger>
-                            </TabsList>
-                          </Tabs>
+                              <Tabs.List layout="full" gap="sm" size="auto">
+                                <Tabs.Trigger
+                                  value={AuthMethod.AccessKeys}
+                                  size="sm"
+                                  label="AWS access keys"
+                                />
+                                <Tabs.Trigger
+                                  value={AuthMethod.ApiKey}
+                                  size="sm"
+                                  label="API key"
+                                />
+                              </Tabs.List>
+                            </Tabs>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

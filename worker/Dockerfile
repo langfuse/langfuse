@@ -14,7 +14,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 ARG NODE_USE_ENV_PROXY
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate
+    && corepack prepare pnpm@12.3.1 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # package managers and build-only CLIs only increase exposure to CVEs -> remove them
@@ -40,7 +40,7 @@ COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install --frozen-lockfile
 
-# pnpm 11 defaults verify-deps-before-run to "install", so every `pnpm run`
+# pnpm can verify dependencies before each `pnpm run`, so every command
 # spawned by turbo re-checks node_modules via file mtimes. Cached install
 # layers make those mtimes look stale, and the concurrent auto-installs race
 # in the hoisting step (ENOENT unlink in node_modules/.pnpm/node_modules).
@@ -65,8 +65,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 # we only need the prod + generated prisma client plus .prisma artifacts
 # @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
 # intact here instead of pruning node_modules in Docker.
-# Scope workspace injection to deploy so regular workspace installs keep source-link semantics.
-RUN pnpm --config.inject-workspace-packages=true --filter worker deploy --prod /prod/worker && \
+# pnpm deploy materializes linked workspace packages into the standalone artifact.
+RUN pnpm --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     builder_prisma_runtime_dir="$(dirname "$(dirname "$builder_prisma_client_dir")")/.prisma" && \

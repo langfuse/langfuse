@@ -358,9 +358,16 @@ async function resolveObservationEvalExecution(params: {
       where: { id: evaluatorId, projectId, type: executionType },
       include: evaluatorInclude,
     });
-    return evaluator
-      ? buildV2Execution({ rule: null, assignment: null, evaluator })
-      : { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    if (!evaluator) {
+      return { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    }
+    // Ruleless batch runs have no assignment row. A mapping on the queue
+    // payload is the override; omitting it inherits the version mapping.
+    const assignment =
+      event.variableMapping !== undefined
+        ? { variableMapping: event.variableMapping }
+        : null;
+    return buildV2Execution({ rule: null, assignment, evaluator });
   }
 
   // The assignment is what authorizes this execution — it is the (rule,
@@ -460,10 +467,10 @@ type ResolvedEvaluationRule = Prisma.EvaluationRuleGetPayload<object>;
  */
 function buildV2Execution(params: {
   rule: ResolvedEvaluationRule | null;
-  assignment: Pick<
-    Prisma.EvaluationRuleEvaluatorAssignmentGetPayload<object>,
-    "id" | "variableMapping"
-  > | null;
+  assignment: {
+    id?: string;
+    variableMapping: Prisma.JsonValue;
+  } | null;
   evaluator: ResolvedEvaluator;
 }) {
   const { rule, assignment, evaluator } = params;
