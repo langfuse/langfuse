@@ -19,6 +19,21 @@ describe("compileTemplateString", () => {
       }),
     ).toBe("[object Object] ");
   });
+
+  it("preserves placeholders named like Object.prototype members when not provided", () => {
+    expect(
+      compileTemplateString(
+        "{{constructor}} {{toString}} {{hasOwnProperty}}",
+        {},
+      ),
+    ).toBe("{{constructor}} {{toString}} {{hasOwnProperty}}");
+  });
+
+  it("interpolates a provided key even if it shadows a prototype member", () => {
+    expect(compileTemplateString("{{toString}}", { toString: "ok" })).toBe(
+      "ok",
+    );
+  });
 });
 
 describe("compileEvalPrompt", () => {
