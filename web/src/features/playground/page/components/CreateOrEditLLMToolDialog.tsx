@@ -43,7 +43,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 type CreateOrEditLLMToolDialog = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   projectId: string;
   onSave: (llmTool: LlmTool) => void;
   onDelete?: (llmTool: LlmTool) => void;
@@ -53,6 +53,8 @@ type CreateOrEditLLMToolDialog = {
     description: string;
     parameters: string;
   };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
@@ -65,7 +67,15 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
   const updateLlmTool = api.llmTools.update.useMutation();
   const deleteLlmTool = api.llmTools.delete.useMutation();
 
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = props.open !== undefined;
+  const open = isControlled ? props.open : internalOpen;
+  const setOpen = (newOpen: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(newOpen);
+    }
+    props.onOpenChange?.(newOpen);
+  };
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -87,14 +97,33 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
 
   // Populate form when in edit mode
   useEffect(() => {
-    if (existingLlmTool && !props.defaultValues) {
-      form.reset({
-        name: existingLlmTool.name,
-        description: existingLlmTool.description,
-        parameters: JSON.stringify(existingLlmTool.parameters, null, 2),
-      });
+    if (open) {
+      if (existingLlmTool && !props.defaultValues) {
+        form.reset({
+          name: existingLlmTool.name,
+          description: existingLlmTool.description,
+          parameters: JSON.stringify(existingLlmTool.parameters, null, 2),
+        });
+      } else if (props.defaultValues) {
+        form.reset(props.defaultValues);
+      } else {
+        form.reset({
+          name: "",
+          description: "",
+          parameters: JSON.stringify(
+            {
+              type: "object",
+              properties: {},
+              required: [],
+              additionalProperties: false,
+            },
+            null,
+            2,
+          ),
+        });
+      }
     }
-  }, [existingLlmTool, form, props.defaultValues]);
+  }, [existingLlmTool, form, props.defaultValues, open]);
 
   async function onSubmit(values: FormValues) {
     let result;
@@ -152,9 +181,11 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-        {children}
-      </DialogTrigger>
+      {children ? (
+        <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
+          {children}
+        </DialogTrigger>
+      ) : null}
       <DialogContent
         className="flex flex-col sm:min-w-128 md:min-w-160"
         onClick={(e) => e.stopPropagation()}

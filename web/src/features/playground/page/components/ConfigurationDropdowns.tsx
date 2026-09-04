@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
@@ -7,8 +7,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { type LlmTool } from "@prisma/client";
 import { usePlaygroundContext } from "../context";
 import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
+import { type PlaygroundTool } from "../types";
+import { CreateOrEditLLMToolDialog } from "./CreateOrEditLLMToolDialog";
 import { PlaygroundTools, PlaygroundToolsPopover } from "./PlaygroundTools";
 import {
   StructuredOutputSchemaSection,
@@ -20,18 +24,98 @@ import { MessagePlaceholders } from "./MessagePlaceholders";
 export const ConfigurationDropdowns: React.FC = () => {
   const { containerRef, width, isVeryCompact, isCompact } =
     usePlaygroundWindowSize();
+  const projectId = useProjectIdFromURL();
   const {
     tools,
+    setTools,
     structuredOutputSchema,
     promptVariables,
     messagePlaceholders,
   } = usePlaygroundContext();
+
+  const [isToolsPopoverOpen, setIsToolsPopoverOpen] = useState(false);
+  const [toolDialogState, setToolDialogState] = useState<{
+    isOpen: boolean;
+    tool?: LlmTool;
+    defaultValues?: {
+      name: string;
+      description: string;
+      parameters: string;
+    };
+  }>({ isOpen: false });
 
   const toolsCount = tools.length;
   const hasSchema = structuredOutputSchema ? 1 : 0;
   const variablesCount = promptVariables.length + messagePlaceholders.length;
   const toolsPopoverWidth =
     width > 0 ? Math.min(Math.max(width - 24, 0), 320) : undefined;
+
+  const handleSelectTool = (selectedLLMTool: LlmTool) => {
+    setTools((prev: PlaygroundTool[]) => {
+      let existingToolIndex = -1;
+      existingToolIndex = prev.findIndex((t) => t.id === selectedLLMTool.id);
+
+      if (existingToolIndex === -1) {
+        const unsavedToolIndexWithSameName = prev.findIndex(
+          (t) => t.name === selectedLLMTool.name,
+        );
+
+        if (unsavedToolIndexWithSameName !== -1) {
+          existingToolIndex = unsavedToolIndexWithSameName;
+        }
+      }
+
+      const newTool: PlaygroundTool = {
+        id: selectedLLMTool.id,
+        name: selectedLLMTool.name,
+        description: selectedLLMTool.description,
+        parameters: selectedLLMTool.parameters as Record<string, unknown>,
+        existingLlmTool: selectedLLMTool,
+      };
+
+      if (existingToolIndex !== -1) {
+        const newTools = [...prev];
+        newTools[existingToolIndex] = newTool;
+        return newTools;
+      }
+
+      return [...prev, newTool];
+    });
+  };
+
+  const handleRemoveTool = (toolId: string) => {
+    setTools(
+      (prev: PlaygroundTool[]) =>
+        prev.filter((t) => !(t.id === toolId)) as PlaygroundTool[],
+    );
+  };
+
+  const handleOpenCreateTool = () => {
+    setIsToolsPopoverOpen(false);
+    setToolDialogState({ isOpen: true });
+  };
+
+  const handleOpenEditSavedTool = (tool: LlmTool) => {
+    setIsToolsPopoverOpen(false);
+    setToolDialogState({ isOpen: true, tool });
+  };
+
+  const handleOpenEditAttachedTool = (
+    _tool: PlaygroundTool,
+    existingLlmTool?: LlmTool,
+    defaultValues?: {
+      name: string;
+      description: string;
+      parameters: string;
+    },
+  ) => {
+    setIsToolsPopoverOpen(false);
+    setToolDialogState({
+      isOpen: true,
+      tool: existingLlmTool,
+      defaultValues,
+    });
+  };
 
   // Helper function to get responsive content (text or icon)
   const getResponsiveContent = (
@@ -62,7 +146,7 @@ export const ConfigurationDropdowns: React.FC = () => {
     <div ref={containerRef} className="bg-muted/25 shrink-0 border-b px-3 py-2">
       <div className="flex items-center justify-start gap-2">
         {/* Tools Dropdown */}
-        <Popover>
+        <Popover open={isToolsPopoverOpen} onOpenChange={setIsToolsPopoverOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Tools", Wrench)}
@@ -87,7 +171,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             </div>
             {toolsCount > 0 ? (
               <div className="mb-3">
-                <PlaygroundTools />
+                <PlaygroundTools onEditTool={handleOpenEditAttachedTool} />
               </div>
             ) : (
               <div className="mb-3">
@@ -97,10 +181,27 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             )}
             <div className="border-t pt-3">
-              <PlaygroundToolsPopover />
+              <PlaygroundToolsPopover
+                onCreateTool={handleOpenCreateTool}
+                onEditTool={handleOpenEditSavedTool}
+              />
             </div>
           </PopoverContent>
         </Popover>
+
+        {toolDialogState.isOpen && projectId && (
+          <CreateOrEditLLMToolDialog
+            open={toolDialogState.isOpen}
+            onOpenChange={(open) =>
+              setToolDialogState((prev) => ({ ...prev, isOpen: open }))
+            }
+            projectId={projectId}
+            existingLlmTool={toolDialogState.tool}
+            defaultValues={toolDialogState.defaultValues}
+            onSave={handleSelectTool}
+            onDelete={(deletedTool) => handleRemoveTool(deletedTool.id)}
+          />
+        )}
 
         {/* Structured Output Dropdown */}
         <Popover>
