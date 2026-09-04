@@ -307,6 +307,36 @@ export const PythonCodeEvaluator = meta.story({
   },
 });
 
+export const UnicodeEscapedCodeEvaluator = meta.story({
+  name: "(Test) Unicode-escaped code evaluator",
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_createEvaluator",
+      status: "succeeded",
+      args: JSON.stringify({
+        name: "Unicode is present",
+        type: "CODE",
+        sourceCodeLanguage: "TYPESCRIPT",
+        sourceCode: String.raw`export const check = "\u2713";`,
+      }),
+    },
+  },
+  play: async (context) => {
+    const canvas = await showToolCall(context);
+    await expect(
+      canvas.getByRole("button", { name: "Show in code block" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show in code block" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Copy code" }),
+    ).toBeVisible();
+  },
+});
+
 export const LargePayload = meta.story({
   name: "(Test) Large payload",
   args: {

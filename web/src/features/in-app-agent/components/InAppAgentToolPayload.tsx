@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { WandSparkles } from "lucide-react";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { cn } from "@/src/utils/tailwind";
 
 type PayloadCode = {
@@ -39,9 +40,11 @@ export function InAppAgentToolPayload({
 
       return {
         state: "json",
-        value: deepParseJson(unwrapMcpTextResult(parsedValue), {
-          maxDepth: 6,
-        }),
+        value: decodeUnicodeInJson(
+          deepParseJson(unwrapMcpTextResult(parsedValue), {
+            maxDepth: 6,
+          }),
+        ),
       };
     } catch {
       return { state: "raw", value };
@@ -108,27 +111,27 @@ function StructuredToolPayload({ value }: { value: unknown }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <JSONView
-        json={value}
-        isLoading={false}
-        scrollable={true}
-        className="max-h-80"
-        collapseDepth={4}
-        externalJsonCollapsed={isCodeView}
-        onToggleCollapse={() => {
-          setIsCodeView(false);
-        }}
-        customizeNode={({ node, indexOrName }) =>
-          code && indexOrName === "sourceCode" && node === code.value ? (
-            <EvaluatorSourceCodeValue
-              code={code}
-              onShowCode={() => {
-                setIsCodeView(true);
-              }}
-            />
-          ) : undefined
-        }
-      />
+      <div className="max-h-80 min-h-0 overflow-y-auto">
+        <JSONView
+          json={value}
+          isLoading={false}
+          collapseDepth={4}
+          externalJsonCollapsed={isCodeView}
+          onToggleCollapse={() => {
+            setIsCodeView(false);
+          }}
+          customizeNode={({ node, indexOrName }) =>
+            code && indexOrName === "sourceCode" && node === code.value ? (
+              <EvaluatorSourceCodeValue
+                code={code}
+                onShowCode={() => {
+                  setIsCodeView(true);
+                }}
+              />
+            ) : undefined
+          }
+        />
+      </div>
       {code && isCodeView ? (
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-col gap-0.5">

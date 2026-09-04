@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
@@ -259,17 +260,19 @@ function renderExecutionUi({
   includeReopenButton?: boolean;
 } = {}) {
   return render(
-    <InAppAiAgentProvider defaultOpen={defaultOpen}>
-      <TooltipProvider>
-        {includeReopenButton ? <ReopenAssistantButton /> : null}
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-          showCloseButton={false}
-        />
-      </TooltipProvider>
-    </InAppAiAgentProvider>,
+    <MarkdownContextProvider>
+      <InAppAiAgentProvider defaultOpen={defaultOpen}>
+        <TooltipProvider>
+          {includeReopenButton ? <ReopenAssistantButton /> : null}
+          <ControlledInAppAgentWindow
+            isExpanded={false}
+            onDeleteConversation={vi.fn()}
+            onExpandedChange={vi.fn()}
+            showCloseButton={false}
+          />
+        </TooltipProvider>
+      </InAppAiAgentProvider>
+    </MarkdownContextProvider>,
   );
 }
 
