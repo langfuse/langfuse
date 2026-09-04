@@ -48,10 +48,32 @@ import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 const GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES = 64 * 1024;
 const GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER =
   "[TRUNCATED: GitHub repository_dispatch payload exceeded size limit]";
-const GITHUB_REPOSITORY_DISPATCH_TRUNCATED_FIELDS = [
+const GITHUB_REPOSITORY_DISPATCH_CONTENT_FIELDS = [
   "prompt.prompt",
   "prompt.config",
 ];
+const GITHUB_REPOSITORY_DISPATCH_METADATA_FIELDS = [
+  "prompt.tags",
+  "prompt.labels",
+  "prompt.commitMessage",
+];
+
+function serializeGitHubDispatchPayload(
+  eventType: string,
+  clientPayload: unknown,
+): string {
+  return JSON.stringify({
+    event_type: eventType,
+    client_payload: clientPayload,
+  });
+}
+
+function isGitHubDispatchPayloadWithinLimit(payload: string): boolean {
+  return (
+    Buffer.byteLength(payload, "utf8") <
+    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
+  );
+}
 
 /** automationFailureThreshold is the consecutive-failure count after which a monitor-alert trigger is auto-disabled. Mirrors prompt-version's getConsecutiveAutomationFailures threshold (>= 5 failures since the last success). */
 const automationFailureThreshold = 5;
@@ -597,6 +619,7 @@ async function executeGitHubDispatchAction({
 
   const githubConfig = actionConfig.config;
   const eventType = githubConfig.eventType;
+  const includePromptContent = githubConfig.includePromptContent !== false;
   const validated = buildWebhookOutboundPayload(input);
 
   let githubPayload: string;
@@ -605,34 +628,62 @@ async function executeGitHubDispatchAction({
       typeof validated,
       { type: "prompt-version" }
     >;
-    const fullGithubPayload = JSON.stringify({
-      event_type: eventType,
-      client_payload: {
+    const promptForPayload = includePromptContent
+      ? prompt
+      : {
+          ...prompt,
+          prompt: null,
+          config: {},
+        };
+    const serializePromptPayload = (
+      nextPrompt: typeof promptForPayload,
+      truncatedFields?: string[],
+    ) =>
+      serializeGitHubDispatchPayload(eventType, {
         ...otherFields,
         ...(user ? { user } : {}),
-        prompt,
-      },
-    });
-    githubPayload =
-      Buffer.byteLength(fullGithubPayload, "utf8") <
-      GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
-        ? fullGithubPayload
-        : JSON.stringify({
-            event_type: eventType,
-            client_payload: {
-              ...otherFields,
-              ...(user ? { user } : {}),
+        ...(truncatedFields
+          ? {
               truncation: {
                 payloadTruncated: true,
-                truncatedFields: GITHUB_REPOSITORY_DISPATCH_TRUNCATED_FIELDS,
+                truncatedFields,
               },
-              prompt: {
-                ...prompt,
-                prompt: GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
-                config: {},
-              },
+            }
+          : {}),
+        prompt: nextPrompt,
+      });
+
+    const fullGithubPayload = serializePromptPayload(promptForPayload);
+    if (isGitHubDispatchPayloadWithinLimit(fullGithubPayload)) {
+      githubPayload = fullGithubPayload;
+    } else {
+      const contentTruncatedPayload = serializePromptPayload(
+        {
+          ...promptForPayload,
+          prompt: GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
+          config: {},
+        },
+        GITHUB_REPOSITORY_DISPATCH_CONTENT_FIELDS,
+      );
+      githubPayload = isGitHubDispatchPayloadWithinLimit(
+        contentTruncatedPayload,
+      )
+        ? contentTruncatedPayload
+        : serializePromptPayload(
+            {
+              ...promptForPayload,
+              prompt: GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
+              config: {},
+              tags: [],
+              labels: [],
+              commitMessage: null,
             },
-          });
+            [
+              ...GITHUB_REPOSITORY_DISPATCH_CONTENT_FIELDS,
+              ...GITHUB_REPOSITORY_DISPATCH_METADATA_FIELDS,
+            ],
+          );
+    }
   } else {
     // monitor-alert: post the envelope as client_payload.
     const monitorEnvelope = validated as Extract<

@@ -2613,6 +2613,41 @@ describe("automations trpc", () => {
       const responseConfig = response.action.config as any;
       expect(responseConfig).not.toHaveProperty("githubToken");
       expect(responseConfig.displayGitHubToken).toMatch(/^ghp_...6$/);
+      expect(responseConfig.includePromptContent).toBe(true);
+    });
+
+    it("should persist includePromptContent=false on GitHub dispatch automations", async () => {
+      const { project, caller } = await prepare();
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Metadata-only GitHub Dispatch",
+        eventSource: "prompt",
+        eventAction: ["updated"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "GITHUB_DISPATCH",
+        actionConfig: {
+          type: "GITHUB_DISPATCH",
+          url: "https://api.github.com/repos/owner/repo/dispatches",
+          eventType: "langfuse-prompt-updated",
+          githubToken: "ghp_test_token_123456",
+          includePromptContent: false,
+        },
+      });
+
+      const responseConfig = response.action.config as {
+        includePromptContent?: boolean;
+      };
+      expect(responseConfig.includePromptContent).toBe(false);
+
+      const createdAction = await prisma.action.findUnique({
+        where: { id: response.action.id },
+      });
+      const storedConfig = createdAction?.config as {
+        includePromptContent?: boolean;
+      };
+      expect(storedConfig.includePromptContent).toBe(false);
     });
 
     it("should fail to create GitHub dispatch automation with invalid URL", async () => {
