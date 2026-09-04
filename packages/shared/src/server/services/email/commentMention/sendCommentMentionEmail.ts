@@ -27,10 +27,10 @@ export const sendCommentMentionEmail = async ({
   commentPreview,
   commentLink,
   settingsLink,
-}: SendCommentMentionEmailParams) => {
+}: SendCommentMentionEmailParams): Promise<{ delivered: boolean }> => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error("Missing environment variables for sending email.");
-    return;
+    return { delivered: false };
   }
 
   try {
@@ -70,7 +70,9 @@ export const sendCommentMentionEmail = async ({
     });
 
     logger.info("Comment mention email sent successfully");
+    return { delivered: true };
   } catch (error) {
     logger.error("Failed to send comment mention email", error);
+    throw error;
   }
 };
