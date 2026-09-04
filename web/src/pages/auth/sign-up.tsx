@@ -476,12 +476,14 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <CloudRegionSwitch isSignUpPage />
+        {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
 
         <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           {children}
         </div>
-        <CloudPrivacyNotice action="creating an account" />
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+          <CloudPrivacyNotice action="creating an account" />
+        )}
       </div>
     </>
   );

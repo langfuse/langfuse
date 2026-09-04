@@ -21,8 +21,7 @@ export type VersionUpdateBannerViewProps = {
  * instead of overlapping it.
  *
  * Purely props-driven (no store/context/data) so it renders in isolation — see
- * `VersionUpdateBannerView.stories.tsx`. The connected {@link VersionUpdateBanner}
- * wires it to the store, the overlay layer, and analytics.
+ * `VersionUpdateBannerView.stories.tsx`.
  *
  * We prompt rather than auto-reload: reloading would discard unsaved work (open
  * annotations, editors); the user reloads when it is safe for them.

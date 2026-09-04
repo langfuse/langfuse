@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 
 process.on("uncaughtException", (error) => {
@@ -45,12 +46,16 @@ if (
   );
 }
 
-const basePrices = JSON.parse(
-  fs.readFileSync(process.env.BASE_PRICING_FILE, "utf8"),
+const basePricingText = fs.readFileSync(
+  process.env.BASE_PRICING_FILE,
+  "utf8",
 );
-const currentPrices = JSON.parse(
-  fs.readFileSync(process.env.CURRENT_PRICING_FILE, "utf8"),
+const currentPricingText = fs.readFileSync(
+  process.env.CURRENT_PRICING_FILE,
+  "utf8",
 );
+const basePrices = JSON.parse(basePricingText);
+const currentPrices = JSON.parse(currentPricingText);
 const basePricesByName = new Map(
   basePrices.map((item) => [normalize(item.modelName), item]),
 );
@@ -58,9 +63,10 @@ const currentPricesByName = new Map(
   currentPrices.map((item) => [normalize(item.modelName), item]),
 );
 const pricingModelChanges = [];
-for (const modelName of new Set(
-  Array.from(basePricesByName.keys()).concat(currentPricesByName.keys()),
-)) {
+for (const modelName of new Set([
+  ...basePricesByName.keys(),
+  ...currentPricesByName.keys(),
+])) {
   const before = basePricesByName.get(modelName);
   const after = currentPricesByName.get(modelName);
   if (JSON.stringify(before) !== JSON.stringify(after)) {
@@ -83,7 +89,13 @@ if (
   process.env.CHANGED_PRICING_JSON === "true" &&
   pricingModelChanges.length === 0
 ) {
-  throw new Error("Pricing JSON changed without a concrete model-entry change");
+  const digest = (value) =>
+    createHash("sha256").update(value).digest("hex").slice(0, 12);
+  throw new Error(
+    "Pricing JSON changed without a concrete model-entry change " +
+      `(base entries: ${basePrices.length}, current entries: ${currentPrices.length}, ` +
+      `base sha256: ${digest(basePricingText)}, current sha256: ${digest(currentPricingText)})`,
+  );
 }
 if (process.env.CHANGED_MODEL_TYPES === "true" && typeModelChanges.size === 0) {
   throw new Error(

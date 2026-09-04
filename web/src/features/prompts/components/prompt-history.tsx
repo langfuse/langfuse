@@ -26,6 +26,7 @@ const PromptHistoryTraceNode = (props: {
   const [isHovered, setIsHovered] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
+  const commentCount = props.commentCounts?.get(prompt.id);
 
   // Add ref for scroll into view
   const currentPromptRef = useRef<HTMLDivElement>(null);
@@ -108,7 +109,7 @@ const PromptHistoryTraceNode = (props: {
               setIsOpen={setIsLabelPopoverOpen}
               showOnlyOnHover
             />
-            {props.commentCounts?.get(prompt.id) ? (
+            {commentCount ? (
               <span
                 onClick={(e) => {
                   e.stopPropagation();
@@ -130,7 +131,7 @@ const PromptHistoryTraceNode = (props: {
                 className="cursor-pointer"
                 role="button"
               >
-                <CommentCountIcon count={props.commentCounts.get(prompt.id)} />
+                <CommentCountIcon count={commentCount} />
               </span>
             ) : null}
           </div>

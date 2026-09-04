@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   TriggerEventSource,
   type AutomationDomain,
@@ -20,14 +19,9 @@ export type ProjectNotificationChannelsMode = "list" | "create" | "edit";
  */
 export function useProjectNotificationChannels(projectId: string) {
   const utils = api.useUtils();
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "automations:CUD",
-  });
 
   const { data: channels, isLoading } = api.automations.getAutomations.useQuery(
     { projectId, eventSource: TriggerEventSource.ProjectNotification },
-    { enabled: Boolean(projectId) && hasAccess },
   );
 
   const [mode, setMode] = useState<ProjectNotificationChannelsMode>("list");
@@ -73,7 +67,6 @@ export function useProjectNotificationChannels(projectId: string) {
   };
 
   return {
-    hasAccess,
     channels,
     isLoading,
     mode,

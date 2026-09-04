@@ -138,14 +138,14 @@ export function AppLayout(props: PropsWithChildren) {
   // Authenticated layout
   // At this point, all auth guards have passed and session.data is guaranteed to exist
   // The authGuard hook ensures we don't reach here without a valid session
-  if (!sessionData) {
+  if (!sessionData?.user) {
     // This should never happen due to guards above, but TypeScript needs this
     return <LoadingLayout message="Loading" />;
   }
 
   return (
     <AuthenticatedLayout
-      session={sessionData}
+      user={sessionData.user}
       navigation={navigation}
       metadata={metadata}
       onSignOut={signOutCleanly}

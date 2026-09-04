@@ -20,11 +20,8 @@ const meta = preview.meta({
   args: {
     onOpen: fn(),
     onDismiss: fn(),
-    cards: [],
   },
 });
-
-export const Empty = meta.story({});
 
 export const ApprovalRequired = meta.story({
   args: {

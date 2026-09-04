@@ -5,14 +5,30 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Layer } from "@/src/components/ui/layer";
 import {
   InAppAgentActivityCards,
-  selectInAppAgentActivityCards,
   type InAppAgentActivityCard,
 } from "@/src/features/in-app-agent/components/InAppAgentActivityCards";
 
 /** Same TTL for results and approvals: toast is heads-up, not a sticky prompt. */
 const CARD_TTL_MS = 8_000;
+/** Approvals first: a question outranks a result the user can read later. */
+const CARD_PRIORITY: Record<string, number> = {
+  approval: 0,
+  "failed-unread": 1,
+  "done-unread": 2,
+};
+const MAX_VISIBLE_CARDS = 3;
 
 export type InAppAgentActivityNotification = InAppAgentActivityCard;
+
+function selectInAppAgentActivityCards(
+  cards: readonly InAppAgentActivityCard[],
+) {
+  return [...cards]
+    .sort(
+      (a, b) => (CARD_PRIORITY[a.state] ?? 9) - (CARD_PRIORITY[b.state] ?? 9),
+    )
+    .slice(0, MAX_VISIBLE_CARDS);
+}
 
 /**
  * Lifecycle for the floating stack. Cap before timers so hidden cards stay undelivered.
@@ -50,6 +66,7 @@ export function InAppAgentActivityNotifications({
       ),
     [dismissedKeys, notifications],
   );
+  const [firstSelectedCard, ...remainingSelectedCards] = selected;
 
   // Deliver previously-shown cards that leave the top-3 window (eviction).
   // setState-during-render so we do not sync dismissedKeys from props in an
@@ -166,16 +183,18 @@ export function InAppAgentActivityNotifications({
 
   return (
     <Layer name="toast">
-      <InAppAgentActivityCards
-        cards={selected}
-        onOpen={(card) => {
-          retire([card]);
-          onOpenConversation(card.conversationId);
-        }}
-        onDismiss={(card) => {
-          retire([card]);
-        }}
-      />
+      {firstSelectedCard && (
+        <InAppAgentActivityCards
+          cards={[firstSelectedCard, ...remainingSelectedCards]}
+          onOpen={(card) => {
+            retire([card]);
+            onOpenConversation(card.conversationId);
+          }}
+          onDismiss={(card) => {
+            retire([card]);
+          }}
+        />
+      )}
     </Layer>
   );
 }

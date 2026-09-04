@@ -1,41 +1,26 @@
-/* eslint-disable @repo/no-null-render */
 import { Clock, Info } from "lucide-react";
-import { useScoreAnalytics } from "./ScoreAnalyticsProvider";
-import { useState, useEffect } from "react";
+import { assertUnreachable } from "@/src/utils/types";
+import type { ScoreAnalyticsContextValue } from "./ScoreAnalyticsProvider";
 import { SamplingDetailsHoverCard } from "./SamplingDetailsHoverCard";
 
-export function ScoreAnalyticsNoticeBanner() {
-  const { isEstimating, estimate, isLoading, data } = useScoreAnalytics();
-  const [showLoadingBanner, setShowLoadingBanner] = useState(false);
-
-  // Track when estimation starts and set delay for showing loading banner
-  useEffect(() => {
-    if (isEstimating || (estimate && isLoading)) {
-      // Start timer - show banner after 1.5 seconds
-      const timer = setTimeout(() => {
-        setShowLoadingBanner(true);
-      }, 1500);
-
-      return () => clearTimeout(timer);
+type ScoreAnalyticsNoticeBannerProps =
+  | {
+      variant: "loading";
+      estimate: ScoreAnalyticsContextValue["estimate"];
     }
-    // Reset when loading completes
-    setShowLoadingBanner(false);
-  }, [isEstimating, estimate, isLoading]);
+  | {
+      variant: "sampled";
+      data: NonNullable<ScoreAnalyticsContextValue["data"]>;
+    };
 
-  // Don't show anything if we haven't started
-  if (!isEstimating && !estimate) return null;
-
-  // State 1: Estimating (loading)
-  if (isEstimating || (estimate && isLoading)) {
-    const showLargeDataset =
-      estimate && estimate.estimatedMatchedCount > 100_000;
-
-    // Only show banner if:
-    // 1. Delay has passed, OR
-    // 2. We have estimate data showing it's a large dataset
-    if (!showLoadingBanner && !showLargeDataset) {
-      return null;
-    }
+export function ScoreAnalyticsNoticeBanner(
+  props: ScoreAnalyticsNoticeBannerProps,
+) {
+  if (props.variant === "loading") {
+    const { estimate } = props;
+    const showLargeDataset = Boolean(
+      estimate && estimate.estimatedMatchedCount > 100_000,
+    );
 
     return (
       <div className="bg-muted mb-4 rounded-md px-4 py-3">
@@ -64,8 +49,9 @@ export function ScoreAnalyticsNoticeBanner() {
     );
   }
 
-  // State 2: Loaded with sampling
-  if (data?.samplingMetadata.isSampled) {
+  if (props.variant === "sampled") {
+    const { data } = props;
+
     return (
       <div className="bg-muted mb-4 rounded-md px-4 py-3">
         <div className="flex items-start gap-3">
@@ -89,6 +75,5 @@ export function ScoreAnalyticsNoticeBanner() {
     );
   }
 
-  // State 3: Loaded without sampling (don't show banner)
-  return null;
+  return assertUnreachable(props);
 }

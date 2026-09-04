@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -12,7 +12,10 @@ import {
 } from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { WebCalloutMenuItem } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+import {
+  useWebCalloutAction,
+  WebCalloutMenuItem,
+} from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 
 type IdItem = {
   name: string;
@@ -31,6 +34,28 @@ type DetailHeaderActionsMenuControllerProps = {
   };
   children: ComponentProps<typeof DropdownMenuController>["children"];
 };
+
+function WebCalloutActionController({
+  projectId,
+  webCallout,
+  children,
+}: {
+  projectId: string;
+  webCallout: NonNullable<DetailHeaderActionsMenuControllerProps["webCallout"]>;
+  children: (action: ReturnType<typeof useWebCalloutAction>) => ReactNode;
+}) {
+  const webCalloutAction = useWebCalloutAction(
+    {
+      projectId,
+      traceId: webCallout.traceId,
+      observationId: webCallout.observationId,
+      sessionId: webCallout.sessionId,
+    },
+    true,
+  );
+
+  return children(webCalloutAction);
+}
 
 export function DetailHeaderActionsMenuController({
   idItems,
@@ -75,13 +100,16 @@ export function DetailHeaderActionsMenuController({
       renderMenu={() => (
         <>
           {webCallout && (
-            <WebCalloutMenuItem
+            <WebCalloutActionController
               projectId={projectId}
-              traceId={webCallout.traceId}
-              observationId={webCallout.observationId}
-              sessionId={webCallout.sessionId}
-              withSeparator
-            />
+              webCallout={webCallout}
+            >
+              {(webCalloutAction) =>
+                webCalloutAction ? (
+                  <WebCalloutMenuItem action={webCalloutAction} withSeparator />
+                ) : null
+              }
+            </WebCalloutActionController>
           )}
           {(href || typeHref) && (
             <>
