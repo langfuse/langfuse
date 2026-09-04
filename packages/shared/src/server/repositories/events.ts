@@ -501,6 +501,7 @@ export const getObservationsForSessionFromEventsTable = async (params: {
       select: "rows",
       selectIOAndMetadata: false,
       selectToolData: false,
+      dedupeBySpanId: true,
     });
 
   const totalCount = records.length;
@@ -915,11 +916,15 @@ async function getObservationsFromEventsTableInternal<T>(
           : []),
       ]);
 
-      return isTraceDeleteCursorSelect
-        ? cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id")
-        : opts.dedupeBySpanId
-          ? cursorOrderedBuilder.limitBy("e.span_id", "e.project_id")
-          : cursorOrderedBuilder;
+      if (isTraceDeleteCursorSelect) {
+        return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
+      }
+      if (opts.dedupeBySpanId) {
+        return cursorOrderedBuilder.qualifyRaw(
+          "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+        );
+      }
+      return cursorOrderedBuilder;
     })
     .when(
       !isCursorPagination &&
@@ -937,7 +942,9 @@ async function getObservationsFromEventsTableInternal<T>(
         ),
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
-      b.limitBy("e.span_id", "e.project_id"),
+      b.qualifyRaw(
+        "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+      ),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 

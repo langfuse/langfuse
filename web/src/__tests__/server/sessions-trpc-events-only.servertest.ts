@@ -181,6 +181,75 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
   });
 
+  it("returns only the latest non-deleted observation version", async () => {
+    const sessionId = randomUUID();
+    const traceId = randomUUID();
+    const updatedSpanId = randomUUID();
+    const deletedSpanId = randomUUID();
+    const startTime = Date.now() * 1000;
+
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: updatedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "original",
+        start_time: startTime,
+        event_ts: startTime,
+      }),
+      createEvent({
+        id: randomUUID(),
+        span_id: updatedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "updated",
+        start_time: startTime,
+        event_ts: startTime + 1,
+      }),
+      createEvent({
+        id: randomUUID(),
+        span_id: deletedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "deleted",
+        start_time: startTime,
+        event_ts: startTime,
+      }),
+      createEvent({
+        id: randomUUID(),
+        span_id: deletedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "deleted",
+        start_time: startTime,
+        event_ts: startTime + 1,
+        is_deleted: 1,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+
+      expect(result.observations).toHaveLength(1);
+      expect(result.observations[0]).toMatchObject({
+        id: updatedSpanId,
+        name: "updated",
+      });
+    });
+  });
+
   it("bookmark creates the trace_sessions row on demand and round-trips", async () => {
     const sessionId = randomUUID();
     await seedSessionEvent(sessionId);
