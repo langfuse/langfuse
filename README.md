@@ -116,6 +116,9 @@ Run Langfuse on your own infrastructure:
   docker compose up
   ```
 
+> [!NOTE]
+> The source-development Compose stack (`docker-compose.dev*.yml`) uses [Floci](https://floci.io/) as its default local S3 emulator. The self-hosted Compose stack (`docker-compose.yml`) continues to use [MinIO](https://min.io/), and custom MinIO or other S3-compatible storage remains supported through the `LANGFUSE_S3_*` environment variables.
+
 - [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
 - [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
 - Terraform Templates: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)

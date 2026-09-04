@@ -77,7 +77,7 @@ dump_diagnostics() {
   echo "Cursor Cloud stack startup failed; collecting Docker diagnostics."
   docker info
   compose ps -a
-  compose logs --tail=200 langfuse-web langfuse-worker postgres clickhouse redis minio
+  compose logs --tail=200 langfuse-web langfuse-worker postgres clickhouse redis floci
 
   exit "$exit_code"
 }

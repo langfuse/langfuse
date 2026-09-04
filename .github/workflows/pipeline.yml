@@ -561,7 +561,7 @@ jobs:
         # Independent of the image build, so let the build overlap it. The
         # healthcheck step below surfaces its output and re-validates health.
         run: |
-          (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
+          (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis floci clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
         # Type-checking runs in the lint job; release builds retain it.
         run: |
@@ -595,7 +595,7 @@ jobs:
 
           ss -ltnp | tee /tmp/docker-diagnostics/host-listeners.txt || true
 
-          for service in langfuse-web langfuse-worker postgres redis minio clickhouse; do
+          for service in langfuse-web langfuse-worker postgres redis floci clickhouse; do
             container_id="$(docker compose -f "$DOCKER_COMPOSE_FILE" ps -q "$service" || true)"
             if [ -z "$container_id" ]; then
               echo "No container found for ${service}" | tee -a /tmp/docker-diagnostics/missing-containers.txt
@@ -884,19 +884,12 @@ jobs:
           cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
-          docker compose ps
-        env:
-          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
-          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
-      - name: Ensure no unhealthy status
-        run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
+          compose_args=(-f docker-compose.dev${{ matrix.deploy-mode }}.yml)
+          if [ "${{ matrix.deploy-mode }}" = "" ]; then
+            compose_args+=(-f docker-compose.dev-code-eval.yml)
           fi
+          docker compose "${compose_args[@]}" up -d --wait --wait-timeout 180
+          docker compose "${compose_args[@]}" ps
       - name: Seed DB
         run: |
           pnpm run db:migrate
@@ -922,6 +915,20 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+      - name: Verify MinIO storage compatibility
+        if: matrix.deploy-mode == ''
+        run: |
+          docker compose --project-name langfuse-minio-compat -f docker-compose.yml up -d --wait --wait-timeout 60 minio
+          pnpm --filter=worker run test src/__tests__/storageservice.test.ts
+        env:
+          MINIO_ROOT_USER: minio
+          MINIO_ROOT_PASSWORD: miniosecret
+          LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+          LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+          LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+          LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+          LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://localhost:9090
+          LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
   test-worker-llm-connections:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -972,12 +979,12 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
+          docker compose -f docker-compose.dev.yml ps
         env:
           POSTGRES_VERSION: 15
       - name: Ensure no unhealthy status
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
+          if docker compose -f docker-compose.dev.yml ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
@@ -1111,7 +1118,7 @@ jobs:
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
             || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
-          docker compose ps
+          docker compose -f docker-compose.dev.yml ps
           exit "$(cat /tmp/compose-up.exit)"
       - name: Seed DB
         run: |
@@ -1209,7 +1216,7 @@ jobs:
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
             || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
-          docker compose ps
+          docker compose -f docker-compose.dev.yml ps
           exit "$(cat /tmp/compose-up.exit)"
       - name: Seed DB
         run: |

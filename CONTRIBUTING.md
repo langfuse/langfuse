@@ -175,7 +175,7 @@ bash scripts/agents/start-cursor-cloud.sh
 ```
 
 The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
-MinIO, then seeds the synthetic demo project and checks both application health
+Floci, then seeds the synthetic demo project and checks both application health
 endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
 in Cursor, never in repository files.
