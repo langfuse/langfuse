@@ -46,6 +46,7 @@ import {
   CostBadge,
   UsageBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import type { CostSource } from "@/src/features/traces/components/BreakdownTooltip";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
@@ -90,6 +91,25 @@ import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+
+export function resolveObservationCostSource({
+  hasSubtreeMetrics,
+  subtreeTotalMatchesObservation,
+  hasProvidedCostDetails,
+}: {
+  hasSubtreeMetrics: boolean;
+  subtreeTotalMatchesObservation: boolean;
+  hasProvidedCostDetails: boolean;
+}): CostSource | undefined {
+  const showsOwnObservationCost =
+    !hasSubtreeMetrics || subtreeTotalMatchesObservation;
+
+  return showsOwnObservationCost
+    ? hasProvidedCostDetails
+      ? "provided"
+      : "calculated"
+    : undefined;
+}
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -191,15 +211,17 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
+    const subtreeTotalMatchesObservation =
+      treeNodeTotalCost?.eq(totalCost ?? 0) === true;
     const showsOwnObservationCost =
-      !subtreeMetrics || treeNodeTotalCost?.eq(totalCost ?? 0) === true;
+      !subtreeMetrics || subtreeTotalMatchesObservation;
     const hasProvidedCostDetails =
       Object.keys(observation.providedCostDetails).length > 0;
-    const costSource = showsOwnObservationCost
-      ? hasProvidedCostDetails
-        ? "provided"
-        : "calculated"
-      : undefined;
+    const costSource = resolveObservationCostSource({
+      hasSubtreeMetrics: Boolean(subtreeMetrics),
+      subtreeTotalMatchesObservation,
+      hasProvidedCostDetails,
+    });
     const priceSource =
       isGenerationLike(observation.type) &&
       observation.internalModelId &&
