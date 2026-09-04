@@ -34,6 +34,7 @@ import { useMemo } from "react";
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
+    latency?: number;
     input: string | null;
     output: string | null;
   };

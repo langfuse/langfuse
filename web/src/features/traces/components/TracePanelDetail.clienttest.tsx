@@ -4,19 +4,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
-const { mockUseSelection, mockUseTraceData, mockByIdQuery } = vi.hoisted(
-  () => ({
-    mockUseSelection: vi.fn(),
-    mockUseTraceData: vi.fn(),
-    mockByIdQuery: vi.fn(),
-  }),
-);
+const {
+  mockUseSelection,
+  mockUseTraceData,
+  mockUseViewPreferences,
+  mockByIdQuery,
+} = vi.hoisted(() => ({
+  mockUseSelection: vi.fn(),
+  mockUseTraceData: vi.fn(),
+  mockUseViewPreferences: vi.fn(),
+  mockByIdQuery: vi.fn(),
+}));
 
 vi.mock("@/src/features/traces/contexts/SelectionContext", () => ({
   useSelection: () => mockUseSelection(),
 }));
 vi.mock("@/src/features/traces/contexts/TraceDataContext", () => ({
   useTraceData: () => mockUseTraceData(),
+}));
+vi.mock("@/src/features/traces/contexts/ViewPreferencesContext", () => ({
+  useViewPreferences: () => mockUseViewPreferences(),
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -44,6 +51,9 @@ vi.mock(
     }) => <div data-testid="observation-detail">{observation.id}</div>,
   }),
 );
+vi.mock("@/src/features/traces/components/TraceSummaryBar", () => ({
+  TraceSummaryBar: () => <div data-testid="trace-summary" />,
+}));
 
 const observation = (id: string) =>
   ({
@@ -57,10 +67,11 @@ describe("TracePanelDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockByIdQuery.mockReturnValue({ data: undefined, error: null });
+    mockUseViewPreferences.mockReturnValue({ isAnnotationMode: false });
     // The loaded list is capped, so it holds only "in-list" — and the tree built
     // from it knows only that node plus the synthetic TRACE node.
     mockUseTraceData.mockReturnValue({
-      trace: { id: "t", projectId: "p" },
+      trace: { id: "t", projectId: "p", latency: 1 },
       observations: [observation("in-list")],
       nodeMap: new Map([
         ["in-list", { id: "in-list", type: "SPAN" }],
@@ -68,6 +79,10 @@ describe("TracePanelDetail", () => {
       ]),
       serverScores: [],
       corrections: [],
+      aggregatedMetrics: {
+        totalCost: null,
+        costDetails: undefined,
+      },
     });
   });
 
@@ -83,6 +98,7 @@ describe("TracePanelDetail", () => {
     expect(screen.getByTestId("observation-detail")).toHaveTextContent(
       "past-cap",
     );
+    expect(screen.getByTestId("trace-summary")).toBeInTheDocument();
     expect(screen.queryByTestId("trace-detail")).not.toBeInTheDocument();
   });
 
@@ -105,5 +121,14 @@ describe("TracePanelDetail", () => {
     render(<TracePanelDetail />);
 
     expect(screen.getByTestId("trace-detail")).toBeInTheDocument();
+  });
+
+  it("preserves annotation mode without the trace summary", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-t" });
+    mockUseViewPreferences.mockReturnValue({ isAnnotationMode: true });
+
+    render(<TracePanelDetail />);
+
+    expect(screen.queryByTestId("trace-summary")).not.toBeInTheDocument();
   });
 });

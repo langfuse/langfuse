@@ -37,10 +37,7 @@ import {
   VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
+import { ObservationIdentityBadges } from "@/src/features/traces/components/ObservationDetailView/components/ObservationIdentityBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -707,13 +704,12 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
+              <ObservationIdentityBadges
                 projectId={projectId}
-              />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
+                observationSessionId={observation.sessionId}
+                observationUserId={observation.userId}
+                traceSessionId={trace.sessionId}
+                traceUserId={trace.userId}
               />
               <EvaluatorBadge
                 evaluatorId={evaluatorId}
