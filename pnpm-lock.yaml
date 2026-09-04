@@ -64,6 +64,7 @@ overrides:
   '@ai-sdk/provider-utils-v6': npm:@ai-sdk/provider-utils@4.0.33
   '@scalar/agent-chat@0.12.28>ai': 6.0.230
   '@ai-sdk/vue@3.0.33>ai': 6.0.230
+  fflate@0.8.1: 0.8.3
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   next-auth>nodemailer: ^9.0.3
 
@@ -8053,8 +8054,8 @@ packages:
   fflate@0.4.9:
     resolution: {integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==}
 
-  fflate@0.8.1:
-    resolution: {integrity: sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ==}
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   figures@6.1.0:
     resolution: {integrity: sha512-d+l3qxjSesT4V7v2fh+QnmFnUWv9lSpjarhShNTgBOfA0ttejbQUAlHLitbjkoRiDulW0OPoQPYIGhIC8ohejg==}
@@ -16419,7 +16420,7 @@ snapshots:
     dependencies:
       '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
-      fflate: 0.8.1
+      fflate: 0.8.3
       tslib: 2.8.1
 
   '@smithy/node-http-handler@4.5.1':
@@ -19761,7 +19762,7 @@ snapshots:
 
   fflate@0.4.9: {}
 
-  fflate@0.8.1: {}
+  fflate@0.8.3: {}
 
   figures@6.1.0:
     dependencies:
