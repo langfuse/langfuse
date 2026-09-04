@@ -169,9 +169,11 @@ carry on and hope:
 git clone git@github.com:langfuse/langfuse-docs.git
 ```
 
-It carries the handbook, the docs, and the changelog. Without it this skill
-cannot read step 3b, and no shipped change can get a docs page or a changelog
-entry without a separate detour.
+It carries the handbook, the docs, the changelog, and the team roster
+(`components-mdx/team-members.mdx` — names, roles, GitHub handles). Without it
+this skill cannot read step 3b, nobody can tell you who a commit author is, and
+no shipped change gets a docs page or a changelog entry without a separate
+detour.
 
 Record the paths you found in `me.md` so the next session does not search again.
 

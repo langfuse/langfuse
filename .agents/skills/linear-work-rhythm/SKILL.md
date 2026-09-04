@@ -127,6 +127,19 @@ project, which is where people post work that belongs to no single project, and
 the `AI edited` label on anything you are about to open — an earlier agent may
 have left the reasoning already.
 
+**The roster is what makes a name usable.** `components-mdx/team-members.mdx` in
+`langfuse/langfuse-docs` lists everyone with their role and their **GitHub
+handle**, which is the only join between the three places a colleague appears:
+a display name in the tracker, a handle in `git log` and `git blame`, and a
+reviewer on a pull request. Read it from `origin/main`, the same as the handbook.
+So `git log` on the file you are about to change gives you a handle, the roster
+turns it into a person and a role, and their recent updates tell you whether
+they are still in there.
+
+It is maintained by people adding themselves, so it lags — someone missing from
+it is not evidence they are not on the team. When the roster and `git log`
+disagree, `git log` is the one that just happened.
+
 ### 4. Waiting on your decision
 
 Triage normally gets a decision within one working day. Check the triage state on
