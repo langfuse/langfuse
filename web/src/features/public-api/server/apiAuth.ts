@@ -180,11 +180,15 @@ export class ApiAuthService {
 
             // The API key is resolved via the hash of the secret key, so the
             // submitted public key may not belong to it, e.g. after a partial
-            // credential rotation on the client.
+            // credential rotation on the client. Basic auth is a two-part
+            // credential: accepting a (pk, sk) pair whose parts resolve to
+            // different keys would let a leaked secret key from project A be
+            // paired with project B's public key and gain B's scope.
             if (publicKey !== finalApiKey.publicKey) {
               logger.warn(
                 `Public key mismatch on basic auth: submitted public key ${publicKey} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
               );
+              throw new Error("Invalid credentials");
             }
 
             const result = {
