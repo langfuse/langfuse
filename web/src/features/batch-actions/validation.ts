@@ -94,6 +94,7 @@ export const CreateObservationBatchEvaluationActionSchema = z
 export const CreateObservationEvaluatorBackfillActionSchema = z
   .object({
     ...observationBatchEvaluationFields,
+    idempotencyKey: z.uuid(),
     sampling: z.number().min(0).max(1),
     rowLimit: z.number().int().positive().max(EVALUATOR_BACKFILL_ITEM_LIMIT),
     backfillTimeRange: backfillTimeRangeSchema,

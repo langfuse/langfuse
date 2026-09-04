@@ -103,6 +103,7 @@ export function EvaluatorSavedDialogContainer({
   const estimateRequestId = useRef(0);
   const backfillEstimateRequestId = useRef(0);
   const hasScheduledBackfill = useRef(false);
+  const backfillIdempotencyKey = useRef(crypto.randomUUID());
   // Strict Mode replays mount effects; this mutation must run once per dialog.
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -227,15 +228,13 @@ export function EvaluatorSavedDialogContainer({
   const scheduleBackfill = async ({
     filter,
     sampling,
+    range,
   }: {
     filter: FilterState;
     sampling: number;
+    range: EvaluatorBackfillRange;
   }) => {
     if (!backfillEnabled || hasScheduledBackfill.current) return;
-    const executionRange =
-      backfillWindow === "custom"
-        ? backfillRange
-        : getBackfillRange(backfillWindow);
     const effectiveRowLimit = Math.min(
       backfillMaxItems,
       historicEvaluationLimit.data ?? backfillMaxItems,
@@ -251,9 +250,10 @@ export function EvaluatorSavedDialogContainer({
       ],
       evalVersion: "v2",
       sourceTable: BatchEvalSourceTable.EVENTS,
+      idempotencyKey: backfillIdempotencyKey.current,
       sampling,
       rowLimit: effectiveRowLimit,
-      backfillTimeRange: executionRange,
+      backfillTimeRange: range,
       query: {
         filter,
         orderBy: { column: "startTime", order: "DESC" },
@@ -263,7 +263,10 @@ export function EvaluatorSavedDialogContainer({
     hasScheduledBackfill.current = true;
   };
 
-  const attachToRule = async (rule: Rule) => {
+  const attachToRule = async (
+    rule: Rule,
+    backfillExecutionRange: EvaluatorBackfillRange,
+  ) => {
     const currentAssignments =
       await utils.client.evalsV2.rules.listRulesForEvaluator.query({
         projectId,
@@ -285,12 +288,22 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create",
       });
     }
-    await scheduleBackfill({ filter: rule.filter, sampling: rule.sampling });
+    const currentRule = await utils.client.evalsV2.rules.get.query({
+      projectId,
+      ruleId: rule.id,
+    });
+    await scheduleBackfill({
+      filter: currentRule.filter,
+      sampling: currentRule.sampling,
+      range: backfillExecutionRange,
+    });
     await invalidateRuleQueries();
     await finish();
   };
 
-  const resolveFromTestFilters = async () => {
+  const resolveFromTestFilters = async (
+    backfillExecutionRange: EvaluatorBackfillRange,
+  ) => {
     const sampling = testFilterSampling;
     const result = await createOrAttachFromEvaluatorFilters.mutateAsync({
       projectId,
@@ -312,7 +325,11 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create_test_filters",
       });
     }
-    await scheduleBackfill({ filter: supportedRuleFilters, sampling });
+    await scheduleBackfill({
+      filter: supportedRuleFilters,
+      sampling,
+      range: backfillExecutionRange,
+    });
     await invalidateRuleQueries();
     await finish();
   };
@@ -553,6 +570,10 @@ export function EvaluatorSavedDialogContainer({
   );
 
   const handlePrimaryAction = () => {
+    const backfillExecutionRange =
+      backfillWindow === "custom"
+        ? backfillRange
+        : getBackfillRange(backfillWindow);
     if (mode === "test-filters") {
       capture("evaluators:saved_dialog_submit", {
         action: "test_filters",
@@ -563,7 +584,9 @@ export function EvaluatorSavedDialogContainer({
           : undefined,
       });
       setIsCompleting(true);
-      resolveFromTestFilters().catch(() => setIsCompleting(false));
+      resolveFromTestFilters(backfillExecutionRange).catch(() =>
+        setIsCompleting(false),
+      );
       return;
     }
     if (selectedRule) {
@@ -576,7 +599,9 @@ export function EvaluatorSavedDialogContainer({
           : undefined,
       });
       setIsCompleting(true);
-      attachToRule(selectedRule).catch(() => setIsCompleting(false));
+      attachToRule(selectedRule, backfillExecutionRange).catch(() =>
+        setIsCompleting(false),
+      );
     } else {
       capture("evaluators:saved_dialog_submit", {
         action: "new_rule",

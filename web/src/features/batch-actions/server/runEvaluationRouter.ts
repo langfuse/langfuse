@@ -62,6 +62,8 @@ async function createBatchEvaluation({
       "backfillTimeRange" in input ? input.backfillTimeRange : undefined;
     const sampling = "sampling" in input ? input.sampling : undefined;
     const rowLimit = "rowLimit" in input ? input.rowLimit : undefined;
+    const idempotencyKey =
+      "idempotencyKey" in input ? input.idempotencyKey : undefined;
     const effectiveRowLimit =
       rowLimit === undefined
         ? undefined
@@ -87,6 +89,25 @@ async function createBatchEvaluation({
         code: "BAD_REQUEST",
         message: "Evaluator backfills only support observations.",
       });
+    }
+
+    if (idempotencyKey) {
+      const existingBatchAction = await ctx.prisma.batchAction.findUnique({
+        where: { id: idempotencyKey },
+        select: { id: true, projectId: true, actionType: true },
+      });
+      if (existingBatchAction) {
+        if (
+          existingBatchAction.projectId !== projectId ||
+          existingBatchAction.actionType !== ActionId.ObservationBatchEvaluation
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "The backfill request identifier is already in use.",
+          });
+        }
+        return { id: existingBatchAction.id };
+      }
     }
 
     const requestedEvaluatorIds = Array.from(new Set(rawEvaluatorIds));
@@ -257,6 +278,7 @@ async function createBatchEvaluation({
 
     const batchAction = await ctx.prisma.batchAction.create({
       data: {
+        ...(idempotencyKey ? { id: idempotencyKey } : {}),
         projectId,
         userId,
         actionType: ActionId.ObservationBatchEvaluation,
