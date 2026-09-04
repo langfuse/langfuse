@@ -38,7 +38,7 @@ import {
 } from "@langfuse/shared";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { addToDatasetRouter } from "@/src/features/batch-actions/server/addToDatasetRouter";
-import { runEvaluationRouter } from "@/src/features/batch-actions/server/runEvaluationRouter";
+import { runEvaluationRouter } from "@/src/features/batch-actions/server/createBatchEvaluation";
 import { env } from "@/src/env.mjs";
 
 const mutableEnv = env as unknown as {

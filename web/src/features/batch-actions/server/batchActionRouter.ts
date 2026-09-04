@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { GetBatchActionByIdSchema } from "../validation";
 import { addToDatasetRouter } from "./addToDatasetRouter";
-import { runEvaluationRouter } from "./runEvaluationRouter";
+import { runEvaluationRouter } from "./createBatchEvaluation";
 
 export const batchActionRouter = createTRPCRouter({
   addToDataset: addToDatasetRouter,
