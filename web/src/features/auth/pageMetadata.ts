@@ -15,7 +15,7 @@
  * and gets `DEFAULT_PAGE_TITLE`.
  */
 
-export const DEFAULT_PAGE_TITLE = "Langfuse";
+const DEFAULT_PAGE_TITLE = "Langfuse";
 
 export const SIGN_IN_PAGE_TITLE = "Sign in | Langfuse";
 export const SIGN_UP_PAGE_TITLE = "Sign up | Langfuse";
