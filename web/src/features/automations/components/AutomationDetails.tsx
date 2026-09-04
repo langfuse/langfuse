@@ -38,6 +38,8 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   onDelete,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isFailureBannerDismissed, setIsFailureBannerDismissed] =
+    useState(false);
   const [activeTab, setActiveTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "executions"),
@@ -54,6 +56,17 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
         // Suppress 404 toast: after deletion the invalidation can refetch this
         // query before the component unmounts, producing a spurious error toast.
         meta: { silentHttpCodes: [404] },
+      },
+    );
+
+  const { data: failureData } =
+    api.automations.getCountOfConsecutiveFailures.useQuery(
+      {
+        projectId,
+        automationId,
+      },
+      {
+        enabled: Boolean(automation),
       },
     );
 
@@ -146,10 +159,14 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             }
           />
 
-          <AutomationFailureBanner
-            projectId={projectId}
-            automationId={automationId}
-          />
+          {!isFailureBannerDismissed &&
+            failureData &&
+            failureData.count >= 5 && (
+              <AutomationFailureBanner
+                failureCount={failureData.count}
+                onDismiss={() => setIsFailureBannerDismissed(true)}
+              />
+            )}
 
           {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
             <AutomationForm
