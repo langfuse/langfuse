@@ -434,6 +434,17 @@ const isMetadataFieldVisible = (
 const hasVisibleCellMetadata = (columnVisibility: VisibilityState) =>
   METADATA_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
 
+/** The footer fields that live behind the identifiers hover card. */
+const IDENTIFIER_KEYS = [
+  "itemId",
+  "observationId",
+  "traceId",
+  "startTime",
+] as const;
+
+const hasVisibleCellIdentifiers = (columnVisibility: VisibilityState) =>
+  IDENTIFIER_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
+
 /**
  * The item's identifiers, one hover away. They are the same on every row of a
  * run and the peek view already carries them, so they don't earn a line each in
@@ -512,8 +523,6 @@ const CellIdentifiers = ({
         ]
       : []),
   ];
-
-  if (rows.length === 0) return null;
 
   return (
     <HoverCard>
@@ -605,7 +614,9 @@ const CellMetadataFooter = ({
         </span>
       )}
       {visible("level") && <span>{data.level}</span>}
-      <CellIdentifiers data={data} columnVisibility={columnVisibility} />
+      {hasVisibleCellIdentifiers(columnVisibility) && (
+        <CellIdentifiers data={data} columnVisibility={columnVisibility} />
+      )}
     </div>
   );
 };

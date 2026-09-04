@@ -336,18 +336,6 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   </Badge>
 );
 
-/** The chip, or nothing when the loaded text cannot settle the question. */
-const ExpectedMatchVerdict = ({
-  output,
-  expectedOutput,
-}: {
-  output: string | null | undefined;
-  expectedOutput: string | null | undefined;
-}) => {
-  const matches = matchesExpectedOutput(output, expectedOutput);
-  return matches === null ? null : <ExpectedMatchChip matches={matches} />;
-};
-
 /**
  * Cell component that renders stacked output values for each experiment.
  */
@@ -405,6 +393,10 @@ const StackedOutputCell = ({
           experimentId,
           colorExperimentIds ?? allExperimentIds,
         );
+        // null when the loaded text cannot settle the question, so no chip.
+        const expectedMatch = showExpectedLine
+          ? matchesExpectedOutput(out?.output, expectedOutput)
+          : null;
         return (
           <div
             key={experimentId}
@@ -421,12 +413,9 @@ const StackedOutputCell = ({
                 markerClass={colorStyles.markerClass}
                 singleLine={singleLine}
                 chip={
-                  showExpectedLine ? (
-                    <ExpectedMatchVerdict
-                      output={out.output}
-                      expectedOutput={expectedOutput}
-                    />
-                  ) : undefined
+                  expectedMatch === null ? undefined : (
+                    <ExpectedMatchChip matches={expectedMatch} />
+                  )
                 }
               />
             ) : (
