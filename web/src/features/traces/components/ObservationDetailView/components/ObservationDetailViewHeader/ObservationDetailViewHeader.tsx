@@ -191,6 +191,31 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
+    const showsOwnObservationCost =
+      !subtreeMetrics || treeNodeTotalCost?.eq(totalCost ?? 0) === true;
+    const hasProvidedCostDetails =
+      Object.keys(observation.providedCostDetails).length > 0;
+    const costSource = showsOwnObservationCost
+      ? hasProvidedCostDetails
+        ? "provided"
+        : "calculated"
+      : undefined;
+    const priceSource =
+      isGenerationLike(observation.type) &&
+      observation.internalModelId &&
+      observation.model &&
+      observation.usagePricingTierId &&
+      observation.usagePricingTierName &&
+      !hasProvidedCostDetails &&
+      showsOwnObservationCost
+        ? {
+            projectId,
+            modelId: observation.internalModelId,
+            modelName: observation.model,
+            pricingTierId: observation.usagePricingTierId,
+            pricingTierName: observation.usagePricingTierName,
+          }
+        : undefined;
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -727,24 +752,8 @@ export const ObservationDetailViewHeader = memo(
                 <CostBadge
                   totalCost={displayedTotalCost}
                   costDetails={displayedCostDetails}
-                  priceSource={
-                    isGenerationLike(observation.type) &&
-                    observation.internalModelId &&
-                    observation.model &&
-                    observation.usagePricingTierId &&
-                    observation.usagePricingTierName &&
-                    Object.keys(observation.providedCostDetails).length === 0 &&
-                    (!subtreeMetrics ||
-                      treeNodeTotalCost?.eq(totalCost ?? 0) === true)
-                      ? {
-                          projectId,
-                          modelId: observation.internalModelId,
-                          modelName: observation.model,
-                          pricingTierId: observation.usagePricingTierId,
-                          pricingTierName: observation.usagePricingTierName,
-                        }
-                      : undefined
-                  }
+                  costSource={costSource}
+                  priceSource={priceSource}
                 />
               )}
               {subtreeMetrics
