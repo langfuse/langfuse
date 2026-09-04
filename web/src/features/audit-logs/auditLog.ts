@@ -48,6 +48,9 @@ type AuditableResource =
   | "cloudSpendAlert"
   | "verifiedDomain"
   | "ssoConfig"
+  | "gatewayConfig"
+  | "gatewayAiConnection"
+  | "gatewayApiKey"
   // legacy resources
   | "membership";
 

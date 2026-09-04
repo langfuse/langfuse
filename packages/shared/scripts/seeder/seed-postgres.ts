@@ -16,7 +16,12 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
 } from "../../src/index";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import {
+  createAndAddApiKeysToDb,
+  getDisplaySecretKey,
+  hashSecretKey,
+  logger,
+} from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
 import {
   DEFAULT_SEED_API_KEY,
@@ -176,6 +181,12 @@ async function main() {
     update: {
       orgMembershipId: orgMembership2.id,
     },
+  });
+
+  await seedLlmGateway({
+    organizationId: seedOrgId,
+    projectId: seedProjectId,
+    userId: user.id,
   });
 
   const summaryPrompt = await prisma.prompt.upsert({
@@ -504,6 +515,99 @@ main()
     logger.info("Disconnected from postgres and redis");
     process.exit(1);
   });
+
+async function seedLlmGateway(params: {
+  organizationId: string;
+  projectId: string;
+  userId: string;
+}) {
+  await prisma.gatewayConfig.upsert({
+    where: { organizationId: params.organizationId },
+    create: {
+      organizationId: params.organizationId,
+      defaultIngestionProjectId: params.projectId,
+      instrumentationMode: "USAGE",
+    },
+    update: {
+      defaultIngestionProjectId: params.projectId,
+    },
+  });
+
+  if (
+    (await prisma.gatewayAiConnection.count({
+      where: { organizationId: params.organizationId },
+    })) === 0
+  ) {
+    await prisma.gatewayAiConnection.createMany({
+      data: [
+        {
+          id: "seed-gateway-openai",
+          organizationId: params.organizationId,
+          name: "OpenAI production",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-seed-openai-not-valid"),
+          displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
+          createdById: params.userId,
+          routingPriority: 0,
+          status: "ENABLED",
+        },
+        {
+          id: "seed-gateway-anthropic",
+          organizationId: params.organizationId,
+          name: "Anthropic production",
+          provider: "ANTHROPIC",
+          encryptedCredential: encrypt("sk-ant-seed-not-valid"),
+          displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
+          createdById: params.userId,
+          routingPriority: 1,
+          status: "ENABLED",
+        },
+        {
+          id: "seed-gateway-openrouter",
+          organizationId: params.organizationId,
+          name: "OpenRouter shared",
+          provider: "OPENROUTER",
+          encryptedCredential: encrypt("sk-or-seed-not-valid"),
+          displaySecret: getDisplaySecretKey("sk-or-seed-not-valid"),
+          createdById: params.userId,
+          routingPriority: 2,
+          status: "ERROR",
+        },
+      ],
+    });
+  }
+
+  const publicKey = "pk-lf-gateway-seed";
+  const existingKey = await prisma.apiKey.findUnique({
+    where: { publicKey },
+    select: { id: true },
+  });
+  const key =
+    existingKey ??
+    (await createAndAddApiKeysToDb({
+      prisma,
+      entityId: params.organizationId,
+      scope: "ORGANIZATION",
+      note: "Seeded gateway key",
+      createdByUserId: params.userId,
+      predefinedKeys: {
+        publicKey,
+        secretKey: "sk-lf-gateway-seed",
+      },
+    }));
+  await prisma.apiKey.update({
+    where: { id: key.id },
+    data: { isGatewayKey: true },
+  });
+  await prisma.gatewayApiKeyAssociation.upsert({
+    where: { apiKeyId: key.id },
+    create: {
+      apiKeyId: key.id,
+      metadata: { environment: "development", team: "platform" },
+    },
+    update: {},
+  });
+}
 
 async function createDashboardsAndWidgets(projects: Project[]) {
   logger.info("Creating dashboards and widgets");

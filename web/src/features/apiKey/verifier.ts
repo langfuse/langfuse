@@ -138,6 +138,7 @@ export class Verifier {
 
 /** privateKey wraps an ApiKey row as the full-access privateKey presentation. */
 function privateKey(apiKey: ApiKey): VerifyApiKeyResult {
+  if (apiKey.isGatewayKey) return unauthorized();
   return { success: true, authorization: "privateKey", apiKey };
 }
 

@@ -91,17 +91,26 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiFlag: vi.fn(),
 }));
 
+vi.mock("@/src/features/llm-gateway", () => ({
+  GatewayApiKeysPage: () => null,
+  GatewayConfigurationPage: () => null,
+  GatewayModelsPage: () => null,
+  GatewayProvidersPage: () => null,
+}));
+
 const organization = {
   id: "org-1",
   name: "Org 1",
   metadata: {},
+  projects: [],
 };
 
 describe("useOrganizationSettingsPages", () => {
   beforeEach(() => {
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
       organization,
-    } as ReturnType<typeof useQueryProjectOrOrganization>);
+      project: null,
+    } as unknown as ReturnType<typeof useQueryProjectOrOrganization>);
     vi.mocked(useHasEntitlement).mockImplementation(
       (entitlement) => entitlement === "admin-api",
     );
@@ -159,6 +168,42 @@ describe("useOrganizationSettingsPages", () => {
 
     expect(
       enabled.current.find((page) => page.slug === "v4-migration")?.show,
+    ).toBe(true);
+  });
+
+  it("hides all LLM Gateway settings without organization update access", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(useHasOrganizationAccess).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      scope: "organization:update",
+    });
+    expect(
+      result.current
+        .filter((page) => page.slug.startsWith("llm-gateway"))
+        .every((page) => page.show === false),
+    ).toBe(true);
+  });
+
+  it("shows all LLM Gateway settings with organization update access", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "organization:update",
+    );
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const gatewayPages = result.current.filter((page) =>
+      page.slug.startsWith("llm-gateway"),
+    );
+
+    expect(gatewayPages.map((page) => page.slug)).toEqual([
+      "llm-gateway",
+      "llm-gateway-providers",
+      "llm-gateway-models",
+      "llm-gateway-api-keys",
+    ]);
+    expect(gatewayPages.every((page) => page.show === true)).toBe(true);
+    expect(
+      gatewayPages.every((page) => (page.cmdKKeywords?.length ?? 0) > 0),
     ).toBe(true);
   });
 });

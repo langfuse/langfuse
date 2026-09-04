@@ -32,6 +32,7 @@ import {
   SDK_VERSION_ATTRIBUTE,
   extractSdkAttributes,
 } from "@langfuse/shared/instrumentation/bootstrap";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server";
 
 export const config = {
   api: {
@@ -95,10 +96,14 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    const gatewayAuth = await verifyGatewayIngestionAuthorization(
+      req.headers.authorization,
+    );
+    const authCheck =
+      gatewayAuth ??
+      (await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        req.headers.authorization,
+      ));
 
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);

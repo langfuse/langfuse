@@ -44,6 +44,7 @@ import {
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
 import { prisma } from "@langfuse/shared/src/db";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -93,6 +94,11 @@ export type AuthedProjectAPIRouteConfig<
    * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
    */
   allowInAppAgentKey?: boolean;
+  /**
+   * Accept a short-lived gateway ingestion JWT in addition to normal project
+   * credentials. This must only be enabled on gateway ingestion boundaries.
+   */
+  allowGatewayIngestionToken?: boolean;
   /**
    * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
    * "events_only". Set this on routes that read from the legacy traces,
@@ -322,14 +328,20 @@ export const createAuthedProjectAPIRoute = <
 
     // Verify authentication (API key or admin API key)
     try {
-      auth = await verifyAuth({
-        req,
-        name: routeConfig.name,
-        action: routeConfig.action,
-        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
-        allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
-        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
-      });
+      const gatewayAuth = routeConfig.allowGatewayIngestionToken
+        ? await verifyGatewayIngestionAuthorization(req.headers.authorization)
+        : null;
+      auth =
+        gatewayAuth ??
+        (await verifyAuth({
+          req,
+          name: routeConfig.name,
+          action: routeConfig.action,
+          isAdminApiKeyAuthAllowed:
+            routeConfig.isAdminApiKeyAuthAllowed || false,
+          allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+          allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+        }));
     } catch (error: any) {
       if (isPrismaException(error)) {
         traceException(error);

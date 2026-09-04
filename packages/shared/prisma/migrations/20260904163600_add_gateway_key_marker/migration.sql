@@ -1,0 +1,2 @@
+ALTER TABLE "api_keys"
+  ADD COLUMN IF NOT EXISTS "is_gateway_key" BOOLEAN NOT NULL DEFAULT false;

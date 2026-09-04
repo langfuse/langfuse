@@ -478,6 +478,10 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceIsAuthedAndOrgMember);
 
+export const protectedOrganizationProcedureWithoutTracing = t.procedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
+
 /*
  * Protect trace-level getter routes.
  * - Users need to be member of the project to access the trace.

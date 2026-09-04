@@ -154,6 +154,9 @@ export class ApiAuthService {
               logger.info("No project id found for key", publicKey);
               throw new Error("Invalid credentials");
             }
+            if (finalApiKey.isGatewayKey) {
+              throw new Error("Invalid credentials");
+            }
 
             const plan = finalApiKey.plan;
 
@@ -210,6 +213,9 @@ export class ApiAuthService {
             const publicKey = authHeader.replace("Bearer ", "");
 
             const dbKey = await this.findDbKeyOrThrow(publicKey);
+            if (dbKey.isGatewayKey) {
+              throw new Error("Invalid credentials");
+            }
 
             if (dbKey.scope === "ORGANIZATION") {
               throw new Error(

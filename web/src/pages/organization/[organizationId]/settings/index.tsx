@@ -23,10 +23,17 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/Org
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
+import {
+  GatewayApiKeysPage,
+  GatewayConfigurationPage,
+  GatewayModelsPage,
+  GatewayProvidersPage,
+} from "@/src/features/llm-gateway";
 
 type OrganizationSettingsPage = {
   title: string;
   slug: string;
+  section?: string;
   show?: boolean | (() => boolean);
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
@@ -59,6 +66,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
+    showLlmGateway: canUpdateOrganization,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -71,19 +79,31 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
+  showLlmGateway,
   showFeaturePreviews,
 }: {
-  organization: { id: string; name: string; metadata: Record<string, unknown> };
+  organization: {
+    id: string;
+    name: string;
+    metadata: Record<string, unknown>;
+    projects: Array<{
+      id: string;
+      name: string;
+      deletedAt?: Date | string | null;
+    }>;
+  };
   showBillingSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
+  showLlmGateway: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
     slug: "index",
+    section: "Organization",
     cmdKKeywords: ["name", "id", "delete"],
     content: (
       <div className="flex flex-col gap-6">
@@ -131,6 +151,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Feature Previews",
     slug: "feature-previews",
+    section: "Organization",
     cmdKKeywords: ["feature", "preview", "flags", "beta"],
     content: <OrganizationFeaturePreviewsSettings orgId={organization.id} />,
     show: showFeaturePreviews,
@@ -138,6 +159,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "API Keys",
     slug: "api-keys",
+    section: "Organization",
     content: (
       <div className="flex flex-col gap-6">
         <ApiKeyList entityId={organization.id} scope="organization" />
@@ -148,6 +170,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Members",
     slug: "members",
+    section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
     content: (
       <div className="flex flex-col gap-6">
@@ -164,6 +187,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Audit Logs",
     slug: "audit-logs",
+    section: "Organization",
     cmdKKeywords: ["audit", "logs", "history", "changes"],
     content: <OrgAuditLogsSettingsPage orgId={organization.id} />,
     show: showAuditLogs,
@@ -171,6 +195,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Billing",
     slug: "billing",
+    section: "Organization",
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
     content: <BillingSettings />,
     show: showBillingSettings,
@@ -178,6 +203,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "SSO",
     slug: "sso",
+    section: "Organization",
     cmdKKeywords: [
       "sso",
       "login",
@@ -196,13 +222,59 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Projects",
     slug: "projects",
+    section: "Organization",
     href: `/organization/${organization.id}`,
   },
   {
     title: "v4 Migration",
     slug: "v4-migration",
+    section: "Organization",
     href: "/v4-migration",
     show: showV4Migration,
+  },
+  {
+    title: "Configuration",
+    slug: "llm-gateway",
+    section: "LLM Gateway",
+    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
+    content: (
+      <GatewayConfigurationPage
+        organizationId={organization.id}
+        projects={organization.projects}
+      />
+    ),
+    show: showLlmGateway,
+  },
+  {
+    title: "Provider credentials",
+    slug: "llm-gateway-providers",
+    section: "LLM Gateway",
+    cmdKKeywords: [
+      "gateway",
+      "providers",
+      "credentials",
+      "openai",
+      "anthropic",
+      "openrouter",
+    ],
+    content: <GatewayProvidersPage organizationId={organization.id} />,
+    show: showLlmGateway,
+  },
+  {
+    title: "Models",
+    slug: "llm-gateway-models",
+    section: "LLM Gateway",
+    cmdKKeywords: ["gateway", "models", "discovery", "sync"],
+    content: <GatewayModelsPage organizationId={organization.id} />,
+    show: showLlmGateway,
+  },
+  {
+    title: "Gateway API keys",
+    slug: "llm-gateway-api-keys",
+    section: "LLM Gateway",
+    cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
+    content: <GatewayApiKeysPage organizationId={organization.id} />,
+    show: showLlmGateway,
   },
 ];
 
