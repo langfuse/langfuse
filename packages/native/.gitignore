@@ -1,0 +1,8 @@
+# Cargo build output
+target/
+
+# Platform-specific binaries produced by `napi build`
+*.node
+
+# Source hash recorded next to a binary produced by the docker build strategy
+*.node.sha256

@@ -121,6 +121,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 - `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
+  - `native`: Rust native addon (napi-rs) that the worker loads in-process. See [packages/native/README.md](packages/native/README.md).
   - `config-eslint`: contains eslint configurations which are shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
 - `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
@@ -133,6 +134,7 @@ Requirements
 - pnpm 12.3.1 as specified in `package.json`
 - Docker to run the database locally
 - Clickhouse client
+- Rust via [rustup](https://rustup.rs) to build the worker's native addon, or none at all on macOS and Linux: without `cargo` the build cross-compiles inside a Docker container (Windows needs Rust or WSL2; see [packages/native/README.md](packages/native/README.md))
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
