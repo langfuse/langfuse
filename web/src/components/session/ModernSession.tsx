@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
-import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
+import { ConnectedSessionConversationTimeline } from "@/src/components/session/ConnectedSessionConversationTimeline";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
@@ -14,7 +14,7 @@ import {
   type ModernSessionSidebarFilterControls,
   type ModernSessionSidebarTrace,
 } from "@/src/components/session/ModernSessionSidebar";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 
 const MODERN_SESSION_OVERSCAN = 5;
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
@@ -32,11 +32,9 @@ type ModernSessionProps = {
   sessionMinTimestamp: Date;
   sessionMaxTimestamp: Date;
   openPeek: OpenPeek;
-  traceCommentCounts: Map<string, number> | undefined;
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
-  showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
   onFilterObservationByName: (
@@ -52,11 +50,9 @@ export function ModernSession({
   sessionMinTimestamp,
   sessionMaxTimestamp,
   openPeek,
-  traceCommentCounts,
   filterState,
   filterMeasurementKey,
   viewLabel,
-  showInlineToolCalls,
   showSystemPrompt,
   sidebarFilterControls,
   onFilterObservationByName,
@@ -179,6 +175,10 @@ export function ModernSession({
     string,
     NonNullable<ModernSessionSidebarTrace["observations"]>
   >();
+  const timelineObservationsByTraceId = new Map<
+    string,
+    RouterOutputs["events"]["all"]["observations"]
+  >();
   const observationIdsByTraceId = new Map<string, Set<string>>();
   const traceIdsWithMatchingTraceLevelIO = new Set<string>();
   for (const query of observationQueries) {
@@ -202,6 +202,9 @@ export function ModernSession({
         );
       }
       const observations = observationsByTraceId.get(observation.traceId);
+      const timelineObservations = timelineObservationsByTraceId.get(
+        observation.traceId,
+      );
       const row = {
         id: observation.id,
         name: observation.name,
@@ -210,6 +213,10 @@ export function ModernSession({
       };
       if (observations) observations.push(row);
       else observationsByTraceId.set(observation.traceId, [row]);
+      if (timelineObservations) timelineObservations.push(observation);
+      else {
+        timelineObservationsByTraceId.set(observation.traceId, [observation]);
+      }
     }
   }
 
@@ -314,6 +321,9 @@ export function ModernSession({
     setSearch(nextSearch);
     debouncedSetSearchQuery(nextSearch.trim());
   };
+  const sidebarTraceById = new Map(
+    sidebarTraces.map((sidebarTrace) => [sidebarTrace.trace.id, sidebarTrace]),
+  );
 
   const toggleTraceExpanded = (traceId: string) => {
     setCollapsedTraceIds((current) => {
@@ -437,19 +447,24 @@ export function ModernSession({
             {virtualItems.map((virtualItem) => {
               const trace = traces[virtualItem.index];
               if (!trace) return null;
+              const sidebarTrace = sidebarTraceById.get(trace.id);
+              const timelineObservations =
+                sidebarTrace?.observations === null
+                  ? null
+                  : sidebarTrace?.observations === undefined
+                    ? undefined
+                    : (timelineObservationsByTraceId.get(trace.id) ?? []);
 
               const content = (
-                <LazySessionTraceEventsRow
+                <ConnectedSessionConversationTimeline
                   trace={trace}
+                  turnNumber={virtualItem.index + 1}
+                  idleGapSeconds={sidebarTrace?.idleGapSeconds ?? null}
                   projectId={projectId}
-                  sessionId={sessionId}
+                  observations={timelineObservations}
                   openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts}
-                  index={virtualItem.index}
                   filterState={filterState}
                   viewLabel={viewLabel}
-                  surface="modern"
-                  contentMode={showInlineToolCalls ? "all" : "conversation"}
                   showSystemPrompt={showSystemPrompt}
                 />
               );
@@ -458,7 +473,7 @@ export function ModernSession({
                 <SessionVirtualizedRow
                   key={virtualItem.key}
                   itemKey={String(virtualItem.key)}
-                  measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
+                  measurementKey={`${String(virtualItem.key)}:${showSystemPrompt}:${filterMeasurementKey}`}
                   source="modern"
                   virtualItem={virtualItem}
                   virtualizer={virtualizer}

@@ -78,9 +78,7 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 describe("ModernSessionHeaderActionsController", () => {
-  it("keeps all display settings reachable from the actions menu", () => {
-    const onShowCorrectionsChange = vi.fn();
-    const onShowInlineToolCallsChange = vi.fn();
+  it("keeps the timeline display setting reachable from the actions menu", () => {
     const onShowSystemPromptChange = vi.fn();
 
     render(
@@ -88,11 +86,7 @@ describe("ModernSessionHeaderActionsController", () => {
         projectId="project-id"
         sessionId="session-id"
         isPublic={false}
-        showCorrections={false}
-        showInlineToolCalls={false}
         showSystemPrompt={false}
-        onShowCorrectionsChange={onShowCorrectionsChange}
-        onShowInlineToolCallsChange={onShowInlineToolCallsChange}
         onShowSystemPromptChange={onShowSystemPromptChange}
       >
         <DropdownMenuTrigger asChild>
@@ -103,17 +97,9 @@ describe("ModernSessionHeaderActionsController", () => {
 
     expect(screen.getByText("Display")).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: "Show corrections" }),
-    );
-    fireEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: "Show tool calls" }),
-    );
-    fireEvent.click(
       screen.getByRole("menuitemcheckbox", { name: "Show system prompt" }),
     );
 
-    expect(onShowCorrectionsChange).toHaveBeenCalledWith(true);
-    expect(onShowInlineToolCallsChange).toHaveBeenCalledWith(true);
     expect(onShowSystemPromptChange).toHaveBeenCalledWith(true);
   });
 });

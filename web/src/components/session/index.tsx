@@ -1001,10 +1001,6 @@ const LoadedSessionEventsPage: React.FC<{
       initialShowCorrections: showCorrections,
     }),
   );
-  const showInlineToolCalls = useStore(
-    sessionDetailStore,
-    (state) => state.showInlineToolCalls,
-  );
   const showSystemPrompt = useStore(
     sessionDetailStore,
     (state) => state.showSystemPrompt,
@@ -1027,11 +1023,6 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [sessionDetailStore, setShowCorrections],
   );
-
-  const setInlineToolCallsForSession = (isEnabled: boolean) => {
-    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
-    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
-  };
 
   const setShowSystemPromptForSession = (isEnabled: boolean) => {
     capture("session_detail:system_prompt_toggled", {
@@ -1690,11 +1681,7 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.public}
-                  showCorrections={showCorrections}
-                  showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
-                  onShowCorrectionsChange={setShowCorrectionsForSession}
-                  onShowInlineToolCallsChange={setInlineToolCallsForSession}
                   onShowSystemPromptChange={setShowSystemPromptForSession}
                 >
                   <DropdownMenuTrigger asChild>
@@ -1826,7 +1813,16 @@ const LoadedSessionEventsPage: React.FC<{
                     size="sm"
                   />
                 </label>
-              ) : null}
+              ) : (
+                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                  <span className="text-sm">Show system prompt</span>
+                  <Switch
+                    checked={showSystemPrompt}
+                    onCheckedChange={setShowSystemPromptForSession}
+                    size="sm"
+                  />
+                </label>
+              )}
             </>
           ),
         }}
@@ -2014,11 +2010,9 @@ const LoadedSessionEventsPage: React.FC<{
                   sessionMinTimestamp={session.minTimestamp}
                   sessionMaxTimestamp={session.maxTimestamp}
                   openPeek={openPeek}
-                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   filterState={visibleFilterState}
                   filterMeasurementKey={visibleFilterMeasurementKey}
                   viewLabel={viewLabel}
-                  showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
                   onFilterObservationByName={filterObservationsByName}
