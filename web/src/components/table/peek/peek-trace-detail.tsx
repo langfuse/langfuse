@@ -2,7 +2,7 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
-  canSelectObservationView,
+  getDefaultObservationId,
   TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
@@ -94,13 +94,15 @@ export const TablePeekViewTraceDetail = (
   const aggregationToggle = props.isV4 ? (
     <TraceAggregationToggle
       aggregationLevel={aggregationLevel}
-      canSelectObservation={canSelectObservationView(selectedNodeId)}
       canSelectSession={trace.canAggregateBySession}
       observationType={selectedObservation?.type ?? null}
       onAggregationLevelChange={(nextAggregationLevel) => {
         const query = { ...router.query };
         if (nextAggregationLevel !== "trace") {
           query.aggregation = nextAggregationLevel;
+          if (nextAggregationLevel === "observation" && !selectedObservation) {
+            query.observation = getDefaultObservationId(trace.data);
+          }
         } else {
           delete query.aggregation;
         }

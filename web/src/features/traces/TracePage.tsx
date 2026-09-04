@@ -13,7 +13,7 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
 import {
-  canSelectObservationView,
+  getDefaultObservationId,
   getSelectedObservation,
   getTraceDetailModeTitle,
 } from "@/src/features/traces/fns/getSelectedObservationType";
@@ -33,6 +33,7 @@ export function TracePage({
     "aggregation",
     StringParam,
   );
+  const [, setObservationParam] = useQueryParam("observation", StringParam);
   const aggregationLevel =
     aggregationParam === "session" || aggregationParam === "observation"
       ? aggregationParam
@@ -126,7 +127,6 @@ export function TracePage({
   const aggregationToggle = trace.isEventsTraceSource ? (
     <TraceAggregationToggle
       aggregationLevel={aggregationLevel}
-      canSelectObservation={canSelectObservationView(selectedNodeId)}
       canSelectSession={trace.canAggregateBySession}
       observationType={selectedObservation?.type ?? null}
       onAggregationLevelChange={(nextAggregationLevel) => {
@@ -134,6 +134,9 @@ export function TracePage({
           setAggregationParam("session");
         }
         if (nextAggregationLevel === "observation") {
+          if (!selectedObservation) {
+            setObservationParam(getDefaultObservationId(trace.data) ?? null);
+          }
           setAggregationParam("observation");
         }
         if (nextAggregationLevel === "trace") {

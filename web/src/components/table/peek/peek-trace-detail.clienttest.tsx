@@ -47,25 +47,25 @@ vi.mock("@/src/components/table/peek", () => ({
   shouldClosePeekAfterDelete: vi.fn(),
 }));
 vi.mock("@/src/features/traces", () => ({
-  canSelectObservationView: () => false,
+  getDefaultObservationId: () => "root-observation",
   getSelectedObservation: () => null,
   getTraceDetailModeTitle: (aggregationLevel: string) =>
     aggregationLevel === "session" ? "s" : "Trace",
   TraceAggregationToggle: ({
-    canSelectObservation,
     canSelectSession,
     onAggregationLevelChange,
   }: {
-    canSelectObservation: boolean;
     canSelectSession: boolean;
-    onAggregationLevelChange: (aggregationLevel: "trace" | "session") => void;
+    onAggregationLevelChange: (
+      aggregationLevel: "trace" | "session" | "observation",
+    ) => void;
   }) => (
     <>
       <button
         role="tab"
         aria-label="Show observation details only"
         aria-selected={false}
-        disabled={!canSelectObservation}
+        onClick={() => onAggregationLevelChange("observation")}
       />
       <button
         role="tab"
@@ -153,7 +153,7 @@ describe("TablePeekViewTraceDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps v4 tabs visible when observation and session modes are unavailable", () => {
+  it("keeps observation available when session mode is unavailable", () => {
     mockUsePeekData.mockReturnValue({
       data: {
         id: "t",
@@ -179,10 +179,40 @@ describe("TablePeekViewTraceDetail", () => {
 
     expect(
       screen.getByRole("tab", { name: "Show observation details only" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     expect(
       screen.getByRole("tab", { name: "Aggregate by session" }),
     ).toBeDisabled();
     expect(screen.queryByTestId("item-type")).not.toBeInTheDocument();
+  });
+
+  it("selects the root observation when entering observation mode", () => {
+    render(
+      <TablePeekViewTraceDetail
+        projectId="p"
+        itemType="TRACE"
+        closePeek={vi.fn()}
+        tableName="traces"
+        isV4
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Show observation details only" }),
+    );
+
+    expect(mockRouter.replace).toHaveBeenCalledWith(
+      {
+        pathname: mockRouter.pathname,
+        query: {
+          projectId: "p",
+          peek: "t",
+          aggregation: "observation",
+          observation: "root-observation",
+        },
+      },
+      undefined,
+      { shallow: true },
+    );
   });
 });

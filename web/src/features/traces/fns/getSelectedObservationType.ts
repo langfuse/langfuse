@@ -36,11 +36,15 @@ export function getSelectedObservationType(
   return getSelectedObservation(observations, selectedNodeId)?.type ?? null;
 }
 
-export function canSelectObservationView(selectedNodeId: string | undefined) {
-  if (!selectedNodeId) return false;
-  if (selectedNodeId.startsWith("trace-")) return false;
-  if (selectedNodeId.startsWith("session-")) return false;
-  return true;
+export function getDefaultObservationId(
+  trace:
+    | {
+        rootObservationId?: string | null;
+        observations?: ReadonlyArray<{ id: string }>;
+      }
+    | undefined,
+) {
+  return trace?.rootObservationId ?? trace?.observations?.[0]?.id;
 }
 
 export function getTraceDetailModeTitle(

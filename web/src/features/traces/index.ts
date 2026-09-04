@@ -16,7 +16,7 @@ export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBod
 export { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
 export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 export {
-  canSelectObservationView,
+  getDefaultObservationId,
   getSelectedObservation,
   getSelectedObservationType,
   getTraceDetailModeTitle,

@@ -56,7 +56,7 @@ vi.mock("@/src/components/table/peek", () => ({
   shouldClosePeekAfterDelete: vi.fn(),
 }));
 vi.mock("@/src/features/traces", () => ({
-  canSelectObservationView: () => true,
+  getDefaultObservationId: () => "o",
   getSelectedObservation: () => ({
     id: "o",
     name: "Observation name",
@@ -65,12 +65,10 @@ vi.mock("@/src/features/traces", () => ({
   getTraceDetailModeTitle: (aggregationLevel: string) =>
     aggregationLevel === "observation" ? "Observation name" : "Trace",
   TraceAggregationToggle: ({
-    canSelectObservation,
     canSelectSession,
     observationType,
     onAggregationLevelChange,
   }: {
-    canSelectObservation: boolean;
     canSelectSession: boolean;
     observationType: string | null;
     onAggregationLevelChange: (
@@ -83,7 +81,6 @@ vi.mock("@/src/features/traces", () => ({
         role="tab"
         aria-label="Show observation details only"
         aria-selected={false}
-        disabled={!canSelectObservation}
         onClick={() => onAggregationLevelChange("observation")}
       />
       <button

@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  canSelectObservationView,
+  getDefaultObservationId,
   getTraceDetailModeTitle,
   getSelectedObservation,
   getSelectedObservationType,
@@ -25,11 +25,16 @@ describe("getSelectedObservationType", () => {
     expect(getSelectedObservationType(observations, undefined)).toBeNull();
   });
 
-  it("only enables observation view for observation node ids", () => {
-    expect(canSelectObservationView("observation-1")).toBe(true);
-    expect(canSelectObservationView("trace-trace-1")).toBe(false);
-    expect(canSelectObservationView("session-session-1")).toBe(false);
-    expect(canSelectObservationView(undefined)).toBe(false);
+  it("prefers the root observation when entering observation mode", () => {
+    expect(
+      getDefaultObservationId({
+        rootObservationId: "root",
+        observations: [{ id: "first" }],
+      }),
+    ).toBe("root");
+    expect(getDefaultObservationId({ observations: [{ id: "first" }] })).toBe(
+      "first",
+    );
   });
 
   it("uses the title belonging to the active mode", () => {

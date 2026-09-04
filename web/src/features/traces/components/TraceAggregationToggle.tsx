@@ -4,13 +4,11 @@ import { type ObservationType } from "@langfuse/shared";
 
 export function TraceAggregationToggle({
   aggregationLevel,
-  canSelectObservation,
   canSelectSession,
   observationType,
   onAggregationLevelChange,
 }: {
   aggregationLevel: "trace" | "session" | "observation";
-  canSelectObservation: boolean;
   canSelectSession: boolean;
   observationType: ObservationType | null;
   onAggregationLevelChange: (
@@ -31,11 +29,7 @@ export function TraceAggregationToggle({
       }}
     >
       <Tabs.List aria-label="Trace detail scope">
-        <Tabs.Trigger
-          value="observation"
-          title="Observation"
-          disabled={!canSelectObservation}
-        >
+        <Tabs.Trigger value="observation" title="Observation">
           {renderFilterIcon(observationType ?? "EVENT")}
           <span>Observation</span>
         </Tabs.Trigger>
@@ -43,14 +37,23 @@ export function TraceAggregationToggle({
           {renderFilterIcon("TRACE")}
           <span>Trace</span>
         </Tabs.Trigger>
-        <Tabs.Trigger
-          value="session"
-          title="Session"
-          disabled={!canSelectSession}
-        >
-          {renderFilterIcon("SESSION")}
-          <span>Session</span>
-        </Tabs.Trigger>
+        {canSelectSession ? (
+          <Tabs.Trigger value="session" title="Session">
+            {renderFilterIcon("SESSION")}
+            <span>Session</span>
+          </Tabs.Trigger>
+        ) : (
+          <span title="Session view is unavailable because this trace is not part of an accessible session.">
+            <Tabs.Trigger
+              value="session"
+              title="Session view is unavailable because this trace is not part of an accessible session."
+              disabled
+            >
+              {renderFilterIcon("SESSION")}
+              <span>Session</span>
+            </Tabs.Trigger>
+          </span>
+        )}
       </Tabs.List>
     </Tabs>
   );

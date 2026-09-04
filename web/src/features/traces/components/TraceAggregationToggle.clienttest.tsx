@@ -10,7 +10,6 @@ describe("TraceAggregationToggle", () => {
     render(
       <TraceAggregationToggle
         aggregationLevel="trace"
-        canSelectObservation
         canSelectSession
         observationType="GENERATION"
         onAggregationLevelChange={onAggregationLevelChange}
@@ -36,19 +35,27 @@ describe("TraceAggregationToggle", () => {
     expect(onAggregationLevelChange).toHaveBeenCalledWith("observation");
   });
 
-  it("disables unavailable observation and session modes", () => {
+  it("keeps observation available and explains an unavailable session", () => {
     render(
       <TraceAggregationToggle
         aggregationLevel="trace"
-        canSelectObservation={false}
         canSelectSession={false}
         observationType={null}
         onAggregationLevelChange={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole("tab", { name: "Observation" })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Observation" })).toBeEnabled();
     expect(screen.getByRole("tab", { name: "Trace" })).toBeEnabled();
-    expect(screen.getByRole("tab", { name: "Session" })).toBeDisabled();
+    const sessionTab = screen.getByRole("tab", { name: "Session" });
+    expect(sessionTab).toBeDisabled();
+    expect(sessionTab).toHaveAttribute(
+      "title",
+      "Session view is unavailable because this trace is not part of an accessible session.",
+    );
+    expect(sessionTab.parentElement).toHaveAttribute(
+      "title",
+      "Session view is unavailable because this trace is not part of an accessible session.",
+    );
   });
 });
