@@ -22,7 +22,7 @@ vi.mock("@/src/components/session", () => ({
 }));
 
 vi.mock("@/src/features/events/hooks/useReadPath", () => ({
-  useReadPath: () => ({ isV4: false }),
+  useReadPath: () => ({ isV4: false, isResolved: true }),
 }));
 
 vi.mock(
@@ -42,10 +42,76 @@ vi.mock("@/src/features/annotation-queues/pages/AnnotationQueueItems", () => ({
   ),
 }));
 
+vi.mock("@/src/features/datasets/components/DatasetItemDetailPage", () => ({
+  DatasetItemDetailPage: () => <div data-testid="dataset-item-detail-page" />,
+}));
+
+vi.mock(
+  "@/src/features/datasets/components/DatasetItemViewModeContent",
+  () => ({
+    DatasetItemViewModeContent: () => null,
+  }),
+);
+
+vi.mock(
+  "@/src/features/datasets/components/DatasetItemVersionedContent",
+  () => ({
+    DatasetItemVersionedContent: () => null,
+  }),
+);
+
+vi.mock(
+  "@/src/features/datasets/components/DatasetVersionHistoryPanel",
+  () => ({
+    DatasetVersionHistoryPanel: () => null,
+  }),
+);
+
+vi.mock(
+  "@/src/features/datasets/components/DatasetVersionWarningBanner",
+  () => ({
+    DatasetVersionWarningBanner: () => null,
+  }),
+);
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    datasets: {
+      itemByIdAtVersion: {
+        useQuery: () => ({ data: null, isLoading: false }),
+      },
+      byId: { useQuery: () => ({ data: null }) },
+      itemVersionHistory: { useQuery: () => ({ data: undefined }) },
+    },
+  },
+}));
+
+vi.mock("@/src/features/datasets/hooks/useDatasetVersion", () => ({
+  useDatasetVersion: () => ({
+    selectedVersion: null,
+    resetToLatest: () => undefined,
+  }),
+}));
+
+vi.mock("@/src/components/useSessionStorage", () => ({
+  default: (_key: string, initial: unknown) => [initial, () => undefined],
+}));
+
+vi.mock(
+  "@/src/features/datasets/components/DatasetRunItemsByItemTable",
+  () => ({
+    DatasetRunItemsByItemTable: () => (
+      <div data-testid="dataset-item-runs-table" />
+    ),
+  }),
+);
+
 import TracePageRoute from "@/src/pages/project/[projectId]/traces/[traceId]";
 import SessionPageRoute from "@/src/pages/project/[projectId]/sessions/[sessionId]";
 import AnnotationQueueItemRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/items/[itemId]";
 import AnnotationQueueItemsIndexRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/index";
+import DatasetItemDetailRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/items/[itemId]/index";
+import DatasetItemRunsRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/items/[itemId]/runs";
 
 function mockRouterQuery(query: Record<string, string | undefined>) {
   (useRouter as Mock).mockReturnValue({
@@ -103,5 +169,37 @@ describe("detail page deep-link route params", () => {
     expect(screen.getByTestId("annotation-queue-items")).toHaveTextContent(
       "q1",
     );
+  });
+
+  test("dataset item detail does not mount while router.query is empty", () => {
+    mockRouterQuery({});
+    render(<DatasetItemDetailRoute />);
+    expect(screen.queryByTestId("dataset-item-detail-page")).toBeNull();
+  });
+
+  test("dataset item detail mounts once dynamic params are strings", () => {
+    mockRouterQuery({
+      projectId: "p1",
+      datasetId: "d1",
+      itemId: "i1",
+    });
+    render(<DatasetItemDetailRoute />);
+    expect(screen.getByTestId("dataset-item-detail-page")).toBeInTheDocument();
+  });
+
+  test("dataset item runs does not mount while router.query is empty", () => {
+    mockRouterQuery({});
+    render(<DatasetItemRunsRoute />);
+    expect(screen.queryByTestId("dataset-item-detail-page")).toBeNull();
+  });
+
+  test("dataset item runs mounts once dynamic params are strings", () => {
+    mockRouterQuery({
+      projectId: "p1",
+      datasetId: "d1",
+      itemId: "i1",
+    });
+    render(<DatasetItemRunsRoute />);
+    expect(screen.getByTestId("dataset-item-detail-page")).toBeInTheDocument();
   });
 });
