@@ -292,7 +292,7 @@ function EvaluatorSourceCodeValue({
           onShowCode();
         }}
       >
-        <Code2 className="size-3" aria-hidden="true" />
+        <Code2 className="size-3 -translate-y-px" aria-hidden="true" />
         Show in code block
       </Button>
       <br />
