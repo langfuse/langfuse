@@ -71,7 +71,6 @@ const EXPERIMENT_SCOPE_COLUMNS: Record<
   { nameColumn?: string; idColumn: string }
 > = {
   experimentName: { nameColumn: "experimentName", idColumn: "experimentId" },
-  traceExperimentId: { idColumn: "traceExperimentId" },
   datasetRunId: { idColumn: "datasetRunId" },
 };
 
