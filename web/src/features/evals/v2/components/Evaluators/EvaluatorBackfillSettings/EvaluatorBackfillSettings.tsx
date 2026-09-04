@@ -1,5 +1,5 @@
 import { format, subMonths } from "date-fns";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -64,16 +64,15 @@ export function EvaluatorBackfillSettings({
   );
 
   return (
-    <section className="mt-5 border-t pt-4">
+    <section className="mt-3 ml-6 border-t pt-3">
       <div className="flex items-start gap-2">
-        <div className="-mt-0.5">
-          <Checkbox
-            id="evaluator-backfill-enabled"
-            checked={enabled}
-            disabled={!canEnable}
-            onCheckedChange={(checked) => onEnabledChange(checked === true)}
-          />
-        </div>
+        <Switch
+          id="evaluator-backfill-enabled"
+          size="sm"
+          checked={enabled}
+          disabled={!canEnable}
+          onCheckedChange={onEnabledChange}
+        />
         <div>
           <label
             htmlFor="evaluator-backfill-enabled"
@@ -82,7 +81,7 @@ export function EvaluatorBackfillSettings({
               canEnable ? "cursor-pointer" : "text-muted-foreground",
             )}
           >
-            Also run on past observations
+            Also apply these filters to past observations
           </label>
           <p className="text-muted-foreground mt-1.5 text-xs">
             A one-time backfill over observations you already have.
@@ -91,7 +90,7 @@ export function EvaluatorBackfillSettings({
       </div>
 
       {enabled ? (
-        <div className="mt-3 ml-6 space-y-3 rounded-md border p-3">
+        <div className="mt-3 space-y-3 rounded-md border p-3">
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground w-24 shrink-0 text-xs">
               Time window

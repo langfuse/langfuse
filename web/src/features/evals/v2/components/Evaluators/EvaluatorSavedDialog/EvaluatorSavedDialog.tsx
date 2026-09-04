@@ -146,13 +146,13 @@ export function EvaluatorSavedDialog({
                           <div className="mt-3 ml-6 min-w-0 pr-1">
                             {modeContentByMode[option.value]}
                           </div>
+                          {backfillContent}
                         </CollapsibleContent>
                       </div>
                     </Collapsible>
                   );
                 })}
               </RadioGroup>
-              {backfillContent}
             </div>
             <aside
               className={cn(
