@@ -127,6 +127,7 @@ export const tableNames = [
   "evaluation_rules",
   "dataset_items",
   "annotation_queue_assignments",
+  "annotation_queue_items",
   "dataset_item_events",
 ] as const;
 
