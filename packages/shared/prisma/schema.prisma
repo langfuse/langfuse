@@ -75,6 +75,7 @@ model User {
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
   commentReactions          CommentReaction[]
+  commentMentionEmails      CommentMentionEmail[]
   notificationPreferences   NotificationPreference[]
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
@@ -655,6 +656,7 @@ model Comment {
   content      String
   authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
   reactions    CommentReaction[]
+  mentionEmails CommentMentionEmail[]
 
   // Inline comment positioning (all must be set together or all null/empty)
   // dataField: which IO field the comment is on ('input' | 'output' | 'metadata')
@@ -682,6 +684,18 @@ model CommentReaction {
 
   @@unique([commentId, userId, emoji])
   @@map("comment_reactions")
+}
+
+model CommentMentionEmail {
+  id        String   @id @default(cuid())
+  commentId String   @map("comment_id")
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([commentId, userId])
+  @@map("comment_mention_emails")
 }
 
 enum CommentObjectType {
