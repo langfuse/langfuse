@@ -92,6 +92,22 @@ describe("ClickHouse query outcome metric", () => {
       ).toBe("events_full");
     });
 
+    // The Scores UI reads FROM scores and LEFT JOINs traces; the label must
+    // follow the table under load, not the join partner.
+    it("labels a FROM table over its join partner", () => {
+      expect(
+        clickHouseQueryTableLabel(
+          "SELECT * FROM scores s FINAL LEFT JOIN traces t ON s.trace_id = t.id",
+        ),
+      ).toBe("scores");
+    });
+
+    it("matches a schema-qualified FROM table", () => {
+      expect(
+        clickHouseQueryTableLabel("SELECT * FROM default.events_full"),
+      ).toBe("events_full");
+    });
+
     it("does not match a table name inside a longer identifier", () => {
       expect(
         clickHouseQueryTableLabel("SELECT * FROM observations_batch_staging"),

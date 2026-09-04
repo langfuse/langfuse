@@ -99,16 +99,20 @@ export type ClickHouseQueryTable =
 
 /**
  * Derived from the query text because threading a table through every call site
- * is impractical. The events tables are checked first and never co-occur with
- * the v3 tables, so `events_full`/`events_core` are exact; the v3 labels are
- * best-effort for multi-table joins (the first match in this order wins).
+ * is impractical. Anchored to the `FROM` table (with an optional `db.` prefix)
+ * so a lightweight join partner never outranks the table under load — the Scores
+ * UI reads `FROM scores ... LEFT JOIN traces`, and a bare `traces` scan would
+ * otherwise steal the label. Still best-effort: a subquery/CTE reading a
+ * different table in its own `FROM` can win by priority order (first match
+ * wins). The events read path is single-table (`FROM events_full`/`events_core`,
+ * no v3 joins), so those labels are reliable.
  */
 const TABLE_LABEL_PATTERNS: ReadonlyArray<[ClickHouseQueryTable, RegExp]> = [
-  ["events_full", /\bevents_full\b/i],
-  ["events_core", /\bevents_core\b/i],
-  ["observations", /\bobservations\b/i],
-  ["traces", /\btraces\b/i],
-  ["scores", /\bscores\b/i],
+  ["events_full", /\bfrom\s+(?:\w+\.)?events_full\b/i],
+  ["events_core", /\bfrom\s+(?:\w+\.)?events_core\b/i],
+  ["observations", /\bfrom\s+(?:\w+\.)?observations\b/i],
+  ["traces", /\bfrom\s+(?:\w+\.)?traces\b/i],
+  ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
 ];
 
 const OTHER_TABLE_LABEL = "other" as const;
