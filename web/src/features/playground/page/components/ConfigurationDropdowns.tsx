@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
@@ -9,13 +9,43 @@ import {
 } from "@/src/components/ui/popover";
 import { usePlaygroundContext } from "../context";
 import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
-import { PlaygroundTools, PlaygroundToolsPopover } from "./PlaygroundTools";
+import {
+  PlaygroundTools,
+  PlaygroundToolsPopover,
+  type PlaygroundToolDialogRequest,
+} from "./PlaygroundTools";
 import {
   StructuredOutputSchemaSection,
   StructuredOutputSchemaPopover,
 } from "./StructuredOutputSchemaSection";
 import { Variables } from "./Variables";
 import { MessagePlaceholders } from "./MessagePlaceholders";
+import { CreateOrEditLLMToolDialog } from "./CreateOrEditLLMToolDialog";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+
+function usePopoverToDialog<T>() {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [dialog, setDialog] = useState<T | undefined>(undefined);
+
+  const openDialog = (next: T) => {
+    setPopoverOpen(false);
+    setDialog(next);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) return;
+    setDialog(undefined);
+    setPopoverOpen(true);
+  };
+
+  return {
+    popoverOpen,
+    setPopoverOpen,
+    dialog,
+    openDialog,
+    handleDialogOpenChange,
+  };
+}
 
 export const ConfigurationDropdowns: React.FC = () => {
   const { containerRef, width, isVeryCompact, isCompact } =
@@ -26,6 +56,8 @@ export const ConfigurationDropdowns: React.FC = () => {
     promptVariables,
     messagePlaceholders,
   } = usePlaygroundContext();
+  const projectId = useProjectIdFromURL();
+  const toolsOverlay = usePopoverToDialog<PlaygroundToolDialogRequest>();
 
   const toolsCount = tools.length;
   const hasSchema = structuredOutputSchema ? 1 : 0;
@@ -62,7 +94,10 @@ export const ConfigurationDropdowns: React.FC = () => {
     <div ref={containerRef} className="bg-muted/25 shrink-0 border-b px-3 py-2">
       <div className="flex items-center justify-start gap-2">
         {/* Tools Dropdown */}
-        <Popover>
+        <Popover
+          open={toolsOverlay.popoverOpen}
+          onOpenChange={toolsOverlay.setPopoverOpen}
+        >
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Tools", Wrench)}
@@ -87,7 +122,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             </div>
             {toolsCount > 0 ? (
               <div className="mb-3">
-                <PlaygroundTools />
+                <PlaygroundTools onOpenToolDialog={toolsOverlay.openDialog} />
               </div>
             ) : (
               <div className="mb-3">
@@ -97,10 +132,23 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             )}
             <div className="border-t pt-3">
-              <PlaygroundToolsPopover />
+              <PlaygroundToolsPopover
+                onOpenToolDialog={toolsOverlay.openDialog}
+              />
             </div>
           </PopoverContent>
         </Popover>
+        {toolsOverlay.dialog && projectId && (
+          <CreateOrEditLLMToolDialog
+            projectId={projectId}
+            open
+            onOpenChange={toolsOverlay.handleDialogOpenChange}
+            onSave={toolsOverlay.dialog.onSave}
+            onDelete={toolsOverlay.dialog.onDelete}
+            existingLlmTool={toolsOverlay.dialog.existingLlmTool}
+            defaultValues={toolsOverlay.dialog.defaultValues}
+          />
+        )}
 
         {/* Structured Output Dropdown */}
         <Popover>

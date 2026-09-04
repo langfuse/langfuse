@@ -7,7 +7,6 @@ import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "lucide-react";
 import { type LlmTool } from "@prisma/client";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { CreateOrEditLLMToolDialog } from "@/src/features/playground/page/components/CreateOrEditLLMToolDialog";
 import {
   Command,
   CommandEmpty,
@@ -20,8 +19,25 @@ import {
 
 import { type PlaygroundTool } from "@/src/features/playground/page/types";
 
+export type PlaygroundToolDialogRequest = {
+  existingLlmTool?: LlmTool;
+  defaultValues?: {
+    name: string;
+    description: string;
+    parameters: string;
+  };
+  onSave: (llmTool: LlmTool) => void;
+  onDelete?: (llmTool: LlmTool) => void;
+};
+
+type PlaygroundToolsPopoverProps = {
+  onOpenToolDialog: (request: PlaygroundToolDialogRequest) => void;
+};
+
 // Popover content component for use in CollapsibleSection action buttons
-export const PlaygroundToolsPopover = () => {
+export const PlaygroundToolsPopover = ({
+  onOpenToolDialog,
+}: PlaygroundToolsPopoverProps) => {
   const { setTools } = usePlaygroundContext();
   const projectId = useProjectIdFromURL();
 
@@ -105,43 +121,52 @@ export const PlaygroundToolsPopover = () => {
                   </div>
                 </div>
               </div>
-              <CreateOrEditLLMToolDialog
-                projectId={projectId as string}
-                onSave={handleSelectTool}
-                onDelete={() => handleRemoveTool(tool.id)}
-                existingLlmTool={tool}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-2 h-7 w-7 shrink-0"
+                aria-label={`Edit tool ${tool.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenToolDialog({
+                    existingLlmTool: tool,
+                    onSave: handleSelectTool,
+                    onDelete: () => handleRemoveTool(tool.id),
+                  });
+                }}
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="ml-2 h-7 w-7 shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <PencilIcon className="h-3.5 w-3.5" />
-                </Button>
-              </CreateOrEditLLMToolDialog>
+                <PencilIcon className="h-3.5 w-3.5" />
+              </Button>
             </CommandItem>
           ))}
         </CommandGroup>
         <CommandSeparator />
       </CommandList>
       <div className="mt-auto p-1">
-        <CreateOrEditLLMToolDialog
-          projectId={projectId as string}
-          onSave={handleSelectTool}
+        <Button
+          variant="outline"
+          size="default"
+          className="w-full"
+          onClick={() =>
+            onOpenToolDialog({
+              onSave: handleSelectTool,
+            })
+          }
         >
-          <Button variant="outline" size="default" className="w-full">
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Create new tool
-          </Button>
-        </CreateOrEditLLMToolDialog>
+          <PlusIcon className="mr-2 h-4 w-4" />
+          Create new tool
+        </Button>
       </div>
     </Command>
   );
 };
 
+type PlaygroundToolsProps = {
+  onOpenToolDialog: (request: PlaygroundToolDialogRequest) => void;
+};
+
 // Main component for embedding in CollapsibleSection content
-export const PlaygroundTools = () => {
+export const PlaygroundTools = ({ onOpenToolDialog }: PlaygroundToolsProps) => {
   const { tools, setTools } = usePlaygroundContext();
   const projectId = useProjectIdFromURL();
 
@@ -236,24 +261,35 @@ export const PlaygroundTools = () => {
         </div>
       ) : (
         <div className="space-y-1">
-          {tools.map((tool) => (
-            <CreateOrEditLLMToolDialog
-              key={tool.id}
-              projectId={projectId as string}
-              onSave={handleSelectTool}
-              onDelete={() => handleRemoveTool(tool.id)}
-              existingLlmTool={tool.existingLlmTool}
-              defaultValues={
-                !isToolSaved(tool)
+          {tools.map((tool) => {
+            const openAttachedTool = () =>
+              onOpenToolDialog({
+                existingLlmTool: tool.existingLlmTool,
+                defaultValues: !isToolSaved(tool)
                   ? {
                       name: tool.name,
                       description: tool.description,
                       parameters: JSON.stringify(tool.parameters, null, 2),
                     }
-                  : undefined
-              }
-            >
-              <div className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
+                  : undefined,
+                onSave: handleSelectTool,
+                onDelete: () => handleRemoveTool(tool.id),
+              });
+
+            return (
+              <div
+                key={tool.id}
+                role="button"
+                tabIndex={0}
+                className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 text-left transition-colors duration-200"
+                onClick={openAttachedTool}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openAttachedTool();
+                  }
+                }}
+              >
                 <Button
                   variant="ghost"
                   size="sm"
@@ -290,8 +326,8 @@ export const PlaygroundTools = () => {
                   </p>
                 </div>
               </div>
-            </CreateOrEditLLMToolDialog>
-          ))}
+            );
+          })}
         </div>
       )}
     </ScrollArea>
