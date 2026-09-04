@@ -63,27 +63,33 @@ const SummaryRow = ({
 
 /**
  * A score column's header, carrying the analysis instead of only the column's
- * name: this experiment's aggregate and the item count behind it, and — with a
- * comparison selected — the comparison's aggregate, the signed delta and how
- * many items moved which way. This is what the deleted Analytics tab was going
- * to be, put where the eye already is.
+ * name: the baseline experiment's aggregate and the item count behind it, and —
+ * with a comparison selected — the comparison's aggregate, the signed delta and
+ * how many items moved which way. This is what the deleted Analytics tab was
+ * going to be, put where the eye already is.
  */
 export const ScoreColumnHeaderSummary = ({
   label,
   dataType,
   summary,
   comparisonName,
+  hasBaseline,
   filterMenu,
 }: {
   label: string;
   dataType: ScoreColumnDataType;
   summary: ScoreColumnSummary;
   comparisonName?: string;
+  /**
+   * Whether the run the aggregate belongs to is the selected baseline. With
+   * comparisons but no baseline the first selected run stands in, and calling
+   * that a baseline claims a selection the user has not made.
+   */
+  hasBaseline: boolean;
   /** The column's way into the score comparison filter, rendered beside the name. */
   filterMenu?: React.ReactNode;
 }) => {
   const { baseline, comparison, delta, movement } = summary;
-  const notComparable = movement?.notComparable ?? 0;
   const { icon, label: nameLabel } = splitScoreDataTypeIcon(label);
 
   return (
@@ -139,11 +145,9 @@ export const ScoreColumnHeaderSummary = ({
                   </span>
                 )}
                 {movement.changed > 0 && <span>↻{movement.changed}</span>}
-                {/* Items only one of the two runs scored: visible, and never
-                  folded into the regression count. */}
-                {notComparable > 0 && (
-                  <span className="opacity-70">{notComparable} n/a</span>
-                )}
+                {/* The not-scored count is deliberately NOT here: it is the
+                  least-used of these numbers and the line only holds three.
+                  It stays accounted for, in the hover. */}
               </span>
             )}
           </div>
@@ -157,7 +161,9 @@ export const ScoreColumnHeaderSummary = ({
             {getScoreDataTypeExplanation(dataType)}
           </span>
           <SummaryRow
-            label={`This experiment (${DIFF_LABEL_TITLES[dataType]})`}
+            label={`${
+              hasBaseline ? "Baseline experiment" : "This experiment"
+            } (${DIFF_LABEL_TITLES[dataType]})`}
             value={
               baseline ? formatScoreColumnAggregate(baseline) : "no values"
             }
@@ -188,13 +194,11 @@ export const ScoreColumnHeaderSummary = ({
                 </>
               )}
               <SummaryRow label="Unchanged" value={movement.unchanged} />
-              <SummaryRow
-                label="Not comparable"
-                value={movement.notComparable}
-              />
+              <SummaryRow label="Not scored" value={movement.notComparable} />
               <span className="text-muted-foreground text-[10px]">
-                Not comparable: only one of the two experiments has a score for
-                the item, so it counts as neither an improvement nor a
+                Not scored: only one of the two experiments has a score for the
+                item — or, for a categorical score, the item has no single value
+                to compare — so it counts as neither an improvement nor a
                 regression.
               </span>
             </>

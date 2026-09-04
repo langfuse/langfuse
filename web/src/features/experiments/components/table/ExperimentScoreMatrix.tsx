@@ -7,7 +7,6 @@ import {
   type PaginationState,
   type Table as TanStackTable,
 } from "@tanstack/react-table";
-import { Badge } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -91,10 +90,12 @@ const MatrixCell = ({
       {hasBaselineColumn && movement && movement.changed > 0 && (
         <span className="text-muted-foreground">↻{movement.changed}</span>
       )}
-      {/* Items only one of the two runs scored: never folded into the delta. */}
+      {/* Items only one of the two runs scored: never folded into the delta.
+          Spelled out rather than abbreviated, because a matrix cell has no
+          hover to move the count into — the words are all the reader gets. */}
       {hasBaselineColumn && notComparable > 0 && (
         <span className="text-muted-foreground opacity-70">
-          {notComparable} n/a
+          {notComparable} not scored
         </span>
       )}
     </span>
@@ -257,21 +258,16 @@ export const ExperimentScoreMatrix = ({
                           colorStyles.markerClass,
                         )}
                       />
+                      {/* No `baseline` badge: this column is already the
+                          first one and the only one whose cells carry no
+                          delta, and a 150px header has room for the run's
+                          name or a badge, not both. */}
                       <span
                         className="truncate font-bold"
                         title={experiment.experimentName}
                       >
                         {experiment.experimentName}
                       </span>
-                      {experiment.isBaseline && (
-                        <Badge
-                          size="sm"
-                          variant="secondary"
-                          className="shrink-0"
-                        >
-                          baseline
-                        </Badge>
-                      )}
                     </span>
                   </th>
                 );
