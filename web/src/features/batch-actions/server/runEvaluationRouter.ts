@@ -9,7 +9,10 @@ import {
   logger,
   QueueJobs,
   applyCommentFilters,
+  getDeterministicSamplingValue,
   getObservationsCountFromEventsTable,
+  getObservationsWithModelDataFromEventsTable,
+  shouldSampleEvaluation,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import {
@@ -38,13 +41,15 @@ export const runEvaluationRouter = createTRPCRouter({
 
         const {
           projectId,
-          query,
+          query: requestedQuery,
           evaluatorIds: rawEvaluatorIds,
           sourceTable = BatchEvalSourceTable.EVENTS,
           evaluatorMappings: rawEvaluatorMappings,
           sampling,
           rowLimit,
+          backfillTimeRange,
         } = input;
+        let query = requestedQuery;
 
         if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
           throw new TRPCError({
@@ -59,6 +64,13 @@ export const runEvaluationRouter = createTRPCRouter({
           sourceTable === BatchEvalSourceTable.EVENTS
             ? "observation"
             : "experiment";
+
+        if (backfillTimeRange && sourceTable !== BatchEvalSourceTable.EVENTS) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Evaluator backfills only support observations.",
+          });
+        }
 
         const requestedEvaluatorIds = Array.from(new Set(rawEvaluatorIds));
 
@@ -138,7 +150,25 @@ export const runEvaluationRouter = createTRPCRouter({
 
         const countQueryOpts = {
           projectId,
-          filter: commentFilterResult?.filterState ?? query.filter ?? [],
+          filter: [
+            ...(commentFilterResult?.filterState ?? query.filter ?? []),
+            ...(backfillTimeRange
+              ? [
+                  {
+                    column: "startTime" as const,
+                    type: "datetime" as const,
+                    operator: ">=" as const,
+                    value: backfillTimeRange.from,
+                  },
+                  {
+                    column: "startTime" as const,
+                    type: "datetime" as const,
+                    operator: "<=" as const,
+                    value: backfillTimeRange.to,
+                  },
+                ]
+              : []),
+          ],
           searchQuery: query.searchQuery,
           searchType: query.searchType,
         };
@@ -146,16 +176,6 @@ export const runEvaluationRouter = createTRPCRouter({
         const observationCount = commentFilterResult?.hasNoMatches
           ? 0
           : await getObservationsCountFromEventsTable(countQueryOpts);
-
-        if (
-          rowLimit !== undefined &&
-          rowLimit > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT
-        ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Maximum allowed batch size is ${env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT}.`,
-          });
-        }
 
         if (
           rowLimit === undefined &&
@@ -167,13 +187,47 @@ export const runEvaluationRouter = createTRPCRouter({
           });
         }
 
+        if (
+          backfillTimeRange &&
+          sampling !== undefined &&
+          rowLimit !== undefined
+        ) {
+          const candidates = commentFilterResult?.hasNoMatches
+            ? []
+            : await getObservationsWithModelDataFromEventsTable({
+                ...countQueryOpts,
+                orderBy: { column: "startTime", order: "DESC" },
+                limit: rowLimit,
+                offset: 0,
+                selectIOAndMetadata: false,
+              });
+          const selectedIds = candidates
+            .filter((observation) =>
+              shouldSampleEvaluation({
+                samplingValue: getDeterministicSamplingValue(observation.id),
+                samplingRate: sampling,
+              }),
+            )
+            .map(({ id }) => id);
+          query = {
+            filter: [
+              {
+                column: "id",
+                type: "stringOptions",
+                operator: "any of",
+                value: selectedIds,
+              },
+            ],
+            orderBy: { column: "startTime", order: "DESC" },
+            useEventsTable: true,
+          };
+        }
+
         const userId = ctx.session.user.id;
         const batchConfig = {
           evaluatorIds,
           ...(input.evalVersion ? { evalVersion: input.evalVersion } : {}),
           ...(evaluatorMappings ? { evaluatorMappings } : {}),
-          ...(sampling !== undefined ? { sampling } : {}),
-          ...(rowLimit !== undefined ? { rowLimit } : {}),
         };
 
         logger.info(
@@ -223,8 +277,6 @@ export const runEvaluationRouter = createTRPCRouter({
                 ? { evalVersion: batchConfig.evalVersion }
                 : {}),
               ...(evaluatorMappings ? { evaluatorMappings } : {}),
-              ...(sampling !== undefined ? { sampling } : {}),
-              ...(rowLimit !== undefined ? { rowLimit } : {}),
             },
           },
           {

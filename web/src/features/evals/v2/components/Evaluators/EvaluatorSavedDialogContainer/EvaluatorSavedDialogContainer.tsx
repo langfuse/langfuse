@@ -225,6 +225,10 @@ export function EvaluatorSavedDialogContainer({
     sampling: number;
   }) => {
     if (!backfillEnabled) return;
+    const executionRange =
+      backfillWindow === "custom"
+        ? backfillRange
+        : getBackfillRange(backfillWindow);
     await runEvaluation.mutateAsync({
       projectId,
       evaluatorIds: [evaluator.id],
@@ -238,22 +242,9 @@ export function EvaluatorSavedDialogContainer({
       sourceTable: BatchEvalSourceTable.EVENTS,
       sampling,
       rowLimit: backfillMaxItems,
+      backfillTimeRange: executionRange,
       query: {
-        filter: [
-          ...filter,
-          {
-            column: "startTime",
-            type: "datetime",
-            operator: ">=",
-            value: backfillRange.from,
-          },
-          {
-            column: "startTime",
-            type: "datetime",
-            operator: "<=",
-            value: backfillRange.to,
-          },
-        ],
+        filter,
         orderBy: { column: "startTime", order: "DESC" },
         useEventsTable: true,
       },

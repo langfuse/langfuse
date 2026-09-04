@@ -170,7 +170,10 @@ export function EvaluatorBackfillSettings({
                 const value = Number(event.target.value);
                 if (!Number.isFinite(value)) return;
                 onMaxItemsChange(
-                  Math.min(MAX_EVALUATOR_BACKFILL_ITEMS, Math.max(1, value)),
+                  Math.min(
+                    MAX_EVALUATOR_BACKFILL_ITEMS,
+                    Math.max(1, Math.floor(value)),
+                  ),
                 );
               }}
             />

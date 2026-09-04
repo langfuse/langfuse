@@ -269,8 +269,6 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       evaluatorIds: z.array(z.string()),
       evalVersion: z.literal("v2").optional(),
       evaluatorMappings: z.array(BatchEvalEvaluatorMappingSchema).optional(),
-      sampling: z.number().min(0).max(1).optional(),
-      rowLimit: z.number().int().positive().optional(),
     }),
   ],
 );
