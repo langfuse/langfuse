@@ -7,9 +7,31 @@ export async function register() {
       ? process.env.NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT === "true"
       : true;
 
-  if (process.env.NEXT_RUNTIME === "nodejs" && isInitLoadingEnabled) {
+  const isNodeRuntime = process.env.NEXT_RUNTIME === "nodejs";
+
+  if (isNodeRuntime && isInitLoadingEnabled) {
     console.log("Running init scripts...");
     await import("./observability.config");
+  }
+
+  // Install after dd.init when init runs. Keep the dynamic import so AWS SDK
+  // is not loaded before dd-trace wraps it. Install even when init is skipped
+  // (secondary replicas set NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=false). On a
+  // fatal error, drain in-flight requests before exiting instead of dying
+  // abruptly and 5xx-ing them; the drain is imported lazily so its heavy
+  // dependencies load only when a fatal actually fires.
+  if (isNodeRuntime) {
+    const { installProcessErrorHandlers } =
+      await import("@langfuse/shared/src/server");
+    installProcessErrorHandlers({
+      onFatal: async () => {
+        const { drainAndClose } = await import("./utils/shutdown");
+        await drainAndClose();
+      },
+    });
+  }
+
+  if (isNodeRuntime && isInitLoadingEnabled) {
     await import("./initialize");
   }
 }
