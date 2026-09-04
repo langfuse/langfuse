@@ -5,6 +5,7 @@ import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState
 import { PEEK_DEFAULT_WIDTH_FRACTION } from "@/src/components/table/peek/store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
+const ORIGINAL_VIEWPORT_WIDTH = window.innerWidth;
 // Widget width is `min(<n>vw, calc(100vw - <sidebar>px))` — pull the leading
 // vw fraction (the widget's own width) out of the min() wrapper.
 const widthFraction = (style: React.CSSProperties) => {
@@ -12,12 +13,20 @@ const widthFraction = (style: React.CSSProperties) => {
   return match ? parseFloat(match[1]) / 100 : NaN;
 };
 
-function setup(isExpanded = false) {
+function setup(
+  isExpanded = false,
+  widthMode: "split" | "observation" = "split",
+) {
   const onExpandedChange = vi.fn();
   const { result, rerender } = renderHook(
-    ({ isExpanded }) =>
-      usePeekPanelState({ isOpen: true, isExpanded, onExpandedChange }),
-    { initialProps: { isExpanded } },
+    ({ isExpanded, widthMode }) =>
+      usePeekPanelState({
+        isOpen: true,
+        isExpanded,
+        widthMode,
+        onExpandedChange,
+      }),
+    { initialProps: { isExpanded, widthMode } },
   );
   return { result, rerender, onExpandedChange };
 }
@@ -36,7 +45,13 @@ function pressArrow(
 
 describe("usePeekPanelState", () => {
   beforeEach(() => window.localStorage.clear());
-  afterEach(() => window.localStorage.clear());
+  afterEach(() => {
+    window.localStorage.clear();
+    Object.defineProperty(window, "innerWidth", {
+      value: ORIGINAL_VIEWPORT_WIDTH,
+      configurable: true,
+    });
+  });
 
   it("renders the widget width and a stable resize-handle contract", () => {
     const { result } = setup();
@@ -90,5 +105,58 @@ describe("usePeekPanelState", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(
       String(PEEK_DEFAULT_WIDTH_FRACTION),
     );
+  });
+
+  it("shrinks and grows by the measured navigation panel width", () => {
+    Object.defineProperty(window, "innerWidth", {
+      value: 1000,
+      configurable: true,
+    });
+    const navigation = document.createElement("div");
+    navigation.dataset.traceNavigationPanel = "";
+    vi.spyOn(navigation, "getBoundingClientRect").mockReturnValue({
+      width: 200,
+    } as DOMRect);
+    const peek = document.createElement("div");
+    peek.dataset.peekContent = "";
+    peek.appendChild(navigation);
+    document.body.appendChild(peek);
+    window.localStorage.setItem(STORAGE_KEY, "0.7");
+
+    const { result, rerender } = setup(false, "split");
+    expect(widthFraction(result.current.panelStyle)).toBeCloseTo(0.7);
+
+    rerender({ isExpanded: false, widthMode: "observation" });
+    expect(widthFraction(result.current.panelStyle)).toBeCloseTo(0.5);
+
+    rerender({ isExpanded: false, widthMode: "split" });
+    expect(widthFraction(result.current.panelStyle)).toBeCloseTo(0.7);
+
+    peek.remove();
+  });
+
+  it("subtracts the measured navigation width while expanded", () => {
+    Object.defineProperty(window, "innerWidth", {
+      value: 1000,
+      configurable: true,
+    });
+    const navigation = document.createElement("div");
+    navigation.dataset.traceNavigationPanel = "";
+    vi.spyOn(navigation, "getBoundingClientRect").mockReturnValue({
+      width: 200,
+    } as DOMRect);
+    const peek = document.createElement("div");
+    peek.dataset.peekContent = "";
+    peek.appendChild(navigation);
+    document.body.appendChild(peek);
+
+    const { result, rerender } = setup(true, "split");
+    rerender({ isExpanded: true, widthMode: "observation" });
+
+    expect(String(result.current.panelStyle.width)).toContain(
+      "calc(100vw - 200px)",
+    );
+
+    peek.remove();
   });
 });

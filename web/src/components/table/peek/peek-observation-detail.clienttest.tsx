@@ -32,6 +32,7 @@ vi.mock("@/src/components/table/peek", () => ({
     hideItemBadge,
     itemType,
     title,
+    widthMode,
   }: {
     actions?: React.ReactNode;
     children: React.ReactNode;
@@ -39,10 +40,12 @@ vi.mock("@/src/components/table/peek", () => ({
     hideItemBadge?: boolean;
     itemType?: string;
     title?: React.ReactNode;
+    widthMode?: string;
   }) => (
     <div>
       {leadingContent}
       <div data-testid="peek-title">{title}</div>
+      {widthMode ? <div data-testid="width-mode">{widthMode}</div> : null}
       {itemType && !hideItemBadge ? (
         <div data-testid="item-type">{itemType}</div>
       ) : null}
@@ -140,6 +143,7 @@ describe("TablePeekViewObservationDetail", () => {
       "GENERATION",
     );
     expect(screen.queryByTestId("item-type")).not.toBeInTheDocument();
+    expect(screen.getByTestId("width-mode")).toHaveTextContent("split");
 
     fireEvent.click(
       screen.getByRole("tab", { name: "Show observation details only" }),
@@ -181,5 +185,6 @@ describe("TablePeekViewObservationDetail", () => {
     expect(screen.getByTestId("peek-title")).toHaveTextContent(
       "Observation name",
     );
+    expect(screen.getByTestId("width-mode")).toHaveTextContent("observation");
   });
 });

@@ -12,6 +12,7 @@ import {
 } from "@/src/components/table/peek/store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
+const OBSERVATION_STORAGE_KEY = "peekObservationViewWidthFraction";
 const pct = (fraction: number) => `${fraction * 100}vw`;
 
 // jsdom's default innerWidth is 1024; override per-test to exercise the
@@ -160,5 +161,32 @@ describe("peekPanelStore", () => {
     expect(state.isResizing).toBe(false);
     expect(state.widthFraction).toBeCloseTo(0.5);
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("0.5");
+  });
+
+  it("shrinks by the navigation width for observation mode and grows back", () => {
+    window.localStorage.setItem(STORAGE_KEY, "0.7");
+    const store = createPeekPanelStore("split");
+
+    store.getState().actions.setWidthMode("observation", 0.2, 0.7);
+    expect(store.getState().widthFraction).toBeCloseTo(0.5);
+    expect(
+      Number(window.localStorage.getItem(OBSERVATION_STORAGE_KEY)),
+    ).toBeCloseTo(0.5);
+
+    store.getState().actions.setWidthMode("split", 0.2, 0.5);
+    expect(store.getState().widthFraction).toBeCloseTo(0.7);
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("0.7");
+  });
+
+  it("keeps observation-mode manual resizing when growing back", () => {
+    window.localStorage.setItem(STORAGE_KEY, "0.7");
+    const store = createPeekPanelStore("split");
+
+    store.getState().actions.setWidthMode("observation", 0.2, 0.7);
+    store.getState().actions.commitWidth(0.6);
+    expect(store.getState().observationWidthFraction).toBeCloseTo(0.6);
+
+    store.getState().actions.setWidthMode("split", 0.2, 0.6);
+    expect(store.getState().splitWidthFraction).toBeCloseTo(0.8);
   });
 });

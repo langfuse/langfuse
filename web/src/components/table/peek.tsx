@@ -15,6 +15,7 @@ import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
+import { type PeekPanelWidthMode } from "@/src/components/table/peek/store/peekPanelStore";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -85,6 +86,8 @@ type TablePeekViewProps = Pick<
   leadingContent?: React.ReactNode;
   /** Hide the item badge when leading content already identifies the scope. */
   hideItemBadge?: boolean;
+  /** Outer panel width behavior for split navigation/detail vs detail-only. */
+  widthMode?: PeekPanelWidthMode;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -212,6 +215,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const panel = usePeekPanelState({
     isOpen: !!itemId,
     isExpanded,
+    widthMode: props.widthMode ?? "split",
     onExpandedChange: setExpanded,
     onResized: useCallback(
       (widthFraction: number, trigger: "drag" | "keyboard") => {
@@ -361,7 +365,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // would flip to a white glow).
                 "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
-                panel.isResizing && "select-none",
+                panel.isResizing
+                  ? "select-none"
+                  : "transition-[width] duration-200 ease-out",
               )}
             >
               <SheetPrimitive.Title className="sr-only">

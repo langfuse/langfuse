@@ -122,6 +122,14 @@ export const TablePeekViewTraceDetail = (
       {...props}
       itemType={isSessionScope ? "SESSION" : props.itemType}
       title={title}
+      {...(props.isV4
+        ? {
+            widthMode:
+              aggregationLevel === "observation"
+                ? ("observation" as const)
+                : ("split" as const),
+          }
+        : {})}
       leadingContent={aggregationToggle}
       hideItemBadge={!!aggregationToggle}
       actions={

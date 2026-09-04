@@ -25,18 +25,21 @@ vi.mock("@/src/components/table/peek", () => ({
     leadingContent,
     hideItemBadge,
     itemType,
+    widthMode,
   }: {
     actions?: React.ReactNode;
     children: React.ReactNode;
     leadingContent?: React.ReactNode;
     hideItemBadge?: boolean;
     itemType?: string;
+    widthMode?: string;
   }) => (
     <div>
       {leadingContent}
       {itemType && !hideItemBadge ? (
         <div data-testid="item-type">{itemType}</div>
       ) : null}
+      {widthMode ? <div data-testid="width-mode">{widthMode}</div> : null}
       {actions}
       {children}
     </div>
@@ -113,6 +116,7 @@ describe("TablePeekViewTraceDetail", () => {
       }),
     );
     expect(screen.queryByTestId("item-type")).not.toBeInTheDocument();
+    expect(screen.getByTestId("width-mode")).toHaveTextContent("split");
 
     fireEvent.click(screen.getByRole("tab", { name: "Aggregate by session" }));
 
@@ -143,6 +147,7 @@ describe("TablePeekViewTraceDetail", () => {
       timestamp: undefined,
     });
     expect(screen.getByTestId("item-type")).toHaveTextContent("TRACE");
+    expect(screen.queryByTestId("width-mode")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "Aggregate by session" }),
     ).not.toBeInTheDocument();

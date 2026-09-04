@@ -342,11 +342,13 @@ function DesktopTraceContent({
   return (
     <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
-          <TracePanelNavigation />
-        </TracePanelNavigationLayoutDesktop>
+        <div data-trace-navigation-panel="" className="h-full w-full">
+          <TracePanelNavigationLayoutDesktop
+            secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
+          >
+            <TracePanelNavigation />
+          </TracePanelNavigationLayoutDesktop>
+        </div>
       </TraceLayoutDesktop.NavigationPanel>
       <TraceLayoutDesktop.ResizeHandle />
       <TraceLayoutDesktop.DetailPanel>
