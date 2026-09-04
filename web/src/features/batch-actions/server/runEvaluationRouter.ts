@@ -16,11 +16,13 @@ import {
   shouldSampleEvaluation,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import type { z } from "zod";
+import { z } from "zod";
 import {
+  BatchActionQuerySchema,
   BatchTableNames,
   BatchActionStatus,
   ActionId,
+  BatchEvalEvaluatorMappingSchema,
   BatchEvalSourceTable,
   getEvalTargetObjectFromSourceTable,
   InvalidRequestError,
@@ -36,6 +38,43 @@ import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMa
 type CreateBatchEvaluationInput =
   | z.infer<typeof CreateObservationBatchEvaluationActionSchema>
   | z.infer<typeof CreateObservationEvaluatorBackfillActionSchema>;
+
+const batchEvaluationConfigSchema = z.object({
+  evaluatorIds: z.array(z.string()),
+  evalVersion: z.literal("v2").optional(),
+  evaluatorMappings: z.array(BatchEvalEvaluatorMappingSchema).optional(),
+});
+
+async function enqueueBatchEvaluation(params: {
+  id: string;
+  projectId: string;
+  query: z.infer<typeof BatchActionQuerySchema>;
+  config: z.infer<typeof batchEvaluationConfigSchema>;
+}) {
+  await BatchActionQueue.getInstance()?.add(
+    QueueJobs.BatchActionProcessingJob,
+    {
+      id: params.id,
+      name: QueueJobs.BatchActionProcessingJob,
+      timestamp: new Date(),
+      payload: {
+        actionId: ActionId.ObservationBatchEvaluation,
+        batchActionId: params.id,
+        projectId: params.projectId,
+        cutoffCreatedAt: new Date(),
+        query: params.query,
+        evaluatorIds: params.config.evaluatorIds,
+        ...(params.config.evalVersion
+          ? { evalVersion: params.config.evalVersion }
+          : {}),
+        ...(params.config.evaluatorMappings
+          ? { evaluatorMappings: params.config.evaluatorMappings }
+          : {}),
+      },
+    },
+    { jobId: params.id },
+  );
+}
 
 async function createBatchEvaluation({
   input,
@@ -94,7 +133,14 @@ async function createBatchEvaluation({
     if (idempotencyKey) {
       const existingBatchAction = await ctx.prisma.batchAction.findUnique({
         where: { id: idempotencyKey },
-        select: { id: true, projectId: true, actionType: true },
+        select: {
+          id: true,
+          projectId: true,
+          actionType: true,
+          status: true,
+          query: true,
+          config: true,
+        },
       });
       if (existingBatchAction) {
         if (
@@ -104,6 +150,16 @@ async function createBatchEvaluation({
           throw new TRPCError({
             code: "CONFLICT",
             message: "The backfill request identifier is already in use.",
+          });
+        }
+        if (existingBatchAction.status === BatchActionStatus.Queued) {
+          await enqueueBatchEvaluation({
+            id: existingBatchAction.id,
+            projectId,
+            query: BatchActionQuerySchema.parse(existingBatchAction.query),
+            config: batchEvaluationConfigSchema.parse(
+              existingBatchAction.config,
+            ),
           });
         }
         return { id: existingBatchAction.id };
@@ -298,29 +354,12 @@ async function createBatchEvaluation({
       after: batchAction,
     });
 
-    await BatchActionQueue.getInstance()?.add(
-      QueueJobs.BatchActionProcessingJob,
-      {
-        id: batchAction.id,
-        name: QueueJobs.BatchActionProcessingJob,
-        timestamp: new Date(),
-        payload: {
-          actionId: ActionId.ObservationBatchEvaluation,
-          batchActionId: batchAction.id,
-          projectId,
-          cutoffCreatedAt: new Date(),
-          query,
-          evaluatorIds: batchConfig.evaluatorIds,
-          ...(batchConfig.evalVersion
-            ? { evalVersion: batchConfig.evalVersion }
-            : {}),
-          ...(evaluatorMappings ? { evaluatorMappings } : {}),
-        },
-      },
-      {
-        jobId: batchAction.id,
-      },
-    );
+    await enqueueBatchEvaluation({
+      id: batchAction.id,
+      projectId,
+      query,
+      config: batchConfig,
+    });
 
     return { id: batchAction.id };
   } catch (e) {

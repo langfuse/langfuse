@@ -421,6 +421,12 @@ describe("batched evaluation version selection", () => {
       id: backfillIdempotencyKey,
       projectId,
       actionType: "observation-run-batched-evaluation",
+      status: "QUEUED",
+      query,
+      config: {
+        evaluatorIds: [evaluatorId],
+        evalVersion: "v2",
+      },
     });
 
     const result = await context.runEvaluation.createBackfill({
@@ -440,7 +446,16 @@ describe("batched evaluation version selection", () => {
 
     expect(result).toEqual({ id: backfillIdempotencyKey });
     expect(context.batchActionCreate).not.toHaveBeenCalled();
-    expect(mocks.queueAdd).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          batchActionId: backfillIdempotencyKey,
+          query,
+        }),
+      }),
+      { jobId: backfillIdempotencyKey },
+    );
   });
 
   it("rejects backfills above the 25,000 observation cap", async () => {
