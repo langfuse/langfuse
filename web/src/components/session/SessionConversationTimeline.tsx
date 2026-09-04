@@ -7,6 +7,10 @@ import {
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import {
+  formatIdleGap,
+  IDLE_GAP_THRESHOLD_SECONDS,
+} from "@/src/components/session/sessionIdleGap";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -211,6 +215,7 @@ function SessionTimelineObservation({
 export function SessionConversationTimeline({
   trace,
   turnNumber,
+  idleGapSeconds,
   state,
   showSystemPrompt,
   onOpenTrace,
@@ -218,11 +223,15 @@ export function SessionConversationTimeline({
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
+  idleGapSeconds: number | null;
   state: SessionConversationTimelineState;
   showSystemPrompt: boolean;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
 }) {
+  const showIdleGap =
+    idleGapSeconds !== null && idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
+
   return (
     <div className="px-4 pb-14 sm:px-6 lg:px-10">
       <div className="mb-6 flex items-center gap-4 pt-5">
@@ -235,6 +244,15 @@ export function SessionConversationTimeline({
           trace {turnNumber} · {trace.id}
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+        {showIdleGap ? (
+          <Badge
+            variant="secondary"
+            size="sm"
+            className="shrink-0 font-mono font-normal"
+          >
+            +{formatIdleGap(idleGapSeconds)} idle
+          </Badge>
+        ) : null}
       </div>
 
       {state.type === "loading" ? (

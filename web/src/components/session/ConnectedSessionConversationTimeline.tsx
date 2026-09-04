@@ -11,6 +11,7 @@ type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 export function ConnectedSessionConversationTimeline({
   trace,
   turnNumber,
+  idleGapSeconds,
   projectId,
   observations,
   filterState,
@@ -20,6 +21,7 @@ export function ConnectedSessionConversationTimeline({
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
+  idleGapSeconds: number | null;
   projectId: string;
   observations: EventObservation[] | null | undefined;
   filterState: FilterState;
@@ -104,6 +106,7 @@ export function ConnectedSessionConversationTimeline({
     <SessionConversationTimeline
       trace={trace}
       turnNumber={turnNumber}
+      idleGapSeconds={idleGapSeconds}
       state={state}
       showSystemPrompt={showSystemPrompt}
       onOpenTrace={() => openPeek(trace.id, trace)}

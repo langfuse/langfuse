@@ -171,6 +171,7 @@ const observations = [
 const loadedArgs = {
   trace,
   turnNumber: 1,
+  idleGapSeconds: 10 * 60,
   state: {
     type: "loaded",
     observations,

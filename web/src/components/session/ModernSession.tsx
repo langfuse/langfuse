@@ -459,6 +459,7 @@ export function ModernSession({
                 <ConnectedSessionConversationTimeline
                   trace={trace}
                   turnNumber={virtualItem.index + 1}
+                  idleGapSeconds={sidebarTrace?.idleGapSeconds ?? null}
                   projectId={projectId}
                   observations={timelineObservations}
                   openPeek={openPeek}

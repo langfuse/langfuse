@@ -74,6 +74,7 @@ const renderTimeline = ({
     <SessionConversationTimeline
       trace={trace}
       turnNumber={1}
+      idleGapSeconds={10 * 60}
       state={{
         type: "loaded",
         observations: [timelineObservation],
@@ -91,6 +92,7 @@ describe("SessionConversationTimeline", () => {
     expect(
       screen.getByRole("button", { name: /trace 1.*trace-1/i }),
     ).toBeInTheDocument();
+    expect(screen.getByText("+10 min idle")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Generate answer/i }),
     ).not.toHaveClass("sr-only");
