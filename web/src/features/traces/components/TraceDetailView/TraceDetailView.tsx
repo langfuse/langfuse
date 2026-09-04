@@ -45,6 +45,9 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
@@ -74,6 +77,8 @@ export function TraceDetailView({
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
@@ -137,10 +142,14 @@ export function TraceDetailView({
 
   const handleBetaToggle = useCallback(
     (enabled: boolean) => {
+      capture("trace_detail:json_beta_toggle", {
+        enabled,
+        ...analyticsDimensions,
+      });
       setJsonBetaEnabled(enabled);
       setJsonViewPreference(enabled ? "json-beta" : "json");
     },
-    [setJsonBetaEnabled, setJsonViewPreference],
+    [setJsonBetaEnabled, setJsonViewPreference, capture, analyticsDimensions],
   );
 
   // Context hooks
@@ -229,6 +238,13 @@ export function TraceDetailView({
   const handleTabChange = (value: string) => {
     if (value === "scores") {
       refreshTraceScores();
+    }
+    if (value !== selectedTab) {
+      capture("trace_detail:detail_tab_switch", {
+        tab: value,
+        target: "trace",
+        ...analyticsDimensions,
+      });
     }
     setSelectedTab(value as "preview" | "log" | "scores");
   };

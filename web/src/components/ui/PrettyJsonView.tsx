@@ -1421,8 +1421,6 @@ export function PrettyJsonView(props: {
         <MarkdownJsonViewHeader
           title={props.title}
           titleIcon={props.titleIcon}
-          canEnableMarkdown={false}
-          handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           collapseControl={
             shouldCollapseSystemPrompt &&
