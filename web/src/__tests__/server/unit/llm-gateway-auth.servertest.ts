@@ -8,7 +8,7 @@ import {
   issueGatewayIngestionToken,
   verifyGatewayHmacAuthorization,
   verifyGatewayIngestionToken,
-} from "@/src/features/llm-gateway/server/auth";
+} from "@/src/features/llm-gateway/server";
 
 describe("LLM gateway authentication", () => {
   it("uses a deterministic canonical message and verifies current/previous keys", () => {
@@ -20,7 +20,7 @@ describe("LLM gateway authentication", () => {
 
     expect(buildGatewayHmacCanonicalMessage(input)).toBe(
       "POST\n/api/internal/ai-gateway/v1/resolve\n1788430200\n" +
-        "b1274a522d31ebb91aacc5fac0b7cf2264289c73c8f4390176277125c0603081\n" +
+        "sk-lf-not-a-real-secret\n" +
         "openai.responses",
     );
 
@@ -34,6 +34,7 @@ describe("LLM gateway authentication", () => {
         header: `HMAC keyId=previous,timestamp=${input.timestamp},signature=${signature}`,
         virtualSecretKey: input.virtualSecretKey,
         apiFormat: input.apiFormat,
+        now: new Date(input.timestamp * 1000),
         keys: [
           { id: "current", secret: "current-service-key" },
           { id: "previous", secret: "previous-service-key" },
@@ -45,6 +46,7 @@ describe("LLM gateway authentication", () => {
         header: `HMAC keyId=previous,timestamp=${input.timestamp},signature=${signature}`,
         virtualSecretKey: "different",
         apiFormat: input.apiFormat,
+        now: new Date(input.timestamp * 1000),
         keys: [{ id: "previous", secret: "previous-service-key" }],
       }),
     ).toBe(false);

@@ -18,8 +18,8 @@ export class GatewayApiKeyService {
     this.repository = new GatewayRepository(prisma);
   }
 
-  list(organizationId: string) {
-    return this.repository.listGatewayApiKeys(organizationId);
+  list(params: { organizationId: string; cursor?: string; limit: number }) {
+    return this.repository.listGatewayApiKeys(params);
   }
 
   async create(params: {
@@ -36,6 +36,7 @@ export class GatewayApiKeyService {
         scope: "ORGANIZATION",
         note: params.note,
         createdByUserId: params.createdByUserId,
+        isGatewayKey: true,
       });
       await tx.gatewayApiKeyAssociation.create({
         data: {

@@ -14,8 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { providerLabels } from "@/src/features/llm-gateway/constants/providerLabels";
+import type { GatewayProvider } from "@/src/features/llm-gateway/types/gatewayProvider";
 
-type GatewayProvider = "OPENAI" | "ANTHROPIC" | "OPENROUTER";
 type ModelRow = {
   id: string;
   availableVia: Array<{
@@ -23,12 +24,6 @@ type ModelRow = {
     provider: GatewayProvider;
   }>;
   apiFormats: string[];
-};
-
-const providerLabels: Record<GatewayProvider, string> = {
-  OPENAI: "OpenAI",
-  ANTHROPIC: "Anthropic",
-  OPENROUTER: "OpenRouter",
 };
 
 export function GatewayModelsView({
@@ -40,6 +35,9 @@ export function GatewayModelsView({
   isLoading,
   syncError,
   onSync,
+  hasMoreProviders,
+  isLoadingMoreProviders,
+  onLoadMoreProviders,
 }: {
   models: ModelRow[];
   failedProviderCount: number;
@@ -49,6 +47,9 @@ export function GatewayModelsView({
   isLoading: boolean;
   syncError: boolean;
   onSync: () => void | Promise<void>;
+  hasMoreProviders: boolean;
+  isLoadingMoreProviders: boolean;
+  onLoadMoreProviders: () => unknown;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -157,6 +158,20 @@ export function GatewayModelsView({
           </TableBody>
         </Table>
       </Card>
+      {hasMoreProviders ? (
+        <Button
+          className="self-center"
+          variant="secondary"
+          loading={isLoadingMoreProviders}
+          disabled={isLoadingMoreProviders}
+          aria-label="Load more providers"
+          onClick={() => {
+            onLoadMoreProviders();
+          }}
+        >
+          Load more providers
+        </Button>
+      ) : null}
     </div>
   );
 }

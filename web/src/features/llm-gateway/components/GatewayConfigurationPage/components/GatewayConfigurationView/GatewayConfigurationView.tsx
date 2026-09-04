@@ -4,6 +4,8 @@ import { Check, Copy, Gauge, RadioTower, Sparkles } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 import {
   Card,
   CardContent,
@@ -22,6 +24,8 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
 
 const GATEWAY_BASE_URL = "https://gateway.langfuse.com/v1";
+const CREATE_PROJECT_VALUE = "__create_project__";
+const DEFAULT_PROJECT_NAME = "llm-ingestion-project";
 
 type InstrumentationMode = "NONE" | "USAGE" | "FULL";
 type Project = {
@@ -71,6 +75,7 @@ export function GatewayConfigurationView({
   saveError: boolean;
   onSave: (values: {
     projectId: string | null;
+    createProjectName?: string;
     mode: InstrumentationMode;
   }) => void | Promise<void>;
 }) {
@@ -78,11 +83,16 @@ export function GatewayConfigurationView({
   const initialProjectExists =
     initialProjectId !== null &&
     activeProjects.some((project) => project.id === initialProjectId);
-  const [projectId, setProjectId] = useState<string | null>(
-    initialProjectExists ? initialProjectId : null,
+  const [projectSelection, setProjectSelection] = useState(
+    initialProjectExists ? initialProjectId : CREATE_PROJECT_VALUE,
   );
+  const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [mode, setMode] = useState<InstrumentationMode>(initialMode);
-  const isDirty = projectId !== initialProjectId || mode !== initialMode;
+  const projectId =
+    projectSelection === CREATE_PROJECT_VALUE ? null : projectSelection;
+  const isCreatingProject = projectSelection === CREATE_PROJECT_VALUE;
+  const isDirty =
+    isCreatingProject || projectId !== initialProjectId || mode !== initialMode;
 
   return (
     <div className="flex flex-col gap-6">
@@ -93,16 +103,6 @@ export function GatewayConfigurationView({
           ingested into Langfuse.
         </p>
       </div>
-
-      {!projectId ? (
-        <Alert variant="warning">
-          <Alert.Title>Gateway disabled</Alert.Title>
-          <Alert.Description>
-            A missing or deleted default ingestion project disables the gateway.
-            Select an active project and save to enable routing.
-          </Alert.Description>
-        </Alert>
-      ) : null}
 
       <Card>
         <CardHeader>
@@ -124,17 +124,14 @@ export function GatewayConfigurationView({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Select
-            value={projectId ?? "none"}
-            onValueChange={(value) =>
-              setProjectId(value === "none" ? null : value)
-            }
-          >
+          <Select value={projectSelection} onValueChange={setProjectSelection}>
             <SelectTrigger className="ph-no-capture max-w-md">
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>
             <SelectContent className="ph-no-capture">
-              <SelectItem value="none">No project selected</SelectItem>
+              <SelectItem value={CREATE_PROJECT_VALUE}>
+                Create new project
+              </SelectItem>
               {activeProjects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.name}
@@ -142,6 +139,21 @@ export function GatewayConfigurationView({
               ))}
             </SelectContent>
           </Select>
+          {isCreatingProject ? (
+            <div className="mt-4 max-w-md">
+              <Label htmlFor="gateway-project-name">Project name</Label>
+              <Input
+                id="gateway-project-name"
+                className="ph-no-capture mt-1.5"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+              />
+              <p className="text-muted-foreground mt-1.5 text-xs">
+                Only you receive access initially. Other organization members
+                must be invited explicitly.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -189,9 +201,19 @@ export function GatewayConfigurationView({
 
       <div className="flex justify-end">
         <Button
-          disabled={!isDirty || isSaving}
+          disabled={
+            !isDirty || isSaving || (isCreatingProject && !projectName.trim())
+          }
           loading={isSaving}
-          onClick={() => onSave({ projectId, mode })}
+          onClick={() =>
+            onSave({
+              projectId,
+              createProjectName: isCreatingProject
+                ? projectName.trim()
+                : undefined,
+              mode,
+            })
+          }
         >
           Save
         </Button>

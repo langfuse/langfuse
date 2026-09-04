@@ -1,5 +1,4 @@
 import {
-  createHash,
   createHmac,
   createPrivateKey,
   createPublicKey,
@@ -66,14 +65,11 @@ function safeEqual(left: string, right: string): boolean {
 export function buildGatewayHmacCanonicalMessage(
   input: GatewayHmacMessageInput,
 ): string {
-  const secretHash = createHash("sha256")
-    .update(input.virtualSecretKey, "utf8")
-    .digest("hex");
   return [
     RESOLVE_METHOD,
     RESOLVE_PATH,
     input.timestamp.toString(),
-    secretHash,
+    input.virtualSecretKey,
     input.apiFormat,
   ].join("\n");
 }
@@ -91,6 +87,7 @@ export function verifyGatewayHmacAuthorization(input: {
   virtualSecretKey: string;
   apiFormat: GatewayApiFormat;
   keys: GatewayServiceKey[];
+  now?: Date;
 }): boolean {
   const match =
     /^HMAC keyId=([^,\s]+),timestamp=(\d+),signature=([a-f0-9]{64})$/.exec(
@@ -99,11 +96,16 @@ export function verifyGatewayHmacAuthorization(input: {
   if (!match) return false;
 
   const [, keyId, timestampValue, signature] = match;
+  const timestamp = Number(timestampValue);
+  const now = Math.floor((input.now ?? new Date()).getTime() / 1000);
+  if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > 300) {
+    return false;
+  }
   const key = input.keys.find((candidate) => candidate.id === keyId);
   if (!key) return false;
 
   const expected = createGatewayHmacSignature({
-    timestamp: Number(timestampValue),
+    timestamp,
     virtualSecretKey: input.virtualSecretKey,
     apiFormat: input.apiFormat,
     serviceKey: key.secret,

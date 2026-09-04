@@ -38,8 +38,24 @@ export class GatewayProviderService {
     this.repository = new GatewayRepository(prisma);
   }
 
-  list(organizationId: string) {
-    return this.repository.listConnections(organizationId);
+  list(params: { organizationId: string; cursor?: string; limit: number }) {
+    return this.repository.listConnections(params);
+  }
+
+  async listAll(organizationId: string, status?: GatewayConnectionStatus) {
+    const connections = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.repository.listConnections({
+        organizationId,
+        cursor,
+        limit: 100,
+        status,
+      });
+      connections.push(...page.data);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    return connections;
   }
 
   async create(params: {
@@ -108,9 +124,7 @@ export class GatewayProviderService {
 
   async delete(params: { organizationId: string; id: string }) {
     const deleted = await this.repository.deleteConnection(params);
-    const remaining = await this.repository.listConnections(
-      params.organizationId,
-    );
+    const remaining = await this.listAll(params.organizationId);
     await this.repository.reorderConnections({
       organizationId: params.organizationId,
       connectionIds: remaining.map((connection) => connection.id),
@@ -122,9 +136,7 @@ export class GatewayProviderService {
     organizationId: string;
     connectionIds: string[];
   }): Promise<void> {
-    const existing = await this.repository.listConnections(
-      params.organizationId,
-    );
+    const existing = await this.listAll(params.organizationId);
     const existingIds = new Set(existing.map((connection) => connection.id));
     const requestedIds = new Set(params.connectionIds);
     if (
@@ -142,17 +154,15 @@ export class GatewayProviderService {
   async refreshAllModels(
     organizationId: string,
   ): Promise<ModelRefreshResult[]> {
-    const connections = await this.repository.listConnections(organizationId);
+    const connections = await this.listAll(organizationId, "ENABLED");
     return Promise.all(
-      connections
-        .filter((connection) => connection.status === "ENABLED")
-        .map((connection) =>
-          this.refreshModels({
-            organizationId,
-            connectionId: connection.id,
-            explicitRetry: false,
-          }),
-        ),
+      connections.map((connection) =>
+        this.refreshModels({
+          organizationId,
+          connectionId: connection.id,
+          explicitRetry: false,
+        }),
+      ),
     );
   }
 

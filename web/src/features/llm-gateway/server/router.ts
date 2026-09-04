@@ -1,7 +1,8 @@
 import { z } from "zod/v4";
 import type { Session } from "next-auth";
+import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -13,7 +14,7 @@ import {
   GatewayInstrumentationMode,
   GatewayProvider,
 } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { invalidateCachedOrgApiKeys, redis } from "@langfuse/shared/src/server";
 
 import { GatewayApiKeyService } from "./gatewayApiKeyService";
 import { GatewayProviderService } from "./gatewayProviderService";
@@ -21,6 +22,10 @@ import { GatewayService } from "./gatewayService";
 import { GatewayMetadataSchema } from "./providerRegistry";
 
 const organizationInput = z.object({ orgId: z.string() });
+const paginatedOrganizationInput = organizationInput.extend({
+  cursor: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   throwIfNoOrganizationAccess({
@@ -40,20 +45,32 @@ export const llmGatewayRouter = createTRPCRouter({
 
   updateConfig: protectedOrganizationProcedure
     .input(
-      organizationInput.extend({
-        defaultIngestionProjectId: z.string().nullable(),
-        instrumentationMode: z.enum(GatewayInstrumentationMode),
-      }),
+      organizationInput
+        .extend({
+          defaultIngestionProjectId: z.string().nullable(),
+          createProjectName: StringNoHTMLNonEmpty.max(200).optional(),
+          instrumentationMode: z.enum(GatewayInstrumentationMode),
+        })
+        .refine(
+          (input) =>
+            !(input.defaultIngestionProjectId && input.createProjectName),
+          "Select an existing project or create a new one",
+        ),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       const service = new GatewayService(ctx.prisma);
       const before = await service.getConfig(input.orgId);
-      const after = await service.updateConfig({
+      const result = await service.updateConfig({
         organizationId: input.orgId,
         defaultIngestionProjectId: input.defaultIngestionProjectId,
+        ...(input.createProjectName
+          ? { createProjectName: input.createProjectName }
+          : {}),
+        createdByUserId: ctx.session.user.id,
         instrumentationMode: input.instrumentationMode,
       });
+      const after = result.config;
       await auditLog({
         session: ctx.session,
         resourceType: "gatewayConfig",
@@ -62,14 +79,28 @@ export const llmGatewayRouter = createTRPCRouter({
         before,
         after,
       });
+      if (result.project) {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "project",
+          resourceId: result.project.id,
+          action: "create",
+          after: result.project,
+        });
+        await invalidateCachedOrgApiKeys(input.orgId);
+      }
       return after;
     }),
 
   listConnections: protectedOrganizationProcedure
-    .input(organizationInput)
+    .input(paginatedOrganizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayProviderService(ctx.prisma).list(input.orgId);
+      return new GatewayProviderService(ctx.prisma).list({
+        organizationId: input.orgId,
+        cursor: input.cursor,
+        limit: input.limit,
+      });
     }),
 
   createConnection: protectedOrganizationProcedureWithoutTracing
@@ -116,7 +147,7 @@ export const llmGatewayRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       const service = new GatewayProviderService(ctx.prisma);
-      const before = (await service.list(input.orgId)).find(
+      const before = (await service.listAll(input.orgId)).find(
         (connection) => connection.id === input.id,
       );
       const after = await service.update({
@@ -164,12 +195,12 @@ export const llmGatewayRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       const service = new GatewayProviderService(ctx.prisma);
-      const before = await service.list(input.orgId);
+      const before = await service.listAll(input.orgId);
       await service.reorder({
         organizationId: input.orgId,
         connectionIds: input.connectionIds,
       });
-      const after = await service.list(input.orgId);
+      const after = await service.listAll(input.orgId);
       await auditLog({
         session: ctx.session,
         resourceType: "gatewayAiConnection",
@@ -211,10 +242,14 @@ export const llmGatewayRouter = createTRPCRouter({
     }),
 
   listApiKeys: protectedOrganizationProcedure
-    .input(organizationInput)
+    .input(paginatedOrganizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayApiKeyService(ctx.prisma, redis).list(input.orgId);
+      return new GatewayApiKeyService(ctx.prisma, redis).list({
+        organizationId: input.orgId,
+        cursor: input.cursor,
+        limit: input.limit,
+      });
     }),
 
   createApiKey: protectedOrganizationProcedure

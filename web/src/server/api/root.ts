@@ -62,7 +62,7 @@ import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRou
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
-import { llmGatewayRouter } from "@/src/features/llm-gateway/server/router";
+import { llmGatewayRouter } from "@/src/features/llm-gateway/server";
 
 /**
  * This is the primary router for your server.

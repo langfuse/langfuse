@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import type { AuthHeaderValidVerificationResult } from "@langfuse/shared/src/server";
@@ -61,24 +61,36 @@ export async function verifyGatewayIngestionAuthorization(
     throw new UnauthorizedError("Invalid gateway ingestion token");
   }
 
-  const project = await database.project.findFirst({
-    where: {
-      id: claims.projectId,
-      orgId: claims.organizationId,
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-      organization: {
-        select: {
-          id: true,
-          cloudConfig: true,
-          cloudFreeTierUsageThresholdState: true,
+  const [project, gatewayKey] = await Promise.all([
+    database.project.findFirst({
+      where: {
+        id: claims.projectId,
+        orgId: claims.organizationId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        organization: {
+          select: {
+            id: true,
+            cloudConfig: true,
+            cloudFreeTierUsageThresholdState: true,
+          },
         },
       },
-    },
-  });
-  if (!project) {
+    }),
+    database.gatewayApiKeyAssociation.findFirst({
+      where: {
+        apiKeyId: claims.keyId,
+        apiKey: {
+          orgId: claims.organizationId,
+          isGatewayKey: true,
+        },
+      },
+      select: { apiKeyId: true },
+    }),
+  ]);
+  if (!project || !gatewayKey) {
     throw new UnauthorizedError("Invalid gateway ingestion token project");
   }
 

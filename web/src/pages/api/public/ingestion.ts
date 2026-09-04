@@ -32,7 +32,7 @@ import {
   SDK_VERSION_ATTRIBUTE,
   extractSdkAttributes,
 } from "@langfuse/shared/instrumentation/bootstrap";
-import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server/ingestionTokenVerification";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server";
 
 export const config = {
   api: {

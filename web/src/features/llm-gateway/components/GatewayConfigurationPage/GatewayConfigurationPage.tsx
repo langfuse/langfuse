@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayConfigurationView } from "@/src/features/llm-gateway/components/GatewayConfigurationView";
+import { GatewayConfigurationView } from "@/src/features/llm-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
@@ -59,11 +59,12 @@ export function GatewayConfigurationPage({
       initialMode={config?.instrumentationMode ?? "USAGE"}
       isSaving={updateConfig.isPending}
       saveError={updateConfig.isError}
-      onSave={async ({ projectId, mode }) => {
+      onSave={async ({ projectId, createProjectName, mode }) => {
         try {
           await updateConfig.mutateAsync({
             orgId: organizationId,
             defaultIngestionProjectId: projectId,
+            ...(createProjectName ? { createProjectName } : {}),
             instrumentationMode: mode,
           });
           await utils.llmGateway.getConfig.invalidate({

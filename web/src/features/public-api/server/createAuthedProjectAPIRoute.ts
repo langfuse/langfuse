@@ -44,7 +44,7 @@ import {
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server/ingestionTokenVerification";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.

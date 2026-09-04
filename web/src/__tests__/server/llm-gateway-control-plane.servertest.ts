@@ -17,13 +17,11 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import {
   createGatewayHmacSignature,
-  verifyGatewayIngestionToken,
-} from "@/src/features/llm-gateway/server/auth";
-import { GatewayProviderService } from "@/src/features/llm-gateway/server/gatewayProviderService";
-import {
+  GatewayProviderService,
   type GatewayResolveError,
   GatewayResolveService,
-} from "@/src/features/llm-gateway/server/resolveService";
+  verifyGatewayIngestionToken,
+} from "@/src/features/llm-gateway/server";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 
@@ -90,6 +88,66 @@ async function prepare(role: Role = Role.OWNER) {
 }
 
 describe("LLM gateway control plane", () => {
+  it("creates a private ingestion project and blocks implicit member access", async () => {
+    const owner = await prepare();
+    const existingMember = await prisma.user.create({
+      data: { email: `gateway-member-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(existingMember.id);
+    await prisma.organizationMembership.create({
+      data: {
+        orgId: owner.org.id,
+        userId: existingMember.id,
+        role: "MEMBER",
+      },
+    });
+
+    const config = await owner.caller.llmGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: null,
+      createProjectName: "llm-ingestion-project",
+      instrumentationMode: "USAGE",
+    });
+    const ingestionProjectId = config.defaultIngestionProjectId;
+    expect(ingestionProjectId).not.toBeNull();
+    if (!ingestionProjectId) throw new Error("Missing ingestion project");
+    const project = await prisma.project.findFirstOrThrow({
+      where: { id: ingestionProjectId },
+    });
+    const memberships = await prisma.projectMembership.findMany({
+      where: { projectId: project.id },
+      orderBy: { userId: "asc" },
+    });
+    expect(memberships).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: owner.user.id, role: "OWNER" }),
+        expect.objectContaining({ userId: existingMember.id, role: "NONE" }),
+      ]),
+    );
+
+    const futureMember = await prisma.user.create({
+      data: { email: `gateway-future-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(futureMember.id);
+    await prisma.organizationMembership.create({
+      data: {
+        orgId: owner.org.id,
+        userId: futureMember.id,
+        role: "MEMBER",
+      },
+    });
+    await expect(
+      prisma.projectMembership.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: project.id,
+            userId: futureMember.id,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ role: "NONE" });
+  });
+
   it("enforces admin scope and validates the ingestion project organization", async () => {
     const owner = await prepare();
     const member = await prepare(Role.MEMBER);
@@ -134,7 +192,7 @@ describe("LLM gateway control plane", () => {
     expect(created).not.toHaveProperty("encryptedCredential");
     expect(created).not.toHaveProperty("credential");
     const listed = await caller.llmGateway.listConnections({ orgId: org.id });
-    expect(listed[0]).not.toHaveProperty("encryptedCredential");
+    expect(listed.data[0]).not.toHaveProperty("encryptedCredential");
     expect(JSON.stringify(listed)).not.toContain(credential);
 
     const stored = await prisma.gatewayAiConnection.findUniqueOrThrow({
@@ -155,8 +213,8 @@ describe("LLM gateway control plane", () => {
     expect(created.secretKey).toMatch(/^sk-lf-/);
 
     const listed = await caller.llmGateway.listApiKeys({ orgId: org.id });
-    expect(listed).toHaveLength(1);
-    expect(listed[0]).toMatchObject({
+    expect(listed.data).toHaveLength(1);
+    expect(listed.data[0]).toMatchObject({
       apiKey: { id: created.id, note: "Production gateway" },
       metadata: { environment: "production", costCenter: 42 },
     });
@@ -177,6 +235,75 @@ describe("LLM gateway control plane", () => {
         where: { apiKeyId: created.id },
       }),
     ).toBeNull();
+  });
+
+  it("cursor-paginates provider connections", async () => {
+    const { caller, org } = await prepare();
+
+    for (const name of ["First", "Second", "Third"]) {
+      await caller.llmGateway.createConnection({
+        orgId: org.id,
+        name,
+        provider: "OPENAI",
+        credential: `sk-test-${name.toLowerCase()}`,
+      });
+    }
+
+    const firstConnections = await caller.llmGateway.listConnections({
+      orgId: org.id,
+      limit: 2,
+    });
+    expect(firstConnections.data.map((connection) => connection.name)).toEqual([
+      "First",
+      "Second",
+    ]);
+    expect(firstConnections.nextCursor).toBeTruthy();
+    const remainingConnections = await caller.llmGateway.listConnections({
+      orgId: org.id,
+      limit: 2,
+      cursor: firstConnections.nextCursor ?? undefined,
+    });
+    expect(
+      remainingConnections.data.map((connection) => connection.name),
+    ).toEqual(["Third"]);
+    expect(remainingConnections.nextCursor).toBeNull();
+  });
+
+  it("cursor-paginates gateway keys", async () => {
+    const { caller, org } = await prepare();
+
+    for (const note of ["First", "Second", "Third"]) {
+      await caller.llmGateway.createApiKey({
+        orgId: org.id,
+        note,
+        metadata: {},
+      });
+    }
+
+    const firstKeys = await caller.llmGateway.listApiKeys({
+      orgId: org.id,
+      limit: 2,
+    });
+    expect(firstKeys.data).toHaveLength(2);
+    expect(firstKeys.nextCursor).toBeTruthy();
+    const remainingKeys = await caller.llmGateway.listApiKeys({
+      orgId: org.id,
+      limit: 2,
+      cursor: firstKeys.nextCursor ?? undefined,
+    });
+    expect(remainingKeys.data).toHaveLength(1);
+    expect(remainingKeys.nextCursor).toBeNull();
+  });
+
+  it("rejects gateway page limits above 100", async () => {
+    const { caller, org } = await prepare();
+
+    await expect(
+      caller.llmGateway.listConnections({ orgId: org.id, limit: 101 }),
+    ).rejects.toThrow();
+    await expect(
+      caller.llmGateway.listApiKeys({ orgId: org.id, limit: 101 }),
+    ).rejects.toThrow();
   });
 
   it("routes by format and priority and issues a verifiable ingestion token", async () => {
@@ -205,7 +332,7 @@ describe("LLM gateway control plane", () => {
 
     const signingKeys = generateKeyPairSync("ed25519");
     const serviceKey = "test-control-plane-service-key";
-    const timestamp = 1_788_430_200;
+    const timestamp = Math.floor(Date.now() / 1000);
     const apiFormat = "openai.chat-completions" as const;
     const gatewayAuthorization = `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
       {
@@ -348,7 +475,7 @@ describe("LLM gateway control plane", () => {
       where: { id: project.id },
       data: { deletedAt: new Date() },
     });
-    const timestamp = 1;
+    const timestamp = Math.floor(Date.now() / 1000);
     const serviceKey = "service";
     await expect(
       new GatewayResolveService(prisma, {
@@ -357,7 +484,7 @@ describe("LLM gateway control plane", () => {
       }).resolve({
         virtualSecretKey: key.secretKey,
         apiFormat: "openai.responses",
-        gatewayAuthorization: `HMAC keyId=current,timestamp=1,signature=${createGatewayHmacSignature(
+        gatewayAuthorization: `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
           {
             timestamp,
             virtualSecretKey: key.secretKey,

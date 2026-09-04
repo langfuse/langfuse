@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import preview from "../../../../../.storybook/preview";
-import { GatewayConfigurationView } from "../GatewayConfigurationView";
+import preview from "@/.storybook/preview";
+import { GatewayConfigurationView } from "./GatewayConfigurationView";
 
 const meta = preview.meta({ component: GatewayConfigurationView });
 

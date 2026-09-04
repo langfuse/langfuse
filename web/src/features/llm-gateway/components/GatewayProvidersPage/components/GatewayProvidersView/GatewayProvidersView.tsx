@@ -4,6 +4,7 @@ import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
   Table,
@@ -13,8 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { providerLabels } from "@/src/features/llm-gateway/constants/providerLabels";
+import type { GatewayProvider } from "@/src/features/llm-gateway/types/gatewayProvider";
 
-type GatewayProvider = "OPENAI" | "ANTHROPIC" | "OPENROUTER";
 type Connection = {
   id: string;
   name: string;
@@ -23,24 +25,24 @@ type Connection = {
   status: "ENABLED" | "DISABLED" | "ERROR";
 };
 
-const providerLabels: Record<GatewayProvider, string> = {
-  OPENAI: "OpenAI",
-  ANTHROPIC: "Anthropic",
-  OPENROUTER: "OpenRouter",
-};
-
 export function GatewayProvidersView({
   connections,
   modelCounts,
   createAction,
   renderPriorityActions,
   renderCredentialActions,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   connections: Connection[];
   modelCounts: Record<string, number>;
   createAction: ReactNode;
   renderPriorityActions: (connection: Connection, index: number) => ReactNode;
   renderCredentialActions: (connection: Connection, index: number) => ReactNode;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => unknown;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -108,6 +110,20 @@ export function GatewayProvidersView({
           </TableBody>
         </Table>
       </Card>
+      {hasMore ? (
+        <Button
+          className="self-center"
+          variant="secondary"
+          loading={isLoadingMore}
+          disabled={isLoadingMore}
+          aria-label="Load more"
+          onClick={() => {
+            onLoadMore();
+          }}
+        >
+          Load more
+        </Button>
+      ) : null}
     </div>
   );
 }

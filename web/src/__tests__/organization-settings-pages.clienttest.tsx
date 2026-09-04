@@ -91,23 +91,11 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiFlag: vi.fn(),
 }));
 
-vi.mock(
-  "@/src/features/llm-gateway/components/GatewayConfigurationPage",
-  () => ({
-    GatewayConfigurationPage: () => null,
-  }),
-);
-
-vi.mock("@/src/features/llm-gateway/components/GatewayProvidersPage", () => ({
-  GatewayProvidersPage: () => null,
-}));
-
-vi.mock("@/src/features/llm-gateway/components/GatewayModelsPage", () => ({
-  GatewayModelsPage: () => null,
-}));
-
-vi.mock("@/src/features/llm-gateway/components/GatewayApiKeysPage", () => ({
+vi.mock("@/src/features/llm-gateway", () => ({
   GatewayApiKeysPage: () => null,
+  GatewayConfigurationPage: () => null,
+  GatewayModelsPage: () => null,
+  GatewayProvidersPage: () => null,
 }));
 
 const organization = {

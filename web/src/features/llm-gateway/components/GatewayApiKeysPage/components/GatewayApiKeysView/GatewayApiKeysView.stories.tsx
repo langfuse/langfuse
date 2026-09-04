@@ -1,14 +1,15 @@
 import type { ComponentProps } from "react";
 import { Button } from "@/src/components/ui/button";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent } from "storybook/test";
 
-import preview from "../../../../../.storybook/preview";
-import { GatewayApiKeysView } from "../GatewayApiKeysView";
+import preview from "@/.storybook/preview";
+import { GatewayApiKeysView } from "./GatewayApiKeysView";
 
 const meta = preview.meta({ component: GatewayApiKeysView });
 
 const onCreate = fn();
 const onRevoke = fn();
+const onLoadMore = fn();
 
 const apiKeys = [
   {
@@ -30,9 +31,16 @@ const actions = {
       Revoke
     </Button>
   ),
+  hasMore: false,
+  isLoadingMore: false,
+  onLoadMore,
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysView>,
-  "createAction" | "renderRevokeAction"
+  | "createAction"
+  | "renderRevokeAction"
+  | "hasMore"
+  | "isLoadingMore"
+  | "onLoadMore"
 >;
 
 export const PopulatedMetadata = meta.story({
@@ -46,5 +54,36 @@ export const Empty = meta.story({
   args: {
     apiKeys: [],
     ...actions,
+  },
+});
+
+export const MoreAvailable = meta.story({
+  args: {
+    apiKeys,
+    ...actions,
+    hasMore: true,
+  },
+});
+
+export const LoadingMore = meta.story({
+  args: {
+    apiKeys,
+    ...actions,
+    hasMore: true,
+    isLoadingMore: true,
+  },
+});
+
+export const LoadsMore = meta.story({
+  name: "(Test) Loads More",
+  args: {
+    apiKeys,
+    ...actions,
+    hasMore: true,
+  },
+  play: async ({ canvas }) => {
+    onLoadMore.mockClear();
+    await userEvent.click(canvas.getByRole("button", { name: "Load more" }));
+    await expect(onLoadMore).toHaveBeenCalledOnce();
   },
 });

@@ -1,15 +1,16 @@
 import type { ComponentProps } from "react";
 import { Button } from "@/src/components/ui/button";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent } from "storybook/test";
 
-import preview from "../../../../../.storybook/preview";
-import { GatewayProvidersView } from "../GatewayProvidersView";
+import preview from "@/.storybook/preview";
+import { GatewayProvidersView } from "./GatewayProvidersView";
 
 const meta = preview.meta({ component: GatewayProvidersView });
 
 const onCreate = fn();
 const onPriorityAction = fn();
 const onCredentialAction = fn();
+const onLoadMore = fn();
 
 const connections = [
   {
@@ -55,9 +56,17 @@ const actions = {
       Manage
     </Button>
   ),
+  hasMore: false,
+  isLoadingMore: false,
+  onLoadMore,
 } satisfies Pick<
   ComponentProps<typeof GatewayProvidersView>,
-  "createAction" | "renderCredentialActions" | "renderPriorityActions"
+  | "createAction"
+  | "renderCredentialActions"
+  | "renderPriorityActions"
+  | "hasMore"
+  | "isLoadingMore"
+  | "onLoadMore"
 >;
 
 export const OrderedCredentials = meta.story({
@@ -77,5 +86,39 @@ export const Empty = meta.story({
     connections: [],
     modelCounts: {},
     ...actions,
+  },
+});
+
+export const MoreAvailable = meta.story({
+  args: {
+    connections,
+    modelCounts: {},
+    ...actions,
+    hasMore: true,
+  },
+});
+
+export const LoadingMore = meta.story({
+  args: {
+    connections,
+    modelCounts: {},
+    ...actions,
+    hasMore: true,
+    isLoadingMore: true,
+  },
+});
+
+export const LoadsMore = meta.story({
+  name: "(Test) Loads More",
+  args: {
+    connections,
+    modelCounts: {},
+    ...actions,
+    hasMore: true,
+  },
+  play: async ({ canvas }) => {
+    onLoadMore.mockClear();
+    await userEvent.click(canvas.getByRole("button", { name: "Load more" }));
+    await expect(onLoadMore).toHaveBeenCalledOnce();
   },
 });

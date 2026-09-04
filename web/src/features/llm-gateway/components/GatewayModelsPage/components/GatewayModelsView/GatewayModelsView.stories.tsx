@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import preview from "../../../../../.storybook/preview";
-import { GatewayModelsView } from "../GatewayModelsView";
+import preview from "@/.storybook/preview";
+import { GatewayModelsView } from "./GatewayModelsView";
 
 const meta = preview.meta({ component: GatewayModelsView });
 
@@ -33,6 +33,9 @@ const defaultArgs = {
   isLoading: false,
   syncError: false,
   onSync: fn(),
+  hasMoreProviders: false,
+  isLoadingMoreProviders: false,
+  onLoadMoreProviders: fn(),
 } satisfies ComponentProps<typeof GatewayModelsView>;
 
 export const Populated = meta.story({
@@ -59,5 +62,12 @@ export const Loading = meta.story({
     models: [],
     hasSynced: false,
     isLoading: true,
+  },
+});
+
+export const MoreProvidersAvailable = meta.story({
+  args: {
+    ...defaultArgs,
+    hasMoreProviders: true,
   },
 });

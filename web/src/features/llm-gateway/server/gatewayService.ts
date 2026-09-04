@@ -20,8 +20,28 @@ export class GatewayService {
   async updateConfig(params: {
     organizationId: string;
     defaultIngestionProjectId: string | null;
+    createProjectName?: string;
+    createdByUserId: string;
     instrumentationMode: GatewayInstrumentationMode;
   }) {
+    if (params.createProjectName) {
+      try {
+        return await this.repository.createIngestionProjectAndUpsertConfig({
+          organizationId: params.organizationId,
+          projectName: params.createProjectName,
+          createdByUserId: params.createdByUserId,
+          instrumentationMode: params.instrumentationMode,
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "A project with this name already exists"
+        ) {
+          throw new InvalidRequestError(error.message);
+        }
+        throw error;
+      }
+    }
     if (params.defaultIngestionProjectId) {
       const project = await this.repository.getActiveOrganizationProject({
         organizationId: params.organizationId,
@@ -34,6 +54,13 @@ export class GatewayService {
       }
     }
 
-    return this.repository.upsertConfig(params);
+    return {
+      config: await this.repository.upsertConfig({
+        organizationId: params.organizationId,
+        defaultIngestionProjectId: params.defaultIngestionProjectId,
+        instrumentationMode: params.instrumentationMode,
+      }),
+      project: null,
+    };
   }
 }

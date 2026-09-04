@@ -1,24 +1,38 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
-const { queryState } = vi.hoisted(() => ({
-  queryState: {
-    isPending: false,
-    isError: false,
-    data: [
-      {
-        metadata: { environment: "production", region: "eu" },
-        apiKey: {
-          id: "gateway-key-1",
-          publicKey: "pk-lf-gateway",
-          displaySecretKey: "sk-lf-...cdef",
-          note: "Production app",
-          createdAt: new Date("2026-09-04T12:00:00.000Z"),
-        },
+const { fetchNextPage, queryState } = vi.hoisted(() => {
+  const fetchNextPage = vi.fn();
+  return {
+    fetchNextPage,
+    queryState: {
+      isPending: false,
+      isError: false,
+      isFetchingNextPage: false,
+      hasNextPage: true,
+      data: {
+        pages: [
+          {
+            data: [
+              {
+                metadata: { environment: "production", region: "eu" },
+                apiKey: {
+                  id: "gateway-key-1",
+                  publicKey: "pk-lf-gateway",
+                  displaySecretKey: "sk-lf-...cdef",
+                  note: "Production app",
+                  createdAt: new Date("2026-09-04T12:00:00.000Z"),
+                },
+              },
+            ],
+            nextCursor: "gateway-key-1",
+          },
+        ],
       },
-    ],
-    refetch: vi.fn(),
-  },
-}));
+      fetchNextPage,
+      refetch: vi.fn(),
+    },
+  };
+});
 
 vi.mock("@/src/utils/api", () => {
   const mutation = () => ({
@@ -30,7 +44,7 @@ vi.mock("@/src/utils/api", () => {
     api: {
       llmGateway: {
         listApiKeys: {
-          useQuery: () => queryState,
+          useInfiniteQuery: () => queryState,
         },
         createApiKey: { useMutation: mutation },
         revokeApiKey: { useMutation: mutation },
@@ -55,6 +69,9 @@ describe("GatewayApiKeysPage", () => {
   beforeEach(() => {
     queryState.isPending = false;
     queryState.isError = false;
+    queryState.isFetchingNextPage = false;
+    queryState.hasNextPage = true;
+    fetchNextPage.mockClear();
   });
 
   it("shows a clear loading skeleton", () => {
@@ -76,5 +93,16 @@ describe("GatewayApiKeysPage", () => {
     expect(
       screen.getByRole("button", { name: "Revoke gateway key" }),
     ).toBeInTheDocument();
+  });
+
+  it("loads the next page and exposes its pending state", () => {
+    const { rerender } = render(<GatewayApiKeysPage organizationId="org-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(fetchNextPage).toHaveBeenCalledOnce();
+
+    queryState.isFetchingNextPage = true;
+    rerender(<GatewayApiKeysPage organizationId="org-1" />);
+    expect(screen.getByRole("button", { name: "Load more" })).toBeDisabled();
   });
 });

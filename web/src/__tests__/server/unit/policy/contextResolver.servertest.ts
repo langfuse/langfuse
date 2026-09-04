@@ -60,6 +60,7 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
   lastUsedAt: null,
   expiresAt: null,
   isInAppAgentKey: false,
+  isGatewayKey: false,
   projectId: PRJ,
   orgId: ORG,
   scope: "PROJECT",

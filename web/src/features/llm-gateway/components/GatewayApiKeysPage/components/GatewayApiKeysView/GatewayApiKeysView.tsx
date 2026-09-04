@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
   Table,
@@ -27,10 +28,16 @@ export function GatewayApiKeysView({
   apiKeys,
   createAction,
   renderRevokeAction,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   apiKeys: GatewayApiKey[];
   createAction: ReactNode;
   renderRevokeAction: (apiKeyId: string) => ReactNode;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => unknown;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -101,6 +108,20 @@ export function GatewayApiKeysView({
           </TableBody>
         </Table>
       </Card>
+      {hasMore ? (
+        <Button
+          className="self-center"
+          variant="secondary"
+          loading={isLoadingMore}
+          disabled={isLoadingMore}
+          aria-label="Load more"
+          onClick={() => {
+            onLoadMore();
+          }}
+        >
+          Load more
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -64,12 +64,94 @@ export class GatewayRepository {
     });
   }
 
-  listConnections(organizationId: string) {
-    return this.prisma.gatewayAiConnection.findMany({
-      where: { organizationId },
-      select: safeConnectionSelect,
-      orderBy: { routingPriority: "asc" },
+  async createIngestionProjectAndUpsertConfig(params: {
+    organizationId: string;
+    projectName: string;
+    createdByUserId: string;
+    instrumentationMode: GatewayInstrumentationMode;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.project.findFirst({
+        where: {
+          orgId: params.organizationId,
+          name: params.projectName,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new Error("A project with this name already exists");
+      }
+
+      const project = await tx.project.create({
+        data: {
+          orgId: params.organizationId,
+          name: params.projectName,
+        },
+      });
+      let membershipCursor: string | undefined;
+      do {
+        const memberships = await tx.organizationMembership.findMany({
+          where: { orgId: params.organizationId },
+          select: { id: true, userId: true },
+          orderBy: { id: "asc" },
+          take: 100,
+          ...(membershipCursor
+            ? { cursor: { id: membershipCursor }, skip: 1 }
+            : undefined),
+        });
+        await tx.projectMembership.createMany({
+          data: memberships.map((membership) => ({
+            projectId: project.id,
+            userId: membership.userId,
+            orgMembershipId: membership.id,
+            role:
+              membership.userId === params.createdByUserId ? "OWNER" : "NONE",
+          })),
+        });
+        membershipCursor =
+          memberships.length === 100 ? memberships.at(-1)?.id : undefined;
+      } while (membershipCursor);
+      const config = await tx.gatewayConfig.upsert({
+        where: { organizationId: params.organizationId },
+        create: {
+          organizationId: params.organizationId,
+          defaultIngestionProjectId: project.id,
+          instrumentationMode: params.instrumentationMode,
+        },
+        update: {
+          defaultIngestionProjectId: project.id,
+          instrumentationMode: params.instrumentationMode,
+        },
+      });
+      return { config, project };
     });
+  }
+
+  async listConnections(params: {
+    organizationId: string;
+    cursor?: string;
+    limit: number;
+    status?: GatewayConnectionStatus;
+  }) {
+    const rows = await this.prisma.gatewayAiConnection.findMany({
+      where: {
+        organizationId: params.organizationId,
+        status: params.status,
+      },
+      select: safeConnectionSelect,
+      orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
+      take: params.limit + 1,
+      ...(params.cursor
+        ? { cursor: { id: params.cursor }, skip: 1 }
+        : undefined),
+    });
+    const hasMore = rows.length > params.limit;
+    const data = hasMore ? rows.slice(0, params.limit) : rows;
+    return {
+      data,
+      nextCursor: hasMore ? (data.at(-1)?.id ?? null) : null,
+    };
   }
 
   getSafeConnection(params: { organizationId: string; id: string }) {
@@ -99,6 +181,7 @@ export class GatewayRepository {
     status: GatewayConnectionStatus;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.organizationId}))`;
       const aggregate = await tx.gatewayAiConnection.aggregate({
         where: { organizationId: params.organizationId },
         _max: { routingPriority: true },
@@ -184,12 +267,17 @@ export class GatewayRepository {
     });
   }
 
-  async listGatewayApiKeys(organizationId: string) {
-    return this.prisma.gatewayApiKeyAssociation.findMany({
+  async listGatewayApiKeys(params: {
+    organizationId: string;
+    cursor?: string;
+    limit: number;
+  }) {
+    const rows = await this.prisma.gatewayApiKeyAssociation.findMany({
       where: {
         apiKey: {
-          orgId: organizationId,
+          orgId: params.organizationId,
           scope: "ORGANIZATION",
+          isGatewayKey: true,
         },
       },
       select: {
@@ -207,8 +295,18 @@ export class GatewayRepository {
           },
         },
       },
-      orderBy: { apiKey: { createdAt: "asc" } },
+      orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
+      take: params.limit + 1,
+      ...(params.cursor
+        ? { cursor: { apiKeyId: params.cursor }, skip: 1 }
+        : undefined),
     });
+    const hasMore = rows.length > params.limit;
+    const data = hasMore ? rows.slice(0, params.limit) : rows;
+    return {
+      data,
+      nextCursor: hasMore ? (data.at(-1)?.apiKey.id ?? null) : null,
+    };
   }
 
   getGatewayApiKey(params: { organizationId: string; apiKeyId: string }) {
@@ -231,6 +329,7 @@ export class GatewayRepository {
         apiKey: {
           fastHashedSecretKey: params.fastHashedSecretKey,
           scope: "ORGANIZATION",
+          isGatewayKey: true,
           orgId: { not: null },
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },

@@ -1,11 +1,13 @@
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -16,6 +18,7 @@ type SettingsProps = {
     {
       title: string;
       slug: string;
+      section?: string;
       show?: boolean | (() => boolean);
     } & ({ content: ReactNode } | { href: string })
   >;
@@ -63,13 +66,20 @@ export const PagedSettingsContainer = ({
               <SelectValue placeholder="Select a page" />
             </SelectTrigger>
             <SelectContent>
-              {availablePages.map((page) => (
-                <SelectItem key={page.title} value={page.slug}>
-                  {page.title}
-                  {"href" in page && (
-                    <ArrowUpRight size={14} className="ml-1 inline" />
-                  )}
-                </SelectItem>
+              {groupPagesBySection(availablePages).map((group) => (
+                <SelectGroup key={group.section ?? "default"}>
+                  {group.section ? (
+                    <SelectLabel>{group.section}</SelectLabel>
+                  ) : null}
+                  {group.pages.map((page) => (
+                    <SelectItem key={page.title} value={page.slug}>
+                      {page.title}
+                      {"href" in page && (
+                        <ArrowUpRight size={14} className="ml-1 inline" />
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
@@ -78,29 +88,36 @@ export const PagedSettingsContainer = ({
           className="text-muted-foreground hidden gap-4 text-sm md:sticky md:top-5 md:grid"
           x-chunk="dashboard-04-chunk-0"
         >
-          {availablePages.map((page) =>
-            "href" in page ? (
-              <Link
-                key={page.title}
-                href={page.href}
-                className="flex flex-row items-center gap-2 font-bold"
-              >
-                {page.title}
-                <ArrowUpRight size={14} className="inline" />
-              </Link>
-            ) : (
-              <span
-                key={page.title}
-                onClick={() => onChange(page.slug)}
-                className={cn(
-                  "cursor-pointer font-bold",
-                  page.slug === currentPage.slug && "text-primary",
-                )}
-              >
-                {page.title}
-              </span>
-            ),
-          )}
+          {availablePages.map((page, index) => (
+            <Fragment key={page.title}>
+              {page.section &&
+              page.section !== availablePages[index - 1]?.section ? (
+                <span className="text-foreground-tertiary mt-4 text-xs tracking-wider uppercase first:mt-0">
+                  {page.section}
+                </span>
+              ) : null}
+              {"href" in page ? (
+                <Link
+                  href={page.href}
+                  className="flex flex-row items-center gap-2 font-bold"
+                >
+                  {page.title}
+                  <ArrowUpRight size={14} className="inline" />
+                </Link>
+              ) : (
+                <span
+                  onClick={() => onChange(page.slug)}
+                  className={cn(
+                    "hover:bg-muted/60 -mx-2 cursor-pointer rounded-sm border-l-2 border-transparent px-2 py-1",
+                    page.slug === currentPage.slug &&
+                      "border-primary bg-muted text-primary font-bold",
+                  )}
+                >
+                  {page.title}
+                </span>
+              )}
+            </Fragment>
+          ))}
         </nav>
         <div className="w-full overflow-hidden p-1">
           {currentPage && "content" in currentPage ? currentPage.content : null}
@@ -109,3 +126,18 @@ export const PagedSettingsContainer = ({
     </main>
   );
 };
+
+function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
+  return pages.reduce<Array<{ section: string | undefined; pages: T[] }>>(
+    (groups, page) => {
+      const previous = groups.at(-1);
+      if (previous && previous.section === page.section) {
+        previous.pages.push(page);
+      } else {
+        groups.push({ section: page.section, pages: [page] });
+      }
+      return groups;
+    },
+    [],
+  );
+}

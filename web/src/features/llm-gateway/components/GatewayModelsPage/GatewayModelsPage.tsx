@@ -2,11 +2,12 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayModelsView } from "@/src/features/llm-gateway/components/GatewayModelsView";
+import { GatewayModelsView } from "@/src/features/llm-gateway/components/GatewayModelsPage/components/GatewayModelsView/GatewayModelsView";
+import type { GatewayProvider } from "@/src/features/llm-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 
-type GatewayProvider = "OPENAI" | "ANTHROPIC" | "OPENROUTER";
-type Connection = RouterOutputs["llmGateway"]["listConnections"][number];
+type Connection =
+  RouterOutputs["llmGateway"]["listConnections"]["data"][number];
 type RefreshResult = RouterOutputs["llmGateway"]["refreshModels"][number];
 
 const providerFormats: Record<GatewayProvider, string[]> = {
@@ -26,9 +27,10 @@ export function GatewayModelsPage({
 }: {
   organizationId: string;
 }) {
-  const connectionsQuery = api.llmGateway.listConnections.useQuery({
-    orgId: organizationId,
-  });
+  const connectionsQuery = api.llmGateway.listConnections.useInfiniteQuery(
+    { orgId: organizationId, limit: 100 },
+    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+  );
   const modelsQuery = api.llmGateway.refreshModels.useQuery(
     { orgId: organizationId },
     { enabled: connectionsQuery.isSuccess },
@@ -42,7 +44,8 @@ export function GatewayModelsPage({
     return <ModelsLoadError retry={() => connectionsQuery.refetch()} />;
   }
 
-  const connections = connectionsQuery.data;
+  const connections =
+    connectionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
   const results = modelsQuery.data ?? null;
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
@@ -63,6 +66,9 @@ export function GatewayModelsPage({
       isLoading={modelsQuery.isPending || modelsQuery.isFetching}
       syncError={modelsQuery.isError}
       onSync={sync}
+      hasMoreProviders={Boolean(connectionsQuery.hasNextPage)}
+      isLoadingMoreProviders={connectionsQuery.isFetchingNextPage}
+      onLoadMoreProviders={() => connectionsQuery.fetchNextPage()}
     />
   );
 }
