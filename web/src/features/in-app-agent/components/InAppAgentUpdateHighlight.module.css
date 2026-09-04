@@ -9,15 +9,18 @@
   position: absolute;
   inset: -6px;
   border-radius: inherit;
+  border: 2px solid hsl(var(--primary-accent));
   animation: assistant-update-highlight 2.4s ease-out forwards;
 }
 
 @keyframes assistant-update-highlight {
   0% {
     opacity: 0;
+    border-color: hsl(var(--primary-accent));
     box-shadow:
-      0 0 0 2px color-mix(in srgb, hsl(var(--ring)) 85%, transparent),
-      0 0 0 7px color-mix(in srgb, hsl(var(--ring)) 18%, transparent);
+      0 0 0 3px color-mix(in srgb, hsl(var(--primary-accent)) 35%, transparent),
+      0 0 18px 4px
+        color-mix(in srgb, hsl(var(--primary-accent)) 25%, transparent);
   }
 
   12%,
@@ -27,8 +30,9 @@
 
   100% {
     opacity: 0;
+    border-color: transparent;
     box-shadow:
-      0 0 0 2px transparent,
+      0 0 0 3px transparent,
       0 0 0 10px transparent;
   }
 }
@@ -37,6 +41,8 @@
   .highlight {
     opacity: 1;
     animation: none;
-    box-shadow: 0 0 0 2px hsl(var(--ring));
+    border-color: hsl(var(--primary-accent));
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, hsl(var(--primary-accent)) 35%, transparent);
   }
 }
