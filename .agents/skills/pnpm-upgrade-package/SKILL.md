@@ -31,6 +31,12 @@ Use this skill for interactive dependency bumps in Langfuse.
 - If the current parent range does not cover the requested transitive version,
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
+- Probe the parent at most once: `npm view <parent>@latest dependencies --json`.
+  If even the latest parent release does not allow the requested transitive
+  version, do not iterate through intermediate parent versions; go straight to
+  a scoped `overrides` entry in `pnpm-workspace.yaml` for the target package
+  and note in the final response that the parent still pins the vulnerable
+  range.
 - If pnpm will not move an already-allowed transitive version, a scoped
   `overrides` entry in `pnpm-workspace.yaml` may be used as a temporary
   resolution tool. Before finishing, prove whether the override is still
