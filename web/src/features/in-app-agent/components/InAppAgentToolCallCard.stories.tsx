@@ -496,7 +496,7 @@ export const ApprovalRequiredWithCode = meta.story({
 
     await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
     const showCodeButtons = canvas.getAllByRole("button", {
-      name: "Show in code block",
+      name: "View as code",
     });
     await expect(showCodeButtons).toHaveLength(2);
     await userEvent.click(showCodeButtons[1]);

@@ -293,7 +293,7 @@ function EvaluatorSourceCodeValue({
         }}
       >
         <Code2 className="size-3" aria-hidden="true" />
-        Show in code block
+        View as code
       </Button>
       <br />
       <span>&quot;{displayedValue}&quot;</span>
