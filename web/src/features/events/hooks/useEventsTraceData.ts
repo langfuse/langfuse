@@ -303,9 +303,13 @@ export function useEventsTraceData(
     !!transformed.sessionId &&
     (sessionTraceSummariesQuery.isLoading ||
       sessionObservationsQuery.isLoading);
+  const data = scopeToSession
+    ? (sessionScopedData ??
+      (isSessionLoading ? (transformed ?? undefined) : undefined))
+    : (transformed ?? undefined);
 
   return {
-    data: scopeToSession ? sessionScopedData : (transformed ?? undefined),
+    data,
     isLoading:
       eventsQuery.isLoading || scoresQuery.isLoading || isSessionLoading,
     error:

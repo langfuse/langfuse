@@ -31,8 +31,8 @@ function sessionTrace(id: string): TraceDetailData {
   } as unknown as TraceDetailData;
 }
 
-function trace(id: string): TraceDetailData {
-  return { id } as unknown as TraceDetailData;
+function trace(id: string, sessionId?: string): TraceDetailData {
+  return { id, sessionId } as unknown as TraceDetailData;
 }
 
 describe("TraceDetailBody", () => {
@@ -45,6 +45,30 @@ describe("TraceDetailBody", () => {
 
     rerender(
       <TraceDetailBody trace={sessionTrace("trace-2")} context="fullscreen" />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "trace state" })).toHaveValue(
+      "preserved",
+    );
+  });
+
+  it("keeps the UI mounted while pending session data replaces trace data", () => {
+    const { rerender } = render(
+      <TraceDetailBody
+        trace={trace("trace-1", "session-1")}
+        context="fullscreen"
+        sessionScopeRequested
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: "trace state" });
+    fireEvent.change(input, { target: { value: "preserved" } });
+
+    rerender(
+      <TraceDetailBody
+        trace={sessionTrace("trace-1")}
+        context="fullscreen"
+        sessionScopeRequested
+      />,
     );
 
     expect(screen.getByRole("textbox", { name: "trace state" })).toHaveValue(

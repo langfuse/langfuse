@@ -154,6 +154,7 @@ export const TablePeekViewTraceDetail = (
           context="peek"
           truncatedAtObservations={trace.truncatedAtObservations}
           showObservationOnly={aggregationLevel === "observation"}
+          sessionScopeRequested={aggregationLevel === "session"}
         />
       )}
     </TablePeekView>

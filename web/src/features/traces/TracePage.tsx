@@ -243,6 +243,7 @@ export function TracePage({
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
           truncatedAtObservations={trace.truncatedAtObservations}
           showObservationOnly={aggregationLevel === "observation"}
+          sessionScopeRequested={aggregationLevel === "session"}
         />
       </div>
     </Page>

@@ -150,6 +150,7 @@ export const TablePeekViewObservationDetail = (
         keySuffix={peekObservationId}
         truncatedAtObservations={trace.truncatedAtObservations}
         showObservationOnly={aggregationLevel === "observation"}
+        sessionScopeRequested={aggregationLevel === "session"}
       />
     </TablePeekView>
   );

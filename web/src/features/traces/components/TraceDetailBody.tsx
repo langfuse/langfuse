@@ -18,6 +18,7 @@ export function TraceDetailBody({
   keySuffix,
   truncatedAtObservations,
   showObservationOnly = false,
+  sessionScopeRequested = false,
 }: {
   trace: TraceDetailData | undefined;
   context: "peek" | "fullscreen" | "annotation";
@@ -25,13 +26,15 @@ export function TraceDetailBody({
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   showObservationOnly?: boolean;
+  sessionScopeRequested?: boolean;
 }) {
   if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
   const sessionTraceEntries =
     "sessionTraceEntries" in trace ? trace.sessionTraceEntries : undefined;
-  const traceKey = sessionTraceEntries
-    ? `session-${trace.sessionId ?? trace.id}`
-    : trace.id;
+  const traceKey =
+    sessionScopeRequested || sessionTraceEntries
+      ? `session-${trace.sessionId ?? trace.id}`
+      : trace.id;
   return (
     <Trace
       key={keySuffix ? `${traceKey}-${keySuffix}` : traceKey}
