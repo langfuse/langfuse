@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   Dialog,
   DialogContent,
@@ -9,14 +9,28 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/src/components/ui/table";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+
+type Dashboard =
+  RouterOutputs["dashboard"]["allDashboards"]["dashboards"][number];
+
+const columns: LangfuseColumnDef<Dashboard>[] = [
+  createTextTableColumn<Dashboard>({
+    accessorKey: "name",
+    header: "Name",
+  }),
+  createTextTableColumn<Dashboard>({
+    accessorKey: "description",
+    header: "Description",
+  }),
+  {
+    accessorKey: "updatedAt",
+    header: "Updated",
+    cell: ({ getValue }) => getValue<Date>().toLocaleString(),
+  },
+];
 
 export interface SelectDashboardDialogProps {
   open: boolean;
@@ -83,42 +97,19 @@ export function SelectDashboardDialog({
                 No dashboards found.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dashboards.data?.dashboards
-                    .filter((d) => d.owner === "PROJECT")
-                    .map((d) => (
-                      <TableRow
-                        key={d.id}
-                        onClick={() => setSelectedDashboardId(d.id)}
-                        className={`hover:bg-muted cursor-pointer ${
-                          selectedDashboardId === d.id ? "bg-muted" : ""
-                        }`}
-                      >
-                        <TableCell density="comfortable" className="font-bold">
-                          {d.name}
-                        </TableCell>
-                        <TableCell
-                          density="comfortable"
-                          className="truncate"
-                          title={d.description}
-                        >
-                          {d.description}
-                        </TableCell>
-                        <TableCell density="comfortable">
-                          {new Date(d.updatedAt).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              <SimpleDataTable
+                columns={columns}
+                data={
+                  dashboards.data?.dashboards.filter(
+                    (dashboard: Dashboard) => dashboard.owner === "PROJECT",
+                  ) ?? []
+                }
+                isLoading={false}
+                noResults={null}
+                rowVariant="muted-hover"
+                selectedRowId={selectedDashboardId}
+                onRowClick={(dashboard) => setSelectedDashboardId(dashboard.id)}
+              />
             )}
           </div>
         </DialogBody>
