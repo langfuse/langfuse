@@ -467,7 +467,7 @@ export function renderAuditSummary(output) {
     return `| ${escapeCell(row.provider)} | ${escapeCell(row.model)} | ${escapeCell(row.pricingChecked)} | ${priceConfirmed} | ${escapeCell(row.usageKeysChecked)} | ${usageKeyCoverageConfirmed} | ${escapeCell(row.tieringChecked)} | ${tieringCorrect} | ${changeLabels[row.change]} | ${sourceLinks(row.officialSources)} | ${escapeCell(row.comments) || "—"} |`;
   });
   const proposedTitle = output.pullRequestTitle
-    ? `\`${output.pullRequestTitle.replace(/`/g, "\\`")}\``
+    ? `\`${output.pullRequestTitle.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``
     : "_No repository diff proposed_";
 
   return [

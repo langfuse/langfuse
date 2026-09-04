@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { collectTypeModelChanges } from "./audit-output-contract.mjs";
+import {
+  collectTypeModelChanges,
+  renderAuditSummary,
+} from "./audit-output-contract.mjs";
 
 const scriptPath = path.join(
   import.meta.dirname,
@@ -425,6 +428,18 @@ test("clears model-controlled changedModels for non-model diffs", () => {
 test("parses the checked-in selectable-model arrays", () => {
   const types = fs.readFileSync(repositoryTypesPath, "utf8");
   assert.deepEqual(collectTypeModelChanges(types, types, ""), []);
+});
+
+test("escapes backslashes and backticks in the proposed title", () => {
+  const output = {
+    ...structuredOutput([auditRow({ model: "gpt-4o" })]),
+    pullRequestTitle: "chore(pricing): check \\ path and `code`",
+  };
+
+  assert.match(
+    renderAuditSummary(output),
+    /chore\(pricing\): check \\\\ path and \\`code\\`/,
+  );
 });
 
 test("runs formatting cleanup before the extracted output contract", () => {
