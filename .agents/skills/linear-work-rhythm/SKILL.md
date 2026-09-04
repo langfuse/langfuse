@@ -25,6 +25,10 @@ none of it.
 required; this file is only the set of queries that reveal where you stand
 against it. When the two disagree, the handbook wins and this file is the bug.
 
+Read it from `origin/main` — `git fetch -q origin main` then
+`git show origin/main:<path>` — because a docs checkout is usually parked on an
+old branch, and quoting a stale agreement is worse than not quoting one.
+
 ## Do not hand-maintain the responsibility zone
 
 Derive it. What someone owns is exactly "the projects where they are lead", and

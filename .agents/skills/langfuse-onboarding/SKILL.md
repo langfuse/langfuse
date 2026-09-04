@@ -83,6 +83,18 @@ work through them with the person, and answer from what they actually say today 
 do not paraphrase them here, because this file would then be a second, stale copy
 of a document that changes without it.
 
+**Read it from `origin/main`, not the working tree.** A docs checkout is usually
+parked on some branch from the last thing that person shipped, and a working-tree
+read then quotes a handbook from weeks ago without saying so. This is not
+hypothetical: the first run of this skill read a checkout **576 commits behind**.
+Fetch, then read the blob — it needs no checkout switch and cannot disturb work
+in progress:
+
+```bash
+cd <docs checkout> && git fetch -q origin main
+git show origin/main:content/handbook/product-engineering/how-we-work/onboarding.mdx
+```
+
 Start with:
 
 | Page | What it answers |
