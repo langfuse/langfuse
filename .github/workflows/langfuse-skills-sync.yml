@@ -38,15 +38,26 @@ jobs:
           corepack enable
           pnpm --filter @repo/langfuse-skills install --frozen-lockfile
 
+      - name: Resolve upstream commit
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit="$(gh api repos/langfuse/skills/commits/main --jq .sha)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "short_commit=${commit:0:7}" >> "$GITHUB_OUTPUT"
+
       - name: Refresh embedded skills
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          LANGFUSE_SKILLS_REF: ${{ steps.upstream.outputs.commit }}
         run: pnpm --filter @repo/langfuse-skills run sync
 
       - name: Validate changes
         id: changes
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          LANGFUSE_SKILLS_REF: ${{ steps.upstream.outputs.commit }}
         run: |
           set -euo pipefail
 
@@ -87,6 +98,8 @@ jobs:
           title: "chore(skills): refresh embedded Langfuse skills"
           body: |
             Automated refresh of the embedded Langfuse skill catalog.
+
+            **Upstream commit:** [${{ steps.upstream.outputs.short_commit }}](https://github.com/langfuse/skills/commit/${{ steps.upstream.outputs.commit }})
 
             ## Validation
 

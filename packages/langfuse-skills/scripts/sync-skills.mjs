@@ -7,8 +7,9 @@ import { format as formatWithPrettier } from "prettier";
 
 const packageRoot = resolve(new URL("..", import.meta.url).pathname);
 const generatedPath = resolve(packageRoot, "src/generated/skills.js");
+const sourceRef = process.env.LANGFUSE_SKILLS_REF ?? "main";
 const sourceApiUrl =
-  "https://api.github.com/repos/langfuse/skills/contents/skills/langfuse/references?ref=main";
+  `https://api.github.com/repos/langfuse/skills/contents/skills/langfuse/references?ref=${encodeURIComponent(sourceRef)}`;
 const isCheckMode = process.argv.includes("--check");
 
 const getGitHubHeaders = () => ({
