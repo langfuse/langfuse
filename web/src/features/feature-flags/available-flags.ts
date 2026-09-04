@@ -43,4 +43,7 @@ export const availableFlags = [
   // Internal flag (deliberately NOT in featurePreviewFlags): gates the
   // normalized-parser formatted trace view for admins/flagged users only.
   "normalizedIoPreview",
+  // Internal flag: experimental "Lanes" trace visualization (one swim lane per
+  // observation type, idle time compressed).
+  "laneTimelineView",
 ] as const;

@@ -49,7 +49,6 @@
  */
 
 import {
-  type CSSProperties,
   useCallback,
   useMemo,
   useRef,
@@ -58,11 +57,11 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
-import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
+import { Scan, Minus, Plus } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
-  type TooltipPlacement,
+  tooltipStyle,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
@@ -84,7 +83,6 @@ import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
   canExpandRowsToReadable,
-  expandRowsToReadable,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -105,19 +103,10 @@ import {
 } from "../../fns/timeline/viewport";
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
-const TYPE_COLOR: Record<string, string> = {
-  TRACE: "bg-dark-green",
-  GENERATION: "bg-muted-magenta",
-  EVENT: "bg-muted-green",
-  SPAN: "bg-muted-blue",
-  AGENT: "bg-purple-600",
-  TOOL: "bg-orange-600",
-  CHAIN: "bg-pink-600",
-  RETRIEVER: "bg-teal-600",
-  EMBEDDING: "bg-amber-600",
-  GUARDRAIL: "bg-red-600",
-};
-const FALLBACK_COLOR = "bg-muted-gray";
+import {
+  OBSERVATION_TYPE_COLOR as TYPE_COLOR,
+  OBSERVATION_TYPE_FALLBACK_COLOR as FALLBACK_COLOR,
+} from "@/src/features/traces/fns/observationTypeColors";
 /** Neutral mode's bar, when colour is not carrying type. */
 const NEUTRAL_COLOR = "bg-muted-foreground/60";
 /**
@@ -842,19 +831,6 @@ export function TimelineDense({
     [cancelTween],
   );
 
-  const showLabels = () => {
-    const { limits: live, extentOf } = layoutRef.current;
-    setLabelsPinned(true);
-    setOverride(null);
-    flyTo(
-      anchorTimeToRows(
-        expandRowsToReadable(viewportRef.current, live),
-        live,
-        extentOf,
-      ),
-    );
-  };
-
   const scheduleGesture = useCallback(() => {
     // Any gesture on the chart hands the space back: an expanded gutter is for
     // looking, and the moment you work in the chart it gets out of the way. It
@@ -1354,37 +1330,24 @@ export function TimelineDense({
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
-          onClick={() =>
-            offerShowLabels
-              ? showLabels()
-              : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
-          }
+          onClick={() => zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
-        {offerShowLabels ? (
-          <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="h-3 w-3" />
-            <span className="pr-0.5" style={{ fontSize: "10px" }}>
-              Show labels
-            </span>
-          </ToolbarButton>
-        ) : (
-          <ToolbarButton
-            label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
-            onClick={() => {
-              setLabelsPinned(false);
-              setOverride(null);
-              flyTo(fitViewport(limits));
-            }}
-            disabled={fitSpent}
-          >
-            {/* A viewfinder, not the diagonal arrows this used to wear: those
-                read as "fullscreen", so a control that was merely spent looked
-                broken. */}
-            <Scan className="h-3 w-3" />
-          </ToolbarButton>
-        )}
+        <ToolbarButton
+          label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
+          onClick={() => {
+            setLabelsPinned(false);
+            setOverride(null);
+            flyTo(fitViewport(limits));
+          }}
+          disabled={fitSpent}
+        >
+          {/* A viewfinder, not the diagonal arrows this used to wear: those
+              read as "fullscreen", so a control that was merely spent looked
+              broken. */}
+          <Scan className="h-3 w-3" />
+        </ToolbarButton>
         {/* Where you are, when you are somewhere — and nothing at all when the
             whole trace is in view. */}
         {!offerShowLabels && !fitted ? (
@@ -1694,7 +1657,7 @@ export function TimelineDense({
                 <div
                   key={node.id}
                   className={cn(
-                    "absolute inset-x-0",
+                    "absolute inset-x-0 cursor-pointer",
                     rowWashClass({
                       selected: node.id === selectedId,
                       focused: node.index === focusIndex,
@@ -1702,6 +1665,15 @@ export function TimelineDense({
                     }),
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}
+                  // The overlay floats OVER the chart rows, so without its own
+                  // click handler it swallowed row clicks: hovering the rail,
+                  // reading a name, and clicking it selected nothing. Mirror the
+                  // chart row's behavior (double-click guard included).
+                  onClick={(event) => {
+                    if (event.detail > 1 || focusedByTap.current) return;
+                    onSelect(node.id);
+                  }}
+                  onDoubleClick={() => focusRow(node.index)}
                 >
                   <GutterContent
                     node={node}
@@ -1812,16 +1784,6 @@ export function TimelineDense({
  * its name, indented by depth. Shared by the in-flow rail and the peek overlay so
  * the two cannot drift apart.
  */
-/** The placement as inline style. Split out so the geometry stays pure. */
-function tooltipStyle(placement: TooltipPlacement): CSSProperties {
-  return {
-    left: `${Math.round(placement.left)}px`,
-    top: `${Math.round(placement.top)}px`,
-    transform: placement.transform,
-    maxWidth: `${Math.round(placement.maxWidth)}px`,
-    fontSize: "10px",
-  };
-}
 
 function GutterContent({
   node,
