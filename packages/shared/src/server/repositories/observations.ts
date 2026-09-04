@@ -333,6 +333,7 @@ export const getObservationByIdFromObservationsTable = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -342,6 +343,7 @@ export const getObservationByIdFromObservationsTable = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -352,6 +354,7 @@ export const getObservationByIdFromObservationsTable = async ({
     projectId,
     fetchWithInputOutput,
     startTime,
+    startTimeLowerBound,
     type,
     traceId,
     renderingProps,
@@ -442,6 +445,7 @@ const getObservationByIdInternal = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -451,6 +455,7 @@ const getObservationByIdInternal = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -496,6 +501,7 @@ const getObservationByIdInternal = async ({
   WHERE id = {id: String}
   AND project_id = {projectId: String}
   ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ${startTimeLowerBound ? `AND start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
   ${type ? `AND type = {type: String}` : ""}
   ${traceId ? `AND trace_id = {traceId: String}` : ""}
   ORDER BY event_ts desc
@@ -507,6 +513,12 @@ const getObservationByIdInternal = async ({
       projectId,
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
+      ...(startTimeLowerBound
+        ? {
+            startTimeLowerBound:
+              convertDateToClickhouseDateTime(startTimeLowerBound),
+          }
         : {}),
       ...(traceId ? { traceId } : {}),
     },
