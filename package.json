@@ -1,11 +1,12 @@
 {
   "name": "langfuse",
-  "version": "4.28.0",
+  "version": "4.28.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": "24"
+    "node": "24",
+    "pnpm": "12.3.1"
   },
   "scripts": {
     "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
@@ -108,5 +109,5 @@
       }
     }
   },
-  "packageManager": "pnpm@11.22.0"
+  "packageManager": "pnpm@12.3.1"
 }

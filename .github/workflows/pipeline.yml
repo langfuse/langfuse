@@ -40,6 +40,24 @@ env:
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
+  validate-v3-release-tag:
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' && (github.ref_name == 'v3' || startsWith(github.ref_name, 'v3.')) }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout full release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate maintenance release tag branch
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash "scripts/validate-release-tag-branch.sh" "${RELEASE_TAG}" "${RELEASE_COMMIT}" "origin/v3"
+
   # Skips runs whose git tree was already tested in a prior successful run of
   # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
   # exclusively on pushes to main, whose tree the merge queue just tested, so
@@ -1240,6 +1258,7 @@ jobs:
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
+        validate-v3-release-tag,
       ]
     if: always()
     permissions:
