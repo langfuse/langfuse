@@ -162,6 +162,37 @@ steps:
         | jq 'add' | jq -f "$FILTER_PATH" > "$ALERTS_PATH"
       jq -e 'type == "array"' "$ALERTS_PATH" >/dev/null
 
+# Runs on the runner after the agent, outside the sandbox. Claude Code writes
+# its transcript to ~/.claude/projects, which the sandbox bind-mounts from the
+# runner, so the Langfuse hook can replay it into the same trace gh-aw exports.
+post-steps:
+  - name: Set up uv
+    if: always()
+    uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+  - name: Export Claude Code transcript to Langfuse
+    if: always()
+    continue-on-error: true
+    env:
+      LANGFUSE_BASE_URL: https://cloud.langfuse.com
+      GH_AW_LANGFUSE_OTLP_BASIC_AUTH: ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
+      CC_LANGFUSE_DEBUG: "true"
+      CC_LANGFUSE_STATE_DIR: /tmp/gh-aw/agent/langfuse-hook-state
+    run: |
+      set -euo pipefail
+      creds="$(printf '%s' "$GH_AW_LANGFUSE_OTLP_BASIC_AUTH" | base64 -d)"
+      export LANGFUSE_PUBLIC_KEY="${creds%%:*}" LANGFUSE_SECRET_KEY="${creds#*:}"
+      echo "::add-mask::$LANGFUSE_SECRET_KEY"
+      export CC_LANGFUSE_TRACEPARENT="00-${GITHUB_AW_OTEL_TRACE_ID}-${GITHUB_AW_OTEL_PARENT_SPAN_ID}-01"
+      session="$(grep -m1 '"type":"result"' /tmp/gh-aw/agent-stdio.log | jq -r .session_id)"
+      transcript="$(ls "$HOME"/.claude/projects/*/"$session".jsonl)"
+      echo "session=$session transcript=$transcript"
+      mkdir -p /tmp/gh-aw/agent/claude-transcripts "$CC_LANGFUSE_STATE_DIR"
+      cp -r "$HOME/.claude/projects/." /tmp/gh-aw/agent/claude-transcripts/
+      jq -n --arg s "$session" --arg t "$transcript" \
+        '{session_id:$s, transcript_path:$t, hook_event_name:"SessionEnd"}' \
+        | uv run --script .github/scripts/langfuse_hook.py
+
 safe-outputs:
   # Keep inline: GitHub forbids env here after compilation.
   staged: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live' }}
