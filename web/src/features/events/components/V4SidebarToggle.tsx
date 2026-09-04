@@ -11,12 +11,10 @@ import { setReadPath } from "@/src/features/events/actions/setReadPath";
 import { usePendingReadPath } from "@/src/features/events/stores/readPathToggleStore";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import {
   getV4PreviewDisabledRedirect,
   getV4PreviewEnabledRedirect,
 } from "@/src/features/events/lib/v4PreviewRedirect";
-import { useQueryProject } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { ZapIcon } from "lucide-react";
 import { useId, useState } from "react";
@@ -50,7 +48,7 @@ const INTRO_DIALOG_SEEN_KEY = "v4-beta-intro-dialog-seen";
 // shared `setReadPath` workflow; only the intro dialog lives here.
 function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
   const router = useRouter();
-  const { isV4, canToggleV4 } = useReadPath();
+  const { isV4 } = useReadPath();
   const pendingReadPath = usePendingReadPath();
   const { update: updateSession } = useSession();
   const mutation = api.userAccount.setV4BetaEnabled.useMutation();
@@ -156,7 +154,6 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
 
   return {
     isChecked,
-    canToggleV4,
     isLoading,
     handleToggle,
     showIntroDialog,
@@ -168,20 +165,12 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
 export function V4SidebarToggle() {
   const {
     isChecked,
-    canToggleV4,
     isLoading,
     handleToggle,
     showIntroDialog,
     confirmIntroDialog,
     dismissIntroDialog,
   } = useV4PreviewToggle("sidebar");
-  const { project } = useQueryProject();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
-
-  // v4-upgrade users get this toggle inside the migration panel instead.
-  if (!canToggleV4 || v4UpgradeUiEnabled) {
-    return null;
-  }
 
   return (
     <>
@@ -244,17 +233,12 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   const descriptionId = useId();
   const {
     isChecked,
-    canToggleV4,
     isLoading,
     handleToggle,
     showIntroDialog,
     confirmIntroDialog,
     dismissIntroDialog,
   } = useV4PreviewToggle("migration_panel");
-
-  if (!canToggleV4) {
-    return null;
-  }
 
   const handlePanelToggle = (enabled: boolean) => {
     handleToggle(

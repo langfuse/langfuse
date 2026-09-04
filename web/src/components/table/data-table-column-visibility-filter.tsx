@@ -62,10 +62,25 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  /** Defaults to "Columns"; overridden where the surrounding surface already
+   *  says "Columns" (the merged table-settings popover). */
+  triggerLabel?: string;
   tableName?: string;
   isV4?: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
+
+/**
+ * A column's name for the picker: its own label before its rendered header, so
+ * a column whose header carries more than its name still reads here.
+ */
+const getColumnLabel = <TData, TValue>(
+  column: LangfuseColumnDef<TData, TValue>,
+) =>
+  column.headerLabel ??
+  (typeof column.header === "string" && column.header
+    ? column.header
+    : column.accessorKey);
 
 const calculateColumnCounts = <TData, TValue>(
   columns: LangfuseColumnDef<TData, TValue>[],
@@ -157,9 +172,7 @@ function ColumnVisibilityListItem<TData, TValue>({
                 : undefined
           }
         >
-          {column.header && typeof column.header === "string"
-            ? column.header
-            : column.accessorKey}
+          {getColumnLabel(column)}
         </label>
         {column.headerTooltip && (
           <DocPopup
@@ -227,11 +240,7 @@ function GroupVisibilityHeader<TData, TValue>({
         >
           <div className="flex items-center gap-2">
             <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-bold">
-              {column.header && typeof column.header === "string"
-                ? column.header
-                : column.accessorKey}
-            </span>
+            <span className="text-sm font-bold">{getColumnLabel(column)}</span>
             <span className="text-muted-foreground text-xs">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
@@ -309,6 +318,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  triggerLabel = "Columns",
   tableName = "unknown",
   isV4 = false,
   onColumnGroupToggle,
@@ -418,7 +428,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             size={triggerSize}
             title="Show/hide columns"
           >
-            <span>Columns</span>
+            <span>{triggerLabel}</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>

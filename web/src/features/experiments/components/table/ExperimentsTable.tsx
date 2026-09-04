@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -44,6 +45,7 @@ import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
+import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -52,31 +54,29 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { collectScoreNameCoverage } from "@/src/features/scores/lib/aggregateScores";
+import {
+  collectPresentScoreKeys,
+  revealScoreColumns,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
-import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
-import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
-  chartsSectionToggledProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
@@ -428,12 +428,46 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentCount,
+  } = useExperimentsTableData({
     projectId,
     filterState,
     orderByState,
     paginationState,
   });
+
+  // A score column that is empty for every experiment in view is noise, so only
+  // create columns for the keys the metrics query actually returned. Undefined
+  // while metrics load, so columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
+      observationItem: collectPresentScoreKeys(
+        rows.map((r) => r.observationItemScores),
+      ),
+      experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
+
+  // Which score the runs in view actually measured, from the same rows and at
+  // the same time as `presentScoreKeys`: the strip opens on the best-recorded
+  // numeric score instead of the alphabetically first one, with no extra query.
+  const scoreCoverage = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),
+      experiment: collectScoreNameCoverage(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -465,7 +499,7 @@ export default function ExperimentsTable({
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
-    defaultHidden: true,
+    presentKeys: presentScoreKeys?.traceItem,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -476,6 +510,7 @@ export default function ExperimentsTable({
     rawKey: true,
     displayFormat: "aggregate",
     scoreColumnKey: "observationItemScores",
+    headerPrefix: "Observation",
     projectId,
     filter:
       experiments.rows && experiments.rows.length > 0
@@ -484,6 +519,7 @@ export default function ExperimentsTable({
           })
         : [],
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.observationItem,
   });
 
   // Experiment-level scores (direct dataset_run_id match)
@@ -502,6 +538,7 @@ export default function ExperimentsTable({
     rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.experiment,
   });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
@@ -525,6 +562,8 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
+      // Off by default: 300px of mostly boilerplate ahead of the score columns.
+      defaultHidden: true,
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
@@ -537,6 +576,7 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
+      defaultHidden: true,
       singleLine: rowHeight === "s",
     }),
     createNumberTableColumn<ExperimentsTableRow>({
@@ -637,7 +677,8 @@ export default function ExperimentsTable({
         );
       },
     },
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "latency",
       accessorKey: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
@@ -646,20 +687,22 @@ export default function ExperimentsTable({
         description: "Average duration of the root span per experiment item.",
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      metricsLoading,
     }),
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "cost",
       accessorKey: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
+      metricsLoading,
     }),
     {
       accessorKey: "traceItemScores",
-      header: "Trace Item Scores",
+      header: "Trace Scores",
       id: "traceItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isTraceItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -669,10 +712,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: "Observation Scores",
       id: "observationItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -682,10 +724,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: "Experiment Scores",
       id: "experimentScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isExperimentScoreColumnLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -695,10 +736,51 @@ export default function ExperimentsTable({
     },
   ];
 
+  const scoreColumnIds = useMemo(
+    () =>
+      [
+        ...traceItemScoreColumns,
+        ...observationItemScoreColumns,
+        ...experimentScoreColumns,
+      ].map((column) => column.accessorKey),
+    [
+      traceItemScoreColumns,
+      observationItemScoreColumns,
+      experimentScoreColumns,
+    ],
+  );
+
+  // Each score level loads from its own query, so the union above is partial
+  // until all three have settled. The migration below is consumed once and for
+  // good, so running it early would reveal whichever level answered first and
+  // leave the other two hidden permanently.
+  const areScoreColumnsSettled =
+    !isTraceItemScoreLoading &&
+    !isObservationItemScoreLoading &&
+    !isExperimentScoreColumnLoading;
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          areScoreColumnsSettled
+            ? revealScoreColumns(visibility, scoreColumnIds)
+            : null,
+      },
+    ],
+    [projectId, scoreColumnIds, areScoreColumnsSettled],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentsTableRow>(
       `experimentsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
 
   // One-time migration for LFE-10460 on the localStorage replay path:
@@ -755,15 +837,17 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
-  // Get experiments from the current query result (for charts)
+  // The strip's series. The strip orders its own x-axis chronologically, which
+  // is deliberately not this table's newest-first order.
   const chartExperiments = useMemo(() => {
-    return rows.map((row) => ({ id: row.id, name: row.name }));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      startTime: row.startTime,
+    }));
   }, [rows]);
 
-  // Charts accordion collapsed state (persisted in session storage)
   const capture = usePostHogClientCapture();
-  const { accordionValue, setAccordionValue } =
-    useExperimentChartsAccordion(projectId);
 
   const datasetIdByExperimentId = useMemo(() => {
     const map: Record<string, string> = {};
@@ -787,28 +871,11 @@ export default function ExperimentsTable({
     [capture],
   );
 
-  const handleChartsAccordionChange = useCallback(
-    (value: string) => {
-      const isExpanded = value === "charts";
-      const wasExpanded = accordionValue === "charts";
-      if (isExpanded !== wasExpanded) {
-        capture(
-          "experiment:charts_section_toggled",
-          chartsSectionToggledProps({
-            tableName: "experiments",
-            isExpanded,
-          }),
-        );
-      }
-      setAccordionValue(value);
-    },
-    [accordionValue, capture, setAccordionValue],
-  );
-
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
   // the compare baseline relies on).
   const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
   useExperimentsTableSelectionSync({
     store: experimentsTableStore,
     pageRowIds,
@@ -859,6 +926,7 @@ export default function ExperimentsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              mergeSettingsIntoPopover
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               actionButtons={[
@@ -872,31 +940,14 @@ export default function ExperimentsTable({
             />
           </div>
 
-          {/* Charts section - Collapsible Accordion */}
-          {tableDateRange && (
-            <Accordion
-              type="single"
-              collapsible
-              value={accordionValue}
-              onValueChange={handleChartsAccordionChange}
-            >
-              <AccordionItem value="charts" className="border-t">
-                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Charts</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
-                  <ExperimentChartsGrid
-                    projectId={projectId}
-                    experiments={chartExperiments}
-                    fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to}
-                    isExternalLoading={experiments.status === "loading"}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentCount === 1
+                ? "most recent run"
+                : `${mostRecentCount} most recent runs`}{" "}
+              instead.
+            </div>
           )}
 
           {/* Content area with sidebar and table */}
@@ -908,6 +959,19 @@ export default function ExperimentsTable({
             />
 
             <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Table-width, like the events table's pulse strip: inside the
+                  layout so the facet sidebar keeps its full height and the
+                  strip resizes with the table. */}
+              {tableDateRange && (
+                <ExperimentMetricStrip
+                  projectId={projectId}
+                  experiments={chartExperiments}
+                  fromTimestamp={tableDateRange.from}
+                  toTimestamp={tableDateRange.to}
+                  isExternalLoading={experiments.status === "loading"}
+                  scoreCoverage={scoreCoverage}
+                />
+              )}
               <DataTable
                 key={`experiments-table-${dataUpdatedAt}`}
                 tableName="experiments"

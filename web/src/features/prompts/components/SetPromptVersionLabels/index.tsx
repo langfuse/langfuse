@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -178,10 +178,12 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          <TruncatedLabels
-            labels={promptLabels}
-            maxVisibleLabels={maxVisibleLabels}
-          />
+          {promptLabels.length > 0 && (
+            <TruncatedLabels
+              labels={promptLabels}
+              maxVisibleLabels={maxVisibleLabels}
+            />
+          )}
           <Button
             variant="outline"
             title="Add prompt label"

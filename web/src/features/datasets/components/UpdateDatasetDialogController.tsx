@@ -1,10 +1,10 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Dialog } from "@/src/components/ui/dialog";
 import {
   UpdateDatasetDialogContent,
   type UpdateDatasetDialogProps,
 } from "@/src/features/datasets/components/UpdateDatasetDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ReactNode, useState } from "react";
 
 export type UpdateDatasetDialogSource = "dataset" | "table-single-row";

@@ -1,1 +1,0 @@
-ALTER TABLE traces DROP INDEX IF EXISTS idx_session_id;

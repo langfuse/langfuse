@@ -959,6 +959,7 @@ function FilterBuilderForm({
         onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
         disabled={disabled}
         isCustomSelectEnabled
+        showOptionValue={column?.id === "evaluatorId"}
       />
     ) : filter.type === "string" || filter.type === "stringObject" ? (
       <Input

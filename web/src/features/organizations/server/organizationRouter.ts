@@ -9,9 +9,9 @@ import {
   organizationOptionalNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   getLastTraceTimestampsByProjects,
   isLangfuseAITracingConfigured,
@@ -421,16 +421,17 @@ export const organizationsRouter = createTRPCRouter({
         }
       }
 
+      // Evict before the delete: ApiKey.organization cascades, so keys are gone
+      // by the time a post-delete eviction would run and it would find nothing.
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
+        input.orgId,
+      );
+
       const organization = await ctx.prisma.organization.delete({
         where: {
           id: input.orgId,
         },
       });
-
-      // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
-        input.orgId,
-      );
 
       await auditLog({
         session: ctx.session,

@@ -22,6 +22,12 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+# Reject recent releases whose publishing trust is weaker than earlier versions.
+# Older releases have already passed the five-day quarantine above.
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 7200
+# Keep pnpm itself out of the workspace lockfile's dependency graph.
+pmOnFail: ignore
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 # minimumReleaseAgeExclude:
@@ -71,6 +77,7 @@ overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
   "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0
@@ -83,7 +90,7 @@ overrides:
   "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.15.2
+  qs: 6.16.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
@@ -97,6 +104,8 @@ overrides:
   # Scalar's agent package pins an SSRF-vulnerable AI SDK through two paths.
   "@scalar/agent-chat@0.12.28>ai": 6.0.230
   "@ai-sdk/vue@3.0.33>ai": 6.0.230
+  # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
+  fflate@0.8.1: 0.8.3
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
@@ -122,6 +131,15 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # Temporary exact exceptions for the pnpm 12 migration.
+  - '@pnpm/exe.darwin-arm64@12.3.1'
+  - '@pnpm/exe.darwin-x64@12.3.1'
+  - '@pnpm/exe.linux-arm64@12.3.1'
+  - '@pnpm/exe.linux-arm64-musl@12.3.1'
+  - '@pnpm/exe.linux-x64@12.3.1'
+  - '@pnpm/exe.linux-x64-musl@12.3.1'
+  - '@pnpm/exe.win32-arm64@12.3.1'
+  - '@pnpm/exe.win32-x64@12.3.1'
   - '@next/env@16.3.3'
   - '@next/eslint-plugin-next@16.3.3'
   - '@next/swc-darwin-arm64@16.3.3'
@@ -133,3 +151,7 @@ minimumReleaseAgeExclude:
   - '@next/swc-win32-arm64-msvc@16.3.3'
   - '@next/swc-win32-x64-msvc@16.3.3'
   - next@16.3.3
+  - pnpm@12.3.1
+  - qs@6.16.0
+  # Host confusion + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
+  - fast-uri@3.1.7

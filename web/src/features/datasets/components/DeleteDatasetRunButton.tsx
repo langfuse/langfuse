@@ -1,7 +1,7 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Trash } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import React, { useState } from "react";

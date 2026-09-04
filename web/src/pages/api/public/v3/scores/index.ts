@@ -100,6 +100,7 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Scores V3",
+    action: "scores:read",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {

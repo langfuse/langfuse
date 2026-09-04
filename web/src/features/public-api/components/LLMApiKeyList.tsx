@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";
@@ -13,7 +14,6 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
@@ -26,6 +26,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
+  });
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "llmApiKeys:delete",
   });
 
   const apiKeys = api.llmApiKey.all.useQuery(
@@ -138,10 +142,12 @@ export function LlmApiKeyList(props: { projectId: string }) {
                           }
                         }}
                       />
-                      <DeleteApiKeyButton
-                        projectId={props.projectId}
-                        apiKeyId={apiKey.id}
-                      />
+                      {hasDeleteAccess && (
+                        <DeleteApiKeyButton
+                          projectId={props.projectId}
+                          apiKeyId={apiKey.id}
+                        />
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -158,18 +164,12 @@ export function LlmApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "llmApiKeys:delete",
-  });
 
   const utils = api.useUtils();
   const mutDeleteApiKey = api.llmApiKey.delete.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
   });
   const [open, setOpen] = useState(false);
-
-  if (!hasAccess) return null;
 
   return (
     <ConfirmDialog

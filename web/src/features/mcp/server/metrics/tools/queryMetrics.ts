@@ -10,7 +10,7 @@ import {
 import {
   MetricsQueryObjectV2,
   publicGranularities,
-} from "@/src/features/public-api/types/metrics";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";

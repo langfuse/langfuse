@@ -1,6 +1,12 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
-import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
+import {
+  Database,
+  FlaskConical,
+  ListTree,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
 import {
   type FilterState,
   type TimeFilter,
@@ -30,7 +36,6 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
-import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { buildSampleQueryFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
@@ -97,11 +102,6 @@ const EXAMPLES = [
         value: ["TOOL"],
       },
     ] satisfies FilterState,
-  },
-  {
-    label: "Exclude experiments & evals",
-    icon: EyeOff,
-    filters: EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
   },
 ] as const;
 
@@ -192,6 +192,26 @@ export function SampleObservationSelectorBase(
     },
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
+  const examples = useMemo(() => {
+    const firstDataset = datasetOptions[0];
+    return firstDataset
+      ? [
+          ...EXAMPLES,
+          {
+            label: "Datasets",
+            icon: Database,
+            filters: [
+              {
+                column: "experimentDatasetId",
+                type: "stringOptions",
+                operator: "any of",
+                value: [firstDataset.id],
+              },
+            ] satisfies FilterState,
+          },
+        ]
+      : EXAMPLES;
+  }, [datasetOptions]);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -519,7 +539,7 @@ export function SampleObservationSelectorBase(
         )}
         {filterMode === "query" ? (
           <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((example) => (
+            {examples.map((example) => (
               <Button
                 key={example.label}
                 type="button"

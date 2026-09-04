@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
@@ -155,6 +156,7 @@ export const EvaluatorDetail = () => {
               <EvaluatorPausedCallout
                 projectId={projectId}
                 evalConfig={existingEvaluator}
+                blockedAt={existingEvaluator.blockedAt}
                 allowReactivation
               />
             </div>
