@@ -12,6 +12,7 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEnt
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Sessions",
+    action: "sessions:read",
     deprecation: SESSIONS_DEPRECATION,
     rateLimitResource: "public-api-legacy",
     querySchema: GetSessionsV1Query,

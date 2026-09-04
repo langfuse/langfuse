@@ -76,6 +76,7 @@ export {
 } from "./clickhouse/compatibility";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
+export * from "./clickhouse/clickhouseIdentifiers";
 export * from "./clickhouse/queryTracking";
 export * from "./clickhouse/queryTags";
 export * from "./repositories/definitions";
