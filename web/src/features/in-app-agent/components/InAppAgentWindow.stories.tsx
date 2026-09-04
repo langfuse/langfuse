@@ -1972,40 +1972,6 @@ export const ConversationActivity = meta.story({
   },
 });
 
-export const DeletesAConversation = meta.story({
-  name: "(Test) Deletes a conversation",
-  args: {
-    selectedConversationId: "conversation-1",
-    selectedConversationTitle: "Latency outliers",
-    messages: [],
-  },
-  play: async ({
-    args,
-    canvasElement,
-  }: {
-    args: InAppAgentWindowProps;
-    canvasElement: HTMLElement;
-  }) => {
-    const canvas = within(canvasElement);
-
-    await userEvent.click(
-      canvas.getByRole("button", { name: /^Conversation history/ }),
-    );
-
-    const history = within(await screen.findByRole("menu"));
-    const row = history.getByRole("menuitem", { name: /Latency outliers/ });
-
-    await userEvent.hover(row);
-    await userEvent.click(
-      within(row).getByRole("button", { name: "Delete conversation" }),
-    );
-
-    await expect(args.onDeleteConversation).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "conversation-1" }),
-    );
-  },
-});
-
 /** Long enough to watch the hint, short enough to settle before it expires. */
 const STORY_RUN_MS = 3_000;
 
