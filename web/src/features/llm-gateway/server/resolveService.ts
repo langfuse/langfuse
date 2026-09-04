@@ -56,7 +56,6 @@ export class GatewayResolveService {
     if (
       !verifyGatewayHmacAuthorization({
         header: params.gatewayAuthorization,
-        virtualSecretKey: params.virtualSecretKey,
         apiFormat: params.apiFormat,
         keys: this.config.serviceKeys,
       })

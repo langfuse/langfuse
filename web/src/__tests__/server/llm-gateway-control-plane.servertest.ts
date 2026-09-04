@@ -337,7 +337,6 @@ describe("LLM gateway control plane", () => {
     const gatewayAuthorization = `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
       {
         timestamp,
-        virtualSecretKey: gatewayKey.secretKey,
         apiFormat,
         serviceKey,
       },
@@ -487,7 +486,6 @@ describe("LLM gateway control plane", () => {
         gatewayAuthorization: `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
           {
             timestamp,
-            virtualSecretKey: key.secretKey,
             apiFormat: "openai.responses",
             serviceKey,
           },

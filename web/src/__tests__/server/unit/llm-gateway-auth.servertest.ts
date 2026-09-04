@@ -14,14 +14,11 @@ describe("LLM gateway authentication", () => {
   it("uses a deterministic canonical message and verifies current/previous keys", () => {
     const input = {
       timestamp: 1_788_430_200,
-      virtualSecretKey: "sk-lf-not-a-real-secret",
       apiFormat: "openai.responses" as const,
     };
 
     expect(buildGatewayHmacCanonicalMessage(input)).toBe(
-      "POST\n/api/internal/ai-gateway/v1/resolve\n1788430200\n" +
-        "sk-lf-not-a-real-secret\n" +
-        "openai.responses",
+      "POST\n/api/internal/ai-gateway/v1/resolve\n1788430200\nopenai.responses",
     );
 
     const signature = createGatewayHmacSignature({
@@ -32,7 +29,6 @@ describe("LLM gateway authentication", () => {
     expect(
       verifyGatewayHmacAuthorization({
         header: `HMAC keyId=previous,timestamp=${input.timestamp},signature=${signature}`,
-        virtualSecretKey: input.virtualSecretKey,
         apiFormat: input.apiFormat,
         now: new Date(input.timestamp * 1000),
         keys: [
@@ -44,8 +40,7 @@ describe("LLM gateway authentication", () => {
     expect(
       verifyGatewayHmacAuthorization({
         header: `HMAC keyId=previous,timestamp=${input.timestamp},signature=${signature}`,
-        virtualSecretKey: "different",
-        apiFormat: input.apiFormat,
+        apiFormat: "anthropic.messages",
         now: new Date(input.timestamp * 1000),
         keys: [{ id: "previous", secret: "previous-service-key" }],
       }),

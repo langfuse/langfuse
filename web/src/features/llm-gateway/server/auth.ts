@@ -18,7 +18,6 @@ const INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 type GatewayHmacMessageInput = {
   timestamp: number;
-  virtualSecretKey: string;
   apiFormat: GatewayApiFormat;
 };
 
@@ -69,7 +68,6 @@ export function buildGatewayHmacCanonicalMessage(
     RESOLVE_METHOD,
     RESOLVE_PATH,
     input.timestamp.toString(),
-    input.virtualSecretKey,
     input.apiFormat,
   ].join("\n");
 }
@@ -84,7 +82,6 @@ export function createGatewayHmacSignature(
 
 export function verifyGatewayHmacAuthorization(input: {
   header: string | undefined;
-  virtualSecretKey: string;
   apiFormat: GatewayApiFormat;
   keys: GatewayServiceKey[];
   now?: Date;
@@ -106,7 +103,6 @@ export function verifyGatewayHmacAuthorization(input: {
 
   const expected = createGatewayHmacSignature({
     timestamp,
-    virtualSecretKey: input.virtualSecretKey,
     apiFormat: input.apiFormat,
     serviceKey: key.secret,
   });
