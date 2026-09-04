@@ -90,7 +90,7 @@ export function EvaluatorSavedDialog({
           <div
             className={cn(
               "grid grid-cols-[minmax(0,1fr)_15rem] overflow-hidden",
-              backfillExpanded ? "h-[31rem]" : "h-[24rem]",
+              backfillExpanded ? "h-[36rem]" : "h-[24rem]",
             )}
           >
             <div className="min-w-0 overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
