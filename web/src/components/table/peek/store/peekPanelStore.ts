@@ -263,4 +263,4 @@ export const selectDraftExpanded = (state: PeekPanelStoreState) =>
  * computed by the hook because it depends on live sidebar/navigation offsets.
  */
 export const selectWidgetWidth = (state: PeekPanelStoreState): string =>
-  `${clampWidthFraction(state.draftFraction ?? state.widthFraction) * 100}vw`;
+  `${clampWidthForMode(state.widthMode, state.draftFraction ?? state.widthFraction) * 100}vw`;

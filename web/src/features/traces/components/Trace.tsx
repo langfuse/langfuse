@@ -82,10 +82,17 @@ type DesktopLayout =
  */
 export function Trace({ context, ...props }: TraceProps) {
   const traceContext = context ?? "fullscreen";
+  const defaultCollapsedNodeIds = useMemo(
+    () =>
+      props.sessionTraceEntries
+        ?.filter((entry) => entry.trace.id !== props.trace.id)
+        .map((entry) => traceNodeId(entry.trace.id)) ?? [],
+    [props.sessionTraceEntries, props.trace.id],
+  );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider>
+      <SelectionProvider defaultCollapsedNodeIds={defaultCollapsedNodeIds}>
         <TraceWithSelection
           {...props}
           desktopLayout={DESKTOP_LAYOUT_BY_CONTEXT[traceContext]}

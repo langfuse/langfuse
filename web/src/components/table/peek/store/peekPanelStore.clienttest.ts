@@ -178,6 +178,25 @@ describe("peekPanelStore", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("0.7");
   });
 
+  it("applies the smaller minimum width only in observation mode", () => {
+    withViewportWidth(1000, () => {
+      window.localStorage.setItem(STORAGE_KEY, "0.4");
+      const store = createPeekPanelStore("split");
+
+      store.getState().actions.setWidthMode("observation", 0.2, 0.4);
+      expect(store.getState().widthFraction).toBeCloseTo(0.36);
+      expect(selectWidgetWidth(store.getState())).toBe(pct(0.36));
+
+      store.getState().actions.setWidthMode("split", 0.2, 0.2);
+      expect(store.getState().widthFraction).toBeCloseTo(
+        PEEK_MIN_WIDTH_FRACTION,
+      );
+      expect(selectWidgetWidth(store.getState())).toBe(
+        pct(PEEK_MIN_WIDTH_FRACTION),
+      );
+    });
+  });
+
   it("keeps observation-mode manual resizing when growing back", () => {
     window.localStorage.setItem(STORAGE_KEY, "0.7");
     const store = createPeekPanelStore("split");
