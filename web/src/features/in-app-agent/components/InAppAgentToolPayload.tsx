@@ -4,7 +4,6 @@ import { deepParseJson } from "@langfuse/shared";
 import { useMemo, useState } from "react";
 import { Code2 } from "lucide-react";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
-import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
 
@@ -282,19 +281,20 @@ function EvaluatorSourceCodeValue({
 
   return (
     <span className="inline">
-      <Button
+      <button
         type="button"
-        variant="ghost"
-        size="xs"
-        className="text-muted-foreground hover:text-foreground relative top-px ml-1 gap-1 text-xs underline underline-offset-2 hover:bg-transparent"
+        className="text-muted-foreground hover:text-foreground ml-1 text-xs underline underline-offset-2"
         onClick={(event) => {
           event.stopPropagation();
           onShowCode();
         }}
       >
-        <Code2 className="size-3" aria-hidden="true" />
+        <Code2
+          className="mr-1 inline-block size-3 !align-middle"
+          aria-hidden="true"
+        />
         View as code
-      </Button>
+      </button>
       <br />
       <span>&quot;{displayedValue}&quot;</span>
       {isTruncated ? (
