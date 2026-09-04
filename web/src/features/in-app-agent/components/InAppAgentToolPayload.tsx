@@ -286,7 +286,7 @@ function EvaluatorSourceCodeValue({
         type="button"
         variant="ghost"
         size="xs"
-        className="bg-surface-code text-muted-foreground hover:bg-border hover:text-foreground relative top-px ml-1 gap-1 text-xs"
+        className="text-muted-foreground hover:text-foreground relative top-px ml-1 gap-1 text-xs underline underline-offset-2 hover:bg-transparent"
         onClick={(event) => {
           event.stopPropagation();
           onShowCode();
