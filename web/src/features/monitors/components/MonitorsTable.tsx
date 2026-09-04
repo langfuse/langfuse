@@ -1,29 +1,28 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useMediaQuery } from "react-responsive";
 
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
-import { TableBadgeLoadingCell } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -57,12 +56,11 @@ type MonitorsOrderBy = RouterInputs["monitors"]["all"]["orderBy"];
 export function MonitorsTable() {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
-  const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
-  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the monitors:CUD RBAC scope. */
+  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the alerts:CUD RBAC scope. */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
   /** isWiderThanPhone is true at viewports wider than the main nav's drawer breakpoint (768px / Tailwind `md`), the threshold at which the Tags column appears. */
   const isWiderThanPhone = useMediaQuery({ query: "(min-width: 768px)" });
@@ -72,16 +70,14 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title:
-          variables.status === "PAUSED" ? "Monitor paused" : "Monitor resumed",
+        title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"
             ? "Evaluations are halted until you resume."
             : "Evaluations have resumed.",
       });
     },
-    onError: (e) =>
-      showErrorToast("Failed to update monitor status", e.message),
+    onError: (e) => showErrorToast("Failed to update alert status", e.message),
   });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
@@ -122,8 +118,15 @@ export function MonitorsTable() {
           displayValue: value.replace(/_/g, " "),
         })),
       tags: filterOptions.data?.tags.map((t) => ({ value: t.value })) ?? [],
+      evaluatorId: filterOptions.data?.evaluators ?? [],
     }),
     [filterOptions.data],
+  );
+
+  const monitorFilterConfig = useMemo(
+    () =>
+      getMonitorFilterConfig((filterOptions.data?.evaluators.length ?? 0) > 0),
+    [filterOptions.data?.evaluators.length],
   );
 
   /** queryFilter is the bound sidebar filter state, synced to the URL and to session storage per project. */
@@ -158,16 +161,6 @@ export function MonitorsTable() {
     },
   );
 
-  useEffect(() => {
-    if (monitors.isSuccess) {
-      setDetailPageList(
-        "monitors",
-        monitors.data.monitors.map((m) => ({ id: m.id })),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monitors.isSuccess, monitors.data]);
-
   /** columns is the DataTable column schema, conditionally including Tags on viewports wider than a phone. */
   const columns: LangfuseColumnDef<MonitorRow>[] = [
     {
@@ -179,7 +172,7 @@ export function MonitorsTable() {
       size: 100,
       minSize: 100,
       maxSize: 100,
-      loadingCell: <TableBadgeLoadingCell className="h-6 w-20" />,
+      loadingCell: <Skeleton className="h-6 w-20 shrink-0 rounded-sm" />,
       cell: ({ row }) => (
         <MonitorSeverityBadge severity={row.original.severity} />
       ),
@@ -194,7 +187,7 @@ export function MonitorsTable() {
       cell: ({ row }) => (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             row.original.severity === "PAUSED" && "opacity-50",
           )}
         >
@@ -322,7 +315,7 @@ function MonitorRowActions({
       variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess}
-      aria-label="Edit monitor"
+      aria-label="Edit alert"
       title="Edit"
       className={cn(!collapsed && rowActionIconColors)}
     >
@@ -341,7 +334,7 @@ function MonitorRowActions({
       variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess || isStatusPending}
-      aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
+      aria-label={isPaused ? "Resume alert" : "Pause alert"}
       title={isPaused ? "Resume" : "Pause"}
       className={cn(!collapsed && rowActionIconColors)}
       onClick={(e) => {
@@ -377,7 +370,7 @@ function MonitorRowActions({
       <div onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="ghost" aria-label="Monitor actions">
+            <Button size="xs" variant="ghost" aria-label="Alert actions">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -423,7 +416,7 @@ const filterStateToListMonitorFilter = (
 
 /** monitorHref is the project-scoped path to a monitor's page, the row-click and edit-action target. */
 const monitorHref = (projectId: string, monitorId: string): string =>
-  `/project/${projectId}/monitors/${encodeURIComponent(monitorId)}`;
+  `/project/${projectId}/alerts/${encodeURIComponent(monitorId)}`;
 
 /** buildStatusToggleUpdate returns a full update payload with only the status flipped between ACTIVE and PAUSED. */
 const buildStatusToggleUpdate = (monitor: Monitor): UpdateMonitor => ({

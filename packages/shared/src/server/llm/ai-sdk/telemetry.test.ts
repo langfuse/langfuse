@@ -144,5 +144,13 @@ describe("createAiSdkTelemetryCapture", () => {
       code: 2,
       message: "completion failed",
     });
+    expect(
+      Object.fromEntries(
+        rootSpan.attributes.map((attribute: any) => [
+          attribute.key,
+          attribute.value.stringValue ?? attribute.value,
+        ]),
+      ),
+    ).toMatchObject({ "error.type": "Error" });
   });
 });

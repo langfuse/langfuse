@@ -1,9 +1,8 @@
 import { type Plan } from "@langfuse/shared";
 
 // Entitlements: Binary feature access
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const entitlements = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const entitlements = [
   // features
   "rbac-project-roles",
   "cloud-billing",
@@ -30,12 +29,12 @@ const cloudAllPlansEntitlements: Entitlement[] = [
 const selfHostedAllPlansEntitlements: Entitlement[] = [
   "trace-deletion",
   "scheduled-blob-exports",
+  "in-app-agent",
 ];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const entitlementLimits = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const entitlementLimits = [
   "annotation-queue-count",
   "organization-member-count",
   "data-access-days",
@@ -66,7 +65,7 @@ export const entitlementAccess: Record<
       "annotation-queue-count": 1,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": 2,
     },
   },
   "cloud:core": {
@@ -92,7 +91,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": 50,
     },
   },
   "cloud:team": {
@@ -113,7 +112,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": 50,
     },
   },
   "cloud:enterprise": {
@@ -134,7 +133,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": 100,
     },
   },
   oss: {
@@ -145,7 +144,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": false,
     },
   },
   "self-hosted:pro": {
@@ -156,7 +155,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": false,
     },
   },
   "self-hosted:enterprise": {
@@ -176,7 +175,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 20,
+      "monitor-count": false,
     },
   },
 };

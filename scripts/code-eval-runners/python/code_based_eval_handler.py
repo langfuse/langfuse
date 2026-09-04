@@ -7,10 +7,31 @@ from typing import Any
 
 
 @dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
+
+    @classmethod
+    def from_payload(cls, raw: Any):
+        entry = raw if isinstance(raw, dict) else {}
+        return cls(
+            id=entry.get("id") or "",
+            name=entry.get("name") or "",
+            arguments=entry.get("arguments"),
+            type=entry.get("type") or "",
+            index=entry.get("index") or 0,
+        )
+
+
+@dataclass
 class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass
@@ -33,6 +54,10 @@ class EvaluationContext:
                 input=observation.get("input"),
                 output=observation.get("output"),
                 metadata=observation.get("metadata"),
+                tool_calls=[
+                    ToolCall.from_payload(call)
+                    for call in observation.get("toolCalls") or []
+                ],
             ),
             experiment=ExperimentContext(
                 item_expected_output=experiment.get("itemExpectedOutput"),
@@ -77,6 +102,7 @@ def handler(event, context):
         "EvaluationContext": EvaluationContext,
         "EvaluationResult": EvaluationResult,
         "Score": Score,
+        "ToolCall": ToolCall,
     }
 
     try:
@@ -112,6 +138,21 @@ def normalize_result(result):
             "INVALID_RESULT",
             "Evaluator must return an object shaped like { scores: [...] }",
         )
+
+    for score in normalized["scores"]:
+        if not isinstance(score, dict):
+            continue
+
+        # Plain dictionaries bypass the Score dataclass field translation.
+        # Retry known Python aliases at the score boundary without rewriting
+        # arbitrary user metadata. Explicit wire-format keys take precedence.
+        for alias, key in _DATACLASS_FIELD_NAME_OVERRIDES.items():
+            if alias not in score:
+                continue
+
+            alias_value = score.pop(alias)
+            if alias_value is not None and key not in score:
+                score[key] = alias_value
 
     return normalized
 

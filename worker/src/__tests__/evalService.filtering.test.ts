@@ -3,7 +3,7 @@ import {
   singleFilter,
   EvalTargetObject,
 } from "@langfuse/shared";
-import { JobConfiguration, prisma } from "@langfuse/shared/src/db";
+import { JobConfiguration, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   createOrgProjectAndApiKey,
@@ -128,7 +128,7 @@ const test = baseTest.extend<{
       },
     });
     await use(async (job) => {
-      await prisma.jobConfiguration.create({
+      const config = await prisma.jobConfiguration.create({
         data: {
           id: randomUUID(),
           projectId,
@@ -140,6 +140,45 @@ const test = baseTest.extend<{
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           ...job,
+        },
+      });
+      const evaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: config.scoreName,
+          type: "LLM_AS_JUDGE",
+          versions: {
+            create: {
+              version: 1,
+              prompt: evalTemplate.prompt,
+              model: evalTemplate.model,
+              provider: evalTemplate.provider,
+              modelParams: evalTemplate.modelParams ?? undefined,
+              vars: evalTemplate.vars,
+              outputDefinition:
+                evalTemplate.outputDefinition as Prisma.InputJsonValue,
+            },
+          },
+        },
+      });
+      await prisma.evaluationRule.create({
+        data: {
+          id: config.id,
+          projectId,
+          name: config.scoreName,
+          status: config.status,
+          targetObject: config.targetObject,
+          filter: config.filter as Prisma.InputJsonValue,
+          sampling: config.sampling,
+          delay: config.delay,
+          timeScope: config.timeScope,
+          assignments: {
+            create: {
+              projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: config.variableMapping as Prisma.InputJsonValue,
+            },
+          },
         },
       });
     });
@@ -453,6 +492,47 @@ describe("test eval filtering", () => {
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
+  test("does not create eval job for a trace missing the metadata key when filtering on contains empty string", async ({
+    expect,
+    upsertTwoTraces,
+    configureDefaultJobWithSingleFilter,
+    createTwoEvalJobs,
+    getJobs,
+    traceId1,
+  }) => {
+    // trace1 has the "turn" metadata key, trace2 never had it set at all.
+    await upsertTwoTraces([
+      {
+        metadata: { turn: "1" },
+      },
+      {
+        metadata: {},
+      },
+    ]);
+
+    // "contains ''" on a metadata key should behave as a key-existence
+    // check, not match every trace regardless of whether the key was ever
+    // set.
+    await configureDefaultJobWithSingleFilter({
+      type: "stringObject",
+      key: "turn",
+      value: "",
+      column: "metadata",
+      operator: "contains",
+    });
+
+    // No cachedTrace is passed here, so this exercises the database
+    // fallback query (legacy traces table Map-column filter), not the
+    // in-memory evaluator.
+    await createTwoEvalJobs();
+
+    const jobs = await getJobs();
+
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
+    expect(jobs[0].status.toString()).toBe("PENDING");
+  }, 10_000);
+
   test("creates eval job only for matching version", async ({
     expect,
     upsertTwoTraces,
@@ -658,7 +738,7 @@ describe("test eval filtering", () => {
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
-  test("cached trace preserves metadata for in-memory filter evaluation", async ({
+  test("cached trace preserves filterable fields for in-memory filter evaluation", async ({
     expect,
     projectId,
     traceId1,
@@ -669,13 +749,14 @@ describe("test eval filtering", () => {
     // Create a trace with metadata
     await upsertTrace({
       id: traceId1,
+      bookmarked: true,
       metadata: { tier: "premium" },
     });
 
     // Create TWO job configs so configs.length > 1, triggering the cached trace path
     // (getTraceById is called with excludeInputOutput: true)
     await configureJob({
-      scoreName: "score-with-metadata-filter",
+      scoreName: "score-with-metadata-and-boolean-filter",
       filter: [
         {
           type: "stringObject",
@@ -683,7 +764,13 @@ describe("test eval filtering", () => {
           value: "premium",
           column: "metadata",
           operator: "=",
-        },
+        } satisfies z.infer<typeof singleFilter>,
+        {
+          type: "boolean",
+          value: true,
+          column: "bookmarked",
+          operator: "=",
+        } satisfies z.infer<typeof singleFilter>,
       ],
     });
     await configureJob({
@@ -698,7 +785,63 @@ describe("test eval filtering", () => {
     });
 
     const jobs = await getJobs();
-    // Both configs should produce a job — the metadata filter should match
+    // Both configs should produce a job — both in-memory filters should match
     expect(jobs.length).toBe(2);
+  }, 10_000);
+
+  test("evaluates non-metadata filters in memory when metadata is excluded from the cached trace fetch", async ({
+    expect,
+    projectId,
+    traceId1,
+    upsertTrace,
+    configureJob,
+    getJobs,
+  }) => {
+    // The trace carries metadata, but no config filters on it, so the cached
+    // trace fetch drops the metadata column entirely.
+    await upsertTrace({
+      id: traceId1,
+      name: "important-trace",
+      metadata: { tier: "premium" },
+    });
+
+    // Two configs so configs.length > 1 triggers the cached trace path.
+    await configureJob({
+      scoreName: "name-match",
+      filter: [
+        {
+          type: "string",
+          value: "important-trace",
+          column: "Name",
+          operator: "=",
+        },
+      ],
+    });
+    await configureJob({
+      scoreName: "name-mismatch",
+      filter: [
+        {
+          type: "string",
+          value: "other-trace",
+          column: "Name",
+          operator: "=",
+        },
+      ],
+    });
+
+    await createEvalJobs({
+      event: { projectId, traceId: traceId1 },
+      jobTimestamp: new Date(),
+    });
+
+    const jobs = await getJobs();
+    // In-memory evaluation on the metadata-less trace must still discriminate
+    // between the two name filters.
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
+    const matchingConfig = await prisma.jobConfiguration.findFirst({
+      where: { projectId, scoreName: "name-match" },
+    });
+    expect(jobs[0].jobConfigurationId).toBe(matchingConfig?.id);
   }, 10_000);
 });

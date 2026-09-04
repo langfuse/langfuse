@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useLayoutEffect, useState, useRef } from "react";
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
@@ -211,7 +212,7 @@ export function Heatmap({
                           className="w-auto"
                         >
                           <div className="space-y-1">
-                            <p className="font-semibold">{label}</p>
+                            <p className="font-bold">{label}</p>
                           </div>
                         </HoverCardContent>
                       </HoverCard>

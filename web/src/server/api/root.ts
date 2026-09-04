@@ -18,6 +18,7 @@ import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/features/evals/server/router";
+import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evaluatorRouter";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { mixpanelIntegrationRouter } from "@/src/features/mixpanel-integration/mixpanel-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
@@ -59,7 +60,7 @@ import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
 import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
-import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
+import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 
 /**
@@ -96,6 +97,7 @@ export const appRouter = createTRPCRouter({
   prompts: promptRouter,
   models: modelRouter,
   evals: evalRouter,
+  evalsV2: evaluatorRouter,
   defaultLlmModel: defaultEvalModelRouter,
   experiments: experimentsRouter,
   posthogIntegration: posthogIntegrationRouter,

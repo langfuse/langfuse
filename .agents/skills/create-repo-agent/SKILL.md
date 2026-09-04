@@ -1,6 +1,6 @@
 ---
 name: create-repo-agent
-description: Use when designing, implementing, reviewing, or hardening Langfuse repo-owned autonomous agents, especially GitHub Actions that invoke Claude, Codex, or another LLM agent on a schedule or workflow_dispatch, create pull requests, update workflow prompts or allowlists, handle GitHub tokens/secrets, use untrusted web content, or self-improve repo agent instructions.
+description: Design, implement, review, or harden Langfuse repo-owned autonomous agents. Use for LLM-powered GitHub Actions, scheduled or dispatched agents, agent-created PRs, prompts, allowlists, tokens, untrusted content, or self-updating instructions.
 ---
 
 # Create Repo Agent

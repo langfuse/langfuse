@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { generateSchemaExample } from "./generateSchemaExample";
 
 describe("generateSchemaExample", () => {

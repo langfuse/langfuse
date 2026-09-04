@@ -311,7 +311,7 @@ describe("Prompts endpoint", () => {
 
     expect(validatedPrompt.name).toBe(promptName);
 
-    const pattern = `prompt:7a88fb47-b4e2-43b8-a06c-a5ce950dc53a:*:${promptName}:${validatedPrompt.labels[0]}`;
+    const pattern = `prompt:7a88fb47-b4e2-43b8-a06c-a5ce950dc53a:*:${promptName}:label:${validatedPrompt.labels[0]}`;
     const keys = await redis?.keys(pattern);
     expect(keys?.length).toBe(1);
 

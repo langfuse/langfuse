@@ -8,7 +8,7 @@ import {
 import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
 import { logger } from "../logger";
 import { env } from "../../env";
-import { clickhouseClient } from "../clickhouse/client";
+import { clickhouseClient, toClickhouseDateTime } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { getS3EventStorageClient, S3_DELETE_OBJECTS_CHUNK_SIZE } from "../s3";
 
@@ -35,6 +35,8 @@ type BlobCleanupPipelineOptions = {
   // Refs buffered before a single tombstone insert. Larger batches mean fewer,
   // bigger inserts (ClickHouse best practice; less part-count pressure).
   tombstoneFlushSize?: number;
+  // Called serially after each successful S3 batch.
+  onProgress?: () => Promise<void>;
 };
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (
@@ -55,6 +57,7 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (
     s3ChunkSize: p.s3ChunkSize,
     s3Concurrency: p.s3Concurrency,
     tombstoneFlushSize: p.tombstoneFlushSize,
+    onProgress: p.onProgress,
   });
 };
 
@@ -78,6 +81,7 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
       s3ChunkSize: p.s3ChunkSize,
       s3Concurrency: p.s3Concurrency,
       tombstoneFlushSize: p.tombstoneFlushSize,
+      onProgress: p.onProgress,
     });
   };
 
@@ -96,6 +100,7 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
     s3ChunkSize: options?.s3ChunkSize,
     s3Concurrency: options?.s3Concurrency,
     tombstoneFlushSize: options?.tombstoneFlushSize,
+    onProgress: options?.onProgress,
   });
 };
 
@@ -183,6 +188,7 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(
       BlobStorageFileRefRecordReadType[]
     >) {
       pendingTombstones.push(...deletedRefs);
+      await p.onProgress?.();
       if (pendingTombstones.length >= tombstoneFlushSize) {
         await flushTombstones();
       }
@@ -219,8 +225,8 @@ async function softDeleteInClickhouse(
     values: blobStorageRefs.map((e) => ({
       ...e,
       is_deleted: "1",
-      event_ts: new Date().getTime(),
-      updated_at: new Date().getTime(),
+      event_ts: toClickhouseDateTime(),
+      updated_at: toClickhouseDateTime(),
     })),
     format: "JSONEachRow",
     clickhouse_settings: {

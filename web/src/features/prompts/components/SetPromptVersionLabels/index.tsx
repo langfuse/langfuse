@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -13,16 +14,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   PRODUCTION_LABEL,
   PromptLabelSchema,
   type Prompt,
 } from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import { cn } from "@/src/utils/tailwind";
@@ -111,7 +112,7 @@ export function SetPromptVersionLabels({
       capture("prompt_detail:apply_labels", { labels: selectedLabels });
       setIsOpen(false);
     } catch (err) {
-      console.error(err);
+      reportNonTrpcError(err, "prompts");
     }
   };
 
@@ -177,10 +178,12 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          <TruncatedLabels
-            labels={promptLabels}
-            maxVisibleLabels={maxVisibleLabels}
-          />
+          {promptLabels.length > 0 && (
+            <TruncatedLabels
+              labels={promptLabels}
+              maxVisibleLabels={maxVisibleLabels}
+            />
+          )}
           <Button
             variant="outline"
             title="Add prompt label"
@@ -204,7 +207,7 @@ export function SetPromptVersionLabels({
           onClick={(event) => event.stopPropagation()}
           className="flex flex-col"
         >
-          <h2 className="mb-3 font-semibold">Prompt labels</h2>
+          <h2 className="mb-3 font-bold">Prompt labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}
             <strong>production</strong> labeled prompt will be served by

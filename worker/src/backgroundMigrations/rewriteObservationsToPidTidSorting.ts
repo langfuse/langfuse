@@ -8,9 +8,17 @@ import {
   assertSafePartition,
   detectTableEngine,
   loadPartitionsFromClickhouse,
-  onClusterClause,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
+import {
+  PID_TID_SORTING_TABLE,
+  buildDisableSharedMergeTreeMergesQuery,
+  buildFreezeReplicatedMergesQuery,
+  buildStopMergesQuery,
+  buildSyncReplicaQuery,
+  onClusterClause,
+  pidTidSortingTable,
+} from "./utils/v4BackfillDdl";
 
 // Hard-coded UUID identifying the row in background_migrations.
 // Must match the Prisma migration that registers this row.
@@ -63,7 +71,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
    */
   private async ensureScratchTable(): Promise<void> {
     const ddl = `
-      CREATE TABLE IF NOT EXISTS observations_pid_tid_sorting ${onClusterClause()} (
+      CREATE TABLE IF NOT EXISTS ${pidTidSortingTable()} ${onClusterClause()} (
         \`id\` String,
         \`trace_id\` String,
         \`project_id\` String,
@@ -124,7 +132,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
   // ==========================================================================
 
   private async stopMergesOnScratchTable(): Promise<void> {
-    const engine = await detectTableEngine("observations_pid_tid_sorting");
+    const engine = await detectTableEngine(PID_TID_SORTING_TABLE);
     const isSharedMergeTree = engine.startsWith("Shared");
     const isReplicatedMergeTree = engine.startsWith("Replicated");
 
@@ -133,11 +141,10 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     );
 
     if (isSharedMergeTree) {
-      // ClickHouse Cloud (SharedMergeTree) does not support `SYSTEM STOP MERGES`.
-      // The documented equivalent is the per-table setting below, which is
-      // assignment-scoped and persists until explicitly reset.
+      // ClickHouse Cloud (SharedMergeTree) does not support `SYSTEM STOP MERGES`;
+      // the builder emits the documented per-table equivalent instead.
       await commandClickhouse({
-        query: `ALTER TABLE observations_pid_tid_sorting MODIFY SETTING shared_merge_tree_disable_merges_and_mutations_assignment = 1`,
+        query: buildDisableSharedMergeTreeMergesQuery(),
         tags: {
           surface: "worker",
           route: "background-migration.stopMerges",
@@ -149,7 +156,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       // reset on server restart, so on its own it is not a durable freeze
       // across the M2 -> M3 gap.
       await commandClickhouse({
-        query: `SYSTEM STOP MERGES ${onClusterClause()} observations_pid_tid_sorting`,
+        query: buildStopMergesQuery(),
         tags: {
           surface: "worker",
           route: "background-migration.stopMerges",
@@ -158,13 +165,10 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
 
       // For the replicated engine, persist the freeze in table metadata on top
       // of the in-memory lock so it survives restarts and holds on every
-      // replica: stop enqueuing new merges (`max_replicated_merges_in_queue=0`)
-      // and stop any replica from executing a merge locally
-      // (`always_fetch_merged_part=1`).
-      // See https://github.com/ClickHouse/ClickHouse/issues/22830.
+      // replica (see the builder for the settings and the upstream issue).
       if (isReplicatedMergeTree) {
         await commandClickhouse({
-          query: `ALTER TABLE observations_pid_tid_sorting ${onClusterClause()} MODIFY SETTING max_replicated_merges_in_queue = 0, always_fetch_merged_part = 1`,
+          query: buildFreezeReplicatedMergesQuery(),
           tags: {
             surface: "worker",
             route: "background-migration.stopMerges",
@@ -191,7 +195,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
    * a half-synced cluster.
    */
   private async syncReplicasOnScratchTable(): Promise<void> {
-    const engine = await detectTableEngine("observations_pid_tid_sorting");
+    const engine = await detectTableEngine(PID_TID_SORTING_TABLE);
     if (!engine.startsWith("Replicated")) {
       logger.info(
         `${this.logPrefix} Skipping SYSTEM SYNC REPLICA (engine=${engine || "unknown"} is not replicated)`,
@@ -203,7 +207,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       `${this.logPrefix} Syncing all replicas of observations_pid_tid_sorting`,
     );
     await commandClickhouse({
-      query: `SYSTEM SYNC REPLICA ${onClusterClause()} observations_pid_tid_sorting STRICT`,
+      query: buildSyncReplicaQuery(),
       tags: {
         surface: "worker",
         route: "background-migration.syncReplica",
@@ -237,7 +241,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     assertSafePartition(todo.partition);
 
     const query = `
-      INSERT INTO observations_pid_tid_sorting (
+      INSERT INTO ${pidTidSortingTable()} (
         id, trace_id, project_id, environment, type, parent_observation_id,
         start_time, end_time, name, metadata, level, status_message, version,
         input, output,

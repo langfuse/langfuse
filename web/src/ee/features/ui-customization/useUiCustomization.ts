@@ -13,7 +13,3 @@ export const useUiCustomization = () => {
   if (!hasEntitlement) return null;
   return customization.data ?? null;
 };
-
-export type UiCustomizationOption = keyof NonNullable<
-  ReturnType<typeof useUiCustomization>
->;

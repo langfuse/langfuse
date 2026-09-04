@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -10,7 +11,7 @@ import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Input } from "@/src/components/ui/input";
@@ -134,7 +135,7 @@ export function DeleteButton({
                   ? undefined
                   : `You don't have permission to delete this ${entityToDeleteName}.`
               }
-              variant={variant ?? "outline-solid"}
+              variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
               disabled={!enabled}
@@ -176,7 +177,7 @@ export function DeleteButton({
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         {deleteBlocker ?? (
           <>
-            <h2 className="mb-3 font-semibold">Please confirm</h2>
+            <h2 className="mb-3 font-bold">Please confirm</h2>
             <p className="mb-3 max-w-72 text-sm">
               {customDeletePrompt ??
                 `This action cannot be undone. It removes all the data associated with
@@ -311,63 +312,20 @@ export function DeleteDatasetButton(props: DeleteButtonProps) {
   );
 }
 
-export function DeleteDashboardButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "dashboards:CUD",
-    invalidateFunc = () => utils.dashboard.invalidate(),
-  } = props;
-  const dashboardMutation = api.dashboard.delete.useMutation();
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await dashboardMutation.mutateAsync({
-        dashboardId: itemId,
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    showSuccessToast({
-      title: "Dashboard deleted",
-      description: "The dashboard has been deleted successfully",
-    });
-    onSuccess();
-  };
-
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture) =>
-        capture("dashboard:delete_dashboard_form_open")
-      }
-      captureDeleteSuccess={(capture) =>
-        capture("dashboard:delete_dashboard_button_click")
-      }
-      entityToDeleteName="dashboard"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={dashboardMutation.isPending}
-    />
-  );
-}
-
 /** DeleteMonitorButton deletes a monitor through the shared confirm-then-delete pattern. */
 export function DeleteMonitorButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {
     itemId,
     projectId,
-    scope = "monitors:CUD",
+    scope = "alerts:CUD",
     invalidateFunc = () => utils.monitors.invalidate(),
   } = props;
   const monitorMutation = api.monitors.delete.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Monitor deleted",
-        description: "The monitor has been deleted successfully",
+        title: "Alert deleted",
+        description: "The alert has been deleted successfully",
       });
       utils.monitors.invalidate();
     },
@@ -397,8 +355,8 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
           source: isTableAction ? "table-single-row" : "monitor",
         })
       }
-      entityToDeleteName="monitor"
-      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes the monitor's alert history."
+      entityToDeleteName="alert"
+      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes its alert history."
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={monitorMutation.isPending}
     />
@@ -410,7 +368,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "evalJob:CUD",
+    scope = "evaluationRule:CUD",
     invalidateFunc = () => utils.evals.invalidate(),
   } = props;
 

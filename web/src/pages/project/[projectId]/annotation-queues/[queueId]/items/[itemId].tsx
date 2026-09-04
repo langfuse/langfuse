@@ -1,17 +1,19 @@
 import { AnnotationQueuesItem } from "@/src/features/annotation-queues/components/AnnotationQueuesItem";
-import { useRouter } from "next/router";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
 export default function AnnotationQueues() {
-  const router = useRouter();
-  const annotationQueueId = router.query.queueId as string;
-  const projectId = router.query.projectId as string;
-  const itemId = router.query.itemId as string;
+  const route = useReadyRouteParams(["projectId", "queueId", "itemId"]);
+
+  if (!route.ready) return <RouteParamsPendingFallback />;
 
   return (
     <AnnotationQueuesItem
-      annotationQueueId={annotationQueueId}
-      projectId={projectId}
-      itemId={itemId}
+      annotationQueueId={route.params.queueId}
+      projectId={route.params.projectId}
+      itemId={route.params.itemId}
     />
   );
 }

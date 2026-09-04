@@ -2,11 +2,7 @@ import { recordIncrement } from "@langfuse/shared/src/server";
 
 export const EXPORT_VOLUME_METRIC = "langfuse.export.serialized_bytes";
 
-export type ExportIntegration =
-  | "blob_storage"
-  | "posthog"
-  | "mixpanel"
-  | "llmaj";
+type ExportIntegration = "blob_storage" | "posthog" | "mixpanel" | "llmaj";
 
 type ExportVolume = {
   integration: ExportIntegration;

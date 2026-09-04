@@ -78,6 +78,7 @@ describe("observationForEvalSchema", () => {
       trace_name: "my-trace",
       user_id: "user-123",
       session_id: "session-456",
+      is_app_root: false,
       tags: ["tag1", "tag2"],
       release: "v2.0.0",
       provided_model_name: "gpt-4",

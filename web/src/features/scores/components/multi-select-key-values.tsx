@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
 import { Archive, ChevronDown, Component, Search } from "lucide-react";
 
@@ -255,7 +256,7 @@ export function MultiSelectKeyValues<
 
             return (
               <DropdownMenuSub key={group.label}>
-                <DropdownMenuSubTrigger className="flex w-full cursor-default items-center select-none">
+                <DropdownMenuSubTrigger className="flex w-full items-center select-none">
                   <Component className="mr-2 h-4 w-4 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>

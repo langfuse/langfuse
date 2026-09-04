@@ -1,13 +1,14 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -44,9 +45,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,
@@ -144,10 +143,10 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
     return (
       <div>
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to manage integrations for this project.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -234,7 +233,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
             ) : (
               endpoints.data?.map((endpoint) => (
                 <TableRow key={endpoint.id}>
-                  <TableCell density="comfortable" className="font-medium">
+                  <TableCell density="comfortable" className="font-bold">
                     {endpoint.name}
                   </TableCell>
                   <TableCell
@@ -698,7 +697,7 @@ export function WebCalloutIntegrationCard(props: {
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
         <Webhook className="text-foreground h-5 w-5" />
-        <span className="font-semibold">Web Callouts</span>
+        <span className="font-bold">Web Callouts</span>
       </div>
       <p className="text-primary mb-4 text-sm">
         Send backend callouts from trace, observation, and session detail views

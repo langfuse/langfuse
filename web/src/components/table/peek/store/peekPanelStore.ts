@@ -40,7 +40,7 @@ const KEYBOARD_RESIZE_STEP = 0.05;
 // the default never lands narrower than the user could drag back to.
 export const PEEK_MAX_DEFAULT_WIDTH_PX = 1400;
 
-export const clampWidthFraction = (fraction: number) =>
+const clampWidthFraction = (fraction: number) =>
   Math.min(
     PEEK_MAX_WIDGET_WIDTH_FRACTION,
     Math.max(PEEK_MIN_WIDTH_FRACTION, fraction),

@@ -1,9 +1,13 @@
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { type ScoreDomain } from "@langfuse/shared";
+// @vitest-environment node
+
+import {
+  aggregateScores,
+  type ScoreToAggregate,
+} from "@/src/features/scores/lib/aggregateScores";
 
 describe("aggregateScores", () => {
   it("should return an empty object for an empty array", () => {
-    const scores: ScoreDomain[] = [];
+    const scores: ScoreToAggregate[] = [];
     expect(aggregateScores(scores)).toEqual({});
   });
 
@@ -15,14 +19,16 @@ describe("aggregateScores", () => {
         dataType: "NUMERIC",
         value: 5,
         comment: "test comment",
+        executionTraceId: "execution-trace-id",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
         type: "NUMERIC",
         values: [5],
         average: 5,
         comment: "test comment",
+        executionTraceId: "execution-trace-id",
       },
     });
   });
@@ -43,7 +49,7 @@ describe("aggregateScores", () => {
         value: 7,
         comment: "another comment",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
         type: "NUMERIC",
@@ -70,7 +76,7 @@ describe("aggregateScores", () => {
         value: 5,
         comment: "another comment",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
         type: "NUMERIC",
@@ -82,7 +88,7 @@ describe("aggregateScores", () => {
   });
 
   it("should correctly aggregate scores with different keys", () => {
-    const scores: ScoreDomain[] = [
+    const scores: ScoreToAggregate[] = [
       {
         name: "test1",
         source: "API",
@@ -97,7 +103,7 @@ describe("aggregateScores", () => {
         value: 7,
         comment: "another comment",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test1-API-NUMERIC": {
         type: "NUMERIC",
@@ -123,7 +129,7 @@ describe("aggregateScores", () => {
         stringValue: "good",
         comment: "test comment",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test-ANNOTATION-CATEGORICAL": {
         type: "CATEGORICAL",
@@ -134,12 +140,13 @@ describe("aggregateScores", () => {
     });
   });
 
-  it("should correctly aggregate multiple Categorical scores with the same key", () => {
+  it("should render Boolean scores as true/false", () => {
     const scores = [
       {
         name: "test",
         source: "API",
         dataType: "BOOLEAN",
+        value: 1,
         stringValue: "True",
         comment: "test comment",
       },
@@ -147,21 +154,36 @@ describe("aggregateScores", () => {
         name: "test",
         source: "API",
         dataType: "BOOLEAN",
+        value: 0,
         stringValue: "False",
         comment: "another comment",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-BOOLEAN": {
         type: "CATEGORICAL",
-        values: ["True", "False"],
+        values: ["false", "true"],
         valueCounts: [
-          { value: "True", count: 1 },
-          { value: "False", count: 1 },
+          { value: "false", count: 1 },
+          { value: "true", count: 1 },
         ],
         comment: undefined,
       },
     });
+  });
+
+  it("should order a cell's values the same way regardless of input order", () => {
+    const asScores = (stringValues: string[]) =>
+      stringValues.map((stringValue) => ({
+        name: "verdict",
+        source: "API",
+        dataType: "CATEGORICAL",
+        stringValue,
+      })) as ScoreToAggregate[];
+
+    expect(aggregateScores(asScores(["pass", "fail", "pass"]))).toEqual(
+      aggregateScores(asScores(["fail", "pass", "pass"])),
+    );
   });
 
   it("should correctly aggregate scores with mixed types and the same name", () => {
@@ -197,7 +219,7 @@ describe("aggregateScores", () => {
         value: 0,
         comment: "last comment",
       },
-    ] as ScoreDomain[];
+    ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
         type: "NUMERIC",
@@ -207,10 +229,10 @@ describe("aggregateScores", () => {
       },
       "test-ANNOTATION-CATEGORICAL": {
         type: "CATEGORICAL",
-        values: ["good", "bad", "good"],
+        values: ["bad", "good", "good"],
         valueCounts: [
-          { value: "good", count: 2 },
           { value: "bad", count: 1 },
+          { value: "good", count: 2 },
         ],
         comment: undefined,
       },

@@ -1,10 +1,11 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { Database, Beaker, Zap, Code } from "lucide-react";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
+import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
@@ -12,24 +13,24 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
       title: "Continuous improvement",
       description:
         "Create datasets from production edge cases to improve your application",
-      icon: <Zap className="h-4 w-4" />,
+      icon: Zap,
     },
     {
       title: "Pre-deployment testing",
       description: "Benchmark new releases before deploying to production",
-      icon: <Beaker className="h-4 w-4" />,
+      icon: Beaker,
     },
     {
       title: "Structured testing",
       description:
         "Run experiments on collections of inputs and expected outputs",
-      icon: <Database className="h-4 w-4" />,
+      icon: Database,
     },
     {
       title: "Custom workflows",
       description:
         "Build custom workflows around your datasets via the API and SDKs, e.g. for fine-tuning, few-shotting",
-      icon: <Code className="h-4 w-4" />,
+      icon: Code,
     },
   ];
 
@@ -41,12 +42,23 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
       primaryAction={{
         label: "Create Dataset",
         component: (
-          <DatasetActionButton
-            variant="default"
-            mode="create"
+          <CreateDatasetDialogController
             projectId={projectId}
-            size="lg"
-          />
+            target={{ type: "root" }}
+          >
+            {({ disabled, openDialog }) => (
+              <DialogTrigger asChild>
+                <ButtonWithIcon
+                  size="lg"
+                  disabled={disabled !== undefined}
+                  onClick={openDialog}
+                  variant="default"
+                  icon={disabled === undefined ? PlusIcon : LockIcon}
+                  text="New dataset"
+                />
+              </DialogTrigger>
+            )}
+          </CreateDatasetDialogController>
         ),
       }}
       secondaryAction={{

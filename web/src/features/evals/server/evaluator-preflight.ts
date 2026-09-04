@@ -5,7 +5,8 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
-  isLLMCompletionError,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
 
@@ -18,14 +19,10 @@ export type EvaluatorPreflightDefinition = {
   outputDefinition: unknown;
 };
 
-export async function getEvaluatorDefinitionPreflightError(params: {
+async function prepareEvaluatorDefinition(params: {
   projectId: string;
   template: EvaluatorPreflightDefinition;
-}): Promise<string | null> {
-  if (params.template.type === EvalTemplateType.CODE) {
-    return null;
-  }
-
+}) {
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
     params.projectId,
     params.template.provider ?? undefined,
@@ -34,42 +31,82 @@ export async function getEvaluatorDefinitionPreflightError(params: {
   );
 
   if (!modelConfig.valid) {
-    return `No valid LLM model found for evaluator "${params.template.name}". ${modelConfig.error}. Configure an LLM connection for this project under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) before creating llm_as_judge evaluators.`;
+    return {
+      valid: false as const,
+      error: `No valid LLM model found for evaluator "${params.template.name}". ${modelConfig.error}. Configure an LLM connection for this project under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) before creating llm_as_judge evaluators.`,
+    };
   }
 
   try {
     const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
       params.template.outputDefinition,
     );
-    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
-      parsedOutputDefinition,
-    );
+    return {
+      valid: true as const,
+      modelConfig: modelConfig.config,
+      outputResultSchema: compilePersistedEvalOutputDefinition(
+        parsedOutputDefinition,
+      ).outputResultSchema,
+    };
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Invalid evaluator output definition";
+    return {
+      valid: false as const,
+      error: `Model configuration not valid for evaluator "${params.template.name}". ${message}`,
+    };
+  }
+}
 
-    // Some test environments run a built app against seeded local data. In
-    // those cases we still want to validate model selection and schema
-    // compilation without depending on live provider credentials.
-    if (
-      process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION === "true" ||
-      process.env.NODE_ENV === "test" ||
-      process.env.DATABASE_URL?.includes("langfuse_test")
-    ) {
-      return null;
-    }
+export async function getEvaluatorDefinitionConfigurationError(params: {
+  projectId: string;
+  template: EvaluatorPreflightDefinition;
+}): Promise<string | null> {
+  if (params.template.type === EvalTemplateType.CODE) return null;
 
+  const prepared = await prepareEvaluatorDefinition(params);
+  return prepared.valid ? null : prepared.error;
+}
+
+export async function getEvaluatorDefinitionPreflightError(params: {
+  projectId: string;
+  template: EvaluatorPreflightDefinition;
+}): Promise<string | null> {
+  if (params.template.type === EvalTemplateType.CODE) return null;
+
+  const prepared = await prepareEvaluatorDefinition(params);
+  if (!prepared.valid) return prepared.error;
+
+  // Some test environments run a built app against seeded local data. In
+  // those cases we still want to validate model selection and schema
+  // compilation without depending on live provider credentials.
+  if (
+    process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION === "true" ||
+    process.env.NODE_ENV === "test" ||
+    process.env.DATABASE_URL?.includes("langfuse_test")
+  ) {
+    return null;
+  }
+
+  try {
     await testModelCall({
-      provider: modelConfig.config.provider,
-      model: modelConfig.config.model,
-      apiKey: modelConfig.config.apiKey,
-      modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
+      provider: prepared.modelConfig.provider,
+      model: prepared.modelConfig.model,
+      apiKey: prepared.modelConfig.apiKey,
+      modelConfig: prepared.modelConfig.modelParams,
+      structuredOutputSchema: prepared.outputResultSchema,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
   } catch (err) {
+    const llmError = getLLMErrorInfo(err);
     // A provider 404 also covers typos, missing model access, and bad base
     // URLs — not just retired models, so don't claim "retired" as fact.
-    if (isLLMCompletionError(err) && err.responseStatusCode === 404) {
-      return `Model configuration not valid for evaluator "${params.template.name}". The provider could not find model '${modelConfig.config.model}' — it may be retired, misspelled, or not available to your API key. Update the evaluator's model or the project's default evaluation model.`;
+    if (llmError?.statusCode === 404) {
+      return `Model configuration not valid for evaluator "${params.template.name}". The provider could not find model '${prepared.modelConfig.model}' — it may be retired, misspelled, or not available to your API key. Update the evaluator's model or the project's default evaluation model.`;
     }
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = llmError?.message ?? "An internal error occurred";
     return `Model configuration not valid for evaluator "${params.template.name}". ${message}`;
   }
 

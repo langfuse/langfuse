@@ -6,8 +6,8 @@ export const MessageTypeSchema = z.enum(["Question", "Feedback", "Bug"]);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
 /** ── Form Sections (for your stepper/wizard) ─────────────────────────────── */
-export const FormSectionSchema = z.enum(["intro", "form", "success"]);
-export type FormSection = z.infer<typeof FormSectionSchema>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
+const FormSectionSchema = z.enum(["intro", "form", "success"]);
 
 /** ── Topics (grouped + flattened) ────────────────────────────────────────── */
 export const TopicGroups = {
@@ -24,13 +24,12 @@ export const TopicGroups = {
     "Prompt Management",
     "Evaluation",
     "Platform",
+    "V4 Migration",
     "Other",
   ],
 } as const;
 
-export type TopicGroup = keyof typeof TopicGroups;
-
-export const ALL_TOPICS = [
+const ALL_TOPICS = [
   ...TopicGroups.Operations,
   ...TopicGroups["Product Features"],
 ] as const;
@@ -48,8 +47,6 @@ export const SeveritySchema = z.enum([
   "Severity 2 (Major Business Impact)",
   "Severity 3 (Minor Business Impact or General Questions)",
 ]);
-export type Severity = z.infer<typeof SeveritySchema>;
-
 export const SEVERITY_1 = SeveritySchema.options[0];
 export const SEVERITY_2 = SeveritySchema.options[1];
 export const SEVERITY_3 = SeveritySchema.options[2];
@@ -59,7 +56,7 @@ export const SEVERITY_3 = SeveritySchema.options[2];
  * requests — Enterprise only. All other plans (and free/unknown plans) are
  * limited to Severity 3. Mirrors the check in `mapToPylonCaseSeverity`.
  */
-export const ENTERPRISE_SUPPORT_PLANS = [
+const ENTERPRISE_SUPPORT_PLANS = [
   "cloud:enterprise",
   "self-hosted:enterprise",
 ] as const;
@@ -73,10 +70,7 @@ export const isEnterpriseSupportPlan = (plan?: string): boolean =>
  * field is omitted from the issue instead of defaulting to Sev-3. See
  * `mapToPylonCaseSeverity`.
  */
-export const NO_CASE_SEVERITY_SUPPORT_PLANS = [
-  "cloud:hobby",
-  "cloud:core",
-] as const;
+const NO_CASE_SEVERITY_SUPPORT_PLANS = ["cloud:hobby", "cloud:core"] as const;
 
 /** Whether support requests from the given plan carry no case severity. */
 export const isPlanWithoutCaseSeverity = (plan?: string): boolean =>
@@ -97,7 +91,7 @@ export const isSeverityAllowedForPlan = (
   return true; // Severity 3 is always available
 };
 
-export const IntegrationTypeSchema = z.enum([
+const IntegrationTypeSchema = z.enum([
   "Python SDK",
   "TypeScript SDK",
   "Other SDK",
@@ -111,8 +105,6 @@ export const IntegrationTypeSchema = z.enum([
   "3rd Party (Dify / LangFlow / Flowise)",
   "Other (please specify)",
 ]);
-export type IntegrationType = z.infer<typeof IntegrationTypeSchema>;
-
 export const SupportFormSchema = z.object({
   messageType: MessageTypeSchema.default("Question"),
   severity: SeveritySchema,
@@ -126,9 +118,6 @@ export const SupportFormSchema = z.object({
     .trim()
     .min(1, "Please provide a description of your issue."),
 });
-export type SupportFormValues = z.infer<typeof SupportFormSchema>;
-
 export const MESSAGE_TYPES = MessageTypeSchema.options;
-export const FORM_SECTIONS = FormSectionSchema.options;
 export const SEVERITIES = SeveritySchema.options;
 export const INTEGRATION_TYPES = IntegrationTypeSchema.options;

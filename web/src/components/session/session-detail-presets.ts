@@ -53,7 +53,7 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
   {
     id: `${SYSTEM_PRESET_ID_PREFIX}first_generation__`,
-    name: "First Generation in Trace",
+    name: "First LLM Call per Trace",
     description: "Shows only the first generation in each trace",
     filters: [
       {
@@ -72,7 +72,7 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
   {
     id: `${SYSTEM_PRESET_ID_PREFIX}last_generation__`,
-    name: "Last Generation in Trace",
+    name: "Last LLM Call per Trace",
     description: "Shows only the last generation in each trace",
     filters: [
       {
@@ -97,8 +97,7 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
  * old "first generation" default that rendered empty cards for agentic sessions
  * with no GENERATION (LFE-10520).
  */
-export const getSessionDetailDefaultPreset = () =>
-  SESSION_DETAIL_SYSTEM_PRESETS[0];
+const getSessionDetailDefaultPreset = () => SESSION_DETAIL_SYSTEM_PRESETS[0];
 
 /**
  * Which system preset to auto-apply on load. A selected system preset (deep

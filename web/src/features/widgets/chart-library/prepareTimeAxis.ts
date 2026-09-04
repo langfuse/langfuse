@@ -49,6 +49,14 @@ const MAX_CATEGORY_LABEL_CHARS = 24;
  */
 const CATEGORY_MIN_TICK_GAP_PX = 16;
 
+/**
+ * Extra category-axis padding (px) on a temporal x-axis. The last tick is
+ * also end-anchored (see TimeAxisTick) so a date sitting on the last bucket
+ * stays on-canvas; this pad is only a small gutter past that last glyph.
+ * Categorical axes skip this — they are already end-anchored.
+ */
+const TEMPORAL_TICK_RIGHT_PADDING_PX = 16;
+
 /** End-truncate a long categorical label ("foo-bar-…"). Entity names carry
  * their distinguishing token early (e.g. "…-run-2-…"), so keeping the head and
  * dropping the tail preserves what tells ticks apart; the tooltip has the full
@@ -151,11 +159,12 @@ export type TimeAxis = {
   showVerticalGrid: boolean;
   /**
    * Tick-label props the visualiser spreads onto the recharts `XAxis`.
-   * Time / date / month ticks are short single-units rendered flat (`{}` → the
-   * spread is a no-op, so dashboards are unchanged). Categorical entity names
-   * are long, so we render them angled + end-anchored — the standard way to fit
-   * long category labels — and set a `minTickGap` so the (width-aware thinned)
-   * ticks keep a real gap between them. (LFE-10583)
+   * Time / date / month ticks are short single-units rendered flat. A right
+   * `padding` keeps the centered last date on-canvas (otherwise "Aug 11"
+   * clips to "Aug 1"). Categorical entity names are long, so we render them
+   * angled + end-anchored — the standard way to fit long category labels —
+   * and set a `minTickGap` so the (width-aware thinned) ticks keep a real
+   * gap between them. (LFE-10583)
    */
   tickProps: {
     angle?: number;
@@ -164,14 +173,33 @@ export type TimeAxis = {
     height?: number;
     /** Minimum px gap recharts leaves between two shown ticks. */
     minTickGap?: number;
+    /** Inset the category scale so a centered last tick label stays on-canvas. */
+    padding?: { left?: number; right?: number };
   };
+};
+
+/** Options that let a caller override the default axis presentation. */
+export type PrepareTimeAxisOptions = {
+  /**
+   * Hide the tick labels on a categorical (entity-name) axis entirely, keeping
+   * the full name in the tooltip. Off by default: the category branch shows its
+   * (truncated, angled) labels. Opt in for the experiments / dataset-compare
+   * charts, whose long entity names add clutter with little value on the axis
+   * itself, so we surface them only on hover. No effect on a temporal axis,
+   * whose timestamp labels are always useful.
+   */
+  hideCategoryTickLabels?: boolean;
 };
 
 /**
  * Decide the time-axis format + tick spacing for a set of raw bucket values.
  * `maxTicks` is how many labels fit the chart's measured width.
  */
-export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
+export function prepareTimeAxis(
+  rawValues: unknown[],
+  maxTicks = 6,
+  options: PrepareTimeAxisOptions = {},
+): TimeAxis {
   const timestamps: number[] = [];
   for (const value of rawValues) {
     const date = parseChartTimestamp(value);
@@ -189,6 +217,20 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   if (!temporal) {
     const full = (raw: unknown): string =>
       raw == null ? "" : typeof raw === "string" ? raw : String(raw);
+    // Opt-in (experiments / dataset-compare): hide the entity names on the axis
+    // entirely and surface the full name on hover instead — the names cluttered
+    // the axis with little value. Nothing to fit, so draw every tick (`0`)
+    // label-less with a slim x-axis height; the tooltip keeps the full name.
+    if (options.hideCategoryTickLabels) {
+      return {
+        interval: 0,
+        formatTick: () => "",
+        formatTooltip: full,
+        mode: "category",
+        showVerticalGrid: false,
+        tickProps: { height: 8 },
+      };
+    }
     return {
       // The fix for the categorical smear (LFE-10583). A numeric interval makes
       // recharts show every Nth tick BY INDEX and skip its label-collision test,
@@ -226,10 +268,11 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   const span = count >= 2 ? maxTs - minTs : 0;
   // Date ticks normally omit the year (one unit per scale), but show it when the
   // range straddles a year boundary so "Dec 29 → Jan 5" stays unambiguous.
-  // Use LOCAL year to match the tick formatter (toLocaleDateString renders in
-  // local time), so a range that crosses Jan 1 locally still shows the year.
+  // UTC year to match date/month formatters (buckets are UTC-aligned; local
+  // midnight would otherwise drop the year on a range that only crosses Jan 1
+  // in the browser timezone).
   const crossesYear =
-    new Date(minTs).getFullYear() !== new Date(maxTs).getFullYear();
+    new Date(minTs).getUTCFullYear() !== new Date(maxTs).getUTCFullYear();
 
   const mode: AxisMode =
     span > 0 && span <= TIME_SCALE_MAX
@@ -255,6 +298,10 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   const subHour = bucketMs > 0 && bucketMs < HOUR;
   const subDay = bucketMs > 0 && bucketMs < DAY;
 
+  // Date/month labels use UTC so a UTC-midnight bucket is not formatted as the
+  // previous local evening. Intraday time ticks stay in the browser timezone.
+  const calendarTimeZone = mode === "time" ? undefined : "UTC";
+
   const formatTick = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
@@ -266,11 +313,13 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     }
     if (mode === "month") {
       return date.toLocaleDateString("en-US", {
+        timeZone: calendarTimeZone,
         month: "short",
         year: "numeric",
       });
     }
     return date.toLocaleDateString("en-US", {
+      timeZone: calendarTimeZone,
       month: "short",
       day: "numeric",
       ...(crossesYear ? { year: "numeric" } : {}),
@@ -285,6 +334,7 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
     return date.toLocaleString("en-US", {
+      ...(calendarTimeZone ? { timeZone: calendarTimeZone } : {}),
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -292,14 +342,17 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     });
   };
 
-  // Time / date / month ticks are short single-units — rendered flat, exactly
-  // as the dashboards do today (no orientation change → pixel-identical).
+  // Time / date / month ticks are short single-units — rendered flat. The
+  // last tick sits on the last bucket, flush with the plot's right edge;
+  // without a right pad a centered "Aug 11" clips to "Aug 1".
   return {
     interval,
     formatTick,
     formatTooltip,
     mode,
     showVerticalGrid: true,
-    tickProps: {},
+    tickProps: {
+      padding: { left: 0, right: TEMPORAL_TICK_RIGHT_PADDING_PX },
+    },
   };
 }

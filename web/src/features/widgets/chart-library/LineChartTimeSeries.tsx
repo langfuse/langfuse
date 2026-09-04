@@ -34,6 +34,7 @@ import {
   prepareIsolatedPoints,
 } from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
@@ -204,6 +205,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   thresholds,
   missingValue = "gap",
   connectNulls = false,
+  hideXAxisLabels = false,
 }) => {
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
 
@@ -239,8 +241,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
+        { hideCategoryTickLabels: hideXAxisLabels },
       ),
-    [groupedData, maxTicks],
+    [groupedData, maxTicks, hideXAxisLabels],
   );
 
   const {
@@ -293,10 +296,12 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      <SeriesOverflowNote
-        visibleCount={dimensions.length}
-        totalCount={series.total}
-      />
+      {series.total > dimensions.length && (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={series.total}
+        />
+      )}
       <ChartContainer
         ref={chartBoxRef}
         config={config}
@@ -325,6 +330,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
             {...timeAxis.tickProps}
+            {...temporalAxisTickProp(
+              timeAxis,
+              groupedData.at(-1)?.time_dimension,
+            )}
           />
           <YAxis
             type="number"
@@ -409,17 +418,16 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           />
         </LineChart>
       </ChartContainer>
-      {(legendPosition === "below" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
-        />
-      )}
+      {legendItems.length > 0 &&
+        (legendPosition === "below" ||
+          (legendPosition === "auto" && legendItems.length > 1)) && (
+          <TimeSeriesLegend
+            items={legendItems}
+            interaction={legendInteraction}
+            onItemClick={onLegendClick}
+            formatSummary={tooltipFormatter}
+          />
+        )}
     </div>
   );
 };
-
-export default LineChartTimeSeries;

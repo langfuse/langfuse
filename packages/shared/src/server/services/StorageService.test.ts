@@ -1,8 +1,101 @@
-import { Readable } from "stream";
+import { createHash } from "crypto";
+import { PassThrough, Readable } from "stream";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { S3Client } from "@aws-sdk/client-s3";
+
+import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
+import { env } from "../../env";
+import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
+
+describe("S3StorageService region normalization", () => {
+  it("trims a persisted region before configuring the AWS client", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: " us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.region()).resolves.toBe("us-west-2");
+  });
+
+  it("rejects malformed persisted regions before creating an AWS client", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+  });
+
+  it.each(["europe-west1", "eastus", "auto"])(
+    "configures an S3-compatible client with region %s",
+    async (region) => {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: "https://storage.googleapis.com",
+        region,
+        forcePathStyle: true,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+
+      await expect(client.config.region()).resolves.toBe(region);
+    },
+  );
+});
+
+describe("resolveMediaStorageEndpoints", () => {
+  it("keeps the existing endpoint for both server access and signed URLs by default", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: undefined,
+      }),
+    ).toEqual({
+      endpoint: "http://localhost:9090",
+      externalEndpoint: undefined,
+    });
+  });
+
+  it("uses the internal override for server access and the existing endpoint for signed URLs", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: "http://minio:9000",
+      }),
+    ).toEqual({
+      endpoint: "http://minio:9000",
+      externalEndpoint: "http://localhost:9090",
+    });
+  });
+});
 
 /**
  * Regression tests for the Azure Blob download path.
@@ -229,5 +322,210 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
       "https://signed-read-url",
     );
     expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Source-stream errors on GCS uploads must reject the awaited upload instead
+ * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
+ * listens on the destination; `pipeline()` forwards source errors too.
+ */
+describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
+  it("rejects when the source stream fails without leaking process events", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    (
+      service as unknown as { bucket: { file: (name: string) => unknown } }
+    ).bucket = {
+      file: () => ({
+        createWriteStream: () => new PassThrough(),
+      }),
+    };
+
+    const unhandled: unknown[] = [];
+    const uncaught: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    const onUncaught = (err: unknown) => {
+      uncaught.push(err);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    process.on("uncaughtException", onUncaught);
+
+    try {
+      const source = new Readable({
+        read() {
+          this.destroy(new Error("source stream failed"));
+        },
+      });
+
+      await expect(
+        (
+          service as unknown as {
+            uploadFile(params: {
+              fileName: string;
+              fileType: string;
+              data: Readable;
+            }): Promise<void>;
+          }
+        ).uploadFile({
+          fileName: "export.json",
+          fileType: "application/json",
+          data: source,
+        }),
+      ).rejects.toThrow();
+
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(unhandled).toHaveLength(0);
+      expect(uncaught).toHaveLength(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      process.off("uncaughtException", onUncaught);
+    }
+  });
+});
+
+/**
+ * Regression tests for the DeleteObjects checksum sent to S3-compatible
+ * stores.
+ *
+ * Since AWS SDK v3.729 the S3 client attaches a CRC32 flexible checksum to
+ * DeleteObjects even under `requestChecksumCalculation: "WHEN_REQUIRED"`,
+ * because the S3 model marks the operation as checksum-required. Older
+ * S3-compatible stores (e.g. the MinIO bundled with langfuse-k8s) only accept
+ * the legacy Content-MD5 header for multi-object deletes and reject the CRC32
+ * variant with 400 MissingContentMD5, silently breaking data retention and
+ * deletion jobs (https://github.com/langfuse/langfuse-k8s/issues/356).
+ * LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM lets deployments pick the
+ * algorithm the store accepts ("MD5" maps to the Content-MD5 header); it is
+ * unset by default because MD5 is unavailable on FIPS runtimes.
+ */
+describe("S3StorageService DeleteObjects checksum", () => {
+  const EMPTY_DELETE_RESULT_XML = `<?xml version="1.0" encoding="UTF-8"?><DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></DeleteResult>`;
+
+  const setChecksumAlgorithm = (value: string | undefined) => {
+    (
+      env as { LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM?: string }
+    ).LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM = value;
+  };
+
+  afterEach(() => {
+    setChecksumAlgorithm(undefined);
+  });
+
+  type CapturedRequest = {
+    method: string;
+    headers: Record<string, string>;
+    body?: unknown;
+  };
+
+  // Build a real S3StorageService whose client runs the full middleware stack
+  // (serialization, flexible checksums, signing) but short-circuits right
+  // before the HTTP handler, capturing the final outgoing request and
+  // returning a canned success response. No network I/O happens.
+  const makeServiceWithCapture = (responseXml: string) => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const client = (service as unknown as { client: S3Client }).client;
+    const captured: CapturedRequest[] = [];
+
+    const captureMiddleware = () => async (args: { request: unknown }) => {
+      captured.push(args.request as CapturedRequest);
+      return {
+        response: {
+          statusCode: 200,
+          reason: "OK",
+          headers: { "content-type": "application/xml" },
+          body: Readable.from([Buffer.from(responseXml)]),
+        },
+      };
+    };
+
+    client.middlewareStack.add(
+      captureMiddleware as unknown as Parameters<
+        typeof client.middlewareStack.add
+      >[0],
+      {
+        step: "deserialize",
+        priority: "low",
+        name: "testCaptureRequest",
+        override: true,
+      },
+    );
+
+    return { service, captured };
+  };
+
+  const findHeader = (
+    request: CapturedRequest,
+    name: string,
+  ): string | undefined => {
+    const key = Object.keys(request.headers).find(
+      (header) => header.toLowerCase() === name,
+    );
+    return key === undefined ? undefined : request.headers[key];
+  };
+
+  it("keeps the SDK's CRC32 checksum on DeleteObjects by default", async () => {
+    const { service, captured } = makeServiceWithCapture(
+      EMPTY_DELETE_RESULT_XML,
+    );
+
+    await service.deleteFiles([
+      "events/project-1/file-1.json",
+      "media/project-1/file-2.png",
+    ]);
+
+    expect(captured).toHaveLength(1);
+    const request = captured[0];
+    expect(findHeader(request, "x-amz-checksum-crc32")).toBeDefined();
+    expect(findHeader(request, "content-md5")).toBeUndefined();
+  });
+
+  it("sends Content-MD5 on DeleteObjects when the algorithm is set to MD5", async () => {
+    setChecksumAlgorithm("MD5");
+    const { service, captured } = makeServiceWithCapture(
+      EMPTY_DELETE_RESULT_XML,
+    );
+
+    await service.deleteFiles([
+      "events/project-1/file-1.json",
+      "media/project-1/file-2.png",
+    ]);
+
+    expect(captured).toHaveLength(1);
+    const request = captured[0];
+    expect(typeof request.body).toBe("string");
+
+    const expectedMd5 = createHash("md5")
+      .update(request.body as string)
+      .digest("base64");
+    expect(findHeader(request, "content-md5")).toBe(expectedMd5);
+    expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
   });
 });

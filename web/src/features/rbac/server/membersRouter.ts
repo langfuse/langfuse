@@ -17,11 +17,15 @@ import {
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  getUserProjectRoles,
+  getUserProjectRolesCount,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -29,10 +33,8 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import {
-  getUserProjectRoles,
-  getUserProjectRolesCount,
-} from "@langfuse/shared/src/server";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -221,15 +223,18 @@ export const membersRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
       }
 
-      // Count current members + pending invitations for limit check
-      const [currentMemberCount, pendingInviteCount] = await Promise.all([
-        ctx.prisma.organizationMembership.count({
+      // Members and pending invitations both consume a seat, so the limit
+      // check counts them together. Reads through the caller-supplied client
+      // so it can run inside the limit transaction.
+      const countSeatsInUse = async (tx: Prisma.TransactionClient) => {
+        const memberCount = await tx.organizationMembership.count({
           where: { orgId: input.orgId },
-        }),
-        ctx.prisma.membershipInvitation.count({
+        });
+        const pendingInviteCount = await tx.membershipInvitation.count({
           where: { orgId: input.orgId },
-        }),
-      ]);
+        });
+        return memberCount + pendingInviteCount;
+      };
 
       if (user) {
         const existingOrgMembership =
@@ -276,21 +281,22 @@ export const membersRouter = createTRPCRouter({
           });
         }
 
-        // Check member limit before creating new membership
-        throwIfExceedsLimit({
+        // create org membership as user is not a member yet, unless that
+        // would exceed the member limit
+        const orgMembership = await createWithinEntitlementLimit({
+          prisma: ctx.prisma,
+          orgId: input.orgId,
           entitlementLimit: "organization-member-count",
           sessionUser: ctx.session.user,
-          orgId: input.orgId,
-          currentUsage: currentMemberCount + pendingInviteCount,
-        });
-
-        // create org membership as user is not a member yet
-        const orgMembership = await ctx.prisma.organizationMembership.create({
-          data: {
-            userId: user.id,
-            orgId: input.orgId,
-            role: input.orgRole,
-          },
+          countCurrentUsage: countSeatsInUse,
+          create: (tx) =>
+            tx.organizationMembership.create({
+              data: {
+                userId: user.id,
+                orgId: input.orgId,
+                role: input.orgRole,
+              },
+            }),
         });
         await auditLog({
           session: ctx.session,
@@ -334,30 +340,35 @@ export const membersRouter = createTRPCRouter({
           env: env,
         });
       } else {
-        // Check member limit before creating invitation
-        throwIfExceedsLimit({
-          entitlementLimit: "organization-member-count",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-          currentUsage: currentMemberCount + pendingInviteCount,
-        });
-
         try {
-          const invitation = await ctx.prisma.membershipInvitation.create({
-            data: {
-              orgId: input.orgId,
-              projectId:
-                project && input.projectRole && input.projectRole !== Role.NONE
-                  ? project.id
-                  : null,
-              email: input.email.toLowerCase(),
-              orgRole: input.orgRole,
-              projectRole:
-                input.projectRole && input.projectRole !== Role.NONE && project
-                  ? input.projectRole
-                  : null,
-              invitedByUserId: ctx.session.user.id,
-            },
+          // create the invitation unless that would exceed the member limit
+          const invitation = await createWithinEntitlementLimit({
+            prisma: ctx.prisma,
+            orgId: input.orgId,
+            entitlementLimit: "organization-member-count",
+            sessionUser: ctx.session.user,
+            countCurrentUsage: countSeatsInUse,
+            create: (tx) =>
+              tx.membershipInvitation.create({
+                data: {
+                  orgId: input.orgId,
+                  projectId:
+                    project &&
+                    input.projectRole &&
+                    input.projectRole !== Role.NONE
+                      ? project.id
+                      : null,
+                  email: input.email.toLowerCase(),
+                  orgRole: input.orgRole,
+                  projectRole:
+                    input.projectRole &&
+                    input.projectRole !== Role.NONE &&
+                    project
+                      ? input.projectRole
+                      : null,
+                  invitedByUserId: ctx.session.user.id,
+                },
+              }),
           });
 
           await auditLog({
@@ -620,6 +631,73 @@ export const membersRouter = createTRPCRouter({
 
       return updatedMembership;
     }),
+  setUserFeaturePreviewEnabled: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        userId: z.string(),
+        flag: z.enum(featurePreviewFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature previews cannot be managed in the demo organization",
+        });
+      }
+
+      const result = await setUserFeaturePreviewWithAuthorization({
+        prisma: ctx.prisma,
+        actorUserId: ctx.session.user.id,
+        actorIsPlatformAdmin: ctx.session.user.admin === true,
+        currentOrgId: input.orgId,
+        targetUserId: input.userId,
+        flag: input.flag,
+        enabled: input.enabled,
+        demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      });
+      if (!result) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "You can only change this user's feature flags if you are an administrator in every organization they belong to.",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: result.membershipId,
+        action: "updateUserFeatureFlag",
+        before: {
+          flag: input.flag,
+          override: result.before,
+          scope: "global",
+        },
+        after: {
+          flag: input.flag,
+          override: result.after,
+          scope: "global",
+        },
+      });
+
+      return {
+        userId: input.userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
+    }),
   updateProjectRole: protectedOrganizationProcedure
     .input(
       z.object({
@@ -649,6 +727,42 @@ export const membersRouter = createTRPCRouter({
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have the required access rights",
+        });
+      }
+
+      // Project-level role assignments require the rbac-project-roles entitlement
+      // (Team/Enterprise cloud, Enterprise self-hosted). Mirror the create path.
+      // Clearing a role (null / NONE) stays allowed so orgs can clean up after a
+      // plan downgrade without needing the paid entitlement.
+      if (input.projectRole !== null && input.projectRole !== Role.NONE) {
+        const entitled = hasEntitlement({
+          entitlement: "rbac-project-roles",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+        });
+        if (!entitled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Organization does not have the required entitlement to set project roles",
+          });
+        }
+      }
+
+      const project = await ctx.prisma.project.findFirst({
+        where: {
+          id: input.projectId,
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+      if (!project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
         });
       }
 

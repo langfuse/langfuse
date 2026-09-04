@@ -1,15 +1,16 @@
+/* eslint-disable @repo/no-margin-on-root-elements */
 import React, { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, type LucideIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
-import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 export interface ValueProposition {
   title: string;
   description: string;
-  icon?: React.ReactNode;
+  icon?: LucideIcon;
 }
 
 export interface ActionConfig {
@@ -19,7 +20,7 @@ export interface ActionConfig {
   component?: React.ReactNode;
 }
 
-export interface Step {
+interface Step {
   title: string;
   description?: string;
   badge?: React.ReactNode;
@@ -109,16 +110,16 @@ export function SplashScreen({
     <div className="mx-auto flex max-w-4xl flex-col items-center p-8">
       <div className="mb-6 text-center">
         {waitingFor && (
-          <StatusBadge
-            type="waiting"
-            showText={false}
-            className="mb-3 px-3 py-1 text-sm"
-          >
-            {waitingFor}
-          </StatusBadge>
+          <div className="mb-3">
+            <StatusBadge type="waiting" showText={false} size="lg">
+              {waitingFor}
+            </StatusBadge>
+          </div>
         )}
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
-        <div className="text-muted-foreground">{description}</div>
+        {/* text-base: without a size token this fell through to the 16px
+            browser default — off the type scale. */}
+        <div className="text-muted-foreground text-base">{description}</div>
       </div>
 
       <div className="mb-8 flex w-full flex-wrap justify-center gap-4">
@@ -146,11 +147,12 @@ export function SplashScreen({
       </div>
 
       {gettingStarted && (
-        <Alert className="w-full max-w-3xl">
-          <InfoIcon className="mr-2 h-4 w-4" />
-          <AlertTitle>Getting Started</AlertTitle>
-          <AlertDescription>{gettingStarted}</AlertDescription>
-        </Alert>
+        <div className="w-full max-w-3xl">
+          <Alert icon={InfoIcon}>
+            <Alert.Title>Getting Started</Alert.Title>
+            <Alert.Description>{gettingStarted}</Alert.Description>
+          </Alert>
+        </div>
       )}
 
       {videoPosition === "top" && mediaBlock}
@@ -162,7 +164,7 @@ export function SplashScreen({
             <div key={index} className="flex gap-4">
               {/* Left: circle + connecting line */}
               <div className="flex flex-col items-center">
-                <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+                <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold">
                   {index + 1}
                 </div>
                 {index < steps.length - 1 && (
@@ -177,7 +179,7 @@ export function SplashScreen({
                 )}
               >
                 <div className="mb-2 flex items-center gap-3">
-                  <h3 className="text-xl font-semibold">{step.title}</h3>
+                  <h3 className="text-xl font-bold">{step.title}</h3>
                   {step.badge}
                 </div>
                 {step.description && (
@@ -197,10 +199,9 @@ export function SplashScreen({
       {valuePropositions.length > 0 && (
         <div className="my-6 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
           {valuePropositions.map((prop, index) => (
-            <Alert key={index}>
-              {prop.icon}
-              <AlertTitle>{prop.title}</AlertTitle>
-              <AlertDescription>{prop.description}</AlertDescription>
+            <Alert key={index} icon={prop.icon}>
+              <Alert.Title>{prop.title}</Alert.Title>
+              <Alert.Description>{prop.description}</Alert.Description>
             </Alert>
           ))}
         </div>

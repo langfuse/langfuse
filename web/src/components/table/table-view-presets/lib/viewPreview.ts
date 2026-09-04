@@ -1,5 +1,8 @@
-import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
-import { formatSessionPositionInTraceFilterValue } from "@/src/components/session/session-position-in-trace";
+import {
+  type FilterState,
+  type TableViewPresetState,
+  formatSessionPositionInTraceFilterValue,
+} from "@langfuse/shared";
 
 function formatFilterLabel(filter: FilterState[number]) {
   return "key" in filter && filter.key

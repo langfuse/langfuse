@@ -3,6 +3,7 @@ import {
   type PrismaClient,
   type Prompt,
 } from "../../../src/index";
+import { InAppAgentRunStatus } from "../../../src/features/inAppAgent/types";
 
 type SummaryPrompt = Pick<
   Prompt,
@@ -327,7 +328,8 @@ export async function seedInAppAgentDemoConversation({
           projectId,
           conversationId,
           triggeredByUserId: userId,
-          model: "haiku",
+          model: "claude-haiku-4-5",
+          status: InAppAgentRunStatus.SUCCEEDED,
           finishedAt: firstRunFinishedAt,
           createdAt: firstRunCreatedAt,
           updatedAt: firstRunFinishedAt,
@@ -337,7 +339,8 @@ export async function seedInAppAgentDemoConversation({
           projectId,
           conversationId,
           triggeredByUserId: userId,
-          model: "haiku",
+          model: "claude-haiku-4-5",
+          status: InAppAgentRunStatus.SUCCEEDED,
           finishedAt: secondRunFinishedAt,
           createdAt: secondRunCreatedAt,
           updatedAt: secondRunFinishedAt,

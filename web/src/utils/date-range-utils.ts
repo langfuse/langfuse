@@ -1,102 +1,26 @@
 import { z } from "zod";
 import { addMinutes, format } from "date-fns";
-import { type DateTrunc } from "@langfuse/shared/src/server";
 
-interface TimeRangeDefinition {
-  label: string;
-  abbreviation: string;
-  minutes: number | null;
-  dateTrunc: DateTrunc | null;
-}
-
-export const TIME_RANGES = {
-  last5Minutes: {
-    label: "Past 5 min",
-    abbreviation: "5m",
-    minutes: 5,
-    dateTrunc: "minute",
-  },
-  last30Minutes: {
-    label: "Past 30 min",
-    abbreviation: "30m",
-    minutes: 30,
-    dateTrunc: "minute",
-  },
-  last1Hour: {
-    label: "Past 1 hour",
-    abbreviation: "1h",
-    minutes: 60,
-    dateTrunc: "minute",
-  },
-  last3Hours: {
-    label: "Past 3 hours",
-    abbreviation: "3h",
-    minutes: 3 * 60,
-    dateTrunc: "minute",
-  },
-  last6Hours: {
-    label: "Past 6 hours",
-    abbreviation: "6h",
-    minutes: 6 * 60,
-    dateTrunc: "minute",
-  },
-  last1Day: {
-    label: "Past 1 day",
-    abbreviation: "1d",
-    minutes: 24 * 60,
-    dateTrunc: "hour",
-  },
-  last3Days: {
-    label: "Past 3 days",
-    abbreviation: "3d",
-    minutes: 3 * 24 * 60,
-    dateTrunc: "hour",
-  },
-  last7Days: {
-    label: "Past 7 days",
-    abbreviation: "7d",
-    minutes: 7 * 24 * 60,
-    dateTrunc: "hour",
-  },
-  last14Days: {
-    label: "Past 14 days",
-    abbreviation: "14d",
-    minutes: 14 * 24 * 60,
-    dateTrunc: "day",
-  },
-  last30Days: {
-    label: "Past 30 days",
-    abbreviation: "30d",
-    minutes: 30 * 24 * 60,
-    dateTrunc: "day",
-  },
-  last90Days: {
-    label: "Past 90 days",
-    abbreviation: "90d",
-    minutes: 90 * 24 * 60,
-    dateTrunc: "week",
-  },
-  last1Year: {
-    label: "Past 1 year",
-    abbreviation: "1y",
-    minutes: 365 * 24 * 60,
-    dateTrunc: "month",
-  },
-  allTime: {
-    label: "All time",
-    abbreviation: "All",
-    minutes: null,
-    dateTrunc: null,
-  },
-  custom: {
-    label: "Custom",
-    abbreviation: "Custom",
-    minutes: null,
-    dateTrunc: null,
-  },
-} satisfies Record<string, TimeRangeDefinition>;
-
-export type TimeRangePresets = Exclude<keyof typeof TIME_RANGES, "custom">;
+// Time-range presets, table aggregation options, and the TimeRange type
+// moved to @langfuse/shared (utils/dateRanges); re-exported here for the
+// existing web import surface.
+export {
+  TIME_RANGES,
+  TABLE_AGGREGATION_OPTIONS,
+  type TableDateRangeAggregationOption,
+  type AbsoluteTimeRange,
+  type TimeRange,
+  getAbbreviatedTimeRange,
+  rangeToString,
+} from "@langfuse/shared";
+import {
+  TIME_RANGES,
+  TABLE_AGGREGATION_OPTIONS,
+  type TableDateRangeAggregationOption,
+  type TimeRange,
+  type TimeRangeDefinition,
+  type AbsoluteTimeRange,
+} from "@langfuse/shared";
 
 const ABBREVIATION_TO_KEY = new Map(
   Object.entries(TIME_RANGES).map(([key, def]) => [def.abbreviation, key]),
@@ -104,7 +28,6 @@ const ABBREVIATION_TO_KEY = new Map(
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
-export const TABLE_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -118,18 +41,6 @@ export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last1Year",
 ] as const;
 
-export const TABLE_AGGREGATION_OPTIONS = [
-  "last30Minutes",
-  "last1Hour",
-  "last6Hours",
-  "last1Day",
-  "last3Days",
-  "last7Days",
-  "last14Days",
-  "last30Days",
-  "last90Days",
-] as const;
-
 export type DashboardDateRangeAggregationOption =
   (typeof DASHBOARD_AGGREGATION_OPTIONS)[number];
 
@@ -138,15 +49,12 @@ export type TableDateRange = {
   to?: Date;
 };
 
-export type TableDateRangeAggregationOption =
-  (typeof TABLE_AGGREGATION_OPTIONS)[number];
-
 export type DashboardDateRange = {
   from: Date;
   to: Date;
 };
 
-export type DateRangeAggregationOption =
+type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
@@ -154,19 +62,10 @@ export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
-export type TableDateRangeOptions =
-  | TableDateRangeAggregationOption
-  | typeof TABLE_AGGREGATION_PLACEHOLDER;
-
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   TimeRangeDefinition
 >;
-
-export const dateTimeAggregationOptions = [
-  ...TABLE_AGGREGATION_OPTIONS,
-  ...DASHBOARD_AGGREGATION_OPTIONS,
-] as const;
 
 export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregationSettings =
   Object.fromEntries(
@@ -215,21 +114,6 @@ const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
   ]),
 );
 
-export const isTableDataRangeOptionAvailable = ({
-  option,
-  limitDays,
-}: {
-  option: TableDateRangeAggregationOption;
-  limitDays: number | false;
-}) => {
-  if (limitDays === false) return true;
-
-  const durationMinutes = TABLE_DATE_RANGE_AGGREGATION_SETTINGS.get(option);
-  if (!durationMinutes) return false;
-
-  return limitDays >= durationMinutes / (24 * 60);
-};
-
 export const getDateFromOption = (
   selectedTimeOption: SelectedTimeOption,
 ): Date | undefined => {
@@ -253,27 +137,7 @@ export const getDateFromOption = (
   return undefined;
 };
 
-export function isValidDashboardDateRangeAggregationOption(
-  value?: string,
-): value is DashboardDateRangeAggregationOption {
-  if (!value) return false;
-  return (DASHBOARD_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
-
-export function isValidTableDateRangeAggregationOption(
-  value?: string,
-): value is TableDateRangeAggregationOption {
-  if (!value) return false;
-  return (TABLE_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
-
-export function getAbbreviatedTimeRange(option: string): string {
-  return (
-    TIME_RANGES[option as keyof typeof TIME_RANGES]?.abbreviation || option
-  );
-}
-
-export function getFullTimeRangeFromAbbreviated(
+function getFullTimeRangeFromAbbreviated(
   abbreviated: string,
 ): DateRangeAggregationOption | null {
   return (
@@ -305,14 +169,14 @@ export const findClosestDashboardInterval = (
 };
 
 // Helper function to check if time represents full day
-export const isFullDay = (date: Date) => {
+const isFullDay = (date: Date) => {
   return (
     date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
   );
 };
 
 // Helper function to check if date range represents full days
-export const isFullDayRange = (from: Date, to: Date) => {
+const isFullDayRange = (from: Date, to: Date) => {
   return (
     isFullDay(from) &&
     to.getHours() === 23 &&
@@ -342,17 +206,6 @@ export const formatDateRange = (from: Date, to: Date) => {
   return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
 };
 
-export type RelativeTimeRange = {
-  range: string;
-};
-
-export type AbsoluteTimeRange = {
-  from: Date;
-  to: Date;
-};
-
-export type TimeRange = RelativeTimeRange | AbsoluteTimeRange;
-
 /**
  * =======================
  * Interval Configuration
@@ -362,13 +215,7 @@ export type TimeRange = RelativeTimeRange | AbsoluteTimeRange;
 /**
  * Supported interval units for time series aggregation
  */
-export type IntervalUnit =
-  | "second"
-  | "minute"
-  | "hour"
-  | "day"
-  | "month"
-  | "year";
+type IntervalUnit = "second" | "minute" | "hour" | "day" | "month" | "year";
 
 /**
  * Interval configuration with count and unit
@@ -383,7 +230,7 @@ export type IntervalConfig = {
  * Allowed intervals - only "clean" values to avoid crooked numbers
  * These are the only intervals that can be selected by the algorithm
  */
-export const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
+const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
   // Seconds
   { count: 1, unit: "second" },
   { count: 5, unit: "second" },
@@ -524,81 +371,6 @@ export function getOptimalInterval(
   }
 
   return bestInterval;
-}
-
-/**
- * Determines the optimal interval for score analytics based on time range.
- * Maps time ranges to appropriate intervals for ClickHouse aggregation.
- *
- * Target: 20-50 data points for optimal visualization
- *
- * @param timeRange - The time range (relative or absolute)
- * @returns Interval suitable for score analytics API ("hour" | "day" | "week" | "month")
- */
-export function getScoreAnalyticsInterval(
-  timeRange: TimeRange,
-): "hour" | "day" | "week" | "month" {
-  // Handle preset ranges
-  if ("range" in timeRange) {
-    const preset = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
-
-    if (!preset) {
-      return "day"; // Fallback
-    }
-
-    // Map dateTrunc to interval (note: API doesn't support "minute")
-    switch (preset.dateTrunc) {
-      case "minute":
-      case "hour":
-        return "hour";
-      case "day":
-        return "day";
-      case "week":
-        return "week";
-      case "month":
-        return "month";
-      default:
-        return "day"; // Fallback
-    }
-  }
-
-  // Handle custom ranges
-  const absoluteRange = toAbsoluteTimeRange(timeRange);
-  if (!absoluteRange) {
-    return "day"; // Fallback
-  }
-
-  const durationMs = absoluteRange.to.getTime() - absoluteRange.from.getTime();
-  const durationMinutes = durationMs / (1000 * 60);
-
-  // Calculate based on duration to get ~20-50 data points
-  // < 7 days → hour (yields 1-168 points)
-  if (durationMinutes < 7 * 24 * 60) {
-    return "hour";
-  }
-  // 7-90 days → day (yields 7-90 points)
-  else if (durationMinutes < 90 * 24 * 60) {
-    return "day";
-  }
-  // 90 days - 1 year → week (yields 13-52 points)
-  else if (durationMinutes < 365 * 24 * 60) {
-    return "week";
-  }
-  // > 1 year → month (yields 12+ points)
-
-  return "month";
-}
-
-/**
- * Converts a range object to a string for URL serialization
- * - Named ranges: "last7Days" -> "7d" (abbreviated)
- * - Custom ranges: {from, to} -> "1693872000000-1694131199999"
- */
-export function rangeToString(range: TimeRange): string {
-  if ("range" in range) {
-    return getAbbreviatedTimeRange(range.range);
-  }
-  return `${range.from.getTime()}-${range.to.getTime()}`;
 }
 
 /**
@@ -791,4 +563,3 @@ export function getChartTooltipFormat(
 }
 
 // Re-export fillTimeSeriesGaps from its own module
-export { fillTimeSeriesGaps } from "./fill-time-series-gaps";

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ensure_env_defaults() {
+  local target_path="$1"
+  local fallback_path="$2"
+  local line
+  local key
+
+  if [ ! -f "$target_path" ]; then
+    cp "$fallback_path" "$target_path"
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)= ]]; then
+      key="${BASH_REMATCH[1]}"
+      if ! grep -q "^${key}=" "$target_path"; then
+        printf '%s\n' "$line" >> "$target_path"
+      fi
+    fi
+  done < "$fallback_path"
+}
+
+required_node_major=24
+current_node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+
+if [ "$current_node_major" != "$required_node_major" ]; then
+  export DEBIAN_FRONTEND=noninteractive
+
+  sudo apt-get update
+  sudo apt-get install -y ca-certificates curl gnupg
+
+  sudo mkdir -p /etc/apt/keyrings
+  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+    | gpg --dearmor \
+    | sudo tee /etc/apt/keyrings/nodesource.gpg >/dev/null
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
+    | sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
+
+  sudo apt-get update
+  sudo apt-get install -y nodejs
+
+  # The orb image may have an older toolchain in /usr/local/bin, which takes
+  # precedence over the NodeSource binaries in /usr/bin.
+  for command_name in node npm npx corepack; do
+    sudo ln -sf "/usr/bin/$command_name" "/usr/local/bin/$command_name"
+  done
+fi
+
+if [ "$(node -p 'process.versions.node.split(".")[0]')" != "$required_node_major" ]; then
+  echo "Node.js $required_node_major is required."
+  exit 1
+fi
+
+export CODEX_SERVICES_ROOT="${CODEX_SERVICES_ROOT:-/tmp/langfuse-services}"
+ensure_env_defaults .env .env.dev.example
+bash scripts/codex/setup_cloud.sh

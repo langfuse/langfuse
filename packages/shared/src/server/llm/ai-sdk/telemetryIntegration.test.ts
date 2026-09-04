@@ -10,9 +10,12 @@ import {
 
 import { context } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { createOpenAI } from "@ai-sdk/openai";
 
+import { encrypt } from "../../../encryption";
+import { env } from "../../../env";
 import {
   ChatMessage,
   ChatMessageRole,
@@ -21,8 +24,7 @@ import {
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
-import { executeAiSdkCompletion } from "./executeAiSdkCompletion";
-import type { AiSdkEngineDecision } from "./resolveLlmExecutionDecision";
+import { generateLLMText, mapLegacyLLMCompletionParams } from "../llmText";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 
@@ -48,6 +50,18 @@ const traceSinkParams: TraceSinkParams = {
   traceId: VALID_TRACE_ID,
   traceName: "Execute evaluator: helpfulness",
   environment: "langfuse-llm-judge",
+  metadata: {
+    job_execution_id: "job-1",
+    evaluator_id: "evaluator-1",
+    evaluation_rule_id: "legacy-rule-1",
+    job_configuration_id: "legacy-rule-1",
+    evaluator_test: "true",
+  },
+  evaluationContext: {
+    evaluatorId: "evaluator-1",
+    evaluationRuleId: "legacy-rule-1",
+    evaluatorExecutionIsTest: true,
+  },
 };
 
 const modelParams: ModelParams = {
@@ -55,13 +69,6 @@ const modelParams: ModelParams = {
   adapter: LLMAdapter.OpenAI,
   model: "gpt-4o",
   max_tokens: 128,
-};
-
-const decision: AiSdkEngineDecision = {
-  engine: "ai-sdk",
-  adapter: LLMAdapter.OpenAI,
-  providerOptionsName: "openai",
-  openAIApiMode: "chat-completions",
 };
 
 // System-first message lists are the norm for compiled experiment prompts and
@@ -117,19 +124,70 @@ beforeEach(() => {
 });
 
 describe("AI SDK telemetry integration", () => {
-  it("captures generateText spans under the Langfuse trace and converts them via the OTel ingestion pipeline", async () => {
-    const result = await executeAiSdkCompletion({
-      messages,
+  it("uses the trace input override for both root and generation spans", async () => {
+    const originalReference =
+      "@@@langfuseMedia:type=image/jpeg|id=image-1|source=base64@@@";
+    const signedUrl = "https://signed.example/image-1?signature=secret";
+    const mapped = mapLegacyLLMCompletionParams({
+      messages: [
+        {
+          type: ChatMessageType.User,
+          role: ChatMessageRole.User,
+          content: originalReference,
+        },
+      ],
       modelParams,
-      streaming: false,
-      apiKey: "sk-test",
-      timeoutMs: 10_000,
-      createFetch: () => globalThis.fetch,
-      decision,
-      traceSinkParams,
+      connection: { secretKey: encrypt("sk-test") },
     });
 
-    expect(result).toBe("Hello there");
+    await generateLLMText({
+      ...mapped,
+      messages: [{ role: "user", content: signedUrl }],
+      traceInput: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Inspect " },
+            {
+              type: "file",
+              data: originalReference,
+              mediaType: "image/jpeg",
+            },
+          ],
+        },
+      ],
+      trace: traceSinkParams,
+    });
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((rs: any) =>
+      rs.scopeSpans.flatMap((ss: any) => ss.spans),
+    );
+    const serializedAttributes = JSON.stringify(
+      spans.flatMap((span: any) => span.attributes),
+    );
+    expect(serializedAttributes.match(/@@@langfuseMedia/g)).toHaveLength(2);
+    expect(serializedAttributes).toContain(originalReference);
+    expect(serializedAttributes).toContain("Inspect");
+    expect(serializedAttributes).toContain("text");
+    expect(serializedAttributes).toContain("file");
+    expect(serializedAttributes).toContain("mediaType");
+    expect(serializedAttributes).not.toContain(signedUrl);
+    expect(serializedAttributes).not.toContain("signature=secret");
+  });
+
+  it("captures generateText spans under the Langfuse trace and converts them via the OTel ingestion pipeline", async () => {
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams,
+        connection: { secretKey: encrypt("sk-test") },
+      }),
+      timeout: 10_000,
+      trace: traceSinkParams,
+    });
+
+    expect(result.text).toBe("Hello there");
     expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
 
     const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
@@ -151,6 +209,21 @@ describe("AI SDK telemetry integration", () => {
     const generationSpan = spans.find((span: any) => span.parentSpanId);
     expect(generationSpan.name).toBe("chat gpt-4o");
     expect(generationSpan.parentSpanId).toBe(rootSpans[0].spanId);
+    // OTLP SpanKind 3 = CLIENT. The detached trace owns the actual GenAI
+    // client span; worker eval.* spans remain INTERNAL orchestration spans.
+    expect(generationSpan.kind).toBe(3);
+    expect(
+      Object.fromEntries(
+        generationSpan.attributes.map((attribute: any) => [
+          attribute.key,
+          attribute.value.stringValue ?? attribute.value,
+        ]),
+      ),
+    ).toMatchObject({
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4o",
+    });
 
     // The captured spans convert through the real OTel ingestion processor —
     // the same code path the public /api/public/otel/v1/traces endpoint uses.
@@ -162,6 +235,10 @@ describe("AI SDK telemetry integration", () => {
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
+      // Mirrors production: publishInternalOtelSpans flags internal batches,
+      // and the queue passes the flag through to the processor. Without it,
+      // extractEnvironment applies the public schema and strips "langfuse-".
+      isLangfuseInternal: true,
     });
     // The seen-traces dedup cache is Redis-backed; CI runs shared tests
     // without a Redis service, so the lookup would hang until test timeout.
@@ -212,25 +289,71 @@ describe("AI SDK telemetry integration", () => {
       model: "gpt-4o",
       usageDetails: { input: 3, output: 5 },
       environment: "langfuse-llm-judge",
+      metadata: {
+        job_execution_id: "job-1",
+        evaluator_id: "evaluator-1",
+        evaluation_rule_id: "legacy-rule-1",
+        job_configuration_id: "legacy-rule-1",
+        evaluator_test: "true",
+      },
     });
+    const generationMetadata = (
+      generation.body as {
+        metadata: { attributes?: Record<string, unknown> };
+      }
+    ).metadata;
+    expect(generationMetadata.attributes).toMatchObject({
+      "gen_ai.operation.name": "chat",
+      "langfuse.evaluator.id": "evaluator-1",
+      "langfuse.evaluation.rule.id": "legacy-rule-1",
+      "langfuse.evaluator.execution.is_test": "true",
+    });
+
+    const eventInputs = processor.processToEvent(resourceSpans);
+    expect(eventInputs).toHaveLength(2);
+    for (const eventInput of eventInputs) {
+      expect(eventInput).toMatchObject({
+        evaluationContext: {
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "legacy-rule-1",
+          evaluatorExecutionIsTest: true,
+        },
+        metadata: {
+          job_execution_id: "job-1",
+          evaluator_id: "evaluator-1",
+          evaluation_rule_id: "legacy-rule-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+      });
+    }
   });
 
   it("tags experiment run items so the ingestion pipeline can schedule experiment evals", async () => {
     const experimentTraceId = "1af7651916cd43dd8448eb211c80319d";
 
-    const result = await executeAiSdkCompletion({
-      messages,
-      modelParams,
-      streaming: false,
-      apiKey: "sk-test",
-      timeoutMs: 10_000,
-      createFetch: () => globalThis.fetch,
-      decision,
-      traceSinkParams: {
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams,
+        connection: { secretKey: encrypt("sk-test") },
+      }),
+      timeout: 10_000,
+      trace: {
         targetProjectId: "project-1",
         traceId: experimentTraceId,
         traceName: "dataset-run-item-abc12",
         environment: "langfuse-prompt-experiment",
+        metadata: {
+          dataset_id: "dataset-1",
+          dataset_item_id: "item-1",
+          structured_output_schema: {
+            type: "object",
+            properties: { answer: { type: "string" } },
+          },
+          experiment_name: "run name",
+          experiment_run_name: "run-abc",
+        },
         eventsWriter: {
           experimentContext: {
             id: "run-1",
@@ -246,7 +369,7 @@ describe("AI SDK telemetry integration", () => {
       },
     });
 
-    expect(result).toBe("Hello there");
+    expect(result.text).toBe("Hello there");
     expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
     const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
 
@@ -260,6 +383,9 @@ describe("AI SDK telemetry integration", () => {
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
+      // Mirrors production: internal batches reach the queue processor with
+      // this flag set, keeping the reserved "langfuse-*" environment intact.
+      isLangfuseInternal: true,
     }).processToEvent(resourceSpans);
 
     const roots = eventInputs.filter((input: any) => !input.parentSpanId);
@@ -292,6 +418,158 @@ describe("AI SDK telemetry integration", () => {
       expect(child.environment).toBe("langfuse-prompt-experiment");
       expect(child.experimentItemRootSpanId).toBe(root.spanId);
       expect(child.spanId).not.toBe(root.spanId);
+      expect(child.metadata).toMatchObject({
+        dataset_id: "dataset-1",
+        dataset_item_id: "item-1",
+        experiment_name: "run name",
+        experiment_run_name: "run-abc",
+      });
+      expect(child.metadata).not.toHaveProperty("structured_output_schema");
     }
+  });
+
+  it("records a low-cardinality error type on failed generation spans", async () => {
+    const providerError = new APICallError({
+      message: "Incorrect API key provided",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 401,
+    });
+    vi.mocked(createOpenAI).mockReturnValue({
+      chat: () =>
+        new MockLanguageModelV4({
+          provider: "openai",
+          modelId: "gpt-4o",
+          doGenerate: async () => {
+            throw providerError;
+          },
+        }),
+    } as never);
+
+    await expect(
+      generateLLMText({
+        ...mapLegacyLLMCompletionParams({
+          messages,
+          modelParams,
+          connection: { secretKey: encrypt("sk-test") },
+        }),
+        timeout: 10_000,
+        trace: traceSinkParams,
+      }),
+    ).rejects.toBe(providerError);
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    const generationSpan = spans.find((span: any) => span.parentSpanId);
+    const attributes = Object.fromEntries(
+      generationSpan.attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ?? attribute.value,
+      ]),
+    );
+
+    expect(generationSpan.status).toMatchObject({ code: 2 });
+    expect(attributes).toMatchObject({ "error.type": "AI_APICallError" });
+  });
+
+  it("records unsupported media URL errors without downloading or calling the model", async () => {
+    const configuredTransport = env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT;
+    const model = new MockLanguageModelV4({
+      provider: "openai",
+      modelId: "gpt-4o",
+      supportedUrls: {},
+      doGenerate: {
+        content: [{ type: "text", text: "should not run" }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: {
+            total: 1,
+            noCache: 1,
+            cacheRead: undefined,
+            cacheWrite: undefined,
+          },
+          outputTokens: { total: 1, text: 1, reasoning: undefined },
+        },
+        warnings: [],
+      },
+    });
+    vi.mocked(createOpenAI).mockReturnValue({ chat: () => model } as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const errorMessage =
+      "The interpolated prompt contains media with type image/png, but the selected model does not support this media type. To continue, narrow the variable mapping so it does not include this media, or select a model that supports image/png.";
+
+    try {
+      env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT = "url";
+      await expect(
+        generateLLMText({
+          ...mapLegacyLLMCompletionParams({
+            messages,
+            modelParams,
+            connection: { secretKey: encrypt("sk-test") },
+          }),
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "file",
+                  data: new URL("https://signed.example/image.png"),
+                  mediaType: "image/png",
+                },
+              ],
+            },
+          ],
+          timeout: 10_000,
+          trace: traceSinkParams,
+        }),
+      ).rejects.toMatchObject({
+        name: "LLMValidationError",
+        message: errorMessage,
+      });
+    } finally {
+      env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT = configuredTransport;
+      fetchSpy.mockRestore();
+    }
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    const rootSpan = spans.find((span: any) => !span.parentSpanId);
+    const attributes = Object.fromEntries(
+      rootSpan.attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ?? attribute.value,
+      ]),
+    );
+
+    expect(rootSpan.status).toMatchObject({ code: 2, message: errorMessage });
+    expect(attributes).toMatchObject({ "error.type": "LLMValidationError" });
+
+    // Convert the failed root span through the production ingestion mapper to
+    // prove the evaluator execution trace exposes the validation error.
+    const { OtelIngestionProcessor } = await vi.importActual<
+      typeof import("../../otel/OtelIngestionProcessor")
+    >("../../otel/OtelIngestionProcessor");
+    const eventInputs = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "",
+      sdkName: "langfuse-internal-ai-sdk",
+      sdkVersion: "unknown",
+      isLangfuseInternal: true,
+    }).processToEvent(resourceSpans);
+    const rootEvent = eventInputs.find((input: any) => !input.parentSpanId);
+
+    expect(rootEvent).toMatchObject({
+      level: "ERROR",
+      statusMessage: errorMessage,
+      environment: "langfuse-llm-judge",
+    });
   });
 });

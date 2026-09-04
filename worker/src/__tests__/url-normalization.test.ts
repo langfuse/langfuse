@@ -1,5 +1,38 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import dns from "node:dns/promises";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
+
+// Stub the dns module object, not vi.mock("node:dns/promises"): this file loads
+// the validator from @langfuse/shared's compiled output, whose require() vitest
+// does not intercept.
+const dnsError = (code: string, hostname: string) =>
+  Object.assign(new Error(`queryA ${code} ${hostname}`), { code });
+
+// Inside a cloud VM, resolver search domains turn a bare "metadata" label into
+// the metadata endpoint.
+const searchDomainHosts: Record<string, string> = {
+  metadata: "169.254.169.254",
+};
+
+beforeEach(() => {
+  vi.spyOn(dns, "resolve4").mockImplementation(async (hostname: string) => {
+    const ip = searchDomainHosts[hostname];
+    if (!ip) throw dnsError("ENOTFOUND", hostname);
+    return [ip];
+  });
+  vi.spyOn(dns, "resolve6").mockImplementation(async (hostname: string) => {
+    throw dnsError("ENODATA", hostname);
+  });
+  vi.spyOn(dns, "lookup").mockImplementation(async (hostname: string) => {
+    const ip = searchDomainHosts[hostname];
+    if (!ip) throw dnsError("ENOTFOUND", hostname);
+    return [{ address: ip, family: 4 }];
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("URL Normalization and Edge Cases", () => {
   describe("URL encoding bypass attempts", () => {
@@ -214,7 +247,7 @@ describe("URL Normalization and Edge Cases", () => {
       await expect(
         validateWebhookURL(`https://${manySubdomains}/webhook`),
       ).rejects.toThrow(/DNS lookup failed/);
-    }, 10000);
+    });
 
     it("should handle empty hostname", async () => {
       // This URL is parsed as hostname="webhook" by URL constructor
@@ -264,8 +297,10 @@ describe("URL Normalization and Edge Cases", () => {
       ];
 
       for (const url of metadataAttempts) {
+        // "metadata" is blocked on the IP it resolves to, the rest on the
+        // hostname/literal IP. A DNS failure must not count as a pass.
         await expect(validateWebhookURL(url)).rejects.toThrow(
-          /Blocked|DNS lookup failed/,
+          /Blocked (hostname|IP address) detected/,
         );
       }
     });

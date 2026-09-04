@@ -14,7 +14,12 @@ export const ClickhouseTableNames = {
   // Virtual tables for dashboards
   // TODO: Check if we can do this more elegantly
   scores_numeric: "scores_numeric",
+  scores_boolean: "scores_boolean",
   scores_categorical: "scores_categorical",
+  // Internal-only, count-only view backing `ScoresOutlierStrip`'s Count mode
+  // (see `dataModel.ts`'s `SCORES_LISTABLE_COUNT_VIEW` doc comment) — scopes
+  // to every listable score type.
+  scores_listable_count: "scores_listable_count",
   events_traces: "events_traces",
   events_observations: "events_observations",
 } as const;

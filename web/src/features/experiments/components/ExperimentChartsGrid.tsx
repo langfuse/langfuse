@@ -2,6 +2,8 @@ import { Plus } from "lucide-react";
 import { useMemo } from "react";
 import { ExperimentChartSlot } from "./ExperimentChartSlot";
 import { useExperimentChartsGridSelection } from "../hooks/useExperimentChartsGridSelection";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentChartsGridProps = {
   projectId: string;
@@ -65,6 +67,7 @@ export function ExperimentChartsGrid({
   toTimestamp,
   isExternalLoading = false,
 }: ExperimentChartsGridProps) {
+  const capture = usePostHogClientCapture();
   const experimentIds = useMemo(
     () => experiments.map((experiment) => experiment.id),
     [experiments],
@@ -93,7 +96,19 @@ export function ExperimentChartsGrid({
           key={`${index}-${metricId}`}
           chartIndex={index}
           selectedMetricId={metricId}
-          onMetricChange={(newMetricId) => updateChart(index, newMetricId)}
+          onMetricChange={(newMetricId) => {
+            if (newMetricId === metricId) return;
+            capture(
+              "experiment:chart_metric_changed",
+              chartMetricChangedProps({
+                tableName: "experiments",
+                metricId: newMetricId,
+                chartIndex: index,
+                slotCount: charts.length,
+              }),
+            );
+            updateChart(index, newMetricId);
+          }}
           onRemove={() => removeChart(index)}
           canDelete={canDeleteChart}
           availableMetricOptions={availableMetricOptions}

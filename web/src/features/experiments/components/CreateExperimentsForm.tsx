@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { CheckIcon, ChevronDown, Code2, Cog, Wand2 } from "lucide-react";
@@ -10,7 +11,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/src/components/ui/card";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   DialogHeader,
   DialogTitle,
@@ -31,11 +32,12 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
 import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -70,6 +72,7 @@ export const CreateExperimentsForm = ({
   showSDKRunInfoPage?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
   const [showPromptForm, setShowPromptForm] = useState(false);
   const [showRemoteExperimentUpsertForm, setShowRemoteExperimentUpsertForm] =
     useState(false);
@@ -82,6 +85,10 @@ export const CreateExperimentsForm = ({
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
     scope: "promptExperiments:CUD",
+  });
+  const hasDatasetAccess = useHasProjectAccess({
+    projectId,
+    scope: "datasets:CUD",
   });
   const fixedDatasetId = defaultValues.datasetId;
   const [remoteExperimentDataset, setRemoteExperimentDataset] = useState<
@@ -228,7 +235,7 @@ export const CreateExperimentsForm = ({
                 </ul>
                 {!fixedDatasetId ? (
                   <div className="mt-4 space-y-2">
-                    <div className="text-sm font-medium">Dataset</div>
+                    <div className="text-sm font-bold">Dataset</div>
                     <Popover
                       open={datasetPopoverOpen}
                       onOpenChange={setDatasetPopoverOpen}
@@ -303,14 +310,25 @@ export const CreateExperimentsForm = ({
                   <div className="flex w-full items-start">
                     <Button
                       className="w-full rounded-r-none"
-                      disabled={!datasetId || !isRemoteExperimentEnabled}
+                      disabled={
+                        !datasetId ||
+                        !isRemoteExperimentEnabled ||
+                        !hasDatasetAccess
+                      }
                       title={
-                        isRemoteExperimentEnabled
-                          ? undefined
-                          : "please edit and enable webhook"
+                        !hasDatasetAccess
+                          ? "You do not have permission to run remote experiments"
+                          : isRemoteExperimentEnabled
+                            ? undefined
+                            : "please edit and enable webhook"
                       }
                       onClick={() => {
-                        if (!datasetId || !isRemoteExperimentEnabled) return;
+                        if (
+                          !datasetId ||
+                          !isRemoteExperimentEnabled ||
+                          !hasDatasetAccess
+                        )
+                          return;
                         setShowRemoteExperimentTriggerModal(true);
                       }}
                     >
@@ -363,7 +381,8 @@ export const CreateExperimentsForm = ({
   if (
     showRemoteExperimentTriggerModal &&
     datasetId &&
-    existingRemoteExperiment.data
+    existingRemoteExperiment.data &&
+    hasDatasetAccess
   ) {
     return (
       <RemoteExperimentTriggerModal
@@ -394,6 +413,8 @@ export const CreateExperimentsForm = ({
       promptDefault={promptDefault}
       handleExperimentSettled={handleExperimentSettled}
       handleExperimentSuccess={handleExperimentSuccess}
+      enableLegacyNameValidation={!isInitializing && !isExperimentsBetaActive}
+      useV2Evaluators={!isInitializing && isExperimentsBetaActive}
     />
   );
 };

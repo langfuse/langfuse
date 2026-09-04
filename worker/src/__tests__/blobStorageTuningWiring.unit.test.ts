@@ -10,7 +10,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     blobStorageIntegration: {
       findUnique: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
-      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      // count 1 = row still exists; 0 would signal deleted-mid-run and make
+      // the handler drop the job as obsolete (LFE-14894).
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     project: { findUnique: vi.fn().mockResolvedValue({ name: "p" }) },
   },
@@ -34,6 +36,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
           }
           return undefined;
         }),
+        // Manifest write; string body, no stream to drain.
+        uploadFile: vi.fn(async () => undefined),
       }),
     },
     getTracesForBlobStorageExport: () => empty(),
@@ -153,44 +157,9 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
     }
   });
 
-  // LFE-10463: parquet tuning routes every table through the Parquet path,
-  // overriding fileType (CSV here) and the .gz suffix.
-  it("produces .parquet files with the parquet content type when parquet is enabled", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
-      baseRow({ parquet: true }),
-    );
-
-    await handleBlobStorageIntegrationProjectJob(makeJob());
-
-    // exportSource TRACES_OBSERVATIONS → scores, traces, observations.
-    expect(uploadCalls.length).toBe(3);
-    for (const call of uploadCalls) {
-      expect(call.fileName.endsWith(".parquet")).toBe(true);
-      expect(call.fileName.endsWith(".gz")).toBe(false);
-      expect(call.fileType).toBe("application/vnd.apache.parquet");
-    }
-  });
-
-  it("ignores the compressed flag on the parquet path (no .gz suffix)", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
-      ...baseRow({ parquet: true }),
-      compressed: true,
-      fileType: "JSONL",
-    });
-
-    await handleBlobStorageIntegrationProjectJob(makeJob());
-
-    expect(uploadCalls.length).toBe(3);
-    for (const call of uploadCalls) {
-      expect(call.fileName.endsWith(".parquet")).toBe(true);
-      expect(call.fileName).not.toContain(".gz");
-      expect(call.fileType).toBe("application/vnd.apache.parquet");
-    }
-  });
-
-  // First-class PARQUET fileType (no exportTuning.parquet) routes through the
-  // same Parquet path as the legacy override.
-  it("produces .parquet files when fileType is PARQUET without the tuning override", async () => {
+  // Parquet is a first-class fileType: fileType=PARQUET routes every table
+  // through the Parquet path, ignoring the compressed flag (no .gz suffix).
+  it("produces .parquet files when fileType is PARQUET", async () => {
     (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
       ...baseRow(undefined),
       fileType: "PARQUET",
@@ -199,25 +168,11 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
 
     await handleBlobStorageIntegrationProjectJob(makeJob());
 
+    // exportSource TRACES_OBSERVATIONS → scores, traces, observations.
     expect(uploadCalls.length).toBe(3);
     for (const call of uploadCalls) {
       expect(call.fileName.endsWith(".parquet")).toBe(true);
       expect(call.fileName).not.toContain(".gz");
-      expect(call.fileType).toBe("application/vnd.apache.parquet");
-    }
-  });
-
-  it("parquet takes precedence over rawPassthrough", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
-      ...baseRow({ parquet: true, rawPassthrough: true }),
-      fileType: "JSONL",
-    });
-
-    await handleBlobStorageIntegrationProjectJob(makeJob());
-
-    expect(uploadCalls.length).toBe(3);
-    for (const call of uploadCalls) {
-      expect(call.fileName.endsWith(".parquet")).toBe(true);
       expect(call.fileType).toBe("application/vnd.apache.parquet");
     }
   });

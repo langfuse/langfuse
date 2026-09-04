@@ -1,13 +1,14 @@
 import type { LanguageModel } from "ai";
 
 import type { LLMConnectionConfig } from "../../../../interfaces/customLLMProviderConfigSchemas";
-import { LLMAdapter, type ModelParams } from "../../types";
-import type { AiSdkEngineDecision } from "../resolveLlmExecutionDecision";
+import { LLMAdapter } from "../../types";
+import type { AiSdkModelConfig } from "../resolveAiSdkModelConfig";
 import { buildAnthropicModel } from "./anthropic";
 import { buildAzureModel } from "./azure";
 import { buildBedrockModel } from "./bedrock";
 import { buildGoogleAIStudioModel } from "./google";
 import { buildOpenAIModel } from "./openai";
+import type { LLMCredentialSource } from "./types";
 import { buildVertexModel, isClaudeModel } from "./vertex";
 
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
@@ -26,45 +27,45 @@ export type CreateSecureFetch = (
 ) => typeof fetch;
 
 /**
- * Builds the AI SDK `LanguageModel` for a dispatched completion. Credential
- * parsing and endpoint construction mirror the LangChain engine per adapter;
- * see the per-provider modules for the parity notes.
+ * Builds the AI SDK `LanguageModel` for a completion. Credential parsing and
+ * endpoint construction preserve the persisted connection contract; see the
+ * per-provider modules for adapter-specific details.
  */
 export async function buildAiSdkModel(params: {
-  decision: AiSdkEngineDecision;
-  modelParams: ModelParams;
+  model: { adapter: LLMAdapter; id: string };
+  modelConfig: AiSdkModelConfig;
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   config?: LLMConnectionConfig | null;
-  shouldUseLangfuseAPIKey: boolean;
+  credentialSource: LLMCredentialSource;
   createFetch: CreateSecureFetch;
 }): Promise<LanguageModel> {
   const {
-    decision,
-    modelParams,
+    model,
+    modelConfig,
     apiKey,
     baseURL,
     extraHeaders,
     config,
-    shouldUseLangfuseAPIKey,
+    credentialSource,
     createFetch,
   } = params;
 
-  switch (decision.adapter) {
+  switch (model.adapter) {
     case LLMAdapter.OpenAI:
       return buildOpenAIModel({
-        modelParams,
+        modelId: model.id,
         apiKey,
         baseURL,
         extraHeaders,
-        apiMode: decision.openAIApiMode ?? "chat-completions",
+        apiMode: modelConfig.openAIApiMode ?? "chat-completions",
         fetch: createFetch("OpenAI LLM base URL"),
       });
 
     case LLMAdapter.Azure:
       return buildAzureModel({
-        modelParams,
+        modelId: model.id,
         apiKey,
         baseURL,
         extraHeaders,
@@ -75,7 +76,7 @@ export async function buildAiSdkModel(params: {
 
     case LLMAdapter.Anthropic:
       return buildAnthropicModel({
-        modelParams,
+        modelId: model.id,
         apiKey,
         baseURL,
         extraHeaders,
@@ -86,15 +87,15 @@ export async function buildAiSdkModel(params: {
 
     case LLMAdapter.Bedrock:
       return buildBedrockModel({
-        modelParams,
+        modelId: model.id,
         apiKey,
         config,
-        shouldUseLangfuseAPIKey,
+        credentialSource,
       });
 
     case LLMAdapter.GoogleAIStudio:
       return buildGoogleAIStudioModel({
-        modelParams,
+        modelId: model.id,
         apiKey,
         baseURL,
         fetch: createFetch("Google AI Studio LLM base URL", [
@@ -104,12 +105,12 @@ export async function buildAiSdkModel(params: {
 
     case LLMAdapter.VertexAI:
       return buildVertexModel({
-        modelParams,
+        modelId: model.id,
         apiKey,
         config,
         extraHeaders,
         fetch: createFetch(
-          isClaudeModel(modelParams.model)
+          isClaudeModel(model.id)
             ? "Anthropic Vertex AI endpoint"
             : "Vertex AI LLM endpoint",
           [VERTEX_AI_AUTH_HEADER],
@@ -117,7 +118,7 @@ export async function buildAiSdkModel(params: {
       });
 
     default: {
-      const _exhaustiveCheck: never = decision.adapter;
+      const _exhaustiveCheck: never = model.adapter;
       throw new Error(`AI SDK adapter is not supported: ${_exhaustiveCheck}`);
     }
   }

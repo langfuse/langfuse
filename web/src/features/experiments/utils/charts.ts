@@ -17,7 +17,7 @@ import type {
 } from "@/src/features/experiments/types/charts";
 
 // Build chart ID from type and score name
-export const buildScoreChartId = (
+const buildScoreChartId = (
   level: ScoreLevel,
   dataType: "numeric" | "categorical",
   scoreName: string,
@@ -52,7 +52,7 @@ function getScoreNamesFromFilterOption(
     : Object.keys(value as Record<string, string[]>);
 }
 
-export function createScoreWidgetConfig(params: {
+function createScoreWidgetConfig(params: {
   level: ScoreLevel;
   dataType: "numeric" | "categorical";
   scoreName: string;

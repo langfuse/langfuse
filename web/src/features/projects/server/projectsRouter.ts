@@ -4,13 +4,15 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  throwIfNoOrganizationAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   QueueJobs,
   redis,
@@ -19,6 +21,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -63,6 +67,13 @@ export const projectsRouter = createTRPCRouter({
         resourceId: project.id,
         action: "create",
         after: project,
+      });
+
+      // Best-effort CHB metering signal; no-op unless the org is CHB-billed
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.orgId,
+        projectId: project.id,
       });
 
       return {
@@ -209,6 +220,14 @@ export const projectsRouter = createTRPCRouter({
         action: "delete",
       });
 
+      // Soft-delete is the billing-relevant moment: the customer stops being
+      // billable now, not when the async hard-delete worker finishes.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+      });
+
       const projectDeleteQueue = ProjectDeleteQueue.getInstance();
       if (!projectDeleteQueue) {
         throw new TRPCError({
@@ -297,6 +316,23 @@ export const projectsRouter = createTRPCRouter({
         ctx.prisma,
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
+
+      // A transfer is a delete for the source org and a create for the
+      // destination one. CHB's registry is keyed by (organizationId,
+      // projectId), so emitting only one side leaves the source org billed for
+      // usage it no longer owns, or the destination org unmetered. Each emit
+      // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
+      // sends nothing.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+      });
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.targetOrgId,
+        projectId: input.projectId,
+      });
     }),
 
   environmentFilterOptions: protectedProjectProcedure
@@ -304,4 +340,23 @@ export const projectsRouter = createTRPCRouter({
       z.object({ projectId: z.string(), fromTimestamp: z.date().optional() }),
     )
     .query(async ({ input }) => getEnvironmentsForProject(input)),
+
+  // Admin-only fallback for useProject: returns the project and its org in the
+  // same shape as session.user.organizations[number], since admins are not
+  // members of customer projects and have no session entry.
+  byId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization = await buildAdminOrgContext(ctx);
+      const project = organization?.projects.find(
+        (p) => p.id === ctx.session.projectId,
+      );
+      if (!organization || !project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+      return { project, organization };
+    }),
 });

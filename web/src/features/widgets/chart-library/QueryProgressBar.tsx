@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
 import { cn } from "@/src/utils/tailwind";
 

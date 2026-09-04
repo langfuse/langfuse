@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { getContrastColor } from "@/src/features/score-analytics/lib/color-scales";
 import {
@@ -75,7 +76,7 @@ function CellWithData({
   const sharedClassName = cn(
     "h-full w-full rounded-sm border-[0.5px]",
     "flex items-center justify-center",
-    "text-xs font-medium",
+    "text-xs font-bold",
     "transition-all duration-150",
     "whitespace-pre-line text-center leading-tight",
     hasInteraction && "cursor-pointer",

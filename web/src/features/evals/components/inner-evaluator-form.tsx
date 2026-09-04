@@ -1,5 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
@@ -21,44 +21,42 @@ import {
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
   experimentEvalFilterColsWithOptions,
-  type ColumnDefinition,
   type availableDatasetEvalVariables,
   JobConfigState,
   validateEvaluatorFiltersForTarget,
   evalTraceTableCols,
-} from "@langfuse/shared";
-import { z } from "zod";
-import { useEffect, useMemo, useState, memo } from "react";
-import { api } from "@/src/utils/api";
-import {
-  InlineFilterBuilder,
-  type ColumnDefinitionWithAlert,
-} from "@/src/features/filters/components/filter-builder";
-import {
   type EvalTemplate,
   EvalTemplateSourceCodeLanguage,
   variableMapping,
   observationVariableMapping,
+  EvalTargetObject,
+  EvalTargetObjectSchema,
+  getCodeEvalVariableMapping,
 } from "@langfuse/shared";
+import { z } from "zod";
+import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
+import { api } from "@/src/utils/api";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useRouter } from "next/router";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { TRPCClientError } from "@trpc/client";
+import { reportError } from "@/src/utils/reportError";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
+  getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
-import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,
@@ -96,67 +94,28 @@ import {
   isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
   useEvaluatorTargetState,
 } from "@/src/features/evals/hooks/useEvaluatorTarget";
 import {
-  COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
   DEFAULT_OBSERVATION_FILTER,
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
-  getCodeEvalVariableMapping,
   isCodeEvalTemplate,
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
-
-/**
- * Adds propagation warnings to columns that require OTEL SDK with span propagation
- */
-const addPropagationWarnings = (
-  columns: ColumnDefinition[],
-  allowPropagationFilters: boolean,
-): ColumnDefinitionWithAlert[] => {
-  return columns.map((col) => {
-    if (
-      !allowPropagationFilters &&
-      COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION.has(col.id)
-    ) {
-      return {
-        ...col,
-        alert: {
-          severity: "warning" as const,
-          content: (
-            <>
-              This filter requires JS SDK &ge; 4.0.0 or Python SDK &ge; 3.0.0
-              with attribute propagation enabled. Please{" "}
-              <a
-                href="https://langfuse.com/integrations/native/opentelemetry#propagating-attributes"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-blue hover:opacity-80"
-              >
-                follow our docs
-              </a>{" "}
-              to configure your instrumentation to use this filter.
-            </>
-          ),
-        },
-      };
-    }
-
-    return col;
-  });
-};
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -190,7 +149,7 @@ const TracesPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm leading-none font-medium">
+          <span className="text-sm leading-none font-bold">
             Preview sample matched traces
           </span>
           <FormDescription>
@@ -199,13 +158,16 @@ const TracesPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            <TracesTable
-              projectId={projectId}
-              hideControls
-              externalFilterState={filterState}
-              externalDateRange={dateRange}
-              limitRows={10}
-            />
+            {/* Match peek tables: preview state stays local and never touches the URL. */}
+            <PeekTableStateProvider>
+              <TracesTable
+                projectId={projectId}
+                hideControls
+                externalFilterState={filterState}
+                externalDateRange={dateRange}
+                limitRows={10}
+              />
+            </PeekTableStateProvider>
           </Suspense>
         </div>
       </>
@@ -227,7 +189,7 @@ const ObservationsPreview = memo(
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
-    const { isBetaEnabled } = useV4Beta();
+    const { isV4 } = useReadPath();
 
     const dateRange = useMemo(() => {
       return {
@@ -255,7 +217,7 @@ const ObservationsPreview = memo(
               <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
                 <AlertTriangle className="text-dark-yellow h-8 w-8" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-foreground font-medium">
+                  <span className="text-foreground font-bold">
                     Please verify your SDK version
                   </span>
                   <span className="text-muted-foreground max-w-md text-sm">
@@ -268,7 +230,7 @@ const ObservationsPreview = memo(
                       href="https://langfuse.com/docs/observability/sdk/upgrade-path"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-dark-blue font-medium hover:opacity-80"
+                      className="text-dark-blue font-bold hover:opacity-80"
                     >
                       Learn more
                     </a>
@@ -276,22 +238,27 @@ const ObservationsPreview = memo(
                   </span>
                 </div>
               </div>
-            ) : isBetaEnabled ? (
-              <EventsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
             ) : (
-              <ObservationsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
+              // Keep the evaluator preview isolated from the parent route's table state.
+              <PeekTableStateProvider>
+                {isV4 ? (
+                  <EventsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                ) : (
+                  <ObservationsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                )}
+              </PeekTableStateProvider>
             )}
           </Suspense>
         </div>
@@ -369,22 +336,35 @@ export const InnerEvaluatorForm = (props: {
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
+  hideRootObservationFilter?: boolean;
+  showPreviewTargetBadge?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
-  renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
+  renderFooter?: (params: {
+    isLoading: boolean;
+    isSaveDisabled: boolean;
+  }) => React.ReactNode;
   oldConfigId?: string;
+  sourceRuleAction?: "mark-inactive" | "delete";
 }) => {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const isCodeEvalConfig =
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
 
   // Destructure eval capabilities passed from parent
-  const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
+  const { allowLegacy } = props.evalCapabilities;
+
+  // Existing legacy evaluators must keep rendering their (read-only) legacy
+  // target UI in edit mode even when new legacy setups are not allowed.
+  const showLegacyTargetOptions =
+    allowLegacy ||
+    (props.mode === "edit" &&
+      isLegacyEvalTarget(props.existingEvaluator?.targetObject ?? ""));
 
   // Custom hooks for managing evaluator state
   const {
@@ -399,7 +379,11 @@ export const InnerEvaluatorForm = (props: {
     observationEvalFilterOptions,
     experimentEvalFilterOptions,
     datasetFilterOptions,
-  } = useEvalConfigFilterOptions({ projectId: props.projectId });
+  } = useEvalConfigFilterOptions({
+    projectId: props.projectId,
+    useEventsTable: isV4,
+    includeLegacyTraceOptions: showLegacyTargetOptions,
+  });
 
   const targetState = useEvaluatorTargetState();
 
@@ -493,6 +477,9 @@ export const InnerEvaluatorForm = (props: {
   }) as UseFormReturn<EvalFormType>;
 
   const currentMapping = form.watch("mapping") ?? [];
+  const hasJsonPathCompatibilityError = currentMapping.some((mappingRow) =>
+    Boolean(getActiveJsonPathCompatibilityWarning(mappingRow)),
+  );
   const syncStatus = useVariableMappingSync({
     templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,
     currentMapping: currentMapping,
@@ -553,15 +540,13 @@ export const InnerEvaluatorForm = (props: {
   ]);
 
   const utils = api.useUtils();
+  // No onError override: the react-query default (handleTrpcError) owns
+  // classification, Sentry capture, and the standard error toast.
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    // Defining onError replaces the react-query default that shows the
-    // standard error toast, so trigger it explicitly.
-    onError: trpcErrorToast,
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: trpcErrorToast,
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -575,7 +560,7 @@ export const InnerEvaluatorForm = (props: {
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
-    isExperimentTarget(watchedTarget) && isBetaEnabled;
+    isExperimentTarget(watchedTarget) && isV4;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
   const previewTableVisible = !props.disabled && !props.hidePreviewTable;
@@ -727,13 +712,20 @@ export const InnerEvaluatorForm = (props: {
           delay,
           timeScope: isModern ? ["NEW"] : values.timeScope,
           ...(status ? { status } : {}),
+          ...(props.oldConfigId
+            ? {
+                sourceRuleId: props.oldConfigId,
+                sourceRuleAction:
+                  props.sourceRuleAction ?? ("mark-inactive" as const),
+              }
+            : {}),
         })
     )
       .then(() => {
         props.onFormSuccess?.();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
-          router.push(`/project/${props.projectId}/evals`);
+          router.push(`/project/${props.projectId}/evals/legacy`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
           // Only reset form when NOT redirecting
@@ -741,10 +733,17 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        // Mutation failures are surfaced via the onError toast; this catch
-        // also swallows post-success errors (onFormSuccess, router.push),
-        // so keep a console trace for those.
-        console.error("Evaluator form submission failed", error);
+        // Mutation failures were already classified + toasted by the
+        // react-query default onError; only post-success errors
+        // (onFormSuccess, router.push) need reporting here. reportError
+        // captures with an area tag and warns — console.error would mint a
+        // second, unclassified Sentry event via captureConsoleIntegration.
+        if (!(error instanceof TRPCClientError)) {
+          reportError(error, {
+            area: "evals",
+            extra: { context: "evaluator-form-post-submit" },
+          });
+        }
       });
   }
 
@@ -811,12 +810,12 @@ export const InnerEvaluatorForm = (props: {
     isCodeEvalConfig &&
     !props.disabled &&
     (isEventTarget(watchedTarget) ||
-      (isExperimentTarget(watchedTarget) && isBetaEnabled));
+      (isExperimentTarget(watchedTarget) && isV4));
   const shouldShowCodeEvalSourceLinkInSettingsCard =
     isCodeEvalConfig &&
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
-    !isBetaEnabled;
+    !isV4;
 
   const formBody = (
     <div
@@ -844,14 +843,13 @@ export const InnerEvaluatorForm = (props: {
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Unsupported filter detected</AlertTitle>
-              <AlertDescription>
+            <Alert variant="destructive" icon={AlertTriangle}>
+              <Alert.Title>Unsupported filter detected</Alert.Title>
+              <Alert.Description>
                 This evaluator has a filter that is not supported for
                 trace-level evaluators. It is effectively paused. Please remove
                 all filters and re-add them from scratch to resume execution.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           )}
           <div className="flex flex-col gap-4">
@@ -887,41 +885,44 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                          <TabsTrigger
-                            value="event"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px] gap-1.5"
-                          >
-                            <CircleDot className="h-3.5 w-3.5" />
-                            Observations
-                          </TabsTrigger>
-                          {allowLegacy && (
-                            <TabsTrigger
-                              value="trace"
+                        <Tabs.List layout="packed" gap="lg">
+                          <span className="min-w-[100px]">
+                            <Tabs.Trigger
+                              value="event"
                               disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px] gap-1.5"
-                            >
-                              <ListTree className="h-3.5 w-3.5" />
-                              Traces
-                              <Badge
-                                variant="secondary"
-                                size="sm"
-                                className="border-border border font-normal"
+                              icon={CircleDot}
+                              label="Observations"
+                            />
+                          </span>
+                          {showLegacyTargetOptions && (
+                            <span className="min-w-[100px]">
+                              <Tabs.Trigger
+                                value="trace"
+                                disabled={
+                                  props.disabled || props.mode === "edit"
+                                }
+                                icon={ListTree}
                               >
-                                Legacy
-                              </Badge>
-                            </TabsTrigger>
+                                Traces
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="border-border border font-normal"
+                                >
+                                  Legacy
+                                </Badge>
+                              </Tabs.Trigger>
+                            </span>
                           )}
-                          <TabsTrigger
-                            value="offline-experiment"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px] gap-1.5"
-                          >
-                            <FlaskConical className="h-3.5 w-3.5" />
-                            Experiments
-                          </TabsTrigger>
-                        </TabsList>
+                          <span className="min-w-[100px]">
+                            <Tabs.Trigger
+                              value="offline-experiment"
+                              disabled={props.disabled || props.mode === "edit"}
+                              icon={FlaskConical}
+                              label="Experiments"
+                            />
+                          </span>
+                        </Tabs.List>
                       </Tabs>
                     </FormControl>
                     <FormMessage />
@@ -933,7 +934,7 @@ export const InnerEvaluatorForm = (props: {
             {/* Second tab bar for experiment data source selection */}
             {!props.hideTargetSelection &&
               userFacingTarget === "offline-experiment" &&
-              props.evalCapabilities.allowLegacy && (
+              showLegacyTargetOptions && (
                 <div className="flex flex-col gap-2">
                   <FormLabel className="text-sm">Experiment Method</FormLabel>
                   <Tabs
@@ -968,31 +969,32 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                      <TabsTrigger
-                        value="otel"
-                        className="min-w-[100px] gap-1.5"
-                        disabled={props.mode === "edit" || props.disabled}
-                      >
-                        <FlaskConical className="h-3.5 w-3.5" />
-                        Experiment Runner SDK
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="non-otel"
-                        className="min-w-[100px] gap-1.5"
-                        disabled={props.mode === "edit" || props.disabled}
-                      >
-                        <BetweenHorizonalStart className="h-3.5 w-3.5" />
-                        Low-level SDK methods
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border-border border font-normal"
+                    <Tabs.List layout="packed" gap="lg">
+                      <span className="min-w-[100px]">
+                        <Tabs.Trigger
+                          value="otel"
+                          disabled={props.mode === "edit" || props.disabled}
+                          icon={FlaskConical}
+                          label="Experiment Runner SDK"
+                        />
+                      </span>
+                      <span className="min-w-[100px]">
+                        <Tabs.Trigger
+                          value="non-otel"
+                          disabled={props.mode === "edit" || props.disabled}
+                          icon={BetweenHorizonalStart}
                         >
-                          Legacy
-                        </Badge>
-                      </TabsTrigger>
-                    </TabsList>
+                          Low-level SDK methods
+                          <Badge
+                            variant="secondary"
+                            size="sm"
+                            className="border-border border font-normal"
+                          >
+                            Legacy
+                          </Badge>
+                        </Tabs.Trigger>
+                      </span>
+                    </Tabs.List>
                   </Tabs>
                 </div>
               )}
@@ -1032,7 +1034,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="grid gap-1.5 leading-none">
                               <label
                                 htmlFor="newObjects"
-                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 New {getTargetDisplayName(form.watch("target"))}
                               </label>
@@ -1057,7 +1059,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="flex items-center gap-1.5 leading-none">
                               <label
                                 htmlFor="existingObjects"
-                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 Existing{" "}
                                 {getTargetDisplayName(form.watch("target"))}
@@ -1164,14 +1166,15 @@ export const InnerEvaluatorForm = (props: {
                     // Get appropriate columns based on target type
                     const getFilterColumns = () => {
                       if (isEventTarget(target)) {
-                        // Event evaluators - use observation columns with propagation warnings
-                        const baseColumns =
-                          observationEvalFilterColsWithOptions(
-                            observationEvalFilterOptions,
-                          );
-                        return addPropagationWarnings(
-                          baseColumns,
-                          allowPropagationFilters,
+                        // Event evaluators - use observation columns
+                        return observationEvalFilterColsWithOptions(
+                          observationEvalFilterOptions,
+                        ).filter(
+                          (column) =>
+                            !(
+                              props.hideRootObservationFilter &&
+                              column.id === "isRootObservation"
+                            ),
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(
@@ -1238,6 +1241,11 @@ export const InnerEvaluatorForm = (props: {
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
                                 }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
+                                }
                               />
                             )}
                           </div>
@@ -1245,10 +1253,10 @@ export const InnerEvaluatorForm = (props: {
                         {!props.disabled && !hasFilters && (
                           <div className="flex max-w-[500px] gap-1">
                             <AlertTriangle className="text-dark-yellow h-4 w-4" />
-                            <AlertDescription className="text-dark-yellow">
+                            <div className="text-dark-yellow text-sm [&_p]:leading-relaxed">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.
-                            </AlertDescription>
+                            </div>
                           </div>
                         )}
                         <FormMessage />
@@ -1260,7 +1268,12 @@ export const InnerEvaluatorForm = (props: {
                 {/* Preview based on target type */}
                 {previewTableVisible && (
                   <>
-                    {isTraceTarget(form.watch("target")) && (
+                    {/* The traces preview reads the legacy traces table, which
+                        is not the v4 user's experience — never show it there. */}
+                    {shouldShowLegacyTracePreview(
+                      form.watch("target"),
+                      isV4,
+                    ) && (
                       <TracesPreview
                         projectId={props.projectId}
                         filterState={watchedFilter}
@@ -1364,6 +1377,7 @@ export const InnerEvaluatorForm = (props: {
           compatibilityCheckWasPerformed={
             props.evalCapabilities.compatibilityCheckWasPerformed
           }
+          showPreviewTargetBadge={props.showPreviewTargetBadge}
         />
       )}
     </div>
@@ -1373,13 +1387,17 @@ export const InnerEvaluatorForm = (props: {
     createJobMutation.isPending || updateJobMutation.isPending;
 
   const formFooter = props.renderFooter ? (
-    props.renderFooter({ isLoading: mutationIsLoading })
+    props.renderFooter({
+      isLoading: mutationIsLoading,
+      isSaveDisabled: hasJsonPathCompatibilityError,
+    })
   ) : (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
         <Button
           type="submit"
           loading={mutationIsLoading}
+          disabled={hasJsonPathCompatibilityError}
           className="mt-3 max-w-fit"
         >
           {props.mode === "edit" ? "Update" : "Execute"}

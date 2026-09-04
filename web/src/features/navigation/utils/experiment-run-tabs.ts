@@ -3,12 +3,10 @@ export const EXPERIMENT_RUN_TABS = {
   ANALYTICS: "analytics",
 } as const;
 
-export type ExperimentRunTab =
-  (typeof EXPERIMENT_RUN_TABS)[keyof typeof EXPERIMENT_RUN_TABS];
-
 export const getExperimentRunTabs = (
   projectId: string,
   onResultsClick?: () => void,
+  onAnalyticsClick?: () => void,
 ) => [
   {
     value: EXPERIMENT_RUN_TABS.RESULTS,
@@ -22,5 +20,6 @@ export const getExperimentRunTabs = (
     value: EXPERIMENT_RUN_TABS.ANALYTICS,
     label: "Analytics",
     href: `/project/${projectId}/experiments/analytics`,
+    onClick: onAnalyticsClick,
   },
 ];

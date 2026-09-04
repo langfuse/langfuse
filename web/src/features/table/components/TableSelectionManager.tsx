@@ -1,6 +1,6 @@
 import { useRef, type RefObject } from "react";
-import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -206,7 +206,7 @@ export function TableSelectionManager<TData>({
       size: 35,
       isFixedPosition: true,
       isPinnedLeft: true,
-      loadingCell: <TableCheckboxLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />,
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}

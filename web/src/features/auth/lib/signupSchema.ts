@@ -17,7 +17,7 @@ export const passwordSchema = z
       "Please choose a secure password by combining letters, numbers, and special characters.",
   });
 
-export const nameSchema = StringNoHTMLNonEmpty.max(
+const nameSchema = StringNoHTMLNonEmpty.max(
   100,
   "Name must be at most 100 characters",
 )

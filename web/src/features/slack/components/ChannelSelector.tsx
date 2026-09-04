@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   Command,
   CommandEmpty,
@@ -16,7 +16,7 @@ import {
   CommandList,
 } from "@/src/components/ui/command";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
 
@@ -90,9 +90,9 @@ const useSlackChannels = (projectId: string) => {
   useEffect(() => {
     if (error || !hasNextPage || isFetchingNextPage) return;
 
-    fetchNextPage().catch((error) => {
-      console.error("Failed to load next Slack channels page", error);
-    });
+    // Query failures are classified + captured by the QueryCache seam; only
+    // report non-tRPC failures of the fetch dispatch itself.
+    fetchNextPage().catch((error) => reportNonTrpcError(error, "slack"));
   }, [error, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   return {
@@ -387,22 +387,21 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
       {error && (
         <Alert>
-          <AlertDescription>
+          <Alert.Description>
             Failed to load channels. You can still enter a channel name
             manually, or check your Slack connection and try again.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
 
       {/* Private channel scope warning */}
       {channelsData && !channelsData.hasPrivateChannelAccess && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
+        <Alert icon={AlertTriangle}>
+          <Alert.Description>
             Private channels are not visible. To access private channels,{" "}
             <button
               type="button"
-              className="font-medium underline"
+              className="font-bold underline"
               onClick={() =>
                 window.open(
                   `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
@@ -414,7 +413,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               re-authenticate your Slack integration
             </button>{" "}
             to grant the required permissions.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
     </div>

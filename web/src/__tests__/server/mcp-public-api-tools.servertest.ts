@@ -1,3 +1,7 @@
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
@@ -58,12 +62,12 @@ import {
   handleListAnnotationQueueItems,
   handleListAnnotationQueues,
   handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/features/annotationQueues/tools";
+} from "@/src/features/mcp/server/annotationQueues/tools";
 import {
   handleCreateComment,
   handleGetComment,
   handleListComments,
-} from "@/src/features/mcp/features/comments/tools";
+} from "@/src/features/mcp/server/comments/tools";
 import {
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
@@ -78,18 +82,18 @@ import {
   handleUpsertDataset,
   handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/features/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
+} from "@/src/features/mcp/server/datasets/tools";
+import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
 import {
   handleCreateModel,
   handleDeleteModel,
   handleGetModel,
   handleListModels,
-} from "@/src/features/mcp/features/models/tools";
-import { handleCreateScoreConfig } from "@/src/features/mcp/features/scores/tools/createScoreConfig";
-import { handleGetScoreConfig } from "@/src/features/mcp/features/scores/tools/getScoreConfig";
-import { handleListScoreConfigs } from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
-import { handleUpdateScoreConfig } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/models/tools";
+import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
+import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
+import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
+import { handleUpdateScoreConfig } from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -149,8 +153,10 @@ describe("MCP public API tools", () => {
         "createAnnotationQueue",
         "createComment",
         "listEvaluators",
+        "listManagedEvaluatorTemplates",
         "getEvaluator",
-        "upsertEvaluator",
+        "createEvaluator",
+        "updateEvaluator",
         "listEvaluationRules",
         "getEvaluationRule",
         "createEvaluationRule",
@@ -159,6 +165,8 @@ describe("MCP public API tools", () => {
         "getHealth",
         "listScores",
         "getScore",
+        "listAlerts",
+        "getAlert",
         "createModel",
         "createScoreConfig",
       ]),
@@ -195,11 +203,11 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("resolves only the overridden mutating tool for in-app agent keys", async () => {
+  it("resolves allowlisted mutating tools plus reads for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "upsertDataset",
+        permissions: "tool-allowlist",
+        allowedToolNames: ["upsertDataset"],
       },
     });
 
@@ -211,14 +219,14 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
     await expect(
       toolRegistry.getEnabledTool("listDatasets", context),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeTruthy();
   });
 
   it("resolves the dashboard widget creation override for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "createDashboardWidget",
+        permissions: "tool-allowlist",
+        allowedToolNames: ["createDashboardWidget"],
       },
     });
 
@@ -242,23 +250,34 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
+        "addDashboardPlacement",
+        "attachEvaluatorToEvaluationRule",
         "createChatPrompt",
+        "createDashboard",
         "createDashboardWidget",
         "createEvaluationRule",
-        "upsertEvaluator",
+        "createEvaluator",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",
         "deleteAnnotationQueueItem",
+        "deleteDashboard",
+        "deleteDashboardPlacement",
+        "deleteDashboardWidget",
         "deleteDatasetItem",
         "deleteDatasetRun",
         "deleteEvaluationRule",
         "deleteEvaluator",
         "deleteModel",
         "deleteScoreConfig",
+        "detachEvaluatorFromEvaluationRule",
         "updateAnnotationQueueItem",
+        "updateDashboard",
+        "updateDashboardPlacement",
+        "updateDashboardWidget",
         "updateEvaluationRule",
+        "updateEvaluator",
         "updatePromptLabels",
         "updateScoreConfig",
         "upsertDataset",
@@ -300,7 +319,7 @@ describe("MCP public API tools", () => {
         queueId: queue.id,
         objectId: uuidv4(),
         objectType: "TRACE",
-      },
+      } as unknown as Parameters<typeof handleCreateAnnotationQueueItem>[0],
       context,
     )) as { id: string; status: string };
     expect(queueItem.status).toBe("PENDING");
@@ -727,7 +746,12 @@ describe("MCP public API tools", () => {
   it("covers health public API route and cross-project recent-event checks", async () => {
     const { context } = await createMcpTestSetup();
 
-    await expect(handleGetHealth({}, context)).resolves.toMatchObject({
+    await expect(
+      handleGetHealth(
+        {} as unknown as Parameters<typeof handleGetHealth>[0],
+        context,
+      ),
+    ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
     });
@@ -750,7 +774,12 @@ describe("MCP public API tools", () => {
     ]);
 
     await expect(
-      handleGetHealth({ failIfNoRecentEvents: true }, context),
+      handleGetHealth(
+        { failIfNoRecentEvents: true } as unknown as Parameters<
+          typeof handleGetHealth
+        >[0],
+        context,
+      ),
     ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
@@ -852,7 +881,7 @@ describe("MCP public API tools", () => {
         dataType: "NUMERIC",
         numericMinValue: 0,
         numericMaxValue: 1,
-      },
+      } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
       context,
     )) as { id: string; name: string };
     expect(scoreConfig.name).toBe(scoreConfigName);

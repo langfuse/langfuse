@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -13,14 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import startCase from "lodash/startCase";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 
@@ -45,7 +48,13 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
     );
   }
 
-  const hasProjectAccess = useHasProjectAccess({
+  // Viewing the list only needs apiKeys:read, which project MEMBERs hold.
+  // Create, delete, and note editing stay behind apiKeys:CUD.
+  const hasProjectReadAccess = useHasProjectAccess({
+    projectId: props.entityId,
+    scope: "apiKeys:read",
+  });
+  const hasProjectWriteAccess = useHasProjectAccess({
     projectId: props.entityId,
     scope: "apiKeys:CUD",
   });
@@ -55,11 +64,13 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   });
 
   const hasAccess =
-    props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
+    props.scope === "project" ? hasProjectReadAccess : hasOrganizationAccess;
+  const hasCreateAccess =
+    props.scope === "project" ? hasProjectWriteAccess : hasOrganizationAccess;
 
   const projectApiKeysQuery = api.projectApiKeys.byProjectId.useQuery(
     { projectId: entityId },
-    { enabled: hasProjectAccess && props.scope === "project" },
+    { enabled: hasProjectReadAccess && props.scope === "project" },
   );
   const organizationApiKeysQuery =
     api.organizationApiKeys.byOrganizationId.useQuery(
@@ -74,10 +85,10 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       <div>
         <Header title="API Keys" />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to view API keys for this {scope}.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -94,7 +105,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               ? "https://langfuse.com/docs/api#authentication"
               : "https://langfuse.com/docs/api#org-scoped-routes",
         }}
-        actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
+        actionButtons={
+          hasCreateAccess ? (
+            <CreateApiKeyButton entityId={entityId} scope={scope} />
+          ) : undefined
+        }
       />
       <CodeView
         content={envCode}
@@ -228,9 +243,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutDeleteOrgApiKey
         .mutateAsync({
@@ -241,9 +254,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
 

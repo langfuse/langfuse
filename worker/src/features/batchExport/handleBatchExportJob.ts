@@ -17,6 +17,7 @@ import {
   getCurrentSpan,
   applyCommentFilters,
   type CommentObjectType,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
@@ -28,8 +29,11 @@ import { getEventsStream } from "../database-read-stream/event-stream";
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   traces: "TRACE",
   observations: "OBSERVATION",
+  events: "OBSERVATION",
   sessions: "SESSION",
 };
+
+const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -179,6 +183,7 @@ export const handleBatchExportJob = async (
           ...parsedQuery.data,
           filter: processedFilter,
           fileFormat: jobDetails.format as BatchExportFileFormat,
+          preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
@@ -199,6 +204,7 @@ export const handleBatchExportJob = async (
               cutoffCreatedAt: jobDetails.createdAt,
               ...parsedQuery.data,
               filter: processedFilter,
+              preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
             });
 
   // Transform data to desired format
@@ -270,9 +276,14 @@ export const handleBatchExportJob = async (
     partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
   });
 
+  // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
+  // don't — and the web tier's downloadUrl fallback returns this stored URL
+  // for same-tab navigation, so without a Content-Disposition header the
+  // browser would render the export instead of downloading it.
   const signedUrl = await storageService.getSignedUrl(
     fileName,
     expiresInSeconds,
+    true,
   );
 
   logger.info(`[BATCH EXPORT] Batch export file ${fileName} uploaded`);
@@ -299,12 +310,20 @@ export const handleBatchExportJob = async (
   });
 
   if (user?.email) {
+    // Link to the exports page rather than the signed URL: the page mints a
+    // fresh download URL on click, while a URL signed with temporary
+    // credentials (e.g. IAM role sessions) can die well before expiresAt.
+    const exportsPageUrl = env.NEXTAUTH_URL
+      ? `${env.NEXTAUTH_URL}/project/${projectId}/settings/exports`
+      : undefined;
+
     await sendBatchExportSuccessEmail({
       env,
       receiverEmail: user.email,
-      downloadLink: signedUrl,
+      downloadLink: exportsPageUrl ?? signedUrl,
       userName: user?.name || "",
       batchExportName: jobDetails.name,
+      downloadWindowHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
     logger.info(

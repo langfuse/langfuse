@@ -20,7 +20,7 @@ import { InvalidRequestError } from "../../../../errors";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
-export const SCORE_FIELD_GROUPS = ["score", "trace"] as const;
+const SCORE_FIELD_GROUPS = ["score", "trace"] as const;
 
 /**
  * Endpoints

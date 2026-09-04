@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -60,7 +61,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-modal shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -78,12 +79,16 @@ const dialogContentVariants = cva(
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    closeOnInteractionOutside?: boolean;
-    confirmCloseOnEscape?: string;
-    overlayMode?: DialogOverlayMode;
-    stopPropagationOnEnterSpace?: boolean;
-  } & VariantProps<typeof dialogContentVariants>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+      closeOnInteractionOutside?: boolean;
+      confirmCloseOnEscape?: string;
+      overlayMode?: DialogOverlayMode;
+      overlayClassName?: string;
+      stopPropagationOnEnterSpace?: boolean;
+    } & VariantProps<typeof dialogContentVariants>,
+    "onPointerDownOutside" | "onInteractOutside"
+  >
 >(
   (
     {
@@ -92,6 +97,7 @@ const DialogContent = React.forwardRef<
       closeOnInteractionOutside = false,
       confirmCloseOnEscape,
       overlayMode = "subtle",
+      overlayClassName,
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
       onClick,
@@ -123,7 +129,7 @@ const DialogContent = React.forwardRef<
 
     return (
       <DialogPortal>
-        <DialogOverlay overlayMode={overlayMode} />
+        <DialogOverlay overlayMode={overlayMode} className={overlayClassName} />
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
@@ -165,8 +171,68 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * Owns dialog open state while callers retain trigger and content presentation.
+ * Prefer Trigger for direct user actions so Radix can provide trigger semantics,
+ * keyboard behavior, and focus restoration. Use openDialog when the dialog must
+ * open indirectly.
+ */
+type DialogControllerProps = {
+  children: (control: {
+    isOpen: boolean;
+    openDialog: () => void;
+    Trigger: typeof DialogTrigger;
+  }) => React.ReactNode;
+  closeOnInteractionOutside: boolean;
+  onBeforeClose?: () => boolean;
+  onDismiss?: () => void;
+  renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
+  size: React.ComponentProps<typeof DialogContent>["size"];
+};
+
+const DialogController = ({
+  children,
+  closeOnInteractionOutside,
+  onBeforeClose,
+  onDismiss,
+  renderContent,
+  size,
+}: DialogControllerProps) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const closeDialog = () => {
+    if (onBeforeClose?.() === false) return false;
+    setIsOpen(false);
+    return true;
+  };
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (open) {
+          setIsOpen(true);
+          return;
+        }
+        if (closeDialog()) onDismiss?.();
+      }}
+    >
+      {children({
+        isOpen,
+        openDialog: () => setIsOpen(true),
+        Trigger: DialogTrigger,
+      })}
+      <DialogContent
+        size={size}
+        closeOnInteractionOutside={closeOnInteractionOutside}
+      >
+        {renderContent({ closeDialog })}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const dialogHeaderVariants = cva(
-  "bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
   {
     variants: {
       variant: {
@@ -198,8 +264,11 @@ const DialogHeader = ({
   >
     <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
       <div className="min-w-0 flex-1">{children}</div>
+      {/* Untabbable on purpose: as the first tabbable descendant of the
+          content it would take Radix's initial focus away from the dialog's
+          first field or primary action. Escape and the mouse still close. */}
       <DialogPrimitive.Close
-        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20 mt-1 ml-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -my-2 -mr-2 ml-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
         tabIndex={-1}
       >
         <X className="h-4 w-4" />
@@ -223,7 +292,7 @@ const DialogBody = React.forwardRef<
 DialogBody.displayName = "DialogBody";
 
 const dialogFooterVariants = cva(
-  "bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  "bg-modal sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
   {
     variants: {
       variant: {
@@ -261,10 +330,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-xl leading-none font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-xl leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));
@@ -284,8 +350,7 @@ DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
-  DialogPortal,
-  DialogOverlay,
+  DialogController,
   DialogClose,
   DialogTrigger,
   DialogContent,

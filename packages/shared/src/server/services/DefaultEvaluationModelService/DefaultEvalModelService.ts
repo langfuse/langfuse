@@ -1,6 +1,7 @@
 import z from "zod";
 import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
+import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
 
@@ -57,6 +58,7 @@ export class DefaultEvalModelService {
           model,
           apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
           modelConfig: modelParams,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
         });
       }
     } catch (err) {

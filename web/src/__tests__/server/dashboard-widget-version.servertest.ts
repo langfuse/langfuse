@@ -1,8 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { DashboardService } from "@langfuse/shared/src/server";
-import { DashboardWidgetViews } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgProjectAndApiKey,
+  DashboardService,
+} from "@langfuse/shared/src/server";
+import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import {
+  LANGFUSE_HOME_DASHBOARD_DEFINITION,
+  LANGFUSE_HOME_DASHBOARD_ID,
+} from "@langfuse/shared";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
@@ -16,6 +22,7 @@ describe("dashboard widget minVersion", () => {
   let projectId: string;
   let orgId: string;
   let userId: string;
+  const originalWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
   beforeAll(async () => {
     const org = await createOrgProjectAndApiKey();
@@ -40,7 +47,11 @@ describe("dashboard widget minVersion", () => {
     });
   });
 
-  function makeCaller() {
+  afterEach(() => {
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+  });
+
+  function makeCaller(v4BetaEnabled = false) {
     const session: Session = {
       expires: "1",
       user: {
@@ -66,6 +77,7 @@ describe("dashboard widget minVersion", () => {
                 name: "Test Project",
                 hasTraces: true,
                 metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
@@ -75,7 +87,10 @@ describe("dashboard widget minVersion", () => {
           templateFlag: true,
           v4BetaToggleVisible: false,
           observationEvals: false,
+          experimentsV4Enabled: false,
+          searchBar: false,
         },
+        v4BetaEnabled,
         admin: true,
       },
       environment: {} as any,
@@ -136,6 +151,13 @@ describe("dashboard widget minVersion", () => {
         [{ column: "experimentDatasetId" }],
         true,
       ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "isRootObservation" }],
+        true,
+      ],
       // v1-compatible fields
       [
         "observations",
@@ -165,6 +187,19 @@ describe("dashboard widget minVersion", () => {
     );
   });
 
+  it("rejects v2 widget shapes at the tRPC boundary on a legacy deployment", async () => {
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    await expect(
+      makeCaller().dashboardWidgets.create({
+        ...baseWidgetInput,
+        view: "observations",
+        projectId,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      }),
+    ).rejects.toThrow(/v2-only fields/i);
+  });
+
   describe("observations release filter mapping", () => {
     it("keeps legacy observations Release filters on traceRelease for v1 compatibility", () => {
       expect(
@@ -186,11 +221,31 @@ describe("dashboard widget minVersion", () => {
       ]);
     });
 
-    it("maps Observation Release to the v2-only release field", () => {
+    it("keeps the retired Observation Release label on the release field", () => {
+      expect(
+        mapLegacyUiTableFilterToView("observations", [
+          {
+            column: "Observation Release",
+            operator: "=",
+            value: "2026.04",
+            type: "string",
+          },
+        ]),
+      ).toEqual([
+        {
+          column: "release",
+          operator: "=",
+          value: "2026.04",
+          type: "string",
+        },
+      ]);
+    });
+
+    it("maps an editor Release row to the v2 release field", () => {
       expect(
         mapWidgetUiTableFilterToView("observations", [
           {
-            column: "Observation Release",
+            column: "Release",
             operator: "=",
             value: "2026.04",
             type: "string",
@@ -210,36 +265,40 @@ describe("dashboard widget minVersion", () => {
   // ── Service layer tests ─────────────────────────────────────────────
 
   describe("DashboardService", () => {
-    it("should default minVersion to 1 when not provided", async () => {
+    it("persists v1 shapes and rejects v2 creates and updates on legacy deployments", async () => {
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const v2Input = {
+        ...baseWidgetInput,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      };
+
+      await expect(
+        DashboardService.createWidget(projectId, v2Input, userId),
+      ).rejects.toThrow(/v2-only fields/i);
+
       const widget = await DashboardService.createWidget(
         projectId,
         baseWidgetInput,
         userId,
       );
-
       expect(widget.minVersion).toBe(1);
+
+      await expect(
+        DashboardService.updateWidget(projectId, widget.id, v2Input, userId),
+      ).rejects.toThrow(/v2-only fields/i);
     });
 
-    it("should persist minVersion=2 when explicitly provided", async () => {
+    it("derives v2, preserves it on dual writes, and heals it on legacy", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, minVersion: 2 },
+        {
+          ...baseWidgetInput,
+          metrics: [{ measure: "traceId", agg: "uniq" }],
+        },
         userId,
       );
 
       expect(widget.minVersion).toBe(2);
-
-      const fetched = await DashboardService.getWidget(widget.id, projectId);
-      expect(fetched).not.toBeNull();
-      expect(fetched!.minVersion).toBe(2);
-    });
-
-    it("should preserve minVersion when updating without specifying it", async () => {
-      const widget = await DashboardService.createWidget(
-        projectId,
-        { ...baseWidgetInput, minVersion: 2 },
-        userId,
-      );
 
       const updated = await DashboardService.updateWidget(
         projectId,
@@ -248,25 +307,29 @@ describe("dashboard widget minVersion", () => {
         userId,
       );
 
-      expect(updated.minVersion).toBe(2);
-      expect(updated.name).toBe("Updated Widget");
-    });
+      expect(updated).toMatchObject({
+        minVersion: 2,
+        name: "Updated Widget",
+      });
 
-    it("should allow changing minVersion on update", async () => {
-      const widget = await DashboardService.createWidget(
-        projectId,
-        { ...baseWidgetInput, minVersion: 1 },
-        userId,
-      );
-
-      const updated = await DashboardService.updateWidget(
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const healed = await DashboardService.updateWidget(
         projectId,
         widget.id,
-        { ...baseWidgetInput, minVersion: 2 },
+        baseWidgetInput,
         userId,
       );
+      expect(healed.minVersion).toBe(1);
+    });
 
-      expect(updated.minVersion).toBe(2);
+    it("derives minVersion from the shape instead of v4 session state", async () => {
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const result = await makeCaller(true).dashboardWidgets.create({
+        ...baseWidgetInput,
+        view: "observations",
+        projectId,
+      });
+      expect(result.widget.minVersion).toBe(1);
     });
 
     it("should preserve minVersion when copying widget to project", async () => {
@@ -329,6 +392,203 @@ describe("dashboard widget minVersion", () => {
       expect(copiedWidget!.minVersion).toBe(2);
       expect(copiedWidget!.owner).toBe("PROJECT");
     });
+
+    it("should round-trip preset placements in the dashboard definition", async () => {
+      const dashboard = await DashboardService.createDashboard(
+        projectId,
+        "Preset Dashboard",
+        "A dashboard mixing widget and preset placements",
+        userId,
+      );
+
+      const definition = {
+        widgets: [
+          {
+            type: "widget" as const,
+            id: "placement-widget",
+            widgetId: uuidv4(),
+            x: 0,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+          {
+            type: "preset" as const,
+            id: "placement-preset",
+            presetId: "home-traces",
+            x: 6,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+        ],
+      };
+
+      await DashboardService.updateDashboardDefinition(
+        dashboard.id,
+        projectId,
+        definition,
+        userId,
+      );
+
+      const fetched = await DashboardService.getDashboard(
+        dashboard.id,
+        projectId,
+      );
+
+      expect(fetched).not.toBeNull();
+      expect(fetched!.definition.widgets).toEqual(definition.widgets);
+    });
+  });
+
+  describe("home dashboard pointer", () => {
+    beforeAll(async () => {
+      // The worker upserts the curated Home dashboard at startup; ensure it
+      // exists in this test database.
+      await prisma.dashboard.upsert({
+        where: { id: LANGFUSE_HOME_DASHBOARD_ID },
+        update: {},
+        create: {
+          id: LANGFUSE_HOME_DASHBOARD_ID,
+          projectId: null,
+          name: "Langfuse Home",
+          description: "Curated home dashboard",
+          definition: LANGFUSE_HOME_DASHBOARD_DEFINITION,
+        },
+      });
+    });
+
+    afterEach(async () => {
+      // Pointer state is project-level; reset so tests stay independent.
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { homeDashboardId: null },
+      });
+    });
+
+    it("falls back to the curated default when no pointer is set", async () => {
+      const caller = makeCaller();
+
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+
+      expect(res.homeDashboardId).toBeNull();
+      expect(res.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+      expect(res.dashboard?.owner).toBe("LANGFUSE");
+    });
+
+    it("resolves a set pointer and clears back to the default", async () => {
+      const caller = makeCaller();
+      const dashboard = await DashboardService.createDashboard(
+        projectId,
+        "My Home",
+        "Project home dashboard",
+        userId,
+      );
+
+      await caller.dashboard.setHomeDashboard({
+        projectId,
+        dashboardId: dashboard.id,
+      });
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(res.homeDashboardId).toBe(dashboard.id);
+      expect(res.dashboard?.id).toBe(dashboard.id);
+      expect(res.dashboard?.owner).toBe("PROJECT");
+
+      await caller.dashboard.setHomeDashboard({ projectId, dashboardId: null });
+      const cleared = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(cleared.homeDashboardId).toBeNull();
+      expect(cleared.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+    });
+
+    it("rejects pointing at a nonexistent dashboard", async () => {
+      const caller = makeCaller();
+
+      await expect(
+        caller.dashboard.setHomeDashboard({
+          projectId,
+          dashboardId: uuidv4(),
+        }),
+      ).rejects.toThrow("Dashboard not found");
+    });
+
+    it("falls back to the curated default when the pointed dashboard is deleted", async () => {
+      const caller = makeCaller();
+      const dashboard = await DashboardService.createDashboard(
+        projectId,
+        "Doomed Home",
+        "Will be deleted",
+        userId,
+      );
+      await caller.dashboard.setHomeDashboard({
+        projectId,
+        dashboardId: dashboard.id,
+      });
+
+      await DashboardService.deleteDashboard(dashboard.id, projectId);
+
+      // The FK is ON DELETE SET NULL, so the pointer clears at the DB level.
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(res.homeDashboardId).toBeNull();
+      expect(res.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+    });
+
+    it("numbers clone names when copies already exist", async () => {
+      const caller = makeCaller();
+      const source = await DashboardService.createDashboard(
+        projectId,
+        "Numbering Source",
+        "Clone naming test",
+        userId,
+      );
+
+      const first = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+      const second = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+      const third = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+
+      expect(first.name).toBe("Numbering Source (Clone)");
+      expect(second.name).toBe("Numbering Source (Clone 2)");
+      expect(third.name).toBe("Numbering Source (Clone 3)");
+    });
+
+    it("clones with a definition override and sets the clone as home", async () => {
+      const caller = makeCaller();
+      const overrideDefinition = {
+        widgets: [
+          {
+            type: "preset" as const,
+            id: "home-traces",
+            presetId: "home-traces",
+            x: 0,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+        ],
+      };
+
+      const clone = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: LANGFUSE_HOME_DASHBOARD_ID,
+        definition: overrideDefinition,
+        setAsHome: true,
+      });
+
+      expect(clone.owner).toBe("PROJECT");
+      expect(clone.definition.widgets).toEqual(overrideDefinition.widgets);
+
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(res.homeDashboardId).toBe(clone.id);
+      expect(res.dashboard?.id).toBe(clone.id);
+    });
   });
 
   // ── tRPC measure-aggregation validation ──────────────────────────────
@@ -349,7 +609,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       const fetched = await caller.dashboardWidgets.get({
@@ -373,7 +632,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "HISTOGRAM",
           chartConfig: { type: "HISTOGRAM", bins: 10 },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not valid for measure/);
     });
@@ -390,7 +648,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       expect(result.success).toBe(true);
@@ -408,7 +665,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       await expect(
@@ -423,7 +679,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not valid for measure/);
     });
@@ -453,9 +708,10 @@ describe("dashboard widget minVersion", () => {
       ["id", true],
       ["traceId", true],
       ["parentObservationId", true],
+      ["isRootObservation", true],
       ["name", false],
     ])(
-      "create with dimension '%s' on v2 observations → rejected=%s",
+      "create with dimension '%s' on shape-required v2 observations → rejected=%s",
       async (field, shouldReject) => {
         const caller = makeCaller();
         const promise = caller.dashboardWidgets.create({
@@ -464,11 +720,10 @@ describe("dashboard widget minVersion", () => {
           description: `${field} dimension on v2`,
           view: "observations",
           dimensions: [{ field }],
-          metrics: [{ measure: "count", agg: "count" }],
+          metrics: [{ measure: "traceId", agg: "uniq" }],
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         });
 
         if (shouldReject) {
@@ -487,11 +742,10 @@ describe("dashboard widget minVersion", () => {
         description: "will try hidden dim update",
         view: "observations",
         dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", agg: "count" }],
+        metrics: [{ measure: "traceId", agg: "uniq" }],
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       await expect(
@@ -506,9 +760,30 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not available for widgets/);
     });
+
+    it.each([undefined, 1])(
+      "rejects isRootObservation as a breakdown when minVersion is %s",
+      async (minVersion) => {
+        const caller = makeCaller();
+
+        await expect(
+          caller.dashboardWidgets.create({
+            projectId,
+            name: "semantic root breakdown",
+            description: "root status is filter-only",
+            view: "observations",
+            dimensions: [{ field: "isRootObservation" }],
+            metrics: [{ measure: "count", agg: "count" }],
+            filters: [],
+            chartType: "NUMBER",
+            chartConfig: { type: "NUMBER" },
+            ...(minVersion === undefined ? {} : { minVersion }),
+          }),
+        ).rejects.toThrow(/not available for widgets/);
+      },
+    );
   });
 });

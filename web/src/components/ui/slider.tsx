@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -6,7 +7,7 @@ import { Input } from "./input";
 
 import { cn } from "@/src/utils/tailwind";
 
-export interface SliderProps extends React.ComponentPropsWithoutRef<
+interface SliderProps extends React.ComponentPropsWithoutRef<
   typeof SliderPrimitive.Root
 > {
   showInput?: boolean;

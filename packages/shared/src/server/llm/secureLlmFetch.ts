@@ -1,5 +1,10 @@
 import {
+  CircularRedirectError,
   fetchWithSecureRedirects,
+  getOutboundProxyDispatcher,
+  MaxRedirectsExceededError,
+  OutboundUrlValidationError,
+  RedirectValidationError,
   type OutboundUrlValidationWhitelist,
   type RequestInitWithDispatcher,
 } from "../outbound-url";
@@ -7,6 +12,7 @@ import {
   llmBaseUrlWhitelistFromEnv,
   validateLlmConnectionBaseURL,
 } from "./baseUrlValidation";
+import { LLMValidationError } from "./errors";
 
 const MAX_LLM_REDIRECTS = 10;
 
@@ -14,24 +20,36 @@ type SecureLlmFetchParams = {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext: string;
   additionalSensitiveHeaders?: string[];
-  dispatcher?: unknown;
 };
 
 export function createSecureLlmFetch({
   whitelist = llmBaseUrlWhitelistFromEnv(),
   logContext,
   additionalSensitiveHeaders,
-  dispatcher,
 }: SecureLlmFetchParams): typeof fetch {
   return async (input, init) => {
-    const { url, options } = await normalizeFetchInput(input, init);
+    try {
+      const { url, options } = await normalizeFetchInput(input, init);
 
-    return fetchSecureLlmUrl(url, options, {
-      whitelist,
-      logContext,
-      additionalSensitiveHeaders,
-      dispatcher,
-    });
+      return await fetchSecureLlmUrl(url, options, {
+        whitelist,
+        logContext,
+        additionalSensitiveHeaders,
+      });
+    } catch (cause) {
+      const validationError = findSecureLlmValidationError(cause);
+      if (!validationError) throw cause;
+
+      throw new LLMValidationError({
+        code:
+          validationError instanceof OutboundUrlValidationError &&
+          validationError.code === "dns-lookup-failed"
+            ? "endpoint-unreachable"
+            : "invalid-connection",
+        message: validationError.message,
+        cause,
+      });
+    }
   };
 }
 
@@ -42,16 +60,26 @@ export async function fetchSecureLlmUrl(
     whitelist = llmBaseUrlWhitelistFromEnv(),
     logContext,
     additionalSensitiveHeaders,
-    dispatcher,
   }: SecureLlmFetchParams,
 ): Promise<Response> {
   await validateLlmConnectionBaseURL(url, whitelist);
   const optionsWithoutDispatcher = stripCallerDispatcher(options);
-  // If we have a proxy dispatcher (HTTPS_PROXY), attach it here so the
-  // outbound connection traverses the operator's proxy. Otherwise
-  // fetchWithSecureRedirects will inject the secure-lookup dispatcher.
-  const fetchOptions: RequestInit = dispatcher
-    ? ({ ...optionsWithoutDispatcher, dispatcher } as RequestInit)
+  // If the operator configured HTTPS_PROXY, attach the NO_PROXY-aware proxy
+  // dispatcher: proxied origins traverse the operator's proxy while NO_PROXY
+  // matches connect directly through the secure-lookup dispatcher. Without a
+  // proxy, fetchWithSecureRedirects will inject the secure-lookup dispatcher.
+  // Typed as unknown at this boundary: fetch's RequestInit types dispatcher
+  // via undici-types, which structurally drifts from the undici package's
+  // Dispatcher across versions.
+  const proxyDispatcher: unknown = getOutboundProxyDispatcher({
+    whitelist,
+    logContext,
+  });
+  const fetchOptions: RequestInit = proxyDispatcher
+    ? ({
+        ...optionsWithoutDispatcher,
+        dispatcher: proxyDispatcher,
+      } as RequestInit)
     : optionsWithoutDispatcher;
 
   const { response } = await fetchWithSecureRedirects(url, fetchOptions, {
@@ -96,4 +124,28 @@ async function normalizeFetchInput(
       signal: init?.signal ?? (input instanceof Request ? input.signal : null),
     },
   };
+}
+
+function findSecureLlmValidationError(error: unknown): Error | undefined {
+  const visited = new Set<unknown>();
+  let current = error;
+
+  while (current !== null && current !== undefined && !visited.has(current)) {
+    visited.add(current);
+    if (
+      current instanceof OutboundUrlValidationError ||
+      current instanceof RedirectValidationError ||
+      current instanceof MaxRedirectsExceededError ||
+      current instanceof CircularRedirectError
+    ) {
+      return current;
+    }
+
+    current =
+      typeof current === "object" && "cause" in current
+        ? current.cause
+        : undefined;
+  }
+
+  return undefined;
 }

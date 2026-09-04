@@ -7,15 +7,17 @@ const {
   mockIsPrismaException,
   mockRateLimitRequest,
   mockTraceException,
-  mockCreateUnstablePublicApiAuthError,
-  mockSendUnstablePublicApiErrorResponse,
+  mockLoggerDebug,
+  mockCreateStructuredPublicApiAuthError,
+  mockSendStructuredPublicApiErrorResponse,
 } = vi.hoisted(() => ({
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
   mockTraceException: vi.fn(),
-  mockCreateUnstablePublicApiAuthError: vi.fn((value) => value),
-  mockSendUnstablePublicApiErrorResponse: vi.fn(),
+  mockLoggerDebug: vi.fn(),
+  mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
+  mockSendStructuredPublicApiErrorResponse: vi.fn(),
 }));
 
 vi.mock("@/src/features/public-api/server/apiAuth", () => ({
@@ -31,7 +33,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
   logger: {
-    debug: vi.fn(),
+    debug: mockLoggerDebug,
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
@@ -58,12 +60,13 @@ vi.mock("@/src/features/public-api/server/withMiddlewares", () => ({
 }));
 
 vi.mock(
-  "@/src/features/public-api/server/unstable-public-api-error-contract",
+  "@/src/features/public-api/server/structuredPublicApiErrorContract",
   () => ({
-    unstablePublicEvalsErrorContract: "unstable-public-evals",
-    createUnstablePublicApiAuthError: mockCreateUnstablePublicApiAuthError,
-    createUnstablePublicApiRequestValidationError: vi.fn(),
-    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
+    structuredPublicApiErrorContract: "structured",
+    createStructuredPublicApiAuthError: mockCreateStructuredPublicApiAuthError,
+    createStructuredPublicApiRequestValidationError: vi.fn(),
+    sendStructuredPublicApiErrorResponse:
+      mockSendStructuredPublicApiErrorResponse,
   }),
 );
 
@@ -110,7 +113,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   async function callRoute(options?: {
-    useUnstableErrorContract?: boolean;
+    useStructuredErrorContract?: boolean;
     rateLimitUpgradePath?: {
       legacyEndpoint: string;
       replacementEndpoint: string;
@@ -122,8 +125,8 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       name: "Test Route",
       querySchema: z.object({}),
       responseSchema: z.object({ ok: z.literal(true) }),
-      errorContract: options?.useUnstableErrorContract
-        ? "unstable-public-evals"
+      errorContract: options?.useStructuredErrorContract
+        ? "structured"
         : undefined,
       rateLimitUpgradePath: options?.rateLimitUpgradePath,
       fn: async () => ({ ok: true as const }),
@@ -181,19 +184,34 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
   });
 
-  it("returns unstable auth errors and traces prisma auth failures", async () => {
+  it("returns structured authentication errors", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: false,
+      error: "Invalid credentials",
+    });
+
+    await callRoute({ useStructuredErrorContract: true });
+
+    expect(mockCreateStructuredPublicApiAuthError).toHaveBeenCalledWith({
+      statusCode: 401,
+      message: "Invalid credentials",
+    });
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns structured errors and traces prisma auth failures", async () => {
     const prismaLikeError = new Error("Can't reach database server");
     mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
     mockIsPrismaException.mockReturnValue(true);
 
-    await callRoute({ useUnstableErrorContract: true });
+    await callRoute({ useStructuredErrorContract: true });
 
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
-    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+    expect(mockCreateStructuredPublicApiAuthError).toHaveBeenCalledWith({
       statusCode: 503,
       message: "Service Unavailable",
     });
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the shared rate limit response for routes without upgrade guidance", async () => {
@@ -243,6 +261,43 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: undefined,
       upgradePath,
     });
+  });
+
+  it("does not include request query or body data in debug logs", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "Sensitive Route",
+      querySchema: z.object({ token: z.string() }),
+      bodySchema: z.object({
+        secretKey: z.string(),
+        extraHeaders: z.record(z.string(), z.string()),
+      }),
+      responseSchema: z.object({ ok: z.literal(true) }),
+      fn: async () => ({ ok: true as const }),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "PUT",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {
+        token: "SENTINEL_QUERY_TOKEN",
+      },
+      body: {
+        secretKey: "SENTINEL_SECRET_KEY",
+        extraHeaders: {
+          Authorization: "Bearer SENTINEL_HEADER_TOKEN",
+        },
+      },
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockLoggerDebug).toHaveBeenCalledExactlyOnceWith(
+      "Request to route Sensitive Route projectId project-1",
+    );
   });
 
   it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {
