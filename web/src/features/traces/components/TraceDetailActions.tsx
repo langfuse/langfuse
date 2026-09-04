@@ -1,6 +1,13 @@
 import { api } from "@/src/utils/api";
+import { MoreHorizontal } from "lucide-react";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
+import { Button } from "@/src/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 
 /**
  * Trace-level header actions (publish / delete) shared by the peek and
@@ -44,7 +51,13 @@ export function TraceDetailActions({
   deleteRedirectUrl?: string;
   onAfterDelete?: (deletedTraceId: string) => void;
   size?: "icon" | "icon-xs";
-  layout?: "toolbar" | "menu";
+  /**
+   * - "toolbar": Share visible + delete behind a "…" popover (full page header)
+   * - "menu": Share + Delete as labeled rows (mobile overflow)
+   * - "share-only": just the Share switch (peek header, inline)
+   * - "delete-only": just the Delete row (peek header's "…" menu)
+   */
+  layout?: "toolbar" | "menu" | "share-only" | "delete-only";
 }) {
   const utils = api.useUtils();
   const isMenu = layout === "menu";
@@ -58,6 +71,35 @@ export function TraceDetailActions({
     utils.invalidate();
     onAfterDelete?.(traceId);
   };
+
+  if (layout === "share-only") {
+    return (
+      <PublishTraceSwitch
+        projectId={projectId}
+        traceId={traceId}
+        timestamp={timestamp}
+        isPublic={isPublic}
+        shareUrl={shareUrl}
+        size={size}
+        tooltip={isPublic ? "Shared (public)" : "Share"}
+      />
+    );
+  }
+
+  if (layout === "delete-only") {
+    return (
+      <DeleteTraceButton
+        itemId={traceId}
+        projectId={projectId}
+        redirectUrl={deleteRedirectUrl}
+        invalidateFunc={onDeleteInvalidate}
+        deleteConfirmation={name ?? ""}
+        variant="ghost"
+        size="sm"
+        className="w-full justify-start font-normal"
+      />
+    );
+  }
 
   if (isMenu) {
     return (
@@ -95,18 +137,38 @@ export function TraceDetailActions({
         size={size}
         tooltip={isPublic ? "Shared (public)" : "Share"}
       />
-      <DeleteTraceButton
-        itemId={traceId}
-        projectId={projectId}
-        redirectUrl={deleteRedirectUrl}
-        invalidateFunc={onDeleteInvalidate}
-        deleteConfirmation={name ?? ""}
-        icon
-        // Match Publish so both icons share one row height and a ghost (not
-        // boxed "outline") style.
-        size={size}
-        variant="ghost"
-      />
+      {/* Delete is low-traffic (~100 users/30d) and destructive — folded
+          behind an overflow trigger instead of a bare trash icon in the
+          toolbar. forceMount + hide-when-closed: DeleteTraceButton hosts its
+          own confirm dialog, which a default Popover would unmount mid-flow. */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size={size}
+            title="More actions"
+            aria-label="More actions"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          forceMount
+          className="flex w-auto min-w-36 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
+        >
+          <DeleteTraceButton
+            itemId={traceId}
+            projectId={projectId}
+            redirectUrl={deleteRedirectUrl}
+            invalidateFunc={onDeleteInvalidate}
+            deleteConfirmation={name ?? ""}
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start font-normal"
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

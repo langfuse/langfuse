@@ -42,6 +42,11 @@ type TraceGraphViewProps = {
    * system start/end nodes or background deselects.
    */
   onObservationSelect?: () => void;
+  /**
+   * Playback transport rendered beside the mode switch. A slot (not an import)
+   * so this feature module stays free of trace-view context dependencies.
+   */
+  transport?: React.ReactNode;
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
@@ -50,6 +55,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   viewMode = "aggregated",
   onViewModeChange,
   onObservationSelect,
+  transport,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -348,11 +354,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           }
         />
       )}
-      {onViewModeChange && (
+      {(onViewModeChange || transport) && (
         // Overlaid sibling of the canvas (top-left, opposite the zoom stack)
         // so canvas clicks/gestures underneath are untouched.
-        <div className="absolute top-2 left-2 z-10">
-          <GraphViewModeSwitch value={viewMode} onChange={onViewModeChange} />
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+          {onViewModeChange && (
+            <GraphViewModeSwitch value={viewMode} onChange={onViewModeChange} />
+          )}
+          {transport}
         </div>
       )}
     </div>

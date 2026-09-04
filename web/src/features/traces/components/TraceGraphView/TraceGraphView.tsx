@@ -15,6 +15,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
+import { PlaybackControls } from "../PlaybackControls";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
@@ -70,6 +71,7 @@ export function TraceGraphView() {
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}
       onObservationSelect={handleObservationSelect}
+      transport={<PlaybackControls />}
     />
   );
 }

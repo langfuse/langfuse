@@ -33,9 +33,9 @@ type PeekHeaderProps = {
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
-  /** Item actions (star / publish / delete …) as the inline icon row. */
+  /** Always-visible item action (share) rendered inline before the menu. */
   actions?: React.ReactNode;
-  /** The same actions as labeled rows for the overflow "…" menu. */
+  /** Item actions (delete …) as labeled rows for the "…" menu. */
   actionsMenu?: React.ReactNode;
   /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
   expand?: { isExpanded: boolean; onToggle: () => void };
@@ -49,7 +49,6 @@ type PeekHeaderProps = {
 // icon-xs button. Tuned by eye — planner `safety` covers inter-control gaps.
 const MIN_TITLE_PX = 240;
 const BADGE_ICON_PX = 32;
-const MORE_BUTTON_PX = 32;
 const BADGE_LABEL_FALLBACK_PX = 72;
 const NAV_FULL_FALLBACK_PX = 92;
 const NAV_COMPACT_FALLBACK_PX = 52;
@@ -125,15 +124,11 @@ export function PeekHeader({
   // control cluster too, whose width does change, to re-trigger the plan.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
   const badgeRef = useRef<HTMLDivElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
-  const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
-  // Cached widths survive a part being folded / collapsed (it can't be
-  // re-measured while hidden, in the closed popover, or in the other nav mode).
+  // Cached widths survive a part being collapsed (it can't be re-measured
+  // while hidden or in the other nav mode).
   const widthsRef = useRef<{
-    actions?: number;
-    openInTab?: number;
     badgeLabel?: number;
     navFull?: number;
     navCompact?: number;
@@ -141,8 +136,9 @@ export function PeekHeader({
   }>({});
   const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
 
-  const hasActions = Boolean(actions);
-  const hasOpenInTab = Boolean(openInNewTab);
+  // Actions and open-in-tab ALWAYS live in the "…" menu — the header shows
+  // only nav / expand / close inline (usage data: nav dwarfs everything else).
+  const hasMenu = Boolean(actionsMenu || openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
 
   // Measure + plan in a layout effect (before paint), reading width from the
@@ -155,12 +151,6 @@ export function PeekHeader({
 
     if (plan.badgeShowLabel && badgeRef.current) {
       widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
-    }
-    if (hasActions && !plan.foldActions && actionsRef.current) {
-      widthsRef.current.actions = actionsRef.current.offsetWidth;
-    }
-    if (hasOpenInTab && !plan.foldOpenInTab && openInTabRef.current) {
-      widthsRef.current.openInTab = openInTabRef.current.offsetWidth;
     }
     if (pinnedRef.current) {
       const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
@@ -183,24 +173,12 @@ export function PeekHeader({
         ? (widthsRef.current.navCompact ?? NAV_COMPACT_FALLBACK_PX)
         : 0,
       otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
-      moreWidth: MORE_BUTTON_PX,
-      actionsWidth: hasActions ? (widthsRef.current.actions ?? 0) : undefined,
-      openInTabWidth: hasOpenInTab
-        ? (widthsRef.current.openInTab ?? 0)
-        : undefined,
+      // The "…" trigger sits inside the pinned cluster now (always shown), so
+      // it is already counted in otherPinnedWidth.
+      moreWidth: 0,
     });
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
-  }, [
-    headerRef,
-    headerSize?.width,
-    clusterSize?.width,
-    hasActions,
-    hasOpenInTab,
-    hasNav,
-    plan,
-  ]);
-
-  const anyFolded = plan.foldActions || plan.foldOpenInTab;
+  }, [headerRef, headerSize?.width, clusterSize?.width, hasNav, plan]);
 
   return (
     <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
@@ -226,82 +204,75 @@ export function PeekHeader({
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"
         >
-          {/* Overflow: a labeled menu of whatever folded away. */}
-          {anyFolded && (
-            <Popover>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="More actions"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>More</TooltipContent>
-              </Tooltip>
-              <PopoverContent
-                align="end"
-                className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
-              >
-                {plan.foldActions ? actionsMenu : null}
-                {plan.foldOpenInTab && openInNewTab ? (
-                  <button
-                    type="button"
-                    onClick={openInNewTab}
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Open in new tab
-                  </button>
-                ) : null}
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {hasActions && !plan.foldActions ? (
-            <div ref={actionsRef} className="flex flex-row items-center gap-1">
-              {actions}
-            </div>
-          ) : null}
-
-          {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
-            <div ref={openInTabRef}>
-              <HeaderIconButton label="Open in new tab" onClick={openInNewTab}>
-                <ExternalLink className="h-4 w-4" />
-              </HeaderIconButton>
-            </div>
-          ) : null}
-
-          {/* Pinned block: nav (keeps K/J live), expand, close. */}
+          {/* Pinned block, in order: "…" menu (delete / open-in-tab / expand),
+              share, nav (keeps K/J live), close. */}
           <div
             ref={pinnedRef}
             className="flex h-full flex-row items-center gap-1"
           >
+            {hasMenu && (
+              <Popover>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="More actions"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>More</TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                  align="end"
+                  // forceMount + hide-when-closed: the menu hosts controls with
+                  // their own dialogs/popovers (share URL, delete confirm) that
+                  // must survive the trigger closing.
+                  forceMount
+                  className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
+                >
+                  {actionsMenu}
+                  {openInNewTab ? (
+                    <button
+                      type="button"
+                      onClick={openInNewTab}
+                      className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open in new tab
+                    </button>
+                  ) : null}
+                  {expand ? (
+                    <button
+                      type="button"
+                      onClick={expand.onToggle}
+                      className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
+                    >
+                      {expand.isExpanded ? (
+                        <Minimize2 className="h-4 w-4" />
+                      ) : (
+                        <Maximize2 className="h-4 w-4" />
+                      )}
+                      {expand.isExpanded ? "Collapse panel" : "Expand panel"}
+                    </button>
+                  ) : null}
+                </PopoverContent>
+              </Popover>
+            )}
+            {actions}
             {hasNav && (
               <div ref={navRef} className="flex flex-row items-center">
+                {/* Always compact so the arrows match the icon-xs neighbors. */}
                 <DetailPageNav
                   currentId={itemId}
                   path={resolveDetailNavigationPath!}
                   listKey={detailNavigationKey!}
-                  compact={plan.navCompact}
+                  compact
                 />
               </div>
-            )}
-            {expand && (
-              <HeaderIconButton
-                label={expand.isExpanded ? "Collapse" : "Expand"}
-                onClick={expand.onToggle}
-              >
-                {expand.isExpanded ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </HeaderIconButton>
             )}
             <HeaderIconButton label="Close" onClick={onClose}>
               <X className="h-4 w-4" />
