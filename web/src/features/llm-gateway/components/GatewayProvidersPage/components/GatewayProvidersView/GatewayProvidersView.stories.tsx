@@ -11,6 +11,7 @@ const onCreate = fn();
 const onPriorityAction = fn();
 const onCredentialAction = fn();
 const onLoadMore = fn();
+const onReorder = fn();
 
 const connections = [
   {
@@ -59,6 +60,8 @@ const actions = {
   hasMore: false,
   isLoadingMore: false,
   onLoadMore,
+  canReorder: true,
+  onReorder,
 } satisfies Pick<
   ComponentProps<typeof GatewayProvidersView>,
   | "createAction"
@@ -67,6 +70,8 @@ const actions = {
   | "hasMore"
   | "isLoadingMore"
   | "onLoadMore"
+  | "canReorder"
+  | "onReorder"
 >;
 
 export const OrderedCredentials = meta.story({

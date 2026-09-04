@@ -47,11 +47,12 @@ export function ReorderProviderButton({
     <Button
       size="icon-xs"
       variant="ghost"
+      className="text-muted-foreground size-6 opacity-60 hover:opacity-100"
       disabled={disabled}
       aria-label={`Move credential ${direction}`}
       onClick={move}
     >
-      <Icon className="size-4" />
+      <Icon className="size-3" />
     </Button>
   );
 }

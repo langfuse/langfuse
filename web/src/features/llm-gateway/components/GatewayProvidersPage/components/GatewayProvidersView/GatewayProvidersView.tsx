@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Route } from "lucide-react";
+import { GripVertical, Route } from "lucide-react";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import Header from "@/src/components/layouts/header";
@@ -34,6 +34,8 @@ export function GatewayProvidersView({
   hasMore,
   isLoadingMore,
   onLoadMore,
+  canReorder,
+  onReorder,
 }: {
   connections: Connection[];
   modelCounts: Record<string, number>;
@@ -43,6 +45,8 @@ export function GatewayProvidersView({
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => unknown;
+  canReorder: boolean;
+  onReorder: (sourceId: string, targetId: string) => unknown;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -57,7 +61,7 @@ export function GatewayProvidersView({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-20">Priority</TableHead>
+              <TableHead className="w-32">Priority</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Credential</TableHead>
@@ -79,9 +83,45 @@ export function GatewayProvidersView({
               </TableRow>
             ) : (
               connections.map((connection, index) => (
-                <TableRow key={connection.id} className="ph-no-capture">
-                  <TableCell density="comfortable" className="font-mono">
-                    {index + 1}
+                <TableRow
+                  key={connection.id}
+                  className="ph-no-capture group"
+                  onDragOver={(event) => {
+                    if (canReorder) event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    const sourceId =
+                      event.dataTransfer.getData("text/provider-id");
+                    if (sourceId && sourceId !== connection.id) {
+                      onReorder(sourceId, connection.id);
+                    }
+                  }}
+                >
+                  <TableCell density="comfortable">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        draggable={canReorder}
+                        disabled={!canReorder}
+                        aria-label={`Drag ${connection.name} to reorder`}
+                        className="text-muted-foreground cursor-grab p-0.5 opacity-50 hover:opacity-100 disabled:cursor-not-allowed"
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData(
+                            "text/provider-id",
+                            connection.id,
+                          );
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                      >
+                        <GripVertical className="size-3.5" />
+                      </button>
+                      <span className="w-4 text-center font-mono">
+                        {index + 1}
+                      </span>
+                      <div className="flex opacity-40 transition-opacity group-hover:opacity-100">
+                        {renderPriorityActions(connection, index)}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell density="comfortable">
                     <ProviderName provider={connection.provider} />
@@ -100,7 +140,6 @@ export function GatewayProvidersView({
                   </TableCell>
                   <TableCell density="comfortable">
                     <div className="flex justify-end gap-1">
-                      {renderPriorityActions(connection, index)}
                       {renderCredentialActions(connection, index)}
                     </div>
                   </TableCell>

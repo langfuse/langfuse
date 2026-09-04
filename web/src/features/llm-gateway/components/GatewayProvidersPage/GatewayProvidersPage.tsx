@@ -11,7 +11,7 @@ import { EditProviderDialogController } from "@/src/features/llm-gateway/compone
 import { GatewayProvidersView } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/GatewayProvidersView/GatewayProvidersView";
 import { ReorderProviderButton } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ReorderProviderButton";
 import { RetryProviderButton } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function GatewayProvidersPage({
   organizationId,
@@ -23,6 +23,8 @@ export function GatewayProvidersPage({
     { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
   );
   const [modelCounts, setModelCounts] = useState<Record<string, number>>({});
+  const utils = api.useUtils();
+  const reorder = api.llmGateway.reorderConnections.useMutation();
 
   if (connectionsQuery.isPending) {
     return <ProvidersSkeleton />;
@@ -58,6 +60,28 @@ export function GatewayProvidersPage({
       hasMore={Boolean(connectionsQuery.hasNextPage)}
       isLoadingMore={connectionsQuery.isFetchingNextPage}
       onLoadMore={() => connectionsQuery.fetchNextPage()}
+      canReorder={!connectionsQuery.hasNextPage && !reorder.isPending}
+      onReorder={async (sourceId, targetId) => {
+        const sourceIndex = connections.findIndex(
+          (connection) => connection.id === sourceId,
+        );
+        const targetIndex = connections.findIndex(
+          (connection) => connection.id === targetId,
+        );
+        if (sourceIndex < 0 || targetIndex < 0) return;
+        const connectionIds = connections.map((connection) => connection.id);
+        const [movedId] = connectionIds.splice(sourceIndex, 1);
+        if (!movedId) return;
+        connectionIds.splice(targetIndex, 0, movedId);
+        try {
+          await reorder.mutateAsync({ orgId: organizationId, connectionIds });
+          await utils.llmGateway.listConnections.invalidate({
+            orgId: organizationId,
+          });
+        } catch (error) {
+          reportNonTrpcError(error, "llm-gateway-providers");
+        }
+      }}
       createAction={
         <CreateProviderDialogController organizationId={organizationId}>
           {({ Trigger }) => (
