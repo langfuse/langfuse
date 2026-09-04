@@ -47,7 +47,11 @@ export const promptVersionProcessor = async (
       action: event.action,
     });
 
-    // Process each trigger
+    // Process each trigger. Collect failures instead of swallowing them so
+    // that infra failures (e.g. a dropped webhook enqueue) still surface as
+    // a job failure and get retried by BullMQ, while a bad trigger doesn't
+    // block the remaining ones from being processed.
+    const triggerErrors: unknown[] = [];
     for (const trigger of triggers) {
       try {
         const eventMatches = matchesTriggerFilter(
@@ -109,7 +113,15 @@ export const promptVersionProcessor = async (
           `Error processing trigger ${trigger.id} for prompt ${event.promptId} for project ${event.projectId}: ${error}`,
         );
         // Continue processing other triggers instead of failing the entire operation
+        triggerErrors.push(error);
       }
+    }
+
+    if (triggerErrors.length > 0) {
+      throw new AggregateError(
+        triggerErrors,
+        `Failed to process ${triggerErrors.length} of ${triggers.length} trigger(s) for prompt ${event.promptId} for project ${event.projectId}`,
+      );
     }
   } catch (error) {
     logger.error(
@@ -123,6 +135,13 @@ export const promptVersionProcessor = async (
  * Enqueue an automation action for a prompt version change.
  * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
  */
+// Worst-case retry window for the entity-change job (5 attempts, exponential
+// backoff from 5s) is well under 2 minutes. A PENDING execution older than
+// this was left behind by a worker that died between creating the row and
+// enqueueing/erroring it, not a delivery still in flight, so it must not
+// permanently block a fresh attempt.
+const STALE_PENDING_EXECUTION_MS = 5 * 60 * 1000;
+
 async function enqueueAutomationAction({
   promptData,
   action,
@@ -150,6 +169,42 @@ async function enqueueAutomationAction({
     );
   }
 
+  // Guard against duplicate deliveries when BullMQ retries this job after a
+  // partial failure: skip triggers that already have a completed (or still
+  // in-flight) execution for this exact source and event action instead of
+  // creating a second one and re-enqueuing. Filtering on `action` too matters
+  // because the same trigger can legitimately fire for multiple event actions
+  // (e.g. "created" then "deleted") against the same prompt id. A PENDING
+  // execution only blocks a retry while it's recent; a stale one is treated
+  // as abandoned so it doesn't lose the delivery forever.
+  const existingExecution = await prisma.automationExecution.findFirst({
+    where: {
+      projectId,
+      triggerId,
+      actionId,
+      sourceId: promptData.id,
+      input: { path: ["action"], equals: action },
+      OR: [
+        {
+          status: {
+            notIn: [ActionExecutionStatus.ERROR, ActionExecutionStatus.PENDING],
+          },
+        },
+        {
+          status: ActionExecutionStatus.PENDING,
+          createdAt: { gt: new Date(Date.now() - STALE_PENDING_EXECUTION_MS) },
+        },
+      ],
+    },
+  });
+
+  if (existingExecution) {
+    logger.debug(
+      `Automation execution ${existingExecution.id} already exists for trigger ${triggerId}, action ${actionId}, and source ${promptData.id}; skipping duplicate enqueue`,
+    );
+    return;
+  }
+
   const executionId = v4();
 
   // Create execution record
@@ -168,6 +223,7 @@ async function enqueueAutomationAction({
         promptId: promptData.id,
         automationId: automations[0].id,
         type: "prompt-version",
+        action,
       },
     },
   });
@@ -177,24 +233,44 @@ async function enqueueAutomationAction({
   );
 
   // Queue to webhook processor (handles both webhook and Slack actions)
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: v4(),
-    payload: {
-      projectId,
-      automationId: automations[0].id,
-      executionId,
+  try {
+    const webhookQueue = WebhookQueue.getInstance();
+    if (!webhookQueue) {
+      throw new Error("Webhook queue is unavailable");
+    }
+
+    await webhookQueue.add(QueueName.WebhookQueue, {
+      timestamp: new Date(),
+      id: v4(),
       payload: {
-        action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
+        projectId,
+        automationId: automations[0].id,
+        executionId,
+        payload: {
+          action: action as TriggerEventAction,
+          type: "prompt-version",
+          prompt: {
+            ...promptData,
+            prompt: jsonSchemaNullable.parse(promptData.prompt),
+            config: jsonSchemaNullable.parse(promptData.config),
+          },
+          ...(user ? { user } : {}),
         },
-        ...(user ? { user } : {}),
       },
-    },
-    name: QueueJobs.WebhookJob,
-  });
+      name: QueueJobs.WebhookJob,
+    });
+  } catch (error) {
+    // The execution row was already created as PENDING above. If enqueueing
+    // fails, mark it as ERROR so it doesn't stay stuck PENDING forever, and
+    // rethrow so the caller's retry mechanism applies.
+    await prisma.automationExecution.update({
+      where: { id: executionId, projectId },
+      data: {
+        status: ActionExecutionStatus.ERROR,
+        finishedAt: new Date(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    });
+    throw error;
+  }
 }
