@@ -622,7 +622,9 @@ export const PromptDetail = ({
                     <JSONView json={prompt.prompt} title="Prompt" />
                   )}
                 </PromptReferenceProvider>
-                <PromptVariableListPreview variables={extractedVariables} />
+                {extractedVariables.length > 0 && (
+                  <PromptVariableListPreview variables={extractedVariables} />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent
