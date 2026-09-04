@@ -53,4 +53,24 @@ describe("useLocalStorage", () => {
     expect(warnSpy).toHaveBeenCalled();
     expect(errorSpy).not.toHaveBeenCalled();
   });
+
+  it("removes the stored value when cleared", () => {
+    const { result } = renderHook(() =>
+      useLocalStorage("test-pref-key", "initial"),
+    );
+
+    act(() => {
+      result.current[1]("updated");
+    });
+    expect(localStorage.getItem("test-pref-key")).toBe(
+      JSON.stringify("updated"),
+    );
+
+    act(() => {
+      result.current[2]();
+    });
+
+    expect(result.current[0]).toBe("initial");
+    expect(localStorage.getItem("test-pref-key")).toBeNull();
+  });
 });

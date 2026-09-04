@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 /**
  * useLocalStorage is a hook for managing data with the localStorage API.
@@ -44,6 +44,7 @@ function useLocalStorage<T>(
       return initialValue;
     }
   });
+  const skipPersistenceForValue = useRef<T | undefined>(undefined);
 
   // Helper object to safely interact with localStorage
   // Handles all error cases and provides consistent interface
@@ -72,6 +73,7 @@ function useLocalStorage<T>(
 
   // Function to clear both localStorage and state
   const clearValue = () => {
+    skipPersistenceForValue.current = initialValue;
     safeLocalStorage.remove();
     setValue(initialValue);
   };
@@ -79,6 +81,11 @@ function useLocalStorage<T>(
   // Sync to localStorage whenever value changes
   // This ensures localStorage always has the latest value
   useEffect(() => {
+    if (Object.is(skipPersistenceForValue.current, value)) {
+      skipPersistenceForValue.current = undefined;
+      return;
+    }
+    skipPersistenceForValue.current = undefined;
     safeLocalStorage.set(value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStorageKey, value]);
