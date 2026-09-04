@@ -18,19 +18,3 @@ export const INTERNAL_EVALUATION_ENVIRONMENT_FILTERS = [
     value: [...INTERNAL_EVALUATION_ENVIRONMENTS],
   },
 ] satisfies FilterState;
-
-export const EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS = [
-  ...INTERNAL_EVALUATION_ENVIRONMENT_FILTERS,
-  {
-    column: "environment",
-    type: "stringOptions",
-    operator: "none of",
-    value: ["sdk-experiment"],
-  },
-  {
-    column: "experimentId",
-    type: "null",
-    operator: "is null",
-    value: "",
-  },
-] satisfies FilterState;

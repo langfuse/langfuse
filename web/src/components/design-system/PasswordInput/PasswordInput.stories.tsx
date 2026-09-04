@@ -43,6 +43,23 @@ export const TestTogglesVisibility = meta.story({
   },
 });
 
+export const TestSkipsVisibilityToggleWhenTabbing = meta.story({
+  name: "(Test) Skips Visibility Toggle When Tabbing",
+  args: {
+    "aria-label": "Password",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Password");
+    const toggle = canvas.getByRole("button", { name: "Show password" });
+
+    input.focus();
+    await userEvent.tab();
+
+    await expect(toggle).not.toHaveFocus();
+  },
+});
+
 export const TestDisablesVisibilityToggle = meta.story({
   name: "(Test) Disables Visibility Toggle",
   args: {

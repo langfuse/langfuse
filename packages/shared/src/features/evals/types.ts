@@ -317,3 +317,16 @@ export const observationVariableMappingList = z.array(
 export type ObservationVariableMapping = z.infer<
   typeof observationVariableMapping
 >;
+
+/**
+ * Per-evaluator mapping override for a one-shot batch evaluation. `null`
+ * inherits the evaluator version's mapping. Absent from the payload means
+ * every selected evaluator inherits.
+ */
+export const BatchEvalEvaluatorMappingSchema = z.object({
+  evaluatorId: z.string().min(1),
+  variableMapping: observationVariableMappingList.nullable(),
+});
+export type BatchEvalEvaluatorMapping = z.infer<
+  typeof BatchEvalEvaluatorMappingSchema
+>;

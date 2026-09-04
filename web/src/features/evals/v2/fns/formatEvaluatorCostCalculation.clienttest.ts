@@ -59,4 +59,34 @@ describe("formatEvaluatorCostCalculation", () => {
       "Code evaluators do not call an LLM, so they do not incur model-provider / LLM costs.",
     );
   });
+
+  it("does not claim a 7-day window when a selection has no priced test", () => {
+    expect(
+      formatEvaluatorCostCalculation({
+        matchingObservations: 3,
+        sampling: 1,
+        testRunCostUsd: null,
+        estimatedCostUsd: null,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        period: "selection",
+      }),
+    ).toBe(
+      "No cost-bearing evaluator trace was available, and the fallback test call did not return a usable model cost. Expected cost would be charged to your linked API key, not Langfuse.",
+    );
+  });
+
+  it("describes a one-shot selection instead of a weekly total", () => {
+    expect(
+      formatEvaluatorCostCalculation({
+        matchingObservations: 12,
+        sampling: 1,
+        testRunCostUsd: 0.01,
+        estimatedCostUsd: 0.12,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        period: "selection",
+      }),
+    ).toBe(
+      "12 observations × 100% sampling × $0.01 per evaluation = ≈ $0.12 for this run. Expected cost on your linked API key (not Langfuse). Per-evaluation cost uses the latest cost-bearing evaluator trace from that period, or a fallback test call.",
+    );
+  });
 });
