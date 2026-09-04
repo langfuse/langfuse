@@ -50,6 +50,7 @@ cannot live in one repo. Create the directory if it does not exist.
 - **Tracker identity:** <name / email as Linear knows it, or "none">
 - **Focus:** <the areas they own or are learning — their own words>
 - **Checkouts:** <path to langfuse> · <path to langfuse-docs> · <others>
+- **Connectors verified:** <the ones that answered a real read> · **missing:** <the rest>
 - *Recorded <date> by an agent. Edit freely; delete to be asked again.*
 ```
 
@@ -116,7 +117,33 @@ Then, in the repos:
 finding worth reporting, not something to smooth over: one of the two is wrong,
 and the person reading both will trust the wrong one.
 
-## Step 4 — the checkouts, especially the docs one
+## Step 4 — the connectors, and what breaks without each
+
+Skills fail differently from code: an unauthorized connector does not error, the
+agent simply cannot answer, and neither of you finds out why. So walk this list
+and say which ones are missing rather than discovering it mid-task.
+
+| Connect | Needed by |
+| --- | --- |
+| **Linear** | 17 skills — the tracker practice in all of it |
+| **Datadog** | `debug-issue-with-datadog`, `datadog-query-recipes`, `incident-alert-tickets`, `weekly-production-review`, `infra-scaling`, `linear-bug-triage` |
+| **AWS** (SSO) | preview seeding and `kubectl` in `langfuse-previews`, plus `infra-scaling`, `security-review` |
+| **incident.io** | `incident-alert-tickets`, `weekly-production-review`, `debug-issue-with-datadog` |
+| **PostHog** | `posthog-instrumentation`, and the usage half of `debug-issue-with-datadog` |
+| **Sentry** | `sentry-instrumentation` |
+| **Pylon** | `housekeeping` |
+| **Hex** | `analyze-cloud-costs` |
+| **Slack** | `weekly-production-review` |
+
+**Datadog is the one that fails quietly**, and it takes four skills with it.
+Prove each connector with a real read rather than trusting a status indicator —
+a remote server can report itself connected before it holds a token.
+
+Two prerequisites on the same checklist that are not connectors: the
+`langfuse-docs` checkout below, which four skills read the handbook from, and a
+working local Docker, without which the seeder cannot make test data.
+
+## Step 5 — the checkouts, especially the docs one
 
 A maintainer needs the app repo *and* the docs repo. The docs repo is the one
 people skip, and then documentation quietly stops happening because the
