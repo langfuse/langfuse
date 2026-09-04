@@ -9,8 +9,12 @@ import { memo, useRef, useEffect } from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePrefetchObservation } from "@/src/features/traces/hooks/usePrefetchObservation";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { type FlatLogItem } from "./log-view-types";
+import {
+  getLogViewObservationIdentity,
+  type FlatLogItem,
+} from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
+import { isObservationTreeNode } from "@/src/features/traces/types/treeNode";
 
 // Constants for prefetching behavior
 const {
@@ -41,10 +45,13 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
   const { prefetch } = usePrefetchObservation({ projectId });
   const hasPrefetched = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const observationIdentity = getLogViewObservationIdentity(item.node, traceId);
+  const isObservation = isObservationTreeNode(item.node);
+  const { id, type, startTime } = item.node;
 
   useEffect(() => {
     const element = ref.current;
-    if (!element || item.node.type === "TRACE") return;
+    if (!element || !isObservation) return;
 
     // Reset prefetch flag when item changes to ensure we prefetch new data
     hasPrefetched.current = false;
@@ -57,7 +64,11 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
           // many requests during fast scrolling
           timeoutRef.current = setTimeout(() => {
             hasPrefetched.current = true;
-            prefetch(item.node.id, traceId, item.node.startTime);
+            prefetch(
+              observationIdentity.observationId,
+              observationIdentity.traceId,
+              startTime,
+            );
           }, PREFETCH_DEBOUNCE_MS);
         } else if (!entry?.isIntersecting && timeoutRef.current) {
           // Cancel pending prefetch if element leaves viewport
@@ -75,7 +86,15 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [item.node.id, item.node.type, item.node.startTime, traceId, prefetch]);
+  }, [
+    id,
+    type,
+    startTime,
+    isObservation,
+    observationIdentity.observationId,
+    observationIdentity.traceId,
+    prefetch,
+  ]);
 
   const displayName = formatDisplayName(item.node);
   const childrenCount = item.node.children?.length ?? 0;

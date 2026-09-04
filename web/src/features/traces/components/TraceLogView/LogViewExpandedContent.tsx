@@ -10,6 +10,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { getLogViewObservationIdentity } from "./log-view-types";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
@@ -36,10 +37,10 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
   externalExpansionState,
   onExternalExpansionChange,
 }: LogViewExpandedContentProps) {
+  const observationIdentity = getLogViewObservationIdentity(node, traceId);
   // Fetch I/O data lazily
   const { data, isLoading, isError } = useLogViewObservationIO({
-    observationId: node.id,
-    traceId,
+    ...observationIdentity,
     projectId,
     startTime: node.startTime,
     enabled: true, // Always enabled when mounted (row is expanded)

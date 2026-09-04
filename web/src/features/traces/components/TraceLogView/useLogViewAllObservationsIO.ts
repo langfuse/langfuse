@@ -12,8 +12,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import chunk from "lodash/chunk";
 import { api } from "@/src/utils/api";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { type FlatLogItem } from "./log-view-types";
+import {
+  getLogViewObservationIdentity,
+  type FlatLogItem,
+} from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
+import { isObservationTreeNode } from "@/src/features/traces/types/treeNode";
 
 // Max concurrent requests when loading all observation data
 const FETCH_CONCURRENCY = TRACE_VIEW_CONFIG.logView.batchFetch.concurrency;
@@ -84,8 +88,12 @@ export function useLogViewAllObservationsIO({
    */
   const buildDataFromCache = useCallback((): ObservationIOData[] => {
     return items
-      .filter((item) => item.node.type !== "TRACE")
+      .filter((item) => isObservationTreeNode(item.node))
       .map((item) => {
+        const observationIdentity = getLogViewObservationIdentity(
+          item.node,
+          traceId,
+        );
         const baseData: ObservationIOData = {
           id: item.node.id,
           type: item.node.type,
@@ -97,8 +105,8 @@ export function useLogViewAllObservationsIO({
 
         // Check if we have cached I/O data for this observation
         const queryKey = getObservationQueryKey(
-          item.node.id,
-          traceId,
+          observationIdentity.observationId,
+          observationIdentity.traceId,
           projectId,
           item.node.startTime,
         );
@@ -137,8 +145,8 @@ export function useLogViewAllObservationsIO({
     setFailedObservationIds([]);
 
     try {
-      const observationItems = items.filter(
-        (item) => item.node.type !== "TRACE",
+      const observationItems = items.filter((item) =>
+        isObservationTreeNode(item.node),
       );
 
       // Separate cached vs uncached items
@@ -146,9 +154,13 @@ export function useLogViewAllObservationsIO({
       const uncachedItems: FlatLogItem[] = [];
 
       for (const item of observationItems) {
-        const queryKey = getObservationQueryKey(
-          item.node.id,
+        const observationIdentity = getLogViewObservationIdentity(
+          item.node,
           traceId,
+        );
+        const queryKey = getObservationQueryKey(
+          observationIdentity.observationId,
+          observationIdentity.traceId,
           projectId,
           item.node.startTime,
         );
@@ -195,9 +207,13 @@ export function useLogViewAllObservationsIO({
         const chunkResults = await Promise.all(
           itemChunk.map(async (item) => {
             try {
-              const result = await utils.observations.byId.fetch({
-                observationId: item.node.id,
+              const observationIdentity = getLogViewObservationIdentity(
+                item.node,
                 traceId,
+              );
+              const result = await utils.observations.byId.fetch({
+                observationId: observationIdentity.observationId,
+                traceId: observationIdentity.traceId,
                 projectId,
                 startTime: item.node.startTime,
               });
@@ -275,6 +291,6 @@ export function useLogViewAllObservationsIO({
     /** Build data from tree + cache without fetching (for virtualized mode) */
     buildDataFromCache,
     /** Total number of observations */
-    totalCount: items.filter((item) => item.node.type !== "TRACE").length,
+    totalCount: items.filter((item) => isObservationTreeNode(item.node)).length,
   };
 }

@@ -8,8 +8,12 @@
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { type FlatLogItem } from "./log-view-types";
+import {
+  getLogViewObservationIdentity,
+  type FlatLogItem,
+} from "./log-view-types";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { isObservationTreeNode } from "@/src/features/traces/types/treeNode";
 
 export interface UseLogViewObservationIOParams {
   observationId: string;
@@ -98,18 +102,24 @@ export function useObservationIOLoadedCount({
 
   return useMemo(() => {
     // Filter out TRACE type (which doesn't have observation I/O)
-    const observationItems = items.filter((item) => item.node.type !== "TRACE");
+    const observationItems = items.filter((item) =>
+      isObservationTreeNode(item.node),
+    );
     const total = observationItems.length;
 
     let loaded = 0;
     for (const item of observationItems) {
+      const observationIdentity = getLogViewObservationIdentity(
+        item.node,
+        traceId,
+      );
       // Build the same query key that tRPC uses
       const queryKey = [
         ["observations", "byId"],
         {
           input: {
-            observationId: item.node.id,
-            traceId,
+            observationId: observationIdentity.observationId,
+            traceId: observationIdentity.traceId,
             projectId,
             startTime: item.node.startTime,
           },
