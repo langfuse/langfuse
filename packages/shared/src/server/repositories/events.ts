@@ -2495,30 +2495,43 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
   chMinStartTime: string;
   chMaxStartTime: string;
 }) {
-  const query = `
-    SELECT
-      e.trace_id as trace_id,
-      e.span_id as id,
-      e.parent_span_id as parent_observation_id,
-      e.type as type,
-      e.name as name,
-      e.start_time as start_time,
-      e.end_time as end_time,
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
-    FROM events_core e
-    WHERE
-      e.project_id = {projectId: String}
-      AND e.session_id = {sessionId: String}
-      AND e.is_deleted = 0
-      AND e.start_time >= {chMinStartTime: DateTime64(3)}
-      AND e.start_time <= {chMaxStartTime: DateTime64(3)}
-    LIMIT {limit: UInt32}
-  `;
+  const { query, params: queryParams } = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw(
+      "e.trace_id as trace_id",
+      "e.span_id as id",
+      "e.parent_span_id as parent_observation_id",
+      "e.type as type",
+      "e.name as name",
+      "e.start_time as start_time",
+      "e.end_time as end_time",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step",
+    )
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    })
+    .whereRaw("e.start_time >= {chMinStartTime: DateTime64(3)}", {
+      chMinStartTime: params.chMinStartTime,
+    })
+    .whereRaw("e.start_time <= {chMaxStartTime: DateTime64(3)}", {
+      chMaxStartTime: params.chMaxStartTime,
+    })
+    .qualifyRaw(
+      "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+    )
+    .orderByColumns([
+      { column: "e.start_time", direction: "ASC" },
+      { column: "e.trace_id", direction: "ASC" },
+      { column: "e.span_id", direction: "ASC" },
+    ])
+    .limit(MAX_OBSERVATIONS_PER_SESSION)
+    .buildWithParams();
 
   return queryClickhouse({
     query,
-    params: { ...params, limit: MAX_OBSERVATIONS_PER_SESSION },
+    params: queryParams,
     tags: { projectId: params.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
