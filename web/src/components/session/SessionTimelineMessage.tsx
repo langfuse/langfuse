@@ -71,7 +71,7 @@ function CollapsiblePart({
   children,
 }: {
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string }>;
   status?: "success" | "error";
   variant: "plain" | "card";
   children: React.ReactNode;
@@ -92,7 +92,7 @@ function CollapsiblePart({
         aria-expanded={isExpanded}
         onClick={() => setIsExpanded((current) => !current)}
       >
-        <Icon className="h-3 w-3 shrink-0" />
+        {Icon ? <Icon className="h-3 w-3 shrink-0" /> : null}
         <span className="truncate" title={label}>
           {label}
         </span>
@@ -109,6 +109,7 @@ function CollapsiblePart({
             "h-3 w-3 shrink-0 transition-transform",
             !isExpanded && "-rotate-90",
           )}
+          aria-hidden="true"
         />
       </button>
       {isExpanded ? (
@@ -257,11 +258,38 @@ function SessionTimelinePart({
   return assertUnreachable(part);
 }
 
+function SessionTimelineSystemMessage({
+  message,
+}: {
+  message: NormalizedMessage;
+}) {
+  return (
+    <div className="ph-no-capture flex w-full justify-end">
+      <CollapsiblePart
+        label={message.senderName ?? "System prompt"}
+        variant="plain"
+      >
+        <div className="flex flex-col gap-2 text-sm leading-6">
+          {message.parts
+            .filter((part) => part.type !== "tool-result")
+            .map((part, index) => (
+              <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
+            ))}
+        </div>
+      </CollapsiblePart>
+    </div>
+  );
+}
+
 export function SessionTimelineMessage({
   message,
 }: {
   message: NormalizedMessage;
 }) {
+  if (message.role === "system") {
+    return <SessionTimelineSystemMessage message={message} />;
+  }
+
   const presentation = rolePresentation[message.role];
   const Icon = presentation.icon;
   const showSender = Boolean(
@@ -276,7 +304,7 @@ export function SessionTimelineMessage({
           presentation.container,
         )}
       >
-        {message.role === "system" || showSender ? (
+        {showSender ? (
           <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
             <Icon className="h-3 w-3 shrink-0" />
             <span

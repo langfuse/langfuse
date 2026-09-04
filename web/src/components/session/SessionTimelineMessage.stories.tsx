@@ -43,6 +43,21 @@ export const NamedUser = meta.story({
   },
 });
 
+export const SystemPrompt = meta.story({
+  args: {
+    message: {
+      role: "system",
+      source: "input",
+      parts: [
+        {
+          type: "text",
+          text: "Answer using the product documentation and cite relevant sources.",
+        },
+      ],
+    } satisfies NormalizedMessage,
+  },
+});
+
 export const StructuredData = meta.story({
   args: {
     message: {
@@ -119,5 +134,21 @@ export const ExpandToolCall = meta.story({
       canvas.getByRole("button", { name: /search_documentation/i }),
     );
     await expect(canvas.getByText("call-search-1")).toBeVisible();
+  },
+});
+
+export const ExpandSystemPrompt = meta.story({
+  name: "(Test) Expands System Prompt",
+  args: SystemPrompt.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const content =
+      "Answer using the product documentation and cite relevant sources.";
+
+    await expect(canvas.queryByText(content)).not.toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "System prompt" }),
+    );
+    await expect(canvas.getByText(content)).toBeVisible();
   },
 });

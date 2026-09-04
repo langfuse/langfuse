@@ -125,6 +125,9 @@ describe("SessionConversationTimeline", () => {
     );
 
     expect(screen.getByText("Reasoning")).toBeInTheDocument();
+    expect(screen.queryByText("Think")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reasoning" }));
+    expect(screen.getByText("Think")).toBeVisible();
     expect(screen.queryByText("search")).not.toBeInTheDocument();
     expect(screen.getByText('{"confidence":0.9}')).toBeInTheDocument();
     expect(screen.getByText(/citation/)).toBeInTheDocument();
@@ -162,6 +165,21 @@ describe("SessionConversationTimeline", () => {
 
     expect(screen.queryByText("Secret prompt")).not.toBeInTheDocument();
     expect(screen.getByLabelText("No conversational content")).toBeVisible();
+  });
+
+  it("collapses visible system prompts by default", () => {
+    renderTimeline({
+      timelineObservation: {
+        ...observation,
+        input: JSON.stringify([{ role: "system", content: "Secret prompt" }]),
+        output: null,
+      },
+      showSystemPrompt: true,
+    });
+
+    expect(screen.queryByText("Secret prompt")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "System prompt" }));
+    expect(screen.getByText("Secret prompt")).toBeVisible();
   });
 
   it("reports omitted metadata while preserving parsed messages", () => {
