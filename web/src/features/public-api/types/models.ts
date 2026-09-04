@@ -131,6 +131,11 @@ export function prismaToApiModelDefinition({
 // GET /models
 export const GetModelsV1Query = z.object({
   ...publicApiPaginationZod,
+  // Optional half-open time window on the model row's `createdAt` column.
+  // Both params are independent; an invalid ISO-8601 timestamp returns 400
+  // via the Zod coerce. Pattern matches GET /api/public/comments.
+  fromTimestamp: z.coerce.date().nullish(),
+  toTimestamp: z.coerce.date().nullish(),
 });
 export const GetModelsV1Response = z
   .object({
