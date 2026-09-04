@@ -29,6 +29,21 @@ describe("traceLevelScoreOwnerIds", () => {
     ]).toEqual(["root", "orphan"]);
   });
 
+  it("finds TRACE owners below a synthetic SESSION root", () => {
+    expect([
+      ...traceLevelScoreOwnerIds([
+        {
+          id: "session-s",
+          type: "SESSION",
+          children: [
+            { id: "trace-t1", type: "TRACE" },
+            { id: "trace-t2", type: "TRACE" },
+          ],
+        },
+      ]),
+    ]).toEqual(["trace-t1", "trace-t2"]);
+  });
+
   it("does not hand ownership to a row that only LOOKS top-level", () => {
     // An observation merged in from outside the loaded list, whose parent is
     // missing too, sits among the roots without being one. In v4 (no TRACE row)
@@ -70,5 +85,34 @@ describe("selectNodeScores", () => {
     expect(
       selectNodeScores(scores, "child", ownerIds).map((s) => s.id),
     ).toEqual(["child-level"]);
+  });
+
+  it("keeps scores on their owning trace in a session tree", () => {
+    const sessionScores = [
+      { id: "t1", traceId: "trace-1", observationId: null },
+      { id: "o1", traceId: "trace-1", observationId: "shared" },
+      { id: "t2", traceId: "trace-2", observationId: null },
+      { id: "o2", traceId: "trace-2", observationId: "shared" },
+    ];
+    const sessionOwners = traceLevelScoreOwnerIds(
+      roots(
+        { id: "trace-trace-1", type: "TRACE" },
+        { id: "trace-trace-2", type: "TRACE" },
+      ),
+    );
+
+    expect(
+      selectNodeScores(
+        sessionScores,
+        "trace-trace-2",
+        sessionOwners,
+        "trace-2",
+      ).map((score) => score.id),
+    ).toEqual(["t2"]);
+    expect(
+      selectNodeScores(sessionScores, "shared", sessionOwners, "trace-2").map(
+        (score) => score.id,
+      ),
+    ).toEqual(["o2"]);
   });
 });

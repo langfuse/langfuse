@@ -11,6 +11,7 @@ const tabsListVariants = cva(
     variants: {
       variant: {
         default: "bg-muted rounded-md",
+        contrast: "bg-muted-foreground/10 rounded-md",
         underline: "rounded-none border-b bg-transparent",
         outline:
           "bg-background rounded-md border **:data-[state=active]:bg-muted",
@@ -37,6 +38,10 @@ const tabsListVariants = cva(
       { variant: "default", size: "md", class: "h-7 p-1" },
       { variant: "default", size: "sm", class: "h-6 p-0.5" },
       { variant: "default", size: "auto", class: "h-auto p-1" },
+      { variant: "contrast", size: "default", class: "h-8 p-1" },
+      { variant: "contrast", size: "md", class: "h-7 p-1" },
+      { variant: "contrast", size: "sm", class: "h-6 p-0.5" },
+      { variant: "contrast", size: "auto", class: "h-auto p-1" },
       { variant: "outline", size: "default", class: "h-8 p-1" },
       { variant: "outline", size: "md", class: "h-7 p-1" },
       { variant: "outline", size: "sm", class: "h-6 p-0.5" },
@@ -61,6 +66,8 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default:
+          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-xs",
+        contrast:
           "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-xs",
         underline:
           "rounded-none border-b-2 border-transparent bg-transparent text-muted-foreground shadow-none data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none",

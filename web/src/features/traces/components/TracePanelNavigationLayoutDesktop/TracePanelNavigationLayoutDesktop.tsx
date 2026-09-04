@@ -96,7 +96,7 @@ export function TracePanelNavigationLayoutDesktop({
   const { isNavigationPanelCollapsed, handleTogglePanel, shouldPulseToggle } =
     useDesktopLayoutContext();
   const { trace } = useTraceData();
-  const { isAgentGraph } = useTraceGraphData();
+  const { shouldExpandGraphByDefault } = useTraceGraphData();
   const { isPeekMode } = useViewPreferences();
 
   // Per-project persisted collapse. Tri-state: null = no user choice yet, so
@@ -105,7 +105,7 @@ export function TracePanelNavigationLayoutDesktop({
   const [storedGraphCollapsed, setStoredGraphCollapsed] = useLocalStorage<
     boolean | null
   >(`trace-graph-panel-collapsed-${trace.projectId}`, null);
-  const graphCollapsed = storedGraphCollapsed ?? !isAgentGraph;
+  const graphCollapsed = storedGraphCollapsed ?? !shouldExpandGraphByDefault;
 
   const graphPanelRef = usePanelRef();
   const graphGroupRef = useGroupRef();

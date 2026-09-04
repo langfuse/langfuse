@@ -20,6 +20,7 @@ export function TraceTruncationNotice() {
     truncatedAtObservations,
     detachedObservationId,
     detachedObservationIsMisplaced,
+    isSessionScope,
   } = useTraceData();
 
   // Per trace view: dismissing frees the space for this visit, and the notice is
@@ -61,7 +62,8 @@ export function TraceTruncationNotice() {
           Showing the first {truncatedAtObservations.toLocaleString()}{" "}
           observations
         </span>{" "}
-        by start time. Later ones are missing here — find them in the
+        by start time. Later ones are missing from this{" "}
+        {isSessionScope ? "session" : "trace"} view — find them in the
         observations table.
         {detachedNote}
       </p>

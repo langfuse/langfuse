@@ -17,24 +17,36 @@ export function TraceDetailBody({
   context,
   keySuffix,
   truncatedAtObservations,
+  showObservationOnly = false,
+  sessionScopeRequested = false,
 }: {
   trace: TraceDetailData | undefined;
   context: "peek" | "fullscreen" | "annotation";
   keySuffix?: string;
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  showObservationOnly?: boolean;
+  sessionScopeRequested?: boolean;
 }) {
   if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
+  const sessionTraceEntries =
+    "sessionTraceEntries" in trace ? trace.sessionTraceEntries : undefined;
+  const traceKey =
+    sessionScopeRequested || sessionTraceEntries
+      ? `session-${trace.sessionId ?? trace.id}`
+      : trace.id;
   return (
     <Trace
-      key={keySuffix ? `${trace.id}-${keySuffix}` : trace.id}
+      key={keySuffix ? `${traceKey}-${keySuffix}` : traceKey}
       trace={trace}
       scores={trace.scores}
       corrections={trace.corrections}
       projectId={trace.projectId}
       observations={trace.observations}
+      sessionTraceEntries={sessionTraceEntries}
       context={context}
       truncatedAtObservations={truncatedAtObservations}
+      showObservationOnly={showObservationOnly}
     />
   );
 }

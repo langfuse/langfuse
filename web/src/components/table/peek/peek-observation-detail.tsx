@@ -4,14 +4,17 @@ import {
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
+  getDefaultObservationId,
+  TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
-  traceDetailTitle,
+  getSelectedObservation,
+  getTraceDetailModeTitle,
 } from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -22,6 +25,11 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
+  const requestedAggregationLevel =
+    router.query.aggregation === "session" ||
+    router.query.aggregation === "observation"
+      ? router.query.aggregation
+      : "trace";
 
   const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
@@ -42,7 +50,44 @@ export const TablePeekViewObservationDetail = (
     projectId,
     traceId,
     timestamp,
+    aggregationLevel:
+      requestedAggregationLevel === "session" ? "session" : "trace",
+    readPath: props.isV4 ? "v4" : "v3",
   });
+  const aggregationLevel =
+    requestedAggregationLevel === "session" && trace.isSessionScopeUnavailable
+      ? "trace"
+      : requestedAggregationLevel;
+
+  useEffect(() => {
+    if (
+      requestedAggregationLevel !== "session" ||
+      !trace.isSessionScopeUnavailable
+    ) {
+      return;
+    }
+
+    const query = { ...router.query };
+    delete query.aggregation;
+    router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  }, [requestedAggregationLevel, router, trace.isSessionScopeUnavailable]);
+
+  const isSessionScope =
+    !!trace.data &&
+    "sessionTraceEntries" in trace.data &&
+    !!trace.data.sessionTraceEntries;
+  const selectedObservation = getSelectedObservation(
+    trace.data?.observations,
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined,
+  );
+  const selectedNodeId =
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined;
 
   const actionProps = trace.data
     ? {
@@ -68,11 +113,49 @@ export const TablePeekViewObservationDetail = (
         },
       }
     : null;
+  const aggregationToggle = props.isV4 ? (
+    <TraceAggregationToggle
+      aggregationLevel={aggregationLevel}
+      canSelectSession={trace.canAggregateBySession}
+      observationType={selectedObservation?.type ?? null}
+      onAggregationLevelChange={(nextAggregationLevel) => {
+        const query = { ...router.query };
+        if (nextAggregationLevel !== "trace") {
+          query.aggregation = nextAggregationLevel;
+          if (nextAggregationLevel === "observation" && !selectedObservation) {
+            query.observation = getDefaultObservationId(trace.data);
+          }
+        } else {
+          delete query.aggregation;
+        }
+        router.replace({ pathname: router.pathname, query }, undefined, {
+          shallow: true,
+        });
+      }}
+    />
+  ) : undefined;
+  const title = getTraceDetailModeTitle(
+    aggregationLevel,
+    trace.data,
+    selectedObservation,
+    aggregationLevel === "observation" ? selectedNodeId : traceId,
+  );
 
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={title}
+      {...(props.isV4
+        ? {
+            widthMode:
+              aggregationLevel === "observation"
+                ? ("observation" as const)
+                : ("split" as const),
+          }
+        : {})}
+      leadingContent={aggregationToggle}
+      hideItemBadge={!!aggregationToggle}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
@@ -87,6 +170,8 @@ export const TablePeekViewObservationDetail = (
         context="peek"
         keySuffix={peekObservationId}
         truncatedAtObservations={trace.truncatedAtObservations}
+        showObservationOnly={aggregationLevel === "observation"}
+        sessionScopeRequested={aggregationLevel === "session"}
       />
     </TablePeekView>
   );

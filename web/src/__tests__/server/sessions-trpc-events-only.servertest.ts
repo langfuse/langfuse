@@ -164,6 +164,23 @@ maybe("sessions trpc (events_only write mode)", () => {
     ).toBeLessThan(1000);
   });
 
+  it("returns observations across every trace in the session", async () => {
+    const sessionId = randomUUID();
+    const first = await seedSessionEvent(sessionId);
+    const second = await seedSessionEvent(sessionId);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+      expect(
+        new Set(result.observations.map((observation) => observation.traceId)),
+      ).toEqual(new Set([first.traceId, second.traceId]));
+      expect(result.cutoffObservationsAfterMaxCount).toBe(false);
+    });
+  });
+
   it("bookmark creates the trace_sessions row on demand and round-trips", async () => {
     const sessionId = randomUUID();
     await seedSessionEvent(sessionId);

@@ -144,7 +144,7 @@ export function TraceDetailView({
   );
 
   // Context hooks
-  const { comments } = useTraceData();
+  const { comments, isSessionScope } = useTraceData();
   const {
     formattedExpansion,
     setFormattedFieldExpansion,
@@ -247,6 +247,7 @@ export function TraceDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        isSessionScope={isSessionScope}
       />
 
       {/* Tabs section */}

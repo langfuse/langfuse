@@ -5,13 +5,19 @@ import { TraceDetailActions } from "@/src/features/traces/components/TraceDetail
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
+import {
+  getDefaultObservationId,
+  getSelectedObservation,
+  getTraceDetailModeTitle,
+} from "@/src/features/traces/fns/getSelectedObservationType";
+import { StringParam, useQueryParam } from "use-query-params";
 
 export function TracePage({
   traceId,
@@ -23,12 +29,22 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const routeProjectId = (router.query.projectId as string) ?? "";
+  const [aggregationParam, setAggregationParam] = useQueryParam(
+    "aggregation",
+    StringParam,
+  );
+  const [, setObservationParam] = useQueryParam("observation", StringParam);
+  const aggregationLevel =
+    aggregationParam === "session" || aggregationParam === "observation"
+      ? aggregationParam
+      : "trace";
 
   // Shared, beta-aware fetch (same hook the peek uses).
   const trace = useTraceDetailData({
     projectId: routeProjectId,
     traceId,
     timestamp,
+    aggregationLevel: aggregationLevel === "session" ? "session" : "trace",
   });
 
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
@@ -38,6 +54,14 @@ export function TracePage({
 
   if (trace.isUnauthorized)
     return <ErrorPage message="You do not have access to this trace." />;
+
+  if (trace.isSessionScopeUnavailable)
+    return (
+      <ErrorPage
+        title="Session required"
+        message="This trace is not part of a session and cannot be opened in the v4 detail view."
+      />
+    );
 
   if (trace.isNotFound)
     return (
@@ -53,6 +77,8 @@ export function TracePage({
 
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
+  const isSessionScope =
+    "sessionTraceEntries" in trace.data && !!trace.data.sessionTraceEntries;
   const isSharedTrace = trace.data.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
   const encodedTargetPath = encodeURIComponent(
@@ -88,20 +114,71 @@ export function TracePage({
       Public
     </Badge>
   ) : undefined;
+  const selectedObservation = getSelectedObservation(
+    trace.data.observations,
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined,
+  );
+  const selectedNodeId =
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined;
+  const aggregationToggle = trace.isEventsTraceSource ? (
+    <TraceAggregationToggle
+      aggregationLevel={aggregationLevel}
+      canSelectSession={trace.canAggregateBySession}
+      observationType={selectedObservation?.type ?? null}
+      onAggregationLevelChange={(nextAggregationLevel) => {
+        if (nextAggregationLevel === "session") {
+          setAggregationParam("session");
+        }
+        if (nextAggregationLevel === "observation") {
+          if (!selectedObservation) {
+            setObservationParam(getDefaultObservationId(trace.data) ?? null);
+          }
+          setAggregationParam("observation");
+        }
+        if (nextAggregationLevel === "trace") {
+          setAggregationParam(null);
+        }
+      }}
+    />
+  ) : undefined;
+  const title =
+    getTraceDetailModeTitle(
+      aggregationLevel,
+      trace.data,
+      selectedObservation,
+      aggregationLevel === "observation" ? selectedNodeId : traceId,
+    ) ?? traceId;
 
   return (
     <Page
       headerProps={{
-        title: traceDetailTitle(trace.data) ?? trace.data.id,
-        itemType: "TRACE",
+        title,
+        itemType: aggregationToggle
+          ? undefined
+          : isSessionScope
+            ? "SESSION"
+            : "TRACE",
         breadcrumb: [
           {
             name: "Traces",
             href: `/project/${router.query.projectId as string}/traces`,
           },
+          ...(trace.data.sessionId
+            ? [
+                {
+                  name: "Session",
+                  href: `/project/${router.query.projectId as string}/sessions/${encodeURIComponent(trace.data.sessionId)}`,
+                },
+              ]
+            : []),
         ],
         showSidebarTrigger: !showPublicIndicators,
         leadingControl,
+        titleLeadingContent: aggregationToggle,
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
@@ -112,6 +189,9 @@ export function TracePage({
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
+                  ...(aggregationLevel !== "trace"
+                    ? { aggregation: aggregationLevel }
+                    : {}),
                 });
                 const timestamp =
                   entry.params && entry.params.timestamp
@@ -162,6 +242,8 @@ export function TracePage({
           trace={trace.data}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
           truncatedAtObservations={trace.truncatedAtObservations}
+          showObservationOnly={aggregationLevel === "observation"}
+          sessionScopeRequested={aggregationLevel === "session"}
         />
       </div>
     </Page>

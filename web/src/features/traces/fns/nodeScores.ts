@@ -12,7 +12,14 @@
 
 import { type TreeNode } from "../types/treeNode";
 
-type LeveledScore = { observationId: string | null };
+type LeveledScore = {
+  observationId: string | null;
+  traceId?: string | null;
+};
+
+type ScoreOwnerNode = Pick<TreeNode, "id" | "type"> & {
+  children?: ScoreOwnerNode[];
+};
 
 /**
  * Pass the STRUCTURAL roots, never the level-filtered ones: hiding a root
@@ -26,13 +33,19 @@ type LeveledScore = { observationId: string | null };
  * it the trace's scores and its root-only chrome.
  */
 export function traceLevelScoreOwnerIds(
-  roots: Pick<TreeNode, "id" | "type">[],
+  roots: ScoreOwnerNode[],
   excludeId?: string | null,
 ): Set<string> {
   const structural = excludeId
     ? roots.filter((root) => root.id !== excludeId)
     : roots;
-  const traceNodes = structural.filter((root) => root.type === "TRACE");
+  const traceNodes = structural.flatMap((root) =>
+    root.type === "SESSION"
+      ? (root.children ?? []).filter((child) => child.type === "TRACE")
+      : root.type === "TRACE"
+        ? [root]
+        : [],
+  );
   const owners = traceNodes.length > 0 ? traceNodes : structural;
   return new Set(owners.map((owner) => owner.id));
 }
@@ -42,11 +55,15 @@ export function selectNodeScores<T extends LeveledScore>(
   scores: T[],
   nodeId: string,
   traceLevelOwnerIds: Set<string>,
+  traceId?: string,
 ): T[] {
+  const traceScores = traceId
+    ? scores.filter((score) => score.traceId === traceId)
+    : scores;
   return traceLevelOwnerIds.has(nodeId)
-    ? scores.filter(
+    ? traceScores.filter(
         (score) =>
           score.observationId === nodeId || score.observationId === null,
       )
-    : scores.filter((score) => score.observationId === nodeId);
+    : traceScores.filter((score) => score.observationId === nodeId);
 }

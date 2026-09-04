@@ -419,6 +419,7 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 // TODO: introduce pagination
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
+export const MAX_OBSERVATIONS_PER_SESSION = 5000;
 
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
@@ -471,6 +472,41 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   const withModelData = await enrichObservationsWithModelData(
     records.slice(0, MAX_OBSERVATIONS_PER_TRACE),
     projectId,
+    false,
+    null,
+  );
+  const observations = await enrichObservationsWithTraceFields(withModelData);
+
+  return { observations, totalCount };
+};
+
+export const getObservationsForSessionFromEventsTable = async (params: {
+  projectId: string;
+  sessionId: string;
+}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const records =
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId: params.projectId,
+      filter: [
+        {
+          column: "sessionId",
+          operator: "=" as const,
+          value: params.sessionId,
+          type: "string" as const,
+        },
+      ],
+      orderBy: { column: "startTime", order: "ASC" },
+      limit: MAX_OBSERVATIONS_PER_SESSION + 1,
+      offset: 0,
+      select: "rows",
+      selectIOAndMetadata: false,
+      selectToolData: false,
+    });
+
+  const totalCount = records.length;
+  const withModelData = await enrichObservationsWithModelData(
+    records.slice(0, MAX_OBSERVATIONS_PER_SESSION),
+    params.projectId,
     false,
     null,
   );
@@ -2433,15 +2469,50 @@ export async function getAgentGraphDataFromEventsTable(params: {
     FROM events_core e
     WHERE
       e.project_id = {projectId: String}
-      AND e.trace_id = {traceId: String}
-      AND e.start_time >= {chMinStartTime: DateTime64(3)}
-      AND e.start_time <= {chMaxStartTime: DateTime64(3)}
+        AND e.trace_id = {traceId: String}
+        AND e.start_time >= {chMinStartTime: DateTime64(3)}
+        AND e.start_time <= {chMaxStartTime: DateTime64(3)}
   `;
 
   return queryClickhouse({
     query,
     params: { projectId, traceId, chMinStartTime, chMaxStartTime },
     tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+}
+
+export async function getAgentGraphDataForSessionFromEventsTable(params: {
+  projectId: string;
+  sessionId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}) {
+  const query = `
+    SELECT
+      e.trace_id as trace_id,
+      e.span_id as id,
+      e.parent_span_id as parent_observation_id,
+      e.type as type,
+      e.name as name,
+      e.start_time as start_time,
+      e.end_time as end_time,
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
+    FROM events_core e
+    WHERE
+      e.project_id = {projectId: String}
+      AND e.session_id = {sessionId: String}
+      AND e.is_deleted = 0
+      AND e.start_time >= {chMinStartTime: DateTime64(3)}
+      AND e.start_time <= {chMaxStartTime: DateTime64(3)}
+    LIMIT {limit: UInt32}
+  `;
+
+  return queryClickhouse({
+    query,
+    params: { ...params, limit: MAX_OBSERVATIONS_PER_SESSION },
+    tags: { projectId: params.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 }

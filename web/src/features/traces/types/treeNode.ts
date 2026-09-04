@@ -17,7 +17,7 @@ import type Decimal from "decimal.js";
  */
 export type TreeNode = {
   id: string;
-  type: "TRACE" | ObservationType;
+  type: "SESSION" | "TRACE" | ObservationType;
   name: string;
   startTime: Date;
   endTime?: Date | null;
@@ -44,8 +44,11 @@ export type TreeNode = {
   // Undefined on TRACE wrapper nodes (which already render trace-level latency).
   subtreeWallClockDurationMs?: number;
   // Observation-specific properties (when type !== 'TRACE')
+  /** Raw observation id when `id` is trace-qualified for a session collision. */
+  observationId?: string;
   parentObservationId?: string | null;
   traceId?: string;
+  sessionId?: string;
   // Temporal and structural properties
   /** Milliseconds from trace start to this node's start time */
   startTimeSinceTrace: number;
@@ -56,3 +59,7 @@ export type TreeNode = {
   /** Maximum depth of subtree rooted at this node (0 for leaf nodes) */
   childrenDepth: number;
 };
+
+export function isObservationTreeNode(node: Pick<TreeNode, "type">) {
+  return node.type !== "SESSION" && node.type !== "TRACE";
+}

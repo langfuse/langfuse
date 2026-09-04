@@ -20,7 +20,7 @@
  */
 
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { type TreeNode } from "../types/treeNode";
+import { isObservationTreeNode, type TreeNode } from "../types/treeNode";
 
 /** Activation window of one observation, in seconds from the timeline origin. */
 export type NodeWindow = { id: string; startSec: number; endSec: number };
@@ -100,7 +100,7 @@ export function buildNodeWindows(
   while (stack.length > 0) {
     const node = stack.pop()!;
     for (const child of node.children) stack.push(child);
-    if (node.type === "TRACE") continue;
+    if (!isObservationTreeNode(node)) continue;
     const startSec = (node.startTime.getTime() - originMs) / 1000;
     const endSec =
       ((node.endTime ?? node.startTime).getTime() - originMs) / 1000;

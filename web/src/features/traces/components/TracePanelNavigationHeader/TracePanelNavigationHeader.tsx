@@ -113,9 +113,12 @@ function TracePanelNavigationHeaderExpanded({
     }
   };
 
-  // Check if everything is collapsed (all roots collapsed)
+  const collapseRoots = roots.flatMap((root) =>
+    root.type === "SESSION" ? root.children : [root],
+  );
   const isEverythingCollapsed =
-    roots.length > 0 && roots.every((r) => collapsedNodes.has(r.id));
+    collapseRoots.length > 0 &&
+    collapseRoots.every((root) => collapsedNodes.has(root.id));
 
   // Collect all node IDs for collapse all (from all roots)
   const getAllNodeIds = useCallback((node: (typeof roots)[0]): string[] => {
@@ -132,7 +135,7 @@ function TracePanelNavigationHeaderExpanded({
       expandAll();
     } else {
       capture("trace_detail:observation_tree_collapse", analyticsDimensions);
-      const allIds = roots.flatMap((root) => getAllNodeIds(root));
+      const allIds = collapseRoots.flatMap((root) => getAllNodeIds(root));
       collapseAll(allIds);
     }
   }, [
@@ -140,7 +143,7 @@ function TracePanelNavigationHeaderExpanded({
     expandAll,
     collapseAll,
     getAllNodeIds,
-    roots,
+    collapseRoots,
     capture,
     analyticsDimensions,
   ]);
@@ -247,7 +250,7 @@ function TracePanelNavigationHeaderExpanded({
               size="icon"
               onClick={handleDownload}
               disabled={isDownloading}
-              title="Download trace as JSON"
+              title="Download selected trace as JSON"
               className="h-7 w-7"
             >
               {isDownloading ? (
@@ -285,7 +288,7 @@ function TracePanelNavigationHeaderExpanded({
                 disabled={isDownloading}
               >
                 <Download className="mr-2 h-3.5 w-3.5" />
-                Download trace as JSON
+                Download selected trace as JSON
               </DropdownMenuItem>
               <PlaybackMenuItems />
               <DropdownMenuSeparator />

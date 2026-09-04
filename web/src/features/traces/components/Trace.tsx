@@ -28,6 +28,8 @@ import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTime
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
+import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
+import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 
 import { useMemo } from "react";
 
@@ -39,10 +41,17 @@ export type TraceProps = {
   };
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
+  sessionTraceEntries?: Array<{
+    trace: TraceProps["trace"];
+    observations: Array<ObservationReturnTypeWithMetadata>;
+    scores: WithStringifiedMetadata<ScoreDomain>[];
+    corrections: ScoreDomain[];
+  }>;
   projectId: string;
   context?: "fullscreen" | "peek" | "annotation";
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  showObservationOnly?: boolean;
 };
 
 const DESKTOP_LAYOUT_BY_CONTEXT = {
@@ -73,10 +82,17 @@ type DesktopLayout =
  */
 export function Trace({ context, ...props }: TraceProps) {
   const traceContext = context ?? "fullscreen";
+  const defaultCollapsedNodeIds = useMemo(
+    () =>
+      props.sessionTraceEntries
+        ?.filter((entry) => entry.trace.id !== props.trace.id)
+        .map((entry) => traceNodeId(entry.trace.id)) ?? [],
+    [props.sessionTraceEntries, props.trace.id],
+  );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider>
+      <SelectionProvider defaultCollapsedNodeIds={defaultCollapsedNodeIds}>
         <TraceWithSelection
           {...props}
           desktopLayout={DESKTOP_LAYOUT_BY_CONTEXT[traceContext]}
@@ -91,36 +107,103 @@ function TraceWithSelection({
   observations: loadedObservations,
   scores,
   corrections,
+  sessionTraceEntries,
   projectId,
   truncatedAtObservations,
+  showObservationOnly,
   desktopLayout,
 }: Omit<TraceProps, "context"> & {
   desktopLayout: DesktopLayout;
 }) {
   const { selectedNodeId } = useSelection();
 
-  // Fetch comment counts using existing hook
-  const { observationCommentCounts, traceCommentCount } = useTraceComments({
+  const traceEntries = sessionTraceEntries ?? [
+    { trace, observations: loadedObservations, scores, corrections },
+  ];
+  const selectedTraceEntry =
+    traceEntries.find(
+      (entry) => traceNodeId(entry.trace.id) === selectedNodeId,
+    ) ??
+    traceEntries.find((entry) =>
+      entry.observations.some(
+        (observation) =>
+          observation.id === selectedNodeId ||
+          `${entry.trace.id}:${observation.id}` === selectedNodeId,
+      ),
+    ) ??
+    traceEntries.find((entry) => entry.trace.id === trace.id) ??
+    traceEntries[0]!;
+  const shouldHydrateSelectedTrace =
+    !!sessionTraceEntries && selectedTraceEntry.trace.id !== trace.id;
+  const hydratedTraceData = useEventsTraceData({
     projectId,
-    traceId: trace.id,
+    traceId: selectedTraceEntry.trace.id,
+    timestamp: selectedTraceEntry.trace.timestamp,
+    enabled: shouldHydrateSelectedTrace,
+    scopeToSession: false,
   });
+  const hydratedSelectedTraceEntry = hydratedTraceData.data
+    ? {
+        trace: hydratedTraceData.data,
+        observations: hydratedTraceData.data.observations,
+        scores: hydratedTraceData.data.scores,
+        corrections: hydratedTraceData.data.corrections,
+      }
+    : selectedTraceEntry;
+  const activeTrace = hydratedSelectedTraceEntry.trace;
+  const selectedObservationId = hydratedSelectedTraceEntry.observations.find(
+    (observation) =>
+      observation.id === selectedNodeId ||
+      `${hydratedSelectedTraceEntry.trace.id}:${observation.id}` ===
+        selectedNodeId,
+  )?.id;
+
+  // Fetch comment counts using existing hook
+  const { observationCommentCounts, traceCommentCount, traceCommentCounts } =
+    useTraceComments({
+      projectId,
+      traceId: activeTrace.id,
+      includeAllTraceCommentCounts: !!sessionTraceEntries,
+    });
 
   // Merge observation + trace comments into single Map for TraceDataContext
   const commentsMap = useMemo(() => {
     const map = new Map(observationCommentCounts);
+    if (sessionTraceEntries) {
+      const observationIdCounts = new Map<string, number>();
+      for (const observation of loadedObservations) {
+        observationIdCounts.set(
+          observation.id,
+          (observationIdCounts.get(observation.id) ?? 0) + 1,
+        );
+      }
+      for (const [observationId, count] of observationIdCounts) {
+        if (count > 1) map.delete(observationId);
+      }
+      for (const [traceId, count] of traceCommentCounts) {
+        map.set(traceNodeId(traceId), count);
+      }
+    }
     if (traceCommentCount > 0) {
-      map.set(trace.id, traceCommentCount);
+      map.set(traceNodeId(activeTrace.id), traceCommentCount);
     }
     return map;
-  }, [observationCommentCounts, traceCommentCount, trace.id]);
+  }, [
+    observationCommentCounts,
+    traceCommentCount,
+    activeTrace.id,
+    sessionTraceEntries,
+    traceCommentCounts,
+    loadedObservations,
+  ]);
 
   // A selected observation outside the loaded list joins the tree instead of
   // being invisible in it.
   const selected = useSelectedObservation({
-    selectedNodeId,
-    traceId: trace.id,
+    selectedNodeId: selectedObservationId ?? selectedNodeId,
+    traceId: activeTrace.id,
     projectId,
-    observations: loadedObservations,
+    observations: hydratedSelectedTraceEntry.observations,
   });
   const detachedObservation =
     selected.kind === "observation" && selected.isOutsideLoadedList
@@ -135,8 +218,10 @@ function TraceWithSelection({
   const detachedIsMisplaced = useMemo(() => {
     const parentId = detachedObservation?.parentObservationId;
     if (!parentId) return false;
-    return !loadedObservations.some((obs) => obs.id === parentId);
-  }, [detachedObservation, loadedObservations]);
+    return !hydratedSelectedTraceEntry.observations.some(
+      (obs) => obs.id === parentId,
+    );
+  }, [detachedObservation, hydratedSelectedTraceEntry.observations]);
 
   const observations = useMemo(
     () =>
@@ -145,27 +230,60 @@ function TraceWithSelection({
         : loadedObservations,
     [loadedObservations, detachedObservation],
   );
+  const activeTraceObservations = useMemo(
+    () =>
+      detachedObservation
+        ? [...hydratedSelectedTraceEntry.observations, detachedObservation]
+        : hydratedSelectedTraceEntry.observations,
+    [hydratedSelectedTraceEntry.observations, detachedObservation],
+  );
+  const sessionScores = sessionTraceEntries
+    ? sessionTraceEntries.flatMap((entry) =>
+        entry.trace.id === hydratedSelectedTraceEntry.trace.id
+          ? hydratedSelectedTraceEntry.scores
+          : entry.scores,
+      )
+    : hydratedSelectedTraceEntry.scores;
+  const sessionCorrections = sessionTraceEntries
+    ? sessionTraceEntries.flatMap((entry) =>
+        entry.trace.id === hydratedSelectedTraceEntry.trace.id
+          ? hydratedSelectedTraceEntry.corrections
+          : entry.corrections,
+      )
+    : hydratedSelectedTraceEntry.corrections;
 
   return (
     <TraceDataProvider
-      trace={trace}
+      trace={activeTrace}
       observations={observations}
-      serverScores={scores}
-      corrections={corrections}
+      activeTraceObservations={activeTraceObservations}
+      sessionTraces={sessionTraceEntries?.map((entry) => entry.trace)}
+      serverScores={sessionScores}
+      corrections={sessionCorrections}
       comments={commentsMap}
       detachedObservationId={detachedObservation?.id ?? null}
       detachedObservationIsMisplaced={detachedIsMisplaced}
       truncatedAtObservations={truncatedAtObservations}
+      isTraceDetailLoading={
+        shouldHydrateSelectedTrace && hydratedTraceData.isLoading
+      }
+      isTraceDetailError={
+        shouldHydrateSelectedTrace && !!hydratedTraceData.error
+      }
     >
       <TraceGraphDataProvider
-        projectId={trace.projectId}
-        traceId={trace.id}
+        projectId={activeTrace.projectId}
+        traceId={activeTrace.id}
+        sessionId={sessionTraceEntries ? trace.sessionId : undefined}
         observations={observations}
       >
         <SearchProvider>
           <JsonExpansionProvider>
             <PlayheadProvider>
-              <TraceContent desktopLayout={desktopLayout} />
+              <TraceContent
+                desktopLayout={desktopLayout}
+                showObservationOnly={showObservationOnly ?? false}
+              />
             </PlayheadProvider>
           </JsonExpansionProvider>
         </SearchProvider>
@@ -187,11 +305,21 @@ function TraceWithSelection({
  * - useViewPreferences() - for graph toggle state
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+export function TraceContent({
+  desktopLayout,
+  showObservationOnly,
+}: {
+  desktopLayout: DesktopLayout;
+  showObservationOnly: boolean;
+}) {
   const isMobile = useIsMobile();
   const { showGraph } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
+
+  if (showObservationOnly) {
+    return <TracePanelDetail />;
+  }
 
   return isMobile ? (
     <MobileTraceContent shouldShowGraph={shouldShowGraph} />
@@ -221,11 +349,13 @@ function DesktopTraceContent({
   return (
     <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
-          <TracePanelNavigation />
-        </TracePanelNavigationLayoutDesktop>
+        <div data-trace-navigation-panel="" className="h-full w-full">
+          <TracePanelNavigationLayoutDesktop
+            secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
+          >
+            <TracePanelNavigation />
+          </TracePanelNavigationLayoutDesktop>
+        </div>
       </TraceLayoutDesktop.NavigationPanel>
       <TraceLayoutDesktop.ResizeHandle />
       <TraceLayoutDesktop.DetailPanel>

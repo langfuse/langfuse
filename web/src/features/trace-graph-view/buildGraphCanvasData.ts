@@ -113,7 +113,9 @@ export function buildGraphFromStepData(
         if (!nodeToObservationsMap.has(LANGFUSE_END_NODE_NAME)) {
           nodeToObservationsMap.set(LANGFUSE_END_NODE_NAME, []);
         }
-        nodeToObservationsMap.get(LANGFUSE_END_NODE_NAME)!.push(obs.id);
+        nodeToObservationsMap
+          .get(LANGFUSE_END_NODE_NAME)!
+          .push(obs.selectionId ?? obs.id);
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
@@ -121,7 +123,7 @@ export function buildGraphFromStepData(
         if (!nodeToObservationsMap.has(node)) {
           nodeToObservationsMap.set(node, []);
         }
-        nodeToObservationsMap.get(node)!.push(obs.id);
+        nodeToObservationsMap.get(node)!.push(obs.selectionId ?? obs.id);
       }
     } else if (node !== null) {
       const isSystemNode =
@@ -134,7 +136,7 @@ export function buildGraphFromStepData(
         if (!nodeToObservationsMap.has(node)) {
           nodeToObservationsMap.set(node, []);
         }
-        nodeToObservationsMap.get(node)!.push(obs.id);
+        nodeToObservationsMap.get(node)!.push(obs.selectionId ?? obs.id);
       }
     }
   });

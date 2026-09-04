@@ -34,6 +34,8 @@ export type PageHeaderProps = {
   /** Rich title rendering (e.g. inline-editable); replaces the plain title
    * span inside the heading. `title` stays the canonical string. */
   titleContent?: ReactNode;
+  /** Content rendered at the far left of the title row, before item type. */
+  titleLeadingContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -60,6 +62,7 @@ export type PageHeaderProps = {
 const PageHeader = ({
   title,
   titleContent,
+  titleLeadingContent,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -161,6 +164,11 @@ const PageHeader = ({
             {/* Left side content */}
             <div className="flex grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex items-center gap-1">
+                {titleLeadingContent && (
+                  <div className="mr-2 flex shrink-0 items-center">
+                    {titleLeadingContent}
+                  </div>
+                )}
                 {itemType && (
                   <div className="flex items-center">
                     <ItemBadge type={itemType} showLabel />

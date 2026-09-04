@@ -8,7 +8,7 @@
 import { useCallback } from "react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { usePrefetchObservation } from "@/src/features/traces/hooks/usePrefetchObservation";
-import { type TreeNode } from "../types/treeNode";
+import { isObservationTreeNode, type TreeNode } from "../types/treeNode";
 
 /**
  * Returns a callback to prefetch observation data when hovering over nodes.
@@ -21,8 +21,12 @@ export function useHandlePrefetchObservation() {
   const handleHover = useCallback(
     (node: TreeNode) => {
       // Don't prefetch for TRACE type (only observations)
-      if (node.type !== "TRACE") {
-        prefetch(node.id, trace.id, node.startTime);
+      if (isObservationTreeNode(node)) {
+        prefetch(
+          node.observationId ?? node.id,
+          node.traceId ?? trace.id,
+          node.startTime,
+        );
       }
     },
     [prefetch, trace.id],

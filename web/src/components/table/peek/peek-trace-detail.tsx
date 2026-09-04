@@ -2,9 +2,12 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
+  getDefaultObservationId,
+  TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
-  traceDetailTitle,
+  getSelectedObservation,
+  getTraceDetailModeTitle,
 } from "@/src/features/traces";
 import {
   TablePeekView,
@@ -24,6 +27,11 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
+  const aggregationLevel =
+    router.query.aggregation === "session" ||
+    router.query.aggregation === "observation"
+      ? router.query.aggregation
+      : "trace";
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -41,7 +49,28 @@ export const TablePeekViewTraceDetail = (
     projectId,
     traceId,
     timestamp,
+    ...(props.isV4
+      ? {
+          aggregationLevel:
+            aggregationLevel === "session" ? "session" : ("trace" as const),
+          readPath: "v4" as const,
+        }
+      : {}),
   });
+  const isSessionScope =
+    !!trace.data &&
+    "sessionTraceEntries" in trace.data &&
+    !!trace.data.sessionTraceEntries;
+  const selectedObservation = getSelectedObservation(
+    trace.data?.observations,
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined,
+  );
+  const selectedNodeId =
+    typeof router.query.observation === "string"
+      ? router.query.observation
+      : undefined;
 
   const actionProps = trace.data
     ? {
@@ -62,11 +91,49 @@ export const TablePeekViewTraceDetail = (
         },
       }
     : null;
+  const aggregationToggle = props.isV4 ? (
+    <TraceAggregationToggle
+      aggregationLevel={aggregationLevel}
+      canSelectSession={trace.canAggregateBySession}
+      observationType={selectedObservation?.type ?? null}
+      onAggregationLevelChange={(nextAggregationLevel) => {
+        const query = { ...router.query };
+        if (nextAggregationLevel !== "trace") {
+          query.aggregation = nextAggregationLevel;
+          if (nextAggregationLevel === "observation" && !selectedObservation) {
+            query.observation = getDefaultObservationId(trace.data);
+          }
+        } else {
+          delete query.aggregation;
+        }
+        router.replace({ pathname: router.pathname, query }, undefined, {
+          shallow: true,
+        });
+      }}
+    />
+  ) : undefined;
+  const title = getTraceDetailModeTitle(
+    aggregationLevel,
+    trace.data,
+    selectedObservation,
+    aggregationLevel === "observation" ? selectedNodeId : traceId,
+  );
 
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={title}
+      {...(props.isV4
+        ? {
+            widthMode:
+              aggregationLevel === "observation"
+                ? ("observation" as const)
+                : ("split" as const),
+          }
+        : {})}
+      leadingContent={aggregationToggle}
+      hideItemBadge={!!aggregationToggle}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
@@ -76,11 +143,20 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        truncatedAtObservations={trace.truncatedAtObservations}
-      />
+      {trace.isSessionScopeUnavailable ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-sm">
+          This trace is not part of a session and cannot be opened in the v4
+          detail view.
+        </div>
+      ) : (
+        <TraceDetailBody
+          trace={trace.data}
+          context="peek"
+          truncatedAtObservations={trace.truncatedAtObservations}
+          showObservationOnly={aggregationLevel === "observation"}
+          sessionScopeRequested={aggregationLevel === "session"}
+        />
+      )}
     </TablePeekView>
   );
 };

@@ -59,15 +59,19 @@ describe("TracePanelDetail", () => {
     mockByIdQuery.mockReturnValue({ data: undefined, error: null });
     // The loaded list is capped, so it holds only "in-list" — and the tree built
     // from it knows only that node plus the synthetic TRACE node.
+    const observations = [observation("in-list")];
     mockUseTraceData.mockReturnValue({
       trace: { id: "t", projectId: "p" },
-      observations: [observation("in-list")],
+      observations,
+      activeTraceObservations: observations,
       nodeMap: new Map([
         ["in-list", { id: "in-list", type: "SPAN" }],
         ["trace-t", { id: "trace-t", type: "TRACE" }],
       ]),
       serverScores: [],
       corrections: [],
+      isTraceDetailLoading: false,
+      isTraceDetailError: false,
     });
   });
 
@@ -105,5 +109,31 @@ describe("TracePanelDetail", () => {
     render(<TracePanelDetail />);
 
     expect(screen.getByTestId("trace-detail")).toBeInTheDocument();
+  });
+
+  it("shows a loading state while a sibling trace is hydrated", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-t" });
+    mockUseTraceData.mockReturnValue({
+      ...mockUseTraceData(),
+      isTraceDetailLoading: true,
+    });
+
+    const { container } = render(<TracePanelDetail />);
+
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeTruthy();
+    expect(screen.queryByTestId("trace-detail")).not.toBeInTheDocument();
+  });
+
+  it("shows an error instead of placeholder sibling trace data", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-t" });
+    mockUseTraceData.mockReturnValue({
+      ...mockUseTraceData(),
+      isTraceDetailError: true,
+    });
+
+    render(<TracePanelDetail />);
+
+    expect(screen.getByText("Could not load trace")).toBeInTheDocument();
+    expect(screen.queryByTestId("trace-detail")).not.toBeInTheDocument();
   });
 });
