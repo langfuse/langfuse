@@ -28,7 +28,12 @@ concurrency:
 checkout:
   fetch-depth: 0
 
-model: claude-opus-5?effort=medium
+# Plain model id. The `<model>?effort=` alias suffix is rejected by Claude Code
+# and rewritten by the awf api-proxy's middle-power fallback to sonnet-4-5, and
+# the suffixed string matches no Langfuse price, so runs were mis-served and
+# uncosted. Effort cannot be set via frontmatter in gh-aw v0.86; Claude Code
+# uses its default effort for this model.
+model: claude-opus-5
 
 engine:
   id: claude
