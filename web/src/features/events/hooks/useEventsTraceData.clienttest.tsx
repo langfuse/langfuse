@@ -26,7 +26,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     sessions: {
       tracesFromEvents: {
-        useQuery: () => mockSessionTraceSummariesQuery(),
+        useQuery: (input: unknown) => mockSessionTraceSummariesQuery(input),
       },
       observationsForSessionFromEvents: {
         useQuery: () => mockSessionObservationsQuery(),
@@ -208,5 +208,73 @@ describe("useEventsTraceData", () => {
     expect(result.current.isSessionScopeUnavailable).toBe(true);
     expect(result.current.data?.id).toBe("trace-1");
     expect(result.current.data).not.toHaveProperty("sessionTraceEntries");
+  });
+
+  it("retains scores returned for sibling session traces", () => {
+    const siblingObservation = {
+      ...rootObservation,
+      id: "observation-2",
+      traceId: "trace-2",
+      name: "Sibling span",
+    };
+    const siblingScore = {
+      id: "score-2",
+      traceId: "trace-2",
+      observationId: "observation-2",
+      name: "quality",
+      value: 1,
+      dataType: "NUMERIC",
+      source: "API",
+      timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      projectId: "project-1",
+    };
+    mockSessionTraceSummariesQuery.mockReturnValue({
+      data: [
+        {
+          id: "trace-1",
+          name: "Trace name",
+          timestamp,
+          userId: null,
+          environment: "default",
+          latencyMs: null,
+          scores: [],
+        },
+        {
+          id: "trace-2",
+          name: "Sibling trace",
+          timestamp,
+          userId: null,
+          environment: "default",
+          latencyMs: null,
+          scores: [siblingScore],
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+    mockSessionObservationsQuery.mockReturnValue({
+      data: { observations: [rootObservation, siblingObservation] },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() =>
+      useEventsTraceData({
+        projectId: "project-1",
+        traceId: "trace-1",
+        scopeToSession: true,
+      }),
+    );
+
+    expect(mockSessionTraceSummariesQuery).toHaveBeenCalledWith({
+      projectId: "project-1",
+      sessionId: "session-1",
+      includeScores: true,
+    });
+    expect(result.current.data?.sessionTraceEntries?.[1]?.scores).toEqual([
+      siblingScore,
+    ]);
   });
 });

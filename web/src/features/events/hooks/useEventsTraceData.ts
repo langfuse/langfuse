@@ -189,7 +189,7 @@ export function useEventsTraceData(
   const sessionId = transformed?.sessionId ?? "";
   const sessionQueryEnabled = enabled && scopeToSession && !!sessionId;
   const sessionTraceSummariesQuery = api.sessions.tracesFromEvents.useQuery(
-    { projectId, sessionId, includeScores: false },
+    { projectId, sessionId, includeScores: true },
     { enabled: sessionQueryEnabled, staleTime: 60 * 1000 },
   );
   const sessionObservationsQuery =
@@ -276,7 +276,7 @@ export function useEventsTraceData(
                 : traceSummary.latencyMs / 1000,
           },
           observations: adapted.observations,
-          scores: [],
+          scores: traceSummary.scores,
           corrections: [],
         };
       },
