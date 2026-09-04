@@ -161,9 +161,7 @@ describe("SessionConversationTimeline", () => {
     });
 
     expect(screen.queryByText("Secret prompt")).not.toBeInTheDocument();
-    expect(
-      screen.getByLabelText("No conversational content").closest("button"),
-    ).toHaveTextContent("Generate answer");
+    expect(screen.getByLabelText("No conversational content")).toBeVisible();
   });
 
   it("reports omitted metadata while preserving parsed messages", () => {
@@ -189,6 +187,31 @@ describe("SessionConversationTimeline", () => {
 
     expect(screen.getByText("0")).toBeInTheDocument();
     expect(screen.getByText("false")).toBeInTheDocument();
+  });
+
+  it("expands and collapses tool observation input and output", () => {
+    renderTimeline({
+      timelineObservation: {
+        ...observation,
+        name: "Search documentation",
+        type: "TOOL",
+        input: '{"query":"session timeline"}',
+        output: '{"matches":3}',
+      },
+    });
+
+    expect(screen.queryByText('{"query":"session timeline"}')).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand Search documentation" }),
+    );
+    expect(screen.getByText('{"query":"session timeline"}')).toBeVisible();
+    expect(screen.getByText('{"matches":3}')).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse Search documentation" }),
+    );
+    expect(screen.queryByText('{"query":"session timeline"}')).toBeNull();
   });
 
   it("opens the source observation from its timeline label", () => {

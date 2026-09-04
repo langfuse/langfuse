@@ -248,3 +248,24 @@ export const OpenObservation = meta.story({
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
 });
+
+export const ExpandToolObservation = meta.story({
+  name: "(Test) Expands Tool Observation Without Moving Header",
+  args: loadedArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = canvas.getByRole("button", { name: "Get order" });
+    const initialTop = header.getBoundingClientRect().top;
+    const expandButton = canvas.getByRole("button", {
+      name: "Expand Get order",
+    });
+
+    await userEvent.click(expandButton);
+    await expect(header.getBoundingClientRect().top).toBe(initialTop);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse Get order" }),
+    );
+    await expect(header.getBoundingClientRect().top).toBe(initialTop);
+  },
+});
