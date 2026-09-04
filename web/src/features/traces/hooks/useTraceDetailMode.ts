@@ -73,6 +73,11 @@ export function useTraceDetailMode({
     setMode("trace");
   }, [fallbackFromUnavailableSession, requestedMode, setMode]);
 
+  useEffect(() => {
+    if (requestedMode !== "observation" || selectedNodeId || !trace) return;
+    setMode("observation");
+  }, [requestedMode, selectedNodeId, setMode, trace]);
+
   return {
     mode,
     requestedMode,
