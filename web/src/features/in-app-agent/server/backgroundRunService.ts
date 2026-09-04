@@ -76,12 +76,8 @@ export async function getBackgroundConversationSnapshot(params: {
 
   // The worker commits terminal status and its final events atomically. Keep
   // both reads on one Repeatable Read snapshot so the cursor cannot describe
-  // an older prefix.
-  //
-  // Issue the two reads sequentially. Prisma interactive transactions do not
-  // support concurrent queries on the same connection; Promise.all here
-  // closes the transaction under load and surfaces as an intermittent
-  // Internal Server Error when switching conversations.
+  // an older prefix. Interactive transactions share one connection, so the
+  // reads run one after the other.
   const [events, runs] = await params.prisma.$transaction(
     async (tx) => {
       const events = await getConversationEvents({
