@@ -31,9 +31,11 @@ gh api repos/langfuse/langfuse --jq '.permissions | {push, maintain, admin}'
   and the one that matters here: a maintainer with no tracker connection is a
   *setup gap*, not a contributor, and step 4 is where you fix it.
 
-**Do not infer this from an email domain.** Maintainers here commit from at least
-three — a company address, an acquirer address, and personal ones — so a domain
-test misclassifies people in both directions. Write access is definitive; use it.
+**Do not infer this from `git config user.email`.** That is a local setting, not
+an identity: roughly a third of recent commits here come from personal addresses,
+and both `@clickhouse.com` (the company domain — Langfuse is part of ClickHouse)
+and the older `@langfuse.com` are still in daily use. Write access answers the
+question directly, so ask that instead of guessing from a string.
 
 Say what you found and let them correct it. Never announce a role silently — a
 wrong guess sends someone down the wrong half of this file.
