@@ -339,7 +339,11 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -525,7 +529,11 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -627,7 +635,11 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -818,7 +830,11 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -908,7 +924,11 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -1002,7 +1022,11 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -1114,7 +1138,11 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: ./.github/actions/dockerhub-login
+        # Login only avoids anonymous pull rate limits, and Blacksmith's image
+        # cache serves most pulls without contacting Docker Hub, so its
+        # intermittent 5xx responses must not fail the job.
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
