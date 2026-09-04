@@ -131,7 +131,7 @@ the same code will work unchanged in a standalone Rust process later.
 - **Init.** The worker calls `initTelemetry()` once in `initializeWorker`; it
   is idempotent. Worker startup and telemetry setup are separate signals: a
   missing or broken addon stops the worker (the startup `hello()` call is
-  unguarded), while an init failure (unparseable or unresolvable agent
+  unguarded), while an init failure (unparsable or unresolvable agent
   address) is reported through the worker's logger and the
   `langfuse.native.telemetry_init_failed` counter and the worker keeps
   running without native metrics.
