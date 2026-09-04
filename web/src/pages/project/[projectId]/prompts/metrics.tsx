@@ -198,7 +198,8 @@ export default function PromptVersionTable({
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
         return (
-          values && (
+          values &&
+          values.length > 0 && (
             <TruncatedLabels
               labels={values}
               maxVisibleLabels={3}
