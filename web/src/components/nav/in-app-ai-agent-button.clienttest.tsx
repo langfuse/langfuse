@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { InAppAiAgentButton } from "./in-app-ai-agent-button";
 
@@ -107,5 +107,17 @@ describe("InAppAiAgentButton", () => {
     expect(event.defaultPrevented).toBe(false);
     expect(mocks.openAssistant).not.toHaveBeenCalled();
     expect(mocks.setOpen).not.toHaveBeenCalled();
+  });
+
+  it("shows an attention dot without a count", () => {
+    mocks.attentionCount = 3;
+    render(<InAppAiAgentButton />);
+
+    const button = screen.getByRole("button", {
+      name: "Open assistant (3 need attention)",
+    });
+
+    expect(button).toBeInTheDocument();
+    expect(button).not.toHaveTextContent("3");
   });
 });

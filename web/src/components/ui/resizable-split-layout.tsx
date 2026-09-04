@@ -13,7 +13,6 @@ interface ResizableSplitLayoutProps {
   primaryContent: ReactNode;
   secondaryContent: ReactNode;
   open: boolean;
-  showHandle?: boolean;
   defaultPrimarySize?: number;
   defaultSecondarySize?: number;
   minPrimarySize?: number;
@@ -55,7 +54,6 @@ export function ResizableSplitLayout({
   primaryContent,
   secondaryContent,
   open,
-  showHandle = true,
   defaultPrimarySize = 70,
   defaultSecondarySize = 30,
   minPrimarySize = 30,
@@ -93,6 +91,24 @@ export function ResizableSplitLayout({
     panelIds,
     storage,
   });
+
+  const secondaryDefaultSize = `${defaultSecondarySize}%`;
+  const secondaryMinSize = minSecondarySize;
+  const secondaryMaxSize = `${maxSecondarySize}%`;
+
+  // Without a rail, a persisted 0% share is an unrecoverable sliver. Restore
+  // the default split instead of handing that layout to the group.
+  const secondaryShare = defaultLayout?.[SECONDARY_PANEL_ID];
+  const restoredLayout =
+    !hasCollapsedRail &&
+    typeof secondaryShare === "number" &&
+    secondaryShare < 2
+      ? {
+          ...defaultLayout,
+          [PRIMARY_PANEL_ID]: defaultPrimarySize,
+          [SECONDARY_PANEL_ID]: defaultSecondarySize,
+        }
+      : defaultLayout;
 
   useLayoutEffect(() => {
     if (!keepSecondaryMounted) return;
@@ -139,16 +155,37 @@ export function ResizableSplitLayout({
   // in it) and keeps its handle so it can be dragged back open.
   const secondaryPanelClassName = cn(
     "relative",
+    // Right rails (assistant / support) keep overflow visible so the
+    // leftward shadow can paint onto the page. A left secondary (table
+    // filters) must clip, or checkbox rows spill over the table when the
+    // pane is squeezed by a docked rail.
+    secondaryPosition === "right" ? "overflow-visible" : "overflow-hidden",
     !hasCollapsedRail && (open ? "visible" : "invisible"),
   );
-  const showSecondaryHandle = showHandle && (open || hasCollapsedRail);
+  const showSecondaryHandle = open || hasCollapsedRail;
+
+  const resizeHandle = (
+    <ResizableHandle
+      key="secondary-handle"
+      withHandle
+      className={cn(
+        // Peek-style: a wide hit target, a 1px seam at rest, and a full-height
+        // bar on hover/drag. The inner `withHandle` pill is restyled to that bar.
+        "group/resize bg-border-contrast after:w-3",
+        "[&>div]:h-full [&>div]:w-1 [&>div]:rounded-full [&>div]:bg-transparent [&>div]:transition-colors",
+        "hover:[&>div]:bg-muted-foreground/40",
+        "active:[&>div]:bg-muted-foreground/60",
+        "focus-visible:[&>div]:bg-muted-foreground/50",
+      )}
+    />
+  );
 
   return (
     <ResizablePanelGroup
       id={groupId}
       orientation="horizontal"
       className={className}
-      defaultLayout={renderSecondaryPanel ? defaultLayout : undefined}
+      defaultLayout={renderSecondaryPanel ? restoredLayout : undefined}
       onLayoutChanged={
         persistId && renderSecondaryPanel ? onLayoutChanged : undefined
       }
@@ -158,11 +195,11 @@ export function ResizableSplitLayout({
           key={SECONDARY_PANEL_ID}
           id={SECONDARY_PANEL_ID}
           panelRef={secondaryPanelRef}
-          defaultSize={`${defaultSecondarySize}%`}
-          minSize={minSecondarySize}
-          maxSize={`${maxSecondarySize}%`}
-          collapsible={true}
-          collapsedSize={collapsedSecondarySize}
+          defaultSize={secondaryDefaultSize}
+          minSize={secondaryMinSize}
+          maxSize={secondaryMaxSize}
+          collapsible={hasCollapsedRail}
+          collapsedSize={hasCollapsedRail ? collapsedSecondarySize : undefined}
           onResize={handleSecondaryResize}
           className={secondaryPanelClassName}
           style={{ overscrollBehaviorY: "none" }}
@@ -170,9 +207,7 @@ export function ResizableSplitLayout({
           {secondaryContent}
         </ResizablePanel>
       )}
-      {secondaryPosition === "left" && showSecondaryHandle && (
-        <ResizableHandle key="secondary-handle" withHandle />
-      )}
+      {secondaryPosition === "left" && showSecondaryHandle && resizeHandle}
       <ResizablePanel
         key={PRIMARY_PANEL_ID}
         id={PRIMARY_PANEL_ID}
@@ -186,19 +221,17 @@ export function ResizableSplitLayout({
           {primaryContent}
         </div>
       </ResizablePanel>
-      {secondaryPosition === "right" && showSecondaryHandle && (
-        <ResizableHandle key="secondary-handle" withHandle />
-      )}
+      {secondaryPosition === "right" && showSecondaryHandle && resizeHandle}
       {secondaryPosition === "right" && renderSecondaryPanel && (
         <ResizablePanel
           key={SECONDARY_PANEL_ID}
           id={SECONDARY_PANEL_ID}
           panelRef={secondaryPanelRef}
-          defaultSize={`${defaultSecondarySize}%`}
-          minSize={minSecondarySize}
-          maxSize={`${maxSecondarySize}%`}
-          collapsible={true}
-          collapsedSize={collapsedSecondarySize}
+          defaultSize={secondaryDefaultSize}
+          minSize={secondaryMinSize}
+          maxSize={secondaryMaxSize}
+          collapsible={hasCollapsedRail}
+          collapsedSize={hasCollapsedRail ? collapsedSecondarySize : undefined}
           onResize={handleSecondaryResize}
           className={secondaryPanelClassName}
           style={{ overscrollBehaviorY: "none" }}

@@ -75,7 +75,7 @@ export function DataTableRefreshButton({
                 <span className="ml-1 text-sm">{activeInterval?.label}</span>
               )
             ) : (
-              <span className="ml-1 text-sm">
+              <span className="ml-1 text-sm @max-[42rem]/pageheader:hidden">
                 {activeInterval?.label ?? "Off"}
               </span>
             )}

@@ -2,10 +2,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type PropsWithChildren,
 } from "react";
 import { type Topic } from "@/src/features/support-chat/formConstants";
+import {
+  occupyExclusiveRightPanel,
+  registerExclusiveRightPanel,
+} from "@/src/components/layouts/app-layout/right-drawer/exclusiveRightPanels";
 
 export type SupportDrawerMode = "intro" | "form";
 
@@ -43,8 +48,17 @@ export function SupportDrawerProvider({
   const [initialTopic, setInitialTopic] = useState<Topic | null>(null);
   const [openEpoch, setOpenEpoch] = useState(0);
 
+  useEffect(() => {
+    return registerExclusiveRightPanel("support", () => {
+      setOpenState(false);
+    });
+  }, []);
+
   const setOpen = useCallback(
     (v: boolean) => {
+      if (v) {
+        occupyExclusiveRightPanel("support");
+      }
       // Reseed only on a closed→open transition: a redundant setOpen(true)
       // while open (support button, "Report issue") must not remount the
       // drawer and wipe an in-progress draft. openWithMode always reseeds.
@@ -60,6 +74,7 @@ export function SupportDrawerProvider({
 
   const openWithMode = useCallback(
     (mode: SupportDrawerMode, options?: { topic?: Topic }) => {
+      occupyExclusiveRightPanel("support");
       setInitialMode(mode);
       setInitialTopic(options?.topic ?? null);
       setOpenEpoch((e) => e + 1);

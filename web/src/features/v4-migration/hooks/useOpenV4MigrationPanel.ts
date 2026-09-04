@@ -1,5 +1,3 @@
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import {
   useV4MigrationPanel,
   type V4MigrationPanelOpenSource,
@@ -8,15 +6,11 @@ import {
 
 export function useOpenV4MigrationPanel() {
   const { openForProject } = useV4MigrationPanel();
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
 
   return (
     project: V4MigrationTargetProject,
     source: V4MigrationPanelOpenSource,
   ) => {
-    setAiAgentOpen(false);
-    setSupportDrawerOpen(false);
     openForProject(project, source);
   };
 }

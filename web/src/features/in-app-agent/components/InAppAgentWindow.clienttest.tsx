@@ -14,6 +14,7 @@ import {
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import type { InAppAgentError } from "./utils/utils";
+import { resizeComposerTextarea } from "@/src/features/in-app-agent/lib/resizeComposerTextarea";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -21,6 +22,8 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
+    dock: "sidebar" as const,
+    setDock: vi.fn(),
     error: null as InAppAgentError | null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -92,6 +95,8 @@ function windowElement(
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
+    dock: "sidebar",
+    onDockChange: vi.fn(),
     isConversationInteractionDisabled: false,
     isSelectedConversationHydrating: false,
     isLoadingMoreConversations: false,
@@ -211,43 +216,6 @@ describe("InAppAgentWindow quick actions", () => {
   });
 });
 
-describe("InAppAgentWindow conversation history", () => {
-  it("counts conversations that still owe the user a look on the history trigger", () => {
-    render(
-      windowElement({
-        activityByConversationId: new Map([
-          [
-            "conversation-1",
-            {
-              activityKey: "run-1:SUCCEEDED",
-              runId: "run-1",
-              title: "Latency outliers",
-              state: "done-unread",
-              needsAttention: true,
-            },
-          ],
-          [
-            "conversation-2",
-            {
-              activityKey: "run-2:RUNNING",
-              runId: "run-2",
-              title: "Score correlation",
-              state: "running",
-              needsAttention: false,
-            },
-          ],
-        ]),
-      }),
-    );
-
-    expect(
-      screen.getByRole("button", {
-        name: "Conversation history (1 needs attention)",
-      }),
-    ).toBeInTheDocument();
-  });
-});
-
 describe("InAppAgentWindow header", () => {
   it("titles the window by the conversation, and falls back to the product name", () => {
     const { rerender } = render(
@@ -270,12 +238,90 @@ describe("InAppAgentWindow header", () => {
     expect(screen.getByText("Assistant")).toBeInTheDocument();
   });
 
+  it("detaches from the sidebar and docks back from the overlay", () => {
+    capture.mockClear();
+    const onDockChange = vi.fn();
+    const { rerender } = render(
+      windowElement({ dock: "sidebar", onDockChange }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Detach assistant" }));
+    expect(onDockChange).toHaveBeenCalledWith("detached");
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "detached",
+      source: "detach",
+    });
+
+    rerender(windowElement({ dock: "detached", onDockChange }));
+    fireEvent.click(screen.getByRole("button", { name: "Dock assistant" }));
+    expect(onDockChange).toHaveBeenCalledWith("sidebar");
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "sidebar",
+      source: "dock",
+    });
+  });
+
+  it("tracks expand and collapse from the chrome control", () => {
+    capture.mockClear();
+    const onExpandedChange = vi.fn();
+    const { rerender } = render(
+      windowElement({ dock: "sidebar", onExpandedChange }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand assistant" }));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "fullscreen",
+      source: "expand",
+    });
+
+    rerender(
+      windowElement({ dock: "sidebar", isExpanded: true, onExpandedChange }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Collapse assistant" }));
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "sidebar",
+      source: "collapse",
+    });
+  });
+
+  it("hides detach and dock while expanded", () => {
+    render(windowElement({ dock: "sidebar", isExpanded: true }));
+
+    expect(
+      screen.queryByRole("button", { name: "Detach assistant" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dock assistant" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse assistant" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides detach and dock when dock changes are not wired", () => {
+    render(windowElement({ onDockChange: undefined }));
+
+    expect(
+      screen.queryByRole("button", { name: "Detach assistant" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dock assistant" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("toggles expanded on a header double-click, but not from its actions", () => {
+    capture.mockClear();
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));
 
-    fireEvent.dblClick(screen.getByText("Assistant"));
+    fireEvent.dblClick(screen.getByRole("banner"));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "fullscreen",
+      source: "header_double_click",
+    });
 
     fireEvent.dblClick(
       screen.getByRole("button", { name: "Start new conversation" }),
@@ -600,6 +646,27 @@ describe("InAppAgentWindow activity", () => {
 });
 
 describe("InAppAgentWindow composer", () => {
+  it("does not lock the composer to the height cap before the field has a width", () => {
+    const textarea = document.createElement("textarea");
+    textarea.style.height = "36px";
+    vi.spyOn(textarea, "getBoundingClientRect").mockReturnValue({
+      width: 0,
+      height: 36,
+      top: 0,
+      left: 0,
+      bottom: 36,
+      right: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(textarea, "scrollHeight", { value: 480 });
+
+    resizeComposerTextarea(textarea);
+
+    expect(textarea.style.height).toBe("36px");
+  });
+
   it("uses Reply after an assistant answer and the welcome copy on a fresh conversation", () => {
     const { rerender } = render(windowElement());
 

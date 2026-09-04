@@ -5,6 +5,11 @@ import { BotMessageSquare } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
   type InAppAgentEntryPoint,
@@ -12,8 +17,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 /** Launcher only — the assistant window itself is rendered by
- * InAppAgentWindowHost from the persistent authenticated layout, so it
- * survives the per-page remount of this button on navigation.
+ * InAppAgentWindowHost from the persistent authenticated layout, wrapping
+ * page content so the docked sidebar survives per-page remounts.
  *
  * `prominent` is the compact, icon-only launcher for the mobile top bar: a
  * gradient border in the agent's own palette (the colors of its window's
@@ -99,6 +104,8 @@ export const InAppAiAgentButton = ({
         "relative gap-2",
         // Compact icon-only launcher for the top bar.
         prominent && "size-9 shrink-0 px-0",
+        // Once the assistant is open, the launcher is only a close affordance.
+        !prominent && open && "size-8 shrink-0 px-0",
         !prominent &&
           open &&
           "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
@@ -113,18 +120,17 @@ export const InAppAiAgentButton = ({
       {attentionCount > 0 && (
         <span
           aria-hidden="true"
-          className="bg-primary-accent text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold"
-        >
-          {attentionCount > 99 ? "99+" : attentionCount}
-        </span>
+          className="bg-primary-accent absolute -top-0.5 -right-0.5 size-2 rounded-full"
+        />
       )}
-      {/* The prominent launcher is a fixed 36px square (top bar, below md), so
-          it stays strictly icon-only — the `sm:inline` label would otherwise
-          reveal in the 640–767px band and overflow the box. */}
-      {!prominent && (
+      {/* Keep the closed launcher descriptive when there is room. The
+          prominent launcher and active close affordance stay icon-only. */}
+      {!prominent && !open && (
         <>
-          <span className="hidden sm:inline">Assistant</span>
-          <span className="hidden md:inline-flex">
+          <span className="hidden @min-[42rem]/pageheader:inline">
+            Assistant
+          </span>
+          <span className="hidden @min-[48rem]/pageheader:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>
         </>
@@ -132,3 +138,55 @@ export const InAppAiAgentButton = ({
     </Button>
   );
 };
+
+/** Icon-only launcher for the table peek header. Separate from
+ * {@link InAppAiAgentButton}: that control is the labeled top-nav toggle and
+ * owns the keyboard shortcut; this one has to match the peek's ghost icon
+ * cluster and must not register a second Cmd+I listener. */
+export function InAppAiAgentPeekHeaderButton() {
+  const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
+
+  if (!isInAppAgentLauncherVisible) {
+    return null;
+  }
+
+  const attentionSuffix =
+    attentionCount > 0
+      ? ` (${attentionCount} ${attentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
+  const label = `${open ? "Close" : "Open"} assistant${attentionSuffix}`;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={label}
+          aria-pressed={open}
+          onClick={() => {
+            if (open) {
+              setOpen(false);
+              return;
+            }
+            openAssistant("peek_header");
+          }}
+          className={cn("relative", open && "text-primary-accent")}
+        >
+          <BotMessageSquare className="h-4 w-4" />
+          {attentionCount > 0 && (
+            <span
+              aria-hidden="true"
+              className="bg-primary-accent absolute -top-0.5 -right-0.5 size-1.5 rounded-full"
+            />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {open ? "Close assistant" : "Open assistant"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
