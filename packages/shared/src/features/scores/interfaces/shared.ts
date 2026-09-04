@@ -4,7 +4,7 @@ import { NonEmptyString } from "../../../utils/zod";
 
 /**
  * Foundation schema for all score types. Used for ingestion and public API. Supports trace, observation and session scores.
- * Needs to be extended with with score data specific schema (numeric, categorical, boolean)
+ * Needs to be extended with score data specific schema (numeric, categorical, boolean)
  * @see {@link NumericData}, {@link CategoricalData}, {@link BooleanData}
  */
 export const PostScoreBodyFoundationSchema = z.object({

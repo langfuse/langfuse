@@ -61,7 +61,7 @@ We recommend checking out DeepWiki to familiarize yourself with the project:
 ### Technologies we use
 
 - Application (this repository)
-  - NextJS 14, pages router
+  - Next.js (pages router)
   - NextAuth.js / Auth.js
   - tRPC: Frontend APIs
   - Prisma ORM
