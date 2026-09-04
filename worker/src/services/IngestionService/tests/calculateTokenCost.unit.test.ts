@@ -190,6 +190,37 @@ describe("Token Cost Calculation", () => {
     expect(costs.total_cost).toBe(9.0);
   });
 
+  it("should price reasoning token usage keys at the output rate when the model has no dedicated reasoning price", async () => {
+    const prices = await prisma.price.findMany({
+      where: {
+        modelId,
+      },
+    });
+
+    const usageUnits = {
+      input: 100,
+      output: 200,
+      reasoning_tokens: 50,
+    };
+
+    const userProvidedCosts = {
+      input: null,
+      output: null,
+      total: null,
+    };
+
+    const costs = (IngestionService as any).calculateUsageCosts(
+      prices as any,
+      userProvidedCosts,
+      usageUnits,
+    );
+
+    expect(costs.cost_details.input).toBe(1.0); // 100 tokens * 0.01
+    expect(costs.cost_details.output).toBe(4.0); // 200 tokens * 0.02
+    expect(costs.cost_details.reasoning_tokens).toBe(1.0); // 50 tokens * output price 0.02
+    expect(costs.total_cost).toBe(6.0);
+  });
+
   it("should correctly calculate token costs with user provided costs", async () => {
     const prices = await prisma.price.findMany({
       where: {
