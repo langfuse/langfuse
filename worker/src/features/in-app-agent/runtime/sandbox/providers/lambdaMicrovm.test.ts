@@ -84,7 +84,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
       "fetch",
       vi
         .fn<typeof fetch>()
-        .mockResolvedValue(new Response(null, { status: 200 })),
+        .mockResolvedValue(Response.json({ status: "ok", protocolVersion: 1 })),
     );
     microvmSendMock.mockImplementation(async (command: { input: unknown }) => {
       if (command.constructor.name === "RunMicrovmCommand") {
@@ -134,7 +134,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url) => {
       const urlString = String(url);
       if (urlString.endsWith("/health")) {
-        return new Response(null, { status: 200 });
+        return Response.json({ status: "ok", protocolVersion: 1 });
       }
 
       return Response.json({ result: { content: "hello" } });
@@ -227,7 +227,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
       "fetch",
       vi
         .fn<typeof fetch>()
-        .mockResolvedValue(new Response(null, { status: 200 })),
+        .mockResolvedValue(Response.json({ status: "ok", protocolVersion: 1 })),
     );
     microvmSendMock.mockImplementation(async (command: { input: unknown }) => {
       const input = command.input as { microvmIdentifier?: string };
@@ -283,5 +283,47 @@ describe("in-app agent lambda microvm sandbox provider", () => {
         ([command]) => command.constructor.name === "ResumeMicrovmCommand",
       ),
     ).toBeUndefined();
+  });
+
+  it("rejects a sandbox whose /health protocolVersion does not match the worker", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json({ status: "ok" })),
+    );
+    microvmSendMock.mockImplementation(async (command: { input: unknown }) => {
+      if (command.constructor.name === "RunMicrovmCommand") {
+        return {
+          microvmId: "microvm-1",
+          endpoint: "https://microvm.example.com:8443",
+          state: "RUNNING",
+        };
+      }
+
+      if (command.constructor.name === "GetMicrovmCommand") {
+        return {
+          microvmId: "microvm-1",
+          endpoint: "https://microvm.example.com:8443",
+          state: "RUNNING",
+        };
+      }
+
+      if (command.constructor.name === "CreateMicrovmAuthTokenCommand") {
+        return { authToken: { "X-aws-proxy-auth": "token-1" } };
+      }
+
+      throw new Error(`Unexpected command ${command.constructor.name}`);
+    });
+
+    const { createLambdaMicrovmSandboxProvider } =
+      await import("./lambdaMicrovm");
+    const provider = createLambdaMicrovmSandboxProvider({
+      imageIdentifier: "image-1",
+      executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
+      region: "us-east-1",
+    });
+
+    await expect(
+      provider.ensureSession({ conversationId: "conversation-1" }),
+    ).rejects.toThrow(/Rebuild the MicroVM image/);
   });
 });
