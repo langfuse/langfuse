@@ -1,12 +1,7 @@
-import crypto from "node:crypto";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@langfuse/shared/src/db";
 import {
-  redis,
   type AuthHeaderValidVerificationResult,
-  type ApiAccessLevel,
   traceException,
   logger,
   contextWithLangfuseProps,
@@ -31,9 +26,24 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
-
-/** Access levels that can be accepted by project-scoped API routes. */
-type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
+import {
+  verifyAuth as verifyLegacyAuth,
+  type RouteAccessLevel,
+} from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
+import {
+  enforceProjectAuth,
+  type ProjectAccessResult,
+} from "@/src/features/auth/policy/enforceProjectAuth";
+import {
+  diffResults,
+  legacyFromStatus,
+  recordCoverage,
+} from "@/src/features/auth/policy/shadow";
+import {
+  type Principal,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
+import { prisma } from "@langfuse/shared/src/db";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -46,6 +56,11 @@ export type AuthedProjectAPIRouteConfig<
   TResponse extends ZodType<any>,
 > = {
   name: string;
+  /**
+   * The project action this route authorizes through the policy core. Required
+   * so a route cannot ship with no authorization.
+   */
+  action: ProjectAction;
   querySchema?: TQuery;
   bodySchema?: TBody;
   responseSchema: TResponse;
@@ -99,158 +114,145 @@ export type AuthedProjectAPIRouteConfig<
   }) => Promise<z.infer<TResponse>>;
 };
 
-/**
- * Verifies API key authentication (Basic or Bearer) using ApiAuthService.
- *
- * Delegates to ApiAuthService.verifyAuthHeaderAndReturnScope which handles
- * both Basic auth (public + secret key) and Bearer auth (public key only).
- * The caller controls which access levels are accepted via allowedAccessLevels.
- *
- * @param authHeader - The Authorization header from the request
- * @param allowedAccessLevels - Access levels to accept (default: ["project"])
- * @returns An auth scope object with the verified access level
- * @throws Error with appropriate message if authentication fails
- */
-async function verifyApiKeyAuth(
-  authHeader: string | undefined,
-  allowedAccessLevels: RouteAccessLevel[] = ["project"],
-  allowInAppAgentKey = false,
-): Promise<
-  AuthHeaderValidVerificationResult & {
-    scope: { projectId: string; accessLevel: RouteAccessLevel };
-  }
-> {
-  const regularAuth = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
-
-  if (!regularAuth.validKey) {
-    throw { status: 401, message: regularAuth.error };
+/** verifyAuth is the project seam: the new pipeline decides alone in enforce, both run for parity in shadow (byte-identical to legacy), and legacy decides alone otherwise (the default). */
+export async function verifyAuth(
+  params: VerifyAuthParams,
+): Promise<VerifyAuthResult> {
+  // enforce mode runs only the new pipeline, which is the sole authority.
+  if (env.API_AUTH_MIGRATION === "enforce") {
+    const authz = await runNewAuth(params);
+    if (!authz.success) {
+      throw { status: authz.error.httpCode, message: authz.error.message };
+    }
+    return toVerifyAuthResult(authz);
   }
 
-  if (
-    !(allowedAccessLevels as ApiAccessLevel[]).includes(
-      regularAuth.scope.accessLevel,
-    )
-  ) {
-    throw {
-      status: 403,
-      message: "Access denied - insufficient permissions for this endpoint",
+  // shadow mode runs both: legacy decides, the new pipeline records parity.
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    const legacy = await runLegacyAuth(params);
+    const authz = await runNewAuth(params);
+    recordCoverage(params.name);
+    diffResults(authz, legacyFromStatus(legacy.status), {
+      seam: "project_route",
+      action: params.action,
+    });
+    if (!legacy.ok) throw legacy.error;
+    return legacy.auth;
+  }
+
+  // legacy is the default: any other value (including a blank one) fails safe
+  // to the legacy path, so self-host does no new auth work.
+  const legacy = await runLegacyAuth(params);
+  if (!legacy.ok) throw legacy.error;
+  return legacy.auth;
+}
+
+/** runLegacyAuth runs the legacy verify and captures its throw as a value with the status it reported. */
+async function runLegacyAuth(
+  params: VerifyAuthParams,
+): Promise<LegacyDecision> {
+  try {
+    const auth = await verifyLegacyAuth(
+      params.req,
+      params.isAdminApiKeyAuthAllowed ?? false,
+      params.allowedAccessLevels ?? ["project"],
+      params.allowInAppAgentKey ?? false,
+    );
+    return { ok: true, status: 200, auth };
+  } catch (error) {
+    const status = (error as { status?: unknown }).status;
+    return {
+      ok: false,
+      status: typeof status === "number" ? status : 500,
+      error,
     };
   }
+}
 
-  if (!regularAuth.scope.projectId) {
+/** runNewAuth runs the new project pipeline for the request's action and route opt-ins. */
+function runNewAuth(params: VerifyAuthParams) {
+  return enforceProjectAuth({
+    headers: params.req.headers,
+    action: params.action,
+    allowInAppAgentKey: params.allowInAppAgentKey,
+    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
+  });
+}
+
+/** toVerifyAuthResult maps the new pipeline's principal to the legacy-shaped verified scope. */
+async function toVerifyAuthResult(
+  authz: ProjectAccessResult,
+): Promise<VerifyAuthResult> {
+  const { principal } = authz.context;
+  if (principal.kind === "admin") return adminScope(authz.projectId);
+  if (principal.kind !== "apiKey") {
     throw {
-      status: 403,
-      message:
-        "Project ID not found for API token. Are you using an organization key?",
+      status: 500,
+      message: `unexpected principal kind on the project seam: ${principal.kind}`,
     };
   }
+  return apiKeyScope(principal, authz.projectId);
+}
 
-  return regularAuth as AuthHeaderValidVerificationResult & {
-    scope: { projectId: string; accessLevel: RouteAccessLevel };
+/** apiKeyScope maps an api-key principal to its verified scope; an org key here is an invariant break. */
+function apiKeyScope(
+  principal: ApiKeyPrincipal,
+  projectId: string,
+): VerifyAuthResult {
+  // The project seam denies org keys at the PDP, so one reaching here means a
+  // project route granted an org-satisfiable action.
+  if (principal.scope !== "PROJECT") {
+    throw {
+      status: 500,
+      message: `org-scoped key ${principal.apiKeyId} reached the project mapper`,
+    };
+  }
+  const org = principal.organizations[0];
+  if (!org) {
+    throw {
+      status: 500,
+      message: `api key ${principal.apiKeyId} resolved to no organization`,
+    };
+  }
+  return {
+    validKey: true,
+    scope: {
+      projectId,
+      accessLevel:
+        principal.presentation === "publicKey" ? "scores" : "project",
+      orgId: org.orgId,
+      plan: org.plan,
+      rateLimitOverrides: org.rateLimitOverrides,
+      apiKeyId: principal.apiKeyId,
+      publicKey: principal.publicKey,
+      isIngestionSuspended: org.isIngestionSuspended,
+      isInAppAgentKey: principal.isInAppAgentKey,
+    },
   };
 }
 
-/**
- * Verifies admin API key authentication for self-hosted instances.
- *
- * This function checks if the request contains valid admin API key credentials:
- * 1. Authorization header must be Bearer token format with ADMIN_API_KEY value
- * 2. x-langfuse-admin-api-key header must match ADMIN_API_KEY env var exactly (for redundancy)
- * 3. x-langfuse-project-id header must be present and specify a valid project ID
- * 4. NEXT_PUBLIC_LANGFUSE_CLOUD_REGION must NOT be set (self-hosted instances only)
- *
- * The ADMIN_API_KEY must be set as an environment variable on the server.
- * This authentication method is intended for administrative operations on self-hosted instances.
- *
- * @param req - The Next.js API request
- * @returns An auth scope object if successful, null if admin auth is not being attempted
- * @throws Error with appropriate status code if admin auth fails
- */
-async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
-  | (AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: "project" };
-    })
-  | null
-> {
-  const authHeader = req.headers.authorization;
-  const adminApiKeyHeader = req.headers["x-langfuse-admin-api-key"];
-  const projectIdHeader = req.headers["x-langfuse-project-id"];
-
-  // If not attempting admin auth, return null to proceed with regular auth
-  if (!authHeader?.startsWith("Bearer ") || !adminApiKeyHeader) return null;
-
-  // Verify this is a self-hosted instance (not Langfuse Cloud)
+/** adminScope synthesizes the legacy self-host admin scope, loading the target project's org (404 on miss); admin key auth never applies on Langfuse Cloud. */
+async function adminScope(projectId: string): Promise<VerifyAuthResult> {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     throw {
       status: 403,
       message: "Admin API key auth is not available on Langfuse Cloud",
     };
   }
-
-  // Verify ADMIN_API_KEY is configured
-  const adminApiKey = env.ADMIN_API_KEY;
-  if (!adminApiKey) {
-    throw {
-      status: 500,
-      message: "Admin API key is not configured on this instance",
-    };
-  }
-
-  // Extract Bearer token
-  const bearerToken = authHeader.replace("Bearer ", "");
-
-  // Verify both the Bearer token and header match the ADMIN_API_KEY.
-  // Keep this comparison in sync with the admin-key check in
-  // web/src/ee/features/admin-api/server/adminApiAuth.ts.
-  try {
-    // timingSafeEqual throws on different input lengths, handle accordingly
-    const bearerTokenEqual = crypto.timingSafeEqual(
-      Buffer.from(bearerToken),
-      Buffer.from(adminApiKey),
-    );
-    const headerEqual = crypto.timingSafeEqual(
-      Buffer.from(String(adminApiKeyHeader)),
-      Buffer.from(adminApiKey),
-    );
-    const isEqual = bearerTokenEqual && headerEqual;
-
-    if (!isEqual) throw Error();
-  } catch {
-    throw { status: 401, message: "Invalid admin API key" };
-  }
-
-  // Verify project ID header is present
-  if (!projectIdHeader || typeof projectIdHeader !== "string") {
-    throw {
-      status: 400,
-      message:
-        "x-langfuse-project-id header is required for admin API key authentication",
-    };
-  }
-
-  // Verify project exists
   const project = await prisma.project.findUnique({
-    where: { id: projectIdHeader, deletedAt: null },
+    where: { id: projectId, deletedAt: null },
     select: { id: true, orgId: true },
   });
-
-  if (!project) {
-    throw { status: 404, message: "Project not found" };
-  }
-
-  // Return auth scope matching the regular auth structure
+  if (!project) throw { status: 404, message: "Project not found" };
   return {
     validKey: true,
     scope: {
       projectId: project.id,
-      accessLevel: "project" as const,
+      accessLevel: "project",
       orgId: project.orgId,
       plan: "oss",
       rateLimitOverrides: [],
-      apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging
+      apiKeyId: "ADMIN_API_KEY",
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
@@ -258,51 +260,28 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   };
 }
 
-/**
- * Verifies authentication for API routes with support for both regular API key
- * auth (Basic or Bearer) and admin API key auth.
- *
- * This is the main authentication entry point that delegates to either admin
- * or regular API key auth based on the configuration and request headers.
- *
- * @param req - The Next.js API request
- * @param isAdminApiKeyAuthAllowed - Whether to allow admin API key authentication
- * @param allowedAccessLevels - Access levels to accept for regular API key auth
- * @returns An auth scope object with the verified access level
- * @throws Error with appropriate status code if authentication fails
- */
-export async function verifyAuth(
-  req: NextApiRequest,
-  isAdminApiKeyAuthAllowed: boolean,
-  allowedAccessLevels: RouteAccessLevel[] = ["project"],
-  allowInAppAgentKey = false,
-): Promise<
-  AuthHeaderValidVerificationResult & {
-    scope: { projectId: string; accessLevel: RouteAccessLevel };
-  }
-> {
-  if (isAdminApiKeyAuthAllowed) {
-    // Try admin API key authentication first
-    const adminAuth = await verifyAdminApiKeyAuth(req);
-    if (adminAuth) {
-      // Admin auth succeeded
-      return adminAuth;
-    }
-    // Admin auth not attempted, fall back to regular API key auth
-    return await verifyApiKeyAuth(
-      req.headers.authorization,
-      allowedAccessLevels,
-      allowInAppAgentKey,
-    );
-  }
+/** VerifyAuthParams is the request plus the route's action and legacy auth options. */
+export type VerifyAuthParams = {
+  req: NextApiRequest;
+  name: string;
+  action: ProjectAction;
+  isAdminApiKeyAuthAllowed?: boolean;
+  allowedAccessLevels?: RouteAccessLevel[];
+  allowInAppAgentKey?: boolean;
+};
 
-  // Only regular API key auth is allowed
-  return await verifyApiKeyAuth(
-    req.headers.authorization,
-    allowedAccessLevels,
-    allowInAppAgentKey,
-  );
-}
+/** VerifyAuthResult is the verified project scope the route handler receives. */
+type VerifyAuthResult = AuthHeaderValidVerificationResult & {
+  scope: { projectId: string; accessLevel: RouteAccessLevel };
+};
+
+/** ApiKeyPrincipal is the api-key variant of `Principal` the mapper consumes. */
+type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
+
+/** LegacyDecision is the legacy verify captured as a value: the verified scope, or the status + error to re-throw. */
+type LegacyDecision =
+  | { ok: true; status: 200; auth: VerifyAuthResult }
+  | { ok: false; status: number; error: unknown };
 
 export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
@@ -343,12 +322,14 @@ export const createAuthedProjectAPIRoute = <
 
     // Verify authentication (API key or admin API key)
     try {
-      auth = await verifyAuth(
+      auth = await verifyAuth({
         req,
-        routeConfig.isAdminApiKeyAuthAllowed || false,
-        routeConfig.allowedAccessLevels || ["project"],
-        routeConfig.allowInAppAgentKey === true,
-      );
+        name: routeConfig.name,
+        action: routeConfig.action,
+        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+        allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+      });
     } catch (error: any) {
       if (isPrismaException(error)) {
         traceException(error);
