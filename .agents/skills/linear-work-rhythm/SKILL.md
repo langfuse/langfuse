@@ -67,13 +67,18 @@ manages their own priorities and escalates to their lead when work piles up"* �
 so you are not issuing a to-do list. You are making the state of the week
 visible so somebody else can decide.
 
-Rank by the handbook's own balance: *"we balance busy work with making progress
-on the most important project we're driving forward."* In that order:
+**A P0 outranks everything, including this ordering.** The handbook defines it
+as drop-everything — a security incident, ingestion delay, the traces table not
+loading. If one exists, it is the answer and the rest of the list can wait; do
+not bury it under a blocked review.
+
+With no P0 open, rank by the handbook's own balance: *"we balance busy work with
+making progress on the most important project we're driving forward."*
 
 1. **What moves the project they are driving.** A blocked review, a decision
    waiting on someone else, work sitting one approval away from shipping.
-2. **What is genuinely urgent**, in the priority language the handbook defines —
-   P0 drop-everything, P1 same-week — not in adjectives you invent.
+2. **P1** — same-week by definition, so it competes with the project rather than
+   deferring behind it. Use the handbook's levels, not adjectives you invent.
 3. **Busy work, bounded.** Bug fixes and support are capped at roughly two hours
    a day by the same page. Reviews turn around inside 24 hours. Present these as
    the budget they are, not as the plan.
@@ -108,8 +113,14 @@ say only "older than the window" — not how stale it is, and not what its last
 "next step" was. Take the newest update per project from an unbounded query
 instead, and page if you have to.
 
-Compare against the in-progress projects from above. A project with **no update
-at all** is the worst case, not an absent row.
+**Which projects owe one:** every in-progress project they lead whose newest
+update predates the last Monday. That is the cutoff — the weekly reads what is
+there, so anything that missed the previous round is still outstanding. A project
+with **no update at all** is the worst case, not an absent row.
+
+Use the cutoff to *select*, then use the framing below to *say it*. The two are
+not in tension: which projects are outstanding is a date question, and what to
+say about each one is not.
 
 **Do not report this as staleness.** "Five updates are 11 days stale" is a
 number nobody committed to and a word that means nothing — it sounds like a
