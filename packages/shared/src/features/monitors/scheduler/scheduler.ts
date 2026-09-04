@@ -183,7 +183,7 @@ function buildScheduleQuery({
       scheduler_batch_id,
       MAX(run_at)                  AS run_at,
       (array_agg(view))[1]         AS view,
-      (array_agg(filters))[1]      AS filters,
+      (array_agg(filters ORDER BY id))[1]      AS filters,
       (array_agg(window_ms))[1]    AS window_ms,
       array_agg(DISTINCT metric)   AS metrics,
       array_agg(
