@@ -30,6 +30,7 @@ import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/compone
 import {
   DEFAULT_EVALUATOR_BACKFILL_ITEMS,
   EvaluatorBackfillSettings,
+  MAX_EVALUATOR_BACKFILL_ITEMS,
   type EvaluatorBackfillRange,
   type EvaluatorBackfillWindow,
 } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorBackfillSettings";
@@ -98,8 +99,10 @@ export function EvaluatorSavedDialogContainer({
   const [backfillMatchingObservations, setBackfillMatchingObservations] =
     useState(0);
   const [isEstimatingBackfill, setIsEstimatingBackfill] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const estimateRequestId = useRef(0);
   const backfillEstimateRequestId = useRef(0);
+  const attachedRuleId = useRef<string | null>(null);
   // Strict Mode replays mount effects; this mutation must run once per dialog.
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -127,6 +130,9 @@ export function EvaluatorSavedDialogContainer({
     },
     { enabled: dialogPhase === "saved" },
   );
+  const historicEvaluationLimit = api.evals.globalJobConfigs.useQuery({
+    projectId,
+  });
   const availableRules = useMemo(
     () =>
       [
@@ -229,6 +235,10 @@ export function EvaluatorSavedDialogContainer({
       backfillWindow === "custom"
         ? backfillRange
         : getBackfillRange(backfillWindow);
+    const effectiveRowLimit = Math.min(
+      backfillMaxItems,
+      historicEvaluationLimit.data ?? backfillMaxItems,
+    );
     await runEvaluation.mutateAsync({
       projectId,
       evaluatorIds: [evaluator.id],
@@ -241,7 +251,7 @@ export function EvaluatorSavedDialogContainer({
       evalVersion: "v2",
       sourceTable: BatchEvalSourceTable.EVENTS,
       sampling,
-      rowLimit: backfillMaxItems,
+      rowLimit: effectiveRowLimit,
       backfillTimeRange: executionRange,
       query: {
         filter,
@@ -252,17 +262,20 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const attachToRule = async (rule: Rule) => {
-    await attach.mutateAsync({
-      projectId,
-      ruleId: rule.id,
-      evaluatorId: evaluator.id,
-      variableMapping: null,
-      enableRule: !rule.enabled,
-    });
-    capture("evaluation_rules:attach_evaluator", {
-      evaluatorCount: 1,
-      source: "evaluator_create",
-    });
+    if (attachedRuleId.current !== rule.id) {
+      await attach.mutateAsync({
+        projectId,
+        ruleId: rule.id,
+        evaluatorId: evaluator.id,
+        variableMapping: null,
+        enableRule: !rule.enabled,
+      });
+      attachedRuleId.current = rule.id;
+      capture("evaluation_rules:attach_evaluator", {
+        evaluatorCount: 1,
+        source: "evaluator_create",
+      });
+    }
     await scheduleBackfill({ filter: rule.filter, sampling: rule.sampling });
     await invalidateRuleQueries();
     await finish();
@@ -521,15 +534,27 @@ export function EvaluatorSavedDialogContainer({
     }
   };
 
+  const backfillAllowedItems = Math.min(
+    historicEvaluationLimit.data ?? MAX_EVALUATOR_BACKFILL_ITEMS,
+    MAX_EVALUATOR_BACKFILL_ITEMS,
+  );
+  const effectiveBackfillMaxItems = Math.min(
+    backfillMaxItems,
+    backfillAllowedItems,
+  );
+
   const handlePrimaryAction = () => {
     if (mode === "test-filters") {
       capture("evaluators:saved_dialog_submit", {
         action: "test_filters",
         hasBackfill: backfillEnabled,
         backfillWindow: backfillEnabled ? backfillWindow : undefined,
-        backfillMaxItems: backfillEnabled ? backfillMaxItems : undefined,
+        backfillMaxItems: backfillEnabled
+          ? effectiveBackfillMaxItems
+          : undefined,
       });
-      resolveFromTestFilters().catch(() => undefined);
+      setIsCompleting(true);
+      resolveFromTestFilters().catch(() => setIsCompleting(false));
       return;
     }
     if (selectedRule) {
@@ -537,9 +562,12 @@ export function EvaluatorSavedDialogContainer({
         action: "existing_rule",
         hasBackfill: backfillEnabled,
         backfillWindow: backfillEnabled ? backfillWindow : undefined,
-        backfillMaxItems: backfillEnabled ? backfillMaxItems : undefined,
+        backfillMaxItems: backfillEnabled
+          ? effectiveBackfillMaxItems
+          : undefined,
       });
-      attachToRule(selectedRule).catch(() => undefined);
+      setIsCompleting(true);
+      attachToRule(selectedRule).catch(() => setIsCompleting(false));
     } else {
       capture("evaluators:saved_dialog_submit", {
         action: "new_rule",
@@ -624,7 +652,8 @@ export function EvaluatorSavedDialogContainer({
       canEnable={hasConfiguredScope}
       selectedWindow={backfillWindow}
       range={backfillRange}
-      maxItems={backfillMaxItems}
+      maxItems={effectiveBackfillMaxItems}
+      maxAllowedItems={backfillAllowedItems}
       matchingObservations={backfillMatchingObservations}
       isEstimating={isEstimatingBackfill}
       onEnabledChange={handleBackfillEnabledChange}
@@ -650,7 +679,7 @@ export function EvaluatorSavedDialogContainer({
           ? {
               enabled: true,
               matchingObservations: backfillMatchingObservations,
-              maxItems: backfillMaxItems,
+              maxItems: effectiveBackfillMaxItems,
               isEstimating: isEstimatingBackfill,
             }
           : { enabled: false }
@@ -682,13 +711,15 @@ export function EvaluatorSavedDialogContainer({
       costSummary={costSummary}
       canSubmit={
         !isEstimating &&
+        !isCompleting &&
         (!backfillEnabled || !isEstimatingBackfill) &&
         (mode === "test-filters" || selectedRuleId !== undefined)
       }
       isSubmitting={
         attach.isPending ||
         createOrAttachFromEvaluatorFilters.isPending ||
-        runEvaluation.isPending
+        runEvaluation.isPending ||
+        isCompleting
       }
       primaryActionLabel={
         mode === "test-filters"

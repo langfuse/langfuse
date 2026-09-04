@@ -37,6 +37,7 @@ export function EvaluatorBackfillSettings({
   selectedWindow,
   range,
   maxItems,
+  maxAllowedItems,
   matchingObservations,
   isEstimating,
   onEnabledChange,
@@ -49,6 +50,7 @@ export function EvaluatorBackfillSettings({
   selectedWindow: EvaluatorBackfillWindow;
   range: EvaluatorBackfillRange;
   maxItems: number;
+  maxAllowedItems: number;
   matchingObservations: number;
   isEstimating: boolean;
   onEnabledChange: (enabled: boolean) => void;
@@ -163,23 +165,19 @@ export function EvaluatorBackfillSettings({
               id="evaluator-backfill-max-items"
               type="number"
               min={1}
-              max={MAX_EVALUATOR_BACKFILL_ITEMS}
+              max={maxAllowedItems}
               className="w-28 text-right font-mono"
               value={maxItems}
               onChange={(event) => {
                 const value = Number(event.target.value);
                 if (!Number.isFinite(value)) return;
                 onMaxItemsChange(
-                  Math.min(
-                    MAX_EVALUATOR_BACKFILL_ITEMS,
-                    Math.max(1, Math.floor(value)),
-                  ),
+                  Math.min(maxAllowedItems, Math.max(1, Math.floor(value))),
                 );
               }}
             />
             <span className="text-muted-foreground text-xs">
-              {compactNumberFormatter(MAX_EVALUATOR_BACKFILL_ITEMS, 0)} max per
-              backfill
+              {compactNumberFormatter(maxAllowedItems, 0)} max per backfill
             </span>
           </div>
 

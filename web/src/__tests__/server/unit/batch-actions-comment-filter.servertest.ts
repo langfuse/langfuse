@@ -344,6 +344,15 @@ describe("batched evaluation version selection", () => {
       },
     });
 
+    expect(
+      mocks.getObservationsWithModelDataFromEventsTable,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dedupeBySpanId: true,
+        limit: 5_000,
+        orderBy: { column: "startTime", order: "DESC" },
+      }),
+    );
     expect(context.batchActionCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -374,6 +383,28 @@ describe("batched evaluation version selection", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("does not queue a backfill when deterministic sampling selects no observations", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+
+    const result = await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      evalVersion: "v2",
+      sampling: 0,
+      rowLimit: 5_000,
+      backfillTimeRange: {
+        from: new Date(Date.now() - 7 * 24 * 60 * 60_000),
+        to: new Date(),
+      },
+    });
+
+    expect(result).toEqual({ id: null });
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
   });
 
   it("rejects backfills above the 25,000 observation cap", async () => {

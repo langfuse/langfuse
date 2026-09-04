@@ -16,6 +16,7 @@ function renderSettings(
     selectedWindow: "7-days" as const,
     range,
     maxItems: 5_000,
+    maxAllowedItems: 25_000,
     matchingObservations: 4_400,
     isEstimating: false,
     onEnabledChange: vi.fn(),

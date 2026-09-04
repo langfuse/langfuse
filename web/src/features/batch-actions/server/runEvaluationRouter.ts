@@ -200,6 +200,7 @@ export const runEvaluationRouter = createTRPCRouter({
                 limit: rowLimit,
                 offset: 0,
                 selectIOAndMetadata: false,
+                dedupeBySpanId: true,
               });
           const selectedIds = candidates
             .filter((observation) =>
@@ -221,6 +222,10 @@ export const runEvaluationRouter = createTRPCRouter({
             orderBy: { column: "startTime", order: "DESC" },
             useEventsTable: true,
           };
+
+          if (selectedIds.length === 0) {
+            return { id: null };
+          }
         }
 
         const userId = ctx.session.user.id;
