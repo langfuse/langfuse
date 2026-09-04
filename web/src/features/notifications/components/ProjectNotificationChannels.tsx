@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -62,7 +61,6 @@ export function ProjectNotificationChannels({
   projectId: string;
 }) {
   const {
-    hasAccess,
     channels,
     isLoading,
     mode,
@@ -75,8 +73,6 @@ export function ProjectNotificationChannels({
   } = useProjectNotificationChannels(projectId);
 
   const hasChannels = Boolean(channels?.length);
-
-  if (!hasAccess) return null;
 
   return (
     <div>

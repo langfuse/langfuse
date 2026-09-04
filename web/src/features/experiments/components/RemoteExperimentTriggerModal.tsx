@@ -1,5 +1,3 @@
-/* eslint-disable @repo/no-null-render */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,7 +21,8 @@ import {
 } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import { type Prisma } from "@langfuse/shared";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -50,11 +49,6 @@ export const RemoteExperimentTriggerModal = ({
   };
   setShowTriggerModal: (show: boolean) => void;
 }) => {
-  const hasDatasetAccess = useHasProjectAccess({
-    projectId,
-    scope: "datasets:CUD",
-  });
-
   const dataset = api.datasets.byId.useQuery({
     projectId,
     datasetId,
@@ -111,10 +105,6 @@ export const RemoteExperimentTriggerModal = ({
       payload: data.payload,
     });
   };
-
-  if (!hasDatasetAccess) {
-    return null;
-  }
 
   return (
     <>

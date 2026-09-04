@@ -381,7 +381,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </div>
             </Tabs>
           </FormItem>
-          <PromptVariableListPreview variables={currentExtractedVariables} />
+          {currentExtractedVariables.length > 0 && (
+            <PromptVariableListPreview variables={currentExtractedVariables} />
+          )}
         </>
 
         {/* Prompt Config field */}
