@@ -963,6 +963,12 @@ export async function getAuthOptions(signupAttribution?: {
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          crossProjectTraceTrackingEnabled:
+                            orgMembership.organization
+                              .crossProjectTraceTrackingEnabled,
+                          crossProjectTraceCorrelationKey:
+                            orgMembership.organization
+                              .crossProjectTraceCorrelationKey,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,

@@ -12,6 +12,10 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  RelatedTracesButton,
+  RelatedTracesPopoverController,
+} from "@/src/features/trace-correlation/components/RelatedTracesButton";
 
 export function TracePage({
   traceId,
@@ -105,6 +109,19 @@ export function TracePage({
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
+            <RelatedTracesPopoverController
+              projectId={trace.data.projectId}
+              traceId={trace.data.id}
+              timestamp={trace.data.timestamp}
+              observations={trace.data.observations}
+              enabled={hasProjectAccess && !showPublicIndicators}
+            >
+              {({ relatedCount, Trigger }) => (
+                <Trigger asChild>
+                  <RelatedTracesButton relatedCount={relatedCount} />
+                </Trigger>
+              )}
+            </RelatedTracesPopoverController>
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {

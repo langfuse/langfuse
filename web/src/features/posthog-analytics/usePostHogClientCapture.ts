@@ -349,6 +349,8 @@ const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "cross_project_trace_tracking_toggle",
+    "cross_project_trace_correlation_key_update",
     "feature_flag_default_toggled",
     "user_feature_flag_toggled",
   ],
