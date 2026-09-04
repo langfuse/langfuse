@@ -96,6 +96,9 @@ vi.mock("@langfuse/shared/src/db", async () => {
   );
   return {
     EvalTemplateType: actual.EvalTemplateType,
+    GatewayConnectionStatus: actual.GatewayConnectionStatus,
+    GatewayInstrumentationMode: actual.GatewayInstrumentationMode,
+    GatewayProvider: actual.GatewayProvider,
     JobConfigState: actual.JobConfigState,
     Prisma: { DbNull: { dbNull: true } },
     prisma,
