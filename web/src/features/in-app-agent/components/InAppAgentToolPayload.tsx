@@ -116,6 +116,8 @@ function StructuredToolPayload({ value }: { value: unknown }) {
         <JSONView
           json={jsonValue}
           isLoading={false}
+          borderless
+          codeClassName="rounded-md bg-muted p-2"
           collapseDepth={4}
           externalJsonCollapsed={activeCode !== null}
           onToggleCollapse={() => {
@@ -164,6 +166,7 @@ function StructuredToolPayload({ value }: { value: unknown }) {
               language={activeCode.language}
               value={activeCode.value}
               variant="read-only"
+              borderless
             />
           </div>
         </div>
