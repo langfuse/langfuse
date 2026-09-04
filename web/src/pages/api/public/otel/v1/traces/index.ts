@@ -16,6 +16,7 @@ import {
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
 import { processOtelIngestion } from "@/src/server/otel/processOtelIngestion";
+import type { OtelIngestionWorkerContext } from "@/src/server/otel/otelIngestionWorkerPool";
 
 export const config = {
   api: {
@@ -41,13 +42,32 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
+      const useWorker = env.LANGFUSE_OTEL_INGESTION_USE_WORKER === "true";
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
       let body: Buffer;
       let encodedBodyBytes: number;
+      let workerContext: OtelIngestionWorkerContext | undefined;
       let bodyFailureMessage = "Failed to read request body";
       try {
-        body = await readOtelRequestBody(req, maxBodyBytes);
+        // Acquire worker admission before reading so queued request bodies remain paused.
+        if (useWorker) {
+          const { createOtelIngestionWorkerContext } =
+            await import("@/src/server/otel/otelIngestionWorkerPool");
+          const contextResult = await createOtelIngestionWorkerContext(
+            req,
+            res,
+            auth.scope.projectId,
+            maxBodyBytes,
+          );
+          if ("response" in contextResult) {
+            return contextResult.response;
+          }
+          workerContext = contextResult;
+          body = contextResult.body;
+        } else {
+          body = await readOtelRequestBody(req, maxBodyBytes);
+        }
         encodedBodyBytes = body.byteLength;
 
         if (req.headers["content-encoding"]?.includes("gzip")) {
@@ -92,7 +112,7 @@ export default withMiddlewares({
         }
       }
 
-      const result = await processOtelIngestion({
+      const ingestionRequest = {
         body,
         contentType,
         encodedBodyBytes,
@@ -109,7 +129,13 @@ export default withMiddlewares({
           rejectionSdkName: req.headers["x-langfuse-sdk-name"],
           ingestionVersion,
         },
-      });
+      };
+      const result = workerContext
+        ? await workerContext.process(ingestionRequest)
+        : await processOtelIngestion(ingestionRequest);
+      if (!result) {
+        return {};
+      }
       if (result.kind === "http") {
         res.status(result.status);
         return result.body;
