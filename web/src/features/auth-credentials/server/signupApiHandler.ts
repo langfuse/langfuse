@@ -101,11 +101,27 @@ export async function signupApiHandler(
       { adClickIds: getAdClickIdsFromRequest(req) },
     );
   } catch (error) {
-    const message =
-      "Signup: Error creating user: " +
-      (error instanceof Error ? error.message : JSON.stringify(error));
-    logger.warn(message, body.email.toLowerCase(), body.name);
-    res.status(422).json({ message: message });
+    const rawMessage =
+      error instanceof Error ? error.message : JSON.stringify(error);
+    logger.warn("Signup: Error creating user", {
+      error: rawMessage,
+      email: body.email.toLowerCase(),
+      name: body.name,
+    });
+    // Only forward known, user-facing validation messages from
+    // createUserEmailPassword. Anything else (Prisma/Postgres internals,
+    // constraint names, connection errors) must not reach an
+    // unauthenticated caller.
+    const userFacingMessages = new Set([
+      "Password needs to be at least 8 characters long.",
+      "User with email already exists. Please sign in.",
+      "You have already signed up via an identity provider. Please sign in.",
+    ]);
+    res.status(422).json({
+      message: userFacingMessages.has(rawMessage)
+        ? rawMessage
+        : "Unable to create account. Please try again or contact support.",
+    });
 
     return;
   }

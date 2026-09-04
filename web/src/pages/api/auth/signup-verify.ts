@@ -115,11 +115,18 @@ export default async function handler(
       res.status(200).json({ status: "ok" });
       return;
     }
-    const message =
-      "Signup verify: Error creating user: " +
-      (error instanceof Error ? error.message : JSON.stringify(error));
-    logger.warn(message, normalizedEmail, name);
-    res.status(500).json({ message });
+    // Log the raw error server-side only; the response must not carry
+    // Prisma/Postgres internals to an unauthenticated caller.
+    const rawMessage =
+      error instanceof Error ? error.message : JSON.stringify(error);
+    logger.warn("Signup verify: Error creating user", {
+      error: rawMessage,
+      email: normalizedEmail,
+      name,
+    });
+    res.status(500).json({
+      message: "Unable to complete sign-up. Please try again or contact support.",
+    });
     return;
   }
 
