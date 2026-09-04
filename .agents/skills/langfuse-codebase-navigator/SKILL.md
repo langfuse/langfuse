@@ -28,6 +28,8 @@ Use this as the first stop for Langfuse org navigation. Your job is to choose th
 - Cursor Cloud or Cursor desktop agents implementing a Linear issue, opening a PR, asking a human to test, or handling Claude, Greptile, or Codex review comments: use `cursor-agents-workflow`.
 - A change too large for one reviewable PR, splitting a long-lived branch into PRs, or propagating and retargeting a stack: use `pr-stack-workflow`.
 - Needing a second checkout — verify a stack branch by branch, or work on something else without disturbing what is open: use `parallel-worktrees`.
+- Someone new, or you do not know whether you are talking to an outside contributor or a maintainer: use `langfuse-onboarding`.
+- "What should I do today", or preparing a weekly project update: use `linear-work-rhythm`.
 - Reconstructing why a surface is the way it is before changing it, or writing the reasoning behind finished work onto its Linear ticket: use `linear-context-handover`.
 - Turning a feature into Linear subtickets that map onto an intended PR stack: use `linear-planning`.
 - Before any agent write to Linear — a comment, a description edit, a ticket: use `linear-agent-writes`, the write policy.
