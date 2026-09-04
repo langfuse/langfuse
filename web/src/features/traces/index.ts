@@ -22,6 +22,10 @@ export {
   getTraceDetailModeTitle,
 } from "@/src/features/traces/fns/getSelectedObservationType";
 export { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+export {
+  useTraceDetailMode,
+  type TraceDetailMode,
+} from "@/src/features/traces/hooks/useTraceDetailMode";
 
 export { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 export { calculateAggregatedUsage } from "@/src/features/traces/fns/calculateAggregatedUsage";

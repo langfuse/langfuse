@@ -91,6 +91,8 @@ describe("TablePeekViewTraceDetail", () => {
         projectId: "p",
         public: false,
         sessionId: "s",
+        rootObservationId: "root-observation",
+        observations: [],
       },
       canAggregateBySession: true,
       isSessionScopeUnavailable: false,

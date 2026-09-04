@@ -13,11 +13,9 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
 import {
-  getDefaultObservationId,
-  getSelectedObservation,
-  getTraceDetailModeTitle,
-} from "@/src/features/traces/fns/getSelectedObservationType";
-import { StringParam, useQueryParam } from "use-query-params";
+  parseTraceDetailMode,
+  useTraceDetailMode,
+} from "@/src/features/traces/hooks/useTraceDetailMode";
 
 export function TracePage({
   traceId,
@@ -29,23 +27,24 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const routeProjectId = (router.query.projectId as string) ?? "";
-  const [aggregationParam, setAggregationParam] = useQueryParam(
-    "aggregation",
-    StringParam,
+  const requestedAggregationLevel = parseTraceDetailMode(
+    router.query.aggregation,
   );
-  const [, setObservationParam] = useQueryParam("observation", StringParam);
-  const aggregationLevel =
-    aggregationParam === "session" || aggregationParam === "observation"
-      ? aggregationParam
-      : "trace";
 
   // Shared, beta-aware fetch (same hook the peek uses).
   const trace = useTraceDetailData({
     projectId: routeProjectId,
     traceId,
     timestamp,
-    aggregationLevel: aggregationLevel === "session" ? "session" : "trace",
+    aggregationLevel:
+      requestedAggregationLevel === "session" ? "session" : "trace",
   });
+  const {
+    mode: aggregationLevel,
+    selectedObservation,
+    setMode: setAggregationLevel,
+    title: modeTitle,
+  } = useTraceDetailMode({ trace: trace.data });
 
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
@@ -114,44 +113,15 @@ export function TracePage({
       Public
     </Badge>
   ) : undefined;
-  const selectedObservation = getSelectedObservation(
-    trace.data.observations,
-    typeof router.query.observation === "string"
-      ? router.query.observation
-      : undefined,
-  );
-  const selectedNodeId =
-    typeof router.query.observation === "string"
-      ? router.query.observation
-      : undefined;
   const aggregationToggle = trace.isEventsTraceSource ? (
     <TraceAggregationToggle
       aggregationLevel={aggregationLevel}
       canSelectSession={trace.canAggregateBySession}
       observationType={selectedObservation?.type ?? null}
-      onAggregationLevelChange={(nextAggregationLevel) => {
-        if (nextAggregationLevel === "session") {
-          setAggregationParam("session");
-        }
-        if (nextAggregationLevel === "observation") {
-          if (!selectedObservation) {
-            setObservationParam(getDefaultObservationId(trace.data) ?? null);
-          }
-          setAggregationParam("observation");
-        }
-        if (nextAggregationLevel === "trace") {
-          setAggregationParam(null);
-        }
-      }}
+      onAggregationLevelChange={setAggregationLevel}
     />
   ) : undefined;
-  const title =
-    getTraceDetailModeTitle(
-      aggregationLevel,
-      trace.data,
-      selectedObservation,
-      aggregationLevel === "observation" ? selectedNodeId : traceId,
-    ) ?? traceId;
+  const title = modeTitle ?? traceId;
 
   return (
     <Page

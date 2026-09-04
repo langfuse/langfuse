@@ -115,7 +115,14 @@ describe("TablePeekViewObservationDetail", () => {
         projectId: "p",
         public: false,
         sessionId: "s",
-        observations: [{ id: "o", traceId: "t", type: "GENERATION" }],
+        observations: [
+          {
+            id: "o",
+            name: "Observation name",
+            traceId: "t",
+            type: "GENERATION",
+          },
+        ],
       },
       canAggregateBySession: true,
       truncatedAtObservations: undefined,

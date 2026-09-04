@@ -2,13 +2,11 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
-  getDefaultObservationId,
   TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
-  getSelectedObservation,
-  getTraceDetailModeTitle,
 } from "@/src/features/traces";
+import { useTraceDetailMode } from "@/src/features/traces/hooks/useTraceDetailMode";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
@@ -27,11 +25,6 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
-  const aggregationLevel =
-    router.query.aggregation === "session" ||
-    router.query.aggregation === "observation"
-      ? router.query.aggregation
-      : "trace";
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -52,25 +45,24 @@ export const TablePeekViewTraceDetail = (
     ...(props.isV4
       ? {
           aggregationLevel:
-            aggregationLevel === "session" ? "session" : ("trace" as const),
+            router.query.aggregation === "session"
+              ? "session"
+              : ("trace" as const),
           readPath: "v4" as const,
         }
       : {}),
   });
+  const {
+    mode: aggregationLevel,
+    selectedObservation,
+    setMode: setAggregationLevel,
+    title,
+    widthMode,
+  } = useTraceDetailMode({ trace: trace.data });
   const isSessionScope =
     !!trace.data &&
     "sessionTraceEntries" in trace.data &&
     !!trace.data.sessionTraceEntries;
-  const selectedObservation = getSelectedObservation(
-    trace.data?.observations,
-    typeof router.query.observation === "string"
-      ? router.query.observation
-      : undefined,
-  );
-  const selectedNodeId =
-    typeof router.query.observation === "string"
-      ? router.query.observation
-      : undefined;
 
   const actionProps = trace.data
     ? {
@@ -96,28 +88,9 @@ export const TablePeekViewTraceDetail = (
       aggregationLevel={aggregationLevel}
       canSelectSession={trace.canAggregateBySession}
       observationType={selectedObservation?.type ?? null}
-      onAggregationLevelChange={(nextAggregationLevel) => {
-        const query = { ...router.query };
-        if (nextAggregationLevel !== "trace") {
-          query.aggregation = nextAggregationLevel;
-          if (nextAggregationLevel === "observation" && !selectedObservation) {
-            query.observation = getDefaultObservationId(trace.data);
-          }
-        } else {
-          delete query.aggregation;
-        }
-        router.replace({ pathname: router.pathname, query }, undefined, {
-          shallow: true,
-        });
-      }}
+      onAggregationLevelChange={setAggregationLevel}
     />
   ) : undefined;
-  const title = getTraceDetailModeTitle(
-    aggregationLevel,
-    trace.data,
-    selectedObservation,
-    aggregationLevel === "observation" ? selectedNodeId : traceId,
-  );
 
   return (
     <TablePeekView
@@ -126,10 +99,7 @@ export const TablePeekViewTraceDetail = (
       title={title}
       {...(props.isV4
         ? {
-            widthMode:
-              aggregationLevel === "observation"
-                ? ("observation" as const)
-                : ("split" as const),
+            widthMode,
           }
         : {})}
       leadingContent={aggregationToggle}

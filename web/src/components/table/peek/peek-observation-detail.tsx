@@ -4,17 +4,15 @@ import {
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
-  getDefaultObservationId,
   TraceAggregationToggle,
   TraceDetailActions,
   TraceDetailBody,
-  getSelectedObservation,
-  getTraceDetailModeTitle,
 } from "@/src/features/traces";
+import { useTraceDetailMode } from "@/src/features/traces/hooks/useTraceDetailMode";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -25,12 +23,6 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
-  const requestedAggregationLevel =
-    router.query.aggregation === "session" ||
-    router.query.aggregation === "observation"
-      ? router.query.aggregation
-      : "trace";
-
   const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
   const { traceId, timestamp } = resolvePeekTraceParams({
@@ -51,43 +43,24 @@ export const TablePeekViewObservationDetail = (
     traceId,
     timestamp,
     aggregationLevel:
-      requestedAggregationLevel === "session" ? "session" : "trace",
+      router.query.aggregation === "session" ? "session" : "trace",
     readPath: props.isV4 ? "v4" : "v3",
   });
-  const aggregationLevel =
-    requestedAggregationLevel === "session" && trace.isSessionScopeUnavailable
-      ? "trace"
-      : requestedAggregationLevel;
-
-  useEffect(() => {
-    if (
-      requestedAggregationLevel !== "session" ||
-      !trace.isSessionScopeUnavailable
-    ) {
-      return;
-    }
-
-    const query = { ...router.query };
-    delete query.aggregation;
-    router.replace({ pathname: router.pathname, query }, undefined, {
-      shallow: true,
-    });
-  }, [requestedAggregationLevel, router, trace.isSessionScopeUnavailable]);
+  const {
+    mode: aggregationLevel,
+    selectedObservation,
+    setMode: setAggregationLevel,
+    title,
+    widthMode,
+  } = useTraceDetailMode({
+    trace: trace.data,
+    fallbackFromUnavailableSession: trace.isSessionScopeUnavailable,
+  });
 
   const isSessionScope =
     !!trace.data &&
     "sessionTraceEntries" in trace.data &&
     !!trace.data.sessionTraceEntries;
-  const selectedObservation = getSelectedObservation(
-    trace.data?.observations,
-    typeof router.query.observation === "string"
-      ? router.query.observation
-      : undefined,
-  );
-  const selectedNodeId =
-    typeof router.query.observation === "string"
-      ? router.query.observation
-      : undefined;
 
   const actionProps = trace.data
     ? {
@@ -118,28 +91,9 @@ export const TablePeekViewObservationDetail = (
       aggregationLevel={aggregationLevel}
       canSelectSession={trace.canAggregateBySession}
       observationType={selectedObservation?.type ?? null}
-      onAggregationLevelChange={(nextAggregationLevel) => {
-        const query = { ...router.query };
-        if (nextAggregationLevel !== "trace") {
-          query.aggregation = nextAggregationLevel;
-          if (nextAggregationLevel === "observation" && !selectedObservation) {
-            query.observation = getDefaultObservationId(trace.data);
-          }
-        } else {
-          delete query.aggregation;
-        }
-        router.replace({ pathname: router.pathname, query }, undefined, {
-          shallow: true,
-        });
-      }}
+      onAggregationLevelChange={setAggregationLevel}
     />
   ) : undefined;
-  const title = getTraceDetailModeTitle(
-    aggregationLevel,
-    trace.data,
-    selectedObservation,
-    aggregationLevel === "observation" ? selectedNodeId : traceId,
-  );
 
   return (
     <TablePeekView
@@ -148,10 +102,7 @@ export const TablePeekViewObservationDetail = (
       title={title}
       {...(props.isV4
         ? {
-            widthMode:
-              aggregationLevel === "observation"
-                ? ("observation" as const)
-                : ("split" as const),
+            widthMode,
           }
         : {})}
       leadingContent={aggregationToggle}
