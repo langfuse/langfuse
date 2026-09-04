@@ -3,10 +3,10 @@ import {
   CATEGORICAL_SCORE_CHART_CONFIG,
   EXPERIMENT_COST_WIDGET_CONFIG,
   EXPERIMENT_LATENCY_WIDGET_CONFIG,
-  MAX_CHARTS,
   NUMERIC_SCORE_CHART_CONFIG,
   SCORE_LEVEL_ENTITY_DIMENSIONS,
   SCORE_LEVEL_FILTERS,
+  SCORE_BOOLEAN_FILTER_KEYS,
   SCORE_METRIC_SPECS,
 } from "@/src/features/experiments/constants/charts";
 import type {
@@ -32,7 +32,7 @@ const parseScoreChartId = (
   scoreName: string;
 } | null => {
   const match = chartId.match(
-    /^(obs|experiment)-score-(numeric|categorical):(.+)$/,
+    /^(obs|trace|experiment)-score-(numeric|categorical):(.+)$/,
   );
   if (!match) return null;
   return {
@@ -102,33 +102,50 @@ export function buildWidgetConfigFromId(chartId: string) {
   });
 }
 
-/**
- * Get smart default charts based on available scores.
- * Starts with Cost and Latency.
- */
-export function getDefaultCharts(): string[] {
-  return [BASE_CHART_IDS.COST, BASE_CHART_IDS.LATENCY];
-}
+/** Order two entries for the same score name take: obs, trace, then run. */
+const LEVEL_SORT_ORDER: ScoreLevel[] = ["obs", "experiment"];
 
 /**
  * Build all available metric options from score filter options for the dropdown.
+ *
+ * The score metrics are ONE flat, alphabetical list: the level is a tag on the
+ * entry, not a structural division, so the strip reads like the tracing tables'
+ * level-agnostic score facets. A name recorded at two levels yields two
+ * entries — each still plots exactly one level — sorted next to each other.
  */
 export function buildMetricOptions(
   scoreFilterOptions: ScoreFilterOptions,
 ): MetricOption[] {
   const scoreOptions = Object.values(SCORE_METRIC_SPECS).flatMap(
-    ({ level, dataType, filterKey, group }) => {
+    ({ level, dataType, filterKey }) => {
       const scoreNames = getScoreNamesFromFilterOption(
         scoreFilterOptions[filterKey],
         dataType,
       );
 
+      const booleanNames = new Set(
+        scoreFilterOptions[SCORE_BOOLEAN_FILTER_KEYS[level]] ?? [],
+      );
+
       return scoreNames.map((scoreName) => ({
         id: buildScoreChartId(level, dataType, scoreName),
         label: scoreName,
-        group,
+        group: "Scores" as const,
+        level,
+        valueKind:
+          dataType === "categorical"
+            ? ("categorical" as const)
+            : booleanNames.has(scoreName)
+              ? ("boolean" as const)
+              : ("numeric" as const),
       }));
     },
+  );
+
+  scoreOptions.sort(
+    (a, b) =>
+      a.label.localeCompare(b.label) ||
+      LEVEL_SORT_ORDER.indexOf(a.level) - LEVEL_SORT_ORDER.indexOf(b.level),
   );
 
   return [
@@ -144,13 +161,4 @@ export function buildMetricOptions(
     },
     ...scoreOptions,
   ];
-}
-
-/**
- * Validate that stored data is a valid ChartSelection (array of strings, max 4).
- */
-export function isValidChartSelection(data: unknown): data is string[] {
-  if (!Array.isArray(data)) return false;
-  if (data.length > MAX_CHARTS) return false;
-  return data.every((item) => typeof item === "string" && item.length > 0);
 }

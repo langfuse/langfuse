@@ -46,6 +46,28 @@ export const decomposeAggregateScoreKey = (
   };
 };
 
+/**
+ * How many values each score name carries across the aggregates handed in —
+ * the counting sibling of `collectPresentScoreKeys`, which only answers
+ * whether a score is present at all. Keyed by normalized score name and summed
+ * across sources and data types, so a surface can prefer the best-recorded
+ * score over whichever name sorts first. Client-side, from data already
+ * fetched.
+ */
+export const collectScoreNameCoverage = (
+  aggregates: (ScoreAggregate | null | undefined)[],
+): Map<string, number> => {
+  const coverage = new Map<string, number>();
+  for (const aggregate of aggregates) {
+    if (!aggregate) continue;
+    for (const [key, value] of Object.entries(aggregate)) {
+      const { name } = decomposeAggregateScoreKey(key);
+      coverage.set(name, (coverage.get(name) ?? 0) + value.values.length);
+    }
+  }
+  return coverage;
+};
+
 export const getScoreLabelFromKey = (key: string): string => {
   const { name, source, dataType } = decomposeAggregateScoreKey(key);
   return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
