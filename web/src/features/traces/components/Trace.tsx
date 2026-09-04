@@ -194,7 +194,7 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph, isAnnotationMode } = useViewPreferences();
+  const { showGraph, isAnnotationMode, isPeekMode } = useViewPreferences();
   const { trace, aggregatedMetrics } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
@@ -202,20 +202,24 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
     trace.latency != null ||
     Boolean(trace.sessionId) ||
     Boolean(trace.userId) ||
+    Boolean(trace.environment) ||
     (aggregatedMetrics.totalCost != null &&
       aggregatedMetrics.costDetails != null);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-      {!isAnnotationMode && hasTraceSummary ? (
-        <TraceSummaryBar
-          projectId={trace.projectId}
-          latencySeconds={trace.latency ?? null}
-          sessionId={trace.sessionId}
-          userId={trace.userId}
-          totalCost={aggregatedMetrics.totalCost}
-          costDetails={aggregatedMetrics.costDetails}
-        />
+      {isPeekMode && !isAnnotationMode && hasTraceSummary ? (
+        <div className="bg-background shrink-0 border-b px-3 py-1.5">
+          <TraceSummaryBar
+            projectId={trace.projectId}
+            latencySeconds={trace.latency ?? null}
+            sessionId={trace.sessionId}
+            userId={trace.userId}
+            environment={trace.environment}
+            totalCost={aggregatedMetrics.totalCost}
+            costDetails={aggregatedMetrics.costDetails}
+          />
+        </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         {isMobile ? (

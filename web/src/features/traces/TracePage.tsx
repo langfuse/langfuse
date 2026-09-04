@@ -12,6 +12,9 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { useMemo } from "react";
+import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { TraceSummaryBar } from "@/src/features/traces/components/TraceSummaryBar";
 
 export function TracePage({
   traceId,
@@ -30,6 +33,11 @@ export function TracePage({
     traceId,
     timestamp,
   });
+  const aggregatedMetrics = useMemo(
+    () =>
+      trace.data ? aggregateTraceMetrics(trace.data.observations) : undefined,
+    [trace.data],
+  );
 
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
@@ -54,6 +62,13 @@ export function TracePage({
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
   const isSharedTrace = trace.data.public;
+  const hasTraceSummary =
+    trace.data.latency != null ||
+    Boolean(trace.data.sessionId) ||
+    Boolean(trace.data.userId) ||
+    Boolean(trace.data.environment) ||
+    (aggregatedMetrics?.totalCost != null &&
+      aggregatedMetrics.costDetails != null);
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
   const encodedTargetPath = encodeURIComponent(
     stripBasePath(router.asPath || "/"),
@@ -103,6 +118,17 @@ export function TracePage({
         showSidebarTrigger: !showPublicIndicators,
         leadingControl,
         breadcrumbBadges: sharedBadge,
+        titleMetadata: hasTraceSummary ? (
+          <TraceSummaryBar
+            projectId={trace.data.projectId}
+            latencySeconds={trace.data.latency ?? null}
+            sessionId={trace.data.sessionId}
+            userId={trace.data.userId}
+            environment={trace.data.environment}
+            totalCost={aggregatedMetrics?.totalCost ?? null}
+            costDetails={aggregatedMetrics?.costDetails}
+          />
+        ) : undefined,
         actionButtonsRight: (
           <>
             <DetailPageNav

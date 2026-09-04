@@ -4,7 +4,7 @@
  * Contains:
  * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Trace-specific metadata badges (timestamp, environment, release, version, usage)
+ * - Trace-specific metadata badges (timestamp, release, version, usage)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
@@ -29,7 +29,6 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import {
-  EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
   TargetTraceBadge,
@@ -489,7 +488,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               targetTraceId={targetTraceId}
               projectId={projectId}
             />
-            <EnvironmentBadge environment={trace.environment} />
             <ReleaseBadge release={trace.release} />
             <VersionBadge version={trace.version} />
             {aggregatedMetrics.hasGenerationLike &&

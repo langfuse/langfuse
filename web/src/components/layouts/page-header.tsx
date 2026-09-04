@@ -54,6 +54,7 @@ export type PageHeaderProps = {
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
+  titleMetadata?: ReactNode;
   breadcrumbBadges?: ReactNode;
 };
 
@@ -73,6 +74,7 @@ const PageHeader = ({
   showSidebarTrigger = true,
   leadingControl,
   titleBadges,
+  titleMetadata,
   breadcrumbBadges,
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
@@ -236,6 +238,17 @@ const PageHeader = ({
               {actionButtonsRight}
             </div>
           </div>
+
+          {titleMetadata ? (
+            <div
+              className={cn(
+                "flex w-full flex-wrap items-center gap-1 px-3 pb-2",
+                container && containerLayoutClassName,
+              )}
+            >
+              {titleMetadata}
+            </div>
+          ) : null}
 
           {tabsProps && (
             <PageTabs

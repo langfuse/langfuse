@@ -717,7 +717,9 @@ export const ObservationDetailViewHeader = memo(
                 environment={observation.environment}
                 projectId={projectId}
               />
-              <EnvironmentBadge environment={observation.environment} />
+              {observation.environment !== trace.environment ? (
+                <EnvironmentBadge environment={observation.environment} />
+              ) : null}
               <ReleaseBadge release={observation.release} />
               {displayedTotalCost != null && displayedCostDetails && (
                 <CostBadge

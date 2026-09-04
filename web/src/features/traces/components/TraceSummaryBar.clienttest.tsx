@@ -17,6 +17,7 @@ describe("TraceSummaryBar", () => {
         latencySeconds={1.25}
         sessionId="session"
         userId="user"
+        environment="production"
         totalCost={0.42}
         costDetails={{ total: 0.42 }}
       />,
@@ -26,6 +27,7 @@ describe("TraceSummaryBar", () => {
     expect(screen.getByText("Latency: 1.25s")).toBeInTheDocument();
     expect(screen.getByText("Session: session")).toBeInTheDocument();
     expect(screen.getByText("User ID: user")).toBeInTheDocument();
+    expect(screen.getByText("Env: production")).toBeInTheDocument();
     expect(screen.getByText("$0.42")).toBeInTheDocument();
   });
 });
