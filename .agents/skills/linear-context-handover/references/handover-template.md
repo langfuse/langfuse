@@ -1,7 +1,9 @@
 # Handover block template
 
-Append this to the ticket's **description**, below the human's prose, separated by
-a rule. Never edit the text above it. Label the ticket `AI edited`.
+Append this to the ticket's **description**, below whatever is already there,
+separated by a rule. Never edit the text above it — it may be a human's prose or
+an earlier agent's block, and neither is yours to rewrite. Label the ticket
+`AI edited`.
 
 Keep the headings you have content for and drop the rest — an empty section is
 worse than no section. Quote the human verbatim where a decision hinged on a
@@ -12,7 +14,7 @@ phrase; a paraphrase loses the force of it.
 
 ## 🤖 AI post-context
 
-*Written by <agent> on <date>. Everything above this line is human-authored.*
+*Written by <agent> on <date>.*
 
 ### What shipped
 
