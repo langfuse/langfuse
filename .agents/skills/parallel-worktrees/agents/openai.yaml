@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parallel Worktrees"
+  short_description: "Several checkouts at once, one shared data tier"
+  default_prompt: "Use $parallel-worktrees to set up an isolated checkout on its own branch and port without disturbing the one I am in."
