@@ -283,8 +283,10 @@ function SessionTimelineSystemMessage({
 
 export function SessionTimelineMessage({
   message,
+  isTruncated = false,
 }: {
   message: NormalizedMessage;
+  isTruncated?: boolean;
 }) {
   if (message.role === "system") {
     return <SessionTimelineSystemMessage message={message} />;
@@ -313,6 +315,11 @@ export function SessionTimelineMessage({
             >
               {message.senderName ?? presentation.label}
             </span>
+          </div>
+        ) : null}
+        {isTruncated ? (
+          <div className="text-foreground mb-1 font-mono text-[10px]">
+            Content truncated
           </div>
         ) : null}
         <div className="flex flex-col gap-2 text-sm leading-6">

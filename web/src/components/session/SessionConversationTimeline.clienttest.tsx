@@ -103,6 +103,37 @@ describe("SessionConversationTimeline", () => {
     expect(screen.getByText("search")).toBeInTheDocument();
   });
 
+  it("renders truncated input and output as conversational messages", () => {
+    const { container } = renderTimeline({
+      timelineObservation: {
+        ...observation,
+        input: "Truncated user message…",
+        output: "Truncated assistant message…",
+        inputTruncated: true,
+        outputTruncated: true,
+      },
+    });
+
+    expect(
+      screen.getByText("Truncated user message…").closest("article")
+        ?.parentElement,
+    ).toHaveClass("justify-end");
+    expect(
+      screen.getByText("Truncated assistant message…").closest("article")
+        ?.parentElement,
+    ).toHaveClass("justify-start");
+    expect(screen.getAllByText("Content truncated")).toHaveLength(2);
+    expect(
+      screen.queryByText(
+        "This observation is too large to parse in the session timeline.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open in trace view" }),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector("pre")).toBeNull();
+  });
+
   it("renders supported normalized parts without tool results", () => {
     render(
       <SessionTimelineMessage

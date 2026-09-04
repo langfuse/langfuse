@@ -41,41 +41,40 @@ type SessionConversationTimelineState =
     };
 
 const toPreviewText = (value: unknown) =>
-  typeof value === "string" ? value : JSON.stringify(value, undefined, 2);
+  typeof value === "string"
+    ? value
+    : (JSON.stringify(value, undefined, 2) ?? String(value));
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
 
 function TruncatedObservation({
   observation,
-  onOpenInTraceView,
 }: {
   observation: SessionObservation;
-  onOpenInTraceView: () => void;
 }) {
   return (
-    <div className="border-border bg-muted/20 flex flex-col gap-3 rounded-lg border border-dashed p-4">
-      <p className="text-muted-foreground text-xs">
-        This observation is too large to parse in the session timeline.
-      </p>
+    <div className="flex flex-col gap-5">
       {hasPreviewValue(observation.input) ? (
-        <pre className="bg-background max-h-32 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">
-          {toPreviewText(observation.input)}
-        </pre>
+        <SessionTimelineMessage
+          isTruncated={observation.inputTruncated}
+          message={{
+            role: "user",
+            source: "input",
+            parts: [{ type: "text", text: toPreviewText(observation.input) }],
+          }}
+        />
       ) : null}
       {hasPreviewValue(observation.output) ? (
-        <pre className="bg-background max-h-32 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">
-          {toPreviewText(observation.output)}
-        </pre>
+        <SessionTimelineMessage
+          isTruncated={observation.outputTruncated}
+          message={{
+            role: "assistant",
+            source: "output",
+            parts: [{ type: "text", text: toPreviewText(observation.output) }],
+          }}
+        />
       ) : null}
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-fit"
-        onClick={onOpenInTraceView}
-      >
-        Open in trace view
-      </Button>
     </div>
   );
 }
@@ -245,10 +244,7 @@ function SessionTimelineObservation({
             </p>
           ) : null}
           {isTruncated ? (
-            <TruncatedObservation
-              observation={observation}
-              onOpenInTraceView={onOpenInTraceView}
-            />
+            <TruncatedObservation observation={observation} />
           ) : parsed.type === "error" ? (
             <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-destructive text-xs">
