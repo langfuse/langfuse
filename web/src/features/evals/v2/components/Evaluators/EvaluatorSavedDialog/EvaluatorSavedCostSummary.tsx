@@ -8,7 +8,7 @@ import {
 } from "@/src/features/evals/v2/constants/ruleSampling";
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export function EvaluatorSavedCostSummary({
   estimates,
@@ -37,13 +37,18 @@ export function EvaluatorSavedCostSummary({
       };
 }) {
   const estimate = estimates[0];
-  const sampledObservations = Math.round(matchingObservations * sampling);
   const estimatedCostUsd =
     matchingObservations === 0
       ? 0
       : estimate
         ? estimate.matchingObservations * sampling * estimate.testRunCostUsd
         : null;
+  const backfillObservationCount = backfill.enabled
+    ? Math.min(backfill.matchingObservations, backfill.maxItems)
+    : 0;
+  const backfillEstimatedCostUsd = estimate
+    ? backfillObservationCount * sampling * estimate.testRunCostUsd
+    : null;
 
   return (
     <div className="space-y-5">
@@ -67,25 +72,6 @@ export function EvaluatorSavedCostSummary({
           disabled={!onSamplingChange}
           onValueChange={(value) => onSamplingChange?.(value[0] ?? sampling)}
         />
-      </section>
-
-      <section>
-        <h3 className="text-sm font-bold">Matches</h3>
-        {isEstimating ? (
-          <div className="mt-2 space-y-2">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-        ) : (
-          <>
-            <p className="mt-1 font-mono text-base font-bold tabular-nums">
-              {compactNumberFormatter(matchingObservations, 1)} / week
-            </p>
-            <p className="text-muted-foreground text-xs tabular-nums">
-              {compactNumberFormatter(sampledObservations, 1)} sampled
-            </p>
-          </>
-        )}
       </section>
 
       {evaluatorType !== EvalTemplateTypeEnum.CODE ? (
@@ -145,23 +131,18 @@ export function EvaluatorSavedCostSummary({
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-lg font-bold tabular-nums">
                   {estimate
-                    ? `≈ ${usdFormatter(
-                        Math.min(
-                          backfill.matchingObservations,
-                          backfill.maxItems,
-                        ) *
-                          sampling *
-                          estimate.testRunCostUsd,
-                        2,
-                        2,
-                      )}`
+                    ? `≈ ${usdFormatter(backfillEstimatedCostUsd, 2, 2)}`
                     : "Unavailable"}
                 </span>
                 <InfoTooltip label="How estimated backfill costs are calculated">
-                  The estimate applies this evaluator&apos;s observed per-run
-                  cost and the selected sampling rate to up to{" "}
-                  {compactNumberFormatter(backfill.maxItems, 1)} matching
-                  observations.
+                  {formatEvaluatorCostCalculation({
+                    matchingObservations: backfillObservationCount,
+                    sampling,
+                    testRunCostUsd: estimate?.testRunCostUsd ?? null,
+                    estimatedCostUsd: backfillEstimatedCostUsd,
+                    evaluatorType,
+                    period: "selection",
+                  })}
                 </InfoTooltip>
               </div>
               <p className="text-muted-foreground text-xs">
