@@ -146,4 +146,109 @@ describe("getBackgroundConversationSnapshot", () => {
       runStatus: InAppAgentRunStatus.RUNNING,
     });
   });
+
+  it("does not issue parallel queries inside the snapshot transaction", async () => {
+    const projectId = "project-1";
+    const conversationId = "conversation-1";
+    const userId = "user-1";
+    const runId = "run-1";
+    const now = new Date("2026-08-04T08:00:00.000Z");
+    const conversation = {
+      id: conversationId,
+      projectId,
+      createdByUserId: userId,
+      title: "Snapshot sequencing",
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+    const events = [
+      {
+        sequenceNumber: 0,
+        runId,
+        createdAt: now,
+        event: {
+          type: EventType.RUN_STARTED,
+          threadId: conversationId,
+          runId,
+          input: {
+            threadId: conversationId,
+            runId,
+            state: null,
+            messages: [
+              { id: "user-message", role: "user", content: "Investigate" },
+            ],
+          },
+        },
+      },
+    ];
+    const run = {
+      id: runId,
+      status: InAppAgentRunStatus.RUNNING,
+      errorCode: null,
+      cancelRequestedAt: null,
+    };
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const track = async <T>(result: T) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return result;
+    };
+
+    const prisma = {
+      inAppAgentConversation: {
+        findFirst: vi.fn().mockResolvedValue(conversation),
+      },
+      inAppAgentRun: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      $transaction: vi.fn(
+        async (
+          callback: (tx: {
+            inAppAgentEvent: { findMany: () => Promise<typeof events> };
+            inAppAgentRun: {
+              findMany: () => Promise<unknown>;
+              updateMany: () => Promise<{ count: number }>;
+            };
+          }) => Promise<unknown>,
+          options?: { isolationLevel?: Prisma.TransactionIsolationLevel },
+        ) => {
+          if (!options?.isolationLevel) {
+            return callback({
+              inAppAgentEvent: {
+                findMany: async () => events,
+              },
+              inAppAgentRun: {
+                findMany: async () => [],
+                updateMany: async () => ({ count: 0 }),
+              },
+            });
+          }
+
+          return callback({
+            inAppAgentEvent: {
+              findMany: () => track(events),
+            },
+            inAppAgentRun: {
+              findMany: () => track([run]),
+              updateMany: async () => ({ count: 0 }),
+            },
+          });
+        },
+      ),
+    } as unknown as PrismaClient;
+
+    await getBackgroundConversationSnapshot({
+      prisma,
+      projectId,
+      conversationId,
+      userId,
+    });
+
+    expect(maxInFlight).toBe(1);
+  });
 });

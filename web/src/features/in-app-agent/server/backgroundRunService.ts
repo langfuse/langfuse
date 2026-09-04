@@ -75,29 +75,35 @@ export async function getBackgroundConversationSnapshot(params: {
   });
 
   // The worker commits terminal status and its final events atomically. Keep
-  // both reads on one version so the cursor cannot describe an older prefix.
+  // both reads on one Repeatable Read snapshot so the cursor cannot describe
+  // an older prefix.
+  //
+  // Issue the two reads sequentially. Prisma interactive transactions do not
+  // support concurrent queries on the same connection; Promise.all here
+  // closes the transaction under load and surfaces as an intermittent
+  // Internal Server Error when switching conversations.
   const [events, runs] = await params.prisma.$transaction(
-    (tx) =>
-      Promise.all([
-        getConversationEvents({
-          prisma: tx,
+    async (tx) => {
+      const events = await getConversationEvents({
+        prisma: tx,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      });
+      const runs = await tx.inAppAgentRun.findMany({
+        where: {
           projectId: params.projectId,
           conversationId: params.conversationId,
-        }),
-        tx.inAppAgentRun.findMany({
-          where: {
-            projectId: params.projectId,
-            conversationId: params.conversationId,
-          },
-          orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            status: true,
-            errorCode: true,
-            cancelRequestedAt: true,
-          },
-        }),
-      ]),
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          status: true,
+          errorCode: true,
+          cancelRequestedAt: true,
+        },
+      });
+      return [events, runs] as const;
+    },
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
   );
   const { messages, displayState } = getConversationSnapshotFromEvents(events);
