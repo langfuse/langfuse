@@ -1,14 +1,22 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * TraceMetadataBadges - Extracted badge components for trace metadata
+ * Trace-level metadata text for the trace summary strip and detail headers.
  *
- * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
- * Each badge handles its own null check and returns null when data is unavailable.
+ * Links and context render as quiet text, not chips — chips are reserved for
+ * user-defined tags. Each element handles its own null check and returns null
+ * when the data is unavailable.
  */
 
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import {
+  EnvironmentBadge,
+  ReleaseBadge,
+  VersionBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+
+const META_LINK_CLASSES =
+  "ph-no-capture text-muted-foreground hover:text-foreground inline-flex max-w-48 items-center gap-1 text-xs hover:underline";
 
 export function SessionBadge({
   sessionId,
@@ -19,14 +27,18 @@ export function SessionBadge({
 }) {
   if (!sessionId) return null;
 
-  const text = `Session: ${sessionId}`;
-
   return (
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="ph-no-capture inline-flex"
+      className={META_LINK_CLASSES}
+      title={`Session: ${sessionId}`}
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      {/* Label-only link: the raw session id is noise here; the tooltip
+          carries it and the link leads to the session itself. */}
+      <span className="truncate" title={`Session: ${sessionId}`}>
+        Session
+      </span>
+      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
     </Link>
   );
 }
@@ -40,14 +52,18 @@ export function UserIdBadge({
 }) {
   if (!userId) return null;
 
-  const text = `User ID: ${userId}`;
-
   return (
     <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="ph-no-capture inline-flex"
+      className={META_LINK_CLASSES}
+      title={`User: ${userId}`}
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      {/* Unlike sessions, the user id itself carries meaning (it is often an
+          email), so it renders in full; only the "User ID:" label is dropped. */}
+      <span className="truncate" title={`User: ${userId}`}>
+        {userId}
+      </span>
+      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
     </Link>
   );
 }
@@ -61,33 +77,20 @@ export function TargetTraceBadge({
 }) {
   if (!targetTraceId) return null;
 
-  const text = `Target Trace: ${targetTraceId}`;
-
   return (
     <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="ph-no-capture inline-flex"
+      className={META_LINK_CLASSES}
+      title={`Target trace: ${targetTraceId}`}
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <span className="truncate" title={`Target trace: ${targetTraceId}`}>
+        Target trace
+      </span>
+      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
     </Link>
   );
 }
 
-export function EnvironmentBadge({
-  environment,
-}: {
-  environment: string | null;
-}) {
-  if (!environment) return null;
-  return <Badge text={`Env: ${environment}`} />;
-}
-
-export function ReleaseBadge({ release }: { release: string | null }) {
-  if (!release) return null;
-  return <Badge text={`Release: ${release}`} />;
-}
-
-export function VersionBadge({ version }: { version: string | null }) {
-  if (!version) return null;
-  return <Badge text={`Version: ${version}`} />;
-}
+// Context text (env/release/version) is shared with the observation header so
+// both surfaces speak the same visual grammar.
+export { EnvironmentBadge, ReleaseBadge, VersionBadge };

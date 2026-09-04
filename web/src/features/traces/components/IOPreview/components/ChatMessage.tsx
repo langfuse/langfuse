@@ -92,6 +92,7 @@ export function ChatMessage({
       <div className="hover:bg-muted transition-colors">
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
+            hoverControls
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
           />
@@ -191,6 +192,7 @@ export function ChatMessage({
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
+            hoverControls
             title={title}
             content={message.content || ""}
             audio={message.audio}

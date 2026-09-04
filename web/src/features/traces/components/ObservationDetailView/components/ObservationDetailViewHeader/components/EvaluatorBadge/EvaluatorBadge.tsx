@@ -3,8 +3,6 @@ import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
 import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-
 export function EvaluatorBadge({
   evaluatorId,
   evaluatorName,
@@ -27,12 +25,16 @@ export function EvaluatorBadge({
       href={`/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="ph-no-capture inline-flex"
+      title={evaluatorName ? `Evaluator: ${evaluatorName}` : "Evaluator"}
+      className="ph-no-capture text-muted-foreground hover:text-foreground inline-flex max-w-48 items-center gap-1 text-xs hover:underline"
     >
-      <Badge
-        text={evaluatorName ? `Evaluator: ${evaluatorName}` : "Evaluator"}
-        trailingIcon={ExternalLinkIcon}
-      />
+      <span
+        className="truncate"
+        title={evaluatorName ? `Evaluator: ${evaluatorName}` : "Evaluator"}
+      >
+        {evaluatorName ? `Evaluator: ${evaluatorName}` : "Evaluator"}
+      </span>
+      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
     </Link>
   );
 }
