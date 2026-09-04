@@ -18,10 +18,11 @@ description: |
 change daily, and a plausible answer assembled from memory is worse than no
 answer because nobody can tell it is stale.
 
-Who the person is comes from `~/.config/langfuse/me.md`. If that file does not
-exist, run [`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) first — do
-not guess, and do not answer this question for an outside contributor, who owns
-none of it.
+Who the person is comes from `~/.config/langfuse/me.md`. If it is not there,
+**ask** — their name and what they work on, in one question — and write the file
+so it is answered for good. Do not send a colleague of a year through onboarding
+to find out their name; that skill is for people who are new. Do not guess, and
+do not answer this question for an outside contributor, who owns none of it.
 
 **The rules behind every check below are the working agreement**, published in
 `content/handbook/tools-and-processes/using-linear.mdx` in

@@ -6,9 +6,16 @@ evaluating, and debugging AI applications.
 ## Who You Are Working For
 
 This repo serves two different people, and they get different halves of it.
-Establish which one before anything else — `~/.config/langfuse/me.md` if it
-exists, else `gh api repos/langfuse/langfuse --jq .permissions`.
-`langfuse-onboarding` settles it once and records it. Never guess silently.
+Work out which before anything else, and never guess silently.
+
+It is a configuration question, not an interview. Read
+`~/.config/langfuse/me.md`; if it is not there, `gh api repos/langfuse/langfuse
+--jq .permissions` settles contributor versus maintainer on its own, and for
+anything it cannot tell you — which areas they work on — **just ask, once**, and
+write the answer to that file so nobody asks again. That is a question and a
+file, not a process. Someone who has worked here for a year does not need
+onboarding; they need you to know their name. `langfuse-onboarding` is for
+people who are actually new.
 
 **An outside contributor** gets the code and `CONTRIBUTING.md`: how to build it,
 what the checks require, how to open a pull request. Nothing about the tracker,

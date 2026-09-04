@@ -1,20 +1,27 @@
 ---
 name: langfuse-onboarding
 description: |
-  Work out who the person in front of you is — outside contributor or Langfuse
-  maintainer, and which product areas they own — record it, and walk them
-  through onboarding. Use on "onboard me", "I'm new here", "what do I need to
-  set up", "am I set up correctly", and whenever you need to know someone's
-  role or focus and no identity file exists yet.
+  Configure an agent for whoever is using it — outside contributor or Langfuse
+  maintainer, which areas they work on, which integrations are connected — and,
+  for someone genuinely new, walk them through onboarding. Use on "onboard me",
+  "I'm new here", "what do I need to set up", "am I set up correctly", "why
+  can't you see my tickets", and whenever you need to know someone's role and
+  no identity file exists yet.
 ---
 
 # Onboarding at Langfuse
 
-Two jobs. **Establish who you are talking to**, once, and record it so no later
-session has to ask again. Then **walk the onboarding path** for that person.
+Two jobs, and they are separable — most of the time you only want the first.
 
-Everything an agent needs to behave differently for a contributor than for a
-maintainer follows from the first job, so do it before anything else.
+1. **Configuration** (steps 1, 2 and 4): work out who is using this agent, what
+   they work on, and what they are connected to. Seconds, not a session. Someone
+   who has been here a year needs this and nothing else — do not walk a
+   colleague through a new-joiner path to find out their name.
+2. **Onboarding** (steps 3 and 5): the walkthrough, for people who are actually
+   new.
+
+Everything an agent needs in order to behave differently for a contributor than
+for a maintainer comes from the first, so do that before anything else.
 
 ## Step 1 — derive the role; do not ask what you can find out
 
@@ -63,9 +70,11 @@ cannot live in one repo. Create the directory if it does not exist.
 config: no tokens, no keys. A repo `.env` is the wrong home — those are
 app configuration and one careless `git add` publishes them.
 
-Ask for **Focus** rather than deriving it. What someone owns on paper and what
-they are actually responsible for this quarter are different things, and only
-they know the second. Keep their phrasing.
+**Ask for Focus — once — rather than deriving it.** What someone owns on paper
+and what they are responsible for this quarter are different things, and only
+they know the second. One question, their phrasing, written down so nobody asks
+again. If they would rather not answer, record that and move on; a missing Focus
+line is not a blocker.
 
 Do **not** record what they own project by project — that is derivable and it
 goes stale within a week. `linear-work-rhythm` reads it live from the tracker
@@ -81,7 +90,14 @@ Stop there. Do not describe the issue tracker, the label policy, the weekly
 rhythm, or the internal handbook — a contributor cannot open any of it, and
 offering it reads as a door that is locked.
 
-## Step 3b — the maintainer path
+## Step 3b — the maintainer path, for people who are new
+
+**Skip this for an established colleague.** If they have commits in this repo
+going back months, they know how the team ships; reading it back to them wastes
+their time and yours. Configuration plus step 4 is the whole job. Offer the
+walkthrough rather than starting it: *"want me to go through the handbook pages,
+or just fix the two missing connectors?"*
+
 
 **The handbook owns the content; you drive it.** It is `content/handbook/` in
 `langfuse/langfuse-docs`, published at `langfuse.com/handbook`. Read the pages,
