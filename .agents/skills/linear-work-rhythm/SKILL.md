@@ -111,13 +111,21 @@ The updates you have not read are worth more than the ones you wrote. Colleagues
 post weekly on their own projects, and that is where you find out somebody is
 already inside the surface you were about to change.
 
+The workspace is shared with the wider organisation, and there is no team filter
+on the updates query — so a bare `get_status_updates(type: "project")` returns
+whatever is newest across every team and truncates at the limit. Filtering that
+page down to Langfuse afterwards silently drops the rows you wanted, and the
+answer comes back as "nobody is working on this."
+
+Ask per project instead, so nothing competes for the page:
+
 ```
-get_status_updates(type: "project", limit: 50)
+list_projects(team: "<the Langfuse team>", state: "started", fields: [name, lead])
+get_status_updates(type: "project", project: "<each one>", limit: 5)
 ```
 
-The workspace is shared with the wider organisation, so **filter to the Langfuse
-teams** — most rows will be unrelated. Then look for overlap with what this
-person leads or is about to touch, and **name the colleague, not the ticket**:
+Then look for overlap with what this person leads or is about to touch, and
+**name the colleague, not the ticket**:
 
 > Trang was reworking that flow last week — worth asking her to review.
 
@@ -133,9 +141,11 @@ have left the reasoning already.
 handle**, which is the only join between the three places a colleague appears:
 a display name in the tracker, a handle in `git log` and `git blame`, and a
 reviewer on a pull request. Read it from `origin/main`, the same as the handbook.
-So `git log` on the file you are about to change gives you a handle, the roster
-turns it into a person and a role, and their recent updates tell you whether
-they are still in there.
+Mind the direction. `git log` and `git blame` give you an author **name and
+email**, not a handle — so the name is what you join on, and the handle is what
+you get back, for asking GitHub to add them as a reviewer. If a name does not
+match the roster, `gh api repos/langfuse/langfuse/commits/<sha>` carries the
+author's login directly.
 
 It is maintained by people adding themselves, so it lags — someone missing from
 it is not evidence they are not on the team. When the roster and `git log`
