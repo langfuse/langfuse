@@ -1742,6 +1742,7 @@ describe("Webhook Integration Tests", () => {
         email: testUser.email,
       });
       expect(payload.client_payload.user.id).toBeUndefined();
+      expect(payload.client_payload.prompt.prompt).toBeDefined();
       // Verify prompt is still the last field in client_payload
       const clientPayloadKeys = Object.keys(payload.client_payload);
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
@@ -1848,6 +1849,87 @@ describe("Webhook Integration Tests", () => {
 
       const clientPayloadKeys = Object.keys(payload.client_payload);
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
+    });
+
+    it("should omit prompt content from GitHub dispatch when includePromptContent is false", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+      if (!fullPrompt) {
+        throw new Error("Prompt not found");
+      }
+
+      const ghActionId = v4();
+      await prisma.action.create({
+        data: {
+          id: ghActionId,
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "prompt-update",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+            includePromptContent: false,
+          },
+        },
+      });
+
+      const ghAutomationId = v4();
+      await prisma.automation.create({
+        data: {
+          id: ghAutomationId,
+          projectId,
+          triggerId,
+          actionId: ghActionId,
+          name: "GitHub Dispatch Metadata Only",
+        },
+      });
+
+      const ghExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: ghExecutionId,
+          projectId,
+          triggerId,
+          automationId: ghAutomationId,
+          actionId: ghActionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: promptId,
+          input: {},
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: ghAutomationId,
+        executionId: ghExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse({
+            ...fullPrompt,
+            prompt: { content: "this must not be dispatched" },
+            config: { temperature: 0.2 },
+          }),
+          action: "updated",
+          type: "prompt-version",
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.event_type).toBe("prompt-update");
+      expect(payload.client_payload.action).toBe("updated");
+      expect(payload.client_payload.prompt.name).toBe(fullPrompt.name);
+      expect(payload.client_payload.prompt.version).toBe(fullPrompt.version);
+      expect(payload.client_payload.prompt.labels).toEqual(fullPrompt.labels);
+      expect(payload.client_payload.prompt.prompt).toBeNull();
+      expect(payload.client_payload.prompt.config).toEqual({});
+      expect(payload.client_payload.truncation).toBeUndefined();
     });
 
     it("should truncate oversized GitHub dispatch monitor-alert filters", async () => {

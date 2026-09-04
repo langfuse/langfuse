@@ -68,6 +68,7 @@ const githubDispatchSchema = z.object({
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),
   originalUrl: z.string().optional(),
+  includePromptContent: z.boolean(),
 });
 
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
@@ -499,6 +500,8 @@ export const AutomationForm = ({
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
           originalUrl: githubDefaults.githubDispatch.originalUrl,
+          includePromptContent:
+            githubDefaults.githubDispatch.includePromptContent ?? true,
         },
       };
     }

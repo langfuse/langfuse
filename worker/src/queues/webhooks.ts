@@ -597,6 +597,7 @@ async function executeGitHubDispatchAction({
 
   const githubConfig = actionConfig.config;
   const eventType = githubConfig.eventType;
+  const includePromptContent = githubConfig.includePromptContent !== false;
   const validated = buildWebhookOutboundPayload(input);
 
   let githubPayload: string;
@@ -605,12 +606,19 @@ async function executeGitHubDispatchAction({
       typeof validated,
       { type: "prompt-version" }
     >;
+    const promptForPayload = includePromptContent
+      ? prompt
+      : {
+          ...prompt,
+          prompt: null,
+          config: {},
+        };
     const fullGithubPayload = JSON.stringify({
       event_type: eventType,
       client_payload: {
         ...otherFields,
         ...(user ? { user } : {}),
-        prompt,
+        prompt: promptForPayload,
       },
     });
     githubPayload =
@@ -627,7 +635,7 @@ async function executeGitHubDispatchAction({
                 truncatedFields: GITHUB_REPOSITORY_DISPATCH_TRUNCATED_FIELDS,
               },
               prompt: {
-                ...prompt,
+                ...promptForPayload,
                 prompt: GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
                 config: {},
               },
