@@ -7,7 +7,6 @@ describe("resolveObservationCostSource", () => {
     expect(
       resolveObservationCostSource({
         hasSubtreeMetrics: true,
-        subtreeTotalMatchesObservation: true,
         hasProvidedCostDetails: false,
       }),
     ).toBeUndefined();
@@ -22,7 +21,6 @@ describe("resolveObservationCostSource", () => {
       expect(
         resolveObservationCostSource({
           hasSubtreeMetrics: false,
-          subtreeTotalMatchesObservation: false,
           hasProvidedCostDetails,
         }),
       ).toBe(expected);

@@ -94,21 +94,14 @@ import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export function resolveObservationCostSource({
   hasSubtreeMetrics,
-  subtreeTotalMatchesObservation,
   hasProvidedCostDetails,
 }: {
   hasSubtreeMetrics: boolean;
-  subtreeTotalMatchesObservation: boolean;
   hasProvidedCostDetails: boolean;
 }): CostSource | undefined {
-  const showsOwnObservationCost =
-    !hasSubtreeMetrics || subtreeTotalMatchesObservation;
+  if (hasSubtreeMetrics) return undefined;
 
-  return showsOwnObservationCost
-    ? hasProvidedCostDetails
-      ? "provided"
-      : "calculated"
-    : undefined;
+  return hasProvidedCostDetails ? "provided" : "calculated";
 }
 
 export interface ObservationDetailViewHeaderProps {
@@ -211,15 +204,11 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
-    const subtreeTotalMatchesObservation =
-      treeNodeTotalCost?.eq(totalCost ?? 0) === true;
-    const showsOwnObservationCost =
-      !subtreeMetrics || subtreeTotalMatchesObservation;
+    const showsOwnObservationCost = !subtreeMetrics;
     const hasProvidedCostDetails =
       Object.keys(observation.providedCostDetails).length > 0;
     const costSource = resolveObservationCostSource({
       hasSubtreeMetrics: Boolean(subtreeMetrics),
-      subtreeTotalMatchesObservation,
       hasProvidedCostDetails,
     });
     const priceSource =
