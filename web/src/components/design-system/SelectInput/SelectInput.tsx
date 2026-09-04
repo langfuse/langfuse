@@ -69,6 +69,9 @@ function SelectInputInner<V extends string>(
     useScrollGradients<React.ComponentRef<typeof SelectPrimitive.Viewport>>(
       true,
     );
+  const selectedOption = options
+    .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
+    .find((option) => option.value === value);
   const renderNode = useCallback(
     (
       node: SelectInputNode<V>,
@@ -101,7 +104,9 @@ function SelectInputInner<V extends string>(
               hasPreviousGroup ? "mt-4" : "",
             )}
           >
-            <SelectPrimitive.ItemText>{node.label}</SelectPrimitive.ItemText>
+            <span className="min-w-0 flex-1 truncate" title={node.label}>
+              <SelectPrimitive.ItemText>{node.label}</SelectPrimitive.ItemText>
+            </span>
             <SelectPrimitive.ItemIndicator className="ml-auto flex size-3.5 shrink-0 items-center justify-center">
               <Check className="size-4" />
             </SelectPrimitive.ItemIndicator>
@@ -141,11 +146,17 @@ function SelectInputInner<V extends string>(
       <SelectPrimitive.Trigger
         ref={ref}
         className="border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+        title={selectedOption?.label}
         {...triggerProps}
       >
-        <SelectPrimitive.SelectValue placeholder={placeholder} />
+        <span
+          className="min-w-0 flex-1 truncate text-left"
+          title={selectedOption?.label}
+        >
+          <SelectPrimitive.SelectValue placeholder={placeholder} />
+        </span>
         <SelectPrimitive.Icon asChild>
-          <ChevronDown className="h-4 w-4 opacity-50" />
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal container={container}>
