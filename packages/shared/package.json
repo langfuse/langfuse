@@ -35,6 +35,10 @@
       "import": "./dist/src/server/clickhouse/clickhouseIdentifiers.js",
       "require": "./dist/src/server/clickhouse/clickhouseIdentifiers.js"
     },
+    "./src/server/clickhouse": {
+      "import": "./dist/src/server/clickhouse/index.js",
+      "require": "./dist/src/server/clickhouse/index.js"
+    },
     "./src/server/llm/llmText": {
       "import": "./dist/src/server/llm/llmText.js",
       "require": "./dist/src/server/llm/llmText.js"

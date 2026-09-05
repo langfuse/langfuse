@@ -25,7 +25,7 @@ runs:
       run: |
         set -euo pipefail
         case "$BENCH_RUNNER_SIZE" in
-          current|16|32) ;;
+          current|8|16|32) ;;
           *) echo "::error::Unsupported runner benchmark size"; exit 1 ;;
         esac
         for flag in "$BENCH_TUNE" "$BENCH_FORCE"; do
@@ -41,19 +41,25 @@ runs:
 
         if [[ "$BENCH_TUNE" == true ]]; then
           if [[ "$BENCH_RUNNER_SIZE" == current ]]; then
-            echo "::error::Concurrency tuning requires a 16 or 32 vCPU profile"
+            echo "::error::Concurrency tuning requires an 8, 16 or 32 vCPU profile"
             exit 1
           fi
           case "$BENCH_JOB:$BENCH_RUNNER_SIZE" in
+            tests-web:8) echo "VITEST_MAX_WORKERS=8" >> "$GITHUB_ENV" ;;
+            tests-web-client:8|tests-shared:8) echo "VITEST_MAX_WORKERS=6" >> "$GITHUB_ENV" ;;
+            tests-worker:8|tests-storybook:8) echo "VITEST_MAX_WORKERS=4" >> "$GITHUB_ENV" ;;
             tests-web:16|tests-web:32|tests-web-client:16|tests-shared:16) echo "VITEST_MAX_WORKERS=12" >> "$GITHUB_ENV" ;;
             tests-web-client:32|tests-shared:32) echo "VITEST_MAX_WORKERS=24" >> "$GITHUB_ENV" ;;
             tests-worker:16|tests-storybook:16) echo "VITEST_MAX_WORKERS=8" >> "$GITHUB_ENV" ;;
             tests-worker:32) echo "VITEST_MAX_WORKERS=16" >> "$GITHUB_ENV" ;;
             tests-storybook:32) echo "VITEST_MAX_WORKERS=12" >> "$GITHUB_ENV" ;;
-            e2e-server-tests:16|e2e-server-tests:32) echo "VITEST_MAX_WORKERS=4" >> "$GITHUB_ENV" ;;
+            e2e-server-tests:8|e2e-server-tests:16|e2e-server-tests:32) echo "VITEST_MAX_WORKERS=4" >> "$GITHUB_ENV" ;;
           esac
           if [[ "$BENCH_JOB" == lint ]]; then
-            if [[ "$BENCH_RUNNER_SIZE" == 16 ]]; then
+            if [[ "$BENCH_RUNNER_SIZE" == 8 ]]; then
+              echo "CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY=3" >> "$GITHUB_ENV"
+              echo "CI_BENCHMARK_LINT_FILE_CONCURRENCY=2" >> "$GITHUB_ENV"
+            elif [[ "$BENCH_RUNNER_SIZE" == 16 ]]; then
               echo "CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY=3" >> "$GITHUB_ENV"
               echo "CI_BENCHMARK_LINT_FILE_CONCURRENCY=4" >> "$GITHUB_ENV"
             else

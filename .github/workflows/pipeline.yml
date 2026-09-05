@@ -3,7 +3,7 @@
 # ci-runtime-analyst.md). Renaming it silently breaks that trigger — update
 # the analyst workflow in the same PR.
 name: CI/CD
-run-name: ${{ github.event_name == 'workflow_dispatch' && format('Runner benchmark - {0} CPU - tuned={1} - recompute={2}', inputs.runner_size, inputs.tune_concurrency, inputs.force_recompute) || github.event.pull_request.title || github.event.head_commit.message || github.ref_name }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Runner benchmark - {0} CPU - tuned={1} - recompute={2} - cache={3}', inputs.runner_size, inputs.tune_concurrency, inputs.force_recompute, inputs.test_cache) || github.event.pull_request.title || github.event.head_commit.message || github.ref_name }}
 
 on:
   workflow_dispatch:
@@ -12,15 +12,20 @@ on:
         description: Runner benchmark size; current keeps the original 4/8-core baseline.
         type: choice
         default: current
-        options: [current, "16", "32"]
+        options: [current, "8", "16", "32"]
       tune_concurrency:
-        description: Tune test and lint concurrency for the selected larger runners.
+        description: Tune test and lint concurrency for the selected runner profile.
         type: boolean
         default: false
       force_recompute:
         description: Execute Turbo tasks; retain dependency, compiler, and Docker caches.
         type: boolean
         default: false
+      test_cache:
+        description: Opt-in test compilation cache trial; every test still executes.
+        type: choice
+        default: "off"
+        options: ["off", node, vitest, both]
   push:
     branches:
       - "main"
@@ -36,7 +41,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-benchmark-{0}-{1}-{2}', inputs.runner_size, inputs.tune_concurrency, inputs.force_recompute) || '' }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-benchmark-{0}-{1}-{2}-{3}', inputs.runner_size, inputs.tune_concurrency, inputs.force_recompute, inputs.test_cache) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -135,7 +140,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -201,16 +206,39 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
+      - name: Record lint cache runtime
+        id: lint-runtime
+        if: env.CI_CACHE_ALLOWED == 'true'
+        run: |
+          echo "version=$(node -p 'process.versions.node')" >> "$GITHUB_OUTPUT"
+          echo "files=$(git ls-files -z -- 'web' 'worker' 'ee' 'packages' 'scripts' 'generated' | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Restore ESLint cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        # Type-aware rules read other files. Invalidate the whole cache when
+        # workspace sources change, including declarations and lint plugins.
+        # A loose restore prefix would hide newly introduced cross-file errors.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] lint results only; same-repository boundary and no release cache consumer
+        with:
+          path: |
+            web/node_modules/.cache/eslint
+            worker/node_modules/.cache/eslint
+            packages/shared/node_modules/.cache/eslint
+            ee/node_modules/.cache/eslint
+          key: ${{ runner.os }}-${{ runner.arch }}-eslint-v1-node${{ steps.lint-runtime.outputs.version }}-${{ steps.lint-runtime.outputs.files }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc', '.env', 'turbo.json', 'tsconfig*.json', 'generated/**', 'web/**', 'worker/**', 'ee/**', 'packages/**', 'scripts/**', '!**/node_modules/**', '!**/dist/**', '!**/.next/**', '!**/.next-check/**', '!**/storybook-static/**', '!**/.turbo/**', '!**/test-results/**') }}
       - name: lint web
         # Use three packages with four ESLint workers on the default 16-core
         # runner. Manual benchmarks retain their original untuned controls.
         run: |
+          lint_cache_flags=(--cache-strategy content --cache-location node_modules/.cache/eslint/)
+          if [[ "${TURBO_FORCE:-false}" == true ]]; then
+            lint_cache_flags+=(--no-cache)
+          fi
           if [[ -n "${CI_BENCHMARK_LINT_FILE_CONCURRENCY:-}" ]]; then
-            pnpm turbo run lint --concurrency="$CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY" -- --concurrency="$CI_BENCHMARK_LINT_FILE_CONCURRENCY"
+            pnpm turbo run lint --concurrency="$CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY" -- --concurrency="$CI_BENCHMARK_LINT_FILE_CONCURRENCY" "${lint_cache_flags[@]}"
           elif [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
-            pnpm turbo run lint --concurrency=3 -- --concurrency=4
+            pnpm turbo run lint --concurrency=3 -- --concurrency=4 "${lint_cache_flags[@]}"
           else
-            pnpm turbo run lint --concurrency=3
+            pnpm turbo run lint --concurrency=3 -- "${lint_cache_flags[@]}"
           fi
       - name: typecheck
         run: pnpm run typecheck
@@ -348,6 +376,8 @@ jobs:
           pnpm install
       - name: run eslint-plugin tests
         run: pnpm --filter @repo/eslint-plugin run test
+      - name: Validate Vitest transform cache
+        run: node --test scripts/vitest/transform-cache.test.mjs
 
   tests-in-app-agent-sandbox-runtime:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -398,7 +428,7 @@ jobs:
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -474,12 +504,23 @@ jobs:
           done
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
+      - name: Record Storybook build runtime
+        id: storybook-runtime
+        run: echo "CI_STORYBOOK_NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
+      - name: Restore Storybook build cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] Storybook build only; no release cache consumer
+        with:
+          path: .turbo/cache
+          key: ${{ runner.os }}-${{ runner.arch }}-turbo-storybook-v1-node${{ env.CI_STORYBOOK_NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-turbo-storybook-v1-node${{ env.CI_STORYBOOK_NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-
       - name: build Storybook
-        run: pnpm --filter web run build-storybook
+        run: pnpm exec turbo run build-storybook --filter=web
 
   tests-shared:
     timeout-minutes: 15
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -521,6 +562,12 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Configure test compilation cache trial
+        if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["node","vitest","both"]'), inputs.test_cache) && env.CI_CACHE_ALLOWED == 'true'
+        uses: ./.github/actions/test-compile-cache
+        with:
+          mode: ${{ inputs.test_cache }}
+          scope: ${{ github.job }}
       - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
@@ -566,7 +613,7 @@ jobs:
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
     timeout-minutes: 20
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || matrix.runner }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || matrix.runner }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -669,7 +716,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -737,6 +784,12 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Configure test compilation cache trial
+        if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["node","vitest","both"]'), inputs.test_cache) && env.CI_CACHE_ALLOWED == 'true'
+        uses: ./.github/actions/test-compile-cache
+        with:
+          mode: ${{ inputs.test_cache }}
+          scope: ${{ github.job }}${{ matrix.deploy-mode }}
       - name: Load default env
         run: |
           write_test_env() {
@@ -839,7 +892,7 @@ jobs:
         # CPU-bound client (jsdom) tests measured slower when merged into this
         # invocation, so they run in their own parallel job below.
         env:
-          NODE_COMPILE_CACHE: /tmp/node-compile-cache
+          NODE_COMPILE_CACHE: ${{ env.CI_NODE_COMPILE_CACHE || '/tmp/node-compile-cache' }}
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
@@ -849,7 +902,7 @@ jobs:
 
   tests-web-client:
     timeout-minutes: 10
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
@@ -886,6 +939,12 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
         run: pnpm install
+      - name: Configure test compilation cache trial
+        if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["node","vitest","both"]'), inputs.test_cache) && env.CI_CACHE_ALLOWED == 'true'
+        uses: ./.github/actions/test-compile-cache
+        with:
+          mode: ${{ inputs.test_cache }}
+          scope: ${{ github.job }}
       - name: Load default env
         run: cp .env.dev.example .env
       - name: Build client test dependencies
@@ -899,7 +958,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -954,6 +1013,12 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Configure test compilation cache trial
+        if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["node","vitest","both"]'), inputs.test_cache) && env.CI_CACHE_ALLOWED == 'true'
+        uses: ./.github/actions/test-compile-cache
+        with:
+          mode: ${{ inputs.test_cache }}
+          scope: ${{ github.job }}${{ matrix.deploy-mode }}
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
@@ -1091,7 +1156,7 @@ jobs:
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1228,7 +1293,7 @@ jobs:
           fi
 
   e2e-server-tests:
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '8' && 'blacksmith-8vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1276,6 +1341,12 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Configure test compilation cache trial
+        if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["node","vitest","both"]'), inputs.test_cache) && env.CI_CACHE_ALLOWED == 'true'
+        uses: ./.github/actions/test-compile-cache
+        with:
+          mode: ${{ inputs.test_cache }}
+          scope: ${{ github.job }}
       - name: Load default env
         run: |
           cp .env.dev.example .env

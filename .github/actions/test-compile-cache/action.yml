@@ -1,0 +1,43 @@
+name: Cache test compilation
+description: Opt-in Node and Vitest compilation caches; test results are never cached.
+inputs:
+  mode:
+    description: Compilation cache trial (node, vitest, or both).
+    required: true
+  scope:
+    description: Job and deployment-mode cache namespace.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configure compilation cache
+      id: runtime
+      shell: bash
+      env:
+        CACHE_MODE: ${{ inputs.mode }}
+        CACHE_SCOPE: ${{ inputs.scope }}
+      run: |
+        set -euo pipefail
+        case "$CACHE_MODE" in
+          node|vitest|both) ;;
+          *) echo "::error::Unsupported test compilation cache mode"; exit 1 ;;
+        esac
+        [[ "$CACHE_SCOPE" =~ ^[a-z0-9-]+$ ]] || { echo "::error::Invalid cache scope"; exit 1; }
+        echo "version=$(node -p 'process.versions.node')" >> "$GITHUB_OUTPUT"
+        if [[ "$CACHE_MODE" == vitest || "$CACHE_MODE" == both ]]; then
+          echo "CI_VITEST_FS_CACHE=1" >> "$GITHUB_ENV"
+        fi
+        if [[ "$CACHE_MODE" == node || "$CACHE_MODE" == both ]]; then
+          cache_path="$GITHUB_WORKSPACE/node_modules/.cache/node-compile"
+          echo "NODE_COMPILE_CACHE=$cache_path" >> "$GITHUB_ENV"
+          echo "CI_NODE_COMPILE_CACHE=$cache_path" >> "$GITHUB_ENV"
+        fi
+    - name: Restore test compilation cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] opt-in test compilation only; caller retains same-repository cache boundary and release jobs do not restore it
+      with:
+        path: |
+          node_modules/.cache/vitest
+          node_modules/.cache/node-compile
+        key: ${{ runner.os }}-${{ runner.arch }}-test-compile-v1-${{ inputs.scope }}-${{ inputs.mode }}-node${{ steps.runtime.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-test-compile-v1-${{ inputs.scope }}-${{ inputs.mode }}-node${{ steps.runtime.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-
