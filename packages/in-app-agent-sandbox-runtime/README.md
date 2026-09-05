@@ -55,6 +55,11 @@ sends HTTP requests to `/health`, `/sandbox`, and the MicroVM lifecycle hooks:
 pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 ```
 
+The image is built with `docker buildx build --load`, so the build works the
+same on a plain local Docker install and on CI's remote BuildKit builder.
+Buildx ships with Docker Desktop and Docker Engine 23+; on Debian/Ubuntu
+`docker.io` installs, add the `docker-buildx` package.
+
 ## Build And Publish An AWS Lambda MicroVM Image
 
 Use `packages/in-app-agent-sandbox-runtime/build-microvm-image.sh` as the canonical build and publish flow.
