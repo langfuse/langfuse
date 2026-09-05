@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       runner_size:
-        description: Runner benchmark size; current preserves existing runner labels.
+        description: Runner benchmark size; current keeps the original 4/8-core baseline.
         type: choice
         default: current
         options: [current, "16", "32"]
@@ -135,7 +135,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -202,11 +202,13 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Limit package overlap on the default runner. Manual benchmarks can
-        # increase both package and ESLint file concurrency for larger runners.
+        # Use three packages with four ESLint workers on the default 16-core
+        # runner. Manual benchmarks retain their original untuned controls.
         run: |
           if [[ -n "${CI_BENCHMARK_LINT_FILE_CONCURRENCY:-}" ]]; then
             pnpm turbo run lint --concurrency="$CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY" -- --concurrency="$CI_BENCHMARK_LINT_FILE_CONCURRENCY"
+          elif [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
+            pnpm turbo run lint --concurrency=3 -- --concurrency=4
           else
             pnpm turbo run lint --concurrency=3
           fi
@@ -396,7 +398,7 @@ jobs:
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -405,6 +407,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     timeout-minutes: 10
     env:
+      VITEST_MAX_WORKERS: ${{ github.event_name != 'workflow_dispatch' && '8' || '' }}
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -476,7 +479,7 @@ jobs:
 
   tests-shared:
     timeout-minutes: 15
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -484,6 +487,7 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      VITEST_MAX_WORKERS: ${{ github.event_name != 'workflow_dispatch' && '12' || '' }}
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -665,7 +669,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -674,6 +678,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
+      VITEST_MAX_WORKERS: ${{ github.event_name != 'workflow_dispatch' && '12' || '' }}
       NODE_ENV: test
     strategy:
       fail-fast: ${{ github.event_name != 'workflow_dispatch' }}
@@ -844,10 +849,12 @@ jobs:
 
   tests-web-client:
     timeout-minutes: 10
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      VITEST_MAX_WORKERS: ${{ github.event_name != 'workflow_dispatch' && '12' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -892,7 +899,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -901,6 +908,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
+      VITEST_MAX_WORKERS: ${{ github.event_name != 'workflow_dispatch' && '8' || '' }}
       NODE_ENV: test
     strategy:
       fail-fast: ${{ github.event_name != 'workflow_dispatch' }}
@@ -1220,7 +1228,7 @@ jobs:
           fi
 
   e2e-server-tests:
-    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || (github.event_name != 'workflow_dispatch' || inputs.runner_size == '16') && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1228,6 +1236,7 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      VITEST_MAX_WORKERS: ${{ github.event_name != 'workflow_dispatch' && '4' || '' }}
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
