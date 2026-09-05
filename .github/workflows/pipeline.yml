@@ -3,9 +3,24 @@
 # ci-runtime-analyst.md). Renaming it silently breaks that trigger — update
 # the analyst workflow in the same PR.
 name: CI/CD
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Runner benchmark - {0} CPU - tuned={1} - recompute={2}', inputs.runner_size, inputs.tune_concurrency, inputs.force_recompute) || github.event.pull_request.title || github.event.head_commit.message || github.ref_name }}
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_size:
+        description: Runner benchmark size; current preserves existing runner labels.
+        type: choice
+        default: current
+        options: [current, "16", "32"]
+      tune_concurrency:
+        description: Tune test and lint concurrency for the selected larger runners.
+        type: boolean
+        default: false
+      force_recompute:
+        description: Execute Turbo tasks; retain dependency, compiler, and Docker caches.
+        type: boolean
+        default: false
   push:
     branches:
       - "main"
@@ -21,7 +36,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-benchmark-{0}-{1}-{2}', inputs.runner_size, inputs.tune_concurrency, inputs.force_recompute) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -120,7 +135,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -131,6 +146,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
@@ -179,10 +202,14 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Turbo runs up to three packages at once. The largest overlap is web's
-        # four ESLint workers plus two packages with two workers each, matching
-        # this runner's eight vCPUs.
-        run: pnpm turbo run lint --concurrency=3
+        # Limit package overlap on the default runner. Manual benchmarks can
+        # increase both package and ESLint file concurrency for larger runners.
+        run: |
+          if [[ -n "${CI_BENCHMARK_LINT_FILE_CONCURRENCY:-}" ]]; then
+            pnpm turbo run lint --concurrency="$CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY" -- --concurrency="$CI_BENCHMARK_LINT_FILE_CONCURRENCY"
+          else
+            pnpm turbo run lint --concurrency=3
+          fi
       - name: typecheck
         run: pnpm run typecheck
 
@@ -369,7 +396,7 @@ jobs:
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -383,6 +410,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
@@ -441,7 +476,7 @@ jobs:
 
   tests-shared:
     timeout-minutes: 15
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -454,6 +489,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
@@ -519,7 +562,7 @@ jobs:
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
     timeout-minutes: 20
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || matrix.runner }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -545,6 +588,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -614,7 +665,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -625,6 +676,7 @@ jobs:
     env:
       NODE_ENV: test
     strategy:
+      fail-fast: ${{ github.event_name != 'workflow_dispatch' }}
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -633,6 +685,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - name: Install golang-migrate for Clickhouse migrations in background
         # Only needed by the "Migrate DB" step, so let the dependency setup
         # overlap the 1-25s download. "Migrate DB" waits for the marker file.
@@ -784,7 +844,7 @@ jobs:
 
   tests-web-client:
     timeout-minutes: 10
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
@@ -792,6 +852,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
@@ -824,7 +892,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -835,6 +903,7 @@ jobs:
     env:
       NODE_ENV: test
     strategy:
+      fail-fast: ${{ github.event_name != 'workflow_dispatch' }}
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -843,6 +912,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
@@ -1006,7 +1083,7 @@ jobs:
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1019,6 +1096,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
@@ -1127,10 +1212,15 @@ jobs:
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
-        run: pnpm --filter=web run test:e2e
+        run: |
+          if [[ -n "${CI_BENCHMARK_PLAYWRIGHT_WORKERS:-}" ]]; then
+            pnpm --filter=web run test:e2e --workers="$CI_BENCHMARK_PLAYWRIGHT_WORKERS"
+          else
+            pnpm --filter=web run test:e2e
+          fi
 
   e2e-server-tests:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.runner_size == '32' && 'blacksmith-32vcpu-ubuntu-2404' || inputs.runner_size == '16' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-4vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1143,6 +1233,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure runner benchmark
+        if: github.event_name == 'workflow_dispatch'
+        uses: ./.github/actions/runner-benchmark
+        with:
+          runner-size: ${{ inputs.runner_size }}
+          tune-concurrency: ${{ inputs.tune_concurrency }}
+          force-recompute: ${{ inputs.force_recompute }}
+          job: ${{ github.job }}
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0

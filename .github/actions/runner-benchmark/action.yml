@@ -1,0 +1,96 @@
+name: Configure runner benchmark
+description: Record actual hardware and apply optional benchmark concurrency limits.
+inputs:
+  runner-size:
+    description: Requested runner profile.
+    required: true
+  tune-concurrency:
+    description: Apply the profile's concurrency limits.
+    required: true
+  force-recompute:
+    description: Execute Turbo tasks while retaining dependency and compiler caches.
+    required: true
+  job:
+    description: Workflow job identifier.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        BENCH_RUNNER_SIZE: ${{ inputs.runner-size }}
+        BENCH_TUNE: ${{ inputs.tune-concurrency }}
+        BENCH_FORCE: ${{ inputs.force-recompute }}
+        BENCH_JOB: ${{ inputs.job }}
+      run: |
+        set -euo pipefail
+        case "$BENCH_RUNNER_SIZE" in
+          current|16|32) ;;
+          *) echo "::error::Unsupported runner benchmark size"; exit 1 ;;
+        esac
+        for flag in "$BENCH_TUNE" "$BENCH_FORCE"; do
+          case "$flag" in
+            true|false) ;;
+            *) echo "::error::Benchmark flags must be true or false"; exit 1 ;;
+          esac
+        done
+
+        if [[ "$BENCH_FORCE" == true ]]; then
+          echo "TURBO_FORCE=true" >> "$GITHUB_ENV"
+        fi
+
+        if [[ "$BENCH_TUNE" == true ]]; then
+          if [[ "$BENCH_RUNNER_SIZE" == current ]]; then
+            echo "::error::Concurrency tuning requires a 16 or 32 vCPU profile"
+            exit 1
+          fi
+          case "$BENCH_JOB:$BENCH_RUNNER_SIZE" in
+            tests-web:16|tests-web-client:16|tests-shared:16) workers=12 ;;
+            tests-web:32|tests-web-client:32|tests-shared:32) workers=24 ;;
+            tests-worker:16|tests-storybook:16) workers=8 ;;
+            tests-worker:32) workers=16 ;;
+            tests-storybook:32) workers=12 ;;
+            e2e-server-tests:16|e2e-server-tests:32) workers=4 ;;
+            *) workers= ;;
+          esac
+          if [[ -n "$workers" ]]; then
+            echo "VITEST_MAX_WORKERS=$workers" >> "$GITHUB_ENV"
+          fi
+          if [[ "$BENCH_JOB" == lint ]]; then
+            if [[ "$BENCH_RUNNER_SIZE" == 16 ]]; then
+              echo "CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY=3" >> "$GITHUB_ENV"
+              echo "CI_BENCHMARK_LINT_FILE_CONCURRENCY=4" >> "$GITHUB_ENV"
+            else
+              echo "CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY=4" >> "$GITHUB_ENV"
+              echo "CI_BENCHMARK_LINT_FILE_CONCURRENCY=6" >> "$GITHUB_ENV"
+            fi
+          fi
+          if [[ "$BENCH_JOB" == e2e-tests ]]; then
+            echo "CI_BENCHMARK_PLAYWRIGHT_WORKERS=3" >> "$GITHUB_ENV"
+          fi
+        fi
+
+        python3 - <<'PY'
+        import json, os, platform
+        from pathlib import Path
+        cpu = Path('/proc/cpuinfo').read_text()
+        memory = Path('/proc/meminfo').read_text()
+        model = next((line.split(':', 1)[1].strip() for line in cpu.splitlines() if line.startswith('model name')), 'unknown')
+        memory_kib = int(next(line.split()[1] for line in memory.splitlines() if line.startswith('MemTotal:')))
+        applied = Path(os.environ['GITHUB_ENV']).read_text().splitlines()
+        metadata = {
+            'job': os.environ['BENCH_JOB'],
+            'requested_runner_size': os.environ['BENCH_RUNNER_SIZE'],
+            'tune_concurrency': os.environ['BENCH_TUNE'] == 'true',
+            'force_recompute': os.environ['BENCH_FORCE'] == 'true',
+            'cpu_count': os.cpu_count(),
+            'cpu_affinity_count': len(os.sched_getaffinity(0)),
+            'cpu_model': model,
+            'memory_bytes': memory_kib * 1024,
+            'platform': platform.platform(),
+            'applied_settings': [line for line in applied if line.startswith(('VITEST_MAX_WORKERS=', 'CI_BENCHMARK_', 'TURBO_FORCE='))],
+        }
+        print('CI_BENCHMARK_META=' + json.dumps(metadata, sort_keys=True))
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+            summary.write('### Runner benchmark\n\n```json\n' + json.dumps(metadata, indent=2) + '\n```\n')
+        PY
