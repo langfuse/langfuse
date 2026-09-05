@@ -301,7 +301,7 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
   }
 
   // Non-cluster mode: Return prefix or undefined
-  return redisKeyPrefix || undefined;
+  return redisKeyPrefix ?? undefined;
 };
 
 const getBullMQOptionsForRedisConnection = (
