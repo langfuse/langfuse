@@ -45,17 +45,13 @@ runs:
             exit 1
           fi
           case "$BENCH_JOB:$BENCH_RUNNER_SIZE" in
-            tests-web:16|tests-web-client:16|tests-shared:16) workers=12 ;;
-            tests-web:32|tests-web-client:32|tests-shared:32) workers=24 ;;
-            tests-worker:16|tests-storybook:16) workers=8 ;;
-            tests-worker:32) workers=16 ;;
-            tests-storybook:32) workers=12 ;;
-            e2e-server-tests:16|e2e-server-tests:32) workers=4 ;;
-            *) workers= ;;
+            tests-web:16|tests-web:32|tests-web-client:16|tests-shared:16) echo "VITEST_MAX_WORKERS=12" >> "$GITHUB_ENV" ;;
+            tests-web-client:32|tests-shared:32) echo "VITEST_MAX_WORKERS=24" >> "$GITHUB_ENV" ;;
+            tests-worker:16|tests-storybook:16) echo "VITEST_MAX_WORKERS=8" >> "$GITHUB_ENV" ;;
+            tests-worker:32) echo "VITEST_MAX_WORKERS=16" >> "$GITHUB_ENV" ;;
+            tests-storybook:32) echo "VITEST_MAX_WORKERS=12" >> "$GITHUB_ENV" ;;
+            e2e-server-tests:16|e2e-server-tests:32) echo "VITEST_MAX_WORKERS=4" >> "$GITHUB_ENV" ;;
           esac
-          if [[ -n "$workers" ]]; then
-            echo "VITEST_MAX_WORKERS=$workers" >> "$GITHUB_ENV"
-          fi
           if [[ "$BENCH_JOB" == lint ]]; then
             if [[ "$BENCH_RUNNER_SIZE" == 16 ]]; then
               echo "CI_BENCHMARK_LINT_PACKAGE_CONCURRENCY=3" >> "$GITHUB_ENV"
