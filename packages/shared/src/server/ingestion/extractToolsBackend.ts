@@ -256,6 +256,29 @@ function addToolArgumentFromContentPart(
 }
 
 /**
+ * Helper to add tool calls from OTel GenAI semconv `parts` arrays
+ * (gen_ai.output.messages): {type: "tool_call", id, name, arguments}.
+ * Emitted by Pydantic AI, Google ADK, and other OTel GenAI semconv sources.
+ * `tool_call_response` parts (tool results, not calls) are skipped.
+ */
+function addToolArgumentsFromOtelParts(
+  args: ClickhouseToolArgument[],
+  parts: unknown,
+): void {
+  if (!Array.isArray(parts)) return;
+
+  for (const part of parts) {
+    if (
+      part &&
+      typeof part === "object" &&
+      (part as Record<string, unknown>).type === "tool_call"
+    ) {
+      addToolArgument(args, part);
+    }
+  }
+}
+
+/**
  * Extract tool definitions from raw input data (top-level tools array).
  */
 function extractToolsFromRawInput(
@@ -366,6 +389,9 @@ function extractToolCallsFromRawOutput(
     }
   }
 
+  // Tool calls in OTel GenAI semconv `parts` arrays (gen_ai.output.messages)
+  addToolArgumentsFromOtelParts(args, obj.parts);
+
   // LangChain additional_kwargs: {additional_kwargs: {tool_calls: [...]}}
   const additionalKwargs = obj.additional_kwargs as
     | Record<string, unknown>
@@ -399,6 +425,9 @@ function extractToolCallsFromMessage(
       }
     }
   }
+
+  // Tool calls in OTel GenAI semconv `parts` arrays (gen_ai.output.messages)
+  addToolArgumentsFromOtelParts(args, msg.parts);
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
