@@ -269,7 +269,7 @@ export const createNewRedisInstance = (
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
           username: env.REDIS_USERNAME || undefined,
-          password: String(env.REDIS_AUTH),
+          password: env.REDIS_AUTH || undefined,
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
