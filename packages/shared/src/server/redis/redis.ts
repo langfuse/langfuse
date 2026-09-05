@@ -235,6 +235,44 @@ const createRedisSentinelInstance = (
   return instance;
 };
 
+/**
+ * Every connection handed out by createNewRedisInstance, so that a shutdown can
+ * release all of them. Each queue owns a dedicated client, and those clients
+ * retry forever; left connected they keep the event loop alive and the process
+ * never exits.
+ */
+const activeRedisInstances = new Set<Redis | Cluster>();
+
+const trackRedisInstance = <T extends Redis | Cluster | null>(
+  instance: T,
+): T => {
+  if (instance) {
+    activeRedisInstances.add(instance);
+    instance.once("end", () => activeRedisInstances.delete(instance));
+  }
+  return instance;
+};
+
+/**
+ * Disconnect every client created by createNewRedisInstance.
+ *
+ * `redis.disconnect()` on the shared client only covers that one connection.
+ * Returns how many were closed, for shutdown logging.
+ */
+export const disconnectAllRedisInstances = (): number => {
+  let closed = 0;
+  for (const instance of activeRedisInstances) {
+    try {
+      instance.disconnect();
+      closed++;
+    } catch (error) {
+      logRedisError("Failed to disconnect Redis instance on shutdown", error);
+    }
+  }
+  activeRedisInstances.clear();
+  return closed;
+};
+
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Redis | Cluster | null => {
@@ -249,11 +287,11 @@ export const createNewRedisInstance = (
   }
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
-    return createRedisClusterInstance(additionalOptions);
+    return trackRedisInstance(createRedisClusterInstance(additionalOptions));
   }
 
   if (env.REDIS_SENTINEL_ENABLED === "true") {
-    return createRedisSentinelInstance(additionalOptions);
+    return trackRedisInstance(createRedisSentinelInstance(additionalOptions));
   }
 
   const tlsOptions = buildTlsOptions();
@@ -280,7 +318,7 @@ export const createNewRedisInstance = (
     logRedisError("Redis error", error);
   });
 
-  return instance;
+  return trackRedisInstance(instance);
 };
 
 /**
