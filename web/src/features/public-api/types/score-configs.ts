@@ -150,6 +150,8 @@ export const PutScoreConfigResponse = APIScoreConfig;
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
   ...publicApiPaginationZod,
+  fromTimestamp: z.coerce.date().nullish(),
+  toTimestamp: z.coerce.date().nullish(),
 });
 
 export const GetScoreConfigsResponse = z.object({
