@@ -5,7 +5,7 @@ import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 
 type RadioGroupProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
-  "children" | "defaultValue" | "onValueChange" | "value"
+  "children" | "className" | "defaultValue" | "onValueChange" | "value"
 >;
 
 const RadioGroupRoot = React.forwardRef<
