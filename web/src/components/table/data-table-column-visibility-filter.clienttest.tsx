@@ -25,6 +25,14 @@ const columns: LangfuseColumnDef<{ id: string }>[] = [
     header: "Input",
     enableHiding: true,
   },
+  {
+    accessorKey: "traceScores",
+    header: "Trace Scores",
+    enableHiding: true,
+    columns: [
+      { accessorKey: "score-a", header: "Score A", enableHiding: true },
+    ],
+  },
 ];
 
 const groupedColumns: LangfuseColumnDef<{ id: string }>[] = [

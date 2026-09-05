@@ -54,11 +54,19 @@ export const ScoresTableCell = ({
   displayFormat,
   wrap = true,
   hasMetadata,
+  valueTitle,
 }: {
   aggregate: AggregatedScoreData;
   displayFormat: "smart" | "aggregate";
   wrap?: boolean;
   hasMetadata?: boolean;
+  /**
+   * What the value belongs to, prefixed onto its hover title — for a table
+   * where one column holds several rows' values and the value alone does not
+   * say whose it is (the experiment comparison). Omitted everywhere else, and
+   * the title is then the value, unchanged.
+   */
+  valueTitle?: string;
 }) => {
   const projectId = useProjectIdFromURL();
   const [copied, setCopied] = React.useState(false);
@@ -85,7 +93,10 @@ export const ScoresTableCell = ({
           COLOR_MAP.get(value),
         )}
       >
-        <span className="truncate" title={value}>
+        <span
+          className="truncate"
+          title={valueTitle ? `${valueTitle}: ${value}` : value}
+        >
           {value}
         </span>
         {aggregate.comment && (
@@ -94,7 +105,12 @@ export const ScoresTableCell = ({
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
             <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
-              <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
+              {/* Name what the icon opened: a bare block of text next to a
+                  score does not say it is the score's comment. */}
+              <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+                <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+                  Score comment
+                </span>
                 <Button
                   onClick={handleCopy}
                   variant="ghost"

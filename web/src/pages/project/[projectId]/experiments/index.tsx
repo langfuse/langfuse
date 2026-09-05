@@ -37,6 +37,9 @@ export default function Experiments() {
     await Promise.all([
       utils.experiments.all.invalidate(),
       utils.experiments.countAll.invalidate(),
+      // The empty-window fallback is its own query, and a new run belongs in
+      // it: without this it keeps serving its cached list.
+      utils.experiments.mostRecent.invalidate(),
     ]);
   };
 

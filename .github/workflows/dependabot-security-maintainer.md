@@ -64,10 +64,16 @@ observability:
       Authorization: Basic ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
       x-langfuse-ingestion-version: "4"
     # Values are GitHub expressions; gh-aw v0.86 does not expand `{{ }}` templates.
+    # gh-aw JSON-encodes these values with HTML-safe escaping, so an expression
+    # must not contain `&` or `"`: `&&` would reach GitHub as `\u0026\u0026`.
     attributes:
       langfuse.trace.name: dependabot-security-maintainer
+      # Scheduled runs carry the bot actor that owns the schedule.
       langfuse.user.id: ${{ github.actor }}
       langfuse.trace.metadata.run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      langfuse.trace.metadata.event: ${{ github.event_name }}
+      # inputs.mode is null outside workflow_dispatch, so schedule runs are live.
+      langfuse.trace.metadata.mode: ${{ github.event.inputs.mode || 'live' }}
 
 network:
   allowed:
@@ -83,6 +89,14 @@ tools:
     - "node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs:*"
     - "git diff:*"
     - "git restore:*"
+    # Read-only filters with arguments; the bare defaults (head, tail, wc, ...)
+    # reject any flag and every rejection costs a full model turn.
+    - "head:*"
+    - "tail:*"
+    - "wc:*"
+    - "ls:*"
+    - "grep:*"
+    - "sort:*"
   edit:
 
 steps:
@@ -214,6 +228,24 @@ The current run's safe-output staged flag is
 - Keep each dependency independent: one branch, one commit, and one PR per
   dependency. Process at most 10 dependencies per run. All PRs target `main`.
 
+## Shell and tool rules
+
+Every denied call still costs a full model turn, so follow these exactly.
+
+- Run one command per Bash call. Do not chain commands with `&&`, `;`, or
+  pipes into other programs, and do not use shell loops, subshells, or `$()`
+  expansions. Each part of a compound command is checked separately against
+  the allowlist and any unlisted part is denied.
+- Commit with `git commit --no-verify -m "<subject>"`. Do not pass
+  `-c core.hooksPath=...` or any other `git -c` option.
+- Read `/tmp/gh-aw/agent/*.json` with the Read tool. `ls` is blocked outside
+  the repository checkout.
+- Do not use TaskCreate, TaskUpdate, or TodoWrite. Keep the plan in your
+  reasoning; each of those calls is a model turn that produces nothing.
+- In PR bodies and comments, always write scoped package names such as
+  `@hono/node-server` inside backticks. Bare `@name` tokens outside code count
+  as mentions, and a comment with more than 10 mentions is rejected.
+
 ## Select dependencies
 
 1. Read all alerts from `/tmp/gh-aw/agent/dependabot-alerts.json` (Dependabot
@@ -267,7 +299,7 @@ The current run's safe-output staged flag is
    - the diff contains only allowed dependency files and only changes needed
      for this dependency group
 5. Commit only the verified dependency files with
-   `chore(deps): bump <dependency> to <target-version>` and hooks disabled.
+   `git commit --no-verify -m "chore(deps): bump <dependency> to <target-version>"`.
 6. Request one non-draft PR using the next unused temporary ID from `aw_pr_1`
    through `aw_pr_10`. The title is the commit subject. The body must summarize
    the dependency upgrade and list every covered Dependabot alert number and

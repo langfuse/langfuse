@@ -57,6 +57,8 @@ function Harness() {
     maxSelectedExperiments,
     clearBaseline,
     selectedExperimentIds,
+    layout,
+    diffMode,
   } = useExperimentResultsState();
 
   return (
@@ -66,6 +68,8 @@ function Harness() {
       <div data-testid="comparisons">{comparisonIds.join(",")}</div>
       <div data-testid="selected">{selectedExperimentIds.join(",")}</div>
       <div data-testid="max-experiments">{maxSelectedExperiments}</div>
+      <div data-testid="layout">{layout}</div>
+      <div data-testid="diff-mode">{diffMode}</div>
       <button
         type="button"
         onClick={() =>
@@ -86,6 +90,32 @@ function Harness() {
 describe("useExperimentResultsState", () => {
   beforeEach(() => {
     queryParamStore.clear();
+    localStorage.clear();
+  });
+
+  it("defaults to the one-row-per-item diff layout once a comparison exists", () => {
+    queryParamStore.set("baseline", "baseline-run");
+
+    render(<Harness />);
+
+    expect(screen.getByTestId("layout").textContent).toBe("grid");
+    expect(screen.getByTestId("diff-mode").textContent).toBe("comparison");
+
+    queryParamStore.set("c", ["comp-a"]);
+
+    render(<Harness />);
+
+    expect(screen.getAllByTestId("layout")[1].textContent).toBe("list");
+  });
+
+  it("lets an explicit layout in the URL win over the default", () => {
+    queryParamStore.set("baseline", "baseline-run");
+    queryParamStore.set("c", ["comp-a"]);
+    queryParamStore.set("layout", "grid");
+
+    render(<Harness />);
+
+    expect(screen.getByTestId("layout").textContent).toBe("grid");
   });
 
   it("derives hasBaseline correctly", () => {
