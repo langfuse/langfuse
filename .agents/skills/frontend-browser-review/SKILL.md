@@ -19,11 +19,26 @@ Use this skill when a change affects what users see or do in the browser.
 
 ## When To Use It
 
-- UI changes in `web/**`
-- Layout, styling, or responsive behavior changes
-- Changes to navigation or page flows
+Drive a browser when the outcome is uncertain:
+
+- Changes to navigation or page flows, or anything carrying state across steps
+- Layout or responsive behavior that could reflow in a way you cannot predict
 - Bug fixes where the failure mode is visible in the browser
-- Final signoff for user-visible frontend work
+- Final signoff for a substantial piece of user-visible work
+
+## When To Offer Instead
+
+A small, self-contained visual change you are confident in does not need an
+automated pass. Spacing, a colour token, a label, an icon swap: say what you
+changed, hand over the exact URL — a local port or the pull request's
+`pr-<N>.preview.langfuse.com` — and let the developer take the two-second look.
+It is faster for them than waiting while you confirm something you already know,
+and a screenshot in the pull request still carries the proof.
+
+Two conditions. **Be explicit** — name what you did not check and why, so the
+choice is visible and they can overrule it. And **do it while they are there**:
+offering is a handoff, not a way of ending your turn. If nobody is around to
+look, and the change is user-visible, check it yourself.
 
 ## Prefill Test Data First
 

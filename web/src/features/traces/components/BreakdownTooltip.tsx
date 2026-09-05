@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import {
   Tooltip,
   TooltipContent,
@@ -21,12 +20,16 @@ export interface PriceSource {
   pricingTierName: string;
 }
 
+export type CostSource = "calculated" | "provided";
+
 interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
   isCost?: boolean;
   pricingTierName?: string;
   priceSource?: PriceSource;
+  /** Whether cost was calculated by Langfuse or provided at ingestion. */
+  costSource?: CostSource;
 }
 
 export const BreakdownTooltip = ({
@@ -35,6 +38,7 @@ export const BreakdownTooltip = ({
   isCost = false,
   pricingTierName,
   priceSource,
+  costSource,
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -52,6 +56,20 @@ export const BreakdownTooltip = ({
 
   const formatValue = (value: number) =>
     isCost ? usdFormatter(value, 2, 12) : value ? value.toLocaleString() : "0";
+  const otherEntries = Object.entries(aggregatedDetails)
+    .filter(
+      ([key]) =>
+        !key.includes("input") && !key.includes("output") && key !== "total",
+    )
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+  const otherTotal = otherEntries.reduce((acc, [, value]) => {
+    if (typeof value !== "number") return acc;
+
+    return acc + value;
+  }, 0);
+
+  const resolvedCostSource =
+    costSource ?? (isCost && priceSource ? "calculated" : undefined);
 
   return (
     <TooltipProvider>
@@ -69,7 +87,13 @@ export const BreakdownTooltip = ({
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
 
-              {isCost && priceSource && (
+              {isCost && resolvedCostSource === "provided" ? (
+                <span className="text-muted-foreground text-xs italic">
+                  Provided at ingestion
+                </span>
+              ) : null}
+
+              {isCost && resolvedCostSource === "calculated" && priceSource ? (
                 <Link
                   href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
                   className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
@@ -78,13 +102,20 @@ export const BreakdownTooltip = ({
                 >
                   <span
                     className="min-w-0 truncate"
-                    title={`${priceSource.pricingTierName} Tier Pricing`}
+                    title={`Calculated · ${priceSource.pricingTierName} Tier Pricing`}
                   >
-                    {priceSource.pricingTierName} Tier Pricing
+                    Calculated · {priceSource.pricingTierName} Tier Pricing
                   </span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
-              )}
+              ) : null}
+
+              {isCost && resolvedCostSource === "calculated" && !priceSource ? (
+                <span className="text-muted-foreground text-xs italic">
+                  Calculated from model pricing
+                </span>
+              ) : null}
+
               {Array.isArray(details) && details.length > 0 && (
                 <span className="text-muted-foreground text-xs italic">
                   Aggregate across {details.length}{" "}
@@ -117,11 +148,23 @@ export const BreakdownTooltip = ({
             />
 
             {/* Other Section */}
-            <OtherSection
-              details={aggregatedDetails}
-              isCost={isCost}
-              formatValue={formatValue}
-            />
+            {otherEntries.length > 0 && (
+              <div className="flex min-w-0 flex-col gap-2">
+                <BreakdownRow
+                  label={isCost ? "Other cost" : "Other usage"}
+                  value={formatValue(otherTotal)}
+                  variant="section"
+                />
+                {otherEntries.map(([key, value]) => (
+                  <BreakdownRow
+                    key={key}
+                    label={key}
+                    value={formatValue(value ?? 0)}
+                    variant="item"
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Total */}
             <BreakdownRow
@@ -199,47 +242,6 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
         variant="section"
       />
       {filteredEntries.map(([key, value]) => (
-        <BreakdownRow
-          key={key}
-          label={key}
-          value={formatValue(value ?? 0)}
-          variant="item"
-        />
-      ))}
-    </div>
-  );
-};
-
-interface OtherSectionProps {
-  details: Details;
-  isCost: boolean;
-  formatValue: (value: number) => string;
-}
-
-const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
-  const otherEntries = Object.entries(details)
-    .filter(
-      ([key]) =>
-        !key.includes("input") && !key.includes("output") && key !== "total",
-    )
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
-
-  if (otherEntries.length === 0) return null;
-
-  const otherTotal = otherEntries.reduce((acc, val) => {
-    if (typeof val[1] !== "number") return acc;
-
-    return acc + (val[1] ?? 0);
-  }, 0);
-
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <BreakdownRow
-        label={isCost ? "Other cost" : "Other usage"}
-        value={formatValue(otherTotal)}
-        variant="section"
-      />
-      {otherEntries.map(([key, value]) => (
         <BreakdownRow
           key={key}
           label={key}

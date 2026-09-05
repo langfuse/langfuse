@@ -22,6 +22,7 @@ export function isMetricsV2Available(): boolean {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
+    action: "metrics:read",
     rateLimitResource: "public-api-v2-metrics",
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,

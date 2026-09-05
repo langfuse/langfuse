@@ -8,19 +8,22 @@ import {
   OverviewPanelToggle,
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import {
-  EXPERIMENT_RUN_TABS,
-  getExperimentRunTabs,
-} from "@/src/features/navigation/utils/experiment-run-tabs";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { analyticsTabOpenedProps } from "@/src/features/experiments/lib/analytics";
+import {
+  diffModeChangedProps,
+  layoutChangedProps,
+} from "@/src/features/experiments/lib/analytics";
+import {
+  useExperimentResultsState,
+  type ExperimentDiffMode,
+  type ExperimentResultsLayout,
+} from "@/src/features/experiments/hooks/useExperimentResultsState";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -35,6 +38,8 @@ export default function ExperimentResults() {
     setComparisonIds,
     layout,
     setLayout,
+    diffMode,
+    setDiffMode,
     itemVisibility,
     setItemVisibility,
     allExperimentIds,
@@ -49,17 +54,46 @@ export default function ExperimentResults() {
     false,
   );
 
-  const [, setLastResultsUrl] = useSessionStorage<string | null>(
-    "experiment-results-url",
-    `/project/${projectId}/datasets`,
+  const capture = usePostHogClientCapture();
+
+  // Is the new score-matrix layout adopted, and diff mode — Expected → Output
+  // in particular — used at all? Captured on the menu pick rather than on the
+  // URL state, which also changes on navigation, on a restored view, and (for
+  // the layout) as a side effect of choosing Expected → Output.
+  const handleLayoutChange = useCallback(
+    (newLayout: ExperimentResultsLayout) => {
+      if (newLayout !== layout) {
+        capture(
+          "experiment:layout_changed",
+          layoutChangedProps({
+            tableName: "experiment-items",
+            layout: newLayout,
+            comparisonCount: comparisonIds.length,
+          }),
+        );
+      }
+      setLayout(newLayout);
+    },
+    [capture, layout, comparisonIds.length, setLayout],
   );
 
-  // Store current URL for back navigation from analytics
-  useEffect(() => {
-    setLastResultsUrl(window.location.pathname + window.location.search);
-  }, [setLastResultsUrl]);
+  const handleDiffModeChange = useCallback(
+    (newDiffMode: ExperimentDiffMode) => {
+      if (newDiffMode !== diffMode) {
+        capture(
+          "experiment:diff_mode_changed",
+          diffModeChangedProps({
+            tableName: "experiment-items",
+            mode: newDiffMode,
+            comparisonCount: comparisonIds.length,
+          }),
+        );
+      }
+      setDiffMode(newDiffMode);
+    },
+    [capture, diffMode, comparisonIds.length, setDiffMode],
+  );
 
-  const capture = usePostHogClientCapture();
   const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
   useEffect(() => {
@@ -98,18 +132,6 @@ export default function ExperimentResults() {
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
         ],
-        tabsProps: {
-          tabs: getExperimentRunTabs(projectId, undefined, () => {
-            capture(
-              "experiment:analytics_tab_opened",
-              analyticsTabOpenedProps({
-                tableName: "experiment-items",
-                hasComparison: comparisonIds.length > 0,
-              }),
-            );
-          }),
-          activeTab: EXPERIMENT_RUN_TABS.RESULTS,
-        },
         actionButtonsLeft: (
           <ExperimentSelectionControls
             projectId={projectId}
@@ -126,7 +148,9 @@ export default function ExperimentResults() {
           <>
             <ExperimentDisplaySettings
               layout={layout}
-              onLayoutChange={setLayout}
+              onLayoutChange={handleLayoutChange}
+              diffMode={diffMode}
+              onDiffModeChange={handleDiffModeChange}
               itemVisibility={itemVisibility}
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}

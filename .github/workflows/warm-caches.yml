@@ -63,7 +63,7 @@ jobs:
       # package.json, so pnpm bumps that update pipeline.yml cannot strand
       # this satellite workflow on a mismatched pin (which hard-fails the
       # action, as a previous partially pinned pnpm bump did).
-      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
           cache: false

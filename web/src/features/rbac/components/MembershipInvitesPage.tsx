@@ -173,7 +173,7 @@ export function MembershipInvitesPage({
     <>
       {/* Header included in order to hide it when there are not invites yet */}
       <Header title="Membership Invites" />
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="membership-invites" />
       <DataTable
         tableName="membershipInvites"
         columns={columns}

@@ -20,6 +20,9 @@ info:
 
 
     - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
+
+    - Self-hosted deployments: interactive API reference at `/api/docs` and
+    OpenAPI spec at `/api/openapi.yaml`
 paths:
   /api/public/annotation-queues:
     get:
