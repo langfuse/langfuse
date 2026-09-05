@@ -16,6 +16,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
@@ -144,6 +145,10 @@ export type SampleObservationSelectorBaseProps = {
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
+  /** Rows are mutually exclusive; "radio" exposes the leading control to assistive tech as a radio group. */
+  selectionControl?: "checkbox" | "radio";
+  /** Accessible name announced for the radio group when selectionControl is "radio". */
+  selectionControlLabel?: string;
   filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
@@ -169,6 +174,8 @@ export function SampleObservationSelectorBase(
     leadingColumns,
     resolveSelection,
     getRowClassName,
+    selectionControl = "checkbox",
+    selectionControlLabel,
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -490,6 +497,50 @@ export function SampleObservationSelectorBase(
     }
   };
 
+  const observationTableArea = (
+    <div
+      ref={
+        selectionToReconcile !== undefined
+          ? (element) => {
+              // Commit fresh query results through the existing selection owner without a data-sync effect.
+              if (element) onSelect(selectionToReconcile);
+            }
+          : undefined
+      }
+      className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
+    >
+      <DataTable
+        tableName={tableName}
+        columns={columns}
+        data={
+          observationsPending && matchingObservations.length === 0
+            ? { isLoading: true, isError: false }
+            : observationsError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: observationsError.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: matchingObservations,
+                }
+        }
+        hidePagination
+        onScroll={handleScroll}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
+        rowHeight={rowHeight}
+        onRowClick={onOpenTrace}
+        getRowClassName={getRowClassName}
+        noResultsMessage="No observations match the current filters and time range."
+      />
+    </div>
+  );
+
   return (
     <div className="flex shrink-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
@@ -585,47 +636,23 @@ export function SampleObservationSelectorBase(
             />
           }
         />
-        <div
-          ref={
-            selectionToReconcile !== undefined
-              ? (element) => {
-                  // Commit fresh query results through the existing selection owner without a data-sync effect.
-                  if (element) onSelect(selectionToReconcile);
-                }
-              : undefined
-          }
-          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
-        >
-          <DataTable
-            tableName={tableName}
-            columns={columns}
-            data={
-              observationsPending && matchingObservations.length === 0
-                ? { isLoading: true, isError: false }
-                : observationsError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: observationsError.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: matchingObservations,
-                    }
-            }
-            hidePagination
-            onScroll={handleScroll}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            rowHeight={rowHeight}
-            onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
-          />
-        </div>
+        {selectionControl === "radio" ? (
+          <RadioGroup
+            className="contents"
+            aria-label={selectionControlLabel ?? "Sample observation selection"}
+            value={selectedObservationId ?? ""}
+            onValueChange={(observationId) => {
+              const observation = matchingObservations.find(
+                (item) => item.id === observationId,
+              );
+              if (observation) onSelect(observation);
+            }}
+          >
+            {observationTableArea}
+          </RadioGroup>
+        ) : (
+          observationTableArea
+        )}
       </section>
     </div>
   );

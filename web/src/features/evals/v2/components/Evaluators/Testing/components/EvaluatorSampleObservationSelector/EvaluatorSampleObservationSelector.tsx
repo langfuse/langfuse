@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Star } from "lucide-react";
 import type { FilterState } from "@langfuse/shared";
 
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -64,12 +64,13 @@ export function EvaluatorSampleObservationSelector({
         cell: ({ row }) => (
           <label
             className="flex h-full w-full cursor-pointer items-center px-2"
+            htmlFor={`sample-selection-${row.original.id}`}
             onClick={(event) => event.stopPropagation()}
           >
-            <Checkbox
-              checked={selectedObservationId === row.original.id}
+            <RadioGroup.Item
+              id={`sample-selection-${row.original.id}`}
+              value={row.original.id}
               aria-label={`Use ${row.original.name ?? row.original.id} as sample`}
-              onCheckedChange={() => onSelect(row.original)}
             />
           </label>
         ),
@@ -92,6 +93,8 @@ export function EvaluatorSampleObservationSelector({
       onOpenTrace={onOpenTrace}
       leadingColumns={leadingColumns}
       resolveSelection={resolveSelection}
+      selectionControl="radio"
+      selectionControlLabel="Use an observation as sample"
       getRowClassName={(observation) =>
         observation.id === selectedObservationId ? "bg-muted/50" : ""
       }
