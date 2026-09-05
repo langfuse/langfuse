@@ -94,6 +94,7 @@ export function EvaluatorSampleObservationSelector({
       leadingColumns={leadingColumns}
       resolveSelection={resolveSelection}
       selectionControl="radio"
+      selectionControlLabel="Use an observation as sample"
       getRowClassName={(observation) =>
         observation.id === selectedObservationId ? "bg-muted/50" : ""
       }

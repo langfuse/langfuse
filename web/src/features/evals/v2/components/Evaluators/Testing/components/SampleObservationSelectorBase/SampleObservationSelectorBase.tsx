@@ -147,6 +147,8 @@ export type SampleObservationSelectorBaseProps = {
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
   /** Rows are mutually exclusive; "radio" exposes the leading control to assistive tech as a radio group. */
   selectionControl?: "checkbox" | "radio";
+  /** Accessible name announced for the radio group when selectionControl is "radio". */
+  selectionControlLabel?: string;
   filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
@@ -173,6 +175,7 @@ export function SampleObservationSelectorBase(
     resolveSelection,
     getRowClassName,
     selectionControl = "checkbox",
+    selectionControlLabel,
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -636,6 +639,7 @@ export function SampleObservationSelectorBase(
         {selectionControl === "radio" ? (
           <RadioGroup
             className="contents"
+            aria-label={selectionControlLabel ?? "Sample observation selection"}
             value={selectedObservationId ?? ""}
             onValueChange={(observationId) => {
               const observation = matchingObservations.find(
