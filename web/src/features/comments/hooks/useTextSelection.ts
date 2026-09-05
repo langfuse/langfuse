@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useInlineCommentSelectionOptional } from "../contexts/InlineCommentSelectionContext";
+import { containsNode } from "../lib/containsNode";
 import { selectionToPath } from "../lib/selectionToPath";
 
 interface UseTextSelectionOptions {
@@ -47,7 +48,7 @@ export function useTextSelection({
         // Only clear if the interaction was INSIDE our container
         // If user clicked elsewhere (like comment textarea), keep the pending selection
         const focusNode = selection?.focusNode;
-        if (focusNode && containerRef.current?.contains(focusNode)) {
+        if (containsNode(containerRef.current, focusNode)) {
           context.clearSelection();
         }
         // Otherwise, don't clear - user might be interacting with comment UI
@@ -55,7 +56,7 @@ export function useTextSelection({
       }
 
       const range = selection.getRangeAt(0);
-      if (!containerRef.current?.contains(range.commonAncestorContainer)) {
+      if (!containsNode(containerRef.current, range.commonAncestorContainer)) {
         return; // Selection outside our container
       }
 
