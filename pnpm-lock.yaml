@@ -757,6 +757,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1(supports-color@8.1.1)
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       json-schema-faker:
         specifier: 0.6.1
         version: 0.6.1
