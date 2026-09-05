@@ -1,12 +1,14 @@
 import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
+import { ciVitestCache } from "../scripts/vitest/transform-cache.mjs";
 
 // Load ../.env so direct Vitest runs and package scripts use the same worker env.
 config({ path: "../.env" });
 
 export default defineConfig({
   test: {
+    experimental: ciVitestCache("worker"),
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
