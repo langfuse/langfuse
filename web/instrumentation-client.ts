@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
+  isKitesurfInternalEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -54,6 +55,14 @@ Sentry.init({
     // frame is ever present in these stacks; anything touching our code is
     // kept. See isPosthogRecorderInternalEvent for the rationale.
     if (isPosthogRecorderInternalEvent(event)) {
+      return null;
+    }
+
+    // Drop errors thrown wholly inside KiteSurf's injected automation shim
+    // (`/__ks_user_*.js`, `dom-shim.js`). Those files are served as
+    // root-relative paths on our origin, so denyUrls never matches them.
+    // Anything touching an app chunk is kept. See isKitesurfInternalEvent.
+    if (isKitesurfInternalEvent(event)) {
       return null;
     }
 

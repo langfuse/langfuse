@@ -136,6 +136,12 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
+  // KiteSurf (third-party browser-automation shim) prefixes its own
+  // console.error lines with this namespace. Observed as a MESSAGE event
+  // with no exception (`captureConsoleIntegration`): "[kitesurf] event
+  // listener for load threw: …" (LANGFUSE-60W). App code never logs this
+  // prefix.
+  "[kitesurf]",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -554,4 +560,67 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     return false;
   }
   return sawRecorderFrame;
+}
+
+/**
+ * KiteSurf's injected page-world scripts. They are served as root-relative
+ * paths on our origin (`/__ks_user_classic_regular.js`), so `denyUrls`
+ * (extension protocols only) never matches them.
+ */
+const KITESURF_USER_SCRIPT_RE = /(?:^|\/)__ks_user[^/]*\.js$/i;
+const KITESURF_DOM_SHIM_RE = /(?:^|\/)dom-shim\.js$/i;
+
+/**
+ * Bare `page.js` as Sentry reports KiteSurf's page controller. Must NOT
+ * match a Next.js `/_next/.../page.js` or any other path-qualified page
+ * module — those are first-party. Basename matching is intentionally
+ * rejected for that reason.
+ */
+function isKitesurfPageControllerFilename(path: string): boolean {
+  return path === "page.js" || path === "/page.js";
+}
+
+function isKitesurfVendorFilename(path: string): boolean {
+  return KITESURF_USER_SCRIPT_RE.test(path) || KITESURF_DOM_SHIM_RE.test(path);
+}
+
+/**
+ * True for errors thrown wholly INSIDE KiteSurf's browser-automation shim:
+ * every attributable stack frame lives in `__ks_user_*.js` or `dom-shim.js`
+ * (plus at most a bare `page.js` controller frame, browser-native frames,
+ * and Sentry-SDK wrappers). Observed:
+ *  - `ReferenceError: DOMRect is not defined` from `__ks_user_classic_regular.js`
+ *    (LANGFUSE-60Z) — KiteSurf's incomplete DOM shim has no `DOMRect`;
+ *  - `TypeError: Cannot create proxy…` from `page.js` / `dom-shim.js` /
+ *    `__ks_user_*.js` (LANGFUSE-60X);
+ *  - KiteSurf's own `isCollapsed` lookup against a page panel-group id
+ *    (LANGFUSE-60Y).
+ *
+ * Safe to drop: an error thrown by OUR code always carries at least one
+ * app-chunk frame (the throwing frame), which fails this check. Message-only
+ * `[kitesurf] …` console lines (no stack) are dropped separately via
+ * {@link NOISE_MESSAGE_PREFIXES}. Same posture as
+ * {@link isPosthogRecorderInternalEvent}.
+ */
+export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawKitesurfVendorFrame = false;
+  for (const frame of frames) {
+    const filename = frame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    const path = filename.split(/[?#]/)[0];
+    if (isKitesurfVendorFilename(path)) {
+      sawKitesurfVendorFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    // Bare `page.js` is KiteSurf's controller only when a vendor script is
+    // also on the stack. An all-`page.js` stack is kept — the filename is
+    // too generic to attribute alone.
+    if (isKitesurfPageControllerFilename(path)) continue;
+    return false;
+  }
+  return sawKitesurfVendorFrame;
 }

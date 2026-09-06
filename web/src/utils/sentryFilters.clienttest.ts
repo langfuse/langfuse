@@ -2,6 +2,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 
 import {
   isDenylistedNoiseEvent,
+  isKitesurfInternalEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -333,6 +334,18 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("[PostHog.js] was already loaded elsewhere."),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a third-party [kitesurf] console line (message event)", () => {
+      // Real shape (LANGFUSE-60W): captureConsoleIntegration delivers a
+      // MESSAGE event with no exception. The vendor prefixes every line.
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler",
+          ),
         ),
       ).toBe(true);
     });
@@ -760,6 +773,14 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("[next-auth][error][SIGNIN_OAUTH_ERROR] boom"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app message that merely quotes [kitesurf] mid-string", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to persist [kitesurf] listener result"),
         ),
       ).toBe(false);
     });
@@ -1422,6 +1443,217 @@ describe("isPosthogRecorderInternalEvent", () => {
         isPosthogRecorderInternalEvent(exceptionEvent("boom", "TypeError")),
       ).toBe(false);
       expect(isPosthogRecorderInternalEvent(messageEvent("boom"))).toBe(false);
+    });
+  });
+});
+
+describe("isKitesurfInternalEvent", () => {
+  const KS_USER = "/__ks_user_classic_regular.js";
+  const KS_SHIM = "dom-shim.js";
+  const KS_PAGE = "page.js";
+
+  describe("drops errors thrown wholly inside the KiteSurf automation shim", () => {
+    it("drops ReferenceError: DOMRect is not defined from the user script (LANGFUSE-60Z)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "DOMRect is not defined",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "h"),
+                  frame(KS_USER, "o1"),
+                  frame(KS_USER, "sl"),
+                  frame(KS_USER, "s_"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the proxy TypeError spanning page.js / dom-shim.js / user script (LANGFUSE-60X)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_PAGE, "fireIframeLoad"),
+                  frame(KS_SHIM, "HTMLIFrameElement.dispatchEvent"),
+                  frame(KS_SHIM, "ksSpan"),
+                  frame(KS_USER, "e.recordDOM.c.win"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops a user-script stack with a query string on the filename", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "DOMRect is not defined",
+              stacktrace: {
+                frames: [frame(`${KS_USER}?v=1`, "h")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops a user-script stack that also has opaque native frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Group resizable-layout-filter-layout-observations-events not found",
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "Object.isCollapsed"),
+                  frame("<anonymous>", "Array.forEach"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS any error that touches app code", () => {
+    it("keeps a stack that mixes KiteSurf frames with an app chunk frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "DOMRect is not defined",
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "h"),
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "onLayout",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a Next.js page.js module (path-qualified, not the bare controller)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "boom",
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "h"),
+                  frame("app:///_next/static/chunks/pages/page.js", "Page"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a bare page.js stack with no KiteSurf vendor script", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "boom",
+              stacktrace: {
+                frames: [frame(KS_PAGE, "load")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-only stack (no KiteSurf frame at all)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              stacktrace: {
+                frames: [
+                  frame("app:///_next/static/chunks/0r47ep231kqhy.js", "fn"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an all-opaque stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "boom",
+              stacktrace: {
+                frames: [
+                  frame("<anonymous>", "Array.forEach"),
+                  frame("[native code]"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps events with no stacktrace", () => {
+      expect(
+        isKitesurfInternalEvent(
+          exceptionEvent("DOMRect is not defined", "ReferenceError"),
+        ),
+      ).toBe(false);
+      expect(isKitesurfInternalEvent(messageEvent("[kitesurf] boom"))).toBe(
+        false,
+      );
     });
   });
 });
