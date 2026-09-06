@@ -1,8 +1,7 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { featurePreviewLabelKeys } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
@@ -25,7 +24,7 @@ export function ControlledFeaturePreviewModal({
 }: ControlledFeaturePreviewModalProps) {
   const t = useTranslations("settingsEnterprise.featurePreviews");
   const authSession = useSession();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -57,9 +56,9 @@ export function ControlledFeaturePreviewModal({
         authSession.data?.user?.featureFlags.modernSession === true ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       disabled:
-        !isBetaEnabled ||
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
+      warningReason: !isV4
         ? t("eventsRequired", { preview: V4_PREVIEW_LABEL })
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? t("environmentEnabled")

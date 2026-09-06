@@ -1,6 +1,6 @@
 import { AlertCircle, Settings } from "lucide-react";
 import Link from "next/link";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useTranslations } from "next-intl";
 
 interface NoModelConfiguredAlertProps {
@@ -14,15 +14,9 @@ export function NoModelConfiguredAlert({
 
   return (
     <div className="p-4">
-      <Alert
-        variant="default"
-        className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-      >
-        <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-        <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-          {t("title")}
-        </AlertTitle>
-        <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+      <Alert variant="warning" icon={AlertCircle}>
+        <Alert.Title>{t("title")}</Alert.Title>
+        <Alert.Description>
           {t("descriptionBefore")}{" "}
           <Link
             href={`/project/${projectId}/settings/llm-connections`}
@@ -31,7 +25,7 @@ export function NoModelConfiguredAlert({
             <Settings className="inline h-3 w-3" /> {t("settings")}
           </Link>{" "}
           {t("descriptionAfter")}
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     </div>
   );

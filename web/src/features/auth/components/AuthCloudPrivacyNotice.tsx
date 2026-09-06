@@ -1,10 +1,9 @@
-import { env } from "@/src/env.mjs";
 import { useTranslations } from "next-intl";
 
 export const CloudPrivacyNotice = ({ action }: { action: string }) => {
   const t = useTranslations("auth.cloud");
 
-  return env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+  return (
     <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
       {t.rich("privacy", {
         action,
@@ -40,5 +39,5 @@ export const CloudPrivacyNotice = ({ action }: { action: string }) => {
         ),
       })}
     </div>
-  ) : null;
+  );
 };

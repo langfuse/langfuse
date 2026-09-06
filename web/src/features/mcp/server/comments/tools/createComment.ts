@@ -4,7 +4,7 @@ import { createCommentForApi } from "@/src/features/comments/server/publicCommen
 import {
   PostCommentsV1Body,
   PostCommentsV1Response,
-} from "@/src/features/public-api/types/comments";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildCommentObjectUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

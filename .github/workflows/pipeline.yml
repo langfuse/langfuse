@@ -40,6 +40,24 @@ env:
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
+  validate-v3-release-tag:
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' && (github.ref_name == 'v3' || startsWith(github.ref_name, 'v3.')) }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout full release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate maintenance release tag branch
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash "scripts/validate-release-tag-branch.sh" "${RELEASE_TAG}" "${RELEASE_COMMIT}" "origin/v3"
+
   # Skips runs whose git tree was already tested in a prior successful run of
   # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
   # exclusively on pushes to main, whose tree the merge queue just tested, so
@@ -113,9 +131,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -179,9 +198,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -214,9 +234,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -276,9 +297,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -313,9 +335,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -360,9 +383,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -430,9 +454,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -621,9 +646,10 @@ jobs:
             sudo mv migrate /usr/bin/migrate
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -766,9 +792,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -816,9 +843,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -908,9 +936,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -990,9 +1019,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1119,9 +1149,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.22.0
+          install: false
+          cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1220,6 +1251,7 @@ jobs:
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
+        validate-v3-release-tag,
       ]
     if: always()
     permissions:

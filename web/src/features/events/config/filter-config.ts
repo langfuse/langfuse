@@ -249,6 +249,13 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "numeric" as const,
+      column: "cachedInputTokens",
+      label: getEventsColumnName("cachedInputTokens"),
+      min: 0,
+      max: 1000000,
+    },
+    {
+      type: "numeric" as const,
       column: "outputTokens",
       label: getEventsColumnName("outputTokens"),
       min: 0,
@@ -265,6 +272,14 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numeric" as const,
       column: "inputCost",
       label: getEventsColumnName("inputCost"),
+      min: 0,
+      max: 100,
+      unit: "$",
+    },
+    {
+      type: "numeric" as const,
+      column: "cachedInputCost",
+      label: getEventsColumnName("cachedInputCost"),
       min: 0,
       max: 100,
       unit: "$",

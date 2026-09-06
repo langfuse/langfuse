@@ -140,6 +140,39 @@ export default [
     },
   },
 
+  // Components should always render. Returning null/undefined hides the
+  // condition that owns visibility and makes composition unpredictable — the
+  // parent should branch, or the logic should live in a hook/HOC. Headless
+  // children/portal passthroughs (gates, createPortal wrappers) may return
+  // null; anything that owns markup may not. Existing violations use a
+  // file-level eslint-disable; do not add new ones.
+  {
+    name: "langfuse/web/no-null-render",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+      "src/components/layouts/**",
+    ],
+    rules: {
+      "@repo/no-null-render": "error",
+    },
+  },
+
+  // Next.js pages are the route composition root: the router, not a parent
+  // component, owns whether they mount. Returning null for auth, missing
+  // params, or SSR is a page-level concern, so this rule does not apply.
+  {
+    name: "langfuse/web/no-null-render-pages",
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-null-render": "off",
+    },
+  },
+
   // Component APIs should expose explicit variants instead of className, style,
   // or prefixed variants such as badgeClassName. New file-level overrides are
   // only acceptable for headless components that do not apply any internal
@@ -190,13 +223,6 @@ export default [
     },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
-      // Margin makes components harder to compose and should therefore be applied by the parent.
-      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
-      // TODO: Consider expanding this rule beyond design-system components
-      "@repo/no-margin-on-root-elements": [
-        "warn",
-        { classNameFunctions: ["cn", "clsx"] },
-      ],
       "boundaries/dependencies": [
         "error",
         {
@@ -223,6 +249,20 @@ export default [
 
       // TODO: Expand to more of the codebase
       "no-nested-ternary": "error",
+    },
+  },
+
+  {
+    name: "langfuse/web/component-margin-rules",
+    files: ["src/components/**/*.{ts,tsx}"],
+    ignores: ["src/components/**/*.stories.{ts,tsx}"],
+    rules: {
+      // Margin makes components harder to compose and should therefore be applied by the parent.
+      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
+      "@repo/no-margin-on-root-elements": [
+        "warn",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
     },
   },
 

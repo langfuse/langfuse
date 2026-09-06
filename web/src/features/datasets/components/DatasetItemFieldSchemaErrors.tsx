@@ -20,7 +20,6 @@ export const DatasetItemFieldSchemaErrors: React.FC<
   DatasetItemFieldSchemaErrorsProps
 > = ({ errors, showDatasetName = false }) => {
   const t = useTranslations("coreDetails.datasets.validation");
-  if (errors.length === 0) return null;
 
   return (
     <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">

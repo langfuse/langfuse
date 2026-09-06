@@ -1,3 +1,4 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   type OrderByState,
@@ -7,6 +8,7 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
@@ -31,11 +33,11 @@ import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBa
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -72,7 +74,7 @@ import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4Mi
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
-import { useTranslations } from "next-intl";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -154,6 +156,7 @@ function EvaluatorsTableToolbar({
 
   return (
     <DataTableToolbar
+      tableName="evaluators-v2"
       {...toolbarProps}
       multiSelect={{
         selectAll,
@@ -174,6 +177,10 @@ export default function EvaluatorsPage() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "allEvaluators",
+    projectId,
+  });
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "overview",
@@ -498,7 +505,6 @@ export default function EvaluatorsPage() {
                     row.original.id,
                     row.original.name,
                     row.original.type,
-                    row.original.assignedRuleIds,
                   ),
                 )
               }
@@ -622,9 +628,17 @@ export default function EvaluatorsPage() {
                       projectDefaultModel.connectionsPending ||
                       projectDefaultModel.update.isPending
                     }
+                    borderVariant="contrast"
                   />
                 </PopoverTrigger>
               </JudgeModelPicker>
+            )}
+            {showOnboarding ? null : (
+              <EvaluatorAlertButton
+                scope="allEvaluators"
+                projectId={projectId}
+                {...evaluatorAlerts}
+              />
             )}
             <Button onClick={() => setGalleryOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />

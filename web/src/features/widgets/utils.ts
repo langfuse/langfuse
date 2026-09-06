@@ -19,6 +19,9 @@ export type WidgetChartConfig = {
   type: DashboardWidgetChartType;
   row_limit?: number;
   bins?: number;
+  /** Draw a dot per sample (line/area). Off by default — chart junk on a dense
+   *  series, but the only thing that shows where a sparse one has data. */
+  show_data_point_dots?: boolean;
   defaultSort?: {
     column: string;
     order: "ASC" | "DESC";
@@ -238,6 +241,10 @@ export function buildWidgetName({
     if (measure.toLowerCase() === "count") {
       // For count measures, ignore aggregation and only show the measure
       base = meas;
+    } else if (measure === "toolCalls" && aggregation.toLowerCase() === "sum") {
+      // Summing the per-observation call count is simply "the number of tool
+      // calls" — surface the meaning, not the aggregation mechanics.
+      base = "Number of Tool Calls";
     } else {
       const agg = formatLabel("aggregation", aggregation.toLowerCase());
       base = formatText("name.metric", { aggregation: agg, metric: meas });
@@ -297,6 +304,9 @@ export function buildWidgetDescription({
 
     if (measure.toLowerCase() === "count") {
       sentence = formatText("description.count", { view: viewLabel });
+    } else if (measure === "toolCalls" && aggregation.toLowerCase() === "sum") {
+      // Mirrors buildWidgetName: sum(toolCalls) is the number of tool calls.
+      sentence = `Shows the number of tool calls of ${viewLabel}`;
     } else {
       const aggLabel = formatLabel("aggregation", aggregation.toLowerCase());
       sentence = formatText("description.metric", {
@@ -349,10 +359,8 @@ export function buildWidgetDescription({
  * remains excluded from the public `viewsV2` API enum. Existing trace widgets
  * are still supported by the internal events-backed v2 query declaration.
  */
-export function getDefaultView(
-  isBetaEnabled: boolean,
-): "traces" | "observations" {
-  return isBetaEnabled ? "observations" : "traces";
+export function getDefaultView(isV4: boolean): "traces" | "observations" {
+  return isV4 ? "observations" : "traces";
 }
 
 /**

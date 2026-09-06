@@ -126,7 +126,7 @@ export const StorageProviderFields = ({
               <FormDescription>
                 {integrationType === "S3"
                   ? t("awsRegionDescription")
-                  : t("s3RegionDescription")}
+                  : `${t("s3RegionDescription")} (e.g. europe-west1, auto)`}
               </FormDescription>
               <FormMessage />
             </FormItem>

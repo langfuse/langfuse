@@ -1,15 +1,15 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useTranslations } from "next-intl";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 export function AuditLogsSettingsPage(props: { projectId: string }) {
   const t = useTranslations("settingsEnterprise.auditLogs");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "auditLogs:read",
+    scope: "projectAuditLogs:read",
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
 
@@ -17,8 +17,8 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
     <p className="text-muted-foreground text-sm">{t("projectUpgrade")}</p>
   ) : !hasAccess ? (
     <Alert>
-      <AlertTitle>{t("accessDenied")}</AlertTitle>
-      <AlertDescription>{t("projectAccess")}</AlertDescription>
+      <Alert.Title>{t("accessDenied")}</Alert.Title>
+      <Alert.Description>{t("projectAccess")}</Alert.Description>
     </Alert>
   ) : (
     <AuditLogsTable scope="project" projectId={props.projectId} />

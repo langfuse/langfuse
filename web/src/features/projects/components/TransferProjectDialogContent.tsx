@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -81,16 +81,15 @@ export function TransferProjectDialogContent({
           className="flex flex-col gap-8"
         >
           <DialogBody>
-            <Alert>
-              <TriangleAlert className="h-4 w-4" />
-              <AlertTitle>{t("warning")}</AlertTitle>
-              <AlertDescription>
+            <Alert variant="warning" icon={TriangleAlert}>
+              <Alert.Title>{t("warning")}</Alert.Title>
+              <Alert.Description>
                 {t("transferWarningIntro")}
                 <ul className="list-disc pl-4">
                   <li>{t("transferWarningAccess")}</li>
                   <li>{t("transferWarningOperation")}</li>
                 </ul>
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
             <FormField
               control={form.control}

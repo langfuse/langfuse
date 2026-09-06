@@ -134,9 +134,9 @@ export function SpanContent({
 
           <div className="flex items-center gap-x-2">
             {/* Comment count */}
-            {showComments && commentCount !== undefined && (
-              <CommentCountIcon count={commentCount} />
-            )}
+            {showComments &&
+              commentCount !== undefined &&
+              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&

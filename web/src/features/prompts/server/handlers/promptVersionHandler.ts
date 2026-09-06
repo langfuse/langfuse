@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { LATEST_PROMPT_LABEL } from "@langfuse/shared";
 
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  withMiddlewares,
+  createAuthedProjectAPIRoute,
+} from "@/src/features/public-api/server";
 import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 const UpdatePromptBodySchema = z.object({
@@ -16,6 +18,7 @@ const UpdatePromptBodySchema = z.object({
 export const promptVersionHandler = withMiddlewares({
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Prompt",
+    action: "prompts:CUD",
     bodySchema: UpdatePromptBodySchema,
     responseSchema: z.any(),
     fn: async ({ body, req, auth }) => {

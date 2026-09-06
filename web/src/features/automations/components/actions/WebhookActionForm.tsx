@@ -36,8 +36,8 @@ import {
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useTranslations } from "next-intl";
+import { showSuccessToast } from "@/src/features/notifications";
 
 export const createWebhookSchema = (messages: {
   invalidUrl: string;

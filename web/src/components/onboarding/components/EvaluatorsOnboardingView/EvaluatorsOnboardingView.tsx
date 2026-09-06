@@ -19,22 +19,22 @@ export function EvaluatorsOnboardingView({
     {
       title: t("evaluators.automateTitle"),
       description: t("evaluators.automateDescription"),
-      icon: <Bot className="h-4 w-4" />,
+      icon: Bot,
     },
     {
       title: t("evaluators.qualityTitle"),
       description: t("evaluators.qualityDescription"),
-      icon: <Gauge className="h-4 w-4" />,
+      icon: Gauge,
     },
     {
       title: t("evaluators.scaleTitle"),
       description: t("evaluators.scaleDescription"),
-      icon: <Zap className="h-4 w-4" />,
+      icon: Zap,
     },
     {
       title: t("evaluators.performanceTitle"),
       description: t("evaluators.performanceDescription"),
-      icon: <BarChart4 className="h-4 w-4" />,
+      icon: BarChart4,
     },
   ];
 

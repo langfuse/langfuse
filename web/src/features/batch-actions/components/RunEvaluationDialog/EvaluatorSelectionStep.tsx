@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import Link from "next/link";
 import {
   observationVariableMappingList,
   type ObservationVariableMapping,
@@ -12,8 +11,8 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
-import { ExternalLink, Eye, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Eye, X } from "lucide-react";
 
 export type BatchEvaluator = {
   id: string;
@@ -35,7 +34,6 @@ type EvaluatorSelectionStepProps = {
   evaluatorSearchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onToggleEvaluator: (evaluatorId: string) => void;
-  createEvaluatorHref: string;
 };
 
 export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
@@ -52,7 +50,6 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     evaluatorSearchQuery,
     onSearchQueryChange,
     onToggleEvaluator,
-    createEvaluatorHref,
   } = props;
 
   const filteredEvaluators = useMemo(() => {
@@ -238,19 +235,6 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
           </div>
         )}
       </div>
-
-      <Button variant="outline" size="default" className="h-9 w-full" asChild>
-        <Link
-          href={createEvaluatorHref}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={t("createEvaluatorAria")}
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          {t("createEvaluator")}
-          <ExternalLink className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </Button>
     </div>
   );
 }

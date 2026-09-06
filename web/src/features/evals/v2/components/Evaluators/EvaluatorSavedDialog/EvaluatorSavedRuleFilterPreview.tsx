@@ -2,7 +2,7 @@ import type { FilterState } from "@langfuse/shared";
 import { AlertTriangle } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 
 export function EvaluatorSavedRuleFilterPreview({
@@ -17,17 +17,16 @@ export function EvaluatorSavedRuleFilterPreview({
   return (
     <div className="space-y-2">
       {unsupportedReasons.size > 0 ? (
-        <Alert className="border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle className="mb-1 text-sm">
+        <Alert variant="warning" size="sm" icon={AlertTriangle}>
+          <Alert.Title>
             {t("evaluator.savedDialog.unsupportedFilters.title")}
-          </AlertTitle>
-          <AlertDescription className="text-xs">
+          </Alert.Title>
+          <Alert.Description>
             {t("evaluator.savedDialog.unsupportedFilters.description", {
               count: unsupportedReasons.size,
               total: filter.length,
             })}
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       ) : null}
       <RuleFilterPills

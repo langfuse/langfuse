@@ -127,9 +127,24 @@ export function EvaluatorSavedCostSummary({
                         t("rules.cost.calculation.matchingObservations", {
                           count,
                         }),
+                      formatObservations: (count) =>
+                        t("rules.cost.calculation.observations", { count }),
                       formatSamplingRate: (rate) =>
                         t("rules.cost.calculation.samplingRate", { rate }),
                       scope: t("rules.cost.calculation.scope"),
+                      selectionScope: t(
+                        "rules.cost.calculation.selectionScope",
+                      ),
+                      selectionUnavailable: t(
+                        "rules.cost.calculation.selectionUnavailable",
+                      ),
+                      formatZeroSelectionCost: (values) =>
+                        t("rules.cost.calculation.zeroSelectionCost", values),
+                      formatEstimatedSelectionCost: (values) =>
+                        t(
+                          "rules.cost.calculation.estimatedSelectionCost",
+                          values,
+                        ),
                     },
                   })}
                 </InfoTooltip>

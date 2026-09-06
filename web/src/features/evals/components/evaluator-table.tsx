@@ -1,4 +1,3 @@
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
@@ -22,7 +21,7 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { ExternalLinkIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
@@ -32,7 +31,7 @@ import {
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   Dialog,
   DialogContent,
@@ -43,16 +42,19 @@ import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -189,7 +191,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
         return (
           <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
-            <TableIdOrName value={scoreName} className="min-w-[4px] flex-1" />
+            <div className="min-w-[4px] flex-1">
+              <IdTableCell value={scoreName} />
+            </div>
             {row.row.original.isLegacy ? (
               <span className="ml-auto justify-self-end">
                 {v4UpgradeUiEnabled ? (
@@ -208,20 +212,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("status", {
-      header: t("columns.status"),
-      id: "status",
+    createStatusTableColumn<EvaluatorDataRow, string>({
+      accessorKey: "status",
+      header: "Status",
       enableSorting: true,
       size: 80,
-      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
-      cell: (row) => {
-        const status = row.getValue();
-        return (
-          <div className={status === "FINISHED" ? "pl-3" : undefined}>
-            <StatusBadge type={status.toLowerCase()} />
-          </div>
-        );
-      },
+      getStatus: (status) => status?.toLowerCase(),
     }),
     createNumberTableColumn<EvaluatorDataRow>({
       accessorKey: "totalCost",
@@ -294,7 +290,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return t("templateNotFound");
         return (
           <div className="flex items-center gap-2">
-            <TableIdOrName value={template.name} />
+            <IdTableCell value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
             </div>
@@ -302,15 +298,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("createdAt", {
-      id: "createdAt",
-      header: t("columns.createdAt"),
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "createdAt",
+      header: "Created At",
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.accessor("updatedAt", {
-      id: "updatedAt",
-      header: t("columns.updatedAt"),
+    createDateTableColumn<EvaluatorDataRow>({
+      accessorKey: "updatedAt",
+      header: "Updated At",
       enableSorting: true,
       size: 150,
     }),
@@ -355,16 +351,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         return <EvaluatorFilterCell filterState={newFilterState} />;
       },
     }),
-    columnHelper.accessor("id", {
-      header: t("columns.id"),
-      id: "id",
+    createIdTableColumn<EvaluatorDataRow>({
+      accessorKey: "id",
+      header: "Id",
       size: 100,
       enableSorting: false,
       enableHiding: true,
-      cell: (row) => {
-        const id = row.getValue();
-        return id ? <TableIdOrName value={id} /> : undefined;
-      },
     }),
     columnHelper.accessor("actions", {
       header: t("columns.actions"),
@@ -443,6 +435,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
+          tableName="evaluators"
           columns={columns}
           filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}

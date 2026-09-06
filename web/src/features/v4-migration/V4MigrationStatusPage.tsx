@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -20,7 +21,7 @@ import {
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
 } from "@/src/features/v4-migration/V4MigrationContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -40,7 +41,7 @@ import {
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useTranslations } from "next-intl";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
@@ -712,7 +713,7 @@ function V4MigrationStatusPageContent() {
 // Hides itself when the session cannot toggle v4 (legacy/events_only write
 // mode, post-rollout auto-enrollment).
 function SwitchBackSection() {
-  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const { canToggleV4, isV4 } = useReadPath();
   const hasDeadline = useHasV4MigrationDeadline();
   const t = useTranslations("remainderUi.migrations");
 
@@ -723,12 +724,10 @@ function SwitchBackSection() {
   return (
     <div className="mt-6">
       <p className="text-base font-bold">
-        {isBetaEnabled
-          ? t("status.switchBackTitle")
-          : t("status.switchLatestTitle")}
+        {isV4 ? t("status.switchBackTitle") : t("status.switchLatestTitle")}
       </p>
       <div className="flex flex-col gap-4 pt-4">
-        {isBetaEnabled && (
+        {isV4 && (
           <p className="text-muted-foreground text-sm leading-relaxed">
             {t("status.switchBackDescription", {
               deadline: hasDeadline

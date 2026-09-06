@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type RouterOutputs } from "@/src/utils/api";
 import { useTranslations } from "next-intl";
 
@@ -23,27 +23,29 @@ export const PostHogStatusSection = ({
     <>
       <Header title={t("common.status")} className="mt-8" />
       {config.lastError && (
-        <Alert variant="destructive" className="mb-4">
-          {/* A fault normally arrives with the auto-disable, but the disable is
-              skipped when the host changed mid-run, leaving a fault on a still
-              enabled integration — so only promise "disabled" when it is. */}
-          <AlertTitle>
-            {config.enabled
-              ? t("posthog.lastExportFailed")
-              : t("posthog.disabledActionRequired")}
-          </AlertTitle>
-          <AlertDescription>
-            {config.lastError}
-            {config.lastErrorAt && (
-              <>
-                <br />
-                <span className="text-xs opacity-70">
-                  {new Date(config.lastErrorAt).toLocaleString()}
-                </span>
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
+        <div className="mb-4">
+          <Alert variant="destructive">
+            {/* A fault normally arrives with the auto-disable, but the disable is
+                            skipped when the host changed mid-run, leaving a fault on a still
+                            enabled integration — so only promise "disabled" when it is. */}
+            <Alert.Title>
+              {config.enabled
+                ? t("posthog.lastExportFailed")
+                : t("posthog.disabledActionRequired")}
+            </Alert.Title>
+            <Alert.Description>
+              {config.lastError}
+              {config.lastErrorAt && (
+                <>
+                  <br />
+                  <span className="text-xs opacity-70">
+                    {new Date(config.lastErrorAt).toLocaleString()}
+                  </span>
+                </>
+              )}
+            </Alert.Description>
+          </Alert>
+        </div>
       )}
       <p className="text-primary text-sm">
         {t("posthog.syncedUntil", {

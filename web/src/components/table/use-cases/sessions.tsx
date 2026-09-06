@@ -92,7 +92,7 @@ export type SessionTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: SessionOmittableFilterColumn[];
-  isBetaEnabled?: boolean;
+  isV4?: boolean;
   /**
    * When true, render the time-range picker and auto-refresh button in the
    * page header (next to the title) via the header controls slot, instead of
@@ -106,13 +106,13 @@ export default function SessionsTable({
   projectId,
   userId,
   omittedFilter = [],
-  isBetaEnabled = false,
+  isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const t = useTranslations("coreDetails.tables.sessions");
   const sessionsFilterConfig = useMemo(
-    () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
-    [isBetaEnabled, omittedFilter],
+    () => getSessionFilterConfig(omittedFilter, isV4),
+    [isV4, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -201,7 +201,7 @@ export default function SessionsTable({
           : undefined,
     },
     {
-      enabled: !isBetaEnabled,
+      enabled: !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -219,7 +219,7 @@ export default function SessionsTable({
           : undefined,
     },
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -228,7 +228,7 @@ export default function SessionsTable({
     },
   );
 
-  const filterOptions = isBetaEnabled ? filterOptionsV4 : filterOptionsV3;
+  const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
 
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
@@ -279,9 +279,9 @@ export default function SessionsTable({
       ),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-      isV4: isBetaEnabled,
+      isV4,
     }),
-    [isBetaEnabled, isSidebarFilterLoading, projectId, userId],
+    [isV4, isSidebarFilterLoading, projectId, userId],
   );
 
   const queryFilter = useSidebarFilterState(
@@ -307,7 +307,7 @@ export default function SessionsTable({
   // Generally available on the v4 sessions table. Still off on the user-detail
   // mount, which is page-scoped by a userId filter the bar must not fight (the
   // same embedded opt-out EventsTable applies).
-  const sessionsSearchBarEnabled = isBetaEnabled && !userId;
+  const sessionsSearchBarEnabled = isV4 && !userId;
   const observedOptions = useMemo(
     () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
     [newFilterOptions, isSidebarFilterLoading],
@@ -323,7 +323,7 @@ export default function SessionsTable({
     projectId,
     tableName: sessionsFilterConfig.tableName,
     enabled: sessionsSearchBarEnabled,
-    filterState: queryFilter.explicitFilterState,
+    filterState: queryFilter.searchBarFilterState,
     searchQuery: null,
     searchType: DEFAULT_SEARCH_TYPE,
     observed: observedOptions,
@@ -358,29 +358,27 @@ export default function SessionsTable({
   };
 
   const sessionsV3 = api.sessions.all.useQuery(payloadGetAll, {
-    enabled: !isBetaEnabled,
+    enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionsV4 = api.sessions.allFromEvents.useQuery(payloadGetAll, {
-    enabled: isBetaEnabled,
+    enabled: isV4,
     refetchOnWindowFocus: true,
   });
-  const sessions = isBetaEnabled ? sessionsV4 : sessionsV3;
+  const sessions = isV4 ? sessionsV4 : sessionsV3;
 
   const sessionCountQueryV3 = api.sessions.countAll.useQuery(payloadCount, {
-    enabled: !isBetaEnabled,
+    enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionCountQueryV4 = api.sessions.countAllFromEvents.useQuery(
     payloadCount,
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       refetchOnWindowFocus: true,
     },
   );
-  const sessionCountQuery = isBetaEnabled
-    ? sessionCountQueryV4
-    : sessionCountQueryV3;
+  const sessionCountQuery = isV4 ? sessionCountQueryV4 : sessionCountQueryV3;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -410,7 +408,7 @@ export default function SessionsTable({
       sessionIds: sessionsV3.data?.sessions.map((s) => s.id) ?? [],
     },
     {
-      enabled: sessionsV3.data !== undefined && !isBetaEnabled,
+      enabled: sessionsV3.data !== undefined && !isV4,
       refetchOnWindowFocus: true,
     },
   );
@@ -422,12 +420,12 @@ export default function SessionsTable({
       queryFromTimestamp: dateRange?.from ?? null,
     },
     {
-      enabled: sessionsV4.data !== undefined && isBetaEnabled,
+      enabled: sessionsV4.data !== undefined && isV4,
       refetchOnWindowFocus: true,
     },
   );
 
-  const sessionMetrics = isBetaEnabled ? sessionMetricsV4 : sessionMetricsV3;
+  const sessionMetrics = isV4 ? sessionMetricsV4 : sessionMetricsV3;
 
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];

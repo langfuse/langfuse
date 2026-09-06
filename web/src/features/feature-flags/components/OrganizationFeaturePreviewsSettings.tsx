@@ -1,3 +1,4 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
@@ -14,16 +15,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
   featurePreviewLabelKeys,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 
 type ProposedChange = {
@@ -75,8 +74,8 @@ export function OrganizationFeaturePreviewsSettings({
   if (defaultsQuery.isError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>{t("organization.unavailableTitle")}</AlertTitle>
-        <AlertDescription>{defaultsQuery.error.message}</AlertDescription>
+        <Alert.Title>{t("organization.unavailableTitle")}</Alert.Title>
+        <Alert.Description>{defaultsQuery.error.message}</Alert.Description>
       </Alert>
     );
   }
@@ -97,10 +96,10 @@ export function OrganizationFeaturePreviewsSettings({
 
       {experimentalFeaturesEnabled ? (
         <Alert>
-          <AlertTitle>{t("organization.experimentalTitle")}</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>{t("organization.experimentalTitle")}</Alert.Title>
+          <Alert.Description>
             {t("organization.experimentalDescription")}
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       ) : null}
 
@@ -178,10 +177,10 @@ export function OrganizationFeaturePreviewsSettings({
           </AlertDialogHeader>
           {proposedChange?.enabled ? (
             <Alert>
-              <AlertTitle>{t("organization.alreadyEnabledTitle")}</AlertTitle>
-              <AlertDescription>
+              <Alert.Title>{t("organization.alreadyEnabledTitle")}</Alert.Title>
+              <Alert.Description>
                 {t("organization.alreadyEnabledDescription")}
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           ) : null}
           <AlertDialogFooter>

@@ -14,8 +14,9 @@ import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
 import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
-import { useTranslations } from "next-intl";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ChartDescriptionFormatter } from "@/src/features/chart-view/vocab";
+import { useTranslations } from "next-intl";
 
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the
@@ -33,7 +34,7 @@ import { type ChartDescriptionFormatter } from "@/src/features/chart-view/vocab"
  * dropped from the chart query rather than erroring — it keeps narrowing the
  * table underneath.
  *
- * `viewVersion` MUST come from the caller's own `isBetaEnabled` check (the
+ * `viewVersion` MUST come from the caller's own `isV4` check (the
  * same one `scores.tsx` already uses to pick `scoresV3`/`scoresV4` for the
  * table rows, and the same one `ChartScores`/`WidgetForm` use as
  * `metricsVersion`/`activeVersion`) — hardcoding "v2" here would run the
@@ -63,6 +64,10 @@ export function ScoresChartView({
     (key, values) => labelsT(key as Parameters<typeof labelsT>[0], values),
     [labelsT],
   );
+  const canManageDashboards = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
   const filters = useMemo(
     () =>
       mapLegacyUiTableFilterToView(
@@ -87,7 +92,7 @@ export function ScoresChartView({
     { projectId, query, version: viewVersion },
     {
       enabled: validRange,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );
@@ -122,7 +127,12 @@ export function ScoresChartView({
       isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
       chartActions={
-        <AddToDashboardButton projectId={projectId} widgetInput={widgetInput} />
+        canManageDashboards && (
+          <AddToDashboardButton
+            projectId={projectId}
+            widgetInput={widgetInput}
+          />
+        )
       }
     />
   );

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, type ReactNode } from "react";
 import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
@@ -65,6 +65,9 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  colorBarsByCategory,
+  zeroBaseline,
+  emptyState,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -103,6 +106,19 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Colour each bar of a categorical axis and name it in a legend below the
+   * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
+   */
+  colorBarsByCategory?: boolean;
+  /** See {@link ChartProps.zeroBaseline}. Consumed by VERTICAL_BAR. */
+  zeroBaseline?: boolean;
+  /**
+   * Replaces the default "No data" card when the chart has nothing to draw.
+   * For a chart in a band too short for that card (the table strips), where it
+   * would clip its own text. Pass a stable node so the memo still holds.
+   */
+  emptyState?: ReactNode;
 }) => {
   const t = useTranslations("evaluationAnalytics.chartLoading");
   const [forceRender, setForceRender] = useState(overrideWarning);
@@ -150,12 +166,15 @@ const ChartComponent = ({
     // isChartDataEmpty); skip while loading so a first paint doesn't flash
     // "No data" before the real result arrives. (LFE-14333, manifesto
     // principle 8)
+    // A caller that supplied its own empty state (a table strip) gets it for
+    // any chart type: its band is too short for the default card, whatever the
+    // mark.
     if (
-      EMPTY_STATE_CHART_TYPES.has(chartType) &&
+      (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
       !isLoading &&
       isChartDataEmpty(data)
     ) {
-      return <NoDataOrLoading isLoading={false} />;
+      return emptyState ?? <NoDataOrLoading isLoading={false} />;
     }
 
     switch (chartType) {
@@ -223,6 +242,9 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            hideXAxisLabels={hideXAxisLabels}
+            colorBarsByCategory={colorBarsByCategory}
+            zeroBaseline={zeroBaseline}
           />
         );
       case "PIE":

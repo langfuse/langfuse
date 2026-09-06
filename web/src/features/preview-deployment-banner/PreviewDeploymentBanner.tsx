@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useRef } from "react";
 import { useFormatter } from "next-intl";
 import {

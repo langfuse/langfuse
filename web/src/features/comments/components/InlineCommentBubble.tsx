@@ -5,43 +5,19 @@
  */
 
 import { Button } from "@/src/components/ui/button";
-import { useInlineCommentSelectionOptional } from "../contexts/InlineCommentSelectionContext";
 import { MessageSquarePlus } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 interface InlineCommentBubbleProps {
   onAddComment: () => void;
+  positionRect: DOMRect;
 }
 
 export function InlineCommentBubble({
   onAddComment,
+  positionRect,
 }: InlineCommentBubbleProps) {
   const t = useTranslations("remainderUi.comments");
-  const context = useInlineCommentSelectionOptional();
-  const [position, setPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-
-  useEffect(() => {
-    const selection = context?.selection;
-    if (!selection?.anchorRect) {
-      setPosition(null);
-      return;
-    }
-
-    // Use startRect if available (position of selection start), fallback to anchorRect
-    const posRect = selection.startRect ?? selection.anchorRect;
-    // Position just above where the selection starts
-    setPosition({
-      top: posRect.top - 6,
-      left: posRect.left,
-    });
-  }, [context?.selection]);
-
-  if (!context?.selection || !position) return null;
-
   const handleClick = () => {
     onAddComment();
   };
@@ -50,8 +26,8 @@ export function InlineCommentBubble({
     <div
       style={{
         position: "fixed",
-        top: position.top,
-        left: position.left,
+        top: positionRect.top - 6,
+        left: positionRect.left,
         transform: "translateY(-100%)",
         zIndex: 50,
       }}

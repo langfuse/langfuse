@@ -15,7 +15,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 import { useTranslations } from "next-intl";
 
@@ -41,14 +41,14 @@ function UserDetailPage({
 }) {
   const t = useTranslations("sharedUi.userDetail");
   const router = useRouter();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   const userV3 = api.users.byId.useQuery(
     {
       projectId: projectId,
       userId,
     },
-    { enabled: Boolean(projectId) && Boolean(userId) && !isBetaEnabled },
+    { enabled: Boolean(projectId) && Boolean(userId) && !isV4 },
   );
 
   const userV4 = api.users.byIdFromEvents.useQuery(
@@ -56,10 +56,10 @@ function UserDetailPage({
       projectId: projectId,
       userId,
     },
-    { enabled: Boolean(projectId) && Boolean(userId) && isBetaEnabled },
+    { enabled: Boolean(projectId) && Boolean(userId) && isV4 },
   );
 
-  const user = isBetaEnabled ? userV4 : userV3;
+  const user = isV4 ? userV4 : userV3;
 
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
@@ -144,7 +144,7 @@ function UserDetailPage({
               {t("active")}:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : isBetaEnabled
+                : isV4
                   ? t("noActivity")
                   : t("noTraces")}
             </Badge>
@@ -216,9 +216,9 @@ function ScoresTab({ userId, projectId }: TabProps) {
 }
 
 function TracesTab({ userId, projectId }: TabProps) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
-  if (isBetaEnabled) {
+  if (isV4) {
     return (
       <ObservationsEventsTable
         projectId={projectId}
@@ -238,14 +238,14 @@ function TracesTab({ userId, projectId }: TabProps) {
 }
 
 function SessionsTab({ userId, projectId }: TabProps) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   return (
     <SessionsTable
       projectId={projectId}
       userId={userId}
       omittedFilter={["userIds"]}
-      isBetaEnabled={isBetaEnabled}
+      isV4={isV4}
     />
   );
 }

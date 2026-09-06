@@ -36,7 +36,7 @@ import {
   createSearchBarStore,
   type SearchBarStore,
 } from "@/src/features/search-bar/store/searchBarStore";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
 type SearchCommitTrigger = "enter" | "blur" | "pick";
@@ -90,7 +90,7 @@ export function useEventsSearchBar({
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
   enabled: boolean;
-  /** The user's explicit facet filters (sidebar `explicitFilterState`). */
+  /** Search-bar projection of the user's explicit facet filters. */
   filterState: FilterState;
   searchQuery: string | null;
   searchType: TracingSearchType[];

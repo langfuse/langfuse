@@ -1,3 +1,4 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
   Card,
@@ -45,14 +46,12 @@ import {
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { createWebhookSchema } from "./actions/WebhookActionForm";
 import { type ActionValidationError } from "./actions/BaseActionHandler";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -366,10 +365,9 @@ const MonitorTriggerFields = ({ projectId }: { projectId: string }) => {
   const t = useTranslations("remainderUi.automations.form");
 
   return (
-    <Alert>
-      <Info className="h-4 w-4" />
-      <AlertTitle>{t("alertsConnectTitle")}</AlertTitle>
-      <AlertDescription>
+    <Alert icon={Info}>
+      <Alert.Title>{t("alertsConnectTitle")}</Alert.Title>
+      <Alert.Description>
         {t("alertsConnectPrefix")}{" "}
         <Link
           href={`/project/${projectId}/alerts/new`}
@@ -378,7 +376,7 @@ const MonitorTriggerFields = ({ projectId }: { projectId: string }) => {
           {t("alertsConnectLink")}
         </Link>
         .
-      </AlertDescription>
+      </Alert.Description>
     </Alert>
   );
 };

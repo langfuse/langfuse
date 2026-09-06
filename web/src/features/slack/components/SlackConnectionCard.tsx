@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectButton } from "@/src/features/slack/components/SlackDisconnectButton";
@@ -104,9 +104,10 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           <CardDescription>{t("loadError")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{t("loadFailure")}</AlertDescription>
+          <Alert icon={AlertCircle}>
+            <Alert.Description>
+              Failed to load Slack integration status. Please try again.
+            </Alert.Description>
           </Alert>
         </CardContent>
       </Card>
@@ -125,9 +126,8 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {integrationStatus?.error && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{integrationStatus.error}</AlertDescription>
+            <Alert icon={AlertCircle}>
+              <Alert.Description>{integrationStatus.error}</Alert.Description>
             </Alert>
           )}
 

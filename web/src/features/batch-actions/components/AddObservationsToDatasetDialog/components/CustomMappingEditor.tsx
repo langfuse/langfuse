@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Plus, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
@@ -147,16 +147,17 @@ export function CustomMappingEditor({
     <div className="bg-muted/30 space-y-2 rounded-md border p-4">
       <div>
         <Label className="text-sm font-bold">{t("target")}</Label>
-        <Tabs
-          value={config.type}
-          onValueChange={(v) => handleTypeChange(v as MappingTarget)}
-          className="mt-2"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="root">{t("root")}</TabsTrigger>
-            <TabsTrigger value="keyValueMap">{t("keyValueMap")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="mt-2">
+          <Tabs
+            value={config.type}
+            onValueChange={(v) => handleTypeChange(v as MappingTarget)}
+          >
+            <Tabs.List layout="full">
+              <Tabs.Trigger value="root" label={t("root")} />
+              <Tabs.Trigger value="keyValueMap" label={t("keyValueMap")} />
+            </Tabs.List>
+          </Tabs>
+        </div>
       </div>
 
       {config.type === "root" && (

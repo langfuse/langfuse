@@ -9,7 +9,7 @@ import {
   type PlaygroundSchema,
   type PlaygroundTool,
 } from "@/src/features/playground/page/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,

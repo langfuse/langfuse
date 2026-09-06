@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { LayoutDashboard } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { api } from "@/src/utils/api";
 import { Combobox } from "@/src/components/ui/combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useTranslations } from "next-intl";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { getManagedDashboardMessageKey } from "@/src/features/dashboard/lib/managed-dashboard-localization";
 
 /**

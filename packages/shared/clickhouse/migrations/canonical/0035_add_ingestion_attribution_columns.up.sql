@@ -1,0 +1,11 @@
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE}
+  ADD COLUMN IF NOT EXISTS ingestion_api_key String DEFAULT ''
+ {CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};
+
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE}
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
+ {CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};
+
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE}
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
+ {CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};

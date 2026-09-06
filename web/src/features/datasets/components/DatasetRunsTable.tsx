@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
@@ -19,7 +20,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
+import { ChevronDown, Columns3, Trash } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +29,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -45,13 +45,14 @@ import {
 } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   Dialog,
   DialogContent,
+  DialogController,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -72,8 +73,10 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DeleteDatasetRunDialogContent } from "@/src/features/datasets/components/DeleteDatasetRunDialogContent";
 
-export type DatasetRunRowData = {
+type DatasetRunRowData = {
   id: string;
   name: string;
   createdAt: Date;
@@ -186,12 +189,18 @@ const DatasetRunTableMultiSelectAction = ({
   );
 };
 
-export function DatasetRunsTable(props: {
+type DatasetRunsTableProps = {
   projectId: string;
   datasetId: string;
   selectedMetrics: string[];
   setScoreOptions: (options: { key: string; value: string }[]) => void;
-}) {
+};
+
+function DatasetRunsTableInternal(
+  props: DatasetRunsTableProps & {
+    openDeleteDatasetRunDialog: (datasetRunId: string) => void;
+  },
+) {
   const t = useTranslations("productTables.datasets");
   const td = useTranslations("coreDetails.datasets.misc");
   const tm = useTranslations("systemUi.resourceMetrics");
@@ -204,6 +213,10 @@ export function DatasetRunsTable(props: {
     pageSize: withDefault(NumberParam, 50),
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "datasets:CUD",
+  });
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -514,36 +527,25 @@ export function DatasetRunsTable(props: {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
+    createDropdownTableColumn<DatasetRunRowData, DatasetRunRowData["id"]>({
       id: "actions",
-      accessorKey: "actions",
+      accessorFn: (row) => row.id,
       header: t("columns.actions"),
       size: 70,
-      cell: ({ row }) => {
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">
-                  {t("actions.openMenu")}
-                </span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{t("columns.actions")}</DropdownMenuLabel>
-              <DeleteDatasetRunButton
-                projectId={props.projectId}
-                datasetRunId={id}
-                datasetId={props.datasetId}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
+      renderMenu: (id) =>
+        id ? (
+          <>
+            <DropdownMenuLabel>{t("columns.actions")}</DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={!hasDeleteAccess}
+              onSelect={() => props.openDeleteDatasetRunDialog(id)}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              {t("actions.delete")}
+            </DropdownMenuItem>
+          </>
+        ) : null,
+    }),
   ];
 
   const convertToTableRow = (
@@ -816,5 +818,40 @@ export function DatasetRunsTable(props: {
         </>
       )}
     </>
+  );
+}
+
+export function DatasetRunsTable(props: DatasetRunsTableProps) {
+  const [datasetRunIdToDelete, setDatasetRunIdToDelete] = useState<
+    string | null
+  >(null);
+  const capture = usePostHogClientCapture();
+
+  return (
+    <DialogController
+      closeOnInteractionOutside
+      size="default"
+      renderContent={({ closeDialog }) =>
+        datasetRunIdToDelete ? (
+          <DeleteDatasetRunDialogContent
+            closeDialog={closeDialog}
+            projectId={props.projectId}
+            datasetId={props.datasetId}
+            datasetRunId={datasetRunIdToDelete}
+          />
+        ) : null
+      }
+    >
+      {({ openDialog }) => (
+        <DatasetRunsTableInternal
+          {...props}
+          openDeleteDatasetRunDialog={(datasetRunId) => {
+            capture("dataset_run:delete_form_open");
+            setDatasetRunIdToDelete(datasetRunId);
+            openDialog();
+          }}
+        />
+      )}
+    </DialogController>
   );
 }

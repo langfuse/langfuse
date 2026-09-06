@@ -476,6 +476,7 @@ export const handleBatchActionJob = async (
       evaluatorIds,
       batchActionId,
       evalVersion,
+      evaluatorMappings,
     } = batchActionEvent;
 
     if (!batchActionId) {
@@ -514,6 +515,12 @@ export const handleBatchActionJob = async (
         });
 
         evaluatorLabels = stableEvaluators.map(({ name }) => name);
+        const mappingByEvaluatorId = new Map(
+          (evaluatorMappings ?? []).map((mapping) => [
+            mapping.evaluatorId,
+            mapping.variableMapping,
+          ]),
+        );
         // A batch run addresses the evaluator directly (`ruleId` stays null),
         // but uses a deterministic associated rule as its legacy execution
         // anchor so existing readers can still find it.
@@ -531,7 +538,7 @@ export const handleBatchActionJob = async (
             {
               id: evaluator.id,
               evaluatorId: evaluator.id,
-              variableMapping: null,
+              variableMapping: mappingByEvaluatorId.get(evaluator.id) ?? null,
               evaluator: {
                 id: evaluator.id,
                 projectId: evaluator.projectId,

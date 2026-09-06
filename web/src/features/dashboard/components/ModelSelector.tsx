@@ -111,7 +111,7 @@ export const useModelSelection = (
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
-  metricsVersion?: ViewVersion,
+  metricsVersion: ViewVersion,
   options?: {
     enabled?: boolean;
     queryId: string;

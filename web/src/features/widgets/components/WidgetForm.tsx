@@ -46,11 +46,11 @@ import {
 } from "@/src/components/ui/select";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
@@ -64,7 +64,7 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
@@ -114,6 +114,7 @@ import {
   effectiveWidgetName,
   makeWidgetFormSchema,
   normalizeWidgetFormValues,
+  resolveMeasureChangeAggregation,
   resolveWidgetFormVersion,
   toDefaultValues,
   toSavePayload,
@@ -228,7 +229,7 @@ export function WidgetForm({
   const t = useTranslations("evaluationAnalytics.widgets");
   const extrasT = useTranslations("systemUi.widgetExtras");
   const chartLabelsT = useTranslations("systemUi.chartControls");
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   const suggestionFormatters = useMemo(
     () => ({
@@ -268,7 +269,7 @@ export function WidgetForm({
   // The resolver and live viewVersion additionally derive v2 from the current
   // form shape; the server derives the value that gets persisted.
   const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
-  const activeVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const activeVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   // The auto-suggestions change on every keystroke; a ref keeps the resolver
   // closure from being rebuilt on each one (the filled name/description do not
@@ -646,7 +647,7 @@ export function WidgetForm({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       enabled: queryValidation.valid,
     },
   );
@@ -817,10 +818,23 @@ export function WidgetForm({
   };
 
   // Single (non-pivot) measure change — heals the aggregation + chart type in
-  // the same action (the histogram fix, in the initiating event handler).
+  // the same action (the histogram fix, in the initiating event handler). A
+  // carried-over "count" aggregation jumps to the new measure's natural
+  // default (e.g. sum for toolCalls) instead of counting observations.
   const onMeasureChange = (newMeasure: string) => {
     const nextMetrics = values.metrics.map((m, i) =>
-      i === 0 ? { ...m, measure: newMeasure } : m,
+      i === 0
+        ? {
+            ...m,
+            measure: newMeasure,
+            aggregation: resolveMeasureChangeAggregation({
+              currentAggregation: m.aggregation,
+              newMeasure,
+              view: selectedView,
+              viewVersion,
+            }),
+          }
+        : m,
     );
     const candidate = normalizeWidgetFormValues(
       { ...values, metrics: nextMetrics },
@@ -936,12 +950,12 @@ export function WidgetForm({
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <CardTitle>{t("configuration")}</CardTitle>
-              {!widgetId && isBetaEnabled && (
+              {!widgetId && isV4 && (
                 <WidgetImporter
                   projectId={projectId}
                   viewVersion={viewVersion}
                   dateRange={dateRange}
-                  isBetaEnabled={isBetaEnabled}
+                  isV4={isV4}
                   onImport={handleImportedWidget}
                 />
               )}
@@ -951,18 +965,12 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
-            {isBetaEnabled && selectedView === "traces" && (
-              <Alert
-                variant="default"
-                className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-              >
-                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-                <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-                  {extrasT("tracesUnavailableTitle")}
-                </AlertTitle>
-                <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+            {isV4 && selectedView === "traces" && (
+              <Alert variant="warning" icon={AlertCircle}>
+                <Alert.Title>{extrasT("tracesUnavailableTitle")}</Alert.Title>
+                <Alert.Description>
                   {extrasT("tracesUnavailableDescription")}
-                </AlertDescription>
+                </Alert.Description>
               </Alert>
             )}
             {/* Data Selection Section */}
@@ -1151,11 +1159,14 @@ export function WidgetForm({
           {!queryValidation.valid ? (
             <CardContent>
               <div className="flex h-[300px] items-center justify-center">
-                <Alert variant="destructive" className="max-w-sm">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>{t("invalidQuery")}</AlertTitle>
-                  <AlertDescription>{queryValidation.reason}</AlertDescription>
-                </Alert>
+                <div className="w-full max-w-sm">
+                  <Alert variant="destructive" icon={AlertCircle}>
+                    <Alert.Title>{t("invalidQuery")}</Alert.Title>
+                    <Alert.Description>
+                      {queryValidation.reason}
+                    </Alert.Description>
+                  </Alert>
+                </div>
               </div>
             </CardContent>
           ) : queryResult.data || chartLoadingState.isLoading ? (
@@ -1337,59 +1348,66 @@ function SingleMetricField({
 
   return (
     <div className="space-y-2">
-      <Select value={measure} onValueChange={(value) => onMeasureChange(value)}>
-        <SelectTrigger
-          id="metrics-select"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "single-metric-error" : undefined}
-        >
-          <SelectValue placeholder={t("selectMetrics")} />
-        </SelectTrigger>
-        <SelectContent>
-          {availableMetrics.map((metric) => {
-            const meta =
-              viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
-                metric.value
-              ];
-            return (
-              <WidgetPropertySelectItem
-                key={metric.value}
-                value={metric.value}
-                label={metric.label}
-                description={meta?.description}
-                unit={meta?.unit}
-                type={meta?.type}
-              />
-            );
-          })}
-        </SelectContent>
-      </Select>
-      {measure !== "count" && (
-        <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
           <Select
-            value={aggField.value}
-            disabled={ctx.chartType === "HISTOGRAM"}
-            onValueChange={(value) =>
-              aggField.onChange(value as z.infer<typeof metricAggregations>)
-            }
+            value={measure}
+            onValueChange={(value) => onMeasureChange(value)}
           >
-            <SelectTrigger id="aggregation-select">
-              <SelectValue placeholder={t("selectAggregation")} />
+            <SelectTrigger
+              id="metrics-select"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "single-metric-error" : undefined}
+            >
+              <SelectValue placeholder={t("selectMetrics")} />
             </SelectTrigger>
             <SelectContent>
-              {aggregationOptions.map((aggregation) => (
-                <SelectItem key={aggregation} value={aggregation}>
-                  {startCase(aggregation)}
-                </SelectItem>
-              ))}
+              {availableMetrics.map((metric) => {
+                const meta =
+                  viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
+                    metric.value
+                  ];
+                return (
+                  <WidgetPropertySelectItem
+                    key={metric.value}
+                    value={metric.value}
+                    label={metric.label}
+                    description={meta?.description}
+                    unit={meta?.unit}
+                    type={meta?.type}
+                  />
+                );
+              })}
             </SelectContent>
           </Select>
-          {ctx.chartType === "HISTOGRAM" && (
-            <p className="text-muted-foreground text-xs">
-              {extrasT("aggregationAuto")}
-            </p>
-          )}
         </div>
+        {measure !== "count" && (
+          <div className="flex-1">
+            <Select
+              value={aggField.value}
+              disabled={ctx.chartType === "HISTOGRAM"}
+              onValueChange={(value) =>
+                aggField.onChange(value as z.infer<typeof metricAggregations>)
+              }
+            >
+              <SelectTrigger id="aggregation-select">
+                <SelectValue placeholder={t("selectAggregation")} />
+              </SelectTrigger>
+              <SelectContent>
+                {aggregationOptions.map((aggregation) => (
+                  <SelectItem key={aggregation} value={aggregation}>
+                    {startCase(aggregation)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+      {measure !== "count" && ctx.chartType === "HISTOGRAM" && (
+        <p className="text-muted-foreground text-xs">
+          {extrasT("aggregationAuto")}
+        </p>
       )}
       {error && (
         <p id="single-metric-error" className="text-destructive text-xs">
@@ -1437,10 +1455,15 @@ function PivotMetricsField({
         finalAggregation = "count";
       } else {
         const available = getAvailablePivotAggregations(index, measure);
+        const defaultAggregation =
+          viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[measure]
+            ?.defaultAggregation;
         finalAggregation =
           aggregation && available.includes(aggregation)
             ? aggregation
-            : (available[0] ?? "sum");
+            : defaultAggregation && available.includes(defaultAggregation)
+              ? defaultAggregation
+              : (available[0] ?? "sum");
       }
       next[index] = { measure, aggregation: finalAggregation };
     } else {

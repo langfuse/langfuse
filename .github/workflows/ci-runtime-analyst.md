@@ -20,11 +20,12 @@ environment: github-agent-workflows
 checkout:
   fetch-depth: 0
 
-# opus 5 at medium reasoning effort: this workflow does multi-day timing
-# analysis and root-cause investigation, which benefits from the deeper
-# model; medium effort balances thinking depth against the AI-credit budget
-# above. Syntax per the model-alias spec: <model>?effort=<low|medium|high>.
-model: claude-opus-5?effort=medium
+# opus 5: this workflow does multi-day timing analysis and root-cause
+# investigation, which benefits from the deeper model. Plain model id only. Do
+# not append the `?effort=` alias suffix: Claude Code rejects it and the awf
+# api-proxy remaps it to a fallback model. gh-aw v0.86 has no frontmatter knob
+# for effort, so Claude Code uses its default effort for this model.
+model: claude-opus-5
 
 engine:
   id: claude

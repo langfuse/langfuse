@@ -35,11 +35,15 @@ type ExperimentGridViewProps = {
   baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -67,10 +71,12 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  showDiff,
   singleLine,
   rows,
   isLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -177,8 +183,14 @@ export const ExperimentGridView = ({
               traceScoreOrder={traceScoreOrder}
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
+              showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
             />
@@ -196,6 +208,7 @@ export const ExperimentGridView = ({
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    showDiff,
     singleLine,
     t,
   ]);
@@ -212,17 +225,31 @@ export const ExperimentGridView = ({
         getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
       }),
-      createIOTableColumn<ExperimentItemsTableRow>({
-        accessorKey: "expectedOutput",
-        header: t("table.expectedOutput"),
-        size: 200,
-        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
-        singleLine,
-        variant: "output",
-      }),
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: t("table.expectedOutput"),
+              size: 200,
+              getCell: (value) =>
+                isLoading ? { type: "loading" } : value || undefined,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine, t],
+    [
+      experimentColumns,
+      isLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+      t,
+    ],
   );
 
   return (

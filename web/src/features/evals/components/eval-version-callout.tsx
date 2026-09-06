@@ -1,4 +1,5 @@
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+/* eslint-disable @repo/no-null-render */
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
@@ -114,34 +115,32 @@ export function EvalVersionCallout({
   }
 
   return (
-    <Alert
-      variant="default"
-      className="border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
-    >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
-      <AlertDescription>
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
-            <span className="text-foreground font-bold">
-              {t(content.titleKey)}
-            </span>
-            <span className="text-foreground text-sm">
-              {t.rich(content.descriptionKey, {
-                link: (chunks) => (
-                  <a
-                    href={content.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-dark-blue font-bold hover:opacity-80"
-                  >
-                    {chunks}
-                  </a>
-                ),
-              })}
-            </span>
+    <div className="mt-2 w-full max-w-4xl">
+      <Alert variant="warning" icon={AlertTriangle}>
+        <Alert.Description>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-foreground font-bold">
+                {t(content.titleKey)}
+              </span>
+              <span className="text-foreground text-sm">
+                {t.rich(content.descriptionKey, {
+                  link: (chunks) => (
+                    <a
+                      href={content.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-dark-blue font-bold hover:opacity-80"
+                    >
+                      {chunks}
+                    </a>
+                  ),
+                })}
+              </span>
+            </div>
           </div>
-        </div>
-      </AlertDescription>
-    </Alert>
+        </Alert.Description>
+      </Alert>
+    </div>
   );
 }

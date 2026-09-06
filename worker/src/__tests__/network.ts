@@ -17,7 +17,7 @@ const DEFAULT_RESPONSE = {
         // extraction tool-call shape.
         content: JSON.stringify({
           score: 0,
-          reasoning:
+          scoreExplanation:
             "The provided text is a harmless play on words that poses no risk of harm or offense. It is a lighthearted joke that uses wordplay to create humor without targeting or derogating any group of people.",
         }),
       },

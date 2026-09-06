@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
@@ -54,7 +54,10 @@ import {
 } from "@langfuse/shared";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+import {
+  useWebCalloutAction,
+  WebCalloutButton,
+} from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -63,7 +66,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
-import { getObservationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import {
+  getEventsColumnName,
+  getObservationEventsFilterConfig,
+} from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   decodeAndNormalizeFilters,
@@ -390,6 +396,15 @@ export const SessionPage: React.FC<{
       },
     },
   );
+  const webCalloutAction = useWebCalloutAction(
+    {
+      projectId,
+      traceId: null,
+      observationId: null,
+      sessionId,
+    },
+    Boolean(session.data),
+  );
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -540,12 +555,9 @@ export const SessionPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} />
+              )}
               <Button
                 variant="outline"
                 size="icon"
@@ -646,10 +658,12 @@ export const SessionPage: React.FC<{
                     >
                       <span className="relative mr-1 text-xs">
                         <ChevronDown className="h-3 w-3" />
-                        <AnnotationQueueItemCountBadge
-                          totalCount={totalCount}
-                          layout="toolbar"
-                        />
+                        {totalCount > 0 && (
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="toolbar"
+                          />
+                        )}
                       </span>
                     </Button>
                   )}
@@ -759,20 +773,18 @@ export const SessionPage: React.FC<{
                   >
                     <ListPlus className="h-4 w-4" />
                     <span className="text-sm">{t("addToQueue")}</span>
-                    <AnnotationQueueItemCountBadge
-                      totalCount={totalCount}
-                      layout="menu"
-                    />
+                    {totalCount > 0 && (
+                      <AnnotationQueueItemCountBadge
+                        totalCount={totalCount}
+                        layout="menu"
+                      />
+                    )}
                   </Button>
                 )}
               </AnnotationQueueItemDropdownMenuController>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-                layout="menu"
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} layout="menu" />
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -993,6 +1005,15 @@ const LoadedSessionEventsPage: React.FC<{
   });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
+  const webCalloutAction = useWebCalloutAction(
+    {
+      projectId,
+      traceId: null,
+      observationId: null,
+      sessionId,
+    },
+    true,
+  );
   const defaultPresetResolvedSessionRef = useRef<string | null>(null);
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
@@ -1113,7 +1134,10 @@ const LoadedSessionEventsPage: React.FC<{
   );
   const sessionEventsFilterConfig = React.useMemo(() => {
     const eventsFilterConfig = getObservationEventsFilterConfig([], {
-      getColumnName: tEventColumns,
+      getColumnName: (columnId) =>
+        columnId === "cachedInputCost" || columnId === "cachedInputTokens"
+          ? getEventsColumnName(columnId)
+          : tEventColumns(columnId),
       rootObservationTooltip: tEventFilters("rootObservationTooltip"),
       observationTypesDescription: tEventFilters("observationTypesDescription"),
     });
@@ -1577,12 +1601,9 @@ const LoadedSessionEventsPage: React.FC<{
           ) : undefined,
           actionButtonsRight: (
             <>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} />
+              )}
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -1680,10 +1701,12 @@ const LoadedSessionEventsPage: React.FC<{
                     >
                       <span className="relative mr-1 text-xs">
                         <ChevronDown className="h-3 w-3" />
-                        <AnnotationQueueItemCountBadge
-                          totalCount={totalCount}
-                          layout="toolbar"
-                        />
+                        {totalCount > 0 && (
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="toolbar"
+                          />
+                        )}
                       </span>
                     </Button>
                   )}
@@ -1820,20 +1843,18 @@ const LoadedSessionEventsPage: React.FC<{
                   >
                     <ListPlus className="h-4 w-4" />
                     <span className="text-sm">{t("addToQueue")}</span>
-                    <AnnotationQueueItemCountBadge
-                      totalCount={totalCount}
-                      layout="menu"
-                    />
+                    {totalCount > 0 && (
+                      <AnnotationQueueItemCountBadge
+                        totalCount={totalCount}
+                        layout="menu"
+                      />
+                    )}
                   </Button>
                 )}
               </AnnotationQueueItemDropdownMenuController>
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-                layout="menu"
-              />
+              {webCalloutAction && (
+                <WebCalloutButton action={webCalloutAction} layout="menu" />
+              )}
               {!isModernSessionEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">{t("showCorrections")}</span>

@@ -3,7 +3,6 @@ import { useRouter } from "next/router";
 import { LayoutDashboard } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { type ChartWidgetInput } from "../lib/chartConfigToWidget";
@@ -33,7 +32,6 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
   const t = useTranslations("evaluationAnalytics.chartView");
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
   const createWidget = api.dashboardWidgets.create.useMutation();
 
   const onSelectDashboard = useCallback(
@@ -58,8 +56,6 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
     },
     [createWidget, projectId, widgetInput, router, t],
   );
-
-  if (!hasAccess) return null;
 
   return (
     <>

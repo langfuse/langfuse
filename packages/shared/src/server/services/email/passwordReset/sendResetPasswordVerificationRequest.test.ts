@@ -1,83 +1,121 @@
-import type { SendVerificationRequestParams } from "next-auth/providers/email";
+import { type SendVerificationRequestParams } from "next-auth/providers/email";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-type SentMail = {
-  html: string;
-  subject: string;
-  text: string;
-};
-
-const { sendMailMock } = vi.hoisted(() => ({
-  sendMailMock: vi.fn(async (_mail: SentMail) => ({
-    rejected: [],
-    pending: [],
-  })),
-}));
-
-vi.mock("../transport", () => ({
-  createMailTransport: vi.fn(() => ({ sendMail: sendMailMock })),
-}));
 
 import { sendResetPasswordVerificationRequest } from "./sendResetPasswordVerificationRequest";
 
-const getParams = (isSetupMode: boolean) =>
-  ({
-    identifier: "user@example.com",
-    token: "123456",
-    url: isSetupMode
-      ? "https://cloud.langfuse.com/auth/setup-password"
-      : "https://cloud.langfuse.com/auth/reset-password",
+const { sendMail } = vi.hoisted(() => ({ sendMail: vi.fn() }));
+
+vi.mock("nodemailer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("nodemailer")>();
+  return { ...actual, createTransport: () => ({ sendMail }) };
+});
+
+const TOKEN = "123456";
+const IDENTIFIER = "user@example.com";
+
+// Mirrors how NextAuth's email provider builds the verification URL: the
+// caller's `callbackUrl` is percent-encoded into the query string.
+function verificationRequestParams(
+  callbackUrl: string,
+): SendVerificationRequestParams {
+  const params = new URLSearchParams({
+    callbackUrl,
+    token: TOKEN,
+    email: IDENTIFIER,
+  });
+  return {
+    identifier: IDENTIFIER,
+    token: TOKEN,
+    expires: new Date(Date.now() + 3 * 60 * 1000),
+    url: `http://localhost:3000/api/auth/callback/email?${params}`,
     provider: {
-      server: "smtp://localhost:1025",
-      from: "Langfuse <noreply@example.com>",
+      id: "email",
+      type: "email",
+      from: "noreply@langfuse.com",
+      server: "smtp://user:pass@localhost:25",
     },
-  }) as SendVerificationRequestParams;
+    theme: {},
+  } as unknown as SendVerificationRequestParams;
+}
+
+async function sentMail(callbackUrl: string, locale: "en" | "zh-CN" = "en") {
+  await sendResetPasswordVerificationRequest(
+    verificationRequestParams(callbackUrl),
+    locale,
+  );
+  expect(sendMail).toHaveBeenCalledTimes(1);
+  return sendMail.mock.calls[0][0] as {
+    subject: string;
+    text: string;
+    html: string;
+  };
+}
 
 describe("sendResetPasswordVerificationRequest", () => {
   beforeEach(() => {
-    sendMailMock.mockClear();
+    sendMail.mockReset();
+    sendMail.mockResolvedValue({ rejected: [], pending: [] });
   });
 
-  it("sends a Simplified Chinese signup verification email", async () => {
-    await sendResetPasswordVerificationRequest(getParams(true), "zh-CN");
+  it("sends email verification copy for the sign-up flow", async () => {
+    const mail = await sentMail("http://localhost:3000/auth/setup-password");
 
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: "验证您的 Langfuse 邮箱",
-        text: expect.stringContaining("请使用以下验证码验证您的邮箱：123456"),
-        html: expect.stringContaining("验证邮箱即可开始使用。"),
-      }),
-    );
-    expect(sendMailMock.mock.calls[0]?.[0].html).toContain('lang="zh-CN"');
+    expect(mail.subject).toBe("Verify your Langfuse email");
+    expect(mail.text).toContain("verify your email");
+    expect(mail.text).not.toContain("reset your Langfuse password");
+    expect(mail.html).toContain("Welcome to Langfuse!");
   });
 
-  it("sends a Simplified Chinese password reset email", async () => {
-    await sendResetPasswordVerificationRequest(getParams(false), "zh-CN");
-
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: "您的 Langfuse 密码重置验证码",
-        text: expect.stringContaining(
-          "请使用以下验证码重置您的 Langfuse 密码：123456",
-        ),
-        html: expect.stringContaining("忘记了 Langfuse 密码？"),
-      }),
+  it("sends email verification copy when the deployment uses a base path", async () => {
+    const mail = await sentMail(
+      "http://localhost:3000/langfuse/auth/setup-password",
     );
-    expect(sendMailMock.mock.calls[0]?.[0].html).toContain('lang="zh-CN"');
+
+    expect(mail.subject).toBe("Verify your Langfuse email");
   });
 
-  it("keeps English as the default for existing callers", async () => {
-    await sendResetPasswordVerificationRequest(getParams(true));
+  it("sends password reset copy for the reset flow", async () => {
+    const mail = await sentMail("http://localhost:3000/auth/reset-password");
 
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: "Verify your Langfuse email",
-        text: expect.stringContaining(
-          "Use the following code to verify your email: 123456",
-        ),
-        html: expect.stringContaining("Verify your email to get started."),
-      }),
+    expect(mail.subject).toBe("Your Langfuse password reset code");
+    expect(mail.text).toContain("reset your Langfuse password");
+    expect(mail.html).toContain("Forgot your Langfuse password?");
+  });
+
+  it("sends Simplified Chinese email verification copy", async () => {
+    const mail = await sentMail(
+      "http://localhost:3000/auth/setup-password",
+      "zh-CN",
     );
-    expect(sendMailMock.mock.calls[0]?.[0].html).toContain('lang="en"');
+
+    expect(mail.subject).toBe("验证您的 Langfuse 邮箱");
+    expect(mail.text).toContain("请使用以下验证码验证您的邮箱：123456");
+    expect(mail.html).toContain("验证邮箱即可开始使用。");
+    expect(mail.html).toContain('lang="zh-CN"');
+  });
+
+  it("sends Simplified Chinese password reset copy", async () => {
+    const mail = await sentMail(
+      "http://localhost:3000/auth/reset-password",
+      "zh-CN",
+    );
+
+    expect(mail.subject).toBe("您的 Langfuse 密码重置验证码");
+    expect(mail.text).toContain(
+      "请使用以下验证码重置您的 Langfuse 密码：123456",
+    );
+    expect(mail.html).toContain("忘记了 Langfuse 密码？");
+    expect(mail.html).toContain('lang="zh-CN"');
+  });
+
+  it("falls back to password reset copy when no callback URL is present", async () => {
+    await sendResetPasswordVerificationRequest({
+      ...verificationRequestParams("http://localhost:3000/auth/reset-password"),
+      url: "http://localhost:3000/api/auth/callback/email",
+    });
+
+    expect(sendMail.mock.calls[0][0].subject).toBe(
+      "Your Langfuse password reset code",
+    );
   });
 });

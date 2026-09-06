@@ -90,18 +90,9 @@ describe("v4 migration entry points", () => {
     expect(upgradeIndex).toBeGreaterThan(updateIndex);
   });
 
-  it("hides the project chip and sidebar item when the project is up to date", () => {
-    render(
-      <>
-        <V4MigrationProjectChip
-          project={{ id: "project-1", name: "Project 1" }}
-          status={mocks.migrationData}
-        />
-        <V4MigrationNavItem />
-      </>,
-    );
+  it("hides the sidebar item when the project is up to date", () => {
+    render(<V4MigrationNavItem />);
 
-    expect(screen.queryByText("Up to date")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -115,7 +106,7 @@ describe("v4 migration entry points", () => {
       <>
         <V4MigrationProjectChip
           project={{ id: "project-1", name: "Project 1" }}
-          status={mocks.migrationData}
+          readiness="action-needed"
         />
         <V4MigrationNavItem />
       </>,
@@ -125,21 +116,13 @@ describe("v4 migration entry points", () => {
     expect(screen.getByText("Action required")).toBeInTheDocument();
   });
 
-  it("hides both entry points while checks are pending or unavailable", () => {
+  it("hides the sidebar item while checks are pending or unavailable", () => {
     for (const status of [
       migrationStatus({ evals: { status: "loading", count: 0 } }),
       migrationStatus({ evals: { status: "error", count: 0 } }),
     ]) {
       mocks.migrationData = status;
-      const { unmount } = render(
-        <>
-          <V4MigrationProjectChip
-            project={{ id: "project-1", name: "Project 1" }}
-            status={status}
-          />
-          <V4MigrationNavItem />
-        </>,
-      );
+      const { unmount } = render(<V4MigrationNavItem />);
 
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
       unmount();

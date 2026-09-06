@@ -357,11 +357,16 @@
         "calculation": {
           "codeNoCost": "代码评估器不会调用 LLM，因此不会产生模型提供商或 LLM 成本。",
           "estimatedCost": "{observations} × {samplingRate} × 每次评估 {costPerEvaluation} = 每周约 {weeklyCost}。{scope} 单次评估成本取自该时段内最新的有成本评估器追踪，或备用测试调用。",
+          "estimatedSelectionCost": "{observations} × {samplingRate} × 每次评估 {costPerEvaluation} = 本次运行约 {selectionCost}。{scope} 单次评估成本取自该时段内最新的有成本评估器追踪，或备用测试调用。",
           "matchingObservations": "{count} 个匹配观测",
+          "observations": "{count} 个观测",
           "samplingRate": "采样率 {rate}%",
+          "selectionScope": "预估成本将计入你关联的 API 密钥，而非 Langfuse。",
+          "selectionUnavailable": "没有可用于计算成本的评估器追踪，备用测试调用也未返回可用的模型成本。预期成本将计入你关联的 API 密钥，而非 Langfuse。",
           "scope": "预估成本将计入你关联的 API 密钥，而非 Langfuse。匹配观测基于最近 7 天的数据。",
           "unavailable": "最近 7 天内没有可用于计算成本的评估器追踪，备用测试调用也未返回可用的模型成本。预期成本将计入你关联的 API 密钥，而非 Langfuse。",
-          "zeroCost": "{observations} × {samplingRate} = 每周约 {weeklyCost}。{scope}"
+          "zeroCost": "{observations} × {samplingRate} = 每周约 {weeklyCost}。{scope}",
+          "zeroSelectionCost": "{observations} × {samplingRate} = 本次运行约 {selectionCost}。{scope}"
         }
       },
       "create": {
@@ -1142,6 +1147,7 @@
         "matchingTooltip": "符合当前筛选条件和全局时间范围的观测。"
       },
       "examples": {
+        "datasets": "数据集",
         "excludeExperimentsAndEvals": "排除实验和评估",
         "experiments": "实验",
         "generations": "生成",
@@ -1233,10 +1239,12 @@
       },
       "footer": {
         "createEvaluator": "创建评估器",
+        "emptyPromptMessageRequired": "保存前请为每条提示词消息添加内容。",
         "fixCodeErrors": "保存前请修复代码验证错误。",
         "nameRequired": "保存前请添加评估器名称。",
         "nextAttachRule": "下一步：关联一条规则，使此评估器在传入观测上运行。",
-        "saveChanges": "保存更改"
+        "saveChanges": "保存更改",
+        "systemMessageMustBeFirst": "系统消息只能作为第一条提示词消息。"
       },
       "name": {
         "aboutNames": "关于评估器名称",
@@ -1356,15 +1364,22 @@
       "keepResultsInLangfuse": "将实验结果保存在 Langfuse 中"
     },
     "display": {
+      "comparisonToBaseline": "对比实验与基准实验",
+      "diff": "差异",
+      "diffRows": "差异视图 - 每个条目一行",
+      "expectedToOutput": "预期输出与实际输出",
       "label": "显示",
       "layout": "布局",
       "grid": "网格",
       "list": "列表",
+      "scoreMatrix": "评分矩阵 - 评分为行，运行为列",
+      "sideBySide": "并排显示 - 每个实验一列",
       "itemVisibility": "条目可见性",
       "baselineItemsOnly": "仅显示基准实验中的条目",
       "allItems": "显示所有条目",
       "format": "格式",
-      "formatted": "格式化文本"
+      "formatted": "格式化文本",
+      "valuesOnly": "关闭差异 - 仅显示值"
     },
     "selection": {
       "baseline": "基准",

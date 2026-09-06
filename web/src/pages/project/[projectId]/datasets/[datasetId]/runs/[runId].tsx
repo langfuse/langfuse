@@ -22,10 +22,10 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { useTranslations } from "next-intl";
 
 function DatasetRunLegacy() {
@@ -50,6 +50,10 @@ function DatasetRunLegacy() {
     t("datasets"),
     dataset.data?.name,
   );
+
+  const preparedDate = buildLocalIsoDatePresentation({
+    date: run.data?.datasetVersion,
+  });
 
   return (
     <Page
@@ -122,7 +126,7 @@ function DatasetRunLegacy() {
               <Skeleton className="h-full w-full" />
             ) : (
               <>
-                {run.data?.datasetVersion && (
+                {run.data?.datasetVersion && preparedDate && (
                   <div className="flex flex-col gap-2 p-1">
                     <span className="text-sm font-bold">
                       {t("datasetVersion")}
@@ -131,7 +135,9 @@ function DatasetRunLegacy() {
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
                       className="text-link hover:text-link-hover text-sm"
                     >
-                      <LocalIsoDate date={run.data.datasetVersion} />
+                      <span title={preparedDate.title}>
+                        {preparedDate.display}
+                      </span>
                     </Link>
                   </div>
                 )}

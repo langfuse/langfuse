@@ -45,14 +45,14 @@ export function getBillingProvider(
 
 /**
  * True when the org holds paid billing state with any provider: an active
- * Stripe subscription, a manual plan override, or a CHB bundle. Used as the
- * paid gate for free-tier usage-threshold enforcement — a paying customer
+ * Stripe subscription, a manual plan override, or a CHB attached plan. Used as
+ * the paid gate for free-tier usage-threshold enforcement — a paying customer
  * must never be ingestion-blocked at the free-tier limit.
  */
 export function hasPaidBillingState(org: OrgWithCloudConfig): boolean {
   return Boolean(
     org.cloudConfig?.stripe?.activeSubscriptionId ||
     org.cloudConfig?.plan ||
-    org.cloudConfig?.clickhouse?.bundleId,
+    org.cloudConfig?.clickhouse?.attachedPlanId,
   );
 }

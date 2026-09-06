@@ -14,6 +14,7 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEnt
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Daily Metrics",
+    action: "metrics:read",
     querySchema: GetMetricsDailyV1Query,
     responseSchema: GetMetricsDailyV1Response,
     deprecation: METRICS_DEPRECATION,

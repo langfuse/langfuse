@@ -4,7 +4,7 @@ import { Zap } from "lucide-react";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { env } from "@/src/env.mjs";
@@ -15,16 +15,7 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 // migration deadline approaches.
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/**
- * Org-overview banner announcing v4 with links to the migration status page
- * and docs. Replaces the agent-tools banner for v4-upgrade users. Only shown
- * while at least one project still needs migration work — the queries are the
- * same ones the project tiles' migration chips use, so react-query dedupes
- * them.
- */
-export function V4MigrationBanner() {
-  const t = useTranslations("remainderUi.migrations");
-  const capture = usePostHogClientCapture();
+export function useV4MigrationBannerState(enabled: boolean) {
   const session = useSession();
 
   // The demo org is not the user's to migrate, so it never triggers the banner.
@@ -39,16 +30,31 @@ export function V4MigrationBanner() {
     }));
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations,
-    enabled: organizations.length > 0,
+    enabled: enabled && organizations.length > 0,
   });
   const statuses = Array.from(migrationStatusByProjectId.values());
-  const projectsNeedingMigration = statuses.filter(
-    (status) => getProjectMigrationReadiness(status) === "action-needed",
-  ).length;
 
-  if (projectsNeedingMigration === 0) {
-    return null;
-  }
+  return {
+    projectsNeedingMigration: statuses.filter(
+      (status) => getProjectMigrationReadiness(status) === "action-needed",
+    ).length,
+    totalProjects: statuses.length,
+  };
+}
+
+/**
+ * Org-overview banner announcing v4 with links to the migration status page and
+ * docs. The overview owns visibility through useV4MigrationBannerState.
+ */
+export function V4MigrationBanner({
+  projectsNeedingMigration,
+  totalProjects,
+}: {
+  projectsNeedingMigration: number;
+  totalProjects: number;
+}) {
+  const t = useTranslations("remainderUi.migrations");
+  const capture = usePostHogClientCapture();
 
   return (
     <DismissController
@@ -93,13 +99,13 @@ export function V4MigrationBanner() {
               <Zap className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
               <span>
                 <span className="font-bold">{t("banner.title")}</span>{" "}
-                {projectsNeedingMigration === statuses.length
+                {projectsNeedingMigration === totalProjects
                   ? projectsNeedingMigration === 1
                     ? t("banner.singleProject")
                     : t("banner.allProjects")
                   : t("banner.someProjects", {
                       count: projectsNeedingMigration,
-                      total: statuses.length,
+                      total: totalProjects,
                     })}
               </span>
             </div>

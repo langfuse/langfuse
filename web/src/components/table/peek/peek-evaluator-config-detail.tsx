@@ -28,8 +28,8 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useTranslations } from "next-intl";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -140,21 +140,23 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
 
         {showLegacyReadOnlyNotice ? (
-          <Alert className="border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("legacyReadOnlyTitle")}</AlertTitle>
-            <AlertDescription>
+          <Alert variant="warning" icon={AlertTriangle}>
+            <Alert.Title>{t("legacyReadOnlyTitle")}</Alert.Title>
+            <Alert.Description>
               {t("legacyReadOnlyDescription")}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         ) : null}
       </div>
 
-      <EvaluatorPausedCallout
-        projectId={projectId}
-        evalConfig={evalConfig}
-        allowReactivation={!readOnly}
-      />
+      {evalConfig.blockedAt && (
+        <EvaluatorPausedCallout
+          projectId={projectId}
+          evalConfig={evalConfig}
+          blockedAt={evalConfig.blockedAt}
+          allowReactivation={!readOnly}
+        />
+      )}
 
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-bold">
@@ -208,12 +210,11 @@ const PeekViewEvaluatorConfigDetail = ({
             }}
           />
         ) : (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("evaluatorUnavailable")}</AlertTitle>
-            <AlertDescription>
+          <Alert icon={AlertTriangle}>
+            <Alert.Title>{t("evaluatorUnavailable")}</Alert.Title>
+            <Alert.Description>
               {t("evaluatorUnavailableDescription")}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
       </div>

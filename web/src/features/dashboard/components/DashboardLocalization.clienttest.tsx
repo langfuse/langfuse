@@ -5,7 +5,7 @@ import chineseMessages from "@/src/features/i18n/messages/zh-CN/playgroundDashbo
 import systemUiMessages from "@/src/features/i18n/messages/zh-CN/systemUi.json";
 import evaluationAnalyticsMessages from "@/src/features/i18n/messages/zh-CN/evaluationAnalytics.json";
 import { DashboardTable } from "./DashboardTable";
-import { EditDashboardDialog } from "./EditDashboardDialog";
+import { EditDialogDashboardContent } from "./EditDialogDashboardContent";
 import { HomeDashboardSelect } from "./HomeDashboardSelect";
 import { DashboardWidget } from "@/src/features/widgets/components/DashboardWidget";
 
@@ -14,6 +14,9 @@ vi.mock("@/src/utils/api", () => ({
     useUtils: () => ({ dashboard: { invalidate: vi.fn() } }),
     dashboard: {
       updateDashboardMetadata: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+      },
+      cloneDashboard: {
         useMutation: () => ({ mutate: vi.fn(), isPending: false }),
       },
       allDashboards: {
@@ -136,7 +139,7 @@ vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
   useV4Beta: () => ({ isBetaEnabled: false }),
 }));
 
-vi.mock("@/src/hooks/useDashboardQueryScheduler", () => ({
+vi.mock("@/src/features/dashboard/hooks/useDashboardQueryScheduler", () => ({
   useScheduledDashboardExecuteQuery: () => ({
     data: [{ sum_totalCost: 12 }],
     isPending: false,
@@ -180,6 +183,11 @@ vi.mock("@/src/components/table/data-table", () => ({
 }));
 
 vi.mock("@/src/components/ui/dialog", () => ({
+  DialogController: ({
+    children,
+  }: {
+    children: (control: { openDialog: () => void }) => React.ReactNode;
+  }) => <>{children({ openDialog: vi.fn() })}</>,
   Dialog: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -248,9 +256,8 @@ const renderChinese = (element: React.ReactNode) =>
 describe("dashboard localization", () => {
   it("localizes the edit dashboard dialog", () => {
     renderChinese(
-      <EditDashboardDialog
-        open
-        onOpenChange={vi.fn()}
+      <EditDialogDashboardContent
+        closeDialog={vi.fn()}
         projectId="project-id"
         dashboardId="dashboard-id"
         initialName="Customer dashboard"
@@ -325,6 +332,7 @@ describe("dashboard localization", () => {
         filterState={[]}
         onDeleteWidget={vi.fn()}
         dashboardOwner="LANGFUSE"
+        readPath="v3"
         readOnly
       />,
     );

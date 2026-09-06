@@ -59,8 +59,11 @@ export function NameStep({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="evaluator-description">
-            {t("setup.name.descriptionLabel")}{" "}
+          <Label
+            htmlFor="evaluator-description"
+            className="flex items-center gap-1"
+          >
+            {t("setup.name.descriptionLabel")}
             <span className="text-muted-foreground font-normal">
               {t("optional")}
             </span>

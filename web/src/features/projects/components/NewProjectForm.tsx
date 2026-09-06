@@ -17,7 +17,7 @@ import {
   createProjectNameSchema,
   type projectNameSchema,
 } from "@/src/features/auth/lib/projectNameSchema";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTranslations } from "next-intl";
 
 export const NewProjectForm = ({

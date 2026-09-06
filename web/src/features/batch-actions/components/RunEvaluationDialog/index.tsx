@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useStore } from "zustand";
 import {
   type BatchActionQuery,
   type BatchEvalSourceTable,
   BatchEvalSourceTable as SourceTable,
+  extractVariables,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { api, sendAsPostOption } from "@/src/utils/api";
@@ -16,17 +19,36 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { ChevronLeft } from "lucide-react";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
   EvaluatorSelectionStep,
   type BatchEvaluator,
 } from "./EvaluatorSelectionStep";
+import { EvaluatorMappingStep } from "./EvaluatorMappingStep";
 import { ConfirmationStep } from "./ConfirmationStep";
-import { buildQueryWithSelectedIds, getCreateEvaluatorHref } from "./utils";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { useTranslations } from "next-intl";
+import {
+  buildQueryWithSelectedIds,
+  getBatchEvalCostObservationCount,
+  getCreateEvaluatorHref,
+  hasCompleteBatchEvalMappings,
+} from "./utils";
+import { BATCH_EVAL_EVALUATOR_LIMIT } from "@/src/features/batch-actions/validation";
+import {
+  buildSelectedSampleObject,
+  createRuleSetupStore,
+} from "@/src/features/evals";
+import { coverEvaluatorPromptVariables } from "@/src/features/evals/v2/fns/variableMapping/coverEvaluatorPromptVariables";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type RunEvaluationDialogProps = {
   projectId: string;
@@ -46,9 +68,6 @@ type RunEvaluationDialogProps = {
 
 type DialogStep = "select-evaluator" | "confirm";
 
-/** Matches the evaluator overview page size; the step filters client-side. */
-const BATCH_EVALUATOR_LIMIT = 100;
-
 export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const t = useTranslations("operationsUi.batchActions.runEvaluation");
   const {
@@ -60,20 +79,53 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     sourceTable = SourceTable.EVENTS,
   } = props;
 
+  const capture = usePostHogClientCapture();
   const [step, setStep] = useState<DialogStep>("select-evaluator");
   const [selectedEvaluators, setSelectedEvaluators] = useState<
     BatchEvaluator[]
   >([]);
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
-  const forceV3Experience = useForceV3Experience(projectId);
+  const [mappingSearch, setMappingSearch] = useState("");
+  const [mappingSearchQuery, setMappingSearchQuery] = useState("");
+  const debouncedMappingSearch = useDebounce(setMappingSearchQuery, 300, false);
+  const [ruleSetupStore] = useState(() =>
+    createRuleSetupStore({
+      name: "Batch evaluation",
+      filter: [],
+      sampling: 1,
+      assignments: [],
+    }),
+  );
+  const mappingAssignments = useStore(
+    ruleSetupStore,
+    (state) => state.assignments,
+  );
 
-  // Unsearched: `EvaluatorSelectionStep` filters the list client-side, the
-  // same way the overview does, so typing does not refetch.
-  const evaluatorsQuery = api.evalsV2.options.useQuery({
-    projectId,
-    limit: BATCH_EVALUATOR_LIMIT,
-    excludeLegacyEvaluators: true,
-  });
+  const forceV3Query = api.v4Transition.forceV3Experience.useQuery(
+    { projectId },
+    {
+      enabled: Boolean(projectId),
+      staleTime: Infinity,
+    },
+  );
+  const forceV3Experience = forceV3Query.data === true;
+  const isExperiencePending = forceV3Query.isPending;
+  const showMappingEditor = !isExperiencePending && !forceV3Experience;
+
+  const evaluatorsQuery = api.evalsV2.options.useQuery(
+    {
+      projectId,
+      limit: BATCH_EVAL_EVALUATOR_LIMIT,
+      excludeLegacyEvaluators: true,
+      search:
+        showMappingEditor && mappingSearchQuery.trim()
+          ? mappingSearchQuery.trim()
+          : undefined,
+    },
+    {
+      placeholderData: (previousData) => previousData,
+    },
+  );
 
   const runEvaluationMutation =
     api.batchAction.runEvaluation.create.useMutation({
@@ -83,7 +135,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     });
 
   const displayCount = selectAll ? totalCount : selectedObservationIds.length;
-  // For experiments source, displayCount is experiment count, not item count
   const isExperimentsSource = sourceTable === SourceTable.EXPERIMENTS;
   const experimentItemsExperimentCount =
     sourceTable === SourceTable.EXPERIMENT_ITEMS
@@ -116,8 +167,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   const eligibleEvaluators = useMemo(
     () =>
-      // A blocked evaluator is skipped by the scheduler, so offering it would
-      // report a successful batch that produced no scores.
       (evaluatorsQuery.data ?? [])
         .filter((evaluator) => evaluator.blockedAt === null)
         .map(
@@ -134,10 +183,61 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     [evaluatorsQuery.data],
   );
 
+  const evaluatorOptions = useMemo(
+    () =>
+      (evaluatorsQuery.data ?? [])
+        .filter((evaluator) => evaluator.blockedAt === null)
+        .map((evaluator) => {
+          const prepared = prepareModernRuleVariableMapping(
+            evaluator.latestVersion?.variableMapping,
+            evaluator.type,
+          );
+          const requiredVariables =
+            evaluator.type === "CODE"
+              ? []
+              : extractVariables(evaluator.latestVersion?.prompt ?? "");
+
+          return {
+            id: evaluator.id,
+            name: evaluator.name,
+            type: evaluator.type,
+            updatedAt: evaluator.updatedAt,
+            createdByUser: evaluator.createdByUser,
+            defaultVariableMapping: coverEvaluatorPromptVariables(
+              prepared.defaultVariableMapping,
+              requiredVariables,
+            ),
+            initialVariableMapping: prepared.initialVariableMapping,
+            requiredVariables,
+          };
+        }),
+    [evaluatorsQuery.data],
+  );
+
   const selectedEvaluatorIds = useMemo(
     () => selectedEvaluators.map((evaluator) => evaluator.id),
     [selectedEvaluators],
   );
+
+  const sampleObject = buildSelectedSampleObject({
+    observation: props.exampleObservation?.id ? props.exampleObservation : null,
+    eventDetails: previewQuery.data?.[0],
+  });
+
+  const selectedCount = showMappingEditor
+    ? mappingAssignments.length
+    : selectedEvaluators.length;
+  const mappingsComplete = hasCompleteBatchEvalMappings(mappingAssignments);
+  const costObservationCount = getBatchEvalCostObservationCount({
+    displayCount,
+    sourceTable,
+  });
+  const mappingRunDisabledReason =
+    selectedCount === 0
+      ? "Attach at least one evaluator."
+      : mappingsComplete
+        ? null
+        : "Map every evaluator variable to a source column before running.";
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
     setSelectedEvaluators((previous) => {
@@ -152,7 +252,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   };
 
   const onSubmit = async () => {
-    if (selectedEvaluators.length === 0) {
+    if (selectedCount === 0) {
+      return;
+    }
+    if (showMappingEditor && !mappingsComplete) {
       return;
     }
 
@@ -161,35 +264,56 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       selectAll,
       selectedObservationIds,
     });
+    const evaluatorIds = showMappingEditor
+      ? mappingAssignments.map((assignment) => assignment.evaluatorId)
+      : selectedEvaluators.map((evaluator) => evaluator.id);
+    const evaluatorMappings = showMappingEditor
+      ? mappingAssignments.map((assignment) => ({
+          evaluatorId: assignment.evaluatorId,
+          variableMapping: assignment.variableMapping,
+        }))
+      : undefined;
+    const mappingOverrideCount = (evaluatorMappings ?? []).filter(
+      (mapping) => mapping.variableMapping !== null,
+    ).length;
 
     try {
       await runEvaluationMutation.mutateAsync({
         projectId,
         query: finalQuery,
-        evaluatorIds: selectedEvaluators.map((evaluator) => evaluator.id),
+        evaluatorIds,
         sourceTable,
         evalVersion: "v2",
+        ...(evaluatorMappings ? { evaluatorMappings } : {}),
       });
     } catch {
       return;
     }
+
+    capture("batch_eval:run", {
+      evaluatorCount: evaluatorIds.length,
+      mappingOverrideCount,
+      sourceTable,
+      isForceV3Experience: forceV3Experience,
+      isV4: true,
+    });
 
     showSuccessToast({
       title: t("queuedTitle"),
       description: isExperimentsSource
         ? t("queuedExperiments", {
             experimentCount: displayCount,
-            evaluatorCount: selectedEvaluators.length,
+            evaluatorCount: evaluatorIds.length,
           })
         : sourceTable === SourceTable.EXPERIMENT_ITEMS
           ? t("queuedExperimentItems", {
               itemCount: displayCount,
               experimentCount: experimentItemsExperimentCount,
-              evaluatorCount: selectedEvaluators.length,
+              evaluatorCount: evaluatorIds.length,
             })
           : t("queuedObservations", {
               count: displayCount,
-              evaluatorCount: selectedEvaluators.length,
+              evaluatorCount: evaluatorIds.length,
             }),
       link: {
         href: `/project/${projectId}/settings/batch-actions`,
@@ -200,10 +324,22 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     props.onClose();
   };
 
+  const createEvaluatorHref = getCreateEvaluatorHref({
+    projectId,
+    forceV3Experience,
+  });
+
   return (
     <>
       <Dialog open onOpenChange={(open) => !open && props.onClose()}>
-        <DialogContent className="flex max-h-[62vh] min-h-[38vh] max-w-2xl flex-col">
+        <DialogContent
+          {...(showMappingEditor ? { size: "lg" as const } : {})}
+          className={
+            showMappingEditor
+              ? "flex max-h-[85vh] min-h-[38vh] flex-col"
+              : "flex max-h-[62vh] min-h-[38vh] max-w-2xl flex-col"
+          }
+        >
           <DialogHeader>
             <DialogTitle>
               {isExperimentsSource
@@ -222,36 +358,57 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogBody className="flex-1 overflow-hidden">
-            {step === "select-evaluator" ? (
-              <EvaluatorSelectionStep
-                eligibleEvaluators={eligibleEvaluators}
-                selectedEvaluators={selectedEvaluators}
-                isQueryLoading={evaluatorsQuery.isLoading}
-                isQueryError={evaluatorsQuery.isError}
-                queryErrorMessage={evaluatorsQuery.error?.message}
-                previewObservation={previewQuery.data?.[0]}
-                isPreviewLoading={previewQuery.isLoading}
-                selectedEvaluatorIds={selectedEvaluatorIds}
-                evaluatorSearchQuery={evaluatorSearchQuery}
-                onSearchQueryChange={setEvaluatorSearchQuery}
-                onToggleEvaluator={toggleEvaluatorSelection}
-                createEvaluatorHref={getCreateEvaluatorHref({
-                  projectId,
-                  forceV3Experience,
-                })}
-              />
+          <DialogBody
+            className={
+              showMappingEditor
+                ? "min-h-0 flex-1 overflow-y-auto"
+                : "flex-1 overflow-hidden"
+            }
+          >
+            {isExperiencePending ? (
+              <Skeleton className="h-20 w-full" />
+            ) : step === "select-evaluator" ? (
+              showMappingEditor ? (
+                <EvaluatorMappingStep
+                  projectId={projectId}
+                  store={ruleSetupStore}
+                  evaluatorOptions={evaluatorOptions}
+                  isQueryLoading={evaluatorsQuery.isLoading}
+                  isQueryError={evaluatorsQuery.isError}
+                  queryErrorMessage={evaluatorsQuery.error?.message}
+                  search={mappingSearch}
+                  onSearchChange={(value) => {
+                    setMappingSearch(value);
+                    debouncedMappingSearch(value);
+                  }}
+                  sampleObject={sampleObject}
+                  costObservationCount={costObservationCount}
+                />
+              ) : (
+                <EvaluatorSelectionStep
+                  eligibleEvaluators={eligibleEvaluators}
+                  selectedEvaluators={selectedEvaluators}
+                  isQueryLoading={evaluatorsQuery.isLoading}
+                  isQueryError={evaluatorsQuery.isError}
+                  queryErrorMessage={evaluatorsQuery.error?.message}
+                  previewObservation={previewQuery.data?.[0]}
+                  isPreviewLoading={previewQuery.isLoading}
+                  selectedEvaluatorIds={selectedEvaluatorIds}
+                  evaluatorSearchQuery={evaluatorSearchQuery}
+                  onSearchQueryChange={setEvaluatorSearchQuery}
+                  onToggleEvaluator={toggleEvaluatorSelection}
+                />
+              )
             ) : (
               <ConfirmationStep
                 projectId={projectId}
                 displayCount={displayCount}
-                evaluators={selectedEvaluators.map((e) => ({
-                  id: e.id,
-                  name: e.scoreName,
+                evaluators={selectedEvaluators.map((evaluator) => ({
+                  id: evaluator.id,
+                  name: evaluator.scoreName,
                 }))}
                 hideCount={sourceTable !== SourceTable.EVENTS}
                 sourceTable={sourceTable}
-                experimentCount={experimentItemsExperimentCount}
               />
             )}
           </DialogBody>
@@ -270,26 +427,106 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               <div />
             )}
 
-            {step === "select-evaluator" ? (
-              <Button
-                onClick={() => setStep("confirm")}
-                disabled={selectedEvaluators.length === 0}
-              >
-                {selectedEvaluators.length > 0
-                  ? t("continueWith", { count: selectedEvaluators.length })
-                  : t("continue")}
-              </Button>
-            ) : (
-              <Button
-                onClick={onSubmit}
-                loading={runEvaluationMutation.isPending}
-              >
-                {t("run")}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {step !== "confirm" ? (
+                <CreateEvaluatorButton
+                  href={createEvaluatorHref}
+                  label={t("createEvaluator")}
+                  ariaLabel={t("createEvaluatorAria")}
+                />
+              ) : null}
+              {showMappingEditor ? (
+                <MappingRunButton
+                  disabledReason={mappingRunDisabledReason}
+                  selectedCount={selectedCount}
+                  loading={runEvaluationMutation.isPending}
+                  onClick={onSubmit}
+                  runLabel={t("run")}
+                  runWithLabel={t("continueWith", { count: selectedCount })}
+                />
+              ) : step === "select-evaluator" ? (
+                <Button
+                  onClick={() => setStep("confirm")}
+                  disabled={isExperiencePending || selectedCount === 0}
+                >
+                  {selectedCount > 0
+                    ? t("continueWith", { count: selectedCount })
+                    : t("continue")}
+                </Button>
+              ) : (
+                <Button
+                  onClick={onSubmit}
+                  loading={runEvaluationMutation.isPending}
+                >
+                  {t("run")}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function CreateEvaluatorButton({
+  href,
+  label,
+  ariaLabel,
+}: {
+  href: string;
+  label: string;
+  ariaLabel: string;
+}) {
+  return (
+    <Button variant="secondary" className="gap-1.5" asChild>
+      <Link href={href} target="_blank" rel="noreferrer" aria-label={ariaLabel}>
+        <Plus className="size-4 shrink-0" aria-hidden="true" />
+        {label}
+        <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+      </Link>
+    </Button>
+  );
+}
+
+function MappingRunButton({
+  disabledReason,
+  selectedCount,
+  loading,
+  onClick,
+  runLabel,
+  runWithLabel,
+}: {
+  disabledReason: string | null;
+  selectedCount: number;
+  loading: boolean;
+  onClick: () => void;
+  runLabel: string;
+  runWithLabel: string;
+}) {
+  const button = (
+    <Button
+      onClick={onClick}
+      disabled={Boolean(disabledReason)}
+      loading={loading}
+      className={disabledReason ? "pointer-events-none" : undefined}
+    >
+      {selectedCount > 0 ? runWithLabel : runLabel}
+    </Button>
+  );
+
+  if (!disabledReason) {
+    return button;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+          {button}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{disabledReason}</TooltipContent>
+    </Tooltip>
   );
 }

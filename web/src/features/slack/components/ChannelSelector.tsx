@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   Command,
   CommandEmpty,
@@ -391,33 +391,33 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
       {error && (
         <Alert>
-          <AlertDescription>{t("loadFailed")}</AlertDescription>
+          <Alert.Description>
+            Failed to load channels. You can still enter a channel name
+            manually, or check your Slack connection and try again.
+          </Alert.Description>
         </Alert>
       )}
 
       {/* Private channel scope warning */}
       {channelsData && !channelsData.hasPrivateChannelAccess && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            {t.rich("privateUnavailable", {
-              reauthenticate: (chunks) => (
-                <button
-                  type="button"
-                  className="font-bold underline"
-                  onClick={() =>
-                    window.open(
-                      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
-                      "slack-reauth",
-                      "width=600,height=700",
-                    )
-                  }
-                >
-                  {chunks}
-                </button>
-              ),
-            })}
-          </AlertDescription>
+        <Alert icon={AlertTriangle}>
+          <Alert.Description>
+            Private channels are not visible. To access private channels,{" "}
+            <button
+              type="button"
+              className="font-bold underline"
+              onClick={() =>
+                window.open(
+                  `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
+                  "slack-reauth",
+                  "width=600,height=700",
+                )
+              }
+            >
+              re-authenticate your Slack integration
+            </button>{" "}
+            to grant the required permissions.
+          </Alert.Description>
         </Alert>
       )}
     </div>

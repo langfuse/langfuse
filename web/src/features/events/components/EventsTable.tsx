@@ -14,6 +14,7 @@ import {
   useSidebarFilterStateCore,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
+  getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
@@ -32,6 +33,8 @@ import {
   type TracingSearchType,
   type ScoreAggregate,
   buildTracePath,
+  getCachedInputCost,
+  getCachedInputMetric,
 } from "@langfuse/shared";
 import { useTranslations } from "next-intl";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -39,15 +42,17 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
-import { getLevelColors } from "@/src/components/level-colors";
+import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -81,7 +86,6 @@ import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -127,7 +131,7 @@ import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
@@ -304,7 +308,10 @@ export default function ObservationsEventsTable({
   const eventsFilterConfig = useMemo(
     () =>
       getObservationEventsFilterConfig(omittedFilter, {
-        getColumnName: tColumns,
+        getColumnName: (columnId) =>
+          columnId === "cachedInputCost" || columnId === "cachedInputTokens"
+            ? getEventsColumnName(columnId)
+            : tColumns(columnId),
         rootObservationTooltip: tFilters("rootObservationTooltip"),
         observationTypesDescription: tFilters("observationTypesDescription"),
       }),
@@ -677,6 +684,7 @@ export default function ObservationsEventsTable({
       isV4: true,
     },
   );
+  const projectFiltersForSearchBar = queryFilter.projectFiltersForSearchBar;
 
   // Lazy filter-options: load a facet's values when its sidebar section is
   // expanded (also covers active filters, which auto-expand on mount). The
@@ -748,7 +756,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    filterState: queryFilter.explicitFilterState,
+    filterState: queryFilter.searchBarFilterState,
     searchQuery,
     searchType,
     observed: observedOptions,
@@ -767,12 +775,15 @@ export default function ObservationsEventsTable({
       if (!searchBarMode) return;
       const { actions } = searchBarStore.getState();
       if (state) {
-        actions.setPreview(filterStateToQueryText(state.filters).text);
+        actions.setPreview(
+          filterStateToQueryText(projectFiltersForSearchBar(state.filters))
+            .text,
+        );
       } else {
         actions.clearPreview();
       }
     },
-    [searchBarMode, searchBarStore],
+    [searchBarMode, searchBarStore, projectFiltersForSearchBar],
   );
 
   // Disabled for now because perhaps confusing
@@ -1149,28 +1160,18 @@ export default function ObservationsEventsTable({
       size: 50,
       enableSorting,
     }),
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: tColumns("name"),
       size: 150,
       enableSorting,
-      cell: ({ row }) => {
-        const value: EventsTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
-      id: "traceName",
       header: tColumns("traceName"),
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("traceName");
-        return value ?? undefined;
-      },
-    },
+    }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
       header: tColumns("input"),
@@ -1203,9 +1204,8 @@ export default function ObservationsEventsTable({
       singleLine: rowHeight === "s",
       enableHiding: true,
     }),
-    {
+    createStatusTableColumn<EventsTableRow, ObservationLevelType>({
       accessorKey: "level",
-      id: "level",
       header: tColumns("level"),
       size: 100,
       headerTooltip: {
@@ -1214,22 +1214,11 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: ObservationLevelType | undefined = row.getValue("level");
-        return value ? (
-          <span
-            className={cn(
-              "rounded-sm p-0.5 text-xs",
-              getLevelColors(value).bg,
-              getLevelColors(value).text,
-            )}
-          >
-            {value}
-          </span>
-        ) : undefined;
-      },
       enableSorting,
-    },
+      isLive: false,
+      getStatus: (level) =>
+        level ? getObservationLevelStatus(level) : undefined,
+    }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
       header: tColumns("statusMessage"),
@@ -1301,6 +1290,17 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputCost(row.costDetails),
+          id: "cachedInputCost",
+          header: getEventsColumnName("cachedInputCost"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => usdFormatter(value),
+          emptyValue: "-",
         }),
         createTextTableColumn<EventsTableRow>({
           accessorFn: (row) =>
@@ -1391,6 +1391,16 @@ export default function ObservationsEventsTable({
           formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputMetric(row.usageDetails),
+          id: "cachedInputTokens",
+          header: getEventsColumnName("cachedInputTokens"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
           accessorFn: (row) => row.usage.outputUsage,
           header: tColumns("outputTokens"),
@@ -1420,22 +1430,24 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       cell: ({ row }) => {
-        const model = row.getValue("providedModelName") as string;
+        const model = row.getValue("providedModelName") as
+          | string
+          | null
+          | undefined;
         const modelId = row.getValue("modelId") as string | undefined;
 
-        return (
+        return model ? (
           <ProvidedModelNameCell
             modelName={model}
             modelId={modelId}
             projectId={projectId}
             usageDetails={row.original.usageDetails}
           />
-        );
+        ) : undefined;
       },
     },
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "promptName",
-      id: "promptName",
       header: tColumns("promptName"),
       headerTooltip: {
         description: tDetails("promptDescription"),
@@ -1444,13 +1456,14 @@ export default function ObservationsEventsTable({
       size: 200,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
+      getValue: (_value, { row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableIdOrName value={value} />;
+        return promptName && promptVersion
+          ? `${promptName} (v${promptVersion})`
+          : undefined;
       },
-    },
+    }),
     createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: tColumns("environment"),
@@ -1483,32 +1496,23 @@ export default function ObservationsEventsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       header: tColumns("traceId"),
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       enableSorting,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "modelId",
-      id: "modelId",
       header: tColumns("modelId"),
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "version",
-      id: "version",
       header: tColumns("version"),
       size: 100,
       headerTooltip: {
@@ -1518,10 +1522,9 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "release",
-      id: "release",
       header: tColumns("release"),
       size: 100,
       headerTooltip: {
@@ -1531,23 +1534,21 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "userId",
-      id: "userId",
       header: tColumns("userId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "sessionId",
-      id: "sessionId",
       header: tColumns("sessionId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
   ];
 
   const [columnVisibility, setColumnVisibilityState] =

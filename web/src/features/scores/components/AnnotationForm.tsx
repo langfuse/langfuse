@@ -41,7 +41,7 @@ import {
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import {
   type AnnotationScoreFormData,

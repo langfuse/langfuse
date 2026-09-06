@@ -14,10 +14,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-const heightOptions = [
-  { id: "s", labelKey: "small", icon: <Rows4 /> },
-  { id: "m", labelKey: "medium", icon: <Rows3 /> },
-  { id: "l", labelKey: "large", icon: <Rows2 /> },
+/** Exported so the merged "Table settings" popover offers the same options. */
+export const ROW_HEIGHT_OPTIONS = [
+  { id: "s", label: "Small", labelKey: "small", icon: <Rows4 /> },
+  { id: "m", label: "Medium", labelKey: "medium", icon: <Rows3 /> },
+  { id: "l", label: "Large", labelKey: "large", icon: <Rows2 /> },
 ] as const;
 
 const defaultHeights: Record<RowHeight, string> = {
@@ -26,7 +27,7 @@ const defaultHeights: Record<RowHeight, string> = {
   l: "h-64",
 };
 
-export type RowHeight = (typeof heightOptions)[number]["id"];
+export type RowHeight = (typeof ROW_HEIGHT_OPTIONS)[number]["id"];
 export type CustomHeights = Record<RowHeight, string>;
 
 /**
@@ -86,7 +87,7 @@ export const DataTableRowHeightSwitch = ({
         <DropdownMenuContent>
           <DropdownMenuLabel>{t("label")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {heightOptions.map(({ id, labelKey }) => (
+          {ROW_HEIGHT_OPTIONS.map(({ id, labelKey }) => (
             <DropdownMenuCheckboxItem
               key={id}
               checked={rowHeight === id}

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
@@ -15,22 +14,22 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
     {
       title: t("datasets.improvementTitle"),
       description: t("datasets.improvementDescription"),
-      icon: <Zap className="h-4 w-4" />,
+      icon: Zap,
     },
     {
       title: t("datasets.testingTitle"),
       description: t("datasets.testingDescription"),
-      icon: <Beaker className="h-4 w-4" />,
+      icon: Beaker,
     },
     {
       title: t("datasets.structuredTitle"),
       description: t("datasets.structuredDescription"),
-      icon: <Database className="h-4 w-4" />,
+      icon: Database,
     },
     {
       title: t("datasets.workflowsTitle"),
       description: t("datasets.workflowsDescription"),
-      icon: <Code className="h-4 w-4" />,
+      icon: Code,
     },
   ];
 

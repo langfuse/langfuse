@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { AlertTriangle, X } from "lucide-react";

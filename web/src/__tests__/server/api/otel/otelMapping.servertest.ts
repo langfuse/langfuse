@@ -4209,6 +4209,38 @@ describe("OTel Resource Span Mapping", () => {
         expect(eventInputs[0].promptVersion).toBe(1);
       });
 
+      it("should map string-encoded prompt version on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          {
+            key: "langfuse.observation.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.observation.prompt.version",
+            value: { stringValue: "3" },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(3);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(3);
+      });
+
       it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
         const resourceSpan = buildResourceSpan([
           {

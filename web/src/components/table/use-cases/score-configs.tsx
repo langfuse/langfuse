@@ -21,6 +21,8 @@ import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -31,14 +33,14 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
 import { UpsertScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 type ScoreConfigTableRow = {
   id: string;
   name: string;
   dataType: ScoreConfigDataType;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   range: {
     maxValue?: number | null;
     minValue?: number | null;
@@ -76,7 +78,6 @@ function getConfigRange(
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const t = useTranslations("systemUi.miscUi.scoreConfigTable");
-  const locale = useLocale();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -109,13 +110,12 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       header: t("name"),
       enableHiding: true,
     }),
-    {
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "dataType",
-      id: "dataType",
       header: t("dataType"),
       size: 80,
       enableHiding: true,
-    },
+    }),
     createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
       accessorFn: (row) =>
@@ -136,31 +136,25 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
+    createIdTableColumn<ScoreConfigTableRow>({
       accessorKey: "id",
-      id: "id",
       header: t("configId"),
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createDateTableColumn<ScoreConfigTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: t("createdAt"),
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<ScoreConfigTableRow, boolean>({
       accessorKey: "isArchived",
-      id: "isArchived",
       header: t("status"),
       size: 80,
       enableHiding: true,
-      cell: ({ row }) => {
-        const { isArchived } = row.original;
-        return isArchived ? t("archived") : t("active");
-      },
-    },
+      mapValue: (isArchived) => (isArchived ? t("archived") : t("active")),
+    }),
     {
       accessorKey: "action",
       header: t("action"),
@@ -248,6 +242,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   return (
     <>
       <DataTableToolbar
+        tableName="score-configs"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -302,8 +297,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                       name: config.name,
                       dataType: config.dataType,
                       description: config.description,
-                      createdAt: config.createdAt.toLocaleString(locale),
-                      updatedAt: config.updatedAt.toLocaleString(locale),
+                      createdAt: config.createdAt,
+                      updatedAt: config.updatedAt,
                       range: {
                         maxValue: config.maxValue,
                         minValue: config.minValue,

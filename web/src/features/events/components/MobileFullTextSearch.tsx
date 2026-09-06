@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTranslations } from "next-intl";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /**
  * Full-text search input for the mobile Filters sheet, used when the grammar

@@ -35,17 +35,16 @@ const hasMetadata = (
 
 const ExecutionTraceLink = ({
   executionTraceId,
+  projectId,
 }: {
   executionTraceId: string;
+  projectId: string;
 }) => {
-  const projectId = useProjectIdFromURL();
   const t = useSharedUiTranslations("misc");
-  if (!projectId) return null;
-
   return (
     <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
-      className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+      className="flex items-center gap-1 text-blue-600 hover:underline"
       target="_blank"
     >
       <ExternalLinkIcon className="h-3 w-3" />
@@ -69,6 +68,7 @@ export const ScoreBadge = <
   showLevels?: boolean;
 }) => {
   const t = useSharedUiTranslations("misc");
+  const projectId = useProjectIdFromURL();
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
     : [];
@@ -105,10 +105,14 @@ export const ScoreBadge = <
                     <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                       <p className="whitespace-pre-wrap">{score.comment}</p>
                       {"executionTraceId" in score &&
-                        score.executionTraceId && (
-                          <ExecutionTraceLink
-                            executionTraceId={score.executionTraceId}
-                          />
+                        score.executionTraceId &&
+                        projectId && (
+                          <div className="mt-2">
+                            <ExecutionTraceLink
+                              executionTraceId={score.executionTraceId}
+                              projectId={projectId}
+                            />
+                          </div>
                         )}
                     </HoverCardContent>
                   </HoverCard>

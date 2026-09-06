@@ -16,6 +16,7 @@ import {
 export const evaluatorsApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({
     name: "List evaluators",
+    action: "evaluator:read",
     querySchema: ListEvaluatorsQuery,
     responseSchema: ListEvaluatorsResponse,
     fn: ({ query, auth }) =>
@@ -28,6 +29,7 @@ export const evaluatorsApiHandler = withStablePublicApiMiddlewares({
   }),
   POST: createStablePublicApiRoute({
     name: "Create evaluator",
+    action: "evaluator:CUD",
     bodySchema: CreateEvaluatorBody,
     responseSchema: Evaluator,
     successStatusCode: 201,

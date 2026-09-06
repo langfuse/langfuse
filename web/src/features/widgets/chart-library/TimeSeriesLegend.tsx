@@ -161,7 +161,6 @@ export function SeriesOverflowNote({
   totalCount: number;
 }) {
   const t = useTranslations("systemUi.chartControls");
-  if (totalCount <= visibleCount) return null;
   return (
     <div className="text-muted-foreground shrink-0 pb-1 text-right text-xs">
       {t("seriesOverflow", { visibleCount, totalCount })}
@@ -185,8 +184,6 @@ export function TimeSeriesLegend({
   formatSummary: (value: number) => string;
 }) {
   const t = useTranslations("systemUi.chartControls");
-  if (items.length === 0) return null;
-
   return (
     // Wrap onto multiple rows so every series stays visible, but cap the
     // legend's height and scroll inside it — a chart with hundreds of series

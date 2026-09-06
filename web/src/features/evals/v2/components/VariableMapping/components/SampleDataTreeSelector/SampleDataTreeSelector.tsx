@@ -11,6 +11,12 @@ import {
   WILDCARD,
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import {
+  classifyMediaValue,
+  splitStringByMediaReferences,
+  type MediaDescriptor,
+} from "@/src/components/ui/media/mediaUtils";
 import { cn } from "@/src/utils/tailwind";
 import { useTranslations } from "next-intl";
 
@@ -35,6 +41,47 @@ function pathKey(columnId: string, segments: PathSegment[]): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function MediaAwarePreview({
+  preview,
+  directDescriptor,
+}: {
+  preview: string;
+  directDescriptor: MediaDescriptor | null;
+}) {
+  const segments = directDescriptor
+    ? [{ type: "media" as const, descriptor: directDescriptor }]
+    : splitStringByMediaReferences(preview);
+
+  return (
+    <span
+      className={cn(
+        "text-muted-foreground flex min-w-0 flex-1 items-baseline gap-0.5 overflow-hidden text-xs leading-4",
+        directDescriptor && "self-center",
+      )}
+    >
+      {segments.map((segment, index) =>
+        segment.type === "media" ? (
+          <span
+            key={index}
+            data-tree-row-action=""
+            className="inline-flex shrink-0 self-center"
+          >
+            <MediaReferenceTag descriptor={segment.descriptor} />
+          </span>
+        ) : (
+          <span
+            key={index}
+            className="min-w-0 truncate leading-4 whitespace-pre"
+            title={segment.value}
+          >
+            {segment.value}
+          </span>
+        ),
+      )}
+    </span>
+  );
 }
 
 function wildcardRepresentative(entries: unknown[]) {
@@ -103,6 +150,12 @@ function TreeRow({
     value,
     t("variableMapping.tree.noSampleValueAvailable"),
   );
+  const directMediaDescriptor = expandable ? null : classifyMediaValue(value);
+  const hasMedia =
+    directMediaDescriptor !== null ||
+    splitStringByMediaReferences(preview).some(
+      (segment) => segment.type === "media",
+    );
 
   const selectOrToggle = () => {
     if (expandable) onToggleExpand(key);
@@ -113,72 +166,99 @@ function TreeRow({
     <>
       <div
         className={cn(
-          "group/row hover:bg-muted/50 flex w-full min-w-0 items-center gap-2 px-2 py-1 text-left text-sm",
+          "group/row hover:bg-muted/50 flex w-full min-w-0 cursor-pointer items-baseline gap-2 px-2 py-1 text-left text-sm",
           isCurrent && "bg-primary-accent/5",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        onClick={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("[data-tree-row-action]")
+          ) {
+            return;
+          }
+          selectOrToggle();
+        }}
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+          className={cn(
+            "flex min-w-0 cursor-pointer items-baseline gap-2 text-left",
+            hasMedia ? "shrink-0" : "flex-1",
+          )}
           title={
-            expandable
-              ? preview
-              : t("variableMapping.tree.pullFromHere", { variable })
+            hasMedia
+              ? undefined
+              : expandable
+                ? preview
+                : t("variableMapping.tree.pullFromHere", {
+                    variable: `{{${variable}}}`,
+                  })
           }
-          onClick={selectOrToggle}
         >
           {expandable ? (
             <ChevronDown
               className={cn(
-                "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+                "text-muted-foreground h-3.5 w-3.5 shrink-0 self-center transition-transform",
                 !isOpen && "-rotate-90",
               )}
             />
           ) : (
-            <span className="h-3.5 w-3.5 shrink-0" />
+            <span className="h-3.5 w-3.5 shrink-0 self-center" />
           )}
           <span className="shrink-0 font-mono font-bold">{label}</span>
-          <span
-            className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
-            title={preview}
-          >
-            {preview}
-          </span>
-          {partial ? (
+          {!hasMedia ? (
             <span
-              className="text-dark-yellow shrink-0 rounded border px-1 py-px text-[10px]"
-              title={t("variableMapping.tree.notInEveryEntryTooltip")}
+              className="text-muted-foreground min-w-0 flex-1 truncate text-xs leading-4"
+              title={preview}
             >
-              {t("variableMapping.tree.notInEveryEntry")}
-            </span>
-          ) : null}
-          <span className="text-muted-foreground shrink-0 rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
-            {badge ??
-              typeBadge(value, {
-                noValue: t("variableMapping.tree.types.noValue"),
-                list: (count) =>
-                  t("variableMapping.tree.types.list", { count }),
-                object: (count) =>
-                  t("variableMapping.tree.types.object", { count }),
-                text: t("variableMapping.tree.types.text"),
-                number: t("variableMapping.tree.types.number"),
-                boolean: t("variableMapping.tree.types.boolean"),
-              })}
-          </span>
-          {isCurrent ? (
-            <span
-              className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
-              title={t("variableMapping.tree.currentMapping", { variable })}
-            >
-              {t("variableMapping.tree.current")}
+              {preview}
             </span>
           ) : null}
         </button>
+        {hasMedia ? (
+          <MediaAwarePreview
+            preview={preview}
+            directDescriptor={directMediaDescriptor}
+          />
+        ) : null}
+        {partial ? (
+          <span
+            className="text-dark-yellow shrink-0 self-center rounded border px-1 py-px text-[10px]"
+            title={t("variableMapping.tree.notInEveryEntryTooltip")}
+          >
+            {t("variableMapping.tree.notInEveryEntry")}
+          </span>
+        ) : null}
+        <span className="text-muted-foreground shrink-0 self-center rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
+          {badge ??
+            typeBadge(value, {
+              noValue: t("variableMapping.tree.types.noValue"),
+              list: (count) => t("variableMapping.tree.types.list", { count }),
+              object: (count) =>
+                t("variableMapping.tree.types.object", { count }),
+              text: t("variableMapping.tree.types.text"),
+              number: t("variableMapping.tree.types.number"),
+              boolean: t("variableMapping.tree.types.boolean"),
+            })}
+        </span>
+        {isCurrent ? (
+          <span
+            className="text-primary-accent bg-primary-accent/10 shrink-0 self-center rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
+            title={t("variableMapping.tree.currentMapping", {
+              variable: `{{${variable}}}`,
+            })}
+          >
+            {t("variableMapping.tree.current")}
+          </span>
+        ) : null}
         <button
           type="button"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
-          title={t("variableMapping.tree.pullFromHere", { variable })}
+          data-tree-row-action=""
+          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 self-center rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
+          title={t("variableMapping.tree.pullFromHere", {
+            variable: `{{${variable}}}`,
+          })}
           onClick={() => onSelect(columnId, segments)}
         >
           {t("variableMapping.tree.use")}

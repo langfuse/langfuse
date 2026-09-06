@@ -70,7 +70,6 @@ export function ProjectNotificationChannels({
 }) {
   const t = useTranslations("auxSettings.projectNotifications");
   const {
-    hasAccess,
     channels,
     isLoading,
     mode,
@@ -83,8 +82,6 @@ export function ProjectNotificationChannels({
   } = useProjectNotificationChannels(projectId);
 
   const hasChannels = Boolean(channels?.length);
-
-  if (!hasAccess) return null;
 
   return (
     <div>

@@ -39,7 +39,7 @@ export const createOrgProjectAndApiKey = async (
       orgId: org.id,
     },
   });
-  const publicKey = v4();
+  const publicKey = `pk-lf-${v4()}`;
   const secretKey = `sk-lf-${v4()}`;
   const salt = env.SALT;
   if (!salt) {

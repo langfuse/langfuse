@@ -6,6 +6,10 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 const scriptPath = path.join(import.meta.dirname, "prepare-metadata.mjs");
+const workflowPath = path.join(
+  import.meta.dirname,
+  "../../.github/workflows/model-price-audit.yml",
+);
 
 function runValidator({
   basePrices = [],
@@ -50,6 +54,24 @@ const changedPrices = {
   before: [{ modelName, pricingTiers: [{ prices: { input: 5 } }] }],
   after: [{ modelName, pricingTiers: [{ prices: { input: 10 } }] }],
 };
+
+test("accepts an added pricing entry from the staged snapshot", () => {
+  const addedModel = {
+    modelName: "gpt-6-astra",
+    pricingTiers: [{ prices: { input: 10, output: 50 } }],
+  };
+  const result = runValidator({
+    basePrices: changedPrices.before,
+    currentPrices: [...changedPrices.before, addedModel],
+    changedPricingJson: true,
+    output: {
+      pullRequestTitle: "chore(pricing): add OpenAI gpt-6-astra pricing",
+      modelsChecked: [{ model: addedModel.modelName, change: "added" }],
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+});
 
 test("accepts a unique trailing match-alias annotation", () => {
   const result = runValidator({
@@ -122,4 +144,29 @@ test("rejects a generic pull request title", () => {
     result.stderr,
     /must identify the specific models or audit behavior changed/,
   );
+});
+
+test("validates metadata against the exact staged pricing blob", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const prepareStep = workflow.slice(
+    workflow.indexOf("      - name: Prepare pull request artifact"),
+    workflow.indexOf("      - name: Upload pull request artifact"),
+  );
+  const stageIndex = prepareStep.indexOf(
+    'git -c core.hooksPath=/dev/null add -- "${changed_files[@]}"',
+  );
+  const metadataIndex = prepareStep.indexOf(
+    "node scripts/model-price-audit/prepare-metadata.mjs",
+  );
+
+  assert.ok(stageIndex >= 0, "prepare step must stage the validated file list");
+  assert.ok(
+    stageIndex < metadataIndex,
+    "metadata validation must run after staging",
+  );
+  assert.match(
+    prepareStep,
+    /CURRENT_PRICING_FILE="\$staged_pricing_file"/,
+  );
+  assert.doesNotMatch(prepareStep, /checkout -b "\$BOT_BRANCH"/);
 });

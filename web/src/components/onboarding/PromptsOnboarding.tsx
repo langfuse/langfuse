@@ -1,4 +1,3 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
@@ -12,22 +11,22 @@ export function PromptsOnboarding({ projectId }: { projectId: string }) {
     {
       title: t("prompts.decoupledTitle"),
       description: t("prompts.decoupledDescription"),
-      icon: <FileText className="h-4 w-4" />,
+      icon: FileText,
     },
     {
       title: t("prompts.editTitle"),
       description: t("prompts.editDescription"),
-      icon: <GitBranch className="h-4 w-4" />,
+      icon: GitBranch,
     },
     {
       title: t("prompts.performanceTitle"),
       description: t("prompts.performanceDescription"),
-      icon: <Zap className="h-4 w-4" />,
+      icon: Zap,
     },
     {
       title: t("prompts.metricsTitle"),
       description: t("prompts.metricsDescription"),
-      icon: <BarChart4 className="h-4 w-4" />,
+      icon: BarChart4,
     },
   ];
 

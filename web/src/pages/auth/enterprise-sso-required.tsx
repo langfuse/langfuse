@@ -37,6 +37,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   auth0: "Auth0",
   cognito: "Cognito",
   keycloak: "Keycloak",
+  jumpcloud: "JumpCloud",
   workos: "WorkOS",
   wordpress: "WordPress",
 };

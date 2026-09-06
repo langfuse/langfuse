@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Stack Workflow"
+  short_description: "Slice a large change into chained, reviewable PRs"
+  default_prompt: "Use $pr-stack-workflow to decide whether a change needs a PR stack, where to cut the slices, how to propagate and retarget the stack, and how to verify each branch on its own."

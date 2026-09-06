@@ -57,7 +57,7 @@ export const ScoresTable = ({
   projectId: string;
   globalFilterState: FilterState;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
 }) => {
   const t = useTranslations("systemUi.dashboardExtras");
   const localFilters = createTracesTimeFilter(
@@ -90,7 +90,7 @@ export const ScoresTable = ({
       ],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
       queryName: "score-aggregate",
-      version: metricsVersion ?? "v1",
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -135,7 +135,7 @@ export const ScoresTable = ({
         ],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
         queryName: "score-aggregate",
-        version: metricsVersion ?? "v1",
+        version: metricsVersion,
       },
       {
         trpc: {

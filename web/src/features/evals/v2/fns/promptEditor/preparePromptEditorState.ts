@@ -29,7 +29,10 @@ export function preparePromptEditorState({
     fixVariable: (variable: string) => string;
   };
 }) {
-  const mappings = buildEvaluatorVariableMappings({ prompt, variableFields });
+  const mappings = buildEvaluatorVariableMappings({
+    promptMessages: [{ role: "user", content: prompt }],
+    variableFields,
+  });
   const promptVariableMappings = Object.fromEntries(
     mappings.map(({ variable, fieldState }) => [
       variable,

@@ -1,6 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { formatDistanceToNow } from "date-fns";
 import { enUS, zhCN } from "date-fns/locale";
@@ -19,10 +18,8 @@ import { useLocale, useTranslations } from "next-intl";
 type EvaluatorPausedCalloutProps = {
   projectId: string;
   allowReactivation: boolean;
-  evalConfig: Pick<
-    JobConfiguration,
-    "id" | "blockedAt" | "blockReason" | "blockMessage"
-  > & {
+  blockedAt: NonNullable<JobConfiguration["blockedAt"]>;
+  evalConfig: Pick<JobConfiguration, "id" | "blockReason" | "blockMessage"> & {
     evalTemplate?: Pick<EvalTemplate, "id"> | null;
   };
 };
@@ -30,6 +27,7 @@ type EvaluatorPausedCalloutProps = {
 export function EvaluatorPausedCallout({
   projectId,
   allowReactivation,
+  blockedAt,
   evalConfig,
 }: EvaluatorPausedCalloutProps) {
   const t = useTranslations("evaluationAnalytics.evaluations");
@@ -49,10 +47,6 @@ export function EvaluatorPausedCallout({
       showErrorToast(t("pausedCallout.reactivationFailed"), error.message);
     },
   });
-
-  if (!evalConfig.blockedAt) {
-    return null;
-  }
 
   const blockReason =
     evalConfig.blockReason ?? EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
@@ -113,10 +107,10 @@ export function EvaluatorPausedCallout({
         ? t("openEvaluatorTemplate")
         : t("openEvaluators");
   const blockMessage = blockReasonCopy.message;
-  const blockedAt = new Date(evalConfig.blockedAt);
-  const blockedAtLabel = Number.isNaN(blockedAt.getTime())
+  const blockedAtDate = new Date(blockedAt);
+  const blockedAtLabel = Number.isNaN(blockedAtDate.getTime())
     ? null
-    : formatDistanceToNow(blockedAt, {
+    : formatDistanceToNow(blockedAtDate, {
         addSuffix: true,
         locale: locale === "zh-CN" ? zhCN : enUS,
       });
@@ -143,7 +137,7 @@ export function EvaluatorPausedCallout({
             {blockedAtLabel ? (
               <Fragment>
                 <span className="bg-border h-1 w-1 rounded-full" />
-                <span title={blockedAt.toLocaleString()}>
+                <span title={blockedAtDate.toLocaleString()}>
                   {t("pausedAt", { time: blockedAtLabel })}
                 </span>
               </Fragment>

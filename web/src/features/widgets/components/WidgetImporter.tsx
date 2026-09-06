@@ -6,8 +6,7 @@ import { type TimeFilter, ObservationLevelDomain } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import {
   importWidgetFile,
   type ImportedWidgetFormSnapshot,
@@ -44,13 +43,13 @@ export const WidgetImporter = ({
   projectId,
   viewVersion,
   dateRange,
-  isBetaEnabled,
+  isV4,
   onImport,
 }: {
   projectId: string;
   viewVersion: ViewVersion;
   dateRange: { from: Date; to: Date } | undefined;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   onImport: (snapshot: ImportedWidgetFormSnapshot) => void;
 }) => {
   const t = useTranslations("systemUi.miscUi.widgetImport");
@@ -77,7 +76,7 @@ export const WidgetImporter = ({
     await runImport({
       file,
       optionSets,
-      isBetaEnabled,
+      isV4,
       onImport,
       messages: {
         uploaded: t("uploaded"),
@@ -210,7 +209,7 @@ function buildImportOptionSets(params: {
 async function runImport(params: {
   file: File;
   optionSets: WidgetImportOptionSets;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   onImport: (snapshot: ImportedWidgetFormSnapshot) => void;
   messages?: WidgetImportMessages;
 }): Promise<void> {
@@ -219,7 +218,7 @@ async function runImport(params: {
     const result = await importWidgetFile({
       file: params.file,
       optionSets: params.optionSets,
-      isBetaEnabled: params.isBetaEnabled,
+      isV4: params.isV4,
     });
 
     params.onImport(result.snapshot);

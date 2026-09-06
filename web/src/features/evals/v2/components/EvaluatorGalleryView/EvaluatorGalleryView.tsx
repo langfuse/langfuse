@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useCallback, type RefObject } from "react";
 import { Code2, Search, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
@@ -12,7 +12,10 @@ import type {
   GalleryNavigationItem,
   GallerySection,
 } from "../../types/templateGallery";
-import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "../../constants/evaluatorGallery";
+import {
+  EVALUATOR_GALLERY_ALL_SECTION_KEY,
+  EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+} from "../../constants/evaluatorGallery";
 import {
   gallerySidebarItems,
   visibleGallerySections,
@@ -46,6 +49,9 @@ export function EvaluatorGalleryView({
   onCreateFromScratch,
   scrollContainerRef,
   isLoading,
+  hasMoreProjectTemplates = false,
+  isLoadingMoreProjectTemplates = false,
+  onLoadMoreProjectTemplates,
   errorMessage,
 }: {
   search: string;
@@ -61,6 +67,9 @@ export function EvaluatorGalleryView({
   onCreateFromScratch: (type: EvalTemplateType) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
   isLoading: boolean;
+  hasMoreProjectTemplates?: boolean;
+  isLoadingMoreProjectTemplates?: boolean;
+  onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
 }) {
   const t = useTranslations("evaluationAnalytics.evaluations");
@@ -76,6 +85,44 @@ export function EvaluatorGalleryView({
       : EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const displayedSections = visibleGallerySections(sections, resolvedSection);
   const hasTemplates = displayedSections.length > 0;
+  const isSingleSection = resolvedSection !== EVALUATOR_GALLERY_ALL_SECTION_KEY;
+  const selectSection = (key: string) => {
+    if (key !== resolvedSection) onSearchChange("");
+    onSelectSection(key);
+  };
+  const loadMoreSentinelRef = useCallback(
+    (sentinel: HTMLDivElement | null) => {
+      if (
+        !sentinel ||
+        !hasMoreProjectTemplates ||
+        isLoadingMoreProjectTemplates ||
+        !onLoadMoreProjectTemplates
+      ) {
+        return;
+      }
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry?.isIntersecting) {
+            observer.disconnect();
+            onLoadMoreProjectTemplates();
+          }
+        },
+        { root: scrollContainerRef?.current, rootMargin: "200px 0px" },
+      );
+      observer.observe(sentinel);
+      return () => observer.disconnect();
+    },
+    [
+      hasMoreProjectTemplates,
+      isLoadingMoreProjectTemplates,
+      onLoadMoreProjectTemplates,
+      scrollContainerRef,
+    ],
+  );
+  const shouldLoadMoreProjectTemplates =
+    resolvedSection === EVALUATOR_GALLERY_PROJECT_SECTION_KEY &&
+    (hasMoreProjectTemplates || isLoadingMoreProjectTemplates);
 
   return (
     <div className="@container flex flex-1 flex-col overflow-hidden">
@@ -84,10 +131,7 @@ export function EvaluatorGalleryView({
           <EvaluatorGallerySidebar
             items={sidebarItems}
             activeSection={resolvedSection}
-            onSelectSection={(key) => {
-              if (key !== resolvedSection) onSearchChange("");
-              onSelectSection(key);
-            }}
+            onSelectSection={selectSection}
           />
         ) : (
           <div aria-hidden="true" className="w-56 shrink-0 border-r" />
@@ -146,9 +190,23 @@ export function EvaluatorGalleryView({
                     <EvaluatorGallerySection
                       key={section.key}
                       section={section}
-                      expanded={expandedSections.has(section.key)}
-                      onExpandedChange={(expanded) =>
-                        onExpandedChange(section.key, expanded)
+                      expanded={
+                        isSingleSection || expandedSections.has(section.key)
+                      }
+                      onExpandedChange={
+                        isSingleSection
+                          ? undefined
+                          : (expanded) => {
+                              if (
+                                expanded &&
+                                section.key ===
+                                  EVALUATOR_GALLERY_PROJECT_SECTION_KEY
+                              ) {
+                                selectSection(section.key);
+                                return;
+                              }
+                              onExpandedChange(section.key, expanded);
+                            }
                       }
                       onSelectTemplate={onSelectTemplate}
                     />
@@ -158,6 +216,19 @@ export function EvaluatorGalleryView({
                     {t("gallery.noMatches")}
                   </div>
                 )
+              ) : null}
+              {shouldLoadMoreProjectTemplates ? (
+                <div
+                  ref={
+                    hasMoreProjectTemplates ? loadMoreSentinelRef : undefined
+                  }
+                  className="text-muted-foreground py-2 text-center text-sm"
+                  role={isLoadingMoreProjectTemplates ? "status" : undefined}
+                >
+                  {isLoadingMoreProjectTemplates
+                    ? "Loading more templates…"
+                    : null}
+                </div>
               ) : null}
             </div>
           </div>

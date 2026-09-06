@@ -91,6 +91,18 @@ describe("evaluation execution metrics", () => {
       } satisfies EvaluatorLlmErrorClassification,
       expected: "upstream_error",
     },
+    ...["AI_NoObjectGeneratedError", "AI_NoOutputGeneratedError"].map(
+      (name) => ({
+        classification: {
+          kind: "ai-sdk" as const,
+          message: "model output did not match the required format",
+          isRetryable: false,
+          error: Object.assign(new Error("invalid model output"), { name }),
+          blockReason: null,
+        } satisfies EvaluatorLlmErrorClassification,
+        expected: "customer_error",
+      }),
+    ),
   ])(
     "classifies LLM terminal errors as $expected",
     ({ classification, expected }) => {
@@ -105,6 +117,10 @@ describe("evaluation execution metrics", () => {
     },
     {
       code: CodeEvalDispatcherErrorCodes.TIMEOUT,
+      expected: "customer_error",
+    },
+    {
+      code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
       expected: "customer_error",
     },
     {

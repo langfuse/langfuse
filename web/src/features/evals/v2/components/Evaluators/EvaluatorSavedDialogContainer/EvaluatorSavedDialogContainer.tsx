@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import {
   EvalTemplateType,
   EvalTargetObject,
@@ -19,11 +20,12 @@ import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/Creat
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
@@ -171,7 +173,7 @@ export function EvaluatorSavedDialogContainer({
     if (result.action === "created") {
       capture("evaluation_rules:create", {
         assignmentCount: 1,
-        filterCount: supportedRuleFilters.length,
+        ...getFilterAnalyticsProperties(supportedRuleFilters),
         samplingPercent: Math.round(sampling * 100),
         isEnabled: true,
         source: "evaluator_create_test_filters",

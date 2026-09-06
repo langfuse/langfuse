@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -13,14 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useTranslations } from "next-intl";
 
@@ -49,11 +52,14 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   }
 
   // Viewing the list only needs apiKeys:read, which project MEMBERs hold.
-  // Create, delete, and note editing stay behind apiKeys:CUD and are gated
-  // individually by CreateApiKeyButton, DeleteApiKeyButton, and ApiKeyNote.
+  // Create, delete, and note editing stay behind apiKeys:CUD.
   const hasProjectReadAccess = useHasProjectAccess({
     projectId: props.entityId,
     scope: "apiKeys:read",
+  });
+  const hasProjectWriteAccess = useHasProjectAccess({
+    projectId: props.entityId,
+    scope: "apiKeys:CUD",
   });
   const hasOrganizationAccess = useHasOrganizationAccess({
     organizationId: props.entityId,
@@ -62,6 +68,8 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
 
   const hasAccess =
     props.scope === "project" ? hasProjectReadAccess : hasOrganizationAccess;
+  const hasCreateAccess =
+    props.scope === "project" ? hasProjectWriteAccess : hasOrganizationAccess;
 
   const projectApiKeysQuery = api.projectApiKeys.byProjectId.useQuery(
     { projectId: entityId },
@@ -80,10 +88,10 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       <div>
         <Header title={t("title")} />
         <Alert>
-          <AlertTitle>{t("accessDeniedTitle")}</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>{t("accessDeniedTitle")}</Alert.Title>
+          <Alert.Description>
             {t("accessDeniedDescription", { scope: scopeLabel })}
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -100,7 +108,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               ? "https://langfuse.com/docs/api#authentication"
               : "https://langfuse.com/docs/api#org-scoped-routes",
         }}
-        actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
+        actionButtons={
+          hasCreateAccess ? (
+            <CreateApiKeyButton entityId={entityId} scope={scope} />
+          ) : undefined
+        }
       />
       <CodeView
         content={envCode}

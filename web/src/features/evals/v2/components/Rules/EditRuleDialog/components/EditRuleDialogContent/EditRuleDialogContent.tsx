@@ -1,20 +1,21 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   EvalTemplateType,
   observationVariableMappingList,
   singleFilter,
 } from "@langfuse/shared";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { useTranslations } from "next-intl";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -95,7 +96,7 @@ export function EditRuleDialogContent({
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,
-      filterCount: draft.filter.length,
+      ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: rule.enabled,
     });

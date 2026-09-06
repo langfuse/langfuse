@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Card } from "@/src/components/ui/card";
 import { BlobStorageExportMode } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -19,20 +19,24 @@ export const BlobStorageStatusSection = ({
     <>
       <Header title={t("common.status")} />
       {config.lastError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTitle>{t("blobStorage.status.lastExportFailed")}</AlertTitle>
-          <AlertDescription>
-            {config.lastError}
-            {config.lastErrorAt && (
-              <>
-                <br />
-                <span className="text-xs opacity-70">
-                  {new Date(config.lastErrorAt).toLocaleString()}
-                </span>
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
+        <div className="mb-4">
+          <Alert variant="destructive">
+            <Alert.Title>
+              {t("blobStorage.status.lastExportFailed")}
+            </Alert.Title>
+            <Alert.Description>
+              {config.lastError}
+              {config.lastErrorAt && (
+                <>
+                  <br />
+                  <span className="text-xs opacity-70">
+                    {new Date(config.lastErrorAt).toLocaleString()}
+                  </span>
+                </>
+              )}
+            </Alert.Description>
+          </Alert>
+        </div>
       )}
       <Card className="p-3">
         <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">

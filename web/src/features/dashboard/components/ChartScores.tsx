@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import {
@@ -18,8 +19,7 @@ import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashb
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import { useTranslations } from "next-intl";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 // Static — hoisted so its reference is stable across re-renders (keeps the
 // memoized <Chart> from reconciling on dashboard scheduler re-renders).
@@ -37,7 +37,7 @@ export function ChartScores(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
 }) {

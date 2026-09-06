@@ -6,7 +6,7 @@ import {
   DeleteAnnotationQueueAssignmentBody,
   GetAnnotationQueueItemByIdQuery,
   UpdateAnnotationQueueItemBody,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/features/public-api/server";
 
 export const CreateAnnotationQueueItemToolSchema = z
   .object({

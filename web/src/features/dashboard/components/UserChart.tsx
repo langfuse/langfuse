@@ -9,7 +9,7 @@ import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
 import { useTranslations } from "next-intl";
 
@@ -38,7 +38,7 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const t = useTranslations("playgroundDashboard.dashboard.users");

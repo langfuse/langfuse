@@ -7,9 +7,6 @@ export const PromptVariableListPreview = ({
   variables: string[];
 }) => {
   const t = useTranslations("coreDetails.prompts.form");
-  if (variables.length === 0) {
-    return null;
-  }
 
   return (
     <div>

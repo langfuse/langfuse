@@ -1,9 +1,4 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -23,7 +18,7 @@ import {
   startOfDay,
 } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { useFormatter, useTranslations } from "next-intl";
 
 type DatasetVersionHistoryPanelProps = {
@@ -237,80 +232,94 @@ export function DatasetVersionHistoryPanel({
         <Accordion type="multiple" defaultValue={["today"]}>
           {/* Today */}
           {groupedVersions.today.length > 0 && (
-            <AccordionItem value="today" className="px-2">
-              <AccordionTrigger className="text-sm font-bold">
-                {t("today", { count: groupedVersions.today.length })}
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="flex flex-col gap-1">
-                  {groupedVersions.today.map((v, i) => renderVersionItem(v, i))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+            <Accordion.Item value="today">
+              <div className="px-2">
+                <Accordion.Trigger size="sm">
+                  {t("today", { count: groupedVersions.today.length })}
+                </Accordion.Trigger>
+                <Accordion.Content>
+                  <div className="flex flex-col gap-1 pb-4">
+                    {groupedVersions.today.map((v, i) =>
+                      renderVersionItem(v, i),
+                    )}
+                  </div>
+                </Accordion.Content>
+              </div>
+            </Accordion.Item>
           )}
 
           {/* Yesterday */}
           {groupedVersions.yesterday.length > 0 && (
-            <AccordionItem value="yesterday" className="px-2">
-              <AccordionTrigger className="text-sm font-bold">
-                {t("yesterday", { count: groupedVersions.yesterday.length })}
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="flex flex-col gap-1">
-                  {groupedVersions.yesterday.map((v) =>
-                    renderVersionItem(v, versions.indexOf(v)),
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+            <Accordion.Item value="yesterday">
+              <div className="px-2">
+                <Accordion.Trigger size="sm">
+                  {t("yesterday", { count: groupedVersions.yesterday.length })}
+                </Accordion.Trigger>
+                <Accordion.Content>
+                  <div className="flex flex-col gap-1 pb-4">
+                    {groupedVersions.yesterday.map((v) =>
+                      renderVersionItem(v, versions.indexOf(v)),
+                    )}
+                  </div>
+                </Accordion.Content>
+              </div>
+            </Accordion.Item>
           )}
 
           {/* Last 7 Days */}
           {groupedVersions.last7Days.length > 0 && (
-            <AccordionItem value="last7days" className="px-2">
-              <AccordionTrigger className="text-sm font-bold">
-                {t("last7Days", { count: groupedVersions.last7Days.length })}
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="flex flex-col gap-1">
-                  {groupedVersions.last7Days.map((v) =>
-                    renderVersionItem(v, versions.indexOf(v)),
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+            <Accordion.Item value="last7days">
+              <div className="px-2">
+                <Accordion.Trigger size="sm">
+                  {t("last7Days", { count: groupedVersions.last7Days.length })}
+                </Accordion.Trigger>
+                <Accordion.Content>
+                  <div className="flex flex-col gap-1 pb-4">
+                    {groupedVersions.last7Days.map((v) =>
+                      renderVersionItem(v, versions.indexOf(v)),
+                    )}
+                  </div>
+                </Accordion.Content>
+              </div>
+            </Accordion.Item>
           )}
 
           {/* Last 30 Days */}
           {groupedVersions.last30Days.length > 0 && (
-            <AccordionItem value="last30days" className="px-2">
-              <AccordionTrigger className="text-sm font-bold">
-                {t("last30Days", { count: groupedVersions.last30Days.length })}
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="flex flex-col gap-1">
-                  {groupedVersions.last30Days.map((v) =>
-                    renderVersionItem(v, versions.indexOf(v)),
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+            <Accordion.Item value="last30days">
+              <div className="px-2">
+                <Accordion.Trigger size="sm">
+                  {t("last30Days", {
+                    count: groupedVersions.last30Days.length,
+                  })}
+                </Accordion.Trigger>
+                <Accordion.Content>
+                  <div className="flex flex-col gap-1 pb-4">
+                    {groupedVersions.last30Days.map((v) =>
+                      renderVersionItem(v, versions.indexOf(v)),
+                    )}
+                  </div>
+                </Accordion.Content>
+              </div>
+            </Accordion.Item>
           )}
 
           {/* Older */}
           {groupedVersions.older.length > 0 && (
-            <AccordionItem value="older" className="px-2">
-              <AccordionTrigger className="text-sm font-bold">
-                {t("older", { count: groupedVersions.older.length })}
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="flex flex-col gap-1">
-                  {groupedVersions.older.map((v) =>
-                    renderVersionItem(v, versions.indexOf(v)),
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+            <Accordion.Item value="older">
+              <div className="px-2">
+                <Accordion.Trigger size="sm">
+                  {t("older", { count: groupedVersions.older.length })}
+                </Accordion.Trigger>
+                <Accordion.Content>
+                  <div className="flex flex-col gap-1 pb-4">
+                    {groupedVersions.older.map((v) =>
+                      renderVersionItem(v, versions.indexOf(v)),
+                    )}
+                  </div>
+                </Accordion.Content>
+              </div>
+            </Accordion.Item>
           )}
         </Accordion>
       </div>

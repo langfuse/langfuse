@@ -107,10 +107,12 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      <SeriesOverflowNote
-        visibleCount={dimensions.length}
-        totalCount={series.total}
-      />
+      {series.total > dimensions.length && (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={series.total}
+        />
+      )}
       <ChartContainer
         ref={chartBoxRef}
         config={config}
@@ -195,15 +197,16 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           />
         </BarChart>
       </ChartContainer>
-      {(legendPosition === "below" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={formatValue}
-        />
-      )}
+      {legendItems.length > 0 &&
+        (legendPosition === "below" ||
+          (legendPosition === "auto" && legendItems.length > 1)) && (
+          <TimeSeriesLegend
+            items={legendItems}
+            interaction={legendInteraction}
+            onItemClick={onLegendClick}
+            formatSummary={formatValue}
+          />
+        )}
     </div>
   );
 };

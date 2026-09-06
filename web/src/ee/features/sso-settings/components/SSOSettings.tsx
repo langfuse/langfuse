@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,9 +53,7 @@ import {
 } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 import { api } from "@/src/utils/api";
@@ -151,10 +150,11 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <VerifiedDomainsSettings orgId={orgId} />
         <div>
           {heading}
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{t("notAvailable")}</AlertTitle>
-            <AlertDescription>{t("notAvailableDescription")}</AlertDescription>
+          <Alert icon={AlertCircle}>
+            <Alert.Title>{t("notAvailable")}</Alert.Title>
+            <Alert.Description>
+              {t("notAvailableDescription")}
+            </Alert.Description>
           </Alert>
         </div>
       </div>
@@ -168,8 +168,10 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <div>
           {heading}
           <Alert>
-            <AlertTitle>{t("accessDenied")}</AlertTitle>
-            <AlertDescription>{t("accessDeniedDescription")}</AlertDescription>
+            <Alert.Title>{t("accessDenied")}</Alert.Title>
+            <Alert.Description>
+              {t("accessDeniedDescription")}
+            </Alert.Description>
           </Alert>
         </div>
       </div>

@@ -5,15 +5,6 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 
-/** Approvals first: a question outranks a result the user can read later. */
-const CARD_PRIORITY: Record<string, number> = {
-  approval: 0,
-  "failed-unread": 1,
-  "done-unread": 2,
-};
-
-const MAX_VISIBLE_CARDS = 3;
-
 export type InAppAgentActivityCard = {
   conversationId: string;
   activityKey: string;
@@ -21,16 +12,6 @@ export type InAppAgentActivityCard = {
   title: string | null;
   state: Exclude<InAppAgentActivityState, "running">;
 };
-
-export function selectInAppAgentActivityCards(
-  cards: readonly InAppAgentActivityCard[],
-): InAppAgentActivityCard[] {
-  return [...cards]
-    .sort(
-      (a, b) => (CARD_PRIORITY[a.state] ?? 9) - (CARD_PRIORITY[b.state] ?? 9),
-    )
-    .slice(0, MAX_VISIBLE_CARDS);
-}
 
 function getCardCopy(
   state: InAppAgentActivityCard["state"],
@@ -58,20 +39,15 @@ export function InAppAgentActivityCards({
   onOpen,
   onDismiss,
 }: {
-  cards: readonly InAppAgentActivityCard[];
+  cards: readonly [InAppAgentActivityCard, ...InAppAgentActivityCard[]];
   onOpen: (card: InAppAgentActivityCard) => void;
   onDismiss: (card: InAppAgentActivityCard) => void;
 }) {
   const t = useSharedUiTranslations("agent");
-  const visible = selectInAppAgentActivityCards(cards);
-
-  if (visible.length === 0) {
-    return null;
-  }
 
   return (
     <div className="top-banner-offset pointer-events-none fixed right-4 flex w-80 flex-col gap-2 pt-4">
-      {visible.map((card) => {
+      {cards.map((card) => {
         const { label, tone } = getCardCopy(card.state, {
           approval: t("activityApproval"),
           failed: t("activityFailed"),

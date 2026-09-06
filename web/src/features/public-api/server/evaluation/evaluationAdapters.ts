@@ -226,7 +226,7 @@ export function toEvaluatorServiceDefinition(
         }
       : {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: definition.prompt[0]!.content,
+          promptMessages: definition.prompt,
           modelConfig: definition.modelConfig ?? null,
           variableMapping:
             definition.variableMapping == null
@@ -267,10 +267,10 @@ export function toPublicEvaluatorVersion(
     });
   }
 
-  if (!version.prompt) {
-    throw new InternalServerError("Evaluator prompt is corrupted");
+  if (!version.promptMessages) {
+    throw new InternalServerError("Evaluator prompt messages are corrupted");
   }
-  const prompt = [{ role: "user" as const, content: version.prompt }];
+  const prompt = version.promptMessages;
   return EvaluatorVersion.parse({
     ...common,
     type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,

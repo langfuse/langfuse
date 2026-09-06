@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   DataTableControlsProvider,
@@ -24,12 +25,13 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
-import { useTranslations } from "next-intl";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 type PromptTableRow = {
   id: string;
@@ -297,36 +299,36 @@ export function PromptTable() {
         };
       },
     }),
-    {
+    createNumberTableColumn<PromptTableRow>({
       accessorKey: "version",
       header: t("columns.versions"),
-      id: "version",
       enableSorting: true,
       size: 70,
-      cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
-        return getValue<number | undefined>();
+      formatter: (value) => String(value),
+      getValue: (value, { row }) => {
+        if (row.original.type === "folder") return undefined;
+        return value ?? undefined;
       },
-    },
-    {
+    }),
+    createTextTableColumn<PromptTableRow>({
       accessorKey: "type",
       header: t("columns.type"),
-      id: "type",
       enableSorting: true,
       size: 60,
-    },
-    {
+    }),
+    createDateTableColumn({
       accessorKey: "createdAt",
       header: t("columns.latestCreatedAt"),
-      id: "createdAt",
       enableSorting: true,
       size: 200,
-      cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
-        const createdAt = getValue<Date | undefined>();
-        return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      getValue: (value, context) => {
+        if (context.row.original.type === "folder") {
+          return undefined;
+        }
+
+        return value ?? undefined;
       },
-    },
+    }),
     {
       accessorKey: "numberOfObservations",
       header: t("columns.observations7d"),
@@ -420,6 +422,7 @@ export function PromptTable() {
           />
         )}
         <DataTableToolbar
+          tableName="prompts"
           columns={promptColumns}
           filterState={queryFilter.filterState}
           columnsWithCustomSelect={["labels", "tags"]}

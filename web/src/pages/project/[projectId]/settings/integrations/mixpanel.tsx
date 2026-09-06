@@ -38,7 +38,7 @@ import {
   type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
@@ -382,10 +382,10 @@ const MixpanelIntegrationSettingsForm = ({
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
-            <AlertTitle>{t("common.unavailableTitle")}</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>{t("common.unavailableTitle")}</Alert.Title>
+            <Alert.Description>
               {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
         <FormField

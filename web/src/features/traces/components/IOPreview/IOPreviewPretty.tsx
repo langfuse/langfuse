@@ -4,10 +4,11 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
-  type ChatMLParserResult,
-  useChatMLParser,
-} from "../../hooks/useChatMLParser";
+  type IOPreviewParserMode,
+  useIOPreviewParser,
+} from "../../hooks/useIOPreviewParser";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -114,6 +115,9 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  // Which parser produces the preview; the normalized parser is admin-only
+  // while it is being validated. Legacy remains the safe default.
+  parser?: IOPreviewParserMode;
 }
 
 /**
@@ -125,8 +129,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * - Large content safety (markdown rendering limit)
  * - Accepts pre-parsed data to avoid duplicate parsing
  *
- * This component performs ChatML parsing which is only needed for pretty view.
- * For JSON view, use IOPreviewJSON instead.
+ * This component selects and renders the pretty-view parser output. For JSON
+ * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
   input,
@@ -159,6 +163,7 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
+  parser = "legacy",
 }: IOPreviewPrettyProps) {
   const t = useTranslations("coreObservability.ioPreview");
   // Use pre-parsed data if available (from useParsedObservation hook),
@@ -187,7 +192,8 @@ export function IOPreviewPretty({
     [projectId, observationId],
   );
 
-  // Parse ChatML format
+  // Parse into the shared preview contract. The normalized parser is opt-in
+  // while it is being rolled out; legacy remains the safe default.
   const {
     canDisplayAsChat,
     allMessages,
@@ -198,7 +204,8 @@ export function IOPreviewPretty({
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
     inputMessageCount,
-  } = useChatMLParser(
+  } = useIOPreviewParser(
+    parser,
     input,
     output,
     metadata,

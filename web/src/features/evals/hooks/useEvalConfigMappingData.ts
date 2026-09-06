@@ -7,7 +7,7 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useEffect, useRef } from "react";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { isTraceTargetOnV4 } from "@/src/features/evals/utils/typeHelpers";
 import {
   type EvalPreviewPointer,
@@ -28,12 +28,12 @@ export function useEvalConfigMappingData(
   selectedPreviewPointer?: EvalPreviewPointer,
 ): EvalConfigMappingData {
   const router = useRouter();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   const targetValue = useWatch({ control: form.control, name: "target" });
   const firstPreviewPointer = useFirstEvalPreviewPointer({
     target: targetValue,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
   });
   const urlPreviewPointer = getEvalPreviewPointerFromUrlQuery(
     router.query,
@@ -45,7 +45,7 @@ export function useEvalConfigMappingData(
 
   // The trace preview reads the legacy traces table, which is not the v4
   // user's experience — never fetch or expect preview data there.
-  const traceTargetOnV4 = isTraceTargetOnV4(targetValue, isBetaEnabled);
+  const traceTargetOnV4 = isTraceTargetOnV4(targetValue, isV4);
 
   const { previewData, isLoading } = usePreviewData({
     projectId,

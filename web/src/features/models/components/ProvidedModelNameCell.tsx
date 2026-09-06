@@ -1,5 +1,5 @@
 import { PlusCircle } from "lucide-react";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
 import { useTranslations } from "next-intl";
 
@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
  * tables. When the model resolves to a definition it is a plain name; when it
  * does not, the name carries a trailing "add model definition" affordance.
  *
- * Both states render the name through {@link TableIdOrName} so typography and
+ * Both states render the name through {@link IdTableCell} so typography and
  * vertical alignment stay identical row-to-row — the trailing icon is a
  * `shrink-0` adornment that never shifts the text baseline. The trigger is a
  * `role="button"` and stops click propagation so opening the dialog does not
@@ -20,20 +20,19 @@ export function ProvidedModelNameCell({
   projectId,
   usageDetails,
 }: {
-  modelName: string | undefined;
+  modelName: string;
   modelId: string | undefined;
   projectId: string;
   usageDetails: Record<string, number>;
 }) {
   const t = useTranslations("systemUi.miscUi.general");
-  if (!modelName) return null;
 
   // Both states wrap the name in the same inline-flex so the text sits at an
   // identical baseline whether or not the trailing affordance is present.
   if (modelId) {
     return (
-      <span className="inline-flex max-w-full items-center">
-        <TableIdOrName value={modelName} className="min-w-0" />
+      <span className="inline-flex max-w-full min-w-0 items-center">
+        <IdTableCell value={modelName} />
       </span>
     );
   }
@@ -68,9 +67,9 @@ export function ProvidedModelNameCell({
         type="button"
         title={t("addModelDefinition", { name: modelName })}
         onClick={(e) => e.stopPropagation()}
-        className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
+        className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
       >
-        <TableIdOrName value={modelName} className="min-w-0" />
+        <IdTableCell value={modelName} />
         <PlusCircle className="h-3.5 w-3.5 shrink-0" />
       </button>
     </UpsertModelFormDialog>

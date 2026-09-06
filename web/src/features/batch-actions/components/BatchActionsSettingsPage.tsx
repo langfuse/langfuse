@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { BatchActionsTable } from "./BatchActionsTable";
 import { useTranslations } from "next-intl";
 
@@ -22,8 +22,8 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
         </SettingsTableCard>
       ) : (
         <Alert>
-          <AlertTitle>{t("accessDeniedTitle")}</AlertTitle>
-          <AlertDescription>{t("accessDeniedDescription")}</AlertDescription>
+          <Alert.Title>{t("accessDeniedTitle")}</Alert.Title>
+          <Alert.Description>{t("accessDeniedDescription")}</Alert.Description>
         </Alert>
       )}
     </>

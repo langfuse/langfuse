@@ -3,8 +3,6 @@ import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { ApiKeyCreateDialogContent } from "@/src/features/public-api/components/ApiKeyCreateDialogContent";
@@ -19,18 +17,6 @@ export function CreateApiKeyButton(props: {
   const t = useTranslations("accessSettings.apiKeys");
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-
-  const hasProjectAccess = useHasProjectAccess({
-    projectId: props.entityId,
-    scope: "apiKeys:CUD",
-  });
-  const hasOrganizationAccess = useHasOrganizationAccess({
-    organizationId: props.entityId,
-    scope: "organization:CRUD_apiKeys",
-  });
-
-  const hasAccess =
-    props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
 
   const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation({
     onSuccess: () => utils.projectApiKeys.invalidate(),
@@ -87,8 +73,6 @@ export function CreateApiKeyButton(props: {
         .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
-
-  if (!hasAccess) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

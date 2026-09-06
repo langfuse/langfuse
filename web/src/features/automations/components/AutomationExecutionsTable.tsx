@@ -158,6 +158,7 @@ export const AutomationExecutionsTable: React.FC<
   return (
     <>
       <DataTableToolbar
+        tableName="automation-executions"
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}

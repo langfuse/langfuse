@@ -68,8 +68,6 @@ const ROLES: ChatMessageRole[] = [
 ] as const;
 
 const ToolCalls: React.FC<{ toolCalls: LLMToolCall[] }> = ({ toolCalls }) => {
-  if (!toolCalls || toolCalls.length === 0) return null;
-
   return (
     <div className="w-full space-y-2">
       {toolCalls.map((toolCall) => (
@@ -367,9 +365,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 />
               )}
             </div>
-            {message.type === ChatMessageType.AssistantToolCall && (
-              <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
-            )}
+            {message.type === ChatMessageType.AssistantToolCall &&
+              message.toolCalls.length > 0 && (
+                <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
+              )}
           </div>
           <Button
             variant="ghost"

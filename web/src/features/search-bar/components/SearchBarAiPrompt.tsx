@@ -15,19 +15,19 @@
 // just-added filter on apply.
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTranslations } from "next-intl";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export function SearchBarAiPrompt({
   projectId,

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
@@ -12,22 +11,22 @@ export function ScoresOnboarding() {
     {
       title: t("scores.feedbackTitle"),
       description: t("scores.feedbackDescription"),
-      icon: <ThumbsUp className="h-4 w-4" />,
+      icon: ThumbsUp,
     },
     {
       title: t("scores.evaluationsTitle"),
       description: t("scores.evaluationsDescription"),
-      icon: <Star className="h-4 w-4" />,
+      icon: Star,
     },
     {
       title: t("scores.qualityTitle"),
       description: t("scores.qualityDescription"),
-      icon: <LineChart className="h-4 w-4" />,
+      icon: LineChart,
     },
     {
       title: t("scores.customTitle"),
       description: t("scores.customDescription"),
-      icon: <Code className="h-4 w-4" />,
+      icon: Code,
     },
   ];
 

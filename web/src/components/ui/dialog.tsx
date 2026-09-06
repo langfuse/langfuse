@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -186,6 +186,8 @@ type DialogControllerProps = {
     Trigger: typeof DialogTrigger;
   }) => React.ReactNode;
   closeOnInteractionOutside: boolean;
+  onBeforeClose?: () => boolean;
+  onDismiss?: () => void;
   renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
 };
@@ -193,13 +195,29 @@ type DialogControllerProps = {
 const DialogController = ({
   children,
   closeOnInteractionOutside,
+  onBeforeClose,
+  onDismiss,
   renderContent,
   size,
 }: DialogControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const closeDialog = () => {
+    if (onBeforeClose?.() === false) return false;
+    setIsOpen(false);
+    return true;
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (open) {
+          setIsOpen(true);
+          return;
+        }
+        if (closeDialog()) onDismiss?.();
+      }}
+    >
       {children({
         isOpen,
         openDialog: () => setIsOpen(true),
@@ -209,7 +227,7 @@ const DialogController = ({
         size={size}
         closeOnInteractionOutside={closeOnInteractionOutside}
       >
-        {renderContent({ closeDialog: () => setIsOpen(false) })}
+        {renderContent({ closeDialog })}
       </DialogContent>
     </Dialog>
   );

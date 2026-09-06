@@ -16,18 +16,16 @@ export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
 
   const columns = [
-    {
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "name",
-      id: "name",
       enableColumnFilter: false,
       header: t("name"),
-    },
-    {
+    }),
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "script",
-      id: "script",
       enableColumnFilter: false,
       header: t("script"),
-    },
+    }),
     {
       accessorKey: "args",
       id: "args",
@@ -51,12 +49,11 @@ export default function BackgroundMigrationsTable() {
       size: 80,
       enableSorting: false,
     }),
-    {
+    createTextTableColumn<BackgroundMigration>({
       accessorKey: "failedReason",
-      id: "failedReason",
       enableColumnFilter: false,
       header: t("failedReason"),
-    },
+    }),
     createTextTableColumn<BackgroundMigration, BackgroundMigration["state"]>({
       accessorKey: "state",
       enableColumnFilter: false,
@@ -94,7 +91,7 @@ export default function BackgroundMigrationsTable() {
         title: t("title"),
       }}
     >
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="background-migrations" />
       <DataTable
         tableName="backgroundMigrations"
         columns={columns}

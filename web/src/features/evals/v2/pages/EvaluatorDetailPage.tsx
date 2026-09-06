@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useTranslations } from "next-intl";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { api } from "@/src/utils/api";
-import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
 export default function EvaluatorDetailPage() {
@@ -27,7 +27,7 @@ export default function EvaluatorDetailPage() {
     evaluator.data.type === "LLM_AS_JUDGE"
       ? {
           type: "LLM_AS_JUDGE" as const,
-          prompt: latest.prompt ?? "",
+          promptMessages: latest.promptMessages!,
           provider: latest.provider,
           model: latest.model,
           modelParams: latest.modelParams,
@@ -51,7 +51,7 @@ export default function EvaluatorDetailPage() {
         name: evaluator.data.name,
         description: evaluator.data.description,
         type: evaluator.data.type,
-        definition: definition as EvaluatorDefinition,
+        definition: definition as NormalizedEvaluatorDefinition,
         blockedAt: evaluator.data.blockedAt,
         blockReason: evaluator.data.blockReason,
         blockMessage: evaluator.data.blockMessage,

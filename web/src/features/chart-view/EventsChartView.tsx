@@ -9,6 +9,7 @@ import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
 import { type ChartDescriptionFormatter } from "./vocab";
 import { useTranslations } from "next-intl";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Production chart view for the v4 events table. Builds the observations
@@ -38,6 +39,10 @@ export function EventsChartView({
     (key, values) => labelsT(key as Parameters<typeof labelsT>[0], values),
     [labelsT],
   );
+  const canManageDashboards = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
   const filters = useMemo(() => toChartFilters(filterState), [filterState]);
 
   const query = useMemo(
@@ -54,7 +59,7 @@ export function EventsChartView({
     { projectId, query, version: "v2" },
     {
       enabled: validRange,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );
@@ -83,7 +88,12 @@ export function EventsChartView({
       isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
       chartActions={
-        <AddToDashboardButton projectId={projectId} widgetInput={widgetInput} />
+        canManageDashboards && (
+          <AddToDashboardButton
+            projectId={projectId}
+            widgetInput={widgetInput}
+          />
+        )
       }
     />
   );

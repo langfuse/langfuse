@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -152,6 +153,11 @@ export function IOPreview({
 }: IOPreviewProps) {
   const t = useTranslations("coreObservability.ioPreview");
   const capture = usePostHogClientCapture();
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
     useLocalStorage<string[]>(STORAGE_KEY, []);
 
@@ -228,6 +234,8 @@ export function IOPreview({
           selectedView={selectedView}
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
+          showPrettyBeta={showPrettyBeta}
+          prettyBetaDisabled={chatMLParserResult !== undefined}
         />
       )}
 
@@ -299,6 +307,15 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
+          parser={
+            // Precomputed legacy parses win inside the parser hook, so a
+            // beta-labeled view must never claim them as normalized output.
+            selectedView === "pretty-beta" &&
+            showPrettyBeta &&
+            chatMLParserResult === undefined
+              ? "normalized"
+              : "legacy"
+          }
           observationName={observationName}
           showMetadata={showMetadata}
           contentMode={contentMode}

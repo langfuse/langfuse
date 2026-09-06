@@ -32,10 +32,9 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
@@ -827,33 +826,27 @@ export function CreateLLMApiKeyForm({
                           {t("form.authentication.description")}
                         </FormDescription>
                         <FormControl>
-                          <Tabs
-                            value={field.value}
-                            onValueChange={(value) =>
-                              field.onChange(value as BedrockAuthMethod)
-                            }
-                            className="w-full"
-                          >
-                            <TabsList
-                              className={cn(
-                                "grid h-auto w-full gap-1",
-                                "grid-cols-2",
-                              )}
+                          <div className="w-full">
+                            <Tabs
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value as BedrockAuthMethod)
+                              }
                             >
-                              <TabsTrigger
-                                value={AuthMethod.AccessKeys}
-                                className="text-xs"
-                              >
-                                {t("form.authentication.accessKeys")}
-                              </TabsTrigger>
-                              <TabsTrigger
-                                value={AuthMethod.ApiKey}
-                                className="text-xs"
-                              >
-                                {t("form.authentication.apiKey")}
-                              </TabsTrigger>
-                            </TabsList>
-                          </Tabs>
+                              <Tabs.List layout="full" gap="sm" size="auto">
+                                <Tabs.Trigger
+                                  value={AuthMethod.AccessKeys}
+                                  size="sm"
+                                  label={t("form.authentication.accessKeys")}
+                                />
+                                <Tabs.Trigger
+                                  value={AuthMethod.ApiKey}
+                                  size="sm"
+                                  label={t("form.authentication.apiKey")}
+                                />
+                              </Tabs.List>
+                            </Tabs>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

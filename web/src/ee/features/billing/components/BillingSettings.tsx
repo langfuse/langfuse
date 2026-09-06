@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-null-render */
 // Langfuse Cloud only
 
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
@@ -29,7 +30,12 @@ export const BillingSettings = () => {
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
   const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
-  const { hasActiveSubscription } = useBillingInformation();
+  const { organization, billingProvider, hasActiveSubscription } =
+    useBillingInformation();
+  const showBillingDiscount = Boolean(
+    organization?.cloudConfig?.stripe?.activeSubscriptionId &&
+    billingProvider !== "clickhouse",
+  );
 
   // Don't render billing settings if cloud billing is not available
   if (!isCloudBillingAvailable) {
@@ -44,8 +50,8 @@ export const BillingSettings = () => {
   if (!hasAccess) {
     return (
       <Alert>
-        <AlertTitle>{t("accessDenied")}</AlertTitle>
-        <AlertDescription>{t("accessDeniedDescription")}</AlertDescription>
+        <Alert.Title>{t("accessDenied")}</Alert.Title>
+        <Alert.Description>{t("accessDeniedDescription")}</Alert.Description>
       </Alert>
     );
   }
@@ -58,7 +64,14 @@ export const BillingSettings = () => {
       <div className="space-y-6">
         <BillingUsageChart />
         <BillingPlanPeriodView />
-        <BillingDiscountView />
+        {showBillingDiscount && organization && (
+          <BillingDiscountView
+            orgId={organization.id}
+            hasStripeCustomer={Boolean(
+              organization.cloudConfig?.stripe?.customerId,
+            )}
+          />
+        )}
         <BillingActionButtons />
         <BillingInvoiceTable />
         {isSpendAlertEntitled && orgId && hasActiveSubscription && (

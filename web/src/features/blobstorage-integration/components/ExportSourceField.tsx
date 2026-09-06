@@ -1,6 +1,6 @@
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   FormControl,
   FormDescription,
@@ -134,11 +134,11 @@ export const ExportSourceField = ({
 
       {!watchedValidation.ok && (
         <Alert variant="destructive">
-          <AlertTitle>{t("unavailableTitle")}</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>{t("unavailableTitle")}</Alert.Title>
+          <Alert.Description>
             {/* Reason-specific body; texts live in the shared lookup. */}
             {getExportSourceUnavailableMessage(watchedValidation.reason)}
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
     </>

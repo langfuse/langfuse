@@ -1,4 +1,3 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
@@ -17,22 +16,22 @@ export function AnnotationQueuesOnboarding({
     {
       title: t("annotationQueues.manageTitle"),
       description: t("annotationQueues.manageDescription"),
-      icon: <ClipboardCheck className="h-4 w-4" />,
+      icon: ClipboardCheck,
     },
     {
       title: t("annotationQueues.collaborateTitle"),
       description: t("annotationQueues.collaborateDescription"),
-      icon: <Users className="h-4 w-4" />,
+      icon: Users,
     },
     {
       title: t("annotationQueues.metricsTitle"),
       description: t("annotationQueues.metricsDescription"),
-      icon: <BarChart4 className="h-4 w-4" />,
+      icon: BarChart4,
     },
     {
       title: t("annotationQueues.baselineTitle"),
       description: t("annotationQueues.baselineDescription"),
-      icon: <GitMerge className="h-4 w-4" />,
+      icon: GitMerge,
     },
   ];
 

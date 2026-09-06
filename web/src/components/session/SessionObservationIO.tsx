@@ -53,8 +53,8 @@ const TruncatedIOSection = ({
   truncated: boolean;
 }) => {
   const t = useTranslations("coreDetails.sessions.observationIo");
-  if (value === null || value === undefined || value === "") return null;
-  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const text =
+    typeof value === "string" ? value : (JSON.stringify(value) ?? "");
   const shown =
     text.length > PREVIEW_DISPLAY_CHARS
       ? text.slice(0, PREVIEW_DISPLAY_CHARS)
@@ -239,18 +239,26 @@ export const SessionObservationIO = ({
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
       <p className="text-muted-foreground text-xs">{t("tooLarge")}</p>
-      <TruncatedIOSection
-        label={t("input")}
-        value={observation.input}
-        fullLength={observation.inputLength}
-        truncated={observation.inputTruncated}
-      />
-      <TruncatedIOSection
-        label={t("output")}
-        value={observation.output}
-        fullLength={observation.outputLength}
-        truncated={observation.outputTruncated}
-      />
+      {observation.input !== null &&
+        observation.input !== undefined &&
+        observation.input !== "" && (
+          <TruncatedIOSection
+            label={t("input")}
+            value={observation.input}
+            fullLength={observation.inputLength}
+            truncated={observation.inputTruncated}
+          />
+        )}
+      {observation.output !== null &&
+        observation.output !== undefined &&
+        observation.output !== "" && (
+          <TruncatedIOSection
+            label={t("output")}
+            value={observation.output}
+            fullLength={observation.outputLength}
+            truncated={observation.outputTruncated}
+          />
+        )}
       {/* Metadata stays visible when I/O is truncated — it shipped with the
           observation and was always shown alongside I/O before the cap. */}
       {hasMetadataForDisplay && (
