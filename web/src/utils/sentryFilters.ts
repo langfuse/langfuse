@@ -555,3 +555,82 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
   }
   return sawRecorderFrame;
 }
+
+/**
+ * Kitesurf (Cursor's injected browser-automation recorder) prefixes its own
+ * `console.error` with `[kitesurf]`. That namespace cannot come from Langfuse
+ * app code — we never log it. `captureConsoleIntegration` captures those
+ * strings as MESSAGE events with no stack (LANGFUSE-60W).
+ */
+const KITESURF_CONSOLE_PREFIX = "[kitesurf]";
+
+/**
+ * Chromium's exact wording when `new Proxy` is called with a non-object
+ * target. Kitesurf's iframe-load `recordDOM` hits this when
+ * `iframe.contentWindow` is not yet an object. The same TypeError from OUR
+ * code is a real bug and must still capture — the stack/`mechanism` guards
+ * below are what keep that path open.
+ */
+const KITESURF_PROXY_TYPEERROR =
+  "Cannot create proxy with a non-object as target or handler";
+
+/**
+ * True for errors thrown wholly INSIDE Kitesurf's injected recorder, not by
+ * Langfuse. Two production shapes of the same throw (LANGFUSE-60W / 60X):
+ *
+ *  1. Console: `[kitesurf] event listener for load threw: TypeError: …`
+ *     via `captureConsoleIntegration` (message event, no stack).
+ *  2. Unhandled: `TypeError: Cannot create proxy with a non-object as
+ *     target or handler` via `auto.browser.global_handlers.onerror`, stack
+ *     entirely in `__ks_user_*.js` / `dom-shim.js` / Kitesurf `page.js`.
+ *
+ * Safe to drop: the console prefix is vendor-namespaced. The TypeError is
+ * only dropped when the mechanism is a Sentry browser-API / global handler
+ * AND at least one frame filename contains `__ks_` AND no frame is a
+ * first-party `/_next/` chunk. That combination cannot be a Langfuse
+ * `new Proxy` bug — those always carry an app chunk as the throwing frame
+ * (or arrive via `capture_console` / `captureException`, different
+ * mechanism).
+ *
+ * Does this hide a real error? No:
+ *  - the same TypeError from app code (`/_next/` frame, or no `__ks_`
+ *    frame) is KEPT;
+ *  - an app-captured / console-captured copy is KEPT (wrong mechanism);
+ *  - a message that merely quotes the TypeError wording without the
+ *    `[kitesurf]` prefix is KEPT.
+ */
+export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (
+    text.length > 0 &&
+    coreMessage(text).startsWith(KITESURF_CONSOLE_PREFIX)
+  ) {
+    return true;
+  }
+
+  const exception = event.exception?.values?.[0];
+  if (exception?.type !== "TypeError") return false;
+  if (exception.value !== KITESURF_PROXY_TYPEERROR) return false;
+
+  const mechanismType = exception.mechanism?.type;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.")
+  ) {
+    return false;
+  }
+
+  const frames = exception.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawKitesurfScript = false;
+  for (const frame of frames) {
+    const filename = frame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    if (filename.includes("/_next/")) return false;
+    if (filename.includes("__ks_")) {
+      sawKitesurfScript = true;
+    }
+  }
+  return sawKitesurfScript;
+}

@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
+  isKitesurfInternalEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -54,6 +55,14 @@ Sentry.init({
     // frame is ever present in these stacks; anything touching our code is
     // kept. See isPosthogRecorderInternalEvent for the rationale.
     if (isPosthogRecorderInternalEvent(event)) {
+      return null;
+    }
+
+    // Drop Kitesurf (Cursor browser-automation) internals: its injected
+    // recorder logs `[kitesurf] …` via console.error, and its iframe-load
+    // Proxy wrap throws a TypeError whose stack is only `__ks_*` scripts.
+    // Not a Langfuse app bug. See isKitesurfInternalEvent.
+    if (isKitesurfInternalEvent(event)) {
       return null;
     }
 
