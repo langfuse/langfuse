@@ -257,6 +257,75 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
 }
 
 /**
+ * V8's exact wording when `new Proxy(target, handler)` is called with a
+ * primitive / null / undefined target or handler. App code that actually
+ * does this is rare; the production client never does. The phrase is still
+ * too generic to drop on its own.
+ */
+const PROXY_NON_OBJECT_MESSAGE =
+  "Cannot create proxy with a non-object as target or handler";
+
+/**
+ * Page-injected user scripts served as a same-origin path
+ * (`/__ks_user_classic_regular.js`, `/__ks_kb.…`). Kaspersky and Kitesurf
+ * both use this `__ks_*` filename. `denyUrls` never matches — the script is
+ * not a `chrome-extension://` URL, and Sentry marks the frames in-app.
+ */
+const KITESURF_INJECTED_SCRIPT_RE = /(?:^|\/)__ks_[^/?#]+$/;
+
+/**
+ * True for the Kitesurf / Kaspersky injector that wraps DOM listeners,
+ * `new Proxy`s a non-object during iframe-load recording, then either
+ * throws (global `onerror`) or `console.error`s
+ * `[kitesurf] event listener for <type> threw:` plus the TypeError and
+ * its `__ks_*` stack. Observed as LANGFUSE-60X (onerror) and LANGFUSE-60W
+ * (console wrap) on `/auth/sign-up`, 0 users, same session.
+ *
+ * Both shapes are required: `denyUrls` misses the same-origin `__ks_*`
+ * path, and the console wrap is a MESSAGE event with no frames.
+ *
+ * Does not hide a real error:
+ *  - a first-party `TypeError` with this wording (we `new Proxy`'d a
+ *    primitive) is KEPT unless an `__ks_*` frame is also present AND the
+ *    mechanism is `auto.browser.*`;
+ *  - `captureException` / `capture_console` of the same TypeError is KEPT
+ *    (different mechanism);
+ *  - a `[kitesurf]` console wrap of a *different* thrown error (our
+ *    listener actually failed) is KEPT — the prefix alone is not enough;
+ *  - a stackless / no-`__ks_*` copy of the TypeError is KEPT.
+ */
+function isKitesurfInjectedProxyEvent(event: ErrorEvent): boolean {
+  const messageText = eventText(event);
+  if (
+    messageText.startsWith("[kitesurf]") &&
+    messageText.includes(PROXY_NON_OBJECT_MESSAGE) &&
+    messageText.includes("__ks_")
+  ) {
+    return true;
+  }
+
+  const exception = event.exception?.values?.[0];
+  if (exception?.type !== "TypeError") return false;
+  if (exception.value !== PROXY_NON_OBJECT_MESSAGE) return false;
+  const mechanismType = exception.mechanism?.type;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.")
+  ) {
+    return false;
+  }
+
+  const frames = exception.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some((stackFrame) => {
+    const filename = stackFrame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) return false;
+    const path = filename.split(/[?#]/)[0];
+    return KITESURF_INJECTED_SCRIPT_RE.test(path);
+  });
+}
+
+/**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
  * poll logs, and expected browser-permission / cancellation artifacts. Returning
@@ -431,6 +500,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     ) {
       return true;
     }
+  }
+
+  // Kitesurf / Kaspersky-style page injectors (LANGFUSE-60X / 60W).
+  if (isKitesurfInjectedProxyEvent(event)) {
+    return true;
   }
 
   return false;

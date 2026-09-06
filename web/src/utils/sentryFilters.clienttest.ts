@@ -599,6 +599,81 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("H. drops Kitesurf / Kaspersky injected Proxy TypeErrors", () => {
+    // Real shapes (LANGFUSE-60X / 60W): a page-injected `__ks_*` user script
+    // `new Proxy`s a non-object during iframe-load recording. The unhandled
+    // TypeError is 60X; Kitesurf's listener wrap console.errors the same
+    // throw as a MESSAGE event (60W). denyUrls misses the same-origin path.
+    const PROXY_NON_OBJECT =
+      "Cannot create proxy with a non-object as target or handler";
+
+    const kitesurfOnerrorEvent = (
+      frames: { filename?: string; function?: string }[],
+      mechanismType = "auto.browser.global_handlers.onerror",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_NON_OBJECT,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: { frames },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-60X onerror TypeError from __ks_user_classic_regular.js", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          kitesurfOnerrorEvent([
+            {
+              filename: "/__ks_user_classic_regular.js",
+              function: "e.recordDOM.c.win",
+            },
+            { filename: "dom-shim.js", function: "invokeListeners" },
+            { filename: "page.js", function: "fireLifecycle" },
+          ]),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same TypeError when the injector is served with an origin + query", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          kitesurfOnerrorEvent([
+            {
+              filename:
+                "https://us.cloud.langfuse.com/__ks_user_classic_regular.js?v=1",
+              function: "e.recordDOM.c.win",
+            },
+          ]),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the LANGFUSE-60W [kitesurf] console wrap (message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            `[kitesurf] event listener for load threw: TypeError: ${PROXY_NON_OBJECT}\n    at e.recordDOM.c.win (/__ks_user_classic_regular.js:153:88439)`,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same console wrap when the text lives on logentry", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          logentryEvent(
+            `[kitesurf] event listener for load threw: TypeError: ${PROXY_NON_OBJECT}\n    at i4 (/__ks_user_classic_regular.js:153:90541)`,
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -942,6 +1017,106 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a first-party Proxy TypeError (no __ks_ frames)", () => {
+      // Same V8 wording as LANGFUSE-60X, but the stack is ours. If we ever
+      // `new Proxy` a primitive this must still surface.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+                    function: "createStore",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Proxy TypeError even with an __ks_ frame", () => {
+      // Mechanism guard: captureException / capture_console must still
+      // surface if our code throws or logs this wording.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "/__ks_user_classic_regular.js",
+                    function: "e.recordDOM.c.win",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a stackless Proxy TypeError (cannot attribute it to the injector)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a [kitesurf] console wrap of a different thrown error", () => {
+      // Kitesurf wraps every listener. If OUR load/click handler throws,
+      // the wrap must not hide it.
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[kitesurf] event listener for click threw: TypeError: Cannot read properties of undefined (reading 'map')\n    at handleSubmit (https://us.cloud.langfuse.com/_next/static/chunks/app.js:1:1)",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a [kitesurf] wrap of the Proxy TypeError without an __ks_ stack", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler\n    at createStore (https://us.cloud.langfuse.com/_next/static/chunks/app.js:1:1)",
+          ),
+        ),
+      ).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
