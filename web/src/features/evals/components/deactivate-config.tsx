@@ -13,6 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useTranslations } from "next-intl";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -24,6 +25,7 @@ export function DeactivateEvalConfig({
   /** Called when the user confirms an activate/deactivate toggle. */
   onStatusChange?: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -96,18 +98,17 @@ export function DeactivateEvalConfig({
             checked={isActive}
             color="green"
             {...(reactivationBlocked && {
-              title:
-                "Deprecated evaluators cannot be reactivated. Migrate to the new evaluators instead.",
+              title: t("deprecatedCannotReactivate"),
             })}
           />
         </div>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="mb-3 font-bold">Please confirm</h2>
+        <h2 className="mb-3 font-bold">{t("pleaseConfirm")}</h2>
         <p className="mb-3 text-sm">
           {evalConfig?.status === "ACTIVE"
-            ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."
-            : "This action will activate the evaluator. New traces will be evaluated based on this evaluator."}
+            ? t("deactivateDescription")
+            : t("activateDescription")}
         </p>
         <div className="flex justify-end space-x-4">
           <Button
@@ -118,7 +119,7 @@ export function DeactivateEvalConfig({
             loading={mutEvaluator.isPending}
             onClick={onClick}
           >
-            {evalConfig?.status === "ACTIVE" ? "Deactivate" : "Activate"}
+            {evalConfig?.status === "ACTIVE" ? t("deactivate") : t("activate")}
           </Button>
         </div>
       </PopoverContent>

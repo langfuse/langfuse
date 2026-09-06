@@ -26,8 +26,10 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { useTranslations } from "next-intl";
 
 function DatasetRunLegacy() {
+  const t = useTranslations("coreDetails.datasets.page");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -45,6 +47,7 @@ function DatasetRunLegacy() {
   const breadcrumb = getDatasetBreadcrumb(
     projectId,
     datasetId,
+    t("datasets"),
     dataset.data?.name,
   );
 
@@ -56,7 +59,7 @@ function DatasetRunLegacy() {
         breadcrumb: [
           ...breadcrumb,
           {
-            name: "Experiments",
+            name: t("experiments"),
             href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
@@ -70,7 +73,7 @@ function DatasetRunLegacy() {
             >
               <Button>
                 <Columns3 className="mr-2 h-4 w-4" />
-                <span>Compare</span>
+                <span>{t("compare")}</span>
               </Button>
             </Link>
             <DetailPageNav
@@ -110,12 +113,9 @@ function DatasetRunLegacy() {
             datasetVersion={run.data?.datasetVersion}
           />
         </div>
-        <SidePanel
-          mobileTitle="Experiment run details"
-          id="experiment-run-details"
-        >
+        <SidePanel mobileTitle={t("runDetails")} id="experiment-run-details">
           <SidePanelHeader>
-            <SidePanelTitle>Experiment run details</SidePanelTitle>
+            <SidePanelTitle>{t("runDetails")}</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
             {run.isPending ? (
@@ -124,7 +124,9 @@ function DatasetRunLegacy() {
               <>
                 {run.data?.datasetVersion && (
                   <div className="flex flex-col gap-2 p-1">
-                    <span className="text-sm font-bold">Dataset Version</span>
+                    <span className="text-sm font-bold">
+                      {t("datasetVersion")}
+                    </span>
                     <Link
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
                       className="text-link hover:text-link-hover text-sm"
@@ -136,20 +138,20 @@ function DatasetRunLegacy() {
                 {!!run.data?.description && (
                   <JSONView
                     json={run.data.description}
-                    title="Description"
+                    title={t("descriptionLabel")}
                     className="w-full overflow-y-auto"
                   />
                 )}
                 {!!run.data?.metadata && (
                   <JSONView
                     json={run.data.metadata}
-                    title="Metadata"
+                    title={t("metadata")}
                     className="w-full overflow-y-auto"
                   />
                 )}
                 {!run.data?.description && !run.data?.metadata && (
                   <div className="text-muted-foreground mt-1 px-1 text-sm">
-                    No description or metadata for this run
+                    {t("noRunDetails")}
                   </div>
                 )}
               </>

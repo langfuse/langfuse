@@ -105,19 +105,25 @@ const IntegrationTypeSchema = z.enum([
   "3rd Party (Dify / LangFlow / Flowise)",
   "Other (please specify)",
 ]);
-export const SupportFormSchema = z.object({
-  messageType: MessageTypeSchema.default("Question"),
-  severity: SeveritySchema,
-  integrationType: z.string().optional(),
-  topic: z
-    .union([TopicSchema, z.literal("")])
-    .refine((val) => val !== "", { message: "Please select a topic." })
-    .transform((val) => val as z.infer<typeof TopicSchema>),
-  message: z
-    .string()
-    .trim()
-    .min(1, "Please provide a description of your issue."),
-});
+export const createSupportFormSchema = ({
+  topicRequired = "Please select a topic.",
+  descriptionRequired = "Please provide a description of your issue.",
+}: {
+  topicRequired?: string;
+  descriptionRequired?: string;
+} = {}) =>
+  z.object({
+    messageType: MessageTypeSchema.default("Question"),
+    severity: SeveritySchema,
+    integrationType: z.string().optional(),
+    topic: z
+      .union([TopicSchema, z.literal("")])
+      .refine((val) => val !== "", { message: topicRequired })
+      .transform((val) => val as z.infer<typeof TopicSchema>),
+    message: z.string().trim().min(1, descriptionRequired),
+  });
+
+export const SupportFormSchema = createSupportFormSchema();
 export const MESSAGE_TYPES = MessageTypeSchema.options;
 export const SEVERITIES = SeveritySchema.options;
 export const INTEGRATION_TYPES = IntegrationTypeSchema.options;

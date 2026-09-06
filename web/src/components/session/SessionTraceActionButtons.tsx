@@ -19,6 +19,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type TraceScores =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number]["scores"];
@@ -42,6 +43,7 @@ export function SessionTraceActionButtons({
   density?: "default" | "compact";
   className?: string;
 }) {
+  const t = useTranslations("coreDetails.sessions.actions");
   const size = density === "compact" ? "xs" : "default";
   const commentCount = getNumberFromMap(traceCommentCounts, traceId);
   // SessionIO already fetches the trace, so this doesn't add an extra request
@@ -113,8 +115,8 @@ export function SessionTraceActionButtons({
                       />
                     ) : null}
                     {hasExistingDatasetItems
-                      ? `In ${datasetCount} dataset(s)`
-                      : "Add to datasets"}
+                      ? t("inDatasets", { count: datasetCount })
+                      : t("addToDatasets")}
                     {hasExistingDatasetItems ? (
                       <ChevronDown className="ml-2 h-3 w-3" />
                     ) : !hasDatasetAccess ? (
@@ -158,7 +160,7 @@ export function SessionTraceActionButtons({
               ) : (
                 <SquarePen className="mr-1.5 h-4 w-4" />
               )}
-              <span>Annotate</span>
+              <span>{t("annotate")}</span>
             </Button>
           )}
         </AnnotateDrawerController>
@@ -205,7 +207,7 @@ export function SessionTraceActionButtons({
             ) : (
               <>
                 <MessageSquare className="h-4 w-4" />
-                <span>Add comment</span>
+                <span>{t("addComment")}</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />
                 ) : null}

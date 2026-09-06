@@ -39,6 +39,11 @@ export type MessageSearchPageLabelResolver = (
   pageIndex: number,
 ) => string | null;
 
+export type MessageSearchMessageLabelResolver = (
+  message: ChatMessageWithId,
+  index: number,
+) => string;
+
 type MessageSearchState = {
   isOpen: boolean;
   openRequestCount: number;
@@ -48,6 +53,7 @@ type MessageSearchState = {
   matches: MessageSearchMatch[];
   pageIds: string[];
   getPageLabel?: MessageSearchPageLabelResolver;
+  getMessageLabel?: MessageSearchMessageLabelResolver;
   pageMessagesById: Record<string, ChatMessageWithId[]>;
 };
 
@@ -86,6 +92,9 @@ export type MessageSearchController = {
   previousMatch: () => void;
   setPageIds: (pageIds: string[]) => void;
   setPageLabelResolver: (getPageLabel?: MessageSearchPageLabelResolver) => void;
+  setMessageLabelResolver: (
+    getMessageLabel?: MessageSearchMessageLabelResolver,
+  ) => void;
   registerPageMessages: (pageId: string, messages: ChatMessageWithId[]) => void;
   unregisterPageMessages: (pageId: string) => void;
   registerPageTarget: (pageId: string, target: MessageSearchPageTarget) => void;
@@ -180,7 +189,9 @@ function buildMatches(state: MessageSearchState) {
 
       while (!match.done) {
         const { from, to } = match.value;
-        const label = getMessageSearchLabel(message, messageIndex);
+        const label =
+          state.getMessageLabel?.(message, messageIndex) ??
+          getMessageSearchLabel(message, messageIndex);
         const pageLabel = state.getPageLabel?.(pageId, pageIndex);
         const matchWithoutKey = {
           pageId,
@@ -216,6 +227,7 @@ function arePageIdsEqual(currentPageIds: string[], nextPageIds: string[]) {
 export function createMessageSearchController(
   initialPageIds: string[],
   initialPageLabelResolver?: MessageSearchPageLabelResolver,
+  initialMessageLabelResolver?: MessageSearchMessageLabelResolver,
 ): MessageSearchController {
   const state: MessageSearchState = {
     isOpen: false,
@@ -226,6 +238,7 @@ export function createMessageSearchController(
     matches: [],
     pageIds: initialPageIds,
     getPageLabel: initialPageLabelResolver,
+    getMessageLabel: initialMessageLabelResolver,
     pageMessagesById: {},
   };
   const listeners = new Set<() => void>();
@@ -587,6 +600,15 @@ export function createMessageSearchController(
       }
 
       state.getPageLabel = getPageLabel;
+      refreshSearchResultsIfSearching({});
+    },
+
+    setMessageLabelResolver(getMessageLabel) {
+      if (state.getMessageLabel === getMessageLabel) {
+        return;
+      }
+
+      state.getMessageLabel = getMessageLabel;
       refreshSearchResultsIfSearching({});
     },
 

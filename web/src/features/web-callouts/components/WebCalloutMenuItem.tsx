@@ -13,6 +13,7 @@ import {
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type WebCalloutTarget = {
   projectId: string;
@@ -22,6 +23,7 @@ type WebCalloutTarget = {
 };
 
 function useWebCalloutAction(props: WebCalloutTarget) {
+  const t = useTranslations("settingsEnterprise.webCalloutAction");
   const endpoint = api.webCallouts.enabled.useQuery(
     { projectId: props.projectId },
     {
@@ -39,7 +41,7 @@ function useWebCalloutAction(props: WebCalloutTarget) {
       });
     },
     onError: (error) => {
-      showErrorToast("Web callout failed", error.message);
+      showErrorToast(t("failed"), error.message);
     },
   });
 
@@ -59,7 +61,7 @@ function useWebCalloutAction(props: WebCalloutTarget) {
   };
 
   return {
-    endpointName: endpoint.data?.name ?? "Web callout",
+    endpointName: endpoint.data?.name ?? t("fallbackName"),
     isLoading: invokeMutation.isPending,
     isVisible: endpoint.data?.enabled === true,
     invokeCallout,
@@ -75,6 +77,7 @@ export function WebCalloutMenuItem({
 }: WebCalloutTarget & {
   withSeparator?: boolean;
 }) {
+  const t = useTranslations("settingsEnterprise.webCalloutAction");
   const action = useWebCalloutAction({
     projectId,
     traceId,
@@ -101,8 +104,10 @@ export function WebCalloutMenuItem({
           className="max-w-[260px] min-w-0 truncate"
           title={action.endpointName}
         >
-          <span>Call </span>
-          <span className="font-bold">{action.endpointName}</span>
+          {t.rich("callRich", {
+            endpointName: action.endpointName,
+            strong: (chunks) => <span className="font-bold">{chunks}</span>,
+          })}
         </span>
       </DropdownMenuItem>
       {withSeparator && <DropdownMenuSeparator />}
@@ -125,6 +130,7 @@ export function WebCalloutButton({
    */
   layout?: "toolbar" | "menu";
 }) {
+  const t = useTranslations("settingsEnterprise.webCalloutAction");
   const action = useWebCalloutAction({
     projectId,
     traceId,
@@ -136,7 +142,7 @@ export function WebCalloutButton({
     return null;
   }
 
-  const label = `Call ${action.endpointName}`;
+  const label = t("call", { endpointName: action.endpointName });
 
   if (layout === "menu") {
     return (

@@ -6,6 +6,7 @@ import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextAuth from "next-auth";
+import { getAppLocale, LOCALE_COOKIE_NAME } from "@/src/features/i18n/config";
 
 const maxAuthErrorLength = 1_000;
 const authErrorFallback = "Configuration";
@@ -171,6 +172,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
   const authOptions = await getAuthOptions({
     adClickIds: getAdClickIdsFromRequest(req),
+    locale: getAppLocale(req.cookies[LOCALE_COOKIE_NAME]),
   });
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself

@@ -13,6 +13,7 @@ import {
   useChart,
   getPayloadConfigFromPayload,
 } from "@/src/components/ui/chart";
+import { useTranslations } from "next-intl";
 
 export interface ScoreChartLegendContentProps extends Pick<
   DefaultLegendContentProps,
@@ -52,13 +53,14 @@ const LegendItem = ({
   onClick,
   noTruncate = false,
 }: LegendItemProps) => {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!interactive}
       aria-pressed={visible}
-      aria-label={`${visible ? "Hide" : "Show"} ${label}`}
+      aria-label={t(visible ? "hideLegendItem" : "showLegendItem", { label })}
       className={cn(
         "flex items-center gap-1.5 text-sm transition-opacity",
         interactive && "cursor-pointer hover:opacity-80",
@@ -119,6 +121,7 @@ export const ScoreChartLegendContent = React.forwardRef<
     },
     ref,
   ) => {
+    const t = useTranslations("evaluationAnalytics.scoreAnalytics");
     const { config } = useChart();
     const containerRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -308,7 +311,7 @@ export const ScoreChartLegendContent = React.forwardRef<
 
       payload.forEach((item) => {
         const key = `${nameKey || item.dataKey || "value"}`;
-        let groupName = "Categories";
+        let groupName = t("categories");
 
         // Try to extract score name from key (e.g., "sentiment-negative" → "sentiment")
         if (key.includes("-")) {
@@ -326,7 +329,7 @@ export const ScoreChartLegendContent = React.forwardRef<
       });
 
       return groups;
-    }, [payload, nameKey]);
+    }, [payload, nameKey, t]);
 
     if (!payload || payload.length === 0) {
       return null;
@@ -387,7 +390,7 @@ export const ScoreChartLegendContent = React.forwardRef<
 
       // Handle "__unmatched__" special case
       if (rawLabel === "__unmatched__" || rawLabel === "unmatched") {
-        return "Unmatched";
+        return t("unmatched");
       }
 
       if (formatLabel) {
@@ -445,9 +448,9 @@ export const ScoreChartLegendContent = React.forwardRef<
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:bg-accent h-6 shrink-0 gap-1 px-2 text-xs"
-                  aria-label={`Show all ${payload.length} categories`}
+                  aria-label={t("showAllCategories", { count: payload.length })}
                 >
-                  <span>Show all {payload.length}</span>
+                  <span>{t("showAll", { count: payload.length })}</span>
                   {hiddenCount > 0 && (
                     <span className="font-bold">(+{hiddenCount})</span>
                   )}
@@ -461,9 +464,9 @@ export const ScoreChartLegendContent = React.forwardRef<
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold">All Categories</p>
+                    <p className="text-sm font-bold">{t("allCategories")}</p>
                     <span className="text-muted-foreground text-xs">
-                      {payload.length} total
+                      {t("allCategoriesCount", { count: payload.length })}
                     </span>
                   </div>
                   <div className="space-y-3">

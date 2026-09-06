@@ -2,6 +2,7 @@ import React from "react";
 import { BarChart3, Table } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { type ViewMode } from "../types";
+import { useTranslations } from "next-intl";
 
 /**
  * The toolbar affordance that flips the v4 events view between table and chart.
@@ -14,6 +15,8 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
   mode: ViewMode;
   onModeChange: (mode: ViewMode) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+
   return (
     <ToggleGroup
       type="single"
@@ -29,19 +32,19 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
     >
       <ToggleGroupItem
         value="table"
-        aria-label="Table view"
+        aria-label={t("tableView")}
         className="h-8 gap-1.5 rounded-r-none px-2.5 text-xs"
       >
         <Table className="h-3.5 w-3.5" />
-        Table
+        {t("table")}
       </ToggleGroupItem>
       <ToggleGroupItem
         value="chart"
-        aria-label="Chart view"
+        aria-label={t("chartView")}
         className="h-8 gap-1.5 rounded-l-none border-l-0 px-2.5 text-xs"
       >
         <BarChart3 className="h-3.5 w-3.5" />
-        Chart
+        {t("chart")}
       </ToggleGroupItem>
     </ToggleGroup>
   );

@@ -1,6 +1,9 @@
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
-import { type BaseActionHandler } from "./BaseActionHandler";
+import {
+  type ActionValidationError,
+  type BaseActionHandler,
+} from "./BaseActionHandler";
 import { SlackActionForm } from "./SlackActionForm";
 import {
   type AutomationDomain,
@@ -8,19 +11,13 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod";
-
-// Define the form schema for Slack actions
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
-const SlackActionFormSchema = z.object({
-  slack: z.object({
-    channelId: z.string().min(1, "Channel is required"),
-    channelName: z.string().min(1, "Channel name is required"),
-    messageTemplate: z.string().optional(),
-  }),
-});
-
-type SlackActionFormData = z.infer<typeof SlackActionFormSchema>;
+type SlackActionFormData = {
+  slack: {
+    channelId: string;
+    channelName: string;
+    messageTemplate?: string;
+  };
+};
 
 export class SlackActionHandler implements BaseActionHandler<SlackActionFormData> {
   actionType = "SLACK" as const;
@@ -48,16 +45,16 @@ export class SlackActionHandler implements BaseActionHandler<SlackActionFormData
 
   validateFormData(formData: SlackActionFormData): {
     isValid: boolean;
-    errors?: string[];
+    errors?: ActionValidationError[];
   } {
-    const errors: string[] = [];
+    const errors: ActionValidationError[] = [];
 
     if (!formData.slack?.channelId) {
-      errors.push("Slack channel is required");
+      errors.push({ code: "slackChannelRequired" });
     }
 
     if (!formData.slack?.channelName) {
-      errors.push("Channel name is required");
+      errors.push({ code: "channelNameRequired" });
     }
 
     return {

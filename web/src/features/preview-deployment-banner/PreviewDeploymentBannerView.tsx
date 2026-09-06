@@ -1,4 +1,5 @@
 import { type Ref } from "react";
+import { useTranslations } from "next-intl";
 
 export type PreviewDeploymentBannerViewProps = {
   /** Link back to the pull request this preview deployment belongs to. */
@@ -26,6 +27,7 @@ export function PreviewDeploymentBannerView({
   topOffset = 0,
   ref,
 }: PreviewDeploymentBannerViewProps) {
+  const t = useTranslations("systemUi.previewDeployment");
   return (
     <div
       ref={ref}
@@ -33,19 +35,21 @@ export function PreviewDeploymentBannerView({
       style={{ top: topOffset }}
     >
       <span className="text-sm">
-        Preview deployment of{" "}
+        {t("deploymentOf")}{" "}
         <a
           href={prUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-preview-banner-link hover:text-preview-banner-link-hover font-bold hover:underline"
         >
-          {prNumber ? `PR #${prNumber}` : "a pull request"}
+          {prNumber
+            ? t("pullRequest", { number: prNumber })
+            : t("genericPullRequest")}
         </a>
         {author ? (
           <>
             {" "}
-            by{" "}
+            {t("by")}{" "}
             <a
               href={`https://github.com/${encodeURIComponent(author)}`}
               target="_blank"
@@ -59,7 +63,10 @@ export function PreviewDeploymentBannerView({
         {updatedText ? (
           <>
             {" "}
-            · <span title={updatedTitle}>updated {updatedText}</span>
+            ·{" "}
+            <span title={updatedTitle}>
+              {t("updated", { time: updatedText })}
+            </span>
           </>
         ) : null}
       </span>

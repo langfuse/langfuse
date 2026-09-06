@@ -63,6 +63,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -94,6 +95,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   isCommentDrawerOpen,
   onCommentDrawerOpenChange,
 }: TraceDetailViewHeaderProps) {
+  const t = useTranslations("coreObservability.traceDetail");
   const { isAnnotationMode } = useViewPreferences();
   const isMobile = useIsMobile();
   const aggregatedMetrics = useMemo(
@@ -131,7 +133,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             {trace.name || trace.id}
           </span>
           <DetailHeaderActionsMenuController
-            idItems={[{ id: trace.id, name: "Trace ID" }]}
+            idItems={[{ id: trace.id, name: t("traceId") }]}
             projectId={projectId}
             webCallout={{
               traceId: trace.id,
@@ -141,10 +143,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             {({ Trigger }) => (
               <Trigger asChild>
                 <Button
-                  aria-label="Options"
+                  aria-label={t("options")}
                   className="mt-0.5 shrink-0"
                   size="icon-xs"
-                  title="Options"
+                  title={t("options")}
                   variant="ghost"
                 >
                   <EllipsisVertical className="h-4 w-4" />
@@ -160,7 +162,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="More actions"
+                  aria-label={t("moreActions")}
                   className="ml-auto shrink-0"
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -215,8 +217,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                             ) : null}
                             <span className="text-sm">
                               {hasExistingDatasetItems
-                                ? `In ${datasetCount} dataset(s)`
-                                : "Add to datasets"}
+                                ? t("inDatasets", { count: datasetCount })
+                                : t("addToDatasets")}
                             </span>
                             {hasExistingDatasetItems ? (
                               <ChevronDown className="ml-auto h-3 w-3" />
@@ -259,7 +261,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           ) : (
                             <SquarePen className="h-4 w-4" />
                           )}
-                          <span className="text-sm">Annotate</span>
+                          <span className="text-sm">{t("annotate")}</span>
                         </Button>
                       )}
                     </AnnotateDrawerController>
@@ -276,7 +278,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           className="w-full justify-start gap-2 font-normal"
                         >
                           <ListPlus className="h-4 w-4" />
-                          <span className="text-sm">Add to queue</span>
+                          <span className="text-sm">{t("addToQueue")}</span>
                           <AnnotationQueueItemCountBadge
                             totalCount={totalCount}
                             layout="menu"
@@ -310,7 +312,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       ) : (
                         <MessageSquare className="h-4 w-4" />
                       )}
-                      <span className="text-sm">Add comment</span>
+                      <span className="text-sm">{t("addComment")}</span>
                       {!disabled && commentCount ? (
                         <ActionButtonCountBadge count={commentCount} />
                       ) : null}
@@ -362,8 +364,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           />
                         ) : null}
                         {hasExistingDatasetItems
-                          ? `In ${datasetCount} dataset(s)`
-                          : "Add to datasets"}
+                          ? t("inDatasets", { count: datasetCount })
+                          : t("addToDatasets")}
                         {hasExistingDatasetItems ? (
                           <ChevronDown className="ml-2 h-3 w-3" />
                         ) : !hasDatasetAccess ? (
@@ -407,7 +409,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       ) : (
                         <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                       )}
-                      <span>Annotate</span>
+                      <span>{t("annotate")}</span>
                     </Button>
                   )}
                 </AnnotateDrawerController>
@@ -459,7 +461,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   ) : (
                     <>
                       <MessageSquare className="h-3.5 w-3.5" />
-                      <span>Add comment</span>
+                      <span>{t("addComment")}</span>
                       {!!commentCount ? (
                         <ActionButtonCountBadge count={commentCount} />
                       ) : null}

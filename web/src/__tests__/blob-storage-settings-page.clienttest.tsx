@@ -1,5 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
+import englishIntegrationsSettings from "@/src/features/i18n/messages/en/integrationsSettings.json";
+import simplifiedChineseIntegrationsSettings from "@/src/features/i18n/messages/zh-CN/integrationsSettings.json";
 
 const mocks = vi.hoisted(() => ({
   hasAccess: true,
@@ -89,6 +92,21 @@ vi.mock("@/src/utils/api", () => ({
 
 import BlobStorageIntegrationSettings from "@/src/pages/project/[projectId]/settings/integrations/blobstorage";
 
+const renderPage = (locale: "en" | "zh-CN" = "en") =>
+  render(
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        integrationsSettings:
+          locale === "en"
+            ? englishIntegrationsSettings
+            : simplifiedChineseIntegrationsSettings,
+      }}
+    >
+      <BlobStorageIntegrationSettings />
+    </NextIntlClientProvider>,
+  );
+
 describe("BlobStorageIntegrationSettings entitlement gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -101,7 +119,7 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
   });
 
   it("does not fetch config and shows a plan message without scheduled-blob-exports", () => {
-    render(<BlobStorageIntegrationSettings />);
+    renderPage();
 
     expect(
       screen.getByText("This feature is not available in your current plan."),
@@ -118,7 +136,7 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
     mocks.hasEntitlement = true;
     mocks.hasAccess = false;
 
-    render(<BlobStorageIntegrationSettings />);
+    renderPage();
 
     expect(
       screen.getByText(
@@ -140,7 +158,7 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
       isLoading: false,
     });
 
-    render(<BlobStorageIntegrationSettings />);
+    renderPage();
 
     expect(screen.getByText("Blob storage form")).toBeInTheDocument();
     expect(screen.queryByText("Loading configuration")).not.toBeInTheDocument();
@@ -148,5 +166,14 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
       { projectId: "proj-1" },
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("renders the integration page in Chinese", () => {
+    renderPage("zh-CN");
+
+    expect(
+      screen.getByRole("heading", { name: "Blob 存储集成" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("当前套餐不支持此功能。")).toBeInTheDocument();
   });
 });

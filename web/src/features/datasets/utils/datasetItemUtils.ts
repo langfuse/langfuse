@@ -5,16 +5,21 @@ import type { Prisma } from "@langfuse/shared";
  * Converts a dataset item field value to a formatted JSON string.
  * Returns empty string for null/undefined values.
  */
-export const stringifyDatasetItemData = (data: unknown): string => {
+export type DatasetItemSerializationErrorMessages = {
+  title: string;
+  description: string;
+};
+
+export const stringifyDatasetItemData = (
+  data: unknown,
+  errorMessages: DatasetItemSerializationErrorMessages,
+): string => {
   if (!data) return "";
 
   try {
     return JSON.stringify(data, null, 2);
   } catch {
-    showErrorToast(
-      "Failed to stringify data",
-      "We are working on fixing this issue.",
-    );
+    showErrorToast(errorMessages.title, errorMessages.description);
     return "";
   }
 };

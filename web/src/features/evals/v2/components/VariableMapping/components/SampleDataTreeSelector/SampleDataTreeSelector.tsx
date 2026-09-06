@@ -12,6 +12,7 @@ import {
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 const MAX_CONCRETE_ENTRIES = 5;
 const WILDCARD_SHAPE_SAMPLE = 10;
@@ -90,6 +91,7 @@ function TreeRow({
   onSelect: (columnId: string, segments: PathSegment[]) => void;
   currentKey: string | null;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const key = pathKey(columnId, segments);
   const isOpen = expanded.has(key);
   const isCurrent = currentKey === key;
@@ -97,7 +99,10 @@ function TreeRow({
   const expandable = isArray
     ? value.length > 0
     : isPlainObject(value) && Object.keys(value).length > 0;
-  const preview = previewOf(value);
+  const preview = previewOf(
+    value,
+    t("variableMapping.tree.noSampleValueAvailable"),
+  );
 
   const selectOrToggle = () => {
     if (expandable) onToggleExpand(key);
@@ -116,7 +121,11 @@ function TreeRow({
         <button
           type="button"
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
-          title={expandable ? preview : `Pull {{${variable}}} from here`}
+          title={
+            expandable
+              ? preview
+              : t("variableMapping.tree.pullFromHere", { variable })
+          }
           onClick={selectOrToggle}
         >
           {expandable ? (
@@ -139,30 +148,40 @@ function TreeRow({
           {partial ? (
             <span
               className="text-dark-yellow shrink-0 rounded border px-1 py-px text-[10px]"
-              title="Not present in every entry of this list"
+              title={t("variableMapping.tree.notInEveryEntryTooltip")}
             >
-              not in every entry
+              {t("variableMapping.tree.notInEveryEntry")}
             </span>
           ) : null}
           <span className="text-muted-foreground shrink-0 rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
-            {badge ?? typeBadge(value)}
+            {badge ??
+              typeBadge(value, {
+                noValue: t("variableMapping.tree.types.noValue"),
+                list: (count) =>
+                  t("variableMapping.tree.types.list", { count }),
+                object: (count) =>
+                  t("variableMapping.tree.types.object", { count }),
+                text: t("variableMapping.tree.types.text"),
+                number: t("variableMapping.tree.types.number"),
+                boolean: t("variableMapping.tree.types.boolean"),
+              })}
           </span>
           {isCurrent ? (
             <span
               className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
-              title={`{{${variable}}} currently maps to here`}
+              title={t("variableMapping.tree.currentMapping", { variable })}
             >
-              current
+              {t("variableMapping.tree.current")}
             </span>
           ) : null}
         </button>
         <button
           type="button"
           className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
-          title={`Pull {{${variable}}} from here`}
+          title={t("variableMapping.tree.pullFromHere", { variable })}
           onClick={() => onSelect(columnId, segments)}
         >
-          Use
+          {t("variableMapping.tree.use")}
         </button>
       </div>
 
@@ -178,7 +197,7 @@ function TreeRow({
                     segments={[...segments, WILDCARD]}
                     label="[*]"
                     value={representative.value}
-                    badge="every entry"
+                    badge={t("variableMapping.tree.everyEntry")}
                     partialChildKeys={representative.partialKeys}
                     depth={depth + 1}
                     expanded={expanded}
@@ -190,9 +209,9 @@ function TreeRow({
                     variable={variable}
                     columnId={columnId}
                     segments={[...segments, LAST]}
-                    label="last"
+                    label={t("variableMapping.tree.last")}
                     value={value[value.length - 1]}
-                    badge="last entry"
+                    badge={t("variableMapping.tree.lastEntry")}
                     depth={depth + 1}
                     expanded={expanded}
                     onToggleExpand={onToggleExpand}
@@ -219,7 +238,9 @@ function TreeRow({
                       className="text-muted-foreground px-2 py-1 text-xs"
                       style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
                     >
-                      {`+${value.length - MAX_CONCRETE_ENTRIES} more entries — [*] covers all of them; use the path editor for a specific one.`}
+                      {t("variableMapping.tree.moreEntries", {
+                        count: value.length - MAX_CONCRETE_ENTRIES,
+                      })}
                     </p>
                   ) : null}
                 </>
@@ -252,7 +273,7 @@ function TreeRow({
                       className="text-muted-foreground px-2 py-1 text-xs"
                       style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
                     >
-                      +{remaining} more properties
+                      {t("variableMapping.tree.moreProperties", { remaining })}
                     </p>
                   ) : null}
                 </>

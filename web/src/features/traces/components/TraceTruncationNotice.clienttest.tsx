@@ -1,7 +1,23 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+} from "@testing-library/react";
+import { type ReactElement, type ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getMessages } from "@/src/features/i18n/messages";
 import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+
+const render = (ui: ReactElement) =>
+  testingLibraryRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        {children}
+      </NextIntlClientProvider>
+    ),
+  });
 
 const { mockUseTraceData } = vi.hoisted(() => ({ mockUseTraceData: vi.fn() }));
 

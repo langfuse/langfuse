@@ -7,6 +7,34 @@ import {
   type TriggerEventSource,
 } from "@langfuse/shared";
 
+export type ActionValidationError =
+  | {
+      code:
+        | "webhookUrlRequired"
+        | "duplicateHeaderNames"
+        | "slackChannelRequired"
+        | "channelNameRequired"
+        | "githubDispatchUrlRequired"
+        | "eventTypeRequired"
+        | "eventTypeTooLong"
+        | "githubTokenRequiredForUrlChange"
+        | "githubTokenRequired";
+    }
+  | {
+      code: "headerNameEmpty" | "headerValueEmpty";
+      index: number;
+    }
+  | {
+      code: "headerVisibilityValueRequired";
+      index: number;
+      visibility: "public" | "secret";
+    }
+  | {
+      code: "protectedHeader";
+      index: number;
+      name: string;
+    };
+
 export interface BaseActionHandler<
   TFormData extends FieldValues = FieldValues,
 > {
@@ -21,7 +49,7 @@ export interface BaseActionHandler<
   // Validate the form data for this action type
   validateFormData(formData: TFormData): {
     isValid: boolean;
-    errors?: string[];
+    errors?: ActionValidationError[];
   };
 
   // Build the action config for API submission. `eventSource` is passed for

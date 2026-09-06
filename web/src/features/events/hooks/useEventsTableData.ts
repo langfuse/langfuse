@@ -15,6 +15,7 @@ import {
   removeAppRootDefaultFilter,
   shouldRunAppRootFallbackQuery,
 } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+import { useTranslations } from "next-intl";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
@@ -65,6 +66,7 @@ export function useEventsTableData({
   rowsEnabled = true,
   ioCharLimit,
 }: UseEventsTableDataParams) {
+  const t = useTranslations("coreDetails.events.actions");
   // Prepare query payloads
   const getCountPayload = useMemo(
     () => ({
@@ -253,12 +255,13 @@ export function useEventsTableData({
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
+      const queueName = data.queueName ?? t("annotationQueue");
       showSuccessToast({
-        title: "Observations added to queue",
-        description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
+        title: t("addedToQueue"),
+        description: t("addedToQueueDescription", { queue: queueName }),
         link: {
           href: `/project/${projectId}/annotation-queues/${data.queueId}`,
-          text: `View queue "${data.queueName}"`,
+          text: t("viewQueue", { queue: queueName }),
         },
       });
     },

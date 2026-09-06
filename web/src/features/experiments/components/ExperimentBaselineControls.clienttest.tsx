@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import { LAYER_ORDER } from "@/src/components/ui/layer";
+import { getMessages } from "@/src/features/i18n/messages";
 
 const h = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -42,6 +44,19 @@ function installOverlayLayers() {
   document.body.appendChild(overlayRoot);
 }
 
+const renderBaselineControls = () =>
+  render(
+    <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+      <ExperimentBaselineControls
+        projectId="p1"
+        baselineId="exp-a"
+        baselineName="My Experiment A"
+        onBaselineChange={h.onBaselineChange}
+        onBaselineClear={h.onBaselineClear}
+      />
+    </NextIntlClientProvider>,
+  );
+
 describe("ExperimentBaselineControls analytics", () => {
   beforeAll(() => {
     vi.stubGlobal(
@@ -67,15 +82,7 @@ describe("ExperimentBaselineControls analytics", () => {
   });
 
   it("captures baseline_changed from the picker once, without the experiment name", () => {
-    render(
-      <ExperimentBaselineControls
-        projectId="p1"
-        baselineId="exp-a"
-        baselineName="My Experiment A"
-        onBaselineChange={h.onBaselineChange}
-        onBaselineClear={h.onBaselineClear}
-      />,
-    );
+    renderBaselineControls();
 
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(screen.getByText("My Experiment B"));
@@ -93,15 +100,7 @@ describe("ExperimentBaselineControls analytics", () => {
   });
 
   it("captures baseline_changed from clear, and skips a no-op reselect", () => {
-    render(
-      <ExperimentBaselineControls
-        projectId="p1"
-        baselineId="exp-a"
-        baselineName="My Experiment A"
-        onBaselineChange={h.onBaselineChange}
-        onBaselineClear={h.onBaselineClear}
-      />,
-    );
+    renderBaselineControls();
 
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(screen.getByRole("option", { name: "My Experiment A" }));

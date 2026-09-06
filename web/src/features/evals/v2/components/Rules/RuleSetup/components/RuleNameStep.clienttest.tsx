@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { getMessages } from "@/src/features/i18n/messages";
 import { RuleNameStep } from "./RuleNameStep";
 
 describe("RuleNameStep", () => {
@@ -14,11 +16,13 @@ describe("RuleNameStep", () => {
     });
 
     render(
-      <RuleNameStep
-        store={store}
-        nameAIAssistance={{ state: "unavailable" }}
-        onOpenChange={vi.fn()}
-      />,
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        <RuleNameStep
+          store={store}
+          nameAIAssistance={{ state: "unavailable" }}
+          onOpenChange={vi.fn()}
+        />
+      </NextIntlClientProvider>,
     );
 
     expect(

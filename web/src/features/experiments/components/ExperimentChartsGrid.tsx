@@ -4,6 +4,7 @@ import { ExperimentChartSlot } from "./ExperimentChartSlot";
 import { useExperimentChartsGridSelection } from "../hooks/useExperimentChartsGridSelection";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
+import { useTranslations } from "next-intl";
 
 type ExperimentChartsGridProps = {
   projectId: string;
@@ -17,9 +18,12 @@ type ExperimentChartsGridProps = {
  * Compact Add Button - small inline button to add a new chart.
  */
 function AddChartButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   return (
     <button
       onClick={onClick}
+      aria-label={t("charts.addChart")}
+      title={t("charts.addChart")}
       className="border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/50 flex h-56 w-12 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors duration-200"
     >
       <Plus className="text-muted-foreground/50 h-5 w-5" />

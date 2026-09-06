@@ -9,6 +9,7 @@ import { type Session } from "next-auth";
 import { Fragment } from "react";
 import { env } from "@/src/env.mjs";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
+import { useTranslations } from "next-intl";
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
 
@@ -25,9 +26,14 @@ type OrganizationDropdownMenuProps = {
 
 export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
   const { canCreateOrganizations, getOrgPath } = props;
+  const t = useTranslations("workspace.switcher");
 
   return (
-    <DropdownMenuContent align="start" header="Organizations" maxHeight="15rem">
+    <DropdownMenuContent
+      align="start"
+      header={t("organizations")}
+      maxHeight="15rem"
+    >
       {props.state === "loaded" ? (
         [...props.organizations]
           .sort((a, b) => {
@@ -48,7 +54,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
                 href={getOrgPath(dropdownOrg.id)}
                 secondaryAction={{
                   href: `/organization/${dropdownOrg.id}/settings`,
-                  ariaLabel: `Go to settings for ${dropdownOrg.name}`,
+                  ariaLabel: t("goToSettings", { name: dropdownOrg.name }),
                   icon: Settings,
                 }}
               />
@@ -62,7 +68,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItemWithSecondaryAction
-            title="New Organization"
+            title={t("newOrganization")}
             href={createOrganizationRoute}
             icon={PlusIcon}
           />

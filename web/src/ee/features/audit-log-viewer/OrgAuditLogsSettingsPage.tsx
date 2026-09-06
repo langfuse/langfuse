@@ -3,8 +3,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useTranslations } from "next-intl";
 
 export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
+  const t = useTranslations("settingsEnterprise.auditLogs");
   const hasAccess = useHasOrganizationAccess({
     organizationId: props.orgId,
     scope: "auditLogs:read",
@@ -12,16 +14,11 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   const hasEntitlement = useHasEntitlement("audit-logs");
 
   const body = !hasEntitlement ? (
-    <p className="text-muted-foreground text-sm">
-      Audit logs are an Enterprise feature. Upgrade your plan to track all
-      changes made to your organization.
-    </p>
+    <p className="text-muted-foreground text-sm">{t("organizationUpgrade")}</p>
   ) : !hasAccess ? (
     <Alert>
-      <AlertTitle>Access Denied</AlertTitle>
-      <AlertDescription>
-        Contact your organization administrator to request access.
-      </AlertDescription>
+      <AlertTitle>{t("accessDenied")}</AlertTitle>
+      <AlertDescription>{t("organizationAccess")}</AlertDescription>
     </Alert>
   ) : (
     <AuditLogsTable scope="organization" orgId={props.orgId} />
@@ -29,11 +26,9 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
 
   return (
     <>
-      <Header title="Organization Audit Logs" />
+      <Header title={t("organizationTitle")} />
       <p className="text-muted-foreground mb-2 text-sm">
-        Track who changed what in your organization and when. Monitor
-        organization settings, project creation/deletion, and membership changes
-        over time.
+        {t("organizationDescription")}
       </p>
       {body}
     </>

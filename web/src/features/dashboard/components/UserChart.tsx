@@ -11,6 +11,7 @@ import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarL
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 // Cap on bars fetched and rendered; matches TracesBarListChart. The top list
 // scrolls within the tile when they don't all fit.
@@ -40,6 +41,7 @@ export const UserChart = ({
   metricsVersion?: ViewVersion;
   schedulerId?: string;
 }) => {
+  const t = useTranslations("playgroundDashboard.dashboard.users");
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -142,7 +144,7 @@ export const UserChart = ({
         .filter((item) => item.userId !== undefined)
         .map((item) => {
           return {
-            name: (item.userId as string | null | undefined) ?? "Unknown",
+            name: (item.userId as string | null | undefined) ?? t("unknown"),
             value: item.sum_totalCost ? Number(item.sum_totalCost) : 0,
           };
         })
@@ -160,22 +162,22 @@ export const UserChart = ({
 
   const data = [
     {
-      tabTitle: "Token cost",
+      tabTitle: t("tokenCost"),
       data: transformedCost,
       totalMetric: costFormatter(totalCost),
-      metricDescription: "Total cost",
+      metricDescription: t("totalCost"),
       chartMetricLabel: "USD",
       chartUnit: "USD",
     },
     {
-      tabTitle: "Count of Traces",
+      tabTitle: t("traceCount"),
       data: transformedNumberOfTraces,
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
-      metricDescription: "Total traces",
-      chartMetricLabel: "Traces",
-      chartUnit: "traces",
+      metricDescription: t("totalTraces"),
+      chartMetricLabel: t("traces"),
+      chartUnit: t("traces"),
     },
   ] as const;
 
@@ -186,7 +188,7 @@ export const UserChart = ({
       // the top list scrolls internally.
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
-      title="User consumption"
+      title={t("title")}
       isLoading={isLoading || user.isPending}
     >
       <TabComponent
@@ -211,7 +213,7 @@ export const UserChart = ({
                 ) : (
                   <NoDataOrLoading
                     isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
+                    description={t("emptyDescription")}
                     href="https://langfuse.com/docs/observability/features/users"
                     className="h-auto grow"
                   />

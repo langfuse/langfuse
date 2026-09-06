@@ -20,8 +20,10 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export const EvalTemplateDetail = () => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const templateId = router.query.id as string;
@@ -94,7 +96,7 @@ export const EvalTemplateDetail = () => {
         itemType: "EVALUATOR",
         breadcrumb: [
           {
-            name: "Evaluator Library",
+            name: t("evaluatorLibrary"),
             href: `/project/${router.query.projectId as string}/evals/templates`,
           },
         ],
@@ -111,14 +113,14 @@ export const EvalTemplateDetail = () => {
               <>
                 <IconOnlyButton
                   icon={<TrashIcon className="h-4 w-4" />}
-                  label="Delete"
-                  aria-label="delete"
+                  label={t("delete")}
+                  aria-label={t("delete")}
                   variant="outline"
                   size="icon"
                   disabledReason={
                     hasDeleteAccess
                       ? undefined
-                      : "You don't have permission to delete this evaluator."
+                      : t("detail.deletePermissionDenied")
                   }
                   onClick={() => {
                     capture("eval_templates:delete_form_open", {
@@ -147,7 +149,7 @@ export const EvalTemplateDetail = () => {
       }}
     >
       {allTemplates.isLoading || !allTemplates.data || !template.data ? (
-        <div className="p-3">Loading...</div>
+        <div className="p-3">{t("detail.loading")}</div>
       ) : isEditing ? (
         <div className="overflow-y-auto p-3 pt-1">
           <EvalTemplateForm
@@ -169,10 +171,13 @@ export const EvalTemplateDetail = () => {
               setIsEditing={setIsEditing}
             />
           </div>
-          <SidePanel mobileTitle="Change history" id="change-history">
+          <SidePanel
+            mobileTitle={t("detail.changeHistory")}
+            id="change-history"
+          >
             <SidePanelHeader>
               <SidePanelTitle className="text-base font-bold">
-                Change history
+                {t("detail.changeHistory")}
               </SidePanelTitle>
             </SidePanelHeader>
             <SidePanelContent>
@@ -229,6 +234,7 @@ function UpdateTemplate({
   setIsEditing: (isEditing: boolean) => void;
   isCustom: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "evaluator:CUD",
@@ -245,7 +251,7 @@ function UpdateTemplate({
       <div className="flex items-center gap-2">
         <LangfuseIcon size={16} />
         <span className="text-muted-foreground text-sm font-bold">
-          View only
+          {t("detail.viewOnly")}
         </span>
       </div>
     );
@@ -253,7 +259,7 @@ function UpdateTemplate({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-bold">Edit mode</span>
+      <span className="text-sm font-bold">{t("detail.editMode")}</span>
       <Switch
         checked={isEditing}
         onCheckedChange={handlePromptEdit}

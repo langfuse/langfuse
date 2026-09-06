@@ -1,6 +1,9 @@
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
-import { type BaseActionHandler } from "./BaseActionHandler";
+import type {
+  ActionValidationError,
+  BaseActionHandler,
+} from "./BaseActionHandler";
 import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
 import {
   type AutomationDomain,
@@ -10,28 +13,14 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod";
+import type { z } from "zod";
 
-// Define the form schema for webhook actions
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
-const WebhookActionFormSchema = z.object({
-  webhook: z.object({
-    url: z.url("Invalid URL"),
-    headers: z
-      .array(
-        z.object({
-          name: z.string(),
-          value: z.string(),
-          displayValue: z.string(),
-          isSecret: z.boolean(),
-          wasSecret: z.boolean(),
-        }),
-      )
-      .default([]),
-  }),
-});
-
-type WebhookActionFormData = z.infer<typeof WebhookActionFormSchema>;
+type WebhookActionFormData = {
+  webhook: {
+    url: string;
+    headers: HeaderPair[];
+  };
+};
 
 /**
  * apiVersionForEventSource derives the stored webhook payload version from the
@@ -106,12 +95,12 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
 
   validateFormData(formData: WebhookActionFormData): {
     isValid: boolean;
-    errors?: string[];
+    errors?: ActionValidationError[];
   } {
-    const errors: string[] = [];
+    const errors: ActionValidationError[] = [];
 
     if (!formData.webhook?.url) {
-      errors.push("Webhook URL is required");
+      errors.push({ code: "webhookUrlRequired" });
     }
 
     // Validate headers
@@ -120,15 +109,17 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
         // Only validate non-empty headers
         if (header.name.trim() || header.value.trim()) {
           if (!header.name.trim()) {
-            errors.push(`Header ${index + 1}: Name cannot be empty`);
+            errors.push({ code: "headerNameEmpty", index: index + 1 });
           }
           if (!header.value.trim() && !header.isSecret) {
-            errors.push(`Header ${index + 1}: Value cannot be empty`);
+            errors.push({ code: "headerValueEmpty", index: index + 1 });
           }
           if (header.wasSecret !== header.isSecret && !header.value.trim()) {
-            errors.push(
-              `Header ${index + 1}: A value must be provided when making a header ${header.wasSecret ? "public" : "secret"}`,
-            );
+            errors.push({
+              code: "headerVisibilityValueRequired",
+              index: index + 1,
+              visibility: header.wasSecret ? "public" : "secret",
+            });
           }
 
           // Check if header name conflicts with managed headers
@@ -136,9 +127,11 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
             header.name.trim() &&
             WebhookProtectedHeaders.includes(header.name.trim().toLowerCase())
           ) {
-            errors.push(
-              `Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`,
-            );
+            errors.push({
+              code: "protectedHeader",
+              index: index + 1,
+              name: header.name,
+            });
           }
         }
       });
@@ -151,9 +144,7 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
 
       const uniqueHeaderNames = new Set(headerNames);
       if (uniqueHeaderNames.size < headerNames.length) {
-        errors.push(
-          "Duplicate header names are not allowed (case-insensitive)",
-        );
+        errors.push({ code: "duplicateHeaderNames" });
       }
     }
 

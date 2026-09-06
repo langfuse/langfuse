@@ -26,7 +26,7 @@ describe("GitHubDispatchActionHandler URL and token validation", () => {
 
     expect(result).toEqual({
       isValid: false,
-      errors: ["GitHub token is required when changing the dispatch URL"],
+      errors: [{ code: "githubTokenRequiredForUrlChange" }],
     });
   });
 

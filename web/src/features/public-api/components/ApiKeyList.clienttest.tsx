@@ -1,5 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { type Role } from "@langfuse/shared/src/db";
+import { NextIntlClientProvider } from "next-intl";
+import englishAccessSettings from "@/src/features/i18n/messages/en/accessSettings.json";
+import simplifiedChineseAccessSettings from "@/src/features/i18n/messages/zh-CN/accessSettings.json";
 
 const { projectApiKeys, mockSession } = vi.hoisted(() => ({
   projectApiKeys: [
@@ -70,7 +73,7 @@ import { ApiKeyList } from "./ApiKeyList";
 
 const PROJECT_ID = "project-1";
 
-function renderAsProjectRole(role: Role) {
+function renderAsProjectRole(role: Role, locale: "en" | "zh-CN" = "en") {
   mockSession.data = {
     user: {
       admin: false,
@@ -78,7 +81,19 @@ function renderAsProjectRole(role: Role) {
     },
   };
 
-  return render(<ApiKeyList entityId={PROJECT_ID} scope="project" />);
+  return render(
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        accessSettings:
+          locale === "en"
+            ? englishAccessSettings
+            : simplifiedChineseAccessSettings,
+      }}
+    >
+      <ApiKeyList entityId={PROJECT_ID} scope="project" />
+    </NextIntlClientProvider>,
+  );
 }
 
 describe("ApiKeyList project access gating", () => {
@@ -112,5 +127,21 @@ describe("ApiKeyList project access gating", () => {
 
     expect(screen.getByText("Access Denied")).toBeInTheDocument();
     expect(screen.queryByTitle("pk-lf-1234")).not.toBeInTheDocument();
+  });
+
+  it("renders project API key controls in Simplified Chinese", () => {
+    renderAsProjectRole("ADMIN", "zh-CN");
+
+    expect(screen.getByText("创建时间")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "创建新的 API 密钥" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "创建新的 API 密钥" }));
+
+    expect(
+      screen.getByRole("heading", { name: "创建 API 密钥" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("备注（可选）")).toBeInTheDocument();
   });
 });

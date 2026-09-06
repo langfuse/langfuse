@@ -106,7 +106,7 @@ export interface ChartTypeOption {
  * intentionally left out — pivot overlaps the table side of the toggle, and the
  * happy path is 1 metric × 1 dimension.
  */
-export const CHART_TYPES: ChartTypeOption[] = [
+export const CHART_TYPES = [
   {
     value: "LINE_TIME_SERIES",
     label: "Line",
@@ -133,7 +133,7 @@ export const CHART_TYPES: ChartTypeOption[] = [
   },
   { value: "PIE", label: "Pie", icon: PieChart, isTimeSeries: false },
   { value: "NUMBER", label: "Number", icon: Hash, isTimeSeries: false },
-];
+] satisfies ChartTypeOption[];
 
 export const getMetric = (key: MetricKey): MetricDef =>
   METRICS.find((m) => m.key === key) ?? METRICS[0];
@@ -188,12 +188,44 @@ export const DEFAULT_CONFIG: ChartViewConfig = {
   timeGranularity: "hour",
 };
 
+export type ChartDescriptionFormatter = (
+  key:
+    | `metrics.${string}`
+    | `dimensions.${string}`
+    | `aggregations.${string}`
+    | `descriptions.${"eventCount" | "scoreCount" | "metric" | "by" | "overTime"}`,
+  values?: Record<string, string>,
+) => string;
+
 /**
  * Human sentence describing a config — the chart subtitle, and the "here's what
  * I built" confirmation in the Ask-AI flow. Pure label lookup.
  */
-export const describeConfig = (config: ChartViewConfig): string => {
+export const describeConfig = (
+  config: ChartViewConfig,
+  format?: ChartDescriptionFormatter,
+): string => {
   const metric = getMetric(config.metric);
+  if (format) {
+    let description =
+      config.metric === "count"
+        ? format("descriptions.eventCount")
+        : format("descriptions.metric", {
+            aggregation: format(`aggregations.${config.aggregation}`),
+            metric: format(`metrics.${config.metric}`),
+          });
+
+    if (config.breakdown !== "none" && config.chartType !== "NUMBER") {
+      description = format("descriptions.by", {
+        base: description,
+        dimension: format(`dimensions.${config.breakdown}`),
+      });
+    }
+    return isTimeSeriesChartType(config.chartType)
+      ? format("descriptions.overTime", { base: description })
+      : description;
+  }
+
   const metricPart =
     config.metric === "count"
       ? "Count of events"

@@ -4,11 +4,13 @@ import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { type UIModelParams } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
 }) => {
+  const t = useSharedUiTranslations("modelParameters");
   const hasAccess = useHasProjectAccess({
     projectId: p.projectId,
     scope: "llmApiKeys:read",
@@ -17,10 +19,8 @@ export const LLMApiKeyComponent = (p: {
   if (!hasAccess) {
     return (
       <div>
-        <Label className="text-xs font-bold">API key</Label>
-        <p className="text-muted-foreground text-sm">
-          LLM API Key only visible to Owner and Admin roles.
-        </p>
+        <Label className="text-xs font-bold">{t("apiKey")}</Label>
+        <p className="text-muted-foreground text-sm">{t("apiKeyAccess")}</p>
       </div>
     );
   }
@@ -32,8 +32,8 @@ export const LLMApiKeyComponent = (p: {
   if (apiKeys.isPending) {
     return (
       <div>
-        <Label className="text-xs font-bold">API key</Label>
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <Label className="text-xs font-bold">{t("apiKey")}</Label>
+        <p className="text-muted-foreground text-sm">{t("loading")}</p>
       </div>
     );
   }
@@ -43,7 +43,7 @@ export const LLMApiKeyComponent = (p: {
 
   return (
     <div className="space-y-2 text-xs">
-      <Label className="text-xs font-bold">API key</Label>
+      <Label className="text-xs font-bold">{t("apiKey")}</Label>
       <div>
         {apiKey ? (
           <Link href={`/project/${p.projectId}/settings/llm-connections`}>

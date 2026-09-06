@@ -4,8 +4,9 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { featurePreviewLabelKeys } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 import {
   FeaturePreviewModal,
@@ -22,6 +23,7 @@ export function ControlledFeaturePreviewModal({
   open,
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
+  const t = useTranslations("settingsEnterprise.featurePreviews");
   const authSession = useSession();
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
@@ -34,12 +36,15 @@ export function ControlledFeaturePreviewModal({
           isEnabled: variables.enabled,
         });
         showSuccessToast({
-          title: "Feature preview updated",
-          description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
+          title: t("updatedTitle"),
+          description: t("updatedDescription", {
+            feature: t(featurePreviewLabelKeys[variables.flag]),
+            state: variables.enabled ? t("enabled") : t("disabled"),
+          }),
         });
       },
       onError: (error) => {
-        showErrorToast("Failed to update feature preview", error.message);
+        showErrorToast(t("updateFailed"), error.message);
       },
     });
 
@@ -55,9 +60,9 @@ export function ControlledFeaturePreviewModal({
         !isBetaEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isBetaEnabled
-        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        ? t("eventsRequired", { preview: V4_PREVIEW_LABEL })
         : authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          ? t("environmentEnabled")
           : undefined,
       onToggle: onToggle("modernSession"),
       isToggling: setFeaturePreviewEnabled.isPending,

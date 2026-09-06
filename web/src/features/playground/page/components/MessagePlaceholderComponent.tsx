@@ -7,10 +7,12 @@ import { type ChatMessage } from "@langfuse/shared";
 import { usePlaygroundContext } from "../context";
 import { type PlaceholderMessageFillIn } from "../types";
 import { useNamingConflicts } from "../hooks/useNamingConflicts";
+import { useTranslations } from "next-intl";
 
 export const MessagePlaceholderComponent: React.FC<{
   messagePlaceholder: PlaceholderMessageFillIn;
 }> = ({ messagePlaceholder }) => {
+  const t = useTranslations("coreDetails.playground.placeholders");
   const {
     updateMessagePlaceholderValue,
     deleteMessagePlaceholder,
@@ -32,7 +34,7 @@ export const MessagePlaceholderComponent: React.FC<{
 
         // Basic validation: must be an array of objects
         if (!Array.isArray(parsed)) {
-          setError("Input must be an array of objects");
+          setError(t("arrayError"));
           return;
         }
 
@@ -43,7 +45,7 @@ export const MessagePlaceholderComponent: React.FC<{
         );
 
         if (!allObjects) {
-          setError("All items must be objects");
+          setError(t("itemError"));
           return;
         }
 
@@ -51,10 +53,10 @@ export const MessagePlaceholderComponent: React.FC<{
         updateMessagePlaceholderValue(name, parsed as ChatMessage[]);
         setError(null);
       } catch {
-        setError("Invalid JSON format");
+        setError(t("jsonError"));
       }
     },
-    [name, updateMessagePlaceholderValue],
+    [name, t, updateMessagePlaceholderValue],
   );
 
   const UsedIcon = isUsed ? CheckCircle2 : Circle;
@@ -69,13 +71,13 @@ export const MessagePlaceholderComponent: React.FC<{
             className={`min-w-[90px] truncate font-mono ${hasConflict ? "text-red-500" : ""}`}
             title={name}
           >
-            {name ? name : "Unnamed placeholder"}
+            {name ? name : t("unnamed")}
           </p>
         </span>
         <Button
           variant="ghost"
           size="icon"
-          title="Delete placeholder"
+          title={t("delete")}
           disabled={isUsed}
           onClick={() => deleteMessagePlaceholder(name)}
           className="p-0"
@@ -100,9 +102,7 @@ export const MessagePlaceholderComponent: React.FC<{
       />
 
       {hasConflict && (
-        <p className="mt-1 text-xs text-red-500">
-          Placeholder name conflicts with variable. Names must be unique.
-        </p>
+        <p className="mt-1 text-xs text-red-500">{t("conflict")}</p>
       )}
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
     </div>

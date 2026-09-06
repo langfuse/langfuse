@@ -5,6 +5,8 @@ export function toTestResultPanelState(params: {
   type: EvalTemplateType;
   isPending: boolean;
   result: unknown;
+  fallbackErrorMessage?: string;
+  unnamedScore?: (number: number) => string;
 }): TestResultPanelState {
   if (params.isPending) return { status: "running" };
   if (!params.result) return { status: "empty" };
@@ -23,7 +25,9 @@ export function toTestResultPanelState(params: {
       message:
         typeof error === "object" && error && "message" in error
           ? String(error.message)
-          : String(error ?? "Evaluator test failed"),
+          : String(
+              error ?? params.fallbackErrorMessage ?? "Evaluator test failed",
+            ),
     };
   }
 
@@ -38,7 +42,11 @@ export function toTestResultPanelState(params: {
             ? item.value === 1
             : item.value;
         return {
-          name: String(item.name ?? `Score ${index + 1}`),
+          name: String(
+            item.name ??
+              params.unnamedScore?.(index + 1) ??
+              `Score ${index + 1}`,
+          ),
           value: String(value ?? ""),
           comment: item.comment == null ? null : String(item.comment),
         };

@@ -28,12 +28,15 @@ import { api } from "@/src/utils/api";
 import { StripeCancellationButton } from "./StripeCancellationButton";
 import { StripeSwitchPlanButton } from "./StripeSwitchPlanButton";
 import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
+import { useTranslations } from "next-intl";
+import { type Plan } from "@langfuse/shared";
 
 export const BillingSwitchPlanDialog = ({
   disabled = false,
 }: {
   disabled?: boolean;
 }) => {
+  const t = useTranslations("settingsEnterprise.billing");
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [_opId, setOpId] = useState<string | null>(null);
 
@@ -47,6 +50,44 @@ export const BillingSwitchPlanDialog = ({
     currentProductId,
   } = useBillingInformation();
   const capture = usePostHogClientCapture();
+  const planDescriptions: Partial<Record<Plan, string>> = {
+    "cloud:core": t("switchPlan.planDescriptions.core"),
+    "cloud:pro": t("switchPlan.planDescriptions.pro"),
+    "cloud:team": t("switchPlan.planDescriptions.team"),
+    "cloud:enterprise": t("switchPlan.planDescriptions.enterprise"),
+  };
+  const planFeatures: Partial<Record<Plan, string[]>> = {
+    "cloud:core": [
+      t("switchPlan.features.core1"),
+      t("switchPlan.features.core2"),
+      t("switchPlan.features.core3"),
+      t("switchPlan.features.core4"),
+    ],
+    "cloud:pro": [
+      t("switchPlan.features.pro1"),
+      t("switchPlan.features.pro2"),
+      t("switchPlan.features.pro3"),
+      t("switchPlan.features.pro4"),
+      t("switchPlan.features.pro5"),
+      t("switchPlan.features.pro6"),
+    ],
+    "cloud:team": [
+      t("switchPlan.features.team1"),
+      t("switchPlan.features.team2"),
+      t("switchPlan.features.team3"),
+      t("switchPlan.features.team4"),
+      t("switchPlan.features.team5"),
+    ],
+    "cloud:enterprise": [
+      t("switchPlan.features.enterprise1"),
+      t("switchPlan.features.enterprise2"),
+      t("switchPlan.features.enterprise3"),
+      t("switchPlan.features.enterprise4"),
+      t("switchPlan.features.enterprise5"),
+      t("switchPlan.features.enterprise6"),
+      t("switchPlan.features.enterprise7"),
+    ],
+  };
 
   const mutCreateCheckoutSession =
     api.cloudBilling.createStripeCheckoutSession.useMutation({
@@ -58,7 +99,7 @@ export const BillingSwitchPlanDialog = ({
       onError: () => {
         setProcessingPlanId(null);
         setOpId(null);
-        toast.error("Failed to start checkout session");
+        toast.error(t("switchPlan.checkoutFailed"));
       },
     });
 
@@ -71,17 +112,17 @@ export const BillingSwitchPlanDialog = ({
       }}
     >
       <DialogTrigger asChild>
-        <Button disabled={disabled}>Change plan</Button>
+        <Button disabled={disabled}>{t("common.changePlan")}</Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <div className="flex flex-row items-center justify-between">
-            <DialogTitle>Plans</DialogTitle>
+            <DialogTitle>{t("switchPlan.plans")}</DialogTitle>
             <ActionButton
               variant="secondary"
               href="https://langfuse.com/pricing"
             >
-              Comparison of plans ↗
+              {t("switchPlan.comparison")}
             </ActionButton>
           </div>
         </DialogHeader>
@@ -104,20 +145,28 @@ export const BillingSwitchPlanDialog = ({
                     <div className="mb-4">
                       {/* Labels above plan title */}
                       <div className="mb-1 h-5 text-xs font-bold text-blue-700">
-                        {isCurrentPlan && <span>Current Plan</span>}
+                        {isCurrentPlan && (
+                          <span>{t("switchPlan.currentPlan")}</span>
+                        )}
                         {scheduledPlanSwitch &&
                           scheduledPlanSwitch.newPlanId ===
                             product.stripeProductId && (
-                            <span className="ml-1">Starts next period</span>
+                            <span className="ml-1">
+                              {t("switchPlan.startsNextPeriod")}
+                            </span>
                           )}
                         {scheduledPlanSwitch &&
                           currentProductId === product.stripeProductId && (
-                            <span className="ml-1">(Until next period)</span>
+                            <span className="ml-1">
+                              {t("switchPlan.untilNextPeriod")}
+                            </span>
                           )}
                         {!scheduledPlanSwitch &&
                           cancellation?.isCancelled &&
                           currentProductId === product.stripeProductId && (
-                            <span className="ml-1">(Until next period)</span>
+                            <span className="ml-1">
+                              {t("switchPlan.untilNextPeriod")}
+                            </span>
                           )}
                       </div>
                       <h3 className="text-2xl font-bold">
@@ -135,22 +184,27 @@ export const BillingSwitchPlanDialog = ({
                             rel="noreferrer"
                             className="underline"
                           >
-                            usage calculator ↗
+                            {t("switchPlan.usageCalculator")}
                           </a>
                         </div>
                       </div>
                     </div>
                     <div className="text-muted-foreground mb-4 text-sm">
-                      {product.checkout?.description}
+                      {planDescriptions[product.mappedPlan] ??
+                        product.checkout?.description}
                     </div>
                     <div className="space-y-2">
-                      <div className="text-sm font-bold">Main features:</div>
+                      <div className="text-sm font-bold">
+                        {t("switchPlan.mainFeatures")}
+                      </div>
                       <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
-                        {product.checkout?.mainFeatures.map(
-                          (feature, index) => (
-                            <li key={index}>{feature}</li>
-                          ),
-                        )}
+                        {(
+                          planFeatures[product.mappedPlan] ??
+                          product.checkout?.mainFeatures ??
+                          []
+                        ).map((feature, index) => (
+                          <li key={index}>{feature}</li>
+                        ))}
                       </ul>
                     </div>
                     <Link
@@ -158,7 +212,7 @@ export const BillingSwitchPlanDialog = ({
                       target="_blank"
                       className="text-muted-foreground hover:text-foreground mt-auto block py-4 text-sm"
                     >
-                      Learn more about plan →
+                      {t("switchPlan.learnMore")}
                     </Link>
                     {/* The default behavior the user is on a paid plan.*/}
                     {currentProductId ? (
@@ -189,8 +243,8 @@ export const BillingSwitchPlanDialog = ({
                               !scheduledPlanSwitch && (
                                 <Button className="w-full" disabled>
                                   {!hasValidPaymentMethod
-                                    ? "Payment method required"
-                                    : "Current plan"}
+                                    ? t("switchPlan.paymentMethodRequired")
+                                    : t("switchPlan.currentPlan")}
                                 </Button>
                               )}
                           </>
@@ -201,7 +255,7 @@ export const BillingSwitchPlanDialog = ({
                           scheduledPlanSwitch.newPlanId ===
                             product.stripeProductId && (
                             <Button className="w-full" disabled>
-                              Scheduled
+                              {t("switchPlan.scheduled")}
                             </Button>
                           )}
 
@@ -225,7 +279,7 @@ export const BillingSwitchPlanDialog = ({
                             />
                           ) : (
                             <Button className="w-full" disabled>
-                              Payment method required
+                              {t("switchPlan.paymentMethodRequired")}
                             </Button>
                           ))}
 
@@ -247,7 +301,7 @@ export const BillingSwitchPlanDialog = ({
                             />
                           ) : (
                             <Button className="w-full" disabled>
-                              Payment method required
+                              {t("switchPlan.paymentMethodRequired")}
                             </Button>
                           ))}
                       </div>
@@ -281,7 +335,9 @@ export const BillingSwitchPlanDialog = ({
                               processingPlanId === product.stripeProductId
                             }
                           >
-                            {product.checkout?.cta ? "Select" : "Select plan"}
+                            {product.checkout?.cta
+                              ? t("switchPlan.select")
+                              : t("switchPlan.selectPlan")}
                           </ActionButton>
                         </div>
                         {/* Optional checkout CTA button for non-paid plan users */}
@@ -291,7 +347,7 @@ export const BillingSwitchPlanDialog = ({
                               variant="secondary"
                               href={product.checkout.cta.href}
                             >
-                              {product.checkout.cta.label}
+                              {t("switchPlan.contactSales")}
                             </ActionButton>
                           </div>
                         )}

@@ -32,6 +32,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
+import { useTranslations } from "next-intl";
 
 export type WidgetItem = {
   id: string;
@@ -108,6 +109,11 @@ export function SelectWidgetDialog({
   onSelectPreset,
   dashboardId,
 }: SelectWidgetDialogProps) {
+  const homePresetT = useTranslations(
+    "playgroundDashboard.dashboard.homePresets",
+  );
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
@@ -150,7 +156,7 @@ export function SelectWidgetDialog({
   // never contradict each other.
   const hiddenWidgetsNote =
     hiddenWidgetCount > 0
-      ? `${hiddenWidgetCount} trace-based widget${hiddenWidgetCount === 1 ? "" : "s"} hidden — the Traces view is not available for new charts. Manage them under Widgets.`
+      ? extrasT("hiddenTraceWidgets", { count: hiddenWidgetCount })
       : null;
 
   const selectWidget = (widget: WidgetItem) => {
@@ -169,17 +175,17 @@ export function SelectWidgetDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>Add widget</DialogTitle>
+          <DialogTitle>{t("addWidget")}</DialogTitle>
         </DialogHeader>
 
         <DialogBody>
           {/* isInitializing: an unresolved session reads as v1, which would
               briefly offer the unfiltered list to a v4 user. */}
           {widgets.isPending || isInitializing ? (
-            <div className="py-8 text-center">Loading widgets...</div>
+            <div className="py-8 text-center">{t("loadingWidgets")}</div>
           ) : widgets.isError ? (
             <div className="text-destructive py-8 text-center">
-              Error: {widgets.error.message}
+              {extrasT("error")}: {widgets.error.message}
             </div>
           ) : (
             <div className="flex flex-col gap-3 p-1">
@@ -201,9 +207,9 @@ export function SelectWidgetDialog({
               >
                 <RowIllustration type="CUSTOM" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold">Custom Chart</div>
+                  <div className="font-bold">{t("customChart")}</div>
                   <div className="text-muted-foreground text-xs">
-                    Pick a data view, metrics, and chart type from scratch
+                    {extrasT("customChartDescription")}
                   </div>
                 </div>
               </button>
@@ -222,11 +228,13 @@ export function SelectWidgetDialog({
               >
                 <TabsList>
                   <TabsTrigger value="project">
-                    Your widgets ({projectWidgets.length})
+                    {extrasT("yourWidgets", { count: projectWidgets.length })}
                   </TabsTrigger>
                   {onSelectPreset && (
                     <TabsTrigger value="home-cards">
-                      Home cards ({suggestedPresetIds.length})
+                      {extrasT("homeCards", {
+                        count: suggestedPresetIds.length,
+                      })}
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -241,8 +249,7 @@ export function SelectWidgetDialog({
                     ))}
                     {projectWidgets.length === 0 ? (
                       <div className="text-muted-foreground py-8 text-center text-sm">
-                        {hiddenWidgetsNote ??
-                          "No saved widgets in this project yet — build one with Custom Chart."}
+                        {hiddenWidgetsNote ?? extrasT("noSavedWidgets")}
                       </div>
                     ) : hiddenWidgetsNote ? (
                       <div className="text-muted-foreground px-1 py-2 text-xs">
@@ -256,6 +263,10 @@ export function SelectWidgetDialog({
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                       {suggestedPresetIds.map((presetId) => {
                         const meta = HOME_PRESET_METADATA[presetId];
+                        const name = homePresetT(`${meta.messageKey}.name`);
+                        const description = homePresetT(
+                          `${meta.messageKey}.description`,
+                        );
                         return (
                           <button
                             key={presetId}
@@ -273,20 +284,17 @@ export function SelectWidgetDialog({
                           >
                             <RowIllustration type={meta.illustration} />
                             <div className="min-w-0 flex-1">
-                              <div
-                                className="truncate font-bold"
-                                title={meta.name}
-                              >
-                                {meta.name}
+                              <div className="truncate font-bold" title={name}>
+                                {name}
                               </div>
                               <div
                                 className="text-muted-foreground truncate text-xs"
-                                title={meta.description}
+                                title={description}
                               >
-                                {meta.description}
+                                {description}
                               </div>
                               <div className="text-muted-foreground/80 mt-0.5 text-xs">
-                                Home card · fixed configuration
+                                {homePresetT("fixedConfiguration")}
                               </div>
                             </div>
                           </button>
@@ -302,7 +310,7 @@ export function SelectWidgetDialog({
 
         <DialogFooter className="mt-4">
           <Button onClick={() => onOpenChange(false)} variant="outline">
-            Cancel
+            {extrasT("cancel")}
           </Button>
         </DialogFooter>
       </DialogContent>

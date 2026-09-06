@@ -11,8 +11,10 @@ import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";
 import { useV4MigrationTitle } from "@/src/features/v4-migration/V4MigrationContent";
+import { useTranslations } from "next-intl";
 
 export function MobileRightDrawer({ children }: PropsWithChildren) {
+  const t = useTranslations("sharedUi.misc");
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
   const { open: migrationOpen, setOpen: setMigrationOpen } =
     useV4MigrationPanel();
@@ -39,9 +41,9 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
             {/* sr-only for screen readers and accessibility */}
-            <DrawerTitle className="sr-only">Support</DrawerTitle>
+            <DrawerTitle className="sr-only">{t("support")}</DrawerTitle>
             <DrawerDescription className="sr-only">
-              A list of resources and options to help you with your questions.
+              {t("supportDescription")}
             </DrawerDescription>
           </DrawerHeader>
           <SupportDrawer

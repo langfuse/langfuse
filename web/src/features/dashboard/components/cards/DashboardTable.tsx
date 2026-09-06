@@ -2,6 +2,7 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+import { useTranslations } from "next-intl";
 
 // Approximate rendered height of one <tr> (py-2 + text-xs) and of the sticky
 // header row, used to decide how many rows fit in the tile. (LFE-11035)
@@ -33,6 +34,7 @@ export const DashboardTable = ({
   noDataProps,
   isLoading,
 }: DashboardTableProps) => {
+  const t = useTranslations("systemUi.dashboardExtras");
   const [isExpanded, setExpanded] = useState(false);
 
   // Fit the number of rows to the tile height: by default render exactly the
@@ -105,8 +107,8 @@ export const DashboardTable = ({
               maxLength={collapsedCount ?? collapse.collapsed}
               expandText={
                 rows.length > collapse.expanded
-                  ? `Show top ${collapse.expanded}`
-                  : "Show all"
+                  ? t("showTop", { count: collapse.expanded })
+                  : t("showAll")
               }
             />
           ) : null}

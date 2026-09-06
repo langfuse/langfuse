@@ -11,6 +11,7 @@ import {
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function CostBadge({
   totalCost,
@@ -48,6 +49,7 @@ export function UsageBadge({
   totalUsage: number;
   usageDetails: Record<string, number> | undefined;
 }) {
+  const t = useTranslations("coreDetails.traces.detailControls");
   // Only show for generation-like observations
   if (!isGenerationLike(type) || !usageDetails) return null;
 
@@ -63,7 +65,7 @@ export function UsageBadge({
       {tokenText ? (
         <Badge text={tokenText} trailingIcon={InfoIcon} />
       ) : (
-        <BadgeShell aria-label="View usage breakdown">
+        <BadgeShell aria-label={t("viewUsageBreakdown")}>
           <InfoIcon aria-hidden className="size-3" />
         </BadgeShell>
       )}

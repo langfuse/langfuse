@@ -21,13 +21,13 @@ import {
   type TimeGranularity,
 } from "../types";
 import {
-  AGGREGATION_LABELS,
   CHART_TYPES,
   DIMENSIONS,
   getMetric,
   GRANULARITIES,
   METRICS,
 } from "../vocab";
+import { useTranslations } from "next-intl";
 
 /**
  * View-only config pickers shared by the production chart view and the
@@ -44,15 +44,17 @@ export const MetricSelect = React.memo(function MetricSelect({
   value: MetricKey;
   onChange: (value: MetricKey) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   return (
     <Select value={value} onValueChange={(v) => onChange(v as MetricKey)}>
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Metric">
+      <SelectTrigger className={TRIGGER_CLASS} aria-label={t("metric")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {METRICS.map((m) => (
           <SelectItem key={m.key} value={m.key}>
-            {m.label}
+            {labelsT(`metrics.${m.key}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -69,6 +71,8 @@ export const AggregationSelect = React.memo(function AggregationSelect({
   value: AggregationFn;
   onChange: (value: AggregationFn) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   const options = getMetric(metric).aggregations;
   return (
     <Select
@@ -76,13 +80,13 @@ export const AggregationSelect = React.memo(function AggregationSelect({
       onValueChange={(v) => onChange(v as AggregationFn)}
       disabled={options.length <= 1}
     >
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Aggregation">
+      <SelectTrigger className={TRIGGER_CLASS} aria-label={t("aggregation")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {options.map((agg) => (
           <SelectItem key={agg} value={agg}>
-            {AGGREGATION_LABELS[agg]}
+            {labelsT(`aggregations.${agg}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -97,15 +101,20 @@ export const BreakdownSelect = React.memo(function BreakdownSelect({
   value: DimensionKey;
   onChange: (value: DimensionKey) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   return (
     <Select value={value} onValueChange={(v) => onChange(v as DimensionKey)}>
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Breakdown dimension">
+      <SelectTrigger
+        className={TRIGGER_CLASS}
+        aria-label={t("breakdownDimension")}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {DIMENSIONS.map((d) => (
           <SelectItem key={d.key} value={d.key}>
-            {d.label}
+            {labelsT(`dimensions.${d.key}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -122,19 +131,24 @@ export const GranularitySelect = React.memo(function GranularitySelect({
   onChange: (value: TimeGranularity) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   return (
     <Select
       value={value}
       onValueChange={(v) => onChange(v as TimeGranularity)}
       disabled={disabled}
     >
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Time granularity">
+      <SelectTrigger
+        className={TRIGGER_CLASS}
+        aria-label={t("timeGranularity")}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {GRANULARITIES.map((g) => (
           <SelectItem key={g} value={g}>
-            {g}
+            {labelsT(`granularities.${g}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -151,6 +165,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
   onChange: (value: DashboardWidgetChartType) => void;
   showLabels?: boolean;
 }) {
+  const labelsT = useTranslations("systemUi.chartControls");
   return (
     <ToggleGroup
       type="single"
@@ -168,7 +183,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
             key={ct.value}
             value={ct.value}
             size={showLabels ? "default" : "xs"}
-            aria-label={ct.label}
+            aria-label={labelsT(`chartTypes.${ct.value}`)}
             className={cn(
               showLabels
                 ? "flex h-auto flex-col gap-1 py-2 text-[11px]"
@@ -176,7 +191,9 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
             )}
           >
             <Icon className={showLabels ? "h-4 w-4" : "h-3.5 w-3.5"} />
-            {showLabels ? <span>{ct.label}</span> : null}
+            {showLabels ? (
+              <span>{labelsT(`chartTypes.${ct.value}`)}</span>
+            ) : null}
           </ToggleGroupItem>
         );
 
@@ -184,7 +201,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
         return (
           <Tooltip key={ct.value}>
             <TooltipTrigger asChild>{item}</TooltipTrigger>
-            <TooltipContent>{ct.label}</TooltipContent>
+            <TooltipContent>{labelsT(`chartTypes.${ct.value}`)}</TooltipContent>
           </Tooltip>
         );
       })}

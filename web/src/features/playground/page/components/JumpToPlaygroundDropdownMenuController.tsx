@@ -39,6 +39,7 @@ import {
   JumpToPlaygroundMenu,
   type JumpToPlaygroundAction,
 } from "./JumpToPlaygroundMenu";
+import { useTranslations } from "next-intl";
 
 type JumpToPlaygroundDropdownMenuControllerProps = (
   | {
@@ -72,6 +73,7 @@ type JumpToPlaygroundDropdownMenuControllerProps = (
 export const JumpToPlaygroundDropdownMenuController = (
   props: JumpToPlaygroundDropdownMenuControllerProps,
 ) => {
+  const t = useTranslations("coreDetails.playground.jump");
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
@@ -119,10 +121,15 @@ export const JumpToPlaygroundDropdownMenuController = (
   const capturedState = useMemo(() => {
     if (prompt) return parsePrompt(prompt);
     if (generation) {
-      return parseGeneration(generation, modelToProviderMap, includeOutput);
+      return parseGeneration(
+        generation,
+        modelToProviderMap,
+        includeOutput,
+        t("parsedSchemaDescription"),
+      );
     }
     return null;
-  }, [prompt, generation, modelToProviderMap, includeOutput]);
+  }, [prompt, generation, modelToProviderMap, includeOutput, t]);
   const isAvailable = capturedState !== null;
 
   const handlePlaygroundAction = (action: JumpToPlaygroundAction) => {
@@ -170,9 +177,7 @@ export const JumpToPlaygroundDropdownMenuController = (
     });
   };
 
-  const tooltipMessage = isAvailable
-    ? "Test in LLM playground"
-    : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
+  const tooltipMessage = isAvailable ? t("tooltip") : t("unavailableTooltip");
 
   return (
     <DropdownMenuController
@@ -248,6 +253,7 @@ const parseGeneration = (
   },
   modelToProviderMap: Record<string, string>,
   includeOutput = false,
+  parsedSchemaDescription = "Schema parsed from generation",
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
@@ -258,7 +264,10 @@ const parseGeneration = (
     generation.metadata,
   );
 
-  const structuredOutputSchema = parseStructuredOutputSchema(generation);
+  const structuredOutputSchema = parseStructuredOutputSchema(
+    generation,
+    parsedSchemaDescription,
+  );
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
   if (modelParams && providerOptions) {
@@ -481,6 +490,7 @@ function parseStructuredOutputSchema(
     input: string | null;
     output: string | null;
   },
+  description: string,
 ): PlaygroundSchema | null {
   try {
     let metadata = generation.metadata;
@@ -504,7 +514,7 @@ function parseStructuredOutputSchema(
         return {
           id: Math.random().toString(36).substring(2),
           name: parseStructuredOutputSchema.data.json_schema.name,
-          description: "Schema parsed from generation",
+          description,
           schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
     }
@@ -527,7 +537,7 @@ function parseStructuredOutputSchema(
         return {
           id: Math.random().toString(36).substring(2),
           name: parseStructuredOutputSchema.data.json_schema.name,
-          description: "Schema parsed from generation",
+          description,
           schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
     }

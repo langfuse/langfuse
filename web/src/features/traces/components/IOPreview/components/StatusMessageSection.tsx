@@ -8,6 +8,7 @@ import {
   parseStructuredStatusMessage,
   type ObservationStatusMessage,
 } from "./statusMessagePresentation";
+import { useTranslations } from "next-intl";
 
 const STATUS_MESSAGE_CLASS_NAMES: Record<
   ObservationStatusMessage["level"],
@@ -27,7 +28,13 @@ export function StatusMessageSection({
   status: ObservationStatusMessage;
   currentView: "pretty" | "json";
 }) {
-  const presentation = getStatusMessagePresentation(status.level);
+  const t = useTranslations("coreDetails.traces.statusMessage");
+  const presentation = getStatusMessagePresentation(status.level, {
+    ERROR: t("error"),
+    WARNING: t("warning"),
+    DEBUG: t("debug"),
+    DEFAULT: t("status"),
+  });
   const parsedStatusMessage = useMemo(
     () => parseStructuredStatusMessage(status.message),
     [status.message],

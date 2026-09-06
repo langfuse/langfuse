@@ -10,6 +10,7 @@ import {
   type ScoreOutlierMetricKey,
   type ScoreOutlierTick,
 } from "@/src/features/scores-chart-view/types";
+import { useTranslations } from "next-intl";
 
 /**
  * ScoreOutlierBarStrip — the scores-table analogue of the observations
@@ -80,6 +81,7 @@ export function ScoreOutlierBarStrip({
   onSelectionChange,
   disabledReason,
 }: ScoreOutlierBarStripProps) {
+  const t = useTranslations("systemUi.scoreOutlierStrip");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
   // Touch model: taps and drags PREVIEW (pinned tooltip with an explicit
@@ -307,7 +309,7 @@ export function ScoreOutlierBarStrip({
         width={widthPx}
         height={heightPx + labelHeight}
         role="img"
-        aria-label={`${metricSpec.shortLabel} per bucket`}
+        aria-label={t("perBucket", { metric: metricSpec.shortLabel })}
         className="block cursor-crosshair touch-pan-y select-none"
         onPointerLeave={(event) => {
           if (event.pointerType !== "mouse") return;
@@ -457,8 +459,8 @@ export function ScoreOutlierBarStrip({
           style={{ height: heightPx }}
         >
           {hasActivity
-            ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
-            : "No scores in range"}
+            ? t("noMetricData", { metric: metricSpec.shortLabel })
+            : t("noScores")}
         </span>
       )}
 
@@ -487,7 +489,7 @@ export function ScoreOutlierBarStrip({
               {hovered.value !== null
                 ? metricSpec.format(hovered.value)
                 : hovered.count > 0
-                  ? "no data"
+                  ? t("noData")
                   : metricSpec.format(0)}
               {/* No "· N scores" suffix here in Value mode: `hovered.count` is
                   the every-listable-type total (from the count-only query),
@@ -539,14 +541,14 @@ export function ScoreOutlierBarStrip({
                     : previewStats.value !== null
                       ? metricSpec.format(previewStats.value)
                       : previewStats.count > 0
-                        ? "no data"
+                        ? t("noData")
                         : metricSpec.format(0)}
                   {/* Same omission as the hover tooltip above — see its comment. */}
                 </div>
               </div>
               <button
                 type="button"
-                aria-label="Dismiss preview"
+                aria-label={t("dismissPreview")}
                 className="text-muted-foreground -mt-0.5 -mr-0.5 p-0.5"
                 onClick={() => {
                   setTouchPreview(null);
@@ -572,7 +574,7 @@ export function ScoreOutlierBarStrip({
                   onSelectBucket?.(range, { trigger: "touch_explore" });
                 }}
               >
-                Explore this window
+                {t("exploreWindow")}
               </Button>
             )}
           </div>

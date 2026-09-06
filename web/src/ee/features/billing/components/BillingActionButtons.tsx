@@ -9,8 +9,10 @@ import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
 import { useBillingInformation } from "./useBillingInformation";
 import { StripeCancellationButton } from "./StripeCancellationButton";
+import { useTranslations } from "next-intl";
 
 export const BillingActionButtons = () => {
+  const t = useTranslations("settingsEnterprise.billing");
   const {
     organization,
     hasActiveSubscription,
@@ -39,11 +41,11 @@ export const BillingActionButtons = () => {
             setOpen(true);
           }}
         >
-          Change plan (via support)
+          {t("plan.changeViaSupport")}
         </Button>
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/pricing" target="_blank">
-            Compare plans
+            {t("common.comparePlans")}
           </Link>
         </Button>
       </div>
@@ -60,7 +62,7 @@ export const BillingActionButtons = () => {
           <>
             <StripeCustomerPortalButton
               orgId={organization.id}
-              title="Update Billing Details"
+              title={t("common.updateBillingDetails")}
               variant="secondary"
             />
             <StripeCancellationButton
@@ -71,14 +73,12 @@ export const BillingActionButtons = () => {
         )}
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/pricing" target="_blank">
-            Compare plans
+            {t("common.comparePlans")}
           </Link>
         </Button>
       </div>
       {hasActiveSubscription && !hasValidPaymentMethod && !isLoading && (
-        <p className="text-sm text-red-600">
-          You do not have a valid payment method. Please Update Billing Details.
-        </p>
+        <p className="text-sm text-red-600">{t("plan.invalidPaymentMethod")}</p>
       )}
     </div>
   );

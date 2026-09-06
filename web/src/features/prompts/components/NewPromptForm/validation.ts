@@ -9,57 +9,62 @@ import {
   PromptType,
 } from "@langfuse/shared";
 
-const NewPromptBaseSchema = z.object({
-  name: PromptNameSchema,
-  isActive: z.boolean({
-    error: "Enter whether the prompt should go live",
-  }),
-  config: z.string().refine(validateJson, "Config needs to be valid JSON"),
-  commitMessage: z
-    .string()
-    .trim()
-    .max(COMMIT_MESSAGE_MAX_LENGTH)
-    .transform((val) => (val === "" ? undefined : val))
-    .optional(),
-});
+export const createNewPromptFormSchema = (messages: {
+  isActiveRequired: string;
+  invalidConfig: string;
+  invalidPlaceholder: string;
+  emptyMessage: string;
+}) => {
+  const baseSchema = z.object({
+    name: PromptNameSchema,
+    isActive: z.boolean({ error: messages.isActiveRequired }),
+    config: z.string().refine(validateJson, messages.invalidConfig),
+    commitMessage: z
+      .string()
+      .trim()
+      .max(COMMIT_MESSAGE_MAX_LENGTH)
+      .transform((val) => (val === "" ? undefined : val))
+      .optional(),
+  });
 
-const NewChatPromptSchema = NewPromptBaseSchema.extend({
-  type: z.literal(PromptType.Chat),
-  chatPrompt: z
-    .array(z.any())
-    .refine(
-      (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
-        messages.every((message) => {
-          const isPlaceholder = message?.type === ChatMessageType.Placeholder;
-          return (
-            !isPlaceholder ||
-            PlaceholderMessageSchema.safeParse(message).success
-          );
-        }),
-      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores",
-    )
-    .refine(
-      (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
-        messages.every((message) => {
-          const isPlaceholder = message?.type === ChatMessageType.Placeholder;
-          return isPlaceholder || Boolean(message?.content?.trim()?.length);
-        }),
-      "Enter a chat message or remove the empty message",
-    ),
-  textPrompt: z.string(),
-});
+  const chatSchema = baseSchema.extend({
+    type: z.literal(PromptType.Chat),
+    chatPrompt: z
+      .array(z.any())
+      .refine(
+        (chatMessages: Array<{ type?: ChatMessageType; content?: string }>) =>
+          chatMessages.every((message) => {
+            const isPlaceholder = message?.type === ChatMessageType.Placeholder;
+            return (
+              !isPlaceholder ||
+              PlaceholderMessageSchema.safeParse(message).success
+            );
+          }),
+        messages.invalidPlaceholder,
+      )
+      .refine(
+        (chatMessages: Array<{ type?: ChatMessageType; content?: string }>) =>
+          chatMessages.every((message) => {
+            const isPlaceholder = message?.type === ChatMessageType.Placeholder;
+            return isPlaceholder || Boolean(message?.content?.trim()?.length);
+          }),
+        messages.emptyMessage,
+      ),
+    textPrompt: z.string(),
+  });
 
-const NewTextPromptSchema = NewPromptBaseSchema.extend({
-  type: z.literal(PromptType.Text),
-  chatPrompt: z.array(z.any()),
-  textPrompt: TextPromptContentSchema,
-});
+  const textSchema = baseSchema.extend({
+    type: z.literal(PromptType.Text),
+    chatPrompt: z.array(z.any()),
+    textPrompt: TextPromptContentSchema,
+  });
 
-export const NewPromptFormSchema = z.discriminatedUnion("type", [
-  NewChatPromptSchema,
-  NewTextPromptSchema,
-]);
-export type NewPromptFormSchemaType = z.infer<typeof NewPromptFormSchema>;
+  return z.discriminatedUnion("type", [chatSchema, textSchema]);
+};
+
+export type NewPromptFormSchemaType = z.infer<
+  ReturnType<typeof createNewPromptFormSchema>
+>;
 
 export const PromptVariantSchema = z.union([
   z.object({

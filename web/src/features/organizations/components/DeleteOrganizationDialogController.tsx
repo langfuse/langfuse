@@ -8,6 +8,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
+import { useTranslations } from "next-intl";
 
 type DeleteOrganizationDialogControllerProps = {
   children: (control: {
@@ -19,6 +20,7 @@ type DeleteOrganizationDialogControllerProps = {
 export function DeleteOrganizationDialogController({
   children,
 }: DeleteOrganizationDialogControllerProps) {
+  const t = useTranslations("workspace.dangerActions");
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
@@ -33,7 +35,7 @@ export function DeleteOrganizationDialogController({
 
   const disabled = hasAccess
     ? undefined
-    : { reason: "You don't have permission to delete this organization." };
+    : { reason: t("deleteOrganizationPermission") };
 
   const openDialog = () => {
     if (!hasAccess) return;
@@ -48,8 +50,8 @@ export function DeleteOrganizationDialogController({
       });
       capture("organization_settings:delete_organization");
       showSuccessToast({
-        title: "Organization Deleted",
-        description: "The organization has been successfully deleted.",
+        title: t("organizationDeletedTitle"),
+        description: t("organizationDeletedDescription"),
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
       window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/";

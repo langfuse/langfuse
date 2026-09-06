@@ -9,6 +9,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/components/ui/layer";
 import motionStyles from "./dialog-motion.module.css";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -106,6 +107,7 @@ const DialogContent = React.forwardRef<
     },
     ref,
   ) => {
+    const t = useSharedUiTranslations("primitives");
     const handleKeyDown = (e: React.KeyboardEvent) => {
       // Prevent Enter/Space key events from propagating to parent elements
       // This prevents triggering actions like row clicks when submitting forms in dialogs
@@ -161,7 +163,7 @@ const DialogContent = React.forwardRef<
           <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
             <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
               <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{t("close")}</span>
             </DialogPrimitive.Close>
           </div>
         </DialogPrimitive.Content>
@@ -236,29 +238,33 @@ const DialogHeader = ({
   variant,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> &
-  VariantProps<typeof dialogHeaderVariants>) => (
-  <div
-    className={cn(
-      "dialog-header",
-      dialogHeaderVariants({ variant, className }),
-    )}
-    {...props}
-  >
-    <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
-      <div className="min-w-0 flex-1">{children}</div>
-      {/* Untabbable on purpose: as the first tabbable descendant of the
+  VariantProps<typeof dialogHeaderVariants>) => {
+  const t = useSharedUiTranslations("primitives");
+
+  return (
+    <div
+      className={cn(
+        "dialog-header",
+        dialogHeaderVariants({ variant, className }),
+      )}
+      {...props}
+    >
+      <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
+        <div className="min-w-0 flex-1">{children}</div>
+        {/* Untabbable on purpose: as the first tabbable descendant of the
           content it would take Radix's initial focus away from the dialog's
           first field or primary action. Escape and the mouse still close. */}
-      <DialogPrimitive.Close
-        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -my-2 -mr-2 ml-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-        tabIndex={-1}
-      >
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
+        <DialogPrimitive.Close
+          className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -my-2 -mr-2 ml-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+          tabIndex={-1}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">{t("close")}</span>
+        </DialogPrimitive.Close>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 DialogHeader.displayName = "DialogHeader";
 
 const DialogBody = React.forwardRef<

@@ -6,6 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useTranslations } from "next-intl";
 
 /** Starts a test run for the evaluator's currently selected sample. */
 export function TestRunButton({
@@ -17,6 +18,7 @@ export function TestRunButton({
   onRun: () => void;
   disabledReason: string | null;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const button = (
     <Button
       type="button"
@@ -24,14 +26,12 @@ export function TestRunButton({
       size="sm"
       loading={isPending}
       disabled={Boolean(disabledReason)}
-      title={
-        disabledReason ? undefined : "Run the evaluator on the selected sample"
-      }
+      title={disabledReason ? undefined : t("test.runSelectedSampleTitle")}
       className={disabledReason ? "pointer-events-none" : undefined}
       onClick={onRun}
     >
       <Play className="mr-1.5 h-3.5 w-3.5" />
-      Run test on this sample
+      {t("test.runOnSample")}
     </Button>
   );
 

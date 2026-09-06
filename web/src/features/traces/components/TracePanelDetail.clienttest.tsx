@@ -1,8 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render as testingLibraryRender, screen } from "@testing-library/react";
+import { type ReactElement, type ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getMessages } from "@/src/features/i18n/messages";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+
+const render = (ui: ReactElement) =>
+  testingLibraryRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        {children}
+      </NextIntlClientProvider>
+    ),
+  });
 
 const { mockUseSelection, mockUseTraceData, mockByIdQuery } = vi.hoisted(
   () => ({

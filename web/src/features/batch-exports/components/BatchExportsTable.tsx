@@ -27,10 +27,15 @@ import {
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { useLocale, useTranslations } from "next-intl";
+import { enUS, zhCN } from "date-fns/locale";
 
 type BatchExportRow = RouterOutputs["batchExport"]["all"]["exports"][number];
 
 export function BatchExportsTable(props: { projectId: string }) {
+  const t = useTranslations("auxSettings.batchExports");
+  const locale = useLocale();
+  const dateLocale = locale === "zh-CN" ? zhCN : enUS;
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
@@ -66,7 +71,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "name",
       id: "name",
-      header: "Name",
+      header: t("columns.name"),
       size: 200,
       cell: ({ row }) => {
         const name = row.getValue("name") as string;
@@ -81,14 +86,24 @@ export function BatchExportsTable(props: { projectId: string }) {
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="space-y-1">
-                    <div>Created: {new Date(createdAt).toLocaleString()}</div>
                     <div>
-                      Finished:{" "}
-                      {finishedAt ? new Date(finishedAt).toLocaleString() : "-"}
+                      {t("created", {
+                        date: new Date(createdAt).toLocaleString(locale),
+                      })}
                     </div>
                     <div>
-                      Download expires:{" "}
-                      {expiresAt ? new Date(expiresAt).toLocaleString() : "-"}
+                      {t("finished", {
+                        date: finishedAt
+                          ? new Date(finishedAt).toLocaleString(locale)
+                          : "-",
+                      })}
+                    </div>
+                    <div>
+                      {t("downloadExpires", {
+                        date: expiresAt
+                          ? new Date(expiresAt).toLocaleString(locale)
+                          : "-",
+                      })}
                     </div>
                   </div>
                 </TooltipContent>
@@ -101,7 +116,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "status",
       id: "status",
-      header: "Status",
+      header: t("columns.status"),
       size: 90,
       cell: ({ row }) => {
         const { status, log } = row.original;
@@ -127,7 +142,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "isDownloadable",
       id: "action",
-      header: "Action",
+      header: t("columns.action"),
       size: 130,
       // One state-dependent action per row: Cancel while queued/processing,
       // Download (or Expired) once completed — the states never coexist.
@@ -159,12 +174,12 @@ export function BatchExportsTable(props: { projectId: string }) {
                 );
               }}
             >
-              Download
+              {t("download")}
             </ActionButton>
           );
         }
         if (status === "COMPLETED" && isExpired) {
-          return <span className="text-muted-foreground">Expired</span>;
+          return <span className="text-muted-foreground">{t("expired")}</span>;
         }
         if (status === "QUEUED" || status === "PROCESSING") {
           return (
@@ -186,19 +201,18 @@ export function BatchExportsTable(props: { projectId: string }) {
                     setCancelDialogOpen(true);
                   }}
                 >
-                  Cancel
+                  {t("cancel")}
                 </ActionButton>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Cancel batch export?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("cancelTitle")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to cancel this batch export? This
-                    action cannot be undone.
+                    {t("cancelDescription")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>No, keep it</AlertDialogCancel>
+                  <AlertDialogCancel>{t("keep")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => {
                       cancelBatchExport.mutate({
@@ -207,7 +221,7 @@ export function BatchExportsTable(props: { projectId: string }) {
                       });
                     }}
                   >
-                    Yes, cancel export
+                    {t("confirmCancel")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -220,7 +234,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "expiresAt",
       id: "expiresAt",
-      header: "Expires",
+      header: t("columns.expires"),
       size: 130,
       cell: ({ row }) => {
         const { status, expiresAt, isExpired } = row.original;
@@ -231,8 +245,11 @@ export function BatchExportsTable(props: { projectId: string }) {
           return null;
         }
         return (
-          <span title={new Date(expiresAt).toLocaleString()}>
-            {formatDistanceToNow(new Date(expiresAt), { addSuffix: true })}
+          <span title={new Date(expiresAt).toLocaleString(locale)}>
+            {formatDistanceToNow(new Date(expiresAt), {
+              addSuffix: true,
+              locale: dateLocale,
+            })}
           </span>
         );
       },
@@ -240,15 +257,15 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "format",
       id: "format",
-      header: "Format",
+      header: t("columns.format"),
       size: 70,
     },
     createUserTableColumn<BatchExportRow>({
       accessorKey: "user",
-      header: "Created By",
+      header: t("columns.createdBy"),
       size: 150,
       variant: "avatar",
-      emptyValue: "Unknown",
+      emptyValue: t("unknown"),
     }),
   ] as LangfuseColumnDef<BatchExportRow>[];
 

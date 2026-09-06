@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Fragment, useMemo } from "react";
 import { isTraceTarget } from "@/src/features/evals/utils/typeHelpers";
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
+import { useTranslations } from "next-intl";
 
 const VARIABLE_COLORS = [
   "text-primary-accent",
@@ -134,6 +135,7 @@ export const EvaluationPromptPreview = ({
   className?: string;
   controlButtons?: React.ReactNode;
 }) => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const memoizedVariables = useMemo(
     () => variableMapping.map(({ templateVariable }) => templateVariable),
     [variableMapping],
@@ -204,7 +206,7 @@ export const EvaluationPromptPreview = ({
     <div className="max-h-full min-h-0 flex-1 overflow-y-auto rounded-md border">
       {isLoading ? (
         <div className="flex items-center justify-center p-8">
-          <p>Loading variables...</p>
+          <p>{t("promptPreview.loadingVariables")}</p>
         </div>
       ) : (
         <ColoredPromptView fragments={getPromptFragments()} />
@@ -237,7 +239,7 @@ export const EvaluationPromptPreview = ({
     <div className={cn("flex flex-col", className)}>
       <span className="mb-1 flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
         <div className="flex flex-row items-center gap-2">
-          Evaluation Prompt Preview
+          {t("promptPreview.title")}
           {showTargetBadge && targetLink && (
             <Link
               href={targetLink.href}

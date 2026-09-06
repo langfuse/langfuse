@@ -138,7 +138,10 @@ export const getEvenTickInterval = (
  */
 export function getChartTypeDisplayName(
   chartType: DashboardWidgetChartType,
+  formatLabel?: (chartType: DashboardWidgetChartType) => string,
 ): string {
+  if (formatLabel) return formatLabel(chartType);
+
   switch (chartType) {
     case "LINE_TIME_SERIES":
       return "Line Chart (Time Series)";

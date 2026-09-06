@@ -6,17 +6,11 @@ import Head from "next/head";
 import NextErrorComponent, { type ErrorProps } from "next/error";
 import type { NextPageContext } from "next";
 import { CrashModal } from "@/src/components/CrashModal/CrashModal";
+import { useTranslations } from "next-intl";
 
 type LangfuseErrorPageProps = ErrorProps & {
   sentryEventId?: string;
   showReturnHome: boolean;
-};
-
-const statusTitles: Record<number, string> = {
-  400: "Bad Request",
-  404: "This page could not be found",
-  405: "Method Not Allowed",
-  500: "Internal Server Error",
 };
 
 const ErrorPage = ({
@@ -26,20 +20,28 @@ const ErrorPage = ({
   statusCode,
   title,
 }: LangfuseErrorPageProps) => {
-  const resolvedTitle =
-    title ??
-    (statusCode ? statusTitles[statusCode] : undefined) ??
-    "An unexpected error has occurred";
+  const t = useTranslations("sharedUi.errorPage");
+  const localizedStatusTitle =
+    statusCode === 400
+      ? t("badRequest")
+      : statusCode === 404
+        ? t("notFound")
+        : statusCode === 405
+          ? t("methodNotAllowed")
+          : statusCode === 500
+            ? t("internalServerError")
+            : undefined;
+  const resolvedTitle = localizedStatusTitle ?? title ?? t("unexpected");
 
   const description = statusCode
-    ? `${resolvedTitle}.`
-    : `Application error: a client-side exception has occurred${
-        hostname ? ` while loading ${hostname}` : ""
-      } (see the browser console for more information).`;
+    ? t("statusDescription", { statusCode, title: resolvedTitle })
+    : hostname
+      ? t("applicationErrorWithHost", { hostname })
+      : t("applicationError");
 
   const documentTitle = statusCode
     ? `${statusCode}: ${resolvedTitle}`
-    : "Application error: a client-side exception has occurred";
+    : t("applicationErrorTitle");
 
   return (
     <>

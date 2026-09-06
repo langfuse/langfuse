@@ -36,6 +36,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
+import { useTranslations } from "next-intl";
 
 type AnnotationQueueScoreConfigOption = Pick<
   ScoreConfigDomain,
@@ -69,6 +70,7 @@ export function AnnotationQueueFormDialogContent({
   onSubmit,
   submitLabel,
 }: AnnotationQueueFormDialogContentProps) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const form = useForm<CreateQueueWithAssignments>({
     resolver: zodResolver(CreateQueueWithAssignmentsData),
@@ -83,7 +85,7 @@ export function AnnotationQueueFormDialogContent({
     currentName: form.watch("name"),
     allNames: queueNameOptions,
     form,
-    errorMessage: "Queue name already exists.",
+    errorMessage: t("nameExists"),
   });
 
   const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
@@ -95,7 +97,7 @@ export function AnnotationQueueFormDialogContent({
     if (values.length === 0) {
       form.setError("scoreConfigIds", {
         type: "manual",
-        message: "At least 1 score config must be selected",
+        message: t("scoreConfigRequired"),
       });
     } else {
       form.clearErrors("scoreConfigIds");
@@ -110,11 +112,10 @@ export function AnnotationQueueFormDialogContent({
     <>
       <DialogHeader>
         <DialogTitle>
-          {mode === "edit" ? "Edit" : "New"} annotation queue
+          {mode === "edit" ? t("editTitle") : t("newTitle")}
         </DialogTitle>
         <DialogDescription>
-          {mode === "edit" ? "Edit" : "Create a new"} queue to manage your
-          annotation workflows.
+          {mode === "edit" ? t("editDescription") : t("createDescription")}
         </DialogDescription>
       </DialogHeader>
       <Form {...form}>
@@ -125,7 +126,7 @@ export function AnnotationQueueFormDialogContent({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("name")}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -143,11 +144,11 @@ export function AnnotationQueueFormDialogContent({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (optional)</FormLabel>
+                  <FormLabel>{t("descriptionOptional")}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
-                      placeholder="Add description..."
+                      placeholder={t("descriptionPlaceholder")}
                       className="text-xs focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                     />
                   </FormControl>
@@ -160,14 +161,13 @@ export function AnnotationQueueFormDialogContent({
               name="scoreConfigIds"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Score Configs</FormLabel>
+                  <FormLabel>{t("scoreConfigs")}</FormLabel>
                   <FormDescription>
-                    Define which dimensions annotators should score for the
-                    given queue.
+                    {t("scoreConfigsDescription")}
                   </FormDescription>
                   <FormControl>
                     <MultiSelectKeyValues
-                      placeholder="Value"
+                      placeholder={t("valuePlaceholder")}
                       align="end"
                       variant="outline"
                       className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
@@ -193,7 +193,7 @@ export function AnnotationQueueFormDialogContent({
                           onBeforeAction={onManageScoreConfigsClick}
                           href={`/project/${projectId}/settings/scores`}
                           target="_blank"
-                          title="Manage score configs"
+                          title={t("manageScoreConfigs")}
                         />
                       }
                     />
@@ -208,7 +208,7 @@ export function AnnotationQueueFormDialogContent({
               name="newAssignmentUserIds"
               render={() => (
                 <FormItem>
-                  <FormLabel>Advanced Settings</FormLabel>
+                  <FormLabel>{t("advancedSettings")}</FormLabel>
                   <div className="mt-1 rounded-md border">
                     <Collapsible
                       open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
@@ -233,7 +233,7 @@ export function AnnotationQueueFormDialogContent({
                               <ChevronRight className="text-muted-foreground h-4 w-4" />
                             )}
                             <span className="text-sm font-bold">
-                              User Assignment
+                              {t("userAssignment")}
                             </span>
                           </div>
                         </Button>
@@ -269,7 +269,7 @@ export function AnnotationQueueFormDialogContent({
               className="text-xs"
               disabled={!!form.formState.errors.name || isSubmitting}
             >
-              {isSubmitting ? "Processing..." : submitLabel}
+              {isSubmitting ? t("processing") : submitLabel}
             </Button>
           </DialogFooter>
         </form>

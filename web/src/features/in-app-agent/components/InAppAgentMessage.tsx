@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 import { Streamdown } from "streamdown";
 import { Button } from "@/src/components/ui/button";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
@@ -269,6 +270,7 @@ function TextMessageWithActions({
     comment?: string | null;
   }) => Promise<void>;
 }) {
+  const t = useSharedUiTranslations("agent");
   const messageCardRef = useRef<HTMLDivElement>(null);
   const { copyRich, isCopied } = useCopyToClipboard({
     successDuration: 1_500,
@@ -306,8 +308,8 @@ function TextMessageWithActions({
       <button
         type="button"
         className="text-muted-foreground/50 hover:text-muted-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
-        aria-label={isCopied ? "Message copied" : "Copy message"}
-        title={isCopied ? "Copied" : "Copy message"}
+        aria-label={isCopied ? t("messageCopied") : t("copyMessage")}
+        title={isCopied ? t("copied") : t("copyMessage")}
         onClick={handleCopy}
       >
         {isCopied ? (
@@ -356,7 +358,9 @@ function TextMessageWithActions({
             <time
               dateTime={formattedTimestamp.iso}
               title={formattedTimestamp.full}
-              aria-label={`Sent ${formattedTimestamp.full}`}
+              aria-label={t("sentAt", {
+                timestamp: formattedTimestamp.full,
+              })}
               suppressHydrationWarning
               className="text-muted-foreground ml-1 text-[0.6875rem] opacity-0 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100"
             >
@@ -398,6 +402,7 @@ function InAppAgentReasoningBlock({
   content: Extract<InAppAgentMessageContent, { type: "reasoning" }>;
   isCompact: boolean;
 }) {
+  const t = useSharedUiTranslations("agent");
   // null until the user toggles manually; until then the disclosure follows
   // the streaming state (open while streaming, collapsed when done).
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
@@ -425,7 +430,7 @@ function InAppAgentReasoningBlock({
             content.isStreaming && textShimmerStyles.textShimmer,
           )}
         >
-          {content.isStreaming ? "Thinking" : "Thought"}
+          {content.isStreaming ? t("thinkingShort") : t("thought")}
         </span>
         <ChevronDown
           className={cn(
@@ -439,7 +444,7 @@ function InAppAgentReasoningBlock({
         // the drawer's auto-follow keeps the newest text visible while
         // streaming, and the block collapses when streaming ends.
         <div
-          aria-label="Assistant reasoning"
+          aria-label={t("reasoning")}
           data-testid="in-app-agent-reasoning-content"
           className={cn(
             // Vertical spacing is margin, not padding, so the left border
@@ -448,7 +453,7 @@ function InAppAgentReasoningBlock({
             isCompact && "px-2.5 leading-4",
           )}
         >
-          {content.text || "Thinking..."}
+          {content.text || t("thinking")}
         </div>
       ) : null}
     </details>
@@ -469,6 +474,7 @@ function MessageFeedbackControls({
     comment?: string | null;
   }) => Promise<void>;
 }) {
+  const t = useSharedUiTranslations("agent");
   const [committedComment, setCommittedComment] = useState(
     feedback?.comment?.trim() ?? "",
   );
@@ -550,7 +556,7 @@ function MessageFeedbackControls({
     });
   };
 
-  const commentButtonText = `Comment: ${committedComment}`;
+  const commentButtonText = t("comment", { comment: committedComment });
 
   return (
     <Popover
@@ -563,7 +569,7 @@ function MessageFeedbackControls({
     >
       <PopoverAnchor className="inline-flex">
         <FeedbackButton
-          label="Good response"
+          label={t("goodResponse")}
           isSelected={selectedValue === "thumbs_up"}
           disabled={isDisabled}
           onClick={() => {
@@ -579,7 +585,7 @@ function MessageFeedbackControls({
         </FeedbackButton>
       </PopoverAnchor>
       <FeedbackButton
-        label="Bad response"
+        label={t("badResponse")}
         isSelected={selectedValue === "thumbs_down"}
         disabled={isDisabled}
         onClick={() => {
@@ -619,7 +625,7 @@ function MessageFeedbackControls({
                 setComment(event.target.value);
               }}
               disabled={isDisabled}
-              placeholder="Optional feedback comment"
+              placeholder={t("feedbackPlaceholder")}
               rows={3}
               maxLength={500}
               className={cn(
@@ -634,7 +640,7 @@ function MessageFeedbackControls({
                 handleSubmitComment().catch(() => undefined);
               }}
             >
-              {isSubmittingComment ? "Saving..." : "Save comment"}
+              {isSubmittingComment ? t("saving") : t("saveComment")}
             </CommentButton>
           </div>
         </PopoverContent>
@@ -650,6 +656,7 @@ function SourcesPopover({
   sources: InAppAgentMessageSource[];
   isCompact: boolean;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -661,7 +668,7 @@ function SourcesPopover({
           )}
         >
           <BookOpenText className={cn(isCompact ? "size-3" : "size-3.5")} />
-          Sources
+          {t("sources")}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-72 p-1.5">
@@ -796,13 +803,25 @@ function ToolCallDisclosure({
   tool: InAppAgentToolCallContent;
   isCompact: boolean;
 }) {
+  const t = useSharedUiTranslations("agent");
   const status = tool.status;
   const toolName = getInAppAgentToolDisplayName(tool.name);
+  const statusLabel =
+    status === "running"
+      ? t("toolStatus.running")
+      : status === "succeeded"
+        ? t("toolStatus.completed")
+        : status === "failed"
+          ? t("toolStatus.failed")
+          : t("toolStatus.denied");
 
   return (
     <details className="group/tool min-w-0">
       <summary
-        aria-label={`${toolName}: ${status}`}
+        aria-label={t("toolStatus.aria", {
+          tool: toolName,
+          status: statusLabel,
+        })}
         className={cn(
           "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
@@ -1044,6 +1063,7 @@ function trimTrailingFenceNewline(
 }
 
 function CodeBlock({ children }: { children: ReactNode }) {
+  const t = useSharedUiTranslations("agent");
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
 
   // This is ugly but streamdown doesn't provide an easy way to get the raw text content of a code block
@@ -1066,8 +1086,8 @@ function CodeBlock({ children }: { children: ReactNode }) {
       <button
         type="button"
         data-in-app-agent-code-copy-button="true"
-        aria-label={isCopied ? "Copied code" : "Copy code"}
-        title={isCopied ? "Copied" : "Copy code"}
+        aria-label={isCopied ? t("copiedCode") : t("copyCode")}
+        title={isCopied ? t("copied") : t("copyCode")}
         contentEditable={false}
         disabled={!code}
         onClick={() => {
@@ -1088,13 +1108,14 @@ function CodeBlock({ children }: { children: ReactNode }) {
 
 function ThinkingIndicator({
   className,
-  label = "Thinking...",
+  label,
   isCompact = false,
 }: {
   className?: string;
   label?: string;
   isCompact?: boolean;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <div
       className={cn(
@@ -1106,7 +1127,7 @@ function ThinkingIndicator({
       <Loader2
         className={cn("animate-spin", isCompact ? "h-3 w-3" : "h-3.5 w-3.5")}
       />
-      <span>{label}</span>
+      <span>{label ?? t("thinking")}</span>
     </div>
   );
 }

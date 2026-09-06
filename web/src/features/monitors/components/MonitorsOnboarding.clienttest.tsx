@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderMonitorWithIntl } from "../test-utils";
 
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
 
@@ -20,7 +21,9 @@ const parsePrefill = (
 
 describe("MonitorsOnboarding", () => {
   it("renders the splash header, step titles, and four CTAs", () => {
-    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+    renderMonitorWithIntl(
+      <MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />,
+    );
 
     expect(
       screen.getByText("Catch issues before they impact your users"),
@@ -45,7 +48,9 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("links each channel button to /automations?view=create with the matching prefill actionType", () => {
-    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+    renderMonitorWithIntl(
+      <MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />,
+    );
 
     const cases: Array<{ label: RegExp; expected: string }> = [
       { label: /Connect Slack/i, expected: "SLACK" },
@@ -67,7 +72,9 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("links the Create Alert CTA to the project's new-alert route", () => {
-    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+    renderMonitorWithIntl(
+      <MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />,
+    );
 
     const link = screen.getByRole("link", { name: /Create Alert/i });
     expect(link.getAttribute("href")).toBe(`/project/${PROJECT_ID}/alerts/new`);

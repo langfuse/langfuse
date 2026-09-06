@@ -8,6 +8,7 @@ import {
   SampleObservationSelectorBase,
   type SampleObservation,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { useTranslations } from "next-intl";
 
 function toEventsPreviewFilters(filters: FilterState): FilterState {
   return filters.map((filter) =>
@@ -52,6 +53,7 @@ export function RuleSampleObservationSelector({
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const previewFilters = useMemo(
     () => toEventsPreviewFilters(filterState),
     [filterState],
@@ -72,12 +74,15 @@ export function RuleSampleObservationSelector({
       leadingColumns={[]}
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
-      filterDescription="Define which incoming observations match this rule."
-      filterTooltip="Only new observations matching these filters are evaluated by this rule."
-      matchingDescription="The first match is used to preview attached evaluator mappings."
-      matchingTooltip="Observations matching the rule filters over the last seven days."
+      filterDescription={t("sampleSelector.rule.filterDescription")}
+      filterTooltip={t("sampleSelector.rule.filterTooltip")}
+      matchingDescription={t("sampleSelector.rule.matchingDescription")}
+      matchingTooltip={t("sampleSelector.rule.matchingTooltip")}
       formatCount={(count) =>
-        `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
+        t("sampleSelector.matchCount", {
+          count,
+          formattedCount: compactNumberFormatter(count),
+        })
       }
       mapObservedOptions={addRuleTagAlias}
     />

@@ -3,6 +3,7 @@ import React from "react";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTranslations } from "next-intl";
 
 interface NoDataOrLoadingProps {
   isLoading: boolean;
@@ -40,6 +41,8 @@ export function NoDataOrLoading({
   href,
   className,
 }: NoDataOrLoadingProps) {
+  const t = useTranslations("common.emptyState");
+
   if (isLoading) {
     return (
       <div
@@ -54,7 +57,7 @@ export function NoDataOrLoading({
   }
 
   return (
-    <NoData noDataText="No data" className={className}>
+    <NoData noDataText={t("noData")} className={className}>
       {description && <DocPopup description={description} href={href} />}
     </NoData>
   );

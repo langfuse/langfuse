@@ -6,6 +6,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectDialogContent";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
+import { useTranslations } from "next-intl";
 
 type AddTracesToAnnotationQueueDialogControllerProps = {
   projectId: string;
@@ -32,10 +33,12 @@ export function AddTracesToAnnotationQueueDialogController({
   actionId = ActionId.TraceAddToAnnotationQueue,
   tableName = BatchExportTableName.Traces,
   alternateTableName,
-  objectLabel = "traces",
+  objectLabel,
   onAddToQueue,
   children,
 }: AddTracesToAnnotationQueueDialogControllerProps) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
+  const localizedObjectLabel = objectLabel ?? t("traces");
   const [open, setOpen] = useState(false);
   const [newQueueId, setNewQueueId] = useState<string>();
 
@@ -47,7 +50,7 @@ export function AddTracesToAnnotationQueueDialogController({
   const disabled = hasQueueAccess
     ? undefined
     : {
-        reason: `You don't have permission to add ${objectLabel} to annotation queues.`,
+        reason: t("noAddPermission", { object: localizedObjectLabel }),
       };
   const openDialog = () => {
     if (!hasQueueAccess) return;
@@ -96,12 +99,12 @@ export function AddTracesToAnnotationQueueDialogController({
   const createQueueState = !hasQueueAccess
     ? ({
         status: "disabled",
-        reason: "You don't have permission to create annotation queues.",
+        reason: t("noCreatePermission"),
       } as const)
     : atQueueLimit
       ? ({
           status: "disabled",
-          reason: "Maximum number of annotation queues reached for your plan.",
+          reason: t("queueLimitReached"),
         } as const)
       : ({ status: "enabled" } as const);
 

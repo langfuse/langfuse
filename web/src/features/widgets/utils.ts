@@ -115,14 +115,81 @@ export function formatMetricName(metricName: string): string {
   return startCase(cleanedName);
 }
 
+export type WidgetSuggestionTextKey =
+  | "noMetrics"
+  | "moreMetrics"
+  | "name.metric"
+  | "name.by"
+  | "name.withView"
+  | "description.multiMetric"
+  | "description.count"
+  | "description.metric"
+  | "description.by"
+  | "description.filteredByColumn"
+  | "description.filteredByColumns"
+  | "description.filteredByConditions";
+
+export type WidgetSuggestionTextFormatter = (
+  key: WidgetSuggestionTextKey,
+  values?: Record<string, string | number>,
+) => string;
+
+export type WidgetSuggestionLabelFormatter = (
+  kind: "aggregation" | "measure" | "dimension" | "view" | "filter",
+  value: string,
+) => string;
+
+const defaultWidgetSuggestionLabelFormatter: WidgetSuggestionLabelFormatter = (
+  kind,
+  value,
+) => (kind === "measure" ? formatMetricName(value) : startCase(value));
+
+const defaultWidgetSuggestionTextFormatter: WidgetSuggestionTextFormatter = (
+  key,
+  values = {},
+) => {
+  switch (key) {
+    case "noMetrics":
+      return "No Metrics";
+    case "moreMetrics":
+      return `${values.metrics} + ${values.count} more`;
+    case "name.metric":
+      return `${values.aggregation} ${values.metric}`;
+    case "name.by":
+      return `${values.base} by ${values.dimension}`;
+    case "name.withView":
+      return `${values.base} (${values.view})`;
+    case "description.multiMetric":
+      return `Shows ${String(values.metrics).toLowerCase()} of ${values.view}`;
+    case "description.count":
+      return `Shows the count of ${values.view}`;
+    case "description.metric":
+      return `Shows the ${String(values.aggregation).toLowerCase()} ${String(values.metric).toLowerCase()} of ${values.view}`;
+    case "description.by":
+      return `${values.base} by ${String(values.dimension).toLowerCase()}`;
+    case "description.filteredByColumn":
+      return `${values.base}, filtered by ${values.column}`;
+    case "description.filteredByColumns":
+      return `${values.base}, filtered by ${values.firstColumn} and ${values.secondColumn}`;
+    case "description.filteredByConditions":
+      return `${values.base}, filtered by ${values.count} conditions`;
+  }
+};
+
 /**
  * Formats multiple metric names for display, showing first 3 and "+ X more" if needed
  */
-function formatMultipleMetricNames(metricNames: string[]): string {
-  if (metricNames.length === 0) return "No Metrics";
-  if (metricNames.length === 1) return formatMetricName(metricNames[0]);
+function formatMultipleMetricNames(
+  metricNames: string[],
+  formatText: WidgetSuggestionTextFormatter,
+  formatLabel: WidgetSuggestionLabelFormatter,
+): string {
+  if (metricNames.length === 0) return formatText("noMetrics");
+  if (metricNames.length === 1) return formatLabel("measure", metricNames[0]);
 
-  const formattedNames = metricNames.map(formatMetricName);
+  const formattedNames = metricNames.map((metric) =>
+    formatLabel("measure", metric),
+  );
 
   if (metricNames.length <= 3) {
     return formattedNames.join(", ");
@@ -130,7 +197,10 @@ function formatMultipleMetricNames(metricNames: string[]): string {
 
   const firstThree = formattedNames.slice(0, 3).join(", ");
   const remaining = metricNames.length - 3;
-  return `${firstThree} + ${remaining} more`;
+  return formatText("moreMetrics", {
+    metrics: firstThree,
+    count: remaining,
+  });
 }
 
 export function buildWidgetName({
@@ -140,6 +210,8 @@ export function buildWidgetName({
   view,
   metrics,
   isMultiMetric = false,
+  formatText = defaultWidgetSuggestionTextFormatter,
+  formatLabel = defaultWidgetSuggestionLabelFormatter,
 }: {
   aggregation: string;
   measure: string;
@@ -147,30 +219,41 @@ export function buildWidgetName({
   view: string;
   metrics?: string[];
   isMultiMetric?: boolean;
+  formatText?: WidgetSuggestionTextFormatter;
+  formatLabel?: WidgetSuggestionLabelFormatter;
 }) {
   let base: string;
 
   if (isMultiMetric && metrics && metrics.length > 0) {
     // Handle multi-metric scenarios (like pivot tables)
-    const metricDisplay = formatMultipleMetricNames(metrics);
+    const metricDisplay = formatMultipleMetricNames(
+      metrics,
+      formatText,
+      formatLabel,
+    );
     base = metricDisplay;
   } else {
     // Handle single metric scenarios (existing logic)
-    const meas = formatMetricName(measure);
+    const meas = formatLabel("measure", measure);
     if (measure.toLowerCase() === "count") {
       // For count measures, ignore aggregation and only show the measure
       base = meas;
     } else {
-      const agg = startCase(aggregation.toLowerCase());
-      base = `${agg} ${meas}`;
+      const agg = formatLabel("aggregation", aggregation.toLowerCase());
+      base = formatText("name.metric", { aggregation: agg, metric: meas });
     }
   }
 
   if (dimension && dimension !== "none") {
-    base += ` by ${startCase(dimension)}`;
+    base = formatText("name.by", {
+      base,
+      dimension: formatLabel("dimension", dimension),
+    });
   }
-  base += ` (${startCase(view)})`;
-  return base;
+  return formatText("name.withView", {
+    base,
+    view: formatLabel("view", view),
+  });
 }
 
 export function buildWidgetDescription({
@@ -181,6 +264,8 @@ export function buildWidgetDescription({
   filters,
   metrics,
   isMultiMetric = false,
+  formatText = defaultWidgetSuggestionTextFormatter,
+  formatLabel = defaultWidgetSuggestionLabelFormatter,
 }: {
   aggregation: string;
   measure: string;
@@ -189,38 +274,69 @@ export function buildWidgetDescription({
   filters: FilterState;
   metrics?: string[];
   isMultiMetric?: boolean;
+  formatText?: WidgetSuggestionTextFormatter;
+  formatLabel?: WidgetSuggestionLabelFormatter;
 }) {
-  const viewLabel = startCase(view);
+  const viewLabel = formatLabel("view", view);
   let sentence: string;
 
   if (isMultiMetric && metrics && metrics.length > 0) {
     // Handle multi-metric scenarios
-    const metricDisplay = formatMultipleMetricNames(metrics);
-    sentence = `Shows ${metricDisplay.toLowerCase()} of ${viewLabel}`;
+    const metricDisplay = formatMultipleMetricNames(
+      metrics,
+      formatText,
+      formatLabel,
+    );
+    sentence = formatText("description.multiMetric", {
+      metrics: metricDisplay,
+      view: viewLabel,
+    });
   } else {
     // Handle single metric scenarios (existing logic)
-    const measLabel = formatMetricName(measure);
+    const measLabel = formatLabel("measure", measure);
 
     if (measure.toLowerCase() === "count") {
-      sentence = `Shows the count of ${viewLabel}`;
+      sentence = formatText("description.count", { view: viewLabel });
     } else {
-      const aggLabel = startCase(aggregation.toLowerCase());
-      sentence = `Shows the ${aggLabel.toLowerCase()} ${measLabel.toLowerCase()} of ${viewLabel}`;
+      const aggLabel = formatLabel("aggregation", aggregation.toLowerCase());
+      sentence = formatText("description.metric", {
+        aggregation: aggLabel,
+        metric: measLabel,
+        view: viewLabel,
+      });
     }
   }
 
   // Dimension clause
   if (dimension && dimension !== "none") {
-    sentence += ` by ${startCase(dimension).toLowerCase()}`;
+    sentence = formatText("description.by", {
+      base: sentence,
+      dimension: formatLabel("dimension", dimension),
+    });
   }
 
   // Filters clause
   if (filters && filters.length > 0) {
     if (filters.length <= 2) {
-      const cols = filters.map((f) => startCase(f.column)).join(" and ");
-      sentence += `, filtered by ${cols}`;
+      const columns = filters.map((filter) =>
+        formatLabel("filter", filter.column),
+      );
+      sentence =
+        columns.length === 1
+          ? formatText("description.filteredByColumn", {
+              base: sentence,
+              column: columns[0],
+            })
+          : formatText("description.filteredByColumns", {
+              base: sentence,
+              firstColumn: columns[0],
+              secondColumn: columns[1],
+            });
     } else {
-      sentence += `, filtered by ${filters.length} conditions`;
+      sentence = formatText("description.filteredByConditions", {
+        base: sentence,
+        count: filters.length,
+      });
     }
   }
 

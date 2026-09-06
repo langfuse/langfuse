@@ -20,6 +20,7 @@ import {
   BlobStorageIntegrationFileType,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
+import { useTranslations } from "next-intl";
 
 // Frequency, file type, and export mode (with the custom start date when the
 // mode requires one).
@@ -28,6 +29,7 @@ export const ExportScheduleFields = ({
 }: {
   control: BlobStorageFormControl;
 }) => {
+  const t = useTranslations("integrationsSettings.blobStorage.schedule");
   const watchedExportMode = useWatch({ control, name: "exportMode" });
 
   return (
@@ -37,26 +39,23 @@ export const ExportScheduleFields = ({
         name="exportFrequency"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Export Frequency</FormLabel>
+            <FormLabel>{t("frequency")}</FormLabel>
             <FormControl>
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select frequency" />
+                  <SelectValue placeholder={t("selectFrequency")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="every_20_minutes">
-                    Every 20 Minutes
+                    {t("every20Minutes")}
                   </SelectItem>
-                  <SelectItem value="hourly">Hourly</SelectItem>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="hourly">{t("hourly")}</SelectItem>
+                  <SelectItem value="daily">{t("daily")}</SelectItem>
+                  <SelectItem value="weekly">{t("weekly")}</SelectItem>
                 </SelectContent>
               </Select>
             </FormControl>
-            <FormDescription>
-              How often the data should be exported. Changes are taken into
-              consideration from the next run onwards.
-            </FormDescription>
+            <FormDescription>{t("frequencyDescription")}</FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -67,11 +66,11 @@ export const ExportScheduleFields = ({
         name="fileType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>File Type</FormLabel>
+            <FormLabel>{t("fileType")}</FormLabel>
             <FormControl>
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select file type" />
+                  <SelectValue placeholder={t("selectFileType")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PARQUET">Parquet</SelectItem>
@@ -83,8 +82,8 @@ export const ExportScheduleFields = ({
             </FormControl>
             <FormDescription>
               {field.value === BlobStorageIntegrationFileType.PARQUET
-                ? "Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. Gzip compression does not apply."
-                : "The file format for exported data."}
+                ? t("parquetDescription")
+                : t("fileTypeDescription")}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -96,30 +95,26 @@ export const ExportScheduleFields = ({
         name="exportMode"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Export Mode</FormLabel>
+            <FormLabel>{t("mode")}</FormLabel>
             <FormControl>
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select export mode" />
+                  <SelectValue placeholder={t("selectMode")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={BlobStorageExportMode.FULL_HISTORY}>
-                    Full history
+                    {t("fullHistory")}
                   </SelectItem>
                   <SelectItem value={BlobStorageExportMode.FROM_TODAY}>
-                    Today
+                    {t("today")}
                   </SelectItem>
                   <SelectItem value={BlobStorageExportMode.FROM_CUSTOM_DATE}>
-                    Custom date
+                    {t("customDate")}
                   </SelectItem>
                 </SelectContent>
               </Select>
             </FormControl>
-            <FormDescription>
-              Choose when to start exporting data. &quot;Today&quot; and
-              &quot;Custom date&quot; modes will not include historical data
-              before the specified date.
-            </FormDescription>
+            <FormDescription>{t("modeDescription")}</FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -131,7 +126,7 @@ export const ExportScheduleFields = ({
           name="exportStartDate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Export Start Date</FormLabel>
+              <FormLabel>{t("startDate")}</FormLabel>
               <FormControl>
                 <Input
                   type="date"
@@ -150,12 +145,10 @@ export const ExportScheduleFields = ({
                       : null;
                     field.onChange(date);
                   }}
-                  placeholder="Select start date"
+                  placeholder={t("selectStartDate")}
                 />
               </FormControl>
-              <FormDescription>
-                Data before this date will not be included in exports
-              </FormDescription>
+              <FormDescription>{t("startDateDescription")}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

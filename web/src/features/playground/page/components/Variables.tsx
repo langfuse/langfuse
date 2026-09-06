@@ -1,17 +1,16 @@
 import { Separator } from "@/src/components/ui/separator";
 import { usePlaygroundContext } from "../context";
 import { PromptVariableComponent } from "./PromptVariableComponent";
+import { useTranslations } from "next-intl";
 
 export const Variables = () => {
+  const t = useTranslations("coreDetails.playground.variables");
   const { promptVariables } = usePlaygroundContext();
 
   const renderNoVariables = () => (
     <div className="text-xs">
-      <p className="mb-2">No variables defined.</p>
-      <p>
-        Use double curly braces in your prompts to add a variable:
-        &#123;&#123;exampleVariable&#125;&#125;
-      </p>
+      <p className="mb-2">{t("empty")}</p>
+      <p>{t("hint")} &#123;&#123;exampleVariable&#125;&#125;</p>
     </div>
   );
 

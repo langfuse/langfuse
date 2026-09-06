@@ -3,6 +3,7 @@ import { Webhook, Plus, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { type AutomationDomain } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 const destinationLabel = (automation: AutomationDomain): string => {
   if (automation.action.type === "SLACK") {
@@ -38,10 +39,12 @@ export function ProjectNotificationChannelsList({
   onEdit,
   onDelete,
 }: ProjectNotificationChannelsListProps) {
+  const t = useTranslations("auxSettings.projectNotifications.channels");
+
   return (
     <div className="flex flex-col gap-4">
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading channels...</p>
+        <p className="text-muted-foreground text-sm">{t("loading")}</p>
       ) : !channels || channels.length === 0 ? null : (
         <div className="flex flex-col gap-3">
           {channels.map((channel) => (
@@ -67,7 +70,7 @@ export function ProjectNotificationChannelsList({
                   variant="ghost"
                   size="icon"
                   onClick={() => onEdit(channel)}
-                  title="Edit channel"
+                  title={t("edit")}
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -76,7 +79,7 @@ export function ProjectNotificationChannelsList({
                   size="icon"
                   disabled={isDeleting}
                   onClick={() => onDelete(channel.id)}
-                  title="Delete channel"
+                  title={t("delete")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -91,7 +94,7 @@ export function ProjectNotificationChannelsList({
         <div>
           <Button variant="secondary" onClick={onAdd}>
             <Plus className="mr-2 h-4 w-4" />
-            Add channel
+            {t("add")}
           </Button>
         </div>
       )}

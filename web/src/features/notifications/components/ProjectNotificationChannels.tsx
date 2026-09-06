@@ -15,6 +15,7 @@ import { WebhookSecretRender } from "@/src/features/automations/components/Webho
 import { ProjectNotificationChannelsList } from "@/src/features/notifications/components/ProjectNotificationChannelsList";
 import { useProjectNotificationChannels } from "@/src/features/notifications/hooks/useProjectNotificationChannels";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 import {
   ProjectNotificationEventTypeSchema,
   TriggerEventSource,
@@ -25,29 +26,36 @@ import {
 /** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
 const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
 
-const NOTIFIED_EVENT_COPY: Record<
+const NOTIFIED_EVENT_MESSAGE_KEYS: Record<
   ProjectNotificationEventType,
-  { title: string; description: string }
+  {
+    title:
+      | "events.blobExportFailed.title"
+      | "events.posthogExportFailed.title"
+      | "events.evaluatorBlocked.title";
+    description:
+      | "events.blobExportFailed.description"
+      | "events.posthogExportFailed.description"
+      | "events.evaluatorBlocked.description";
+  }
 > = {
   "blob-export-failed": {
-    title: "Blob storage export failed",
-    description: "Sent when a scheduled blob storage export fails.",
+    title: "events.blobExportFailed.title",
+    description: "events.blobExportFailed.description",
   },
   "posthog-export-failed": {
-    title: "PostHog export failed",
-    description:
-      "Sent when a PostHog export is disabled after a configuration error, such as an unreachable host.",
+    title: "events.posthogExportFailed.title",
+    description: "events.posthogExportFailed.description",
   },
   "evaluator-blocked": {
-    title: "Evaluator deactivated",
-    description:
-      "Sent when an evaluator is deactivated due to an unrecoverable error, such as a deleted model or LLM connection.",
+    title: "events.evaluatorBlocked.title",
+    description: "events.evaluatorBlocked.description",
   },
 };
 
 /** NOTIFIED_EVENTS lists the toggleable project-notification events, in schema order. */
 export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
-  (value) => ({ value, ...NOTIFIED_EVENT_COPY[value] }),
+  (value) => ({ value, ...NOTIFIED_EVENT_MESSAGE_KEYS[value] }),
 );
 
 /**
@@ -60,6 +68,7 @@ export function ProjectNotificationChannels({
 }: {
   projectId: string;
 }) {
+  const t = useTranslations("auxSettings.projectNotifications");
   const {
     hasAccess,
     channels,
@@ -79,11 +88,8 @@ export function ProjectNotificationChannels({
 
   return (
     <div>
-      <Header title="Project Notifications" />
-      <p className="text-muted-foreground mb-4 text-sm">
-        Manage project notifications. Channel notifications are sent in addition
-        to the admin emails.
-      </p>
+      <Header title={t("title")} />
+      <p className="text-muted-foreground mb-4 text-sm">{t("description")}</p>
 
       {mode === "list" ? (
         <div className="flex flex-col gap-6">
@@ -100,11 +106,11 @@ export function ProjectNotificationChannels({
 
           <div className="flex flex-col gap-4">
             <div>
-              <h3 className="text-lg font-bold">Events</h3>
+              <h3 className="text-lg font-bold">{t("events.title")}</h3>
               <p className="text-muted-foreground text-sm">
                 {hasChannels
-                  ? "Choose which events are delivered to your channels."
-                  : "Configure a channel above to enable project notifications."}
+                  ? t("events.withChannelsDescription")
+                  : t("events.withoutChannelsDescription")}
               </p>
             </div>
             {NOTIFIED_EVENTS.map((event) => (
@@ -118,9 +124,9 @@ export function ProjectNotificationChannels({
                     !hasChannels && "opacity-50",
                   )}
                 >
-                  <p className="text-base font-bold">{event.title}</p>
+                  <p className="text-base font-bold">{t(event.title)}</p>
                   <p className="text-muted-foreground text-sm">
-                    {event.description}
+                    {t(event.description)}
                   </p>
                 </div>
                 <Switch
@@ -156,9 +162,9 @@ export function ProjectNotificationChannels({
       >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Webhook Secret Created</DialogTitle>
+            <DialogTitle>{t("webhookSecretDialog.title")}</DialogTitle>
             <DialogDescription>
-              Copy the webhook secret below — it will only be shown once.
+              {t("webhookSecretDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -168,7 +174,7 @@ export function ProjectNotificationChannels({
           </DialogBody>
           <DialogFooter>
             <Button onClick={actions.dismissWebhookSecret}>
-              {"I've saved the secret"}
+              {t("webhookSecretDialog.saved")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { useTranslations } from "next-intl";
 
 /**
  * A "preset" dashboard placement: renders a registered curated component by
@@ -78,6 +79,8 @@ export function PresetDashboardWidget({
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   const { isBetaEnabled } = useV4Beta();
   const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
@@ -152,7 +155,7 @@ export function PresetDashboardWidget({
       onDeleteWidget(placement.id);
       return;
     }
-    if (confirm("Please confirm deletion")) {
+    if (confirm(extrasT("confirmDeletion"))) {
       onDeleteWidget(placement.id);
     }
   };
@@ -170,11 +173,11 @@ export function PresetDashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
-        title: "Card copied",
-        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+        title: extrasT("cardCopied"),
+        description: extrasT("pasteDescription"),
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast(t("copyFailed"), t("clipboardFailed"));
     }
   };
 
@@ -182,7 +185,7 @@ export function PresetDashboardWidget({
     return (
       <div className="bg-background flex h-full items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">
-          Unknown preset: {placement.presetId}
+          {extrasT("unknownPreset", { id: placement.presetId })}
         </div>
       </div>
     );
@@ -204,7 +207,7 @@ export function PresetDashboardWidget({
           <DropdownMenuTrigger asChild>
             <button
               className="text-muted-foreground hover:text-foreground"
-              aria-label="Widget actions"
+              aria-label={t("actions")}
             >
               <MoreVerticalIcon size={16} />
             </button>
@@ -212,12 +215,12 @@ export function PresetDashboardWidget({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleCopyToClipboard}>
               <CopyIcon className="mr-2 h-4 w-4" />
-              Copy card
+              {extrasT("copyCard")}
             </DropdownMenuItem>
             {onDuplicatePreset && (
               <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
                 <CopyPlusIcon className="mr-2 h-4 w-4" />
-                Clone
+                {extrasT("clone")}
               </DropdownMenuItem>
             )}
             {!readOnly && (hasCUDAccess || isLockedEditable) && (
@@ -228,7 +231,7 @@ export function PresetDashboardWidget({
                   className="text-destructive focus:text-destructive"
                 >
                   <TrashIcon className="mr-2 h-4 w-4" />
-                  Delete
+                  {extrasT("delete")}
                 </DropdownMenuItem>
               </>
             )}

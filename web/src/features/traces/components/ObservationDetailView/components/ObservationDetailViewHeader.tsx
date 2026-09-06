@@ -80,6 +80,7 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -121,6 +122,7 @@ export const ObservationDetailViewHeader = memo(
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
+    const t = useTranslations("coreObservability.traceDetail");
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const { isBetaEnabled: isV4Enabled } = useV4Beta();
@@ -172,8 +174,8 @@ export const ObservationDetailViewHeader = memo(
             </span>
             <DetailHeaderActionsMenuController
               idItems={[
-                { id: traceId, name: "Trace ID" },
-                { id: observation.id, name: "Observation ID" },
+                { id: traceId, name: t("traceId") },
+                { id: observation.id, name: t("observationId") },
               ]}
               observationType={observation.type}
               projectId={projectId}
@@ -187,10 +189,10 @@ export const ObservationDetailViewHeader = memo(
               {({ Trigger }) => (
                 <Trigger asChild>
                   <Button
-                    aria-label="Options"
+                    aria-label={t("options")}
                     className="mt-0.5 shrink-0"
                     size="icon-xs"
-                    title="Options"
+                    title={t("options")}
                     variant="ghost"
                   >
                     <EllipsisVertical className="h-4 w-4" />
@@ -206,7 +208,7 @@ export const ObservationDetailViewHeader = memo(
                   <Button
                     variant="outline"
                     size="icon"
-                    aria-label="More actions"
+                    aria-label={t("moreActions")}
                     className="ml-auto shrink-0"
                   >
                     <MoreHorizontal className="h-4 w-4" />
@@ -263,8 +265,8 @@ export const ObservationDetailViewHeader = memo(
                                 ) : null}
                                 <span className="text-sm">
                                   {hasExistingDatasetItems
-                                    ? `In ${datasetCount} dataset(s)`
-                                    : "Add to datasets"}
+                                    ? t("inDatasets", { count: datasetCount })
+                                    : t("addToDatasets")}
                                 </span>
                                 {hasExistingDatasetItems ? (
                                   <ChevronDown className="ml-auto h-3 w-3" />
@@ -299,7 +301,7 @@ export const ObservationDetailViewHeader = memo(
                               ) : (
                                 <SquarePen className="h-4 w-4" />
                               )}
-                              <span className="text-sm">Annotate</span>
+                              <span className="text-sm">{t("annotate")}</span>
                             </Button>
                           </DrawerTrigger>
                           <DrawerContent className="p-3">
@@ -342,7 +344,7 @@ export const ObservationDetailViewHeader = memo(
                               ) : (
                                 <SquarePen className="h-4 w-4" />
                               )}
-                              <span className="text-sm">Annotate</span>
+                              <span className="text-sm">{t("annotate")}</span>
                             </Button>
                           )}
                         </AnnotateDrawerController>
@@ -360,7 +362,7 @@ export const ObservationDetailViewHeader = memo(
                             className="w-full justify-start gap-2 font-normal"
                           >
                             <ListPlus className="h-4 w-4" />
-                            <span className="text-sm">Add to queue</span>
+                            <span className="text-sm">{t("addToQueue")}</span>
                             <AnnotationQueueItemCountBadge
                               totalCount={totalCount}
                               layout="menu"
@@ -393,7 +395,7 @@ export const ObservationDetailViewHeader = memo(
                             >
                               <Terminal className="h-4 w-4" />
                               <span className="text-sm">
-                                Test in playground
+                                {t("testInPlayground")}
                               </span>
                             </Button>
                           </Trigger>
@@ -424,7 +426,7 @@ export const ObservationDetailViewHeader = memo(
                         ) : (
                           <MessageSquare className="h-4 w-4" />
                         )}
-                        <span className="text-sm">Add comment</span>
+                        <span className="text-sm">{t("addComment")}</span>
                         {!disabled && commentCount ? (
                           <ActionButtonCountBadge count={commentCount} />
                         ) : null}
@@ -478,8 +480,8 @@ export const ObservationDetailViewHeader = memo(
                               />
                             ) : null}
                             {hasExistingDatasetItems
-                              ? `In ${datasetCount} dataset(s)`
-                              : "Add to datasets"}
+                              ? t("inDatasets", { count: datasetCount })
+                              : t("addToDatasets")}
                             {hasExistingDatasetItems ? (
                               <ChevronDown className="ml-2 h-3 w-3" />
                             ) : !hasDatasetAccess ? (
@@ -512,7 +514,7 @@ export const ObservationDetailViewHeader = memo(
                           ) : (
                             <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                           )}
-                          <span>Annotate</span>
+                          <span>{t("annotate")}</span>
                         </Button>
                       </DrawerTrigger>
                       <DrawerContent className="p-3">
@@ -555,7 +557,7 @@ export const ObservationDetailViewHeader = memo(
                           ) : (
                             <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                           )}
-                          <span>Annotate</span>
+                          <span>{t("annotate")}</span>
                         </Button>
                       )}
                     </AnnotateDrawerController>
@@ -606,7 +608,9 @@ export const ObservationDetailViewHeader = memo(
                           )}
                         >
                           <Terminal className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Playground</span>
+                          <span className="hidden md:inline">
+                            {t("playground")}
+                          </span>
                           <ChevronDown className="h-3 w-3" />
                         </Button>
                       </Trigger>
@@ -637,7 +641,7 @@ export const ObservationDetailViewHeader = memo(
                     ) : (
                       <>
                         <MessageSquare className="h-3.5 w-3.5" />
-                        <span>Add comment</span>
+                        <span>{t("addComment")}</span>
                         {!!commentCount ? (
                           <ActionButtonCountBadge count={commentCount} />
                         ) : null}

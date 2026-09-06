@@ -5,6 +5,8 @@ import { Combobox } from "@/src/components/ui/combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslations } from "next-intl";
+import { getManagedDashboardMessageKey } from "@/src/features/dashboard/lib/managed-dashboard-localization";
 
 /**
  * Home's dashboard picker: selecting immediately shows ("peeks") the chosen
@@ -18,6 +20,7 @@ export function HomeDashboardSelect({
   defaultDashboardId,
   onValueChange,
   currentDashboardName,
+  currentDashboardOwner,
 }: {
   projectId: string;
   /** Id of the dashboard currently displayed on Home. */
@@ -26,7 +29,12 @@ export function HomeDashboardSelect({
   defaultDashboardId: string;
   onValueChange: (dashboardId: string) => void;
   currentDashboardName: string;
+  currentDashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
+  const t = useTranslations("playgroundDashboard.dashboard.homeSelect");
+  const managedDashboardT = useTranslations(
+    "systemUi.dashboardExtras.managedDashboards",
+  );
   const hasCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
@@ -42,42 +50,54 @@ export function HomeDashboardSelect({
     { enabled: Boolean(projectId) && hasCUDAccess },
   );
 
+  const currentDashboardMessageKey = getManagedDashboardMessageKey({
+    id: value,
+    name: currentDashboardName,
+    owner: currentDashboardOwner,
+  });
+  const localizedCurrentDashboardName = currentDashboardMessageKey
+    ? managedDashboardT(`${currentDashboardMessageKey}.name`)
+    : currentDashboardName;
+
   const options = useMemo(() => {
     const items = dashboards.data?.dashboards ?? [];
-    const toOption = (d: { id: string; name: string; owner: string }) => ({
-      value: d.id,
-      label: d.name,
-      ...(d.owner === "LANGFUSE" ? { icon: <LangfuseIcon size={14} /> } : {}),
-      ...(d.id === defaultDashboardId ? { badge: "Default" } : {}),
-    });
+    const toOption = (d: { id: string; name: string; owner: string }) => {
+      const messageKey = getManagedDashboardMessageKey(d);
+      return {
+        value: d.id,
+        label: messageKey ? managedDashboardT(`${messageKey}.name`) : d.name,
+        ...(d.owner === "LANGFUSE" ? { icon: <LangfuseIcon size={14} /> } : {}),
+        ...(d.id === defaultDashboardId ? { badge: t("default") } : {}),
+      };
+    };
     const curated = items.filter((d) => d.owner === "LANGFUSE");
     const project = items.filter((d) => d.owner === "PROJECT");
     return [
       ...(project.length > 0
         ? [
             {
-              heading: "This project",
+              heading: t("thisProject"),
               options: project.map(toOption),
             },
           ]
         : []),
       {
-        heading: "Langfuse-maintained",
+        heading: t("maintained"),
         options: curated.map(toOption),
       },
     ];
-  }, [dashboards.data?.dashboards, defaultDashboardId]);
+  }, [dashboards.data?.dashboards, defaultDashboardId, managedDashboardT, t]);
 
   if (!hasCUDAccess) {
     return (
       <Button
         variant="ghost"
         disabled
-        title="The dashboard shown on this project's home page"
+        title={t("description")}
         className="text-muted-foreground my-0"
       >
         <LayoutDashboard className="mr-1 h-4 w-4" />
-        {currentDashboardName}
+        {localizedCurrentDashboardName}
       </Button>
     );
   }
@@ -90,9 +110,9 @@ export function HomeDashboardSelect({
         if (typeof id !== "string" || id === value) return;
         onValueChange(id);
       }}
-      placeholder={currentDashboardName}
-      searchPlaceholder="Search dashboards..."
-      emptyText="No dashboards found"
+      placeholder={localizedCurrentDashboardName}
+      searchPlaceholder={t("search")}
+      emptyText={t("noneFound")}
       className="my-0 w-auto max-w-56"
       name="home-dashboard"
     />

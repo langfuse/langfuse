@@ -11,6 +11,7 @@ import { type CommentObjectType } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
+import { useTranslations } from "next-intl";
 
 type CommentDrawerContentProps = {
   projectId: string;
@@ -33,6 +34,7 @@ function CommentDrawerContent({
   onCommentChange,
   onMentionDropdownChange,
 }: CommentDrawerContentProps) {
+  const t = useTranslations("remainderUi.comments");
   const hasFocusedRef = useRef(false);
 
   return (
@@ -52,7 +54,7 @@ function CommentDrawerContent({
       >
         <DrawerHeader className="bg-background sr-only shrink-0 rounded-sm">
           <DrawerTitle>
-            <Header title="Comments" />
+            <Header title={t("title")} />
           </DrawerTitle>
         </DrawerHeader>
         <div

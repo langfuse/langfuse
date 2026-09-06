@@ -9,6 +9,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 type ActionButtonProps = Pick<
   ButtonProps,
@@ -56,6 +57,7 @@ export const ActionButton = React.forwardRef<
   },
   ref,
 ) {
+  const t = useTranslations("commonActions.permissions");
   const capture = usePostHogClientCapture();
 
   const hasReachedLimit =
@@ -69,13 +71,16 @@ export const ActionButton = React.forwardRef<
 
   const disabledReason = useMemo(() => {
     if (!hasAccess) {
-      return "You do not have access to this resource, please ask your admin to grant you access.";
+      return t("noAccess");
     }
     if (!hasEntitlement) {
-      return "This feature is not available in your current plan.";
+      return t("notInPlan");
     }
     if (hasReachedLimit) {
-      return `You have reached the limit (${usageLimitCurrent}/${usageLimitMax}) for this resource at your current plan. Upgrade your plan to increase the limit.`;
+      return t("limitReached", {
+        current: usageLimitCurrent,
+        max: usageLimitMax,
+      });
     }
 
     return null;
@@ -85,6 +90,7 @@ export const ActionButton = React.forwardRef<
     hasReachedLimit,
     usageLimitCurrent,
     usageLimitMax,
+    t,
   ]);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {

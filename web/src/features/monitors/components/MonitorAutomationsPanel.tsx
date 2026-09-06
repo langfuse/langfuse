@@ -35,12 +35,16 @@ import {
   type AutomationDomain,
   TriggerEventSource,
 } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 /** actionLabel maps each automation action type to its display name. */
-const actionLabel: Record<ActionTypes, string> = {
-  WEBHOOK: "Webhook",
-  SLACK: "Slack",
-  GITHUB_DISPATCH: "GitHub Dispatch",
+const actionLabelKey: Record<
+  ActionTypes,
+  "webhook" | "slack" | "githubDispatch"
+> = {
+  WEBHOOK: "webhook",
+  SLACK: "slack",
+  GITHUB_DISPATCH: "githubDispatch",
 };
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
@@ -55,6 +59,7 @@ export const MonitorAutomationsPanel = ({
   onTriggerIdsChange: (next: string[]) => void;
   hasAccess?: boolean;
 }) => {
+  const t = useTranslations("operationsUi.monitors.automations");
   const utils = api.useUtils();
   const { data, isPending } = api.automations.getAutomations.useQuery(
     {
@@ -97,8 +102,7 @@ export const MonitorAutomationsPanel = ({
         <CardContent className="space-y-3 pt-4">
           {isEmpty ? (
             <p className="text-muted-foreground px-4 py-6 text-center text-base">
-              Set up Slack, Webhook, and Github Action Automations to Receive
-              Alerts
+              {t("empty")}
             </p>
           ) : (
             <MonitorAutomationsSelectableList
@@ -268,6 +272,7 @@ const AddAutomationDropdown = ({
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
 }) => {
+  const t = useTranslations("operationsUi.monitors.automations");
   const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
   const [createdSecret, setCreatedSecret] =
     useState<CreatedWebhookSecret | null>(null);
@@ -290,21 +295,21 @@ const AddAutomationDropdown = ({
             className={fullWidth ? "w-full" : undefined}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Automation
+            {t("automation")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onSelect={() => setDraft({})}>
             <Plus className="mr-2 h-3.5 w-3.5" />
-            New automation
+            {t("newAutomation")}
           </DropdownMenuItem>
-          {ActionTypeSchema.options.map((t) => (
+          {ActionTypeSchema.options.map((actionType) => (
             <DropdownMenuItem
-              key={t}
-              onSelect={() => setDraft({ actionType: t })}
+              key={actionType}
+              onSelect={() => setDraft({ actionType })}
             >
-              <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
-              {actionLabel[t]}
+              <ActionIcon type={actionType} className="mr-2 h-3.5 w-3.5" />
+              {t(actionLabelKey[actionType])}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -325,10 +330,8 @@ const AddAutomationDropdown = ({
           {createdSecret ? (
             <>
               <DialogHeader>
-                <DialogTitle>Webhook secret created</DialogTitle>
-                <DialogDescription>
-                  Copy the webhook secret below — it will only be shown once.
-                </DialogDescription>
+                <DialogTitle>{t("secretCreated")}</DialogTitle>
+                <DialogDescription>{t("secretDescription")}</DialogDescription>
               </DialogHeader>
               <DialogBody>
                 <WebhookSecretRender
@@ -337,17 +340,15 @@ const AddAutomationDropdown = ({
               </DialogBody>
               <DialogFooter>
                 <Button onClick={() => closeDialog(createdSecret.automationId)}>
-                  {"I've saved the secret"}
+                  {t("savedSecret")}
                 </Button>
               </DialogFooter>
             </>
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>New automation</DialogTitle>
-                <DialogDescription>
-                  This automation stays available to every alert in the project.
-                </DialogDescription>
+                <DialogTitle>{t("newAutomation")}</DialogTitle>
+                <DialogDescription>{t("dialogDescription")}</DialogDescription>
               </DialogHeader>
               <DialogBody>
                 <AutomationForm

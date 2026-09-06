@@ -21,6 +21,7 @@ import {
 import { ScoreAnalyticsHeader } from "@/src/features/score-analytics/components/ScoreAnalyticsHeader";
 import { ScoreAnalyticsDashboard } from "@/src/features/score-analytics/components/ScoreAnalyticsDashboard";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 /**
  * Score Analytics V2 - Refactored Architecture
@@ -38,6 +39,7 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
  */
 export default function ScoresAnalyticsV2Page() {
   const router = useRouter();
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   const projectId = router.query.projectId as string;
 
   const urlStateHook = useAnalyticsUrlState();
@@ -190,11 +192,12 @@ export default function ScoresAnalyticsV2Page() {
   return (
     <Page
       headerProps={{
-        title: "Scores",
-        breadcrumb: [{ name: "Scores", href: `/project/${projectId}/scores` }],
+        title: t("scores"),
+        breadcrumb: [
+          { name: t("scores"), href: `/project/${projectId}/scores` },
+        ],
         help: {
-          description:
-            "A score is an evaluation of a trace or observation. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+          description: t("scoresHelp"),
           href: "https://langfuse.com/docs/evaluation/overview",
         },
         tabsProps: {
@@ -220,9 +223,9 @@ export default function ScoresAnalyticsV2Page() {
             <div className="bg-destructive/10 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
               <BarChart3 className="text-destructive h-12 w-12" />
               <div className="text-center">
-                <h3 className="text-lg font-bold">Error Loading Scores</h3>
+                <h3 className="text-lg font-bold">{t("errorTitle")}</h3>
                 <p className="text-muted-foreground mt-2 text-sm">
-                  Failed to load score data. Please try refreshing the page.
+                  {t("errorDescription")}
                 </p>
               </div>
             </div>
@@ -230,10 +233,9 @@ export default function ScoresAnalyticsV2Page() {
             <div className="bg-muted/20 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
               <BarChart3 className="text-muted-foreground h-12 w-12" />
               <div className="text-center">
-                <h3 className="text-lg font-bold">No Scores Available</h3>
+                <h3 className="text-lg font-bold">{t("emptyTitle")}</h3>
                 <p className="text-muted-foreground mt-2 text-sm">
-                  Create scores by adding evaluations to your traces and
-                  observations.
+                  {t("emptyDescription")}
                 </p>
               </div>
             </div>
@@ -241,26 +243,22 @@ export default function ScoresAnalyticsV2Page() {
             <div className="bg-muted/20 flex flex-col items-center justify-center gap-6 rounded-lg border p-12">
               <BarChart3 className="text-muted-foreground h-16 w-16" />
               <div className="max-w-2xl text-center">
-                <h3 className="text-2xl font-bold">Select a Score</h3>
+                <h3 className="text-2xl font-bold">{t("selectTitle")}</h3>
                 <p className="text-muted-foreground mt-3 text-base">
-                  Choose one or two scores from the dropdowns above to view
-                  analytics
+                  {t("selectDescription")}
                 </p>
                 <div className="text-muted-foreground mt-6 space-y-3 text-sm">
                   <div className="bg-background/50 rounded-lg p-4">
                     <p className="text-foreground mb-1 font-bold">
-                      Single score selected:
+                      {t("singleSelected")}
                     </p>
-                    <p>View distribution and trends over time</p>
+                    <p>{t("singleSelectedDescription")}</p>
                   </div>
                   <div className="bg-background/50 rounded-lg p-4">
                     <p className="text-foreground mb-1 font-bold">
-                      Two scores selected:
+                      {t("twoSelected")}
                     </p>
-                    <p>
-                      Compare scores with heatmaps, correlation analysis, and
-                      statistical metrics
-                    </p>
+                    <p>{t("twoSelectedDescription")}</p>
                   </div>
                 </div>
               </div>
@@ -273,7 +271,7 @@ export default function ScoresAnalyticsV2Page() {
             <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
               <Spinner size="xxl" variant="muted" />
               <p className="text-muted-foreground text-sm">
-                Loading analytics data...
+                {t("loadingAnalyticsData")}
               </p>
             </div>
           )}

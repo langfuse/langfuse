@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { useTranslations } from "next-intl";
 
 type DeleteProjectForm = {
   name: string;
@@ -34,9 +35,10 @@ export function DeleteProjectDialog({
   isPending,
   onSubmit,
 }: DeleteProjectDialogProps) {
+  const t = useTranslations("workspace.dangerActions");
   const formSchema = z.object({
     name: z.string().includes(confirmMessage, {
-      message: `Please confirm with "${confirmMessage}"`,
+      message: t("confirmValidation", { value: confirmMessage }),
     }),
   });
 
@@ -50,9 +52,11 @@ export function DeleteProjectDialog({
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="text-lg font-bold">Delete Project</DialogTitle>
+        <DialogTitle className="text-lg font-bold">
+          {t("deleteProjectTitle")}
+        </DialogTitle>
         <DialogDescription>
-          {`To confirm, type "${confirmMessage}" in the input box`}
+          {t("confirmInstruction", { value: confirmMessage })}
         </DialogDescription>
       </DialogHeader>
       <Form {...form}>
@@ -78,7 +82,7 @@ export function DeleteProjectDialog({
               loading={isPending}
               className="w-full"
             >
-              Delete project
+              {t("deleteProjectButton")}
             </Button>
           </DialogFooter>
         </form>

@@ -22,6 +22,7 @@ import {
   useState,
 } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -78,49 +79,52 @@ const codeMirrorLayoutTheme = EditorView.theme({
     overflow: "auto",
   },
 });
-const ctxMatcher = new MatchDecorator({
-  regexp: /\bctx\b/g,
-  decorate: (add, from, to, _match, view) => {
-    const node = syntaxTree(view.state).resolveInner(from, 1);
-    if (isInsideStringOrComment(node)) return;
+function createCtxHoverAffordanceExtension(ariaLabel: string) {
+  const ctxMatcher = new MatchDecorator({
+    regexp: /\bctx\b/g,
+    decorate: (add, from, to, _match, view) => {
+      const node = syntaxTree(view.state).resolveInner(from, 1);
+      if (isInsideStringOrComment(node)) return;
 
-    add(
-      from,
-      to,
-      Decoration.mark({
-        class: "cursor-help underline decoration-dotted underline-offset-2",
-        attributes: {
-          "aria-label": "Hover to preview the evaluation context",
-        },
-      }),
-    );
-  },
-});
-const ctxHoverAffordanceExtension = ViewPlugin.fromClass(
-  class {
-    decorations;
+      add(
+        from,
+        to,
+        Decoration.mark({
+          class: "cursor-help underline decoration-dotted underline-offset-2",
+          attributes: { "aria-label": ariaLabel },
+        }),
+      );
+    },
+  });
 
-    constructor(view: EditorView) {
-      this.decorations = ctxMatcher.createDeco(view);
-    }
+  return ViewPlugin.fromClass(
+    class {
+      decorations;
 
-    update(update: ViewUpdate) {
-      this.decorations = ctxMatcher.updateDeco(update, this.decorations);
-    }
-  },
-  { decorations: (value) => value.decorations },
-);
+      constructor(view: EditorView) {
+        this.decorations = ctxMatcher.createDeco(view);
+      }
+
+      update(update: ViewUpdate) {
+        this.decorations = ctxMatcher.updateDeco(update, this.decorations);
+      }
+    },
+    { decorations: (value) => value.decorations },
+  );
+}
 
 function createCodeEvalHoverExtension({
   hoverDocs,
   ctxSample,
   languageExtension,
   codeMirrorTheme,
+  selectedSampleDataLabel,
 }: {
   hoverDocs: CodeEvalHoverDocs;
   ctxSample: string | null;
   languageExtension: Extension;
   codeMirrorTheme: Extension;
+  selectedSampleDataLabel: string;
 }) {
   return hoverTooltip((view, pos) => {
     const line = view.state.doc.lineAt(pos);
@@ -162,7 +166,7 @@ function createCodeEvalHoverExtension({
 
         const label = document.createElement("div");
         label.className = "mt-2 mb-1 font-sans font-bold";
-        label.textContent = "Selected sample data:";
+        label.textContent = selectedSampleDataLabel;
         dom.append(label);
 
         const sampleContainer = document.createElement("div");
@@ -229,6 +233,7 @@ export function CodeEvalTemplateFormBody({
   ctxSample,
   headerAction,
 }: CodeEvalTemplateFormBodyProps) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -241,9 +246,9 @@ export function CodeEvalTemplateFormBody({
     editable && validationResult !== null && !validationResult.hasErrors;
   const formatDisabledReason =
     validationResult === null
-      ? "Wait for code validation to finish before formatting."
+      ? t("codeTemplate.waitForValidation")
       : validationResult.hasErrors
-        ? "Fix the code validation errors before formatting."
+        ? t("codeTemplate.fixValidationErrors")
         : null;
   // `onSourceCodeChange` comes from a react-hook-form render prop and changes
   // identity as the field updates. Keep CodeMirror's handler stable so it does
@@ -305,16 +310,16 @@ export function CodeEvalTemplateFormBody({
       handleSourceCodeChange(formatted.trimEnd());
     } catch (error) {
       showErrorToast(
-        "Formatting failed",
+        t("codeTemplate.formattingFailed"),
         error instanceof Error
           ? error.message
-          : "The formatter could not process this code.",
+          : t("codeTemplate.formatterError"),
       );
     } finally {
       isFormattingRef.current = false;
       setIsFormatting(false);
     }
-  }, [canFormat, handleSourceCodeChange, sourceCodeLanguage]);
+  }, [canFormat, handleSourceCodeChange, sourceCodeLanguage, t]);
 
   const formatShortcutExtension = useMemo(
     () =>
@@ -355,8 +360,16 @@ export function CodeEvalTemplateFormBody({
         ctxSample,
         languageExtension,
         codeMirrorTheme,
+        selectedSampleDataLabel: t("codeTemplate.selectedSampleData"),
       }),
-    [codeMirrorTheme, ctxSample, languageExtension, sourceCodeLanguage],
+    [codeMirrorTheme, ctxSample, languageExtension, sourceCodeLanguage, t],
+  );
+  const ctxHoverAffordanceExtension = useMemo(
+    () =>
+      createCtxHoverAffordanceExtension(
+        t("codeTemplate.hoverEvaluationContext"),
+      ),
+    [t],
   );
   const codeEvalCompletionExtension = useMemo(
     () => getCodeEvalCompletionExtension(sourceCodeLanguage),
@@ -380,6 +393,7 @@ export function CodeEvalTemplateFormBody({
     [
       codeEvalCompletionExtension,
       codeEvalHoverExtension,
+      ctxHoverAffordanceExtension,
       editable,
       formatShortcutExtension,
       languageExtension,
@@ -396,7 +410,7 @@ export function CodeEvalTemplateFormBody({
       onClick={() => formatSource()}
     >
       {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-      Format
+      {t("codeTemplate.format")}
       <span className="ml-2 hidden md:inline-flex">
         <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
       </span>
@@ -436,16 +450,19 @@ export function CodeEvalTemplateFormBody({
         className="ph-no-capture overflow-hidden rounded-md border text-xs"
       />
       <p className="text-muted-foreground text-xs">
-        Hover over <code className="font-mono">ctx</code> to preview its type
-        and selected sample data.{" "}
-        <a
-          href={FUNCTION_CONTRACT_DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-        >
-          See full type definitions.
-        </a>
+        {t.rich("codeTemplate.ctxHint", {
+          code: (chunks) => <code className="font-mono">{chunks}</code>,
+          link: (chunks) => (
+            <a
+              href={FUNCTION_CONTRACT_DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              {chunks}
+            </a>
+          ),
+        })}
       </p>
     </div>
   );

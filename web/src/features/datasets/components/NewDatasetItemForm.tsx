@@ -54,6 +54,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
@@ -63,38 +64,39 @@ import {
   parseDatasetJson,
 } from "../utils/parseDatasetJson";
 
-const formSchema = z.object({
-  datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
-  input: z.string().refine(
-    (value) => {
-      return isValidDatasetJson(value);
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  expectedOutput: z.string().refine(
-    (value) => {
-      return isValidDatasetJson(value);
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  metadata: z.string().refine(
-    (value) => {
-      return isValidDatasetJson(value);
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-});
+const createFormSchema = (messages: {
+  selectDataset: string;
+  invalidJson: string;
+}) =>
+  z.object({
+    datasetIds: z.array(z.string()).min(1, messages.selectDataset),
+    input: z.string().refine(
+      (value) => {
+        return isValidDatasetJson(value);
+      },
+      {
+        message: messages.invalidJson,
+      },
+    ),
+    expectedOutput: z.string().refine(
+      (value) => {
+        return isValidDatasetJson(value);
+      },
+      {
+        message: messages.invalidJson,
+      },
+    ),
+    metadata: z.string().refine(
+      (value) => {
+        return isValidDatasetJson(value);
+      },
+      {
+        message: messages.invalidJson,
+      },
+    ),
+  });
 
-type NewDatasetItemFormValues = z.infer<typeof formSchema>;
+type NewDatasetItemFormValues = z.infer<ReturnType<typeof createFormSchema>>;
 
 type DatasetWithSchema = {
   id: string;
@@ -131,10 +133,17 @@ export const NewDatasetItemForm = (props: {
   onFormSuccess?: () => void;
   currentDatasetId?: string;
 }) => {
+  const t = useTranslations("productTables.datasets.form");
+  const tValidation = useTranslations("coreDetails.datasets.formValidation");
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(
+      createFormSchema({
+        selectDataset: tValidation("selectDataset"),
+        invalidJson: tValidation("invalidJson"),
+      }),
+    ),
     defaultValues: {
       datasetIds: props.datasetId ? [props.datasetId] : [],
       input: formatJsonValue(props.input),
@@ -177,14 +186,14 @@ export const NewDatasetItemForm = (props: {
     async (file: File): Promise<string | null> => {
       if (!uploadDatasetId) {
         showErrorToast(
-          "Select a dataset first",
-          "Choose a dataset before attaching media.",
+          tValidation("selectFirst"),
+          tValidation("selectFirstDescription"),
         );
         return null;
       }
       return uploadFile(file, "input");
     },
-    [uploadDatasetId, uploadFile],
+    [uploadDatasetId, uploadFile, tValidation],
   );
 
   const handleFileUpload =
@@ -288,16 +297,14 @@ export const NewDatasetItemForm = (props: {
       onSuccess: () => utils.datasets.invalidate(),
       onError: (error) => {
         if (error.message.includes("Body exc")) {
-          setFormError(
-            "Data exceeds maximum size (4.5MB). Please attempt to create dataset item programmatically.",
-          );
+          setFormError(tValidation("tooLarge"));
         } else {
           setFormError(error.message);
         }
       },
     });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: NewDatasetItemFormValues) {
     if (props.traceId) {
       capture("dataset_item:new_from_trace_form_submit", {
         object: props.observationId ? "observation" : "trace",
@@ -331,7 +338,9 @@ export const NewDatasetItemForm = (props: {
         // a bare console.error(object) would only add an opaque, non-actionable
         // Sentry capture (captureConsoleIntegration), so we omit it here.
         setFormError(
-          `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
+          tValidation("schemaMismatch", {
+            errors: JSON.stringify(result.validationErrors, null, 2),
+          }),
         );
       })
       .catch((error) => reportTrpcErrorWithoutToast(error, "datasets"));
@@ -350,7 +359,7 @@ export const NewDatasetItemForm = (props: {
               name="datasetIds"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Target datasets</FormLabel>
+                  <FormLabel>{t("targetDatasets")}</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -363,8 +372,10 @@ export const NewDatasetItemForm = (props: {
                           )}
                         >
                           {field.value.length > 0
-                            ? `${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`
-                            : "Select datasets"}
+                            ? t("datasetsSelected", {
+                                count: field.value.length,
+                              })
+                            : t("selectDatasets")}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -372,12 +383,10 @@ export const NewDatasetItemForm = (props: {
                     <PopoverContent className="p-0">
                       <InputCommand>
                         <InputCommandInput
-                          placeholder="Search datasets..."
+                          placeholder={t("searchDatasets")}
                           variant="bottom"
                         />
-                        <InputCommandEmpty>
-                          No datasets found.
-                        </InputCommandEmpty>
+                        <InputCommandEmpty>{t("noDatasets")}</InputCommandEmpty>
                         <InputCommandGroup>
                           <ScrollArea className="h-fit">
                             {datasets.data?.map((dataset) => (
@@ -406,7 +415,7 @@ export const NewDatasetItemForm = (props: {
                                 {dataset.name}
                                 {dataset.id === props.currentDatasetId && (
                                   <span className="text-muted-foreground ml-1">
-                                    (current)
+                                    {tValidation("current")}
                                   </span>
                                 )}
                               </InputCommandItem>
@@ -447,7 +456,7 @@ export const NewDatasetItemForm = (props: {
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <FormLabel>Input</FormLabel>
+                      <FormLabel>{t("input")}</FormLabel>
                       {hasInputSchema &&
                         selectedDatasets
                           .filter((d) => d.inputSchema)
@@ -493,7 +502,7 @@ export const NewDatasetItemForm = (props: {
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <FormLabel>Expected output</FormLabel>
+                      <FormLabel>{t("expectedOutput")}</FormLabel>
                       {hasOutputSchema &&
                         selectedDatasets
                           .filter((d) => d.expectedOutputSchema)
@@ -543,7 +552,7 @@ export const NewDatasetItemForm = (props: {
               render={({ field }) => (
                 <FormItem className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <FormLabel>Metadata</FormLabel>
+                    <FormLabel>{t("metadata")}</FormLabel>
                     <DatasetItemFieldToolbar
                       copyValue={field.value}
                       onSelectFile={handleFileUpload(metadataEditorRef)}
@@ -580,7 +589,7 @@ export const NewDatasetItemForm = (props: {
             />
             {formError ? (
               <p className="mt-2 text-center">
-                <span className="font-bold">Error:</span> {formError}
+                <span className="font-bold">{t("error")}</span> {formError}
               </p>
             ) : null}
           </div>
@@ -666,6 +675,7 @@ const AddItemsButton = ({
   isPending: boolean;
   pendingUploads: PendingMediaUpload[];
 }) => {
+  const t = useTranslations("productTables.datasets.form");
   const [input, expectedOutput] = useWatch({
     control,
     name: ["input", "expectedOutput"],
@@ -687,10 +697,7 @@ const AddItemsButton = ({
         pendingUploads.length > 0
       }
     >
-      Add
-      {selectedDatasetCount > 1
-        ? ` to ${selectedDatasetCount} datasets`
-        : " to dataset"}
+      {t("addToDatasets", { count: selectedDatasetCount })}
     </Button>
   );
 };

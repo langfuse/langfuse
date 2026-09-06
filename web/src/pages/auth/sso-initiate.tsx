@@ -4,60 +4,95 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { ErrorPageWithSentry } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/layouts/spinner";
+import { useTranslations } from "next-intl";
+import { AuthLanguageSwitcher } from "@/src/features/i18n/AuthLanguageSwitcher";
 
 export default function SSOInitiate() {
+  const t = useTranslations("auth.ssoInitiate");
+  const signInT = useTranslations("auth.signIn");
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Wait for router to be ready
-    if (!router.isReady) {
-      return;
-    }
+  if (!router.isReady) {
+    return <SSOLoading />;
+  }
 
-    const provider = router.query.provider as string | undefined;
+  const provider =
+    typeof router.query.provider === "string" ? router.query.provider : null;
 
-    // If provider is missing or empty, show error
-    if (!provider || provider === "") {
-      setError("No SSO provider specified. Please contact your administrator.");
-      return;
-    }
-
-    // Automatically trigger sign-in with the provider
-    signIn(provider)
-      .then(() => {
-        // signIn will redirect automatically on success
-        // No need to do anything here
-      })
-      .catch((error) => {
-        console.error("SSO initiation error:", error);
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Failed to initiate SSO sign-in. Please try again or contact support.",
-        );
-      });
-  }, [router.isReady, router.query.provider]);
-
-  // Show error page if sign-in failed
-  if (error) {
+  if (!provider) {
     return (
       <>
         <Head>
-          <title>Sign-in Error | Langfuse</title>
+          <title>{t("errorPageTitle")} | Langfuse</title>
         </Head>
-        <ErrorPageWithSentry title="SSO Sign-in Failed" message={error} />
+        <AuthLanguageSwitcher />
+        <ErrorPageWithSentry
+          title={t("failedTitle")}
+          message={t("missingProvider")}
+          signInLabel={signInT("submit")}
+          reportingTitle="SSO Sign-in Failed"
+          reportingMessage="No SSO provider specified. Please contact your administrator."
+          expected
+        />
       </>
     );
   }
 
-  // Show loading spinner while processing
+  return <SSOProviderRedirect provider={provider} />;
+}
+
+function SSOProviderRedirect({ provider }: { provider: string }) {
+  const t = useTranslations("auth.ssoInitiate");
+  const signInT = useTranslations("auth.signIn");
+  const [reportingError, setReportingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    signIn(provider).catch((error: unknown) => {
+      if (!active) return;
+      setReportingError(
+        error instanceof Error
+          ? error.message
+          : "Failed to initiate SSO sign-in.",
+      );
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [provider]);
+
+  if (reportingError) {
+    return (
+      <>
+        <Head>
+          <title>{t("errorPageTitle")} | Langfuse</title>
+        </Head>
+        <AuthLanguageSwitcher />
+        <ErrorPageWithSentry
+          title={t("failedTitle")}
+          message={t("failed")}
+          signInLabel={signInT("submit")}
+          reportingTitle="SSO Sign-in Failed"
+          reportingMessage={reportingError}
+        />
+      </>
+    );
+  }
+
+  return <SSOLoading />;
+}
+
+function SSOLoading() {
+  const t = useTranslations("auth.ssoInitiate");
   return (
     <>
       <Head>
-        <title>Signing in | Langfuse</title>
+        <title>{t("signingInTitle")} | Langfuse</title>
       </Head>
-      <Spinner message="Redirecting to your identity provider..." />
+      <AuthLanguageSwitcher />
+      <Spinner message={t("redirecting")} />
     </>
   );
 }

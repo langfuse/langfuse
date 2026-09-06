@@ -18,6 +18,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import React from "react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
+import { useTranslations } from "next-intl";
 
 const COLOR_MAP = new Map([
   ["True", "bg-light-green p-0.5 text-dark-green"],
@@ -56,6 +57,7 @@ export const ScoresTableCell = ({
   wrap?: boolean;
   hasMetadata?: boolean;
 }) => {
+  const t = useTranslations("sharedUi.accessibility");
   const projectId = useProjectIdFromURL();
   const [copied, setCopied] = React.useState(false);
 
@@ -96,7 +98,7 @@ export const ScoresTableCell = ({
                   variant="ghost"
                   size="icon-xs"
                   className="hover:bg-accent rounded p-1"
-                  aria-label={copied ? "Copied" : "Copy to clipboard"}
+                  aria-label={copied ? t("copied") : t("copyClipboard")}
                 >
                   {copied ? (
                     <Check className="h-3 w-3" />

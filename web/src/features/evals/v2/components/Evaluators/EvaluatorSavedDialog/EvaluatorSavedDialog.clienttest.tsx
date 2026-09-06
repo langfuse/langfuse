@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { getMessages } from "@/src/features/i18n/messages";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
 
 const renderDialog = () => {
@@ -7,24 +9,26 @@ const renderDialog = () => {
   const onSecondaryAction = vi.fn();
 
   render(
-    <TooltipProvider>
-      <EvaluatorSavedDialog
-        open
-        mode="test-filters"
-        modeContentByMode={{
-          "test-filters": null,
-          "different-scope": null,
-        }}
-        costSummary={null}
-        canSubmit
-        isSubmitting={false}
-        primaryActionLabel="Execute"
-        onModeChange={vi.fn()}
-        onDismiss={onDismiss}
-        onSecondaryAction={onSecondaryAction}
-        onPrimaryAction={vi.fn()}
-      />
-    </TooltipProvider>,
+    <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+      <TooltipProvider>
+        <EvaluatorSavedDialog
+          open
+          mode="test-filters"
+          modeContentByMode={{
+            "test-filters": null,
+            "different-scope": null,
+          }}
+          costSummary={null}
+          canSubmit
+          isSubmitting={false}
+          primaryActionLabel="Execute"
+          onModeChange={vi.fn()}
+          onDismiss={onDismiss}
+          onSecondaryAction={onSecondaryAction}
+          onPrimaryAction={vi.fn()}
+        />
+      </TooltipProvider>
+    </NextIntlClientProvider>,
   );
 
   return { onDismiss, onSecondaryAction };

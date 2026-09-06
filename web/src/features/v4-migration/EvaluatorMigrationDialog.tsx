@@ -17,6 +17,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useTranslations } from "next-intl";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
 
@@ -35,9 +36,6 @@ type EvaluatorMigrationDialogProps = {
 
 type SelectedMigrationAction = "assistant";
 
-const ADMIN_REQUEST_MESSAGE =
-  "Hi! Could you enable AI features for our Langfuse organization? I need them to use the Assistant to upgrade our deprecated evaluators for v4. Thanks!";
-
 export function EvaluatorMigrationDialog({
   open,
   onOpenChange,
@@ -47,6 +45,7 @@ export function EvaluatorMigrationDialog({
   onAssistantStarted,
   initialAction,
 }: EvaluatorMigrationDialogProps) {
+  const t = useTranslations("remainderUi.migrations");
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { organization } = useQueryProjectOrOrganization();
   const { openAssistant, submit } = useInAppAiAgent();
@@ -122,18 +121,18 @@ export function EvaluatorMigrationDialog({
           <DialogHeader>
             <DialogTitle>
               {effectiveAction === "assistant"
-                ? "Ready to start your evaluator upgrade?"
+                ? t("dialog.readyTitle")
                 : isSingleEvaluator
-                  ? "How would you like to upgrade this evaluator?"
-                  : "How would you like to upgrade your evaluators?"}
+                  ? t("dialog.singleTitle")
+                  : t("dialog.bulkTitle")}
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="gap-3">
             {effectiveAction === "assistant" ? (
               <p className="text-muted-foreground text-sm">
                 {aiFeaturesEnabled
-                  ? "The Assistant will review your deprecated evaluators and suggest upgrading all of them at once."
-                  : "Enable AI features in the other tab, then return here to start the upgrade with the Assistant."}
+                  ? t("dialog.assistantEnabledDescription")
+                  : t("dialog.assistantDisabledDescription")}
               </p>
             ) : (
               <>
@@ -146,9 +145,11 @@ export function EvaluatorMigrationDialog({
                   >
                     <BotMessageSquare className="h-5 w-5 shrink-0" />
                     <span className="flex flex-col gap-1">
-                      <span className="font-bold">Use Assistant</span>
+                      <span className="font-bold">
+                        {t("common.useAssistant")}
+                      </span>
                       <span className="text-muted-foreground text-sm font-normal">
-                        Suggest upgrading all deprecated evaluators at once.
+                        {t("dialog.assistantOptionDescription")}
                       </span>
                     </span>
                   </Button>
@@ -163,18 +164,13 @@ export function EvaluatorMigrationDialog({
                   <span className="flex flex-col gap-1">
                     <span className="font-bold">
                       {isSingleEvaluator
-                        ? "Upgrade just this evaluator"
-                        : "Upgrade manually"}
+                        ? t("dialog.upgradeSingle")
+                        : t("dialog.upgradeManually")}
                     </span>
                     <span className="text-muted-foreground text-sm font-normal">
-                      {isSingleEvaluator ? (
-                        "Open the evaluator upgrade form."
-                      ) : (
-                        <>
-                          Click the Upgrade now button on an evaluator to <br />
-                          review it and start each upgrade individually.
-                        </>
-                      )}
+                      {isSingleEvaluator
+                        ? t("dialog.openUpgradeForm")
+                        : t("dialog.manualDescription")}
                     </span>
                   </span>
                 </Button>
@@ -193,7 +189,7 @@ export function EvaluatorMigrationDialog({
                     setSelectedAction(null);
                   }}
                 >
-                  Back
+                  {t("common.back")}
                 </Button>
               ) : null}
               <Button
@@ -201,7 +197,7 @@ export function EvaluatorMigrationDialog({
                 onClick={startAssistant}
                 disabled={!aiFeaturesEnabled}
               >
-                Start upgrade now
+                {t("dialog.startUpgradeNow")}
               </Button>
             </DialogFooter>
           ) : null}
@@ -211,15 +207,11 @@ export function EvaluatorMigrationDialog({
       <Dialog open={orgAdminNoticeOpen} onOpenChange={setOrgAdminNoticeOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Ask your organization admin to enable AI features
-            </DialogTitle>
+            <DialogTitle>{t("dialog.askAdminTitle")}</DialogTitle>
           </DialogHeader>
           <DialogBody className="gap-3">
             <p className="text-muted-foreground text-sm">
-              The Assistant can help you upgrade all deprecated evaluators at
-              once. An organization admin needs to enable AI features for your
-              organization before you can use it.
+              {t("dialog.askAdminDescription")}
             </p>
             <a
               href="https://langfuse.com/security/ai-features"
@@ -227,13 +219,16 @@ export function EvaluatorMigrationDialog({
               rel="noopener noreferrer"
               className="text-primary text-sm underline"
             >
-              Learn more about AI features
+              {t("dialog.learnAiFeatures")}
             </a>
             <div className="flex flex-col gap-2">
               <p className="text-muted-foreground text-sm">
-                You can send your admin this message:
+                {t("dialog.sendAdminMessage")}
               </p>
-              <CodeBlock language="text" value={ADMIN_REQUEST_MESSAGE} />
+              <CodeBlock
+                language="text"
+                value={t("dialog.adminRequestMessage")}
+              />
             </div>
           </DialogBody>
           <DialogFooter>
@@ -242,7 +237,7 @@ export function EvaluatorMigrationDialog({
               variant="outline"
               onClick={closeOrgAdminNotice}
             >
-              Close
+              {t("common.close")}
             </Button>
             {isSingleEvaluator ? (
               <Button
@@ -252,7 +247,7 @@ export function EvaluatorMigrationDialog({
                   onManualUpgrade();
                 }}
               >
-                Start manual upgrade
+                {t("dialog.startManualUpgrade")}
               </Button>
             ) : null}
           </DialogFooter>

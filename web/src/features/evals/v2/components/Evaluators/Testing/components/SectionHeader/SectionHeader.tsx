@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import { useTranslations } from "next-intl";
 
 export function SectionHeader({
   title,
@@ -15,6 +16,7 @@ export function SectionHeader({
   tooltip: string;
   trailing: ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <div className="flex flex-col gap-y-1">
       <div className="flex min-w-0 items-center gap-1.5">
@@ -22,7 +24,9 @@ export function SectionHeader({
           {title}
         </h3>
         {meta}
-        <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip>
+        <InfoTooltip label={t("aboutSection", { title })}>
+          {tooltip}
+        </InfoTooltip>
       </div>
       {description || trailing ? (
         <div className="flex items-center gap-2">

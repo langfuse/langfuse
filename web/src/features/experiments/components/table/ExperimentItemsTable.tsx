@@ -14,10 +14,7 @@ import { TableActionMenu } from "@/src/features/table/components/TableActionMenu
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
-  getExperimentItemsColumnName,
-  experimentItemsFilterConfig,
-} from "../../config/experiment-items-filter-config";
+import { getExperimentItemsFilterConfig } from "../../config/experiment-items-filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type FilterState,
@@ -73,6 +70,7 @@ import {
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { useTranslations } from "next-intl";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -276,6 +274,53 @@ export default function ExperimentItemsTable({
   ioRenderMode,
   hideControls = false,
 }: ExperimentItemsTableProps) {
+  const t = useTranslations("productTables.experiments");
+  const tExperiments = useTranslations("evaluationAnalytics.experiments");
+  const getFilterLabel = useCallback(
+    (columnId: string) => {
+      switch (columnId) {
+        case "id":
+          return tExperiments("filters.experimentItemId");
+        case "experimentId":
+          return tExperiments("filters.experimentId");
+        case "traceId":
+          return tExperiments("filters.traceId");
+        case "datasetItemId":
+          return tExperiments("filters.datasetItemId");
+        case "startTime":
+          return tExperiments("table.startTime");
+        case "level":
+          return tExperiments("grid.status");
+        case "totalCost":
+          return tExperiments("charts.cost");
+        case "latencyMs":
+          return tExperiments("charts.latency");
+        case "obs_scores_avg":
+          return tExperiments("filters.numericScores");
+        case "obs_score_categories":
+          return tExperiments("filters.categoricalScores");
+        case "obs_score_booleans":
+          return tExperiments("filters.booleanScores");
+        case "trace_scores_avg":
+          return tExperiments("filters.numericTraceScores");
+        case "trace_score_categories":
+          return tExperiments("filters.categoricalTraceScores");
+        case "trace_score_booleans":
+          return tExperiments("filters.booleanTraceScores");
+        case "itemMetadata":
+          return tExperiments("filters.itemMetadata");
+        case "eventMetadata":
+          return tExperiments("overview.metadata");
+        default:
+          return columnId;
+      }
+    },
+    [tExperiments],
+  );
+  const experimentItemsFilterConfig = useMemo(
+    () => getExperimentItemsFilterConfig(getFilterLabel),
+    [getFilterLabel],
+  );
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -696,14 +741,15 @@ export default function ExperimentItemsTable({
     ...(hideControls ? [] : [selectActionColumn]),
     createIdTableColumn<ExperimentItemsTableRow>({
       accessorKey: "itemId",
-      header: "Item ID",
+      header: tExperiments("table.itemId"),
       size: 150,
       enableHiding: true,
     }),
     {
       accessorKey: "observationId",
       id: "observationId",
-      header: () => renderExperimentSpecificHeader("Observation ID"),
+      header: () =>
+        renderExperimentSpecificHeader(tExperiments("table.observationId")),
       size: 180,
       enableHiding: true,
       cell: ({ row }) => {
@@ -722,9 +768,7 @@ export default function ExperimentItemsTable({
       accessorKey: "startTime",
       id: "startTime",
       header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("startTime"),
-        ),
+        renderExperimentSpecificHeader(tExperiments("table.startTime")),
       size: 180,
       defaultHidden: true,
       enableHiding: true,
@@ -744,8 +788,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "level",
       id: "level",
-      header: () =>
-        renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
+      header: () => renderExperimentSpecificHeader(tExperiments("table.level")),
       size: 120,
       defaultHidden: true,
       enableHiding: true,
@@ -765,9 +808,7 @@ export default function ExperimentItemsTable({
       accessorKey: "totalCost",
       id: "totalCost",
       header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("totalCost"),
-        ),
+        renderExperimentSpecificHeader(tExperiments("table.totalCost")),
       size: 120,
       enableHiding: true,
       cell: ({ row }) => {
@@ -794,9 +835,7 @@ export default function ExperimentItemsTable({
       accessorKey: "latencyMs",
       id: "latencyMs",
       header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("latencyMs"),
-        ),
+        renderExperimentSpecificHeader(tExperiments("table.latency")),
       size: 120,
       enableHiding: true,
       cell: ({ row }) => {
@@ -818,7 +857,8 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "experimentId",
       id: "experimentId",
-      header: () => renderExperimentSpecificHeader("Experiment"),
+      header: () =>
+        renderExperimentSpecificHeader(tExperiments("table.experiment")),
       size: 150,
       defaultHidden: true,
       enableHiding: true,
@@ -847,7 +887,7 @@ export default function ExperimentItemsTable({
     },
     createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
-      header: "Input",
+      header: tExperiments("table.input"),
       size: 300,
       enableHiding: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
@@ -855,7 +895,7 @@ export default function ExperimentItemsTable({
     }),
     createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "expectedOutput",
-      header: "Expected Output",
+      header: tExperiments("table.expectedOutput"),
       size: 300,
       enableHiding: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? "")),
@@ -865,7 +905,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "output",
       id: "output",
-      header: "Output",
+      header: tExperiments("table.output"),
       size: 300,
       enableHiding: true,
       cell: ({ row }) => {
@@ -883,7 +923,7 @@ export default function ExperimentItemsTable({
     },
     {
       accessorKey: "observationScores",
-      header: "Observation Scores",
+      header: tExperiments("table.observationScores"),
       id: "observationScores",
       enableHiding: true,
       defaultHidden: true,
@@ -896,7 +936,7 @@ export default function ExperimentItemsTable({
     },
     {
       accessorKey: "traceScores",
-      header: "Trace Scores",
+      header: tExperiments("table.traceScores"),
       id: "traceScores",
       enableHiding: true,
       defaultHidden: true,
@@ -1080,8 +1120,8 @@ export default function ExperimentItemsTable({
         {
           id: ActionId.ObservationBatchEvaluation,
           type: BatchActionType.Create,
-          label: "Evaluate",
-          description: "Run evaluators on selected items",
+          label: tExperiments("table.evaluate"),
+          description: tExperiments("table.evaluateSelectedItems"),
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
@@ -1207,7 +1247,7 @@ export default function ExperimentItemsTable({
               ) : (
                 <div className="flex flex-1 items-center justify-center">
                   <span className="text-muted-foreground text-sm">
-                    Please select a baseline experiment.
+                    {t("selectBaseline")}
                   </span>
                 </div>
               )
@@ -1232,7 +1272,7 @@ export default function ExperimentItemsTable({
                 noResultsMessage={
                   !hasSelectedRuns ? (
                     <span className="text-muted-foreground text-sm">
-                      Please select a baseline experiment.
+                      {t("selectBaseline")}
                     </span>
                   ) : undefined
                 }

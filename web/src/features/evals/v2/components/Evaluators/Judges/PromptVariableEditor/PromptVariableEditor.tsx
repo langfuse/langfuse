@@ -14,6 +14,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { isValidVariableName, MUSTACHE_REGEX } from "@langfuse/shared";
 import { truncateEnd } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { useTranslations } from "next-intl";
 
 export type InterpolatedPromptPreviewState =
   | {
@@ -65,6 +66,12 @@ function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
   getMappingLabel: (variable: string) => string | undefined,
   validateVariableMappings: boolean,
+  messages: {
+    invalidVariableName: string;
+    mapData: string;
+    notConnected: string;
+    pullsFrom: (label: string) => string;
+  },
 ) {
   const decorator = new MatchDecorator({
     regexp: new RegExp(MUSTACHE_REGEX.source, MUSTACHE_REGEX.flags),
@@ -74,8 +81,7 @@ function createVariableHighlighter(
       const status = !hasValidName
         ? {
             status: "invalid" as const,
-            message:
-              "Variable must start with a letter and can only contain letters and underscores",
+            message: messages.invalidVariableName,
           }
         : (getStatus(match[1]) ??
           (mappingLabel
@@ -84,11 +90,14 @@ function createVariableHighlighter(
               ? { status: "invalid" as const }
               : undefined));
       const invalid = status?.status === "invalid";
-      const label = truncateEnd(mappingLabel || "map data", MAX_LABEL_LENGTH);
+      const label = truncateEnd(
+        mappingLabel || messages.mapData,
+        MAX_LABEL_LENGTH,
+      );
       const title = invalid
-        ? (status.message ?? "Not connected to the sample data")
+        ? (status.message ?? messages.notConnected)
         : mappingLabel
-          ? `Pulls from ${label}`
+          ? messages.pullsFrom(label)
           : undefined;
       add(
         from,
@@ -184,6 +193,7 @@ export function PromptVariableEditor({
   /** Whether variables without a known mapping should receive a warning. */
   validateVariableMappings?: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
   // The round trip is load-bearing in both directions: callers pass fresh
@@ -200,12 +210,19 @@ export function PromptVariableEditor({
         (variable) => status[variable],
         (variable) => mappingLabels[variable],
         validateVariableMappings,
+        {
+          invalidVariableName: t("variableMapping.prompt.invalidVariableName"),
+          mapData: t("variableMapping.prompt.mapData"),
+          notConnected: t("variableMapping.prompt.notConnected"),
+          pullsFrom: (label) =>
+            t("variableMapping.prompt.pullsFrom", { label }),
+        },
       ),
       variableTheme,
       Prec.highest(promptFontTheme),
       ...(readOnly ? [Prec.highest(readOnlySurfaceTheme)] : []),
     ];
-  }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
+  }, [statusKey, mappingsKey, readOnly, t, validateVariableMappings]);
 
   return (
     <div className="flex flex-col">
@@ -228,7 +245,7 @@ export function PromptVariableEditor({
               disabled={Boolean(previewDisabledReason)}
               onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
             />
-            Preview
+            {t("preview")}
           </label>
         </div>
       ) : null}

@@ -11,6 +11,7 @@ import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage
 import { ExternalLink } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";
+import { useTranslations } from "next-intl";
 
 export interface PriceSource {
   projectId: string;
@@ -35,6 +36,7 @@ export const BreakdownTooltip = ({
   pricingTierName,
   priceSource,
 }: BreakdownTooltipProps) => {
+  const t = useTranslations("coreDetails.traces.breakdown");
   const [isOpen, setIsOpen] = useState(false);
 
   // Aggregate details if array is provided
@@ -65,7 +67,7 @@ export const BreakdownTooltip = ({
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
               <span className="font-bold">
-                {isCost ? "Cost breakdown" : "Usage breakdown"}
+                {isCost ? t("cost") : t("usage")}
               </span>
 
               {isCost && priceSource && (
@@ -77,22 +79,25 @@ export const BreakdownTooltip = ({
                 >
                   <span
                     className="min-w-0 truncate"
-                    title={`${priceSource.pricingTierName} Tier Pricing`}
+                    title={t("tierPricing", {
+                      tier: priceSource.pricingTierName,
+                    })}
                   >
-                    {priceSource.pricingTierName} Tier Pricing
+                    {t("tierPricing", {
+                      tier: priceSource.pricingTierName,
+                    })}
                   </span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
               )}
               {Array.isArray(details) && details.length > 0 && (
                 <span className="text-muted-foreground text-xs italic">
-                  Aggregate across {details.length}{" "}
-                  {details.length === 1 ? "generation" : "generations"}
+                  {t("aggregate", { count: details.length })}
                 </span>
               )}
               {pricingTierName && (
                 <BreakdownRow
-                  label="Pricing Tier:"
+                  label={t("pricingTier")}
                   value={pricingTierName}
                   variant="item"
                 />
@@ -101,7 +106,7 @@ export const BreakdownTooltip = ({
 
             {/* Input Section */}
             <Section
-              title={isCost ? "Input cost" : "Input usage"}
+              title={isCost ? t("inputCost") : t("inputUsage")}
               details={aggregatedDetails}
               filterFn={(key) => key.includes("input")}
               formatValue={formatValue}
@@ -109,7 +114,7 @@ export const BreakdownTooltip = ({
 
             {/* Output Section */}
             <Section
-              title={isCost ? "Output cost" : "Output usage"}
+              title={isCost ? t("outputCost") : t("outputUsage")}
               details={aggregatedDetails}
               filterFn={(key) => key.includes("output")}
               formatValue={formatValue}
@@ -124,7 +129,7 @@ export const BreakdownTooltip = ({
 
             {/* Total */}
             <BreakdownRow
-              label={isCost ? "Total cost" : "Total usage"}
+              label={isCost ? t("totalCost") : t("totalUsage")}
               value={formatValue(aggregatedDetails.total ?? 0)}
               variant="total"
             />
@@ -216,6 +221,7 @@ interface OtherSectionProps {
 }
 
 const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
+  const t = useTranslations("coreDetails.traces.breakdown");
   const otherEntries = Object.entries(details)
     .filter(
       ([key]) =>
@@ -234,7 +240,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <BreakdownRow
-        label={isCost ? "Other cost" : "Other usage"}
+        label={isCost ? t("otherCost") : t("otherUsage")}
         value={formatValue(otherTotal)}
         variant="section"
       />

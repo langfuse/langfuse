@@ -16,6 +16,7 @@ import {
 } from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 /**
  * PlaygroundPage Component
@@ -39,6 +40,7 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
+  const t = useTranslations("playgroundDashboard.playground.page");
   const projectId = useProjectIdFromURL();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
@@ -91,8 +93,8 @@ export default function PlaygroundPage() {
 
   const getMessageSearchPageLabel = useCallback(
     (_pageId: string, pageIndex: number) =>
-      windowIds.length > 1 ? `Window ${pageIndex + 1}` : null,
-    [windowIds.length],
+      windowIds.length > 1 ? t("windowLabel", { number: pageIndex + 1 }) : null,
+    [t, windowIds.length],
   );
 
   // Don't render until window IDs are loaded
@@ -101,10 +103,9 @@ export default function PlaygroundPage() {
       <Page
         withPadding={false}
         headerProps={{
-          title: "Playground",
+          title: t("title"),
           help: {
-            description:
-              "A sandbox to test and iterate your prompts across multiple windows",
+            description: t("description"),
             href: "https://langfuse.com/docs/prompt-management/features/playground",
           },
         }}
@@ -118,8 +119,7 @@ export default function PlaygroundPage() {
 
   // Execution status and control states
   const executionStatus = globalIsExecutingAll
-    ? getExecutionStatus() ||
-      `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
+    ? getExecutionStatus() || t("executingWindows", { count: windowIds.length })
     : getExecutionStatus();
   const isRunAllDisabled = globalIsExecutingAll || !hasAnyModelConfigured;
 
@@ -137,10 +137,9 @@ export default function PlaygroundPage() {
         scrollable={false}
         withPadding={false}
         headerProps={{
-          title: "Playground",
+          title: t("title"),
           help: {
-            description:
-              "A sandbox to test and iterate your prompts across multiple windows",
+            description: t("description"),
             href: "https://langfuse.com/docs/prompt-management/features/playground",
           },
           actionButtonsRight: (
@@ -150,8 +149,7 @@ export default function PlaygroundPage() {
               {/* Window Count Display - Hidden on mobile */}
               <div className="text-muted-foreground hidden items-center gap-2 text-sm md:flex">
                 <span className="whitespace-nowrap">
-                  {windowIds.length} window
-                  {windowIds.length === 1 ? "" : "s"}
+                  {t("windowCount", { count: windowIds.length })}
                 </span>
                 {executionStatus && (
                   <>
@@ -173,9 +171,7 @@ export default function PlaygroundPage() {
                 disabled={isRunAllDisabled}
                 className="hidden shrink-0 gap-1 md:flex"
                 title={
-                  !hasAnyModelConfigured
-                    ? "Please configure a model in Project Settings first"
-                    : "Execute all playground windows simultaneously"
+                  !hasAnyModelConfigured ? t("configureModel") : t("executeAll")
                 }
               >
                 {globalIsExecutingAll ? (
@@ -184,7 +180,7 @@ export default function PlaygroundPage() {
                   <Play className="h-3 w-3" />
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
-                  <span>Run All</span>
+                  <span>{t("runAll")}</span>
                   <KeyboardShortcut keys={["Mod", "Enter"]} />
                 </span>
               </Button>

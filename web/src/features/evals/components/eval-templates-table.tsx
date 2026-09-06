@@ -56,6 +56,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { useTranslations } from "next-intl";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -87,6 +88,7 @@ const TemplateTypeBadge = ({
   type?: EvalTemplateType;
   sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
 }) => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   if (type === EvalTemplateType.CODE) {
     const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
     const Icon =
@@ -106,7 +108,7 @@ const TemplateTypeBadge = ({
 
   return (
     <Badge className="w-fit gap-1.5" variant="outline-solid">
-      LLM-as-judge
+      {t("templateTable.llmAsJudge")}
     </Badge>
   );
 };
@@ -141,6 +143,7 @@ const EvalTemplateRowActionsMenu = ({
   onEdit: () => void;
   onClone: () => void;
 }) => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   // undefined = never opened: keeps the dialog unmounted for untouched rows,
   // while close (false) keeps it mounted so the exit animation can play.
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>();
@@ -155,16 +158,24 @@ const EvalTemplateRowActionsMenu = ({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-xs" aria-label="actions">
-            <span className="sr-only relative">Open menu</span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("templateTable.actions")}
+            data-eval-template-action="actions"
+          >
+            <span className="sr-only relative">
+              {t("templateTable.openMenu")}
+            </span>
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("templateTable.actions")}</DropdownMenuLabel>
           {showClone ? (
             <DropdownMenuItem
-              aria-label="clone"
+              aria-label={t("templateTable.clone")}
+              data-eval-template-action="clone"
               disabled={!hasAccess}
               onClick={(e) => {
                 e.stopPropagation();
@@ -172,13 +183,14 @@ const EvalTemplateRowActionsMenu = ({
               }}
             >
               <Copy className="mr-2 h-4 w-4" />
-              Clone
+              {t("templateTable.clone")}
             </DropdownMenuItem>
           ) : null}
           {showEditAndDelete ? (
             <>
               <DropdownMenuItem
-                aria-label="edit"
+                aria-label={t("edit")}
+                data-eval-template-action="edit"
                 disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -186,10 +198,11 @@ const EvalTemplateRowActionsMenu = ({
                 }}
               >
                 <Pen className="mr-2 h-4 w-4" />
-                Edit
+                {t("edit")}
               </DropdownMenuItem>
               <DropdownMenuItem
-                aria-label="delete"
+                aria-label={t("delete")}
+                data-eval-template-action="delete"
                 disabled={!hasTemplateWriteAccess}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -200,7 +213,7 @@ const EvalTemplateRowActionsMenu = ({
                 }}
               >
                 <Trash className="mr-2 h-4 w-4" />
-                Delete
+                {t("delete")}
               </DropdownMenuItem>
             </>
           ) : null}
@@ -231,6 +244,7 @@ export default function EvalsTemplateTable({
 }: {
   projectId: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const codeEvalCapabilities = useIsCodeEvalEnabled();
   const { enabled: isCodeEvalEnabled, supportedSourceCodeLanguages } =
@@ -332,7 +346,7 @@ export default function EvalsTemplateTable({
 
   const columns = [
     columnHelper.accessor("name", {
-      header: "Name",
+      header: t("templateTable.name"),
       id: "name",
       cell: (row) => {
         const name = row.getValue();
@@ -341,7 +355,7 @@ export default function EvalsTemplateTable({
     }),
     columnHelper.accessor("type", {
       id: "type",
-      header: "Type",
+      header: t("templateTable.type"),
       size: 120,
       cell: ({ row }) => (
         <TemplateTypeBadge
@@ -352,7 +366,7 @@ export default function EvalsTemplateTable({
     }),
     columnHelper.accessor("resultType", {
       id: "resultType",
-      header: "Score Result Type",
+      header: t("templateTable.scoreResultType"),
       size: 120,
       cell: (row) => {
         const resultType = row.getValue();
@@ -366,7 +380,7 @@ export default function EvalsTemplateTable({
     }),
     columnHelper.accessor("maintainer", {
       id: "maintainer",
-      header: "Maintainer",
+      header: t("templateTable.maintainer"),
       size: 150,
       cell: (row) => {
         return (
@@ -380,7 +394,7 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("latestCreatedAt", {
-      header: "Last Edited",
+      header: t("templateTable.lastEdited"),
       id: "latestCreatedAt",
       size: 80,
       cell: (row) => {
@@ -389,7 +403,7 @@ export default function EvalsTemplateTable({
     }),
     createNumberTableColumn<EvalsTemplateRow>({
       accessorKey: "usageCount",
-      header: "Usage Count",
+      header: t("templateTable.usageCount"),
       enableHiding: true,
       size: 80,
       formatter: (value) => String(value),
@@ -399,13 +413,13 @@ export default function EvalsTemplateTable({
     }),
     createNumberTableColumn<EvalsTemplateRow>({
       accessorKey: "latestVersion",
-      header: "Latest Version",
+      header: t("templateTable.latestVersion"),
       enableHiding: true,
       size: 80,
       formatter: (value) => String(value),
     }),
     columnHelper.accessor("id", {
-      header: "Id",
+      header: t("columns.id"),
       id: "id",
       size: 100,
       enableHiding: true,
@@ -415,7 +429,7 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("actions", {
-      header: "Actions",
+      header: t("columns.actions"),
       id: "actions",
       size: 100,
       cell: ({ row }) => {
@@ -430,11 +444,12 @@ export default function EvalsTemplateTable({
             <ActionButton
               variant="outline"
               size="sm"
-              aria-label="apply"
+              aria-label={t("templateTable.useEvaluator")}
+              data-eval-template-action="apply"
               disabled={isInvalid}
               title={
                 isInvalid
-                  ? "Evaluator requires project-level evaluation model. Set it up and start running evaluations."
+                  ? t("templateTable.requiresProjectModelDescription")
                   : undefined
               }
               hasAccess={hasAccess}
@@ -455,7 +470,7 @@ export default function EvalsTemplateTable({
                 }
               }}
             >
-              Use Evaluator
+              {t("templateTable.useEvaluator")}
             </ActionButton>
             {hasMenuItems && id ? (
               <EvalTemplateRowActionsMenu
@@ -495,9 +510,7 @@ export default function EvalsTemplateTable({
       itemType: "EVALUATOR" as const,
       detailNavigationKey: "eval-templates",
       peekEventOptions: {
-        ignoredSelectors: [
-          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
-        ],
+        ignoredSelectors: ["[data-eval-template-action]"],
       },
       ...peekNavigationProps,
     }),
@@ -511,9 +524,14 @@ export default function EvalsTemplateTable({
       name: template.name,
       resultType:
         template.type === EvalTemplateType.CODE
-          ? "Code-defined"
-          : getTemplateResultType(template.outputDefinition),
-      maintainer: getMaintainer(template),
+          ? t("templateTable.codeDefined")
+          : getTemplateResultType(template.outputDefinition, {
+              unknown: t("resultTypes.unknown"),
+              numeric: t("resultTypes.numeric"),
+              categorical: t("resultTypes.categorical"),
+              boolean: t("resultTypes.boolean"),
+            }),
+      maintainer: getMaintainer(template, t),
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
       id: template.latestId,
@@ -533,7 +551,7 @@ export default function EvalsTemplateTable({
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           searchConfig={{
-            metadataSearchFields: ["Name"],
+            metadataSearchFields: [t("templateTable.name")],
             updateQuery: setSearchQuery,
             currentQuery: searchQuery ?? undefined,
             tableAllowsFullTextSearch: false,
@@ -601,7 +619,7 @@ export default function EvalsTemplateTable({
           }
         >
           <DialogHeader>
-            <DialogTitle>Edit evaluator</DialogTitle>
+            <DialogTitle>{t("editEvaluator")}</DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
@@ -613,8 +631,8 @@ export default function EvalsTemplateTable({
               setEditTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
-                title: "Evaluator updated successfully",
-                description: "You can now use this evaluator.",
+                title: t("evaluatorUpdated"),
+                description: t("evaluatorCreatedDescription"),
               });
             }}
           />
@@ -637,7 +655,7 @@ export default function EvalsTemplateTable({
           }
         >
           <DialogHeader>
-            <DialogTitle>Clone evaluator</DialogTitle>
+            <DialogTitle>{t("templateTable.cloneEvaluator")}</DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
@@ -647,7 +665,9 @@ export default function EvalsTemplateTable({
             existingEvalTemplate={
               cloneTemplate.data
                 ? {
-                    name: `${cloneTemplate.data.name} (project-level)`,
+                    name: t("templateTable.projectLevelName", {
+                      name: cloneTemplate.data.name,
+                    }),
                     prompt: cloneTemplate.data.prompt,
                     vars: cloneTemplate.data.vars,
                     outputDefinition: cloneTemplate.data
@@ -666,9 +686,8 @@ export default function EvalsTemplateTable({
               setCloneTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
-                title: "Evaluator cloned successfully",
-                description:
-                  "This evaluator is now available and maintained on project level. ",
+                title: t("templateTable.cloned"),
+                description: t("templateTable.clonedDescription"),
               });
             }}
           />

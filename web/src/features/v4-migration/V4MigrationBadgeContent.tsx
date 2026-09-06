@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { useLocale } from "next-intl";
 
 // Status dots shared across the v4-migration surfaces (badge, panel section
 // rows, clean summary). This file sits on the no-raw-colors baseline; the raw
@@ -47,6 +48,8 @@ export function V4MigrationBadgeContent({
   showChevron = true,
   compact = false,
 }: V4MigrationBadgeContentProps) {
+  const locale = useLocale();
+  const separator = locale === "zh-CN" ? "。" : ".";
   if (compact) {
     return (
       <button
@@ -76,7 +79,12 @@ export function V4MigrationBadgeContent({
         <span className="size-1.75 shrink-0 rounded-full" />
         <span className="flex items-center">
           {title}
-          {description ? <>&nbsp;{description}.</> : null}
+          {description ? (
+            <>
+              &nbsp;{description}
+              {separator}
+            </>
+          ) : null}
           {showChevron ? (
             <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
           ) : null}
@@ -103,7 +111,10 @@ export function V4MigrationBadgeContent({
             // expanding before the dwell elapses. Keep dwell > duration.
             <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-300 ease-out group-hover:grid-cols-[1fr] group-focus-visible:grid-cols-[1fr]">
               <span className="min-w-0 overflow-hidden">
-                <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+                <span className="whitespace-nowrap">
+                  {separator}&nbsp;{description}
+                  {separator}
+                </span>
               </span>
             </span>
           ) : null}

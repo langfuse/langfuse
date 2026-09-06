@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
+import { useTranslations } from "next-intl";
 
 export function NewDatasetItemFromExistingObjectDialogController(props: {
   projectId: string;
@@ -24,6 +25,7 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
     Trigger: typeof DialogTrigger;
   }) => ReactNode;
 }) {
+  const t = useTranslations("coreDetails.datasets.misc");
   const normalizePrefillValue = (
     value: Prisma.JsonValue | null,
   ): Prisma.JsonValue | null => {
@@ -46,7 +48,7 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
       renderContent={({ closeDialog }) => (
         <>
           <DialogHeader>
-            <DialogTitle>Add item to datasets</DialogTitle>
+            <DialogTitle>{t("addItemToDatasets")}</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
             traceId={props.traceId}

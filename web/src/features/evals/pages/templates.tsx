@@ -12,8 +12,10 @@ import {
 } from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { useTranslations } from "next-intl";
 
 export default function TemplatesPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
@@ -34,10 +36,10 @@ export default function TemplatesPage() {
   return (
     <Page
       headerProps={{
-        title: "Evaluators",
+        title: t("evaluators"),
         titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
-          description: "View all langfuse managed and custom evaluators.",
+          description: t("templatesDescription"),
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
         },
         tabsProps: {
@@ -65,7 +67,7 @@ export default function TemplatesPage() {
                 ) : (
                   <Lock className="mr-2 h-4 w-4" />
                 )}
-                Custom Evaluator
+                {t("customEvaluator")}
               </Link>
             </Button>
           </>

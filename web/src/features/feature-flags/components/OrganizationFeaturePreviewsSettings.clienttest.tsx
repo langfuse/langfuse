@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { OrganizationFeaturePreviewsSettings } from "./OrganizationFeaturePreviewsSettings";
 import { featurePreviewFlags } from "../available-flags";
+import englishIntegrationsSettings from "@/src/features/i18n/messages/en/integrationsSettings.json";
+import simplifiedChineseIntegrationsSettings from "@/src/features/i18n/messages/zh-CN/integrationsSettings.json";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -138,6 +141,21 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
+const renderSettings = (locale: "en" | "zh-CN" = "en") =>
+  render(
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        integrationsSettings:
+          locale === "en"
+            ? englishIntegrationsSettings
+            : simplifiedChineseIntegrationsSettings,
+      }}
+    >
+      <OrganizationFeaturePreviewsSettings orgId="org-1" />
+    </NextIntlClientProvider>,
+  );
+
 describe("OrganizationFeaturePreviewsSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -154,7 +172,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
   it("explains the deployment-wide experimental feature override", () => {
     mocks.experimentalFeaturesEnabled = true;
 
-    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
+    renderSettings();
 
     expect(
       screen.getByText(/experimental features enabled deployment-wide/i),
@@ -180,7 +198,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     // Not a default yet: an admin can always turn one OFF, so the lock only
     // shows on a row they would be turning ON.
     mocks.orgDefaults = [];
-    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
+    renderSettings();
 
     // The contrast half — a row the admin HAS enabled personally stays live —
     // needs a second registered preview, and there is one between one preview
@@ -201,7 +219,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
   it("confirms an organization default change and captures metadata once", async () => {
     mocks.userFeatureFlags.modernSession = true;
     mocks.orgDefaults = [];
-    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
+    renderSettings();
 
     expect(
       screen.getByText(/new members inherit these defaults automatically/i),
@@ -235,7 +253,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.mutate.mockImplementation(() => {
       mocks.mutationOptions?.onError?.(new Error("denied"));
     });
-    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
+    renderSettings();
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -245,5 +263,19 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
+  it("renders organization feature preview settings in Chinese", () => {
+    renderSettings("zh-CN");
+
+    expect(
+      screen.getByRole("heading", { name: "功能预览" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("紧凑会话视图")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "切换组织的紧凑会话视图默认设置",
+      }),
+    ).toBeInTheDocument();
   });
 });

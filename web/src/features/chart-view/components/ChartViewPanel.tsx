@@ -11,7 +11,7 @@ import {
   type DimensionKey,
   type MetricKey,
 } from "../types";
-import { describeConfig, getMetric } from "../vocab";
+import { getMetric, isTimeSeriesChartType } from "../vocab";
 import { ChartCanvas } from "./ChartCanvas";
 import {
   AggregationSelect,
@@ -19,6 +19,7 @@ import {
   ChartTypePicker,
   MetricSelect,
 } from "./ConfigControls";
+import { useTranslations } from "next-intl";
 
 /**
  * The "Take B" chart-view layout (the direction Nikita picked): a maximized
@@ -53,8 +54,27 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
    *  here instead of relying on a host. */
   className?: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   const [open, setOpen] = useState(true);
   const metric = getMetric(config.metric);
+  const metricLabel = labelsT(`metrics.${config.metric}`);
+  let description =
+    config.metric === "count"
+      ? labelsT("descriptions.eventCount")
+      : labelsT("descriptions.metric", {
+          aggregation: labelsT(`aggregations.${config.aggregation}`),
+          metric: metricLabel.toLocaleLowerCase(),
+        });
+  if (config.breakdown !== "none" && config.chartType !== "NUMBER") {
+    description = labelsT("descriptions.by", {
+      base: description,
+      dimension: labelsT(`dimensions.${config.breakdown}`).toLocaleLowerCase(),
+    });
+  }
+  if (isTimeSeriesChartType(config.chartType)) {
+    description = labelsT("descriptions.overTime", { base: description });
+  }
 
   const onMetric = useCallback(
     (metric: MetricKey) => onConfigChange({ metric }),
@@ -82,9 +102,9 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
         <div className="flex items-center justify-between gap-2">
           <div
             className="text-foreground min-w-0 truncate text-sm font-bold"
-            title={describeConfig(config)}
+            title={description}
           >
-            {describeConfig(config)}
+            {description}
           </div>
           {chartActions}
         </div>
@@ -104,11 +124,9 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
               chartType={config.chartType}
               breakdown={config.breakdown}
               aggregation={config.aggregation}
-              metricLabel={metric.label}
+              metricLabel={metricLabel}
               metricUnit={metric.unit}
-              emptyMessage={
-                emptyMessage ?? "No events match the current filters."
-              }
+              emptyMessage={emptyMessage ?? t("noMatchingEvents")}
             />
           )}
         </div>
@@ -118,38 +136,38 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
       {open ? (
         <div className="flex w-full flex-col gap-3 overflow-y-auto border-t p-3 md:w-72 md:shrink-0 md:border-t-0 md:border-l">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold">Visualize</span>
+            <span className="text-sm font-bold">{t("visualize")}</span>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Collapse panel"
+              aria-label={t("collapsePanel")}
               onClick={() => setOpen(false)}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <PanelField label="Chart type">
+          <PanelField label={t("chartType")}>
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
               showLabels
             />
           </PanelField>
-          <PanelField label="Metric">
+          <PanelField label={t("metric")}>
             <MetricSelect value={config.metric} onChange={onMetric} />
           </PanelField>
-          <PanelField label="Aggregation">
+          <PanelField label={t("aggregation")}>
             <AggregationSelect
               metric={config.metric}
               value={config.aggregation}
               onChange={onAggregation}
             />
           </PanelField>
-          <PanelField label="Breakdown">
+          <PanelField label={t("breakdown")}>
             <BreakdownSelect value={config.breakdown} onChange={onBreakdown} />
           </PanelField>
           {granularitySlot ? (
-            <PanelField label="Granularity">{granularitySlot}</PanelField>
+            <PanelField label={t("granularity")}>{granularitySlot}</PanelField>
           ) : null}
         </div>
       ) : (
@@ -157,7 +175,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label="Expand panel"
+            aria-label={t("expandPanel")}
             onClick={() => setOpen(true)}
           >
             <ChevronLeft className="h-4 w-4" />

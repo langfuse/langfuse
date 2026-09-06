@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supportedModels } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 import { env } from "@/src/env.mjs";
 import { getJudgeModelProviderAdapters } from "@/src/features/evals/v2/judgeModel";
@@ -24,6 +25,7 @@ export function useProjectDefaultModel({
   projectId: string;
   source: "editor" | "overview";
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const [pendingModel, setPendingModel] =
@@ -77,8 +79,11 @@ export function useProjectDefaultModel({
             isReplacement,
           });
           showSuccessToast({
-            title: "Project default model updated",
-            description: `${model.provider} / ${model.model} is now the project default.`,
+            title: t("defaultModelUpdated"),
+            description: t("defaultModelUpdatedWithModel", {
+              provider: model.provider,
+              model: model.model,
+            }),
           });
           setPendingModel(null);
         },

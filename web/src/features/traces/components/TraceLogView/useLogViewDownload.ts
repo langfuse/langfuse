@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
+import { useTranslations } from "next-intl";
 
 export interface UseLogViewDownloadParams {
   /** Trace ID for filename */
@@ -42,6 +43,7 @@ export function useLogViewDownload({
   loadAllData,
   buildDataFromCache,
 }: UseLogViewDownloadParams) {
+  const t = useTranslations("coreDetails.traces.logToolbar");
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   // Helper to download JSON data. Serializes through the shared stringify
@@ -72,7 +74,7 @@ export function useLogViewDownload({
         try {
           const data = buildDataFromCache();
           copyTextToClipboard(stringify(data, undefined, 2));
-          toast.success("Copied to clipboard (cache only)");
+          toast.success(t("copiedCacheOnly"));
         } finally {
           setIsActionLoading(false);
         }
@@ -84,10 +86,10 @@ export function useLogViewDownload({
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
           toast.warning(
-            `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+            t("copiedMissingIo", { count: failedObservationIds.length }),
           );
         } else {
-          toast.success("Copied to clipboard");
+          toast.success(t("copied"));
         }
       } else {
         setIsActionLoading(true);
@@ -97,10 +99,10 @@ export function useLogViewDownload({
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
             toast.warning(
-              `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+              t("copiedMissingIo", { count: failedObservationIds.length }),
             );
           } else {
-            toast.success("Copied to clipboard");
+            toast.success(t("copied"));
           }
         } finally {
           setIsActionLoading(false);
@@ -113,6 +115,7 @@ export function useLogViewDownload({
     loadAllData,
     buildDataFromCache,
     failedObservationIds,
+    t,
   ]);
 
   // Download JSON handler - uses cache only or loads all based on threshold
@@ -125,7 +128,7 @@ export function useLogViewDownload({
         try {
           const data = buildDataFromCache();
           downloadJsonData(data);
-          toast.success("Downloaded trace data (cache only)");
+          toast.success(t("downloadedCacheOnly"));
         } finally {
           setIsActionLoading(false);
         }
@@ -137,10 +140,10 @@ export function useLogViewDownload({
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
           toast.warning(
-            `Downloaded trace data. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+            t("downloadedMissingIo", { count: failedObservationIds.length }),
           );
         } else {
-          toast.success("Downloaded trace data");
+          toast.success(t("downloaded"));
         }
       } else {
         setIsActionLoading(true);
@@ -150,10 +153,10 @@ export function useLogViewDownload({
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
             toast.warning(
-              `Downloaded trace data. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+              t("downloadedMissingIo", { count: failedObservationIds.length }),
             );
           } else {
-            toast.success("Downloaded trace data");
+            toast.success(t("downloaded"));
           }
         } finally {
           setIsActionLoading(false);
@@ -167,6 +170,7 @@ export function useLogViewDownload({
     buildDataFromCache,
     downloadJsonData,
     failedObservationIds,
+    t,
   ]);
 
   return {

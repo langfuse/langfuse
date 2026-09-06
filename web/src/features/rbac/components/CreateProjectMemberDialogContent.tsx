@@ -23,6 +23,7 @@ import {
 } from "@/src/components/ui/select";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 const roleValues = {
   OWNER: "OWNER",
@@ -32,13 +33,17 @@ const roleValues = {
   NONE: "NONE",
 } as const satisfies Record<Role, Role>;
 
-const formSchema = z.object({
-  email: z.string().trim().pipe(z.email()),
-  orgRole: z.enum(roleValues),
-  projectRole: z.enum(roleValues),
-});
+const createFormSchema = (invalidEmail: string) =>
+  z.object({
+    email: z
+      .string()
+      .trim()
+      .pipe(z.email({ error: invalidEmail })),
+    orgRole: z.enum(roleValues),
+    projectRole: z.enum(roleValues),
+  });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
 
 type CreateProjectMemberDialogContentProps = {
   project: { id: string; name: string } | undefined;
@@ -57,6 +62,8 @@ export function CreateProjectMemberDialogContent({
   createProjectMember,
   onSuccess,
 }: CreateProjectMemberDialogContentProps) {
+  const t = useTranslations("accessSettings.memberForm");
+  const formSchema = createFormSchema(t("invalidEmail"));
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -76,8 +83,7 @@ export function CreateProjectMemberDialogContent({
     } catch (error) {
       form.setError("email", {
         type: "manual",
-        message:
-          error instanceof Error ? error.message : "Failed to add member",
+        message: error instanceof Error ? error.message : t("addFailed"),
       });
       reportTrpcErrorWithoutToast(error, "members");
     }
@@ -92,7 +98,7 @@ export function CreateProjectMemberDialogContent({
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t("email")}</FormLabel>
                 <FormControl>
                   <Input placeholder="jsdoe@example.com" {...field} />
                 </FormControl>
@@ -106,7 +112,7 @@ export function CreateProjectMemberDialogContent({
               name="orgRole"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Organization Role</FormLabel>
+                  <FormLabel>{t("organizationRole")}</FormLabel>
                   <Select
                     defaultValue={field.value}
                     onValueChange={(value) =>
@@ -117,7 +123,9 @@ export function CreateProjectMemberDialogContent({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select an organization role" />
+                        <SelectValue
+                          placeholder={t("selectOrganizationRole")}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -137,7 +145,7 @@ export function CreateProjectMemberDialogContent({
               name="projectRole"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Project Role</FormLabel>
+                  <FormLabel>{t("projectRole")}</FormLabel>
                   <Select
                     defaultValue={field.value}
                     onValueChange={(value) =>
@@ -148,7 +156,7 @@ export function CreateProjectMemberDialogContent({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a project role" />
+                        <SelectValue placeholder={t("selectProjectRole")} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -169,8 +177,7 @@ export function CreateProjectMemberDialogContent({
                   </Select>
                   {!hasOnlySingleProjectAccess && (
                     <FormDescription>
-                      This project role will override the default role for this
-                      current project ({project.name}).
+                      {t("projectRoleOverride", { projectName: project.name })}
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -181,7 +188,7 @@ export function CreateProjectMemberDialogContent({
         </DialogBody>
         <DialogFooter>
           <Button type="submit" className="w-full" loading={isSubmitting}>
-            Grant access
+            {t("grantAccess")}
           </Button>
           <FormMessage />
         </DialogFooter>

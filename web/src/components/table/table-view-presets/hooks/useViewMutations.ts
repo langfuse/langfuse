@@ -3,6 +3,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import type { TableViewPresetState } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 type UseViewMutationsProps = {
   handleSetViewId: (viewId: string | null) => void;
@@ -13,6 +14,7 @@ export const useViewMutations = ({
   handleSetViewId,
   applyViewState,
 }: UseViewMutationsProps) => {
+  const t = useTranslations("sharedUi.viewMutations");
   const utils = api.useUtils();
 
   const createMutation = api.TableViewPresets.create.useMutation({
@@ -30,8 +32,8 @@ export const useViewMutations = ({
       });
       utils.TableViewPresets.getByTableName.invalidate();
       showSuccessToast({
-        title: "View updated",
-        description: `${data.view.name} has been updated to reflect your current table state`,
+        title: t("viewUpdated"),
+        description: t("viewUpdatedDescription", { name: data.view.name }),
       });
     },
   });
@@ -57,14 +59,14 @@ export const useViewMutations = ({
         copyTextToClipboard(data)
           .then(() =>
             showSuccessToast({
-              title: "Permalink copied to clipboard",
-              description: "You can now share the permalink with others",
+              title: t("permalinkCopied"),
+              description: t("permalinkCopiedDescription"),
             }),
           )
           .catch(() =>
             showErrorToast(
-              "Failed to copy permalink",
-              "Could not write to the clipboard. Please copy the link manually.",
+              t("copyPermalinkFailed"),
+              t("copyPermalinkFailedDescription"),
               "WARNING",
             ),
           );

@@ -3,8 +3,10 @@ import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useTranslations } from "next-intl";
 
 export const SupportButton = () => {
+  const t = useTranslations("navigation.items");
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
@@ -25,7 +27,7 @@ export const SupportButton = () => {
       }}
     >
       <LifeBuoy className="h-4 w-4" />
-      Support
+      {t("support")}
     </SidebarMenuButton>
   );
 };

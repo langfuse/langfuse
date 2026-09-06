@@ -41,6 +41,7 @@ import {
   parseStructuredStatusMessage,
   type ObservationStatusMessage,
 } from "./components/statusMessagePresentation";
+import { useTranslations } from "next-intl";
 
 // A field needing windowing is gated to the lazy byte-engine viewer, so the
 // gate row limit IS the virtualization threshold (single source of truth). The
@@ -144,6 +145,8 @@ function IOPreviewJSONInner({
   onExpansionChange,
   showCorrections = true,
 }: IOPreviewJSONProps) {
+  const t = useTranslations("coreObservability.ioPreview");
+  const tStatus = useTranslations("coreDetails.traces.statusMessage");
   const selectionContext = useInlineCommentSelectionOptional();
 
   const handleAddComment = useCallback(() => {
@@ -165,7 +168,12 @@ function IOPreviewJSONInner({
     [isDark],
   );
   const statusPresentation = status
-    ? getStatusMessagePresentation(status.level)
+    ? getStatusMessagePresentation(status.level, {
+        ERROR: tStatus("error"),
+        WARNING: tStatus("warning"),
+        DEBUG: tStatus("debug"),
+        DEFAULT: tStatus("status"),
+      })
     : null;
 
   // Fall back to raw values when caller does not provide pre-parsed fields
@@ -501,10 +509,16 @@ function IOPreviewJSONInner({
     if (showInput) {
       result.push(
         inputTooLarge
-          ? gatedSection("input", "Input", inputBgColor, inputProbe, inputRows)
+          ? gatedSection(
+              "input",
+              t("input"),
+              inputBgColor,
+              inputProbe,
+              inputRows,
+            )
           : {
               key: "input",
-              title: "Input",
+              title: t("input"),
               data: effectiveInput,
               backgroundColor: inputBgColor,
               minHeight: "200px",
@@ -516,14 +530,14 @@ function IOPreviewJSONInner({
         outputTooLarge
           ? gatedSection(
               "output",
-              "Output",
+              t("output"),
               outputBgColor,
               outputProbe,
               outputRows,
             )
           : {
               key: "output",
-              title: "Output",
+              title: t("output"),
               data: effectiveOutput,
               backgroundColor: outputBgColor,
               minHeight: "200px",
@@ -533,7 +547,7 @@ function IOPreviewJSONInner({
     if (showCorrections) {
       result.push({
         key: "corrections",
-        title: "Output correction",
+        title: t("outputCorrection"),
         data: null,
         hideData: true, // Hide key/value display, only show header/footer
         backgroundColor: outputBgColor,
@@ -565,14 +579,14 @@ function IOPreviewJSONInner({
         metadataTooLarge
           ? gatedSection(
               "metadata",
-              "Metadata",
+              t("metadata"),
               metadataBgColor,
               metadataProbe,
               metadataRows,
             )
           : {
               key: "metadata",
-              title: "Metadata",
+              title: t("metadata"),
               data: effectiveMetadata,
               backgroundColor: metadataBgColor,
               minHeight: "200px",
@@ -608,6 +622,7 @@ function IOPreviewJSONInner({
     projectId,
     traceId,
     environment,
+    t,
   ]);
 
   // Wait for parsing to complete before rendering to avoid flicker
@@ -615,7 +630,9 @@ function IOPreviewJSONInner({
     return (
       <div className="flex min-h-0 flex-1 flex-col border-t border-b">
         <div className="flex h-full items-center justify-center">
-          <div className="text-muted-foreground text-sm">Parsing data...</div>
+          <div className="text-muted-foreground text-sm">
+            {t("parsingData")}
+          </div>
         </div>
       </div>
     );
@@ -660,7 +677,7 @@ function IOPreviewJSONInner({
         <Command className="flex-1 rounded-none border-0 bg-transparent">
           <CommandInput
             showBorder={false}
-            placeholder="Search across all sections..."
+            placeholder={t("searchAllSections")}
             className="h-7 border-0 focus:ring-0"
             value={searchQuery}
             onValueChange={setSearchQuery}
@@ -683,8 +700,11 @@ function IOPreviewJSONInner({
         {searchQuery && (
           <span className="text-muted-foreground text-xs whitespace-nowrap">
             {searchMatchCount > 0
-              ? `${currentMatchIndex + 1} of ${searchMatchCount}`
-              : "No matches"}
+              ? t("matchPosition", {
+                  current: currentMatchIndex + 1,
+                  total: searchMatchCount,
+                })
+              : t("noMatches")}
           </span>
         )}
 
@@ -696,7 +716,7 @@ function IOPreviewJSONInner({
               size="icon"
               className="h-7 w-7"
               onClick={handlePreviousMatch}
-              title="Previous match (Shift+Enter)"
+              title={t("previousMatch")}
             >
               <ChevronUp className="h-3.5 w-3.5" />
             </Button>
@@ -705,7 +725,7 @@ function IOPreviewJSONInner({
               size="icon"
               className="h-7 w-7"
               onClick={handleNextMatch}
-              title="Next match (Enter)"
+              title={t("nextMatch")}
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
@@ -718,7 +738,7 @@ function IOPreviewJSONInner({
           size="icon"
           className="h-7 w-7"
           onClick={handleCycleWrapMode}
-          title={`String wrap mode: ${stringWrapMode}`}
+          title={t("stringWrapMode", { mode: stringWrapMode })}
         >
           {wrapIcon}
         </Button>
@@ -729,7 +749,7 @@ function IOPreviewJSONInner({
           size="icon"
           className="h-7 w-7"
           onClick={handleCopy}
-          title="Copy to clipboard"
+          title={t("copyToClipboard")}
         >
           <Copy className="h-3.5 w-3.5" />
         </Button>
@@ -737,7 +757,7 @@ function IOPreviewJSONInner({
 
       {/* Section navigation hint bar */}
       <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
-        <span className="text-muted-foreground text-xs">Jump to:</span>
+        <span className="text-muted-foreground text-xs">{t("jumpTo")}</span>
         {sections.map((section, index) => (
           <span key={section.key} className="flex items-center">
             <button
@@ -755,18 +775,18 @@ function IOPreviewJSONInner({
           <HoverCard>
             <HoverCardTrigger asChild>
               <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
-                Virtualized
+                {t("virtualized")}
               </span>
             </HoverCardTrigger>
             <HoverCardContent className="w-80" side="bottom" align="end">
               <div className="space-y-2">
-                <p className="text-sm font-bold">Virtualized View</p>
+                <p className="text-sm font-bold">{t("virtualizedView")}</p>
                 <p className="text-muted-foreground text-xs">
-                  This view is using virtualization due to a large number of
-                  keys ({rowCounts.input.toLocaleString()} input,{" "}
-                  {rowCounts.output.toLocaleString()} output,{" "}
-                  {rowCounts.metadata.toLocaleString()} metadata). Only visible
-                  rows are rendered for optimal performance.
+                  {t("virtualizedViewDescription", {
+                    input: rowCounts.input.toLocaleString(),
+                    output: rowCounts.output.toLocaleString(),
+                    metadata: rowCounts.metadata.toLocaleString(),
+                  })}
                 </p>
               </div>
             </HoverCardContent>

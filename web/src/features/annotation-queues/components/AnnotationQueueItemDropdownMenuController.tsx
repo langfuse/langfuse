@@ -11,6 +11,7 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { type ReactNode, useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 
 type AnnotationQueueItemDropdownMenuControllerProps = {
   projectId: string;
@@ -28,6 +29,7 @@ export function AnnotationQueueItemDropdownMenuController({
   objectType,
   children,
 }: AnnotationQueueItemDropdownMenuControllerProps) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();
   const hasAccess = useHasProjectAccess({
@@ -58,11 +60,7 @@ export function AnnotationQueueItemDropdownMenuController({
             objectType,
             queueId,
           });
-        } else if (
-          confirm(
-            `Are you sure you want to remove this item from the queue "${queueName}"?`,
-          )
-        ) {
+        } else if (confirm(t("removeItemConfirm", { name: queueName }))) {
           await removeFromQueueMutation.mutateAsync({
             projectId,
             itemIds: [itemId],
@@ -84,6 +82,7 @@ export function AnnotationQueueItemDropdownMenuController({
       objectType,
       projectId,
       removeFromQueueMutation,
+      t,
       utils.annotationQueues,
     ],
   );
@@ -92,9 +91,7 @@ export function AnnotationQueueItemDropdownMenuController({
   const disabled =
     !hasAccess || isLoading
       ? {
-          reason: !hasAccess
-            ? "You don't have permission to add items to annotation queues."
-            : "Annotation queues are loading.",
+          reason: !hasAccess ? t("noAddItemsPermission") : t("loading"),
         }
       : undefined;
   const totalCount = queues.data?.totalCount ?? 0;

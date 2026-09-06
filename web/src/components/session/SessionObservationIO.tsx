@@ -14,6 +14,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { parseJsonIfString } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -51,6 +52,7 @@ const TruncatedIOSection = ({
   fullLength: number;
   truncated: boolean;
 }) => {
+  const t = useTranslations("coreDetails.sessions.observationIo");
   if (value === null || value === undefined || value === "") return null;
   const text = typeof value === "string" ? value : JSON.stringify(value);
   const shown =
@@ -64,9 +66,13 @@ const TruncatedIOSection = ({
         <span className="font-bold">{label}</span>
         {(truncated || shown.length < text.length) && (
           <span>
-            {compactNumberFormatter(Math.max(fullLength, text.length), 1)}{" "}
-            characters — showing the first{" "}
-            {compactNumberFormatter(shown.length, 1)}
+            {t("charactersShown", {
+              total: compactNumberFormatter(
+                Math.max(fullLength, text.length),
+                1,
+              ),
+              shown: compactNumberFormatter(shown.length, 1),
+            })}
           </span>
         )}
       </div>
@@ -117,6 +123,7 @@ export const SessionObservationIO = ({
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
 }) => {
+  const t = useTranslations("coreDetails.sessions.observationIo");
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [isDownloading, setIsDownloading] = React.useState(false);
@@ -162,10 +169,7 @@ export const SessionObservationIO = ({
         fileName: `observation-${observation.id}.json`,
       });
     } catch {
-      showErrorToast(
-        "Download failed",
-        "Could not fetch the observation's full I/O. Please try again.",
-      );
+      showErrorToast(t("downloadFailed"), t("downloadFailedDescription"));
     } finally {
       setIsDownloading(false);
     }
@@ -205,15 +209,15 @@ export const SessionObservationIO = ({
         {ioPreview}
         {observation.metadataTruncated && (
           <p className="text-muted-foreground text-xs">
-            Some metadata values are too large to show here.{" "}
+            {t("metadataTooLargeBefore")}{" "}
             <button
               type="button"
               onClick={openInTraceView}
               className="text-primary underline underline-offset-2 hover:no-underline"
             >
-              Open in trace view
+              {t("openInTraceView")}
             </button>{" "}
-            for full metadata.
+            {t("metadataTooLargeAfter")}
           </p>
         )}
       </>
@@ -234,18 +238,15 @@ export const SessionObservationIO = ({
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
-      <p className="text-muted-foreground text-xs">
-        This observation&apos;s input/output is too large to display in the
-        session view.
-      </p>
+      <p className="text-muted-foreground text-xs">{t("tooLarge")}</p>
       <TruncatedIOSection
-        label="Input"
+        label={t("input")}
         value={observation.input}
         fullLength={observation.inputLength}
         truncated={observation.inputTruncated}
       />
       <TruncatedIOSection
-        label="Output"
+        label={t("output")}
         value={observation.output}
         fullLength={observation.outputLength}
         truncated={observation.outputTruncated}
@@ -254,7 +255,7 @@ export const SessionObservationIO = ({
           observation and was always shown alongside I/O before the cap. */}
       {hasMetadataForDisplay && (
         <TruncatedIOSection
-          label="Metadata"
+          label={t("metadata")}
           value={metadataForDisplay}
           fullLength={observation.metadataLength}
           truncated={observation.metadataTruncated}
@@ -263,7 +264,7 @@ export const SessionObservationIO = ({
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
           <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />
-          Open in trace view
+          {t("openInTraceView")}
         </Button>
         <Button
           variant="outline"
@@ -276,7 +277,7 @@ export const SessionObservationIO = ({
           ) : (
             <Download className="mr-1 h-3.5 w-3.5" />
           )}
-          Download I/O
+          {t("downloadIo")}
         </Button>
       </div>
     </div>

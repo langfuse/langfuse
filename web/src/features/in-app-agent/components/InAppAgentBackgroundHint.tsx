@@ -1,4 +1,5 @@
 import { BotMessageSquare, Minus } from "lucide-react";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -15,6 +16,7 @@ export function InAppAgentBackgroundHint({
   isExpanded: boolean;
   onMinimize: () => void;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <InAppAgentNotice
       icon={<BotMessageSquare aria-hidden="true" className="size-3 shrink-0" />}
@@ -26,7 +28,7 @@ export function InAppAgentBackgroundHint({
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Minimize assistant"
+          aria-label={t("minimize")}
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
           onClick={onMinimize}
         >
@@ -37,8 +39,7 @@ export function InAppAgentBackgroundHint({
         </Button>
       }
     >
-      I keep running in the background. Feel free to minimize, I&apos;ll notify
-      you when I&apos;m done or need you.
+      {t("backgroundHint")}
     </InAppAgentNotice>
   );
 }

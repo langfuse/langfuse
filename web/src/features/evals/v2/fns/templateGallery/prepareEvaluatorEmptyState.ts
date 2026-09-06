@@ -26,11 +26,18 @@ export type EvaluatorEmptyStateModel = {
   docsHref: string;
 };
 
-export function prepareEvaluatorEmptyState(): EvaluatorEmptyStateModel {
+export type EvaluatorEmptyStateLabels = {
+  detectTopicsTitle: string;
+  detectTopicsDescription: string;
+};
+
+export function prepareEvaluatorEmptyState(
+  labels: EvaluatorEmptyStateLabels,
+): EvaluatorEmptyStateModel {
   return {
     startingPoints: EVALUATOR_EMPTY_STATE_STARTING_POINTS.flatMap((point) => {
       const template = managedEvaluatorTemplateService.get(point.templateKey);
-      return template ? [toStartingPoint(point, template)] : [];
+      return template ? [toStartingPoint(point, template, labels)] : [];
     }),
     templateCount: MANAGED_TEMPLATES_CATALOG.templates.length,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
@@ -40,6 +47,7 @@ export function prepareEvaluatorEmptyState(): EvaluatorEmptyStateModel {
 function toStartingPoint(
   point: (typeof EVALUATOR_EMPTY_STATE_STARTING_POINTS)[number],
   template: NonNullable<ReturnType<typeof managedEvaluatorTemplateService.get>>,
+  labels: EvaluatorEmptyStateLabels,
 ): EvaluatorEmptyStateStartingPoint {
   const galleryTemplate = { source: "managed" as const, ...template };
 
@@ -47,8 +55,8 @@ function toStartingPoint(
     return {
       action: "detect-topics",
       template: galleryTemplate,
-      title: point.title,
-      description: point.description,
+      title: labels.detectTopicsTitle,
+      description: labels.detectTopicsDescription,
     };
   }
 

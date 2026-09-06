@@ -6,6 +6,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { getTracesByIdsForAnyProject } from "@langfuse/shared/src/server";
 import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   if (!context.params) {
@@ -51,18 +52,19 @@ const TraceRedirectPage = ({
   notFound?: boolean;
   duplicatesFound?: boolean;
 }) => {
+  const t = useTranslations("coreDetails.traces.page");
   const router = useRouter();
   if (router.isFallback) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("loading")}</div>;
   }
 
   if (notFound) {
     return (
       <ErrorPage
-        title="Trace not found"
-        message="The trace is either still being processed or has been deleted."
+        title={t("notFound")}
+        message={t("processingOrDeleted")}
         additionalButton={{
-          label: "Retry",
+          label: t("retry"),
           onClick: () => window.location.reload(),
         }}
       />
@@ -70,12 +72,7 @@ const TraceRedirectPage = ({
   }
 
   if (duplicatesFound) {
-    return (
-      <ErrorPage
-        title="Trace not found"
-        message="Please upgrade the SDK as the URL schema has changed."
-      />
-    );
+    return <ErrorPage title={t("notFound")} message={t("upgradeSdk")} />;
   }
 
   return null;

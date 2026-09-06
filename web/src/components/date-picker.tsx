@@ -26,6 +26,7 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
+import { useTranslations } from "next-intl";
 
 export function DatePicker({
   date,
@@ -42,6 +43,8 @@ export function DatePicker({
   disabled?: boolean;
   includeTimePicker?: boolean;
 }) {
+  const t = useTranslations("sharedUi.datePicker");
+
   return (
     <div className="flex flex-row gap-2 align-middle">
       <Popover>
@@ -59,7 +62,7 @@ export function DatePicker({
             {date ? (
               format(date, includeTimePicker ? "PPP pp" : "PPP")
             ) : (
-              <span>Pick a date</span>
+              <span>{t("pickDate")}</span>
             )}
           </Button>
         </PopoverTrigger>
@@ -80,7 +83,7 @@ export function DatePicker({
           variant="ghost"
           size="icon"
           onClick={() => onChange(undefined)}
-          title="reset date"
+          title={t("resetDate")}
         >
           <X size={14} />
         </Button>
@@ -139,6 +142,7 @@ export function DatePickerWithRange({
   setDateRangeAndOption,
   disabled,
 }: DatePickerWithRangeProps) {
+  const t = useTranslations("sharedUi.datePicker");
   const [internalDateRange, setInternalDateRange] = useState<
     RDPDateRange | undefined
   >(dateRange);
@@ -245,7 +249,7 @@ export function DatePickerWithRange({
                 format(internalDateRange.from, "LLL dd, y")
               )
             ) : (
-              <span>Pick a date</span>
+              <span>{t("pickDate")}</span>
             )}
           </Button>
         </PopoverTrigger>
@@ -274,7 +278,8 @@ export function DatePickerWithRange({
             <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
               <div className="px-3">
                 <p className="px-1 text-sm font-bold">
-                  Start<span className="hidden sm:inline"> time</span>
+                  <span className="sm:hidden">{t("start")}</span>
+                  <span className="hidden sm:inline">{t("startTime")}</span>
                 </p>
                 <TimePicker
                   date={internalDateRange?.from}
@@ -284,7 +289,8 @@ export function DatePickerWithRange({
               </div>
               <div className="px-3">
                 <p className="px-1 text-sm font-bold">
-                  End<span className="hidden sm:inline"> time</span>
+                  <span className="sm:hidden">{t("end")}</span>
+                  <span className="hidden sm:inline">{t("endTime")}</span>
                 </p>
                 <TimePicker
                   date={internalDateRange?.to}
@@ -331,6 +337,12 @@ export function TimeRangePicker({
   disabled,
   maxRangeMs,
 }: TimeRangePickerProps) {
+  const t = useTranslations("sharedUi.datePicker");
+  const getLocalizedTimeRangeLabel = (range: string) =>
+    range in TIME_RANGES
+      ? t(`timeRanges.${range as keyof typeof TIME_RANGES}`)
+      : range;
+
   // Determine the range type
   const rangeType: "named" | "custom" | null = timeRange
     ? "from" in timeRange
@@ -503,7 +515,7 @@ export function TimeRangePicker({
     if (rangeType === "custom") {
       const customLabel = dateRange
         ? formatDateRange(dateRange.from, dateRange.to)
-        : "Select from calendar";
+        : t("selectFromCalendar");
       // Compact: drop the icon and truncate, like the named branch — a custom
       // range's long formatted string would otherwise overflow the tight
       // mobile Filters header.
@@ -524,15 +536,15 @@ export function TimeRangePicker({
     } else if (rangeType === "named") {
       // Preset range - show badge with abbreviation and label
       const setting = TIME_RANGES[namedRangeValue as keyof typeof TIME_RANGES];
+      const localizedLabel = namedRangeValue
+        ? getLocalizedTimeRangeLabel(namedRangeValue)
+        : undefined;
       if (compact) {
         // Compact: just the label, truncating. The abbreviation badge is the
         // first thing to drop when the header is tight.
         return (
-          <span
-            className="min-w-0 truncate"
-            title={setting?.label || namedRangeValue || undefined}
-          >
-            {setting?.label || namedRangeValue}
+          <span className="min-w-0 truncate" title={localizedLabel}>
+            {localizedLabel}
           </span>
         );
       }
@@ -541,22 +553,22 @@ export function TimeRangePicker({
           <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
             {setting?.abbreviation || namedRangeValue}
           </span>
-          <span>{setting?.label || namedRangeValue}</span>
+          <span>{localizedLabel}</span>
         </div>
       );
     }
     // No time range selected
     if (compact) {
       return (
-        <span className="min-w-0 truncate" title="Select time range">
-          Select time range
+        <span className="min-w-0 truncate" title={t("selectTimeRange")}>
+          {t("selectTimeRange")}
         </span>
       );
     }
     return (
       <div className="flex items-center gap-2">
         <CalendarIcon className="h-4 w-4" />
-        <span>Select time range</span>
+        <span>{t("selectTimeRange")}</span>
       </div>
     );
   };
@@ -608,7 +620,7 @@ export function TimeRangePicker({
               {internalDateRange?.from && internalDateRange.to && (
                 <div className="flex flex-col gap-3 border-t p-3">
                   <div className="flex flex-col gap-1">
-                    <p className="px-1 text-sm font-bold">Start time</p>
+                    <p className="px-1 text-sm font-bold">{t("startTime")}</p>
                     <TimePicker
                       date={internalDateRange?.from}
                       setDate={onStartTimeSelection}
@@ -616,7 +628,7 @@ export function TimeRangePicker({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <p className="px-1 text-sm font-bold">End time</p>
+                    <p className="px-1 text-sm font-bold">{t("endTime")}</p>
                     <TimePicker
                       date={internalDateRange?.to}
                       setDate={onEndTimeSelection}
@@ -644,7 +656,7 @@ export function TimeRangePicker({
                     <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
                       {setting.abbreviation}
                     </span>
-                    <span>{setting.label}</span>
+                    <span>{getLocalizedTimeRangeLabel(presetKey)}</span>
                   </div>
                 );
               })}
@@ -657,7 +669,7 @@ export function TimeRangePicker({
                 <span className="bg-muted flex h-5 w-10 items-center justify-center rounded px-1.5 text-center text-xs">
                   <CalendarIcon className="h-3 w-3" />
                 </span>
-                <span>Select from calendar</span>
+                <span>{t("selectFromCalendar")}</span>
               </div>
             </div>
           )}

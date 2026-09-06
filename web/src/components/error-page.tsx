@@ -6,14 +6,17 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { reportError } from "@/src/utils/reportError";
 import { stripBasePath } from "@/src/utils/redirect";
+import { useTranslations } from "next-intl";
 
 export const ErrorPage = ({
-  title = "Error",
+  title,
   message,
   additionalButton,
+  signInLabel,
 }: {
   title?: string;
   message: string;
+  signInLabel?: string;
   additionalButton?:
     | {
         label: string;
@@ -24,6 +27,7 @@ export const ErrorPage = ({
         onClick: () => void;
       };
 }) => {
+  const t = useTranslations("sharedUi.common");
   const session = useSession();
   const router = useRouter();
   const newTargetPath = stripBasePath(router.asPath || "/");
@@ -36,14 +40,14 @@ export const ErrorPage = ({
   return (
     <div className="flex h-full flex-col items-center justify-center">
       <AlertCircle className="text-dark-red mb-4 h-12 w-12" />
-      <h1 className="mb-4 text-xl font-bold">{title}</h1>
+      <h1 className="mb-4 text-xl font-bold">{title ?? t("error")}</h1>
       <p className="mb-6 text-center">{message}</p>
       <div className="flex gap-3">
         {session.status === "unauthenticated" ? (
           <Button
             onClick={() => router.push(`/auth/sign-in${targetPathQuery}`)}
           >
-            Sign In
+            {signInLabel ?? t("signIn")}
           </Button>
         ) : null}
         {additionalButton ? (
@@ -63,10 +67,13 @@ export const ErrorPage = ({
 };
 
 export const ErrorPageWithSentry = ({
-  title = "Error",
+  title,
   message,
   additionalButton,
   expected = false,
+  signInLabel,
+  reportingTitle,
+  reportingMessage,
 }: {
   title?: string;
   message: string;
@@ -81,21 +88,36 @@ export const ErrorPageWithSentry = ({
       };
   /** Expected, user-caused outcome: breadcrumb instead of a Sentry error. */
   expected?: boolean;
+  signInLabel?: string;
+  reportingTitle?: string;
+  reportingMessage?: string;
 }) => {
+  const t = useTranslations("sharedUi.common");
+  const resolvedTitle = title ?? t("error");
+  const sentryTitle = reportingTitle ?? title ?? "Error";
+  const sentryMessage = reportingMessage ?? message;
+
   useEffect(() => {
     // Capture the error with Sentry (breadcrumb only when expected)
     if (window !== undefined)
       reportError(
-        new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
-        { area: "error-page", expected, extra: { title, message } },
+        new Error(
+          `ErrorPageWithSentry rendered: ${sentryTitle}, ${sentryMessage}`,
+        ),
+        {
+          area: "error-page",
+          expected,
+          extra: { title: sentryTitle, message: sentryMessage },
+        },
       );
-  }, [title, message, expected]);
+  }, [sentryTitle, sentryMessage, expected]);
 
   return (
     <ErrorPage
-      title={title}
+      title={resolvedTitle}
       message={message}
       additionalButton={additionalButton}
+      signInLabel={signInLabel}
     />
   );
 };

@@ -12,8 +12,11 @@ import { useState } from "react";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 export default function NewWidget() {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   const router = useRouter();
   const { projectId, dashboardId } = router.query as {
     projectId: string;
@@ -34,8 +37,8 @@ export default function NewWidget() {
         filterCount: variables.filters.length,
       });
       showSuccessToast({
-        title: "Widget created successfully",
-        description: "Your widget has been created.",
+        title: t("createdTitle"),
+        description: t("createdDescription"),
       });
 
       if (dashboardId) {
@@ -48,13 +51,13 @@ export default function NewWidget() {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to save widget", error.message);
+      showErrorToast(t("saveFailed"), error.message);
     },
   });
 
   const handleSaveWidget = (widgetData: WidgetSavePayload) => {
     if (!widgetData.name.trim()) {
-      showErrorToast("Error", "Widget name is required");
+      showErrorToast(extrasT("error"), t("nameRequired"));
       return;
     }
 
@@ -82,9 +85,9 @@ export default function NewWidget() {
     <Page
       withPadding
       headerProps={{
-        title: "New Widget",
+        title: t("newTitle"),
         help: {
-          description: "Create a new widget",
+          description: t("newDescription"),
         },
       }}
     >

@@ -31,6 +31,7 @@ import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
+import { useTranslations } from "next-intl";
 
 export default function DatasetItemsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId"]);
@@ -50,6 +51,8 @@ function DatasetItemsView({
   projectId: string;
   datasetId: string;
 }) {
+  const t = useTranslations("coreDetails.datasets.misc");
+  const tPage = useTranslations("coreDetails.datasets.page");
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
@@ -93,6 +96,7 @@ function DatasetItemsView({
   const breadcrumb = getDatasetBreadcrumb(
     projectId,
     datasetId,
+    tPage("datasets"),
     dataset.data?.name,
   );
 
@@ -150,7 +154,7 @@ function DatasetItemsView({
                     <DropdownMenuItemWithSecondaryAction
                       disabled={disabled}
                       icon={disabled === undefined ? Edit : LockIcon}
-                      title="Edit"
+                      title={t("edit")}
                       onClick={openDialog}
                     />
                     <DropdownMenuItem asChild>
@@ -181,7 +185,7 @@ function DatasetItemsView({
               variant="outline"
               size="icon"
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
-              title="Version History"
+              title={t("versionHistory")}
             >
               <History className="h-4 w-4" />
             </Button>
@@ -209,7 +213,7 @@ function DatasetItemsView({
               open: isVersionPanelOpen,
               onOpenChange: handlePanelOpenChange,
             }}
-            mobileTitle="Version History"
+            mobileTitle={t("versionHistory")}
           >
             <SidePanelContent className="h-full">
               <DatasetVersionHistoryPanel

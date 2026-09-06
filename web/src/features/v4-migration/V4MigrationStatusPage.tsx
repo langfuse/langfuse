@@ -19,7 +19,6 @@ import {
   useV4MigrationTitle,
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
-  V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -42,6 +41,7 @@ import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partner
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useTranslations } from "next-intl";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -65,11 +65,18 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
 }
 
 function AffectedCell({ count }: { count: MigrationCountState }) {
+  const t = useTranslations("remainderUi.migrations");
   if (count.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
+    return (
+      <span className="text-foreground-tertiary">{t("common.checking")}</span>
+    );
   }
   if (count.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
+    return (
+      <span className="text-foreground-tertiary">
+        {t("common.unavailable")}
+      </span>
+    );
   }
   if (count.count === 0) {
     return <span className="text-foreground-tertiary">0</span>;
@@ -78,22 +85,30 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
 }
 
 function MigrationActionCell({ state }: { state: MigrationActionState }) {
+  const t = useTranslations("remainderUi.migrations");
   if (state.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
+    return (
+      <span className="text-foreground-tertiary">{t("common.checking")}</span>
+    );
   }
   if (state.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
+    return (
+      <span className="text-foreground-tertiary">
+        {t("common.unavailable")}
+      </span>
+    );
   }
   return state.result === "required" ? (
-    <span>Update required</span>
+    <span>{t("status.updateRequired")}</span>
   ) : state.result === "sdk_usage_inconclusive" ? (
-    <span>Needs review</span>
+    <span>{t("status.needsReview")}</span>
   ) : (
-    <span className="text-foreground-tertiary">Up to date</span>
+    <span className="text-foreground-tertiary">{t("status.upToDate")}</span>
   );
 }
 
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
+  const t = useTranslations("remainderUi.migrations");
   // Forced-v3 projects are managed by their integration partner — link the pill
   // straight to the FAQ instead of showing a migration action state.
   if (readiness === "partner-managed") {
@@ -104,9 +119,9 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
         rel="noopener noreferrer"
         onClick={(event) => event.stopPropagation()}
         className="bg-muted text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap hover:underline"
-        title="Upgrade is handled by your integration partner"
+        title={t("partnerManaged.title")}
       >
-        Integration partner
+        {t("partnerManaged.label")}
       </a>
     );
   }
@@ -115,7 +130,7 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
 
   return (
     <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
-      Action needed
+      {t("status.actionNeeded")}
     </span>
   );
 }
@@ -144,6 +159,7 @@ function SortableHead({
   orderBy: OrderBy;
   onSort: (column: SortKey) => void;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   return (
     <TableHead
       className="group cursor-pointer px-2"
@@ -154,7 +170,7 @@ function SortableHead({
           {label}
         </span>
         {orderBy?.column === column && (
-          <span className="ml-1" title="Sort by this column">
+          <span className="ml-1" title={t("status.sortColumn")}>
             {orderBy.order === "ASC" ? "▲" : "▼"}
           </span>
         )}
@@ -175,6 +191,7 @@ function OrgStatusSection({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const openMigrationPanel = useOpenV4MigrationPanel();
+  const t = useTranslations("remainderUi.migrations");
 
   const openProjectMigration = (
     row: { id: string; name: string },
@@ -311,49 +328,49 @@ function OrgStatusSection({
             <TableHeader>
               <TableRow>
                 <SortableHead
-                  label="Project"
+                  label={t("status.columns.project")}
                   column="name"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Status"
+                  label={t("status.columns.status")}
                   column="status"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="SDK"
+                  label={t("status.columns.sdk")}
                   column="sdk"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Affected Evals"
+                  label={t("status.columns.evals")}
                   column="evals"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Affected Experiments"
+                  label={t("status.columns.experiments")}
                   column="experiments"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Affected APIs"
+                  label={t("status.columns.apis")}
                   column="apis"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Affected Exports"
+                  label={t("status.columns.exports")}
                   column="exports"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Last trace"
+                  label={t("status.columns.lastTrace")}
                   column="lastTrace"
                   orderBy={orderBy}
                   onSort={handleSort}
@@ -394,37 +411,40 @@ function OrgStatusSection({
                     </TableCell>
                     <TableCell density="comfortable">
                       {row.status.sdk.status === "latest" ? (
-                        <span className="text-foreground-tertiary">Latest</span>
+                        <span className="text-foreground-tertiary">
+                          {t("status.sdk.latest")}
+                        </span>
                       ) : row.status.sdk.status === "otel_realtime" ? (
                         <span className="text-foreground-tertiary">
-                          OTel real-time
+                          {t("status.sdk.otelRealTime")}
                         </span>
                       ) : row.status.sdk.status === "no_data" ? (
                         <span className="text-foreground-tertiary">
-                          No data detected
+                          {t("status.sdk.noData")}
                         </span>
                       ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">
-                          Checking…
+                          {t("common.checking")}
                         </span>
                       ) : row.status.sdk.status === "unknown" ? (
                         <span className="text-foreground-tertiary">
-                          Unknown
+                          {t("common.unknown")}
                         </span>
                       ) : row.status.sdk.status === "otel_header_required" ? (
                         <span>
-                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
-                          {row.status.sdk.delayedOtelIngestionCount === 1
-                            ? "required"
-                            : "issues"}
+                          {t("status.sdk.otelHeader", {
+                            count: row.status.sdk.delayedOtelIngestionCount,
+                          })}
                         </span>
                       ) : row.status.sdk.status === "error" ? (
                         <span className="text-foreground-tertiary">
-                          Unavailable
+                          {t("common.unavailable")}
                         </span>
                       ) : (
                         <span>
-                          {row.status.sdk.upgradeRequiredCount} outdated
+                          {t("status.sdk.outdated", {
+                            count: row.status.sdk.upgradeRequiredCount,
+                          })}
                         </span>
                       )}
                     </TableCell>
@@ -449,7 +469,8 @@ function OrgStatusSection({
                     </TableCell>
                     <TableCell density="comfortable">
                       <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-                        Review <ArrowRight className="h-3 w-3 shrink-0" />
+                        {t("common.review")}{" "}
+                        <ArrowRight className="h-3 w-3 shrink-0" />
                       </span>
                     </TableCell>
                   </TableRow>
@@ -478,6 +499,7 @@ function V4MigrationStatusPageContent() {
   const handleCopyPrompt = useCopyMigrationPrompt();
   const hasDeadline = useHasV4MigrationDeadline();
   const title = useV4MigrationTitle();
+  const t = useTranslations("remainderUi.migrations");
 
   const orgs: V4MigrationOrganization[] =
     session.data?.user?.organizations?.map((org) => ({
@@ -506,79 +528,63 @@ function V4MigrationStatusPageContent() {
 
   const faqItems: { q: string; a: ReactNode }[] = [
     {
-      q: "Why is this happening?",
-      a: (
-        <>
-          We rebuilt the tracing and evaluation engine around{" "}
-          <FaqLink href={DATA_MODEL_URL}>observations</FaqLink>. The new engine
-          is real-time and holds up much better at scale.
-        </>
-      ),
+      q: t("status.faq.whyTitle"),
+      a: t.rich("status.faq.whyDescription", {
+        link: (chunks) => <FaqLink href={DATA_MODEL_URL}>{chunks}</FaqLink>,
+      }),
     },
     {
-      q: "What's in it for me?",
-      a: (
-        <>
-          Your{" "}
-          <FaqLink href={OBSERVATIONS_FAQ_URL}>data shows up instantly</FaqLink>
-          , everything loads faster, and you get{" "}
-          <FaqLink href={V4_DOCS_URL}>
-            features we could not build on the old engine
-          </FaqLink>
-          , like full-text search, alerting, and observation-level evals.
-        </>
-      ),
+      q: t("status.faq.benefitsTitle"),
+      a: t.rich("status.faq.benefitsDescription", {
+        instantLink: (chunks) => (
+          <FaqLink href={OBSERVATIONS_FAQ_URL}>{chunks}</FaqLink>
+        ),
+        featuresLink: (chunks) => (
+          <FaqLink href={V4_DOCS_URL}>{chunks}</FaqLink>
+        ),
+      }),
     },
     {
-      q: "Do I have to do this?",
-      a: (
-        <>
-          Yes, eventually. The{" "}
-          <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
-          and APIs are frozen and stop working{" "}
+      q: t("status.faq.requiredTitle"),
+      a: t.rich("status.faq.requiredDescription", {
+        sdkLink: (chunks) => <FaqLink href={SDK_UPGRADE_URL}>{chunks}</FaqLink>,
+        deadline: () => (
           <span className="underline">
             {hasDeadline
-              ? `on ${V4_MIGRATION_DEADLINE}`
-              : "once your administrator disables the legacy mode"}
+              ? t("deadline.onCloudDate")
+              : t("deadline.whenLegacyDisabled")}
           </span>
-          . They keep running until then, but we&apos;re no longer fixing bugs
-          in them.
-        </>
-      ),
+        ),
+      }),
     },
     {
-      q: "How much work is it?",
-      a: (
-        <>
-          Less than you&apos;d think. For most projects it&apos;s{" "}
+      q: t("status.faq.effortTitle"),
+      a: t.rich("status.faq.effortDescription", {
+        prompt: (chunks) => (
           <button
             type="button"
             onClick={handleCopyPrompt}
             className="text-dark-blue hover:underline"
           >
-            one prompt
+            {chunks}
           </button>
-          : the agent updates your SDK and evals, and migrates your API calls,
-          checking with you before it changes anything.
-        </>
-      ),
+        ),
+      }),
     },
     {
-      q: "What if I do nothing?",
-      a: (
-        <>
+      q: t("status.faq.nothingTitle"),
+      a: t.rich("status.faq.nothingDescription", {
+        deadline: () => (
           <span className="underline">
             {hasDeadline
-              ? `On ${V4_MIGRATION_DEADLINE}`
-              : "Once your administrator disables the legacy mode"}
+              ? t("deadline.onCloudDateCapitalized")
+              : t("deadline.whenLegacyDisabledCapitalized")}
           </span>
-          , old SDKs stop sending data, and the{" "}
-          <FaqLink href={API_REFERENCE_URL}>
-            deprecated evals and endpoints
-          </FaqLink>{" "}
-          start returning errors.
-        </>
-      ),
+        ),
+        apiLink: (chunks) => (
+          <FaqLink href={API_REFERENCE_URL}>{chunks}</FaqLink>
+        ),
+      }),
     },
   ];
 
@@ -615,7 +621,7 @@ function V4MigrationStatusPageContent() {
 
   if (isLoading) {
     return (
-      <ContainerPage headerProps={{ title: "Migration status" }}>
+      <ContainerPage headerProps={{ title: t("status.pageTitle") }}>
         <V4MigrationLoadingState />
       </ContainerPage>
     );
@@ -624,7 +630,7 @@ function V4MigrationStatusPageContent() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Migration status",
+        title: t("status.pageTitle"),
       }}
     >
       <div className="flex flex-col gap-6 pt-2 pb-24">
@@ -633,8 +639,8 @@ function V4MigrationStatusPageContent() {
           <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
             <p>
               {actionNeededProjects > 0
-                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to avoid disruption. "
-                : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
+                ? t("status.summaryWithActions")
+                : t("status.summary")}{" "}
               <V4MigrationDocsLink />
             </p>
             {actionNeededProjects > 0 && <V4MigrationDeadlineNote />}
@@ -642,7 +648,7 @@ function V4MigrationStatusPageContent() {
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             {totalProjects === 0 ? (
               <span className="text-muted-foreground text-sm">
-                No active projects
+                {t("status.noActiveProjects")}
               </span>
             ) : (
               <>
@@ -650,10 +656,14 @@ function V4MigrationStatusPageContent() {
                   {actionNeededProjects}
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  of {totalProjects} projects{" "}
-                  {actionNeededProjects === 1 ? "needs" : "need"} action
+                  {t("status.projectsNeedAction", {
+                    actionCount: actionNeededProjects,
+                    total: totalProjects,
+                  })}
                   {unavailableProjects > 0 &&
-                    ` · ${unavailableProjects} could not be checked`}
+                    t("status.unavailableProjects", {
+                      count: unavailableProjects,
+                    })}
                 </span>
               </>
             )}
@@ -672,12 +682,12 @@ function V4MigrationStatusPageContent() {
         {totalProjects > 0 && listedProjects === 0 && (
           <p className="text-muted-foreground flex items-center gap-2.5 text-sm">
             <V4MigrationStatusDot variant="done" />
-            All projects are up to date. Nothing to do here.
+            {t("status.allUpToDate")}
           </p>
         )}
 
         <div className="mt-6">
-          <p className="text-base font-bold">What&apos;s new in v4</p>
+          <p className="text-base font-bold">{t("status.whatsNew")}</p>
           <div className="flex flex-col gap-6 pt-4">
             <div className="divide-y">
               {faqItems.map(({ q, a }) => (
@@ -704,6 +714,7 @@ function V4MigrationStatusPageContent() {
 function SwitchBackSection() {
   const { canToggleV4, isBetaEnabled } = useV4Beta();
   const hasDeadline = useHasV4MigrationDeadline();
+  const t = useTranslations("remainderUi.migrations");
 
   if (!canToggleV4) {
     return null;
@@ -713,17 +724,17 @@ function SwitchBackSection() {
     <div className="mt-6">
       <p className="text-base font-bold">
         {isBetaEnabled
-          ? "Need to switch back to the legacy UI (v3)?"
-          : "Switch back to the latest UI (v4)"}
+          ? t("status.switchBackTitle")
+          : t("status.switchLatestTitle")}
       </p>
       <div className="flex flex-col gap-4 pt-4">
         {isBetaEnabled && (
           <p className="text-muted-foreground text-sm leading-relaxed">
-            The features powering the legacy v3 UI will be sunset{" "}
-            {hasDeadline
-              ? `on ${V4_MIGRATION_DEADLINE}`
-              : "once your administrator disables the legacy mode"}
-            . We strongly recommend switching to the latest UI (v4) before then.
+            {t("status.switchBackDescription", {
+              deadline: hasDeadline
+                ? t("deadline.onCloudDate")
+                : t("deadline.whenLegacyDisabled"),
+            })}
           </p>
         )}
         <V4PreviewToggleRow />

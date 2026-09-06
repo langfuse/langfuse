@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 import {
   Dialog,
   DialogBody,
@@ -18,11 +19,12 @@ export function InAppAgentDisabledDialog({
   onOpenChange: (open: boolean) => void;
   organizationId?: string;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>AI features are disabled</DialogTitle>
+          <DialogTitle>{t("disabledTitle")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <AIFeaturesDisabledNotice
@@ -31,8 +33,7 @@ export function InAppAgentDisabledDialog({
               onOpenChange(false);
             }}
           >
-            The Langfuse Assistant requires AI features to be enabled for this
-            organization.
+            {t("disabledDescription")}
           </AIFeaturesDisabledNotice>
         </DialogBody>
         <DialogFooter>
@@ -44,7 +45,7 @@ export function InAppAgentDisabledDialog({
                 onOpenChange(false);
               }}
             >
-              Close
+              {t("close")}
             </Button>
           </div>
         </DialogFooter>

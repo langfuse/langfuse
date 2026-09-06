@@ -31,6 +31,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/useEnvironmentFilter";
+import { useTranslations } from "next-intl";
 
 type RowData = {
   userId: string;
@@ -43,6 +44,7 @@ type RowData = {
 };
 
 export default function UsersPage() {
+  const t = useTranslations("systemUi.miscUi.users");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled } = useV4Beta();
@@ -82,12 +84,11 @@ export default function UsersPage() {
   return (
     <Page
       headerProps={{
-        title: "Users",
+        title: t("title"),
         help: {
           description: (
             <>
-              Attribute data in Langfuse to a user by adding a userId to your
-              traces. See{" "}
+              {t("descriptionBefore")}{" "}
               <a
                 href="https://langfuse.com/docs/observability/features/users"
                 target="_blank"
@@ -95,9 +96,9 @@ export default function UsersPage() {
                 className="decoration-primary/30 hover:decoration-primary underline"
                 onClick={(e) => e.stopPropagation()}
               >
-                docs
+                {t("docs")}
               </a>{" "}
-              to learn more.
+              {t("descriptionAfter")}
             </>
           ),
           href: "https://langfuse.com/docs/observability/features/users",
@@ -122,6 +123,7 @@ const UsersTable = ({
   isBetaEnabled: boolean;
   showControlsInPageHeader?: boolean;
 }) => {
+  const t = useTranslations("systemUi.miscUi.users");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -293,10 +295,9 @@ const UsersTable = ({
     createLinkTableColumn<RowData>({
       accessorKey: "userId",
       enableColumnFilter: true,
-      header: "User ID",
+      header: t("userId"),
       headerTooltip: {
-        description:
-          "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
+        description: t("userIdDescription"),
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
@@ -314,15 +315,15 @@ const UsersTable = ({
     }),
     createBadgeTableColumn<RowData>({
       accessorKey: "environment",
-      header: "Environment",
+      header: t("environment"),
       size: 150,
       enableHiding: true,
     }),
     createTextTableColumn<RowData>({
       accessorKey: "firstEvent",
-      header: "First Event",
+      header: t("firstEvent"),
       headerTooltip: {
-        description: "The earliest trace recorded for this user.",
+        description: t("firstEventDescription"),
       },
       size: 150,
       mapValue: (value) =>
@@ -330,9 +331,9 @@ const UsersTable = ({
     }),
     createTextTableColumn<RowData>({
       accessorKey: "lastEvent",
-      header: "Last Event",
+      header: t("lastEvent"),
       headerTooltip: {
-        description: "The latest trace recorded for this user.",
+        description: t("lastEventDescription"),
       },
       size: 150,
       mapValue: (value) =>
@@ -340,10 +341,9 @@ const UsersTable = ({
     }),
     createTextTableColumn<RowData>({
       accessorKey: "totalEvents",
-      header: "Total Events",
+      header: t("totalEvents"),
       headerTooltip: {
-        description:
-          "Total number of events for the user, includes traces and observations. See data model for more details.",
+        description: t("totalEventsDescription"),
         href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
@@ -352,10 +352,9 @@ const UsersTable = ({
     }),
     createTextTableColumn<RowData>({
       accessorKey: "totalTokens",
-      header: "Total Tokens",
+      header: t("totalTokens"),
       headerTooltip: {
-        description:
-          "Total number of tokens used for the user across all generations.",
+        description: t("totalTokensDescription"),
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -364,9 +363,9 @@ const UsersTable = ({
     }),
     createTextTableColumn<RowData>({
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: t("totalCost"),
       headerTooltip: {
-        description: "Total cost for the user across all generations.",
+        description: t("totalCostDescription"),
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -392,7 +391,7 @@ const UsersTable = ({
         timeRange={showControlsInPageHeader ? undefined : timeRange}
         setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
         searchConfig={{
-          metadataSearchFields: ["User ID"],
+          metadataSearchFields: [t("userId")],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: false,

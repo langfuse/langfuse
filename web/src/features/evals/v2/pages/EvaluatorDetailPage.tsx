@@ -1,10 +1,12 @@
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { api } from "@/src/utils/api";
 import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
 export default function EvaluatorDetailPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
@@ -17,7 +19,7 @@ export default function EvaluatorDetailPage() {
     return <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />;
   }
   if (!evaluator.data?.versions[0]) {
-    return <div className="p-6">Evaluator not found</div>;
+    return <div className="p-6">{t("evaluator.notFound")}</div>;
   }
 
   const latest = evaluator.data.versions[0];

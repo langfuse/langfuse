@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
 import { stringifyDatasetItemData } from "../utils/datasetItemUtils";
+import { useTranslations } from "next-intl";
 
 type DatasetItemDiffViewProps = {
   selectedVersion: DatasetItemDomain;
@@ -17,6 +18,12 @@ export const DatasetItemDiffView = ({
   selectedVersion,
   latestVersion,
 }: DatasetItemDiffViewProps) => {
+  const t = useTranslations("coreDetails.datasets.diff");
+  const tMisc = useTranslations("coreDetails.datasets.misc");
+  const serializationError = {
+    title: tMisc("stringifyFailed"),
+    description: tMisc("stringifyFailedDescription"),
+  };
   return (
     <div className="space-y-4">
       <Accordion
@@ -25,39 +32,55 @@ export const DatasetItemDiffView = ({
         className="w-full"
       >
         <AccordionItem value="input">
-          <AccordionTrigger>Input</AccordionTrigger>
+          <AccordionTrigger>{t("input")}</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
-              oldString={stringifyDatasetItemData(selectedVersion.input)}
-              newString={stringifyDatasetItemData(latestVersion.input)}
-              oldLabel="Selected Version"
-              newLabel="Latest Version"
+              oldString={stringifyDatasetItemData(
+                selectedVersion.input,
+                serializationError,
+              )}
+              newString={stringifyDatasetItemData(
+                latestVersion.input,
+                serializationError,
+              )}
+              oldLabel={t("selectedVersion")}
+              newLabel={t("latestVersion")}
             />
           </AccordionContent>
         </AccordionItem>
 
         <AccordionItem value="output">
-          <AccordionTrigger>Expected Output</AccordionTrigger>
+          <AccordionTrigger>{t("expectedOutput")}</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
               oldString={stringifyDatasetItemData(
                 selectedVersion.expectedOutput,
+                serializationError,
               )}
-              newString={stringifyDatasetItemData(latestVersion.expectedOutput)}
-              oldLabel="Selected Version"
-              newLabel="Latest Version"
+              newString={stringifyDatasetItemData(
+                latestVersion.expectedOutput,
+                serializationError,
+              )}
+              oldLabel={t("selectedVersion")}
+              newLabel={t("latestVersion")}
             />
           </AccordionContent>
         </AccordionItem>
 
         <AccordionItem value="metadata">
-          <AccordionTrigger>Metadata</AccordionTrigger>
+          <AccordionTrigger>{t("metadata")}</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
-              oldString={stringifyDatasetItemData(selectedVersion.metadata)}
-              newString={stringifyDatasetItemData(latestVersion.metadata)}
-              oldLabel="Selected Version"
-              newLabel="Latest Version"
+              oldString={stringifyDatasetItemData(
+                selectedVersion.metadata,
+                serializationError,
+              )}
+              newString={stringifyDatasetItemData(
+                latestVersion.metadata,
+                serializationError,
+              )}
+              oldLabel={t("selectedVersion")}
+              newLabel={t("latestVersion")}
             />
           </AccordionContent>
         </AccordionItem>

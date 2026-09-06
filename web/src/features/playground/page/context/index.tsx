@@ -51,6 +51,7 @@ import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/Mess
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
+import { useTranslations } from "next-intl";
 
 type PlaygroundContextType = {
   windowId: string;
@@ -109,6 +110,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
   windowId,
 }) => {
+  const t = useTranslations("coreDetails.playground.errors");
   const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
@@ -359,10 +361,15 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           promptVariables,
           messages,
           messagePlaceholders,
+          {
+            missingVariables: (names) => t("missingVariables", { names }),
+            missingMessagePlaceholders: (names) =>
+              t("missingMessagePlaceholders", { names }),
+          },
         );
 
         if (finalMessages.length === 0) {
-          throw new Error("Please add at least one message with content.");
+          throw new Error(t("messageRequired"));
         }
 
         const leftOverVariables = extractVariables(
@@ -372,17 +379,15 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         );
 
         if (!modelParams.provider.value || !modelParams.model.value) {
-          throw new Error("Please select a model");
+          throw new Error(t("selectModel"));
         }
 
         if (leftOverVariables.length > 0) {
-          throw Error("Error replacing variables. Please check your inputs.");
+          throw Error(t("replaceVariables"));
         }
 
         if (tools.length > 0 && structuredOutputSchema) {
-          throw new Error(
-            "Cannot use both tools and structured output at the same time",
-          );
+          throw new Error(t("toolsAndSchemaConflict"));
         }
 
         let response = "";
@@ -469,9 +474,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           isStructuredOutput: Boolean(structuredOutputSchema),
         });
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "An error occurred";
-        showErrorToast("Error", errorMessage);
+        const errorMessage = err instanceof Error ? err.message : t("generic");
+        showErrorToast(t("title"), errorMessage);
       } finally {
         setIsStreaming(false);
       }
@@ -486,6 +490,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       setPlaygroundCache,
       structuredOutputSchema,
       projectId,
+      t,
     ],
   );
 
@@ -954,13 +959,15 @@ function getFinalMessages(
   promptVariables: PromptVariable[],
   messages: ChatMessageWithId[],
   messagePlaceholders: PlaceholderMessageFillIn[],
+  errors: {
+    missingVariables: (names: string) => string;
+    missingMessagePlaceholders: (names: string) => string;
+  },
 ): ChatMessageWithIdNoPlaceholders[] {
   const missingVariables = promptVariables.filter((v) => !v.value && v.isUsed);
   if (missingVariables.length > 0) {
     throw new Error(
-      `Please set a value for the following variables: ${missingVariables
-        .map((v) => v.name)
-        .join(", ")}`,
+      errors.missingVariables(missingVariables.map((v) => v.name).join(", ")),
     );
   }
 
@@ -969,9 +976,9 @@ function getFinalMessages(
   );
   if (missingPlaceholders.length > 0) {
     throw new Error(
-      `Please set values for the following message placeholders: ${missingPlaceholders
-        .map((p) => p.name)
-        .join(", ")}`,
+      errors.missingMessagePlaceholders(
+        missingPlaceholders.map((p) => p.name).join(", "),
+      ),
     );
   }
 

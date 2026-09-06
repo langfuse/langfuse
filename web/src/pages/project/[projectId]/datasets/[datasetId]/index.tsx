@@ -1,4 +1,5 @@
 import { type GetServerSideProps } from "next";
+import { useTranslations } from "next-intl";
 
 // Keep the bare dataset URL as an alias only; tab content lives on explicit routes.
 export const getServerSideProps: GetServerSideProps = async (context) => {
@@ -20,5 +21,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 };
 
 export default function RedirectPage() {
-  return <div>Redirecting...</div>;
+  const t = useTranslations("coreDetails.datasets.page");
+  return <div>{t("redirecting")}</div>;
 }

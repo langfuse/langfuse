@@ -5,6 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
+import { useTranslations } from "next-intl";
 
 type ArchiveScoreConfigPopoverControllerProps = {
   children: (
@@ -26,6 +27,7 @@ export const ArchiveScoreConfigPopoverController = ({
   isArchived,
   name,
 }: ArchiveScoreConfigPopoverControllerProps) => {
+  const t = useTranslations("systemUi.scoreConfigs");
   const capture = usePostHogClientCapture();
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyScoreConfigs();
@@ -40,9 +42,7 @@ export const ArchiveScoreConfigPopoverController = ({
     onSuccess: () => utils.scoreConfigs.invalidate(),
   });
 
-  const disabled = hasAccess
-    ? undefined
-    : { reason: "You don't have permission to archive this score config." };
+  const disabled = hasAccess ? undefined : { reason: t("noArchivePermission") };
 
   return (
     <PopoverController
@@ -58,13 +58,12 @@ export const ArchiveScoreConfigPopoverController = ({
       renderContent={() => (
         <>
           <h2 className="mb-3 font-bold">
-            {isArchived ? "Restore config" : "Archive config"}
+            {isArchived ? t("restoreTitle") : t("archiveTitle")}
           </h2>
           <p className="mb-3 text-sm">
-            Your config is currently{" "}
             {isArchived
-              ? `archived. Restore if you want to use "${name}" in annotation again.`
-              : `active. Archive if you no longer want to use "${name}" in annotation. Historic "${name}" scores will still be shown and can be deleted. You can restore your config at any point.`}
+              ? t("archivedDescription", { name })
+              : t("activeDescription", { name })}
           </p>
           <div className="flex justify-end space-x-4">
             <Button
@@ -83,7 +82,7 @@ export const ArchiveScoreConfigPopoverController = ({
                 capture("score_configs:archive_form_submit");
               }}
             >
-              Confirm
+              {t("confirm")}
             </Button>
           </div>
         </>

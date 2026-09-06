@@ -16,6 +16,7 @@ import {
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 const JobExecutionCounts = ({
   isLoading,
@@ -33,6 +34,7 @@ const JobExecutionCounts = ({
 };
 
 export const EvaluatorDetail = () => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
@@ -76,11 +78,11 @@ export const EvaluatorDetail = () => {
     allTemplates.isLoading ||
     !allTemplates.data
   ) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("detail.loading")}</div>;
   }
 
   if (evaluator.data && evaluator.data.evalTemplate === null) {
-    return <div>Evaluator not found</div>;
+    return <div>{t("detail.evaluatorNotFound")}</div>;
   }
 
   const existingEvaluator =
@@ -101,11 +103,11 @@ export const EvaluatorDetail = () => {
       headerProps={{
         title: evaluator.data
           ? `${evaluator.data.scoreName}: ${evaluator.data.id}`
-          : "Loading...",
+          : t("detail.loading"),
         itemType: "EVALUATOR",
         breadcrumb: [
           {
-            name: "LLM-as-a-Judge Evaluators",
+            name: t("detail.llmAsJudgeEvaluators"),
             href: `/project/${router.query.projectId as string}/evals/legacy`,
           },
         ],
@@ -142,11 +144,9 @@ export const EvaluatorDetail = () => {
             <div className="mx-3 mt-3">
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Unsupported filters</AlertTitle>
+                <AlertTitle>{t("detail.unsupportedFilters")}</AlertTitle>
                 <AlertDescription>
-                  This evaluator contains deprecated or unsupported filters. The
-                  filters must be removed. Until the filters are removed, the
-                  evaluator is paused and will not be run.{" "}
+                  {t("detail.unsupportedFiltersDescription")}
                 </AlertDescription>
               </Alert>
             </div>

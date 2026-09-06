@@ -2,6 +2,7 @@ import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-uti
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEvalTargetCount } from "@/src/features/evals/hooks/useEvalTargetCount";
+import { useTranslations } from "next-intl";
 
 type ExecutionCountTooltipProps = {
   projectId: string;
@@ -14,6 +15,7 @@ export const ExecutionCountTooltip = ({
   item,
   filter,
 }: ExecutionCountTooltipProps) => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const globalConfig = api.evals.globalJobConfigs.useQuery({
     projectId,
   });
@@ -24,6 +26,13 @@ export const ExecutionCountTooltip = ({
     filter,
     enabled: true,
   });
+  const displayCount = isLoading
+    ? ""
+    : compactNumberFormatter(
+        !globalConfig.data || (totalCount && totalCount < globalConfig.data)
+          ? totalCount
+          : globalConfig.data,
+      );
 
   return (
     <>
@@ -32,13 +41,14 @@ export const ExecutionCountTooltip = ({
         {isLoading ? (
           <span className="inline-block font-mono">...</span>
         ) : (
-          compactNumberFormatter(
-            !globalConfig.data || (totalCount && totalCount < globalConfig.data)
-              ? totalCount
-              : globalConfig.data,
+          t(
+            isTraceTarget
+              ? "executionCount.traces"
+              : "executionCount.datasetRunItems",
+            { count: displayCount },
           )
         )}
-        {isTraceTarget ? " traces" : " dataset run items"})
+        )
       </span>
     </>
   );

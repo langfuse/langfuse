@@ -5,6 +5,7 @@ import { InfoIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 export interface ValueProposition {
   title: string;
@@ -88,6 +89,7 @@ export function SplashScreen({
   children,
   videoPosition = "top",
 }: SplashScreenProps) {
+  const t = useSharedUiTranslations("misc");
   const mediaBlock = (
     <>
       {videoSrc && <VideoPlayer videoSrc={videoSrc} />}
@@ -148,7 +150,7 @@ export function SplashScreen({
       {gettingStarted && (
         <Alert className="w-full max-w-3xl">
           <InfoIcon className="mr-2 h-4 w-4" />
-          <AlertTitle>Getting Started</AlertTitle>
+          <AlertTitle>{t("gettingStarted")}</AlertTitle>
           <AlertDescription>{gettingStarted}</AlertDescription>
         </Alert>
       )}

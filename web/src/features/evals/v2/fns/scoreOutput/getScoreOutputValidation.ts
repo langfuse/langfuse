@@ -11,7 +11,20 @@ import type { ScoreOutputSelectorState } from "@/src/features/evals/v2/scoreOutp
 
 const EMPTY_CATEGORY_NAME_MESSAGE = "Category names cannot be empty.";
 
-export function getScoreOutputValidation(state: ScoreOutputSelectorState) {
+export type ScoreOutputValidationMessages = {
+  emptyCategoryName: string;
+  duplicateCategoryNames: string;
+  minimumCategories: string;
+};
+
+export function getScoreOutputValidation(
+  state: ScoreOutputSelectorState,
+  messages: ScoreOutputValidationMessages = {
+    emptyCategoryName: EMPTY_CATEGORY_NAME_MESSAGE,
+    duplicateCategoryNames: DUPLICATE_CATEGORY_NAMES_MESSAGE,
+    minimumCategories: `${getMinimumCategoricalCategoriesMessage()}.`,
+  },
+) {
   if (state.dataType !== ScoreDataTypeEnum.CATEGORICAL) {
     return { categoryWarnings: [], reason: null };
   }
@@ -23,9 +36,9 @@ export function getScoreOutputValidation(state: ScoreOutputSelectorState) {
   );
   const categoryWarnings = state.choices.map(({ label }, index) =>
     !label.trim()
-      ? EMPTY_CATEGORY_NAME_MESSAGE
+      ? messages.emptyCategoryName
       : duplicateIndexes.has(index)
-        ? DUPLICATE_CATEGORY_NAMES_MESSAGE
+        ? messages.duplicateCategoryNames
         : null,
   );
 
@@ -33,8 +46,6 @@ export function getScoreOutputValidation(state: ScoreOutputSelectorState) {
     categoryWarnings,
     reason:
       categoryWarnings.find((warning) => warning !== null) ??
-      (state.choices.length < 2
-        ? `${getMinimumCategoricalCategoriesMessage()}.`
-        : null),
+      (state.choices.length < 2 ? messages.minimumCategories : null),
   };
 }

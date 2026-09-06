@@ -6,6 +6,7 @@ export type ApiMigrationGuidance = {
   replacement: string;
   minimumVersion?: string;
   requiresUpgrade?: boolean;
+  usesGenericFallback?: boolean;
 };
 
 type SdkMethods = Record<
@@ -237,12 +238,18 @@ export const getApiMigrationGuidance = (
   sdkVersion?: string,
 ): ApiMigrationGuidance => {
   const endpointGuidance = guidanceByEndpoint[endpoint];
+  const usesGenericFallback =
+    !endpointGuidance?.replacement && !genericReplacements[endpoint];
   const replacement =
     endpointGuidance?.replacement ??
     genericReplacements[endpoint] ??
     "the replacement API in the migration guide";
   const methods = sdkName ? endpointGuidance?.methods?.[sdkName] : undefined;
-  if (!methods) return { replacement };
+  if (!methods)
+    return {
+      replacement,
+      ...(usesGenericFallback ? { usesGenericFallback: true } : {}),
+    };
 
   return {
     currentMethod: methods.current,
@@ -252,6 +259,7 @@ export const getApiMigrationGuidance = (
     requiresUpgrade: methods.minimumVersion
       ? !sdkVersion || isVersionBefore(sdkVersion, methods.minimumVersion)
       : false,
+    ...(usesGenericFallback ? { usesGenericFallback: true } : {}),
   };
 };
 

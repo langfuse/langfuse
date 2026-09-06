@@ -21,6 +21,7 @@ import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
+import { useTranslations } from "next-intl";
 
 interface AutomationDetailsProps {
   projectId: string;
@@ -37,6 +38,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const t = useTranslations("remainderUi.automations");
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useQueryParam(
     "tab",
@@ -75,15 +77,13 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   };
 
   if (isLoading) {
-    return (
-      <div className="py-4 text-center">Loading automation details...</div>
-    );
+    return <div className="py-4 text-center">{t("loadingDetails")}</div>;
   }
 
   if (!automation) {
     return (
       <div className="text-muted-foreground py-4 text-center">
-        Automation not found.
+        {t("notFound")}
       </div>
     );
   }
@@ -123,7 +123,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleEdit}>
                   <Edit className="mr-2 h-4 w-4" />
-                  Edit
+                  {t("edit")}
                 </Button>
                 <DeleteAutomationDialogController
                   projectId={projectId}
@@ -138,7 +138,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                       disabled={disabled !== undefined}
                       onClick={openDialog}
                     >
-                      <span className="text-dark-red">Delete</span>
+                      <span className="text-dark-red">{t("delete")}</span>
                     </Button>
                   )}
                 </DeleteAutomationDialogController>
@@ -165,10 +165,10 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             >
               <TabsBarList>
                 <TabsBarTrigger value="executions">
-                  Execution History
+                  {t("executionHistory")}
                 </TabsBarTrigger>
                 <TabsBarTrigger value="configuration">
-                  Configuration
+                  {t("configuration")}
                 </TabsBarTrigger>
               </TabsBarList>
 

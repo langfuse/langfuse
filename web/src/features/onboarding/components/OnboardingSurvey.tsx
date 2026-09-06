@@ -14,6 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import type { SurveyFormData } from "../lib/surveyTypes";
+import { useTranslations } from "next-intl";
 
 type OnboardingSurveyProps =
   | { state: "completing" }
@@ -25,6 +26,7 @@ type OnboardingSurveyProps =
     };
 
 export function OnboardingSurvey(props: OnboardingSurveyProps) {
+  const t = useTranslations("systemUi.onboardingSurvey");
   const form = useForm<SurveyFormData>({
     defaultValues: {
       referralSource: undefined,
@@ -41,9 +43,9 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
       <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
         <div className="flex flex-col items-center text-center">
           <Spinner size="xl" variant="muted" />
-          <h1 className="mt-6 text-xl font-bold">Setting up your project</h1>
+          <h1 className="mt-6 text-xl font-bold">{t("settingUp")}</h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Taking you to tracing...
+            {t("takingToTracing")}
           </p>
         </div>
       </div>
@@ -63,10 +65,8 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
 
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-xl font-bold">Failed to load onboarding</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Refresh the page to try again.
-            </p>
+            <h1 className="text-xl font-bold">{t("loadFailed")}</h1>
+            <p className="text-muted-foreground mt-2 text-sm">{t("refresh")}</p>
           </div>
         </div>
       </div>
@@ -95,13 +95,13 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
                     <FormLabel className="text-xl font-bold">
-                      Where did you hear about us?
+                      {t("referralQuestion")}
                     </FormLabel>
                     <FormControl>
                       <Input
                         autoFocus
                         maxLength={500}
-                        placeholder="Colleague, Word of Mouth, X, Reddit, Event"
+                        placeholder={t("referralPlaceholder")}
                         {...field}
                         value={field.value ?? ""}
                       />
@@ -114,11 +114,10 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                 <div className="mt-6 border-t pt-6">
                   <div className="flex flex-col gap-1">
                     <h2 className="text-xl font-bold">
-                      Organizational settings
+                      {t("organizationSettings")}
                     </h2>
                     <p className="text-muted-foreground text-sm">
-                      This setting applies to all users in your organization.
-                      You can change it later in organization settings.
+                      {t("organizationSettingsDescription")}
                     </p>
                   </div>
                   <FormField
@@ -127,18 +126,16 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                     render={({ field }) => (
                       <FormItem className="mt-3 flex flex-row items-start justify-between gap-4 rounded-md border p-3">
                         <div className="flex flex-col gap-1">
-                          <FormLabel>Enable AI powered features</FormLabel>
+                          <FormLabel>{t("enableAi")}</FormLabel>
                           <p className="text-muted-foreground text-sm">
-                            Relevant project data can be sent to AWS Bedrock
-                            within your Langfuse data region. Your data will not
-                            be used for training models.{" "}
+                            {t("aiDescription")}{" "}
                             <a
                               href="https://langfuse.com/security/ai-features"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-primary inline-flex items-center gap-1 hover:underline"
                             >
-                              Learn more
+                              {t("learnMore")}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </p>
@@ -147,7 +144,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
-                            aria-label="Enable AI powered features"
+                            aria-label={t("enableAi")}
                           />
                         </FormControl>
                       </FormItem>
@@ -159,7 +156,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
 
             <div className="flex justify-end pt-6">
               <Button type="submit" variant="default" className="w-20">
-                Next
+                {t("next")}
               </Button>
             </div>
           </form>

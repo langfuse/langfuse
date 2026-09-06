@@ -15,6 +15,7 @@
 // the draft string.
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, WandSparkles, X } from "lucide-react";
 
@@ -33,6 +34,7 @@ import { explainSegment } from "@/src/features/search-bar/lib/explain";
 import {
   EVENTS_FIELD_REGISTRY,
   type FieldRegistry,
+  withLocalizedFieldCopy,
 } from "@/src/features/search-bar/lib/fields";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
@@ -60,6 +62,11 @@ import {
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
 import {
+  localizeDiagnostic,
+  localizeTokenExplanation,
+  type SearchBarTranslator,
+} from "@/src/features/search-bar/lib/localization";
+import {
   COMPOSER_SURFACE_CLASSES,
   COMPOSER_TEXT_CLASSES,
 } from "@/src/features/search-bar/components/composer-chrome";
@@ -72,9 +79,6 @@ const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 // Shared by the visible tooltip and its screen-reader description, so a
 // deactivated token reads the same either way.
-const notAppliedNote = (reason: string) =>
-  `Not applied on this view: ${reason}`;
-
 // Stable empty recents reference so the plan memo doesn't churn when recents
 // are intentionally suppressed (popover closed, or a non-empty draft — recents
 // show only on an empty bar; see the recents memo).
@@ -337,6 +341,39 @@ export function SearchComposer({
   freeTextReason?: string | null;
   registry?: FieldRegistry;
 }) {
+  const t = useTranslations("sharedUi.searchBar");
+  const translate = React.useCallback<SearchBarTranslator>(
+    (key, values) => t(key as never, values as never),
+    [t],
+  );
+  const displayRegistry = React.useMemo(
+    () =>
+      withLocalizedFieldCopy(registry, (field) => {
+        const key = `fields.${field.id}`;
+        const label = t.has(`${key}.label` as never)
+          ? t(`${key}.label` as never)
+          : field.label;
+        const description = t.has(`${key}.description` as never)
+          ? t(`${key}.description` as never)
+          : field.description;
+        const override = `fieldOverrides.${registry.id}.${field.id}`;
+        return {
+          label: t.has(`${override}.label` as never)
+            ? t(`${override}.label` as never)
+            : label,
+          description: t.has(`${override}.description` as never)
+            ? t(`${override}.description` as never)
+            : description,
+          negatedLabel:
+            field.negatedLabel === undefined
+              ? undefined
+              : t.has(`${key}.negatedLabel` as never)
+                ? t(`${key}.negatedLabel` as never)
+                : field.negatedLabel,
+        };
+      }),
+    [registry, t],
+  );
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
   const { draft, valid, diagnostics, invalidRevealDraft } = useSearchBarStore(
@@ -402,7 +439,7 @@ export function SearchComposer({
             presetSections,
             currentQueryText: draft,
           },
-          registry,
+          displayRegistry,
         )
       : null;
   const plan = unrestrictedPlan;
@@ -432,7 +469,9 @@ export function SearchComposer({
   // a revealed failed commit.
   const showGlobalDiagnostics = !valid && invalidRevealDraft === draft;
   const showTokenDiagnostics = showGlobalDiagnostics;
-  const visibleDiagnostics = showGlobalDiagnostics ? diagnostics : [];
+  const visibleDiagnostics = showGlobalDiagnostics
+    ? diagnostics.map((diagnostic) => localizeDiagnostic(diagnostic, translate))
+    : [];
 
   const planRef = useLatest(plan);
   const highlightedRef = useLatest(highlightedId);
@@ -1201,8 +1240,27 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
-  const placeholder = composerPlaceholder(registry);
-  const segments = deriveComposerSegments(draft, scoreTypes, registry);
+  const placeholder = composerPlaceholder(displayRegistry, translate);
+  const segments = deriveComposerSegments(
+    draft,
+    scoreTypes,
+    displayRegistry,
+  ).map((segment) =>
+    segment.kind === "invalid"
+      ? {
+          ...segment,
+          message: localizeDiagnostic(
+            {
+              from: segment.from,
+              to: segment.to,
+              severity: "error",
+              message: segment.message,
+            },
+            translate,
+          ).message,
+        }
+      : segment,
+  );
   // The token holding a collapsed caret — the keyboard counterpart to hover.
   // Not at the trailing insertion point, where the user is appending, not
   // editing. Every segment kind qualifies: an operator explains itself on the
@@ -1240,8 +1298,11 @@ export function SearchComposer({
           ? caretSegment
           : null;
   const explainTargetId = explainTarget?.id ?? null;
-  const explanation =
-    explainTarget === null ? null : explainSegment(explainTarget, registry);
+  const explanation = (() => {
+    if (explainTarget === null) return null;
+    const result = explainSegment(explainTarget, displayRegistry);
+    return result === null ? null : localizeTokenExplanation(result, translate);
+  })();
   const explainDeactivatedReason =
     explainTarget === null
       ? null
@@ -1250,7 +1311,14 @@ export function SearchComposer({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null ? null : explainSegment(caretSegment, registry);
+    caretSegment === null
+      ? null
+      : (() => {
+          const result = explainSegment(caretSegment, displayRegistry);
+          return result === null
+            ? null
+            : localizeTokenExplanation(result, translate);
+        })();
   const caretDeactivatedReason =
     caretSegment === null
       ? null
@@ -1262,7 +1330,7 @@ export function SearchComposer({
           `${caretExplanation.subject} ${caretExplanation.predicate}`.trim(),
           caretDeactivatedReason === null
             ? null
-            : notAppliedNote(caretDeactivatedReason),
+            : t("notApplied", { reason: caretDeactivatedReason }),
         ]
           .filter((part) => part !== null)
           .join(" ");
@@ -1406,7 +1474,7 @@ export function SearchComposer({
         <div
           ref={rootRef}
           role="combobox"
-          aria-label="Search"
+          aria-label={t("search")}
           aria-expanded={plan !== null}
           aria-controls={plan !== null ? LISTBOX_ID : undefined}
           aria-autocomplete="list"
@@ -1477,11 +1545,11 @@ export function SearchComposer({
           <button
             type="button"
             data-testid="search-bar-ask-ai"
-            aria-label="Ask AI to build or refine filters"
+            aria-label={t("askAiAria")}
             title={
               draft.trim().length === 0
-                ? "Describe filters in natural language"
-                : "Refine these filters with AI"
+                ? t("describeNaturalLanguage")
+                : t("refineWithAi")
             }
             onMouseDown={(event) => event.preventDefault()}
             onClick={(event) => {
@@ -1498,7 +1566,7 @@ export function SearchComposer({
             )}
           >
             <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Ask AI</span>
+            <span>{t("askAi")}</span>
           </button>
         )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
@@ -1519,7 +1587,7 @@ export function SearchComposer({
           <span
             className="text-destructive"
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
-            aria-label="invalid query"
+            aria-label={t("invalidQuery")}
           >
             <AlertCircle className="h-4 w-4" />
           </span>
@@ -1595,7 +1663,7 @@ export function SearchComposer({
                   )}
                   {explainDeactivatedReason !== null && (
                     <span className="text-muted-foreground block pt-0.5">
-                      {notAppliedNote(explainDeactivatedReason)}
+                      {t("notApplied", { reason: explainDeactivatedReason })}
                     </span>
                   )}
                 </>
@@ -1622,12 +1690,13 @@ function RemoveTokenButton({
   position: { left: number; top: number };
   onRemove: (segment: ComposerSegment) => void;
 }) {
+  const t = useTranslations("sharedUi.searchBar");
   return (
     <button
       type="button"
       data-overlay-remove
-      aria-label={`Remove ${segment.raw}`}
-      title={`Remove ${segment.raw}`}
+      aria-label={t("removeToken", { token: segment.raw })}
+      title={t("removeToken", { token: segment.raw })}
       style={{ left: position.left, top: position.top }}
       className={cn(
         "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",

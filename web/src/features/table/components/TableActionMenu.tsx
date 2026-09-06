@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useTranslations } from "next-intl";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -44,6 +45,7 @@ export function TableActionMenu({
   onClearSelection,
   onCustomAction,
 }: TableActionMenuProps) {
+  const t = useTranslations("systemUi.tableActions");
   const [selectedActionId, setSelectedActionId] = useState<
     TableAction["id"] | null
   >(null);
@@ -88,9 +90,11 @@ export function TableActionMenu({
         <div className="ring-dark-blue/20 dark:border-dark-blue/30 dark:ring-dark-blue/30 bg-background pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-lg ring-2 backdrop-blur-md dark:shadow-none">
           <div className="text-sm font-bold">
             {approximateCount ? (
-              <span> All matching selected</span>
+              <span>{t("allMatching")}</span>
             ) : selectedCount !== null ? (
-              <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
+              <span>
+                {t("selected", { count: numberFormatter(selectedCount, 0) })}
+              </span>
             ) : (
               <Spinner size="sm" />
             )}

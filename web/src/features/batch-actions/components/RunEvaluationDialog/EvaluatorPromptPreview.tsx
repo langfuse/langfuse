@@ -3,6 +3,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { useTranslations } from "next-intl";
 
 type EvaluatorPromptPreviewProps = {
   trigger: React.ReactNode;
@@ -10,6 +11,7 @@ type EvaluatorPromptPreviewProps = {
 };
 
 export function EvaluatorPromptPreview(props: EvaluatorPromptPreviewProps) {
+  const t = useTranslations("operationsUi.batchActions.runEvaluation");
   const { trigger, previewContent } = props;
 
   return (
@@ -17,7 +19,7 @@ export function EvaluatorPromptPreview(props: EvaluatorPromptPreviewProps) {
       <HoverCardTrigger asChild>{trigger}</HoverCardTrigger>
       <HoverCardContent className="w-[520px] max-w-[85vw]" align="end">
         <p className="text-muted-foreground mb-2 text-xs">
-          Prompt preview with the first selected observation
+          {t("promptPreview")}
         </p>
         <pre className="bg-muted/20 max-h-[320px] overflow-y-auto rounded-md border p-2 text-xs wrap-break-word whitespace-pre-wrap">
           {previewContent}

@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getMessages } from "@/src/features/i18n/messages";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 
 const h = vi.hoisted(() => ({
@@ -41,6 +43,19 @@ vi.mock("@/src/features/experiments/hooks/useExperimentSearch", () => ({
 
 const payload = (call: unknown[]) => (call[1] ?? {}) as Record<string, unknown>;
 
+const renderSelector = () =>
+  render(
+    <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+      <ExperimentComparisonSelector
+        projectId="p1"
+        baselineExperimentId="exp-a"
+        selectedIds={[]}
+        selectedExperimentCount={1}
+        onSelectedIdsChange={h.onSelectedIdsChange}
+      />
+    </NextIntlClientProvider>,
+  );
+
 describe("ExperimentComparisonSelector analytics", () => {
   beforeEach(() => {
     h.capture.mockClear();
@@ -49,15 +64,7 @@ describe("ExperimentComparisonSelector analytics", () => {
   });
 
   it("captures picker open once with option and dataset counts, not search text", () => {
-    render(
-      <ExperimentComparisonSelector
-        projectId="p1"
-        baselineExperimentId="exp-a"
-        selectedIds={[]}
-        selectedExperimentCount={1}
-        onSelectedIdsChange={h.onSelectedIdsChange}
-      />,
-    );
+    renderSelector();
 
     fireEvent.focus(screen.getByPlaceholderText("Search experiments..."));
 
@@ -79,15 +86,7 @@ describe("ExperimentComparisonSelector analytics", () => {
   });
 
   it("captures comparison_changed once when a comparison is added", () => {
-    render(
-      <ExperimentComparisonSelector
-        projectId="p1"
-        baselineExperimentId="exp-a"
-        selectedIds={[]}
-        selectedExperimentCount={1}
-        onSelectedIdsChange={h.onSelectedIdsChange}
-      />,
-    );
+    renderSelector();
 
     fireEvent.focus(screen.getByPlaceholderText("Search experiments..."));
     h.capture.mockClear();

@@ -13,6 +13,7 @@ import type {
   CsvColumnPreview,
   FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
+import { useTranslations } from "next-intl";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -66,6 +67,7 @@ type UseCsvImportOptions = {
 };
 
 export function useCsvImport(options: UseCsvImportOptions) {
+  const t = useTranslations("coreDetails.datasets.csv");
   const [progress, setProgress] = useState<ImportProgress>({
     totalItems: 0,
     processedItems: 0,
@@ -85,7 +87,7 @@ export function useCsvImport(options: UseCsvImportOptions) {
 
     if (!csvFile) return false;
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 10MB");
+      showErrorToast(t("tooLarge"), t("maxSize"));
       return false;
     }
 
@@ -130,6 +132,12 @@ export function useCsvImport(options: UseCsvImportOptions) {
 
     try {
       await parseCsvClient(csvFile, {
+        errorMessages: {
+          emptyFile: t("emptyFile"),
+          parseFailed: () => t("parseFailedDescription"),
+          itemTooLarge: t("itemTooLarge"),
+          readFailed: t("readFailed"),
+        },
         processor: {
           onHeader: (headers) => {
             headerMap = new Map(headers.map((h, i) => [h, i]));
@@ -146,7 +154,9 @@ export function useCsvImport(options: UseCsvImportOptions) {
               (col) => !headerMap.has(col),
             );
             if (missingColumns.length > 0) {
-              throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
+              throw new Error(
+                t("missingColumns", { columns: missingColumns.join(", ") }),
+              );
             }
           },
           onRow: (row, _, index) => {
@@ -191,7 +201,11 @@ export function useCsvImport(options: UseCsvImportOptions) {
               });
             } catch (error) {
               throw new Error(
-                `Error processing row ${index + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+                t("rowError", {
+                  row: index + 1,
+                  error:
+                    error instanceof Error ? error.message : t("unknownError"),
+                }),
               );
             }
           },
@@ -241,11 +255,19 @@ export function useCsvImport(options: UseCsvImportOptions) {
         status: "not-started",
       });
       if (error instanceof Error && processedCount === 0) {
-        showErrorToast("Failed to import all dataset items", error.message);
+        showErrorToast(
+          t("allFailed"),
+          error.message.startsWith(t("missingColumns", { columns: "" })) ||
+            error.message.startsWith(
+              t("rowError", { row: 0, error: "" }).split("0")[0],
+            )
+            ? error.message
+            : t("parseFailed"),
+        );
       } else {
         showErrorToast(
-          "Failed to import all dataset items",
-          `Please try again starting from row ${processedCount + 1}.`,
+          t("allFailed"),
+          t("retryRow", { row: processedCount + 1 }),
         );
       }
       return false;

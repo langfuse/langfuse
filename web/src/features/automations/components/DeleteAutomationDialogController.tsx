@@ -5,6 +5,7 @@ import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAutomationDialog } from "./DeleteAutomationDialog";
+import { useTranslations } from "next-intl";
 
 type DeleteAutomationDialogControllerProps = {
   projectId: string;
@@ -22,6 +23,7 @@ export const DeleteAutomationDialogController = ({
   onSuccess,
   children,
 }: DeleteAutomationDialogControllerProps) => {
+  const t = useTranslations("remainderUi.automations.deleteDialog");
   const [open, setOpen] = useState(false);
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -33,8 +35,8 @@ export const DeleteAutomationDialogController = ({
     {
       onSuccess: () => {
         showSuccessToast({
-          title: "Automation deleted",
-          description: "The automation has been deleted successfully.",
+          title: t("successTitle"),
+          description: t("successDescription"),
         });
 
         onSuccess?.();
@@ -44,9 +46,7 @@ export const DeleteAutomationDialogController = ({
     },
   );
 
-  const disabled = hasAccess
-    ? undefined
-    : { reason: "You don't have permission to delete this automation." };
+  const disabled = hasAccess ? undefined : { reason: t("permission") };
 
   const openDialog = () => {
     if (!hasAccess) return;

@@ -11,6 +11,7 @@ import { usePrefetchObservation } from "@/src/features/traces/hooks/usePrefetchO
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
+import { useTranslations } from "next-intl";
 
 // Constants for prefetching behavior
 const {
@@ -37,6 +38,7 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
   projectId,
   traceId,
 }: LogViewObservationCellProps) {
+  const t = useTranslations("coreDetails.traces.searchMatches");
   const ref = useRef<HTMLDivElement>(null);
   const { prefetch } = usePrefetchObservation({ projectId });
   const hasPrefetched = useRef(false);
@@ -93,7 +95,7 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
       </span>
       {childrenCount > 0 && (
         <span className="text-muted-foreground shrink-0 text-xs">
-          {childrenCount} {childrenCount === 1 ? "item" : "items"}
+          {t("children", { count: childrenCount })}
         </span>
       )}
     </div>

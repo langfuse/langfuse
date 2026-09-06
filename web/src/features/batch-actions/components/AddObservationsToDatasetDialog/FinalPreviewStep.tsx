@@ -13,15 +13,13 @@ import {
   issueTextVariants,
   type IssueVariant,
 } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/IssueBanner";
+import { useTranslations } from "next-intl";
 
 const STEP_FOR_FIELD: Record<string, DialogStep> = {
   input: "input-mapping",
   expectedOutput: "output-mapping",
   metadata: "metadata-mapping",
 };
-
-const fieldLabel = (field: string) =>
-  field === "expectedOutput" ? "expected output" : field;
 
 export function FinalPreviewStep({
   dataset,
@@ -30,6 +28,7 @@ export function FinalPreviewStep({
   totalCount,
   onEditStep,
 }: FinalPreviewStepProps) {
+  const t = useTranslations("operationsUi.batchActions.addToDataset");
   const previewResult = useMemo(() => {
     if (!observationData) return null;
 
@@ -63,19 +62,17 @@ export function FinalPreviewStep({
   return (
     <div className="h-[62vh] space-y-6 p-6">
       <div>
-        <h3 className="text-lg font-bold">Review Configuration</h3>
+        <h3 className="text-lg font-bold">{t("review.title")}</h3>
         <p className="text-muted-foreground text-sm">
-          Adding {totalCount} observation{totalCount !== 1 ? "s" : ""} to
-          dataset &quot;
-          {dataset.name}&quot;
+          {t("review.summary", { count: totalCount, dataset: dataset.name })}
         </p>
       </div>
 
       {errorFields.length > 0 && (
         <IssueBanner
           variant="error"
-          title="Some JSONPaths are invalid"
-          description="Items using these mappings will be skipped during processing."
+          title={t("review.invalidTitle")}
+          description={t("review.invalidDescription")}
         >
           <EditMappingActions
             variant="error"
@@ -88,8 +85,8 @@ export function FinalPreviewStep({
       {missFields.length > 0 && (
         <IssueBanner
           variant="warning"
-          title="Some JSONPaths did not match the preview observation"
-          description="Observations with failed mappings will be skipped during processing."
+          title={t("review.missTitle")}
+          description={t("review.missDescription")}
         >
           <EditMappingActions
             variant="warning"
@@ -100,33 +97,33 @@ export function FinalPreviewStep({
       )}
 
       <div className="text-muted-foreground text-sm">
-        Sample dataset item preview (from first selected observation):
+        {t("review.sampleDescription")}
       </div>
 
       {!observationData ? (
         <div className="bg-muted/30 flex h-64 items-center justify-center rounded-md border p-4">
           <p className="text-muted-foreground text-sm">
-            No observation data available for preview
+            {t("review.noObservation")}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           <PreviewCard
-            label="Input"
+            label={t("fields.input")}
             data={previewResult?.input}
             onEdit={() => onEditStep("input-mapping")}
             pathErrors={errorsByField["input"]}
             pathMisses={missesByField["input"]}
           />
           <PreviewCard
-            label="Expected Output"
+            label={t("fields.expectedOutput")}
             data={previewResult?.expectedOutput}
             onEdit={() => onEditStep("output-mapping")}
             pathErrors={errorsByField["expectedOutput"]}
             pathMisses={missesByField["expectedOutput"]}
           />
           <PreviewCard
-            label="Metadata"
+            label={t("fields.metadata")}
             data={previewResult?.metadata}
             onEdit={() => onEditStep("metadata-mapping")}
             pathErrors={errorsByField["metadata"]}
@@ -147,6 +144,8 @@ function EditMappingActions({
   fields: string[];
   onEditStep: (step: DialogStep) => void;
 }) {
+  const t = useTranslations("operationsUi.batchActions.addToDataset");
+
   return (
     <div className="flex flex-wrap gap-2 pt-1">
       {fields.map((field) => (
@@ -163,7 +162,12 @@ function EditMappingActions({
             if (step) onEditStep(step);
           }}
         >
-          Edit {fieldLabel(field)} mapping
+          {t("review.editMapping", {
+            field:
+              field === "expectedOutput"
+                ? t("fields.expectedOutput")
+                : t(`fields.${field as "input" | "metadata"}`),
+          })}
         </Button>
       ))}
     </div>
@@ -185,6 +189,7 @@ function PreviewCard({
   pathErrors = [],
   pathMisses = [],
 }: PreviewCardProps) {
+  const t = useTranslations("operationsUi.batchActions.addToDataset.review");
   const variant: IssueVariant | null =
     pathErrors.length > 0 ? "error" : pathMisses.length > 0 ? "warning" : null;
   const Icon = variant ? issueIcons[variant] : null;
@@ -207,7 +212,7 @@ function PreviewCard({
           className="h-7 gap-1 text-xs"
         >
           <Pencil className="h-3 w-3" />
-          Edit
+          {t("edit")}
         </Button>
       </div>
       <div className="max-h-62 overflow-auto">
@@ -222,15 +227,16 @@ function PreviewCard({
           className={cn("border-t px-4 py-2", issueChromeVariants({ variant }))}
         >
           <p className="text-xs">
-            {[
-              pathErrors.length > 0 &&
-                `${pathErrors.length} path${pathErrors.length !== 1 ? "s have" : " has"} invalid syntax`,
-              pathMisses.length > 0 &&
-                `${pathMisses.length} path${pathMisses.length !== 1 ? "s" : ""} did not match in preview observation`,
-            ]
-              .filter(Boolean)
-              .join("; ")}
-            . These items will be skipped during processing.
+            {t("issueSummary", {
+              issues: [
+                pathErrors.length > 0 &&
+                  t("invalidPathCount", { count: pathErrors.length }),
+                pathMisses.length > 0 &&
+                  t("missedPathCount", { count: pathMisses.length }),
+              ]
+                .filter(Boolean)
+                .join(t("issueSeparator")),
+            })}
           </p>
         </div>
       )}

@@ -8,9 +8,18 @@ export const computeIdleGapSeconds = (
   return Math.max(0, (current.timestamp.getTime() - previousEnd) / 1000);
 };
 
-export const formatIdleGap = (seconds: number): string => {
+export const formatIdleGap = (
+  seconds: number,
+  labels: {
+    minutes: (count: number) => string;
+    hours: (count: number) => string;
+  } = {
+    minutes: (count) => `${count} min`,
+    hours: (count) => `${count} ${count === 1 ? "hr" : "hrs"}`,
+  },
+): string => {
   const rounded = Math.max(0, Math.round(seconds));
-  if (rounded < 3600) return `${Math.round(rounded / 60)} min`;
+  if (rounded < 3600) return labels.minutes(Math.round(rounded / 60));
   const hours = Math.round(rounded / 3600);
-  return `${hours} ${hours === 1 ? "hr" : "hrs"}`;
+  return labels.hours(hours);
 };

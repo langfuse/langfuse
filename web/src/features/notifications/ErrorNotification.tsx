@@ -3,6 +3,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { AlertTriangle, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ErrorNotificationProps {
   error: string;
@@ -21,6 +22,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   toast,
   path,
 }) => {
+  const t = useTranslations("sharedUi.misc");
   const { setOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
@@ -56,7 +58,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         )}
         {path && (
           <div className={`text-sm leading-tight ${textColor}`}>
-            Path: {path}
+            {t("path")}: {path}
           </div>
         )}
 
@@ -73,7 +75,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               setOpen(true);
             }}
           >
-            Report issue to Langfuse team
+            {t("reportIssue")}
           </Button>
         )}
       </div>
@@ -94,7 +96,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           e.stopPropagation();
           e.preventDefault();
         }}
-        aria-label="Close"
+        aria-label={t("close")}
       >
         <X size={14} />
       </button>

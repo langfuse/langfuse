@@ -11,6 +11,7 @@ import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface DeleteSpendAlertDialogProps {
   orgId: string;
@@ -27,6 +28,7 @@ export function DeleteSpendAlertDialog({
   onOpenChange,
   onSuccess,
 }: DeleteSpendAlertDialogProps) {
+  const t = useTranslations("settingsEnterprise.billing");
   const [isDeleting, setIsDeleting] = useState(false);
   const capture = usePostHogClientCapture();
 
@@ -43,11 +45,11 @@ export function DeleteSpendAlertDialog({
         orgId,
         alertId,
       });
-      toast.success("Spend alert deleted successfully");
+      toast.success(t("spendAlerts.deleted"));
       onSuccess();
     } catch (error) {
       reportNonTrpcError(error, "billing");
-      toast.error("Failed to delete spend alert. Please try again.");
+      toast.error(t("spendAlerts.deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
@@ -57,11 +59,9 @@ export function DeleteSpendAlertDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Spend Alert</DialogTitle>
+          <DialogTitle>{t("spendAlerts.deleteTitle")}</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this spend alert? This action cannot
-            be undone and you will no longer receive notifications for this
-            threshold.
+            {t("spendAlerts.deleteDescription")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -70,14 +70,16 @@ export function DeleteSpendAlertDialog({
             disabled={isDeleting}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             variant="destructive"
             onClick={handleDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Deleting..." : "Delete Alert"}
+            {isDeleting
+              ? t("spendAlerts.deleting")
+              : t("spendAlerts.deleteAlert")}
           </Button>
         </DialogFooter>
       </DialogContent>

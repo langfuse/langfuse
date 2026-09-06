@@ -6,6 +6,7 @@ import { PopoverController } from "@/src/components/ui/popover";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 type RetryBackgroundMigrationPopoverControllerProps = {
   backgroundMigrationName: string;
@@ -18,6 +19,7 @@ export function RetryBackgroundMigrationPopoverController({
   isRetryable,
   children,
 }: RetryBackgroundMigrationPopoverControllerProps) {
+  const t = useTranslations("systemUi.backgroundMigration");
   const utils = api.useUtils();
   const [adminApiKey, setAdminApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,10 +28,10 @@ export function RetryBackgroundMigrationPopoverController({
     api.backgroundMigrations.retry.useMutation({
       onSuccess: () => {
         utils.backgroundMigrations.invalidate();
-        toast.success("Migration scheduled for retry");
+        toast.success(t("retryScheduled"));
       },
       onError: (error) => {
-        toast.error(error?.message || "Failed to retry migration");
+        toast.error(error?.message || t("retryFailed"));
       },
       onSettled: () => {
         setIsLoading(false);
@@ -38,7 +40,7 @@ export function RetryBackgroundMigrationPopoverController({
 
   const handleRetry = async (closePopover: () => void) => {
     if (!adminApiKey.trim()) {
-      toast.error("Admin API key is required");
+      toast.error(t("apiKeyRequired"));
       return;
     }
     setIsLoading(true);
@@ -62,20 +64,17 @@ export function RetryBackgroundMigrationPopoverController({
       modal={false}
       renderContent={({ closePopover }) => (
         <>
-          <h2 className="mb-3 font-bold">Retry Background Migration</h2>
-          <p className="mb-4 text-sm">
-            This action schedules the migration for retry. Restart the worker
-            containers to re-initiate the migration.
-          </p>
+          <h2 className="mb-3 font-bold">{t("title")}</h2>
+          <p className="mb-4 text-sm">{t("description")}</p>
 
           <div className="mb-4">
             <Label htmlFor="admin-api-key" className="text-sm font-bold">
-              Admin API Key
+              {t("apiKey")}
             </Label>
             <Input
               id="admin-api-key"
               type="password"
-              placeholder="Enter admin API key"
+              placeholder={t("apiKeyPlaceholder")}
               value={adminApiKey}
               onChange={(e) => setAdminApiKey(e.target.value)}
               className="mt-1"
@@ -85,15 +84,15 @@ export function RetryBackgroundMigrationPopoverController({
               name="admin-api-key"
             />
             <p className="text-muted-foreground mt-1 text-xs">
-              Required for security. This key must match your ADMIN_API_KEY
-              environment variable{" ("}
+              {t("apiKeyHelp")}
+              {" ("}
               <a
                 href="https://langfuse.com/self-hosting/administration/organization-management-api#authentication"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-primary underline"
               >
-                Docs
+                {t("docs")}
               </a>
               ).
             </p>
@@ -109,7 +108,7 @@ export function RetryBackgroundMigrationPopoverController({
               }}
               disabled={isLoading}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               type="button"
@@ -118,7 +117,7 @@ export function RetryBackgroundMigrationPopoverController({
               onClick={() => handleRetry(closePopover)}
               disabled={isLoading}
             >
-              Retry Migration
+              {t("retry")}
             </Button>
           </div>
         </>

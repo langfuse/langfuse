@@ -2,7 +2,7 @@
 export type MetricOption = {
   id: string;
   label: string;
-  group: "Base Metrics" | "Observation Scores" | "Experiment Scores";
+  group: string;
 };
 
 export type ScoreFilterOptions = {
@@ -32,6 +32,6 @@ export type ScoreMetricSpec = Record<
     level: ScoreLevel;
     dataType: ScoreChartDataType;
     filterKey: keyof ScoreFilterOptions;
-    group: Exclude<MetricOption["group"], "Base Metrics">;
+    group: "observationScores" | "experimentScores";
   }
 >;

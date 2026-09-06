@@ -2,8 +2,10 @@
 
 import { InfoIcon } from "lucide-react";
 import { useBillingInformation } from "./useBillingInformation";
+import { useTranslations } from "next-intl";
 
 export const BillingScheduleNotification = () => {
+  const t = useTranslations("settingsEnterprise.billing.plan");
   const { planLabel, cancellation, scheduledPlanSwitch } =
     useBillingInformation();
 
@@ -16,7 +18,10 @@ export const BillingScheduleNotification = () => {
       <div className="mt-6 mb-4 flex overflow-x-auto rounded-lg border border-blue-200 bg-blue-100 py-2 text-sm text-blue-900 contrast-more:border-current ltr:pr-4 rtl:pl-4 dark:border-blue-200/30 dark:bg-blue-900/30 dark:text-blue-200 contrast-more:dark:border-current">
         <div className="flex items-center gap-2 pl-3 leading-7">
           <InfoIcon className="h-4 w-4" />
-          {`Your organization cancelled the subscription. Features of the ${planLabel} plan will be available until ${cancellation.formatted}.`}
+          {t("cancelledNotice", {
+            plan: planLabel,
+            date: cancellation.formatted ?? "",
+          })}
         </div>
       </div>
     );
@@ -28,7 +33,13 @@ export const BillingScheduleNotification = () => {
         <div className="flex gap-2 pl-3">
           <InfoIcon className="mt-1 h-4 w-4 shrink-0" />
           <div>
-            <div className="leading-5">{`Your organization is scheduled to switch from ${planLabel} to ${scheduledPlanSwitch.newPlanLabel} on ${scheduledPlanSwitch.formatted}.`}</div>
+            <div className="leading-5">
+              {t("scheduledSwitchNotice", {
+                currentPlan: planLabel,
+                newPlan: scheduledPlanSwitch.newPlanLabel ?? "",
+                date: scheduledPlanSwitch.formatted ?? "",
+              })}
+            </div>
             {scheduledPlanSwitch.message && (
               <div className="mt-2 leading-5 text-blue-800 dark:text-blue-300">
                 {scheduledPlanSwitch.message}

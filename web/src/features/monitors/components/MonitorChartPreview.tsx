@@ -20,8 +20,9 @@ import {
   windowToMs,
 } from "@langfuse/shared/monitors";
 
-import { renderChartSubtitle } from "../helpers/renderMonitorLabels";
 import { getMonitorPreviewRange } from "../helpers/monitorTimeRanges";
+import { useTranslations } from "next-intl";
+import { useMonitorLabels } from "../helpers/useMonitorLabels";
 
 /** MonitorChartPreview renders the live time-series preview with alert/warning threshold bands for a monitor draft. */
 export const MonitorChartPreview = ({
@@ -45,6 +46,8 @@ export const MonitorChartPreview = ({
   alertThreshold: number | null | undefined;
   warningThreshold: number | null | undefined;
 }) => {
+  const t = useTranslations("operationsUi.monitors.chart");
+  const { chartSubtitle } = useMonitorLabels();
   /** bucketRange spans 20 complete window buckets ending at the last floored boundary. */
   const { fromTimestamp, toTimestamp } = useMemo(() => {
     const { from, to } = getMonitorPreviewRange(window, Date.now());
@@ -126,7 +129,7 @@ export const MonitorChartPreview = ({
         value: warningThreshold,
         operator: thresholdOperator,
         color: "yellow" as const,
-        label: "Warning",
+        label: t("warning"),
       });
     }
     if (alertThreshold != null && Number.isFinite(alertThreshold)) {
@@ -134,11 +137,11 @@ export const MonitorChartPreview = ({
         value: alertThreshold,
         operator: thresholdOperator,
         color: "red" as const,
-        label: "Alert",
+        label: t("alert"),
       });
     }
     return ordered;
-  }, [warningThreshold, alertThreshold, thresholdOperator]);
+  }, [warningThreshold, alertThreshold, thresholdOperator, t]);
 
   // Why: without the measure's unit, cost charts render as raw numbers
   // instead of dollar amounts.
@@ -158,11 +161,12 @@ export const MonitorChartPreview = ({
       <CardContent className="flex h-full flex-col pt-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
+            <h3 className="text-lg font-bold tracking-tight">{t("title")}</h3>
             <p className="text-muted-foreground text-sm">
-              {renderChartSubtitle({
+              {chartSubtitle({
                 view,
-                metric: { measure, aggregation },
+                measure,
+                aggregation,
                 window,
               })}
             </p>

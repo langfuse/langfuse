@@ -2,8 +2,10 @@ import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 export const PromptBadge = (props: { promptId: string; projectId: string }) => {
+  const t = useTranslations("coreDetails.traces.detailControls");
   const prompt = api.prompts.byId.useQuery({
     id: props.promptId,
     projectId: props.projectId,
@@ -11,7 +13,10 @@ export const PromptBadge = (props: { promptId: string; projectId: string }) => {
 
   if (prompt.isLoading || !prompt.data) return null;
 
-  const text = `Prompt: ${prompt.data.name} - v${prompt.data.version}`;
+  const text = t("prompt", {
+    name: prompt.data.name,
+    version: prompt.data.version,
+  });
 
   return (
     <Link

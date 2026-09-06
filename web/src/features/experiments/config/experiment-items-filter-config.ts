@@ -7,37 +7,37 @@ import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
  */
 export const experimentItemsTableCols: ColumnDefinition[] = [
   {
-    name: "Experiment Item ID",
+    name: "id",
     id: "id",
     type: "string",
     internal: "experiment_item_id",
   },
   {
-    name: "Experiment ID",
+    name: "experimentId",
     id: "experimentId",
     type: "string",
     internal: "experiment_id",
   },
   {
-    name: "Trace ID",
+    name: "traceId",
     id: "traceId",
     type: "string",
     internal: "trace_id",
   },
   {
-    name: "Dataset Item ID",
+    name: "datasetItemId",
     id: "datasetItemId",
     type: "string",
     internal: "dataset_item_id",
   },
   {
-    name: "Start Time",
+    name: "startTime",
     id: "startTime",
     type: "datetime",
     internal: "start_time",
   },
   {
-    name: "Status",
+    name: "level",
     id: "level",
     type: "stringOptions",
     internal: "level",
@@ -50,27 +50,27 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     aliases: ["Level"],
   },
   {
-    name: "Cost ($)",
+    name: "totalCost",
     id: "totalCost",
     type: "number",
     internal: "total_cost",
     nullable: true,
   },
   {
-    name: "Latency (ms)",
+    name: "latencyMs",
     id: "latencyMs",
     type: "number",
     internal: "latency_ms",
     nullable: true,
   },
   {
-    name: "Scores (numeric)",
+    name: "obs_scores_avg",
     id: "obs_scores_avg",
     type: "numberObject",
     internal: "obs_scores_avg",
   },
   {
-    name: "Scores (categorical)",
+    name: "obs_score_categories",
     id: "obs_score_categories",
     type: "categoryOptions",
     internal: "obs_score_categories",
@@ -78,20 +78,20 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Scores (boolean)",
+    name: "obs_score_booleans",
     id: "obs_score_booleans",
     type: "booleanObject",
     internal: "obs_score_booleans",
     nullable: true,
   },
   {
-    name: "Trace Scores (numeric)",
+    name: "trace_scores_avg",
     id: "trace_scores_avg",
     type: "numberObject",
     internal: "trace_scores_avg",
   },
   {
-    name: "Trace Scores (categorical)",
+    name: "trace_score_categories",
     id: "trace_score_categories",
     type: "categoryOptions",
     internal: "trace_score_categories",
@@ -99,21 +99,21 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Trace Scores (boolean)",
+    name: "trace_score_booleans",
     id: "trace_score_booleans",
     type: "booleanObject",
     internal: "trace_score_booleans",
     nullable: true,
   },
   {
-    name: "Item Metadata",
+    name: "itemMetadata",
     id: "itemMetadata",
     type: "stringObject",
     internal: "itemMetadata",
     nullable: true,
   },
   {
-    name: "Metadata",
+    name: "eventMetadata",
     id: "eventMetadata",
     type: "stringObject",
     internal: "eventMetadata",
@@ -136,7 +136,7 @@ export const getExperimentItemsColumnName = (id: string): string => {
  * Filter configuration for experiment items table.
  * Defines available sidebar filters and their types.
  */
-export const experimentItemsFilterConfig: FilterConfig = {
+const experimentItemsFilterConfig: FilterConfig = {
   tableName: "experiment-items",
 
   columnDefinitions: experimentItemsTableCols,
@@ -184,3 +184,16 @@ export const experimentItemsFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export const getExperimentItemsFilterConfig = (
+  getLabel: (columnId: string) => string,
+): FilterConfig => ({
+  ...experimentItemsFilterConfig,
+  columnDefinitions: experimentItemsFilterConfig.columnDefinitions.map(
+    (column) => ({ ...column, name: getLabel(column.id) }),
+  ),
+  facets: experimentItemsFilterConfig.facets.map((facet) => ({
+    ...facet,
+    label: getLabel(facet.column),
+  })),
+});

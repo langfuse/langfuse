@@ -1,22 +1,30 @@
 import { render } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 
+import { getMessages } from "@/src/features/i18n/messages";
 import { PromptVariableEditor } from "./PromptVariableEditor";
 
 describe("PromptVariableEditor", () => {
   it("keeps the interpolated preview aligned and theme-aware", () => {
     const { container } = render(
-      <PromptVariableEditor
-        value="Question: {{input}}"
-        onChange={vi.fn()}
-        previewEnabled
-        preview={{
-          status: "ready",
-          fragments: [
-            { type: "text", text: "Question: " },
-            { type: "variable", name: "input", value: "What is Langfuse?" },
-          ],
-        }}
-      />,
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        <PromptVariableEditor
+          value="Question: {{input}}"
+          onChange={vi.fn()}
+          previewEnabled
+          preview={{
+            status: "ready",
+            fragments: [
+              { type: "text", text: "Question: " },
+              {
+                type: "variable",
+                name: "input",
+                value: "What is Langfuse?",
+              },
+            ],
+          }}
+        />
+      </NextIntlClientProvider>,
     );
 
     const preview = container.querySelector("pre");

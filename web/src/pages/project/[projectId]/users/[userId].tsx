@@ -17,6 +17,7 @@ import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { ObservationsEventsTable } from "@/src/features/events/components";
+import { useTranslations } from "next-intl";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
@@ -38,6 +39,7 @@ function UserDetailPage({
   projectId: string;
   userId: string;
 }) {
+  const t = useTranslations("sharedUi.userDetail");
   const router = useRouter();
   const { isBetaEnabled } = useV4Beta();
 
@@ -63,6 +65,11 @@ function UserDetailPage({
     "tab",
     withDefault(StringParam, tabs[0]),
   );
+  const tabLabels: Record<(typeof tabs)[number], string> = {
+    Traces: t("traces"),
+    Sessions: t("sessions"),
+    Scores: t("scores"),
+  };
 
   const renderTabContent = () => {
     switch (currentTab as (typeof tabs)[number]) {
@@ -91,7 +98,7 @@ function UserDetailPage({
     <Page
       headerProps={{
         title: userId,
-        breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
+        breadcrumb: [{ name: t("users"), href: `/project/${projectId}/users` }],
         itemType: "USER",
         actionButtonsRight: (
           <>
@@ -100,7 +107,7 @@ function UserDetailPage({
               variant="secondary"
               icon={<LayoutDashboard className="h-4 w-4" />}
             >
-              Dashboard
+              {t("dashboard")}
             </ActionButton>
             <DetailPageNav
               currentId={encodeURIComponent(userId)}
@@ -117,27 +124,29 @@ function UserDetailPage({
         {user.data && (
           <div className="flex flex-wrap gap-2 px-4 py-4">
             <Badge variant="outline">
-              Observations:{" "}
+              {t("observations")}:{" "}
               {compactNumberFormatter(user.data.totalObservations)}
             </Badge>
             <Badge variant="outline">
-              Traces: {compactNumberFormatter(user.data.totalTraces)}
+              {t("traces")}: {compactNumberFormatter(user.data.totalTraces)}
             </Badge>
             <Badge variant="outline">
-              Total Tokens: {compactNumberFormatter(user.data.totalTokens)}
+              {t("totalTokens")}:{" "}
+              {compactNumberFormatter(user.data.totalTokens)}
             </Badge>
             <Badge variant="outline">
               <span className="flex items-center gap-1">
-                Total Cost: {usdFormatter(user.data.sumCalculatedTotalCost)}
+                {t("totalCost")}:{" "}
+                {usdFormatter(user.data.sumCalculatedTotalCost)}
               </span>
             </Badge>
             <Badge variant="outline">
-              Active:{" "}
+              {t("active")}:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
                 : isBetaEnabled
-                  ? "No activity yet"
-                  : "No traces yet"}
+                  ? t("noActivity")
+                  : t("noTraces")}
             </Badge>
           </div>
         )}
@@ -147,7 +156,7 @@ function UserDetailPage({
         <div>
           <div className="sm:hidden">
             <label htmlFor="tabs" className="sr-only">
-              Select a tab
+              {t("selectTab")}
             </label>
             <select
               id="tabs"
@@ -157,13 +166,15 @@ function UserDetailPage({
               onChange={(e) => handleTabChange(e.currentTarget.value)}
             >
               {tabs.map((tab) => (
-                <option key={tab}>{tab}</option>
+                <option key={tab} value={tab}>
+                  {tabLabels[tab]}
+                </option>
               ))}
             </select>
           </div>
           <div className="hidden sm:block">
             <div className="border-border border-b">
-              <nav className="-mb-px flex" aria-label="Tabs">
+              <nav className="-mb-px flex" aria-label={t("tabs")}>
                 {tabs.map((tab) => (
                   <button
                     key={tab}
@@ -176,7 +187,7 @@ function UserDetailPage({
                     aria-current={tab === currentTab ? "page" : undefined}
                     onClick={() => handleTabChange(tab)}
                   >
-                    {tab}
+                    {tabLabels[tab]}
                   </button>
                 ))}
               </nav>

@@ -1,0 +1,78 @@
+{
+  "common": {
+    "current": "Current: {value}",
+    "emptyState": {
+      "noData": "No data"
+    },
+    "table": {
+      "noResults": "No results."
+    }
+  },
+  "commandMenu": {
+    "inputPlaceholder": "Type a command or search...",
+    "noResults": "No results found.",
+    "mainNavigation": "Main Navigation",
+    "projects": "Projects",
+    "dashboards": "Dashboards",
+    "projectSettings": "Project Settings",
+    "projectSettingsItem": "Project Settings > {page}",
+    "organizationSettings": "Organization Settings",
+    "organizationSettingsItem": "Organization Settings > {page}",
+    "tracing": "Tracing",
+    "findTraceById": "Find trace by ID",
+    "findObservationById": "Find observation by ID"
+  },
+  "navigation": {
+    "groups": {
+      "observability": "Observability",
+      "promptManagement": "Prompt Management",
+      "evaluation": "Evaluation"
+    },
+    "items": {
+      "goTo": "Go to...",
+      "organizations": "Organizations",
+      "projects": "Projects",
+      "home": "Home",
+      "dashboards": "Dashboards",
+      "tracing": "Tracing",
+      "sessions": "Sessions",
+      "users": "Users",
+      "alerts": "Alerts",
+      "prompts": "Prompts",
+      "playground": "Playground",
+      "scores": "Scores",
+      "evaluators": "Evaluators",
+      "humanAnnotation": "Human Annotation",
+      "datasets": "Datasets",
+      "experiments": "Experiments",
+      "update": "Update",
+      "cloudStatus": "Cloud Status",
+      "v4Preview": "V4 Preview",
+      "upgradePlan": "Upgrade Plan",
+      "settings": "Settings",
+      "bookACall": "Book a call",
+      "support": "Support"
+    }
+  },
+  "agentToolsBanner": {
+    "title": "Langfuse works great with your AI coding agents.",
+    "description": "Connect Claude Code, Codex, and other agents to your data with the Langfuse Agent Skill, MCP server, and CLI.",
+    "learnMore": "Learn more"
+  },
+  "accountMenu": {
+    "label": "Account menu",
+    "accountSettings": "Account settings",
+    "v4Migration": "v4 Migration",
+    "theme": "Theme",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
+    "systemMode": "System mode",
+    "language": "Language",
+    "english": "English",
+    "simplifiedChinese": "Simplified Chinese",
+    "featurePreview": "Feature Preview",
+    "regions": "Regions",
+    "instances": "Instances",
+    "signOut": "Sign out"
+  }
+}

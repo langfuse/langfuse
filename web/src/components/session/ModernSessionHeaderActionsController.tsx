@@ -15,6 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 export function ModernSessionHeaderActionsController({
   projectId,
@@ -39,6 +40,7 @@ export function ModernSessionHeaderActionsController({
   onShowSystemPromptChange: (isEnabled: boolean) => void;
   children: ReactNode;
 }) {
+  const t = useTranslations("coreDetails.sessions.headerActions");
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
   const utils = api.useUtils();
@@ -66,7 +68,7 @@ export function ModernSessionHeaderActionsController({
           }}
         >
           <Share2 className="mr-2 h-3.5 w-3.5" />
-          {isPublic ? "Unshare (make private)" : "Share (make public)"}
+          {isPublic ? t("unshare") : t("share")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={async () => {
@@ -75,11 +77,11 @@ export function ModernSessionHeaderActionsController({
           }}
         >
           <CopyIcon className="mr-2 h-3.5 w-3.5" />
-          Copy session ID
+          {t("copySessionId")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Display</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger>{t("display")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             <DropdownMenuCheckboxItem
               checked={showCorrections}
@@ -88,7 +90,7 @@ export function ModernSessionHeaderActionsController({
                 onShowCorrectionsChange(!showCorrections);
               }}
             >
-              Show corrections
+              {t("showCorrections")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={showInlineToolCalls}
@@ -97,7 +99,7 @@ export function ModernSessionHeaderActionsController({
                 onShowInlineToolCallsChange(!showInlineToolCalls);
               }}
             >
-              Show tool calls
+              {t("showToolCalls")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={showSystemPrompt}
@@ -106,7 +108,7 @@ export function ModernSessionHeaderActionsController({
                 onShowSystemPromptChange(!showSystemPrompt);
               }}
             >
-              Show system prompt
+              {t("showSystemPrompt")}
             </DropdownMenuCheckboxItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>

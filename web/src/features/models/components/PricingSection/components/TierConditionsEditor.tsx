@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/select";
 import type { FormUpsertModel } from "@/src/features/models/validation";
 import type { PricingTierCondition } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 type TierConditionsEditorProps = {
   tierIndex: number;
@@ -32,6 +33,7 @@ export function TierConditionsEditor({
   tierIndex,
   form,
 }: TierConditionsEditorProps) {
+  const t = useTranslations("settingsEnterprise.models");
   const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: `pricingTiers.${tierIndex}.conditions`,
@@ -47,7 +49,7 @@ export function TierConditionsEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <FormLabel>Conditions</FormLabel>
+        <FormLabel>{t("common.conditions")}</FormLabel>
         <Button
           type="button"
           variant="ghost"
@@ -62,14 +64,15 @@ export function TierConditionsEditor({
           }
         >
           <PlusCircle className="mr-1 h-4 w-4" />
-          Add Condition
+          {t("conditions.add")}
         </Button>
       </div>
 
       {fields.length === 0 && (
         <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
-          <strong>Warning:</strong> Non-default tiers require at least one
-          condition. This tier will fail validation.
+          {t.rich("conditions.warning", {
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
         </div>
       )}
 
@@ -81,20 +84,23 @@ export function TierConditionsEditor({
           <div key={condition.id} className="space-y-3 rounded-lg border p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold">
-                Condition {conditionIndex + 1}
+                {t("conditions.condition", { number: conditionIndex + 1 })}
               </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => remove(conditionIndex)}
+                aria-label={t("conditions.removeAriaLabel", {
+                  number: conditionIndex + 1,
+                })}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
 
             <FormItem>
-              <FormLabel>Source</FormLabel>
+              <FormLabel>{t("conditions.source")}</FormLabel>
               <Select
                 value={source}
                 onValueChange={(nextSource) => {
@@ -119,11 +125,15 @@ export function TierConditionsEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="usage_details">Usage details</SelectItem>
-                  <SelectItem value="model_parameters">
-                    Model parameters
+                  <SelectItem value="usage_details">
+                    {t("conditions.usageDetails")}
                   </SelectItem>
-                  <SelectItem value="metadata">Metadata</SelectItem>
+                  <SelectItem value="model_parameters">
+                    {t("conditions.modelParameters")}
+                  </SelectItem>
+                  <SelectItem value="metadata">
+                    {t("conditions.metadata")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </FormItem>
@@ -135,8 +145,8 @@ export function TierConditionsEditor({
                 <FormItem>
                   <FormLabel>
                     {isUsageCondition
-                      ? "Usage detail key pattern (Regex)"
-                      : "Top-level key"}
+                      ? t("conditions.usagePattern")
+                      : t("conditions.topLevelKey")}
                   </FormLabel>
                   <FormControl>
                     <Input
@@ -153,8 +163,8 @@ export function TierConditionsEditor({
                   </FormControl>
                   <FormDescription>
                     {isUsageCondition
-                      ? "Match and sum usage keys such as input or cached tokens."
-                      : "Match this key exactly; nested paths are not supported."}
+                      ? t("conditions.usageDescription")
+                      : t("conditions.keyDescription")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -169,7 +179,7 @@ export function TierConditionsEditor({
                   name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.operator`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Operator</FormLabel>
+                      <FormLabel>{t("conditions.operator")}</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -179,17 +189,23 @@ export function TierConditionsEditor({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="gt">
-                            &gt; (greater than)
+                            {t("conditions.greaterThan")}
                           </SelectItem>
                           <SelectItem value="gte">
-                            &gt;= (greater or equal)
+                            {t("conditions.greaterOrEqual")}
                           </SelectItem>
-                          <SelectItem value="lt">&lt; (less than)</SelectItem>
+                          <SelectItem value="lt">
+                            {t("conditions.lessThan")}
+                          </SelectItem>
                           <SelectItem value="lte">
-                            &lt;= (less or equal)
+                            {t("conditions.lessOrEqual")}
                           </SelectItem>
-                          <SelectItem value="eq">= (equals)</SelectItem>
-                          <SelectItem value="neq">!= (not equals)</SelectItem>
+                          <SelectItem value="eq">
+                            {t("conditions.equals")}
+                          </SelectItem>
+                          <SelectItem value="neq">
+                            {t("conditions.notEquals")}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -198,8 +214,8 @@ export function TierConditionsEditor({
                 />
               ) : (
                 <FormItem>
-                  <FormLabel>Operator</FormLabel>
-                  <Input disabled value="in (any of)" />
+                  <FormLabel>{t("conditions.operator")}</FormLabel>
+                  <Input disabled value={t("conditions.inAnyOf")} />
                 </FormItem>
               )}
 
@@ -209,7 +225,9 @@ export function TierConditionsEditor({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {isUsageCondition ? "Value" : "Values"}
+                      {isUsageCondition
+                        ? t("common.value")
+                        : t("common.values")}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -237,8 +255,7 @@ export function TierConditionsEditor({
                     <FormMessage />
                     {!isUsageCondition && (
                       <FormDescription>
-                        Comma-separated exact values. All other tier conditions
-                        still apply.
+                        {t("conditions.exactValuesDescription")}
                       </FormDescription>
                     )}
                   </FormItem>
@@ -258,7 +275,9 @@ export function TierConditionsEditor({
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="mt-0!">Case sensitive</FormLabel>
+                    <FormLabel className="mt-0!">
+                      {t("conditions.caseSensitive")}
+                    </FormLabel>
                   </FormItem>
                 )}
               />

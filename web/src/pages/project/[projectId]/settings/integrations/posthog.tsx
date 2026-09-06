@@ -58,8 +58,10 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
 import { Info, ExternalLink } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export default function PosthogIntegrationSettings() {
+  const t = useTranslations("integrationsSettings");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -90,40 +92,36 @@ export default function PosthogIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "PostHog Integration",
+        title: t("posthog.title"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("common.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/integrations/analytics/posthog">
-              Integration Docs ↗
+              {t("common.integrationDocs")}
             </Link>
           </Button>
         ),
       }}
     >
       <p className="text-primary mb-4 text-sm">
-        We have teamed up with{" "}
-        <Link href="https://posthog.com" className="underline">
-          PostHog
-        </Link>{" "}
-        (OSS product analytics) to make Langfuse events/metrics available in
-        your PostHog dashboards. Upon activation, all historical data from your
-        project will be synced. After the initial sync, new data is
-        automatically synced every hour to keep your PostHog dashboards up to
-        date.
+        {t.rich("posthog.description", {
+          link: (chunks) => (
+            <Link href="https://posthog.com" className="underline">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
-      {!hasAccess && (
-        <p className="text-sm">
-          You current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
-      )}
+      {!hasAccess && <p className="text-sm">{t("common.accessDenied")}</p>}
       {hasAccess && (
         <>
-          <Header title="Configuration" />
+          <Header title={t("common.configuration")} />
           <Card className="p-3">
             <PostHogLogo className="text-foreground mb-4 w-36" />
             {!state.data || !project ? (
@@ -162,6 +160,7 @@ const PostHogIntegrationSettings = ({
   // reference on every render and would defeat the memo below.
   projectCreatedAt: string;
 }) => {
+  const t = useTranslations("integrationsSettings");
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const integrationCreatedAt = state?.createdAt;
@@ -194,19 +193,18 @@ const PostHogIntegrationSettings = ({
           ctx.addIssue({
             code: "custom",
             path: ["posthogProjectApiKey"],
-            message: "PostHog Project API Key is required",
+            message: t("posthog.keyRequired"),
           });
         }
         if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
             path: ["exportSource"],
-            message:
-              "This export source is not available on this deployment. Select an available export source to save.",
+            message: t("blobStorage.validationUnavailable"),
           });
         }
       }),
-    [exportSourceCtx, state],
+    [exportSourceCtx, state, t],
   );
 
   const posthogForm = useForm({
@@ -255,13 +253,12 @@ const PostHogIntegrationSettings = ({
           name="posthogHostname"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Posthog Hostname</FormLabel>
+              <FormLabel>{t("posthog.hostname")}</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                US region: https://us.posthog.com; EU region:
-                https://eu.posthog.com
+                {t("posthog.hostnameDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -272,7 +269,7 @@ const PostHogIntegrationSettings = ({
           name="posthogProjectApiKey"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Posthog Project API Key</FormLabel>
+              <FormLabel>{t("posthog.projectApiKey")}</FormLabel>
               <FormControl>
                 <PasswordInput
                   {...field}
@@ -280,9 +277,7 @@ const PostHogIntegrationSettings = ({
                 />
               </FormControl>
               {state && (
-                <FormDescription>
-                  Leave blank to keep the current API key.
-                </FormDescription>
+                <FormDescription>{t("posthog.keepKey")}</FormDescription>
               )}
               <FormMessage />
             </FormItem>
@@ -295,7 +290,7 @@ const PostHogIntegrationSettings = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5 pt-2">
-                  Export Source
+                  {t("common.exportSource")}
                   <Tooltip>
                     <TooltipTrigger>
                       <Info className="text-muted-foreground h-3.5 w-3.5" />
@@ -319,7 +314,7 @@ const PostHogIntegrationSettings = ({
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
-                          For further information see
+                          {t("common.furtherInformation")}
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
@@ -329,7 +324,9 @@ const PostHogIntegrationSettings = ({
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
+                      <SelectValue
+                        placeholder={t("common.selectExportSource")}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -340,15 +337,16 @@ const PostHogIntegrationSettings = ({
                         disabled={option.unavailable}
                       >
                         {option.unavailable
-                          ? `${option.label} (not available on this deployment)`
+                          ? t("common.unavailableOption", {
+                              label: option.label,
+                            })
                           : option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Choose which data sources to export to PostHog. Scores are
-                  always included.
+                  {t("posthog.sourceDescription")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -357,7 +355,7 @@ const PostHogIntegrationSettings = ({
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
-            <AlertTitle>Saved export source is no longer available</AlertTitle>
+            <AlertTitle>{t("common.unavailableTitle")}</AlertTitle>
             <AlertDescription>
               {getExportSourceUnavailableMessage(watchedValidation.reason)}
             </AlertDescription>
@@ -368,7 +366,7 @@ const PostHogIntegrationSettings = ({
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enabled</FormLabel>
+              <FormLabel>{t("common.enabled")}</FormLabel>
               <FormControl>
                 <div className="mt-1 ml-4">
                   <Switch
@@ -390,22 +388,18 @@ const PostHogIntegrationSettings = ({
           loading={mut.isPending}
           onClick={posthogForm.handleSubmit(onSubmit)}
         >
-          Save
+          {t("common.save")}
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
           disabled={!state}
           onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the PostHog integration for this project?",
-              )
-            )
+            if (confirm(t("posthog.resetConfirm")))
               mutDelete.mutate({ projectId });
           }}
         >
-          Reset
+          {t("common.reset")}
         </Button>
       </div>
     </Form>

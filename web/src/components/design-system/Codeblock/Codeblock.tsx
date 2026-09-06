@@ -6,6 +6,7 @@ import { type FC, memo, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 interface Props {
   language: string;
@@ -19,6 +20,7 @@ interface Props {
 
 const CodeBlock: FC<Props> = memo(
   ({ language, value, theme, showLanguage = true, variant = "default" }) => {
+    const t = useSharedUiTranslations("misc");
     const [isCopied, setIsCopied] = useState(false);
     const { resolvedTheme } = useTheme();
     const appliedTheme = theme ?? resolvedTheme;
@@ -45,7 +47,7 @@ const CodeBlock: FC<Props> = memo(
         ) : (
           <Copy className="h-3 w-3" />
         )}
-        <span className="sr-only">Copy code</span>
+        <span className="sr-only">{t("copyCode")}</span>
       </Button>
     );
 

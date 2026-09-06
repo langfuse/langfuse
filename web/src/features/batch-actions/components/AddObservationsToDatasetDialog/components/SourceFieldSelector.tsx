@@ -6,6 +6,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import type { SourceField } from "../types";
+import { useTranslations } from "next-intl";
 
 type SourceFieldSelectorProps = {
   value: SourceField;
@@ -18,6 +19,7 @@ export function SourceFieldSelector({
   onChange,
   disabled = false,
 }: SourceFieldSelectorProps) {
+  const t = useTranslations("operationsUi.batchActions.addToDataset.fields");
   return (
     <Select
       value={value}
@@ -28,9 +30,9 @@ export function SourceFieldSelector({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="input">Input</SelectItem>
-        <SelectItem value="output">Output</SelectItem>
-        <SelectItem value="metadata">Metadata</SelectItem>
+        <SelectItem value="input">{t("input")}</SelectItem>
+        <SelectItem value="output">{t("output")}</SelectItem>
+        <SelectItem value="metadata">{t("metadata")}</SelectItem>
       </SelectContent>
     </Select>
   );

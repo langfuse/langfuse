@@ -1,6 +1,69 @@
 import { type FilterState } from "@langfuse/shared";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { mergeWidgetAndDashboardFilters } from "./utils";
+import {
+  buildWidgetDescription,
+  buildWidgetName,
+  mergeWidgetAndDashboardFilters,
+} from "./utils";
+
+describe("widget suggestion localization", () => {
+  const formatText = (
+    key: string,
+    values?: Record<string, string | number>,
+  ): string => {
+    if (key === "name.metric")
+      return `${values?.aggregation}: ${values?.metric}`;
+    if (key === "name.by") return `${values?.base} / ${values?.dimension}`;
+    if (key === "name.withView") return `${values?.base} [${values?.view}]`;
+    if (key === "description.metric")
+      return `${values?.view}: ${values?.aggregation} ${values?.metric}`;
+    if (key === "description.by")
+      return `${values?.base}; Gruppe ${values?.dimension}`;
+    if (key === "description.filteredByConditions")
+      return `${values?.base}; ${values?.count} Filter`;
+    return key;
+  };
+
+  it("uses injected label and text formatters for names", () => {
+    expect(
+      buildWidgetName({
+        aggregation: "avg",
+        measure: "latency",
+        dimension: "model",
+        view: "observations",
+        formatText,
+        formatLabel: (kind, value) => `${kind}:${value}`,
+      }),
+    ).toBe(
+      "aggregation:avg: measure:latency / dimension:model [view:observations]",
+    );
+  });
+
+  it("uses injected label and text formatters for descriptions", () => {
+    expect(
+      buildWidgetDescription({
+        aggregation: "avg",
+        measure: "latency",
+        dimension: "model",
+        view: "observations",
+        filters: [
+          { column: "name", operator: "=", value: "chat", type: "string" },
+          {
+            column: "environment",
+            operator: "=",
+            value: "prod",
+            type: "string",
+          },
+          { column: "userId", operator: "=", value: "u1", type: "string" },
+        ],
+        formatText,
+        formatLabel: (kind, value) => `${kind}:${value}`,
+      }),
+    ).toBe(
+      "view:observations: aggregation:avg measure:latency; Gruppe dimension:model; 3 Filter",
+    );
+  });
+});
 
 /**
  * LFE-14333: on a dashboard, each widget's query is built from the widget's own

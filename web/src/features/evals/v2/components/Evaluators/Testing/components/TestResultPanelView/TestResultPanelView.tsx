@@ -4,6 +4,7 @@ import { Clock, Coins } from "lucide-react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { usdFormatter } from "@/src/utils/numbers";
+import { useTranslations } from "next-intl";
 
 export type TestResultPanelState =
   | { status: "empty" }
@@ -53,26 +54,24 @@ function TestResultHeader({
   onRawOpenChange,
   traceActions,
 }: {
-  title: "LLM Output" | "Code Output";
+  title: string;
   durationMs: number | null;
   estimatedCostUsd: number | null;
   rawOpen: boolean;
   onRawOpenChange: (open: boolean) => void;
   traceActions: ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <div className="bg-secondary text-secondary-foreground flex flex-wrap items-center gap-2 border-b px-3 py-2">
       <p className="text-sm leading-none font-bold">{title}</p>
       {durationMs !== null ? (
-        <ResultStat icon={Clock} title="Duration of the test call">
+        <ResultStat icon={Clock} title={t("test.durationTitle")}>
           {(durationMs / 1000).toFixed(2)}s
         </ResultStat>
       ) : null}
       {estimatedCostUsd !== null ? (
-        <ResultStat
-          icon={Coins}
-          title="Estimated cost of the test call — also feeds the daily projection when saving"
-        >
+        <ResultStat icon={Coins} title={t("test.estimatedCostTitle")}>
           {usdFormatter(estimatedCostUsd)}
         </ResultStat>
       ) : null}
@@ -83,7 +82,7 @@ function TestResultHeader({
             checked={rawOpen}
             onCheckedChange={onRawOpenChange}
           />
-          Raw output
+          {t("test.rawOutput")}
         </label>
         {traceActions}
       </span>
@@ -92,11 +91,10 @@ function TestResultHeader({
 }
 
 function RawOutputView({ rawOutput }: { rawOutput: unknown | null }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   if (rawOutput === null) {
     return (
-      <p className="text-muted-foreground text-sm">
-        No raw output available for this run.
-      </p>
+      <p className="text-muted-foreground text-sm">{t("test.noRawOutput")}</p>
     );
   }
 
@@ -149,11 +147,12 @@ function LlmResultView({
   score,
   reasoning,
 }: Omit<Extract<TestResultPanelState, { status: "llm-success" }>, "status">) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <ResultCard>
-      <ScoreValue label="Score" value={score} />
+      <ScoreValue label={t("test.score")} value={score} />
       {reasoning ? (
-        <ScoreNote label="Model reasoning">{reasoning}</ScoreNote>
+        <ScoreNote label={t("test.modelReasoning")}>{reasoning}</ScoreNote>
       ) : null}
     </ResultCard>
   );
@@ -162,6 +161,7 @@ function LlmResultView({
 function CodeResultView({
   scores,
 }: Omit<Extract<TestResultPanelState, { status: "code-success" }>, "status">) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <ResultCard>
       {scores.map((score, index) => (
@@ -171,7 +171,7 @@ function CodeResultView({
         >
           <ScoreValue label={score.name} value={score.value} />
           {score.comment ? (
-            <ScoreNote label="Comment">{score.comment}</ScoreNote>
+            <ScoreNote label={t("test.comment")}>{score.comment}</ScoreNote>
           ) : null}
         </div>
       ))}
@@ -180,9 +180,12 @@ function CodeResultView({
 }
 
 function RunErrorView({ message }: { message: string }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-      <p className="text-destructive text-sm font-bold">Test run failed</p>
+      <p className="text-destructive text-sm font-bold">
+        {t("test.runFailed")}
+      </p>
       <p className="text-sm">{message}</p>
     </div>
   );
@@ -194,9 +197,7 @@ const RESULT_VIEWS: {
     result: Extract<TestResultPanelState, { status: Status }>,
   ) => ReactNode;
 } = {
-  empty: () => (
-    <p className="text-muted-foreground text-sm">No test run yet.</p>
-  ),
+  empty: () => <EmptyResultView />,
   // The rerun button carries the pending state on its own.
   running: () => null,
   "request-error": ({ message }) => (
@@ -208,6 +209,11 @@ const RESULT_VIEWS: {
   ),
   "code-success": ({ scores }) => <CodeResultView scores={scores} />,
 };
+
+function EmptyResultView() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+  return <p className="text-muted-foreground text-sm">{t("test.noRunYet")}</p>;
+}
 
 function renderResult<Status extends TestResultPanelState["status"]>(
   status: Status,
@@ -231,7 +237,7 @@ export function TestResultPanelView({
   traceActions,
   rerunAction,
 }: {
-  title: "LLM Output" | "Code Output";
+  title: string;
   result: TestResultPanelState;
   durationMs: number | null;
   estimatedCostUsd: number | null;

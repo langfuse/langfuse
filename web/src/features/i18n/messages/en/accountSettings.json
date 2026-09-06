@@ -1,0 +1,46 @@
+{
+  "title": "Account Settings",
+  "pages": { "general": "General", "v4Migration": "v4 Migration" },
+  "selectPage": "Select a page",
+  "email": {
+    "title": "Email",
+    "current": "Your email address: <b>{email}</b>"
+  },
+  "displayName": {
+    "title": "Display Name",
+    "current": "Your display name is currently \"<b>{name}</b>\".",
+    "pendingChange": "Your display name will be updated from \"{currentName}\" to \"<b>{newName}</b>\".",
+    "save": "Save",
+    "validation": {
+      "required": "Name cannot be empty",
+      "maxLength": "Name must be at most 100 characters",
+      "noHtml": "Name cannot contain HTML tags"
+    },
+    "updatedTitle": "Display Name Updated",
+    "updatedDescription": "Your display name has been successfully updated.",
+    "updateFailed": "Failed to update display name. Please try again."
+  },
+  "password": {
+    "title": "Password",
+    "description": "To change your password, we will send you a secure link to your email address. Click the button below to start the password reset process.",
+    "change": "Change Password"
+  },
+  "dangerZone": {
+    "title": "Danger Zone",
+    "deleteTitle": "Delete your account",
+    "deleteDescription": "You can delete your account if you are not the last owner of any organization. If you are the last owner, please add another owner or delete the organization and all projects first.",
+    "action": "Delete Account",
+    "confirm": "To confirm, type your email address \"{email}\" in the input box",
+    "emailMismatch": "Please enter your email address: {email}",
+    "blockedIntro": "You cannot delete your account because you are the last owner of the following organization(s):",
+    "blockedResolution": "Please add another owner or delete these organizations before deleting your account.",
+    "successTitle": "Account Deleted",
+    "successDescription": "Your account has been successfully deleted.",
+    "errorTitle": "Failed to Delete Account",
+    "unexpectedError": "An unexpected error occurred"
+  },
+  "commandMenu": {
+    "group": "Account Settings",
+    "item": "Account Settings > {page}"
+  }
+}

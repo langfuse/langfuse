@@ -2,6 +2,7 @@
 
 import {
   formatMetric,
+  getChartTypeDisplayName,
   getDimensionSummaries,
   getEvenTickInterval,
 } from "@/src/features/widgets/chart-library/utils";
@@ -198,6 +199,14 @@ describe("formatMetric", () => {
     expect(formatMetric(0.00012, { style: "full", maxCharacters: 7 })).toEqual({
       main: "1.20e-4",
     });
+  });
+});
+
+describe("getChartTypeDisplayName", () => {
+  it("uses an injected localized label", () => {
+    expect(
+      getChartTypeDisplayName("LINE_TIME_SERIES", () => "Liniendiagramm"),
+    ).toBe("Liniendiagramm");
   });
 });
 

@@ -38,6 +38,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
+import { useTranslations } from "next-intl";
 
 type RowData = {
   id: string;
@@ -66,6 +67,8 @@ export function DatasetItemsTable({
   datasetId: string;
   menuItems?: React.ReactNode;
 }) {
+  const t = useTranslations("productTables.datasets");
+  const td = useTranslations("coreDetails.datasets.misc");
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -150,7 +153,7 @@ export function DatasetItemsTable({
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
       accessorKey: "id",
-      header: "Item id",
+      header: t("columns.itemId"),
       size: 90,
       isFixedPosition: true,
       getCell: (id) => {
@@ -170,10 +173,9 @@ export function DatasetItemsTable({
     }),
     createLinkTableColumn<RowData, RowData["source"]>({
       accessorKey: "source",
-      header: "Source",
+      header: t("columns.source"),
       headerTooltip: {
-        description:
-          "Link to the source trace based on which this item was added",
+        description: t("sourceDescription"),
       },
       size: 90,
       getCell: (source) => {
@@ -200,7 +202,7 @@ export function DatasetItemsTable({
     }),
     createStatusTableColumn<RowData, DatasetStatus>({
       accessorKey: "status",
-      header: "Status",
+      header: t("columns.status"),
       getStatus: (status) =>
         status ? datasetStatusToStatus[status] : undefined,
       size: 80,
@@ -208,20 +210,20 @@ export function DatasetItemsTable({
     }),
     createDateTableColumn<RowData>({
       accessorKey: "createdAt",
-      header: "Created At",
+      header: t("columns.createdAt"),
       size: 150,
       enableHiding: true,
     }),
     createIOTableColumn<RowData>({
       accessorKey: "input",
-      header: "Input",
+      header: t("columns.input"),
       size: 200,
       enableHiding: true,
       singleLine: rowHeight === "s",
     }),
     createIOTableColumn<RowData>({
       accessorKey: "expectedOutput",
-      header: "Expected Output",
+      header: t("columns.expectedOutput"),
       size: 200,
       enableHiding: true,
       singleLine: rowHeight === "s",
@@ -229,7 +231,7 @@ export function DatasetItemsTable({
     }),
     createIOTableColumn<RowData>({
       accessorKey: "metadata",
-      header: "Metadata",
+      header: t("columns.metadata"),
       size: 200,
       enableHiding: true,
       singleLine: rowHeight === "s",
@@ -237,7 +239,7 @@ export function DatasetItemsTable({
     {
       id: "actions",
       accessorKey: "actions",
-      header: "Actions",
+      header: t("columns.actions"),
       size: 70,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
@@ -246,12 +248,14 @@ export function DatasetItemsTable({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">Open menu</span>
+                <span className="sr-only relative">
+                  {t("actions.openMenu")}
+                </span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("columns.actions")}</DropdownMenuLabel>
               <DropdownMenuItem
                 disabled={!hasAccess || !!selectedVersion}
                 onClick={() => {
@@ -260,7 +264,7 @@ export function DatasetItemsTable({
                 }}
               >
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                {t("actions.edit")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={!hasAccess || !!selectedVersion}
@@ -283,17 +287,15 @@ export function DatasetItemsTable({
                 }}
               >
                 <Archive className="mr-2 h-4 w-4" />
-                {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
+                {status === DatasetStatus.ARCHIVED
+                  ? t("actions.unarchive")
+                  : t("actions.archive")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={!hasAccess || !!selectedVersion}
                 className="text-destructive"
                 onClick={() => {
-                  if (
-                    window.confirm(
-                      "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
-                    )
-                  ) {
+                  if (window.confirm(t("confirmDeleteItem"))) {
                     capture("dataset_item:delete");
                     mutDelete.mutate({
                       projectId: projectId,
@@ -304,7 +306,7 @@ export function DatasetItemsTable({
                 }}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                {t("actions.delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -386,7 +388,7 @@ export function DatasetItemsTable({
           searchType,
           customDropdownLabels: {
             metadata: "IDs",
-            fullText: "Full Text",
+            fullText: td("fullText"),
           },
           hidePerformanceWarning: true,
         }}

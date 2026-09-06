@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { type ReactElement, useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type OrderByState } from "@langfuse/shared";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "@/src/features/i18n/messages";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: {} }),
@@ -33,6 +35,13 @@ const rows: Row[] = [
   { scoreName: "alpha-score", status: "ACTIVE" },
 ];
 
+const renderEnglish = (element: ReactElement) =>
+  render(
+    <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+      {element}
+    </NextIntlClientProvider>,
+  );
+
 function SortableTable({ initialOrderBy }: { initialOrderBy: OrderByState }) {
   const [orderBy, setOrderBy] = useState<OrderByState>(initialOrderBy);
 
@@ -54,7 +63,7 @@ function SortableTable({ initialOrderBy }: { initialOrderBy: OrderByState }) {
 
 describe("DataTable column sorting affordances", () => {
   it("does not show a sort indicator on a non-sortable column even if orderBy points at it", () => {
-    render(
+    renderEnglish(
       <SortableTable initialOrderBy={{ column: "status", order: "ASC" }} />,
     );
 
@@ -64,7 +73,7 @@ describe("DataTable column sorting affordances", () => {
   });
 
   it("shows a sort indicator on a sortable column and toggles order on click", () => {
-    render(
+    renderEnglish(
       <SortableTable initialOrderBy={{ column: "scoreName", order: "ASC" }} />,
     );
 
@@ -80,7 +89,7 @@ describe("DataTable column sorting affordances", () => {
   });
 
   it("does not change orderBy when a non-sortable header is clicked", () => {
-    render(
+    renderEnglish(
       <SortableTable initialOrderBy={{ column: "scoreName", order: "ASC" }} />,
     );
 

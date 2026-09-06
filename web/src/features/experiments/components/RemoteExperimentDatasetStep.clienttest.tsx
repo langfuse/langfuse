@@ -1,6 +1,8 @@
 import { type ComponentProps } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { getMessages } from "@/src/features/i18n/messages";
 
 const mocks = vi.hoisted(() => ({
   allDatasetMetaUseQuery: vi.fn(),
@@ -22,16 +24,18 @@ const renderStep = (
   props: Partial<ComponentProps<typeof RemoteExperimentDatasetStep>> = {},
 ) =>
   render(
-    <Dialog open>
-      <DialogContent>
-        <RemoteExperimentDatasetStep
-          projectId="project-1"
-          onBack={vi.fn()}
-          onContinue={vi.fn()}
-          {...props}
-        />
-      </DialogContent>
-    </Dialog>,
+    <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+      <Dialog open>
+        <DialogContent>
+          <RemoteExperimentDatasetStep
+            projectId="project-1"
+            onBack={vi.fn()}
+            onContinue={vi.fn()}
+            {...props}
+          />
+        </DialogContent>
+      </Dialog>
+    </NextIntlClientProvider>,
   );
 
 describe("RemoteExperimentDatasetStep", () => {

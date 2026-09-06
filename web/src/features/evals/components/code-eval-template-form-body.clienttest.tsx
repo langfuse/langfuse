@@ -13,6 +13,27 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
+vi.mock("next-intl", () => ({
+  useTranslations: () => {
+    const messages: Record<string, string> = {
+      "codeTemplate.waitForValidation":
+        "Wait for code validation to finish before formatting.",
+      "codeTemplate.fixValidationErrors":
+        "Fix the code validation errors before formatting.",
+      "codeTemplate.formattingFailed": "Formatting failed",
+      "codeTemplate.formatterError":
+        "The formatter could not process this code.",
+      "codeTemplate.selectedSampleData": "Selected sample data:",
+      "codeTemplate.hoverEvaluationContext":
+        "Hover to preview the evaluation context",
+      "codeTemplate.format": "Format",
+      "codeTemplate.ctxHint": "Evaluation context help",
+    };
+    const translate = (key: string) => messages[key] ?? key;
+    translate.rich = translate;
+    return translate;
+  },
+}));
 vi.mock(
   "@/src/features/evals/utils/code-eval-template-validation",
   async (importOriginal) => ({

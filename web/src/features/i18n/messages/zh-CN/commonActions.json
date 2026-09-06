@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "noAccess": "你没有访问此资源的权限，请联系管理员授权。",
+    "notInPlan": "当前套餐不包含此功能。",
+    "limitReached": "当前套餐中此资源的用量已达上限（{current}/{max}）。升级套餐可提高限额。"
+  },
+  "delete": {
+    "action": "删除",
+    "noPermission": "你没有删除此{entity}的权限。",
+    "confirm": "请确认",
+    "defaultDescription": "此操作无法撤销，将删除与此{entity}关联的全部数据。如果它是项目默认项，则会为所有用户删除。",
+    "typeToConfirm": "输入“{value}”以确认",
+    "incorrectConfirmation": "请输入正确的确认内容",
+    "deleteEntity": "删除{entity}",
+    "entities": {
+      "trace": "追踪",
+      "dataset": "数据集",
+      "dashboard": "仪表盘",
+      "alert": "告警",
+      "runningEvaluator": "运行中的评估器",
+      "defaultEvaluationModel": "默认评估模型"
+    },
+    "traceDeleted": "追踪已删除",
+    "traceDeletedDescription": "所选追踪将被删除。追踪会异步移除，最长可能继续显示 24 小时。",
+    "dashboardDeleted": "仪表盘已删除",
+    "dashboardDeletedDescription": "仪表盘已成功删除。",
+    "alertDeleted": "告警已删除",
+    "alertDeletedDescription": "告警已成功删除。",
+    "alertDescription": "此操作无法撤销，将停止所有评估并删除告警历史。",
+    "evaluatorDeleted": "运行中的评估器已删除",
+    "evaluatorDeletedDescription": "运行中的评估器已成功删除。",
+    "evaluatorDescription": "此操作无法撤销，将删除与该评估器关联的全部日志，但不会删除它生成的评分。",
+    "modelDeleted": "默认评估模型已删除",
+    "modelDeletedDescription": "默认评估模型已删除。依赖该默认模型的运行中评估将被停用，队列中的任务将失败。",
+    "modelDescription": "删除此模型可能导致运行中的评估器失败。请确认当前没有评估器依赖此模型。"
+  },
+  "export": {
+    "queued": "导出任务已加入队列",
+    "emailNotice": "导出就绪后，你将收到电子邮件通知。",
+    "viewExports": "查看导出任务",
+    "action": "导出",
+    "asFormat": "导出为 {format}",
+    "warnings": {
+      "traces": "注意：追踪导出不会应用观测级列（级别、Token、成本、延迟）和评论的筛选条件，因此收到的数据可能多于预期。",
+      "observations": "注意：观测导出不会应用追踪级列（追踪名称、追踪标签、用户 ID、追踪环境）和评论的筛选条件，因此收到的数据可能多于预期。",
+      "events": "注意：事件导出不会应用评论筛选条件，因此收到的数据可能多于预期。",
+      "sessions": "注意：会话导出不会应用评论筛选条件，因此收到的数据可能多于预期。",
+      "auditLogs": "注意：审计日志导出不会应用筛选条件，将导出此项目的全部审计日志。"
+    }
+  }
+}

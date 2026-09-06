@@ -35,6 +35,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { TracePanelNavigationHeader } from "../TracePanelNavigationHeader/TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./components/TracePanelNavigationHiddenNotice";
 import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+import { useTranslations } from "next-intl";
 
 // Height of the "Graph" bar — the panel's collapsed form. Must match the bar's
 // h-7 so a collapsed panel shows exactly the bar and nothing else.
@@ -68,15 +69,16 @@ function GraphPanelBar({
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  const t = useTranslations("coreDetails.traces.detailControls");
   return (
     <button
       type="button"
       onClick={onToggle}
-      title={collapsed ? "Expand graph panel" : "Collapse graph panel"}
+      title={collapsed ? t("expandGraphPanel") : t("collapseGraphPanel")}
       aria-expanded={!collapsed}
       className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex h-7 w-full shrink-0 items-center justify-between border-b px-2"
     >
-      <span className="text-xs font-bold">Graph</span>
+      <span className="text-xs font-bold">{t("graph")}</span>
       {collapsed ? (
         <ChevronUp className="h-3.5 w-3.5" />
       ) : (

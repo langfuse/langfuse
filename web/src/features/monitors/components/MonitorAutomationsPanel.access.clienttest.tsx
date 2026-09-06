@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderMonitorWithIntl } from "../test-utils";
 
 const automationRow = {
   id: "auto-1",
@@ -25,7 +26,7 @@ import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 describe("MonitorAutomationsPanel access gating", () => {
   it("read-only access: clicking a row does not toggle the trigger", () => {
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         hasAccess={false}
@@ -40,7 +41,7 @@ describe("MonitorAutomationsPanel access gating", () => {
 
   it("write access: clicking a row toggles the trigger", () => {
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         hasAccess={true}
@@ -54,7 +55,7 @@ describe("MonitorAutomationsPanel access gating", () => {
   });
 
   it("read-only access: the add-automation trigger is disabled", () => {
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         hasAccess={false}
@@ -66,7 +67,7 @@ describe("MonitorAutomationsPanel access gating", () => {
   });
 
   it("write access: the add-automation trigger is enabled", () => {
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         hasAccess={true}

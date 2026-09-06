@@ -77,6 +77,7 @@ import {
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { useTranslations } from "next-intl";
 
 const getPythonCode = (
   name: string,
@@ -121,6 +122,8 @@ await langfuse.prompt.get("${name}", { version: ${version} })
 export const PromptDetail = ({
   promptName: promptNameProp,
 }: { promptName?: string } = {}) => {
+  const t = useTranslations("productTables.prompts");
+  const td = useTranslations("coreDetails.prompts.detail");
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -223,10 +226,10 @@ export const PromptDetail = ({
     utils.datasets.baseRunDataByDatasetId.invalidate();
     utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment triggered successfully",
-      description: "Waiting for experiment to complete...",
+      title: td("experimentSuccess"),
+      description: td("experimentWaiting"),
       link: {
-        text: "View experiment",
+        text: td("viewExperiment"),
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -270,7 +273,7 @@ export const PromptDetail = ({
   }, [prompt?.id]);
 
   if (!promptHistory.data || !prompt) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("loading")}</div>;
   }
 
   const extractedVariables = prompt
@@ -289,17 +292,15 @@ export const PromptDetail = ({
     <Page
       headerProps={{
         title: prompt.name,
-        titleTooltip:
-          "Prompt names cannot be changed. Instead, duplicate this prompt to a different name.",
+        titleTooltip: t("nameImmutable"),
         itemType: "PROMPT",
         help: {
-          description:
-            "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
+          description: t("helpDescription"),
           href: "https://langfuse.com/docs/prompts",
         },
         breadcrumb: [
           {
-            name: "Prompts",
+            name: t("prompts"),
             href: `/project/${projectId}/prompts/`,
           },
           ...breadcrumbItems.map((item) => ({
@@ -347,7 +348,7 @@ export const PromptDetail = ({
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
-              placeholder="Search..."
+              placeholder={t("search")}
               className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
             />
 
@@ -362,7 +363,7 @@ export const PromptDetail = ({
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
                 <Plus className="h-4 w-4 md:mr-2" />
-                <span className="hidden lg:inline">New version</span>
+                <span className="hidden lg:inline">{t("newVersion")}</span>
               </Link>
             </Button>
           </div>
@@ -432,7 +433,9 @@ export const PromptDetail = ({
                         )}
                       >
                         <Terminal className="h-4 w-4" />
-                        <span className="hidden md:inline">Playground</span>
+                        <span className="hidden md:inline">
+                          {t("playground")}
+                        </span>
                         <ChevronDown className="h-3 w-3" />
                       </Button>
                     </Trigger>
@@ -451,7 +454,7 @@ export const PromptDetail = ({
                       >
                         <FlaskConical className="h-4 w-4" />
                         <span className="hidden md:ml-2 md:inline">
-                          Run experiment
+                          {t("runExperiment")}
                         </span>
                       </Button>
                     </DialogTrigger>
@@ -494,7 +497,7 @@ export const PromptDetail = ({
                       ) : (
                         <>
                           <MessageSquare className="h-4 w-4" />
-                          <span>Add comment</span>
+                          <span>{t("addComment")}</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge
                               count={
@@ -535,12 +538,14 @@ export const PromptDetail = ({
             onValueChange={(value) => setCurrentTab(value)}
           >
             <TabsBarList className="max-w-full min-w-0 justify-start overflow-x-auto">
-              <TabsBarTrigger value="prompt">Prompt</TabsBarTrigger>
-              <TabsBarTrigger value="config">Config</TabsBarTrigger>
+              <TabsBarTrigger value="prompt">{t("prompt")}</TabsBarTrigger>
+              <TabsBarTrigger value="config">{t("config")}</TabsBarTrigger>
               <TabsBarTrigger value="linked-generations">
-                Linked Generations
+                {t("linkedGenerations")}
               </TabsBarTrigger>
-              <TabsBarTrigger value="use-prompt">Use Prompt</TabsBarTrigger>
+              <TabsBarTrigger value="use-prompt">
+                {t("usePrompt")}
+              </TabsBarTrigger>
             </TabsBarList>
             <TabsBarContent
               value="linked-generations"
@@ -583,13 +588,13 @@ export const PromptDetail = ({
                           value="resolved"
                           className="h-fit px-1 text-xs"
                         >
-                          Resolved prompt
+                          {td("resolved")}
                         </TabsTrigger>
                         <TabsTrigger
                           value="tagged"
                           className="h-fit px-1 text-xs"
                         >
-                          Tagged prompt
+                          {td("tagged")}
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
@@ -611,17 +616,17 @@ export const PromptDetail = ({
                     promptGraph.data?.resolvedPrompt ? (
                       <CodeView
                         content={String(promptGraph.data.resolvedPrompt)}
-                        title="Text Prompt (resolved)"
+                        title={t("textPromptResolved")}
                       />
                     ) : (
                       <CodeView
                         content={renderRichPromptContent(prompt.prompt)}
                         originalContent={prompt.prompt}
-                        title="Text Prompt"
+                        title={t("textPrompt")}
                       />
                     )
                   ) : (
-                    <JSONView json={prompt.prompt} title="Prompt" />
+                    <JSONView json={prompt.prompt} title={t("prompt")} />
                   )}
                 </PromptReferenceProvider>
                 <PromptVariableListPreview variables={extractedVariables} />
@@ -634,7 +639,7 @@ export const PromptDetail = ({
               <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto pb-4">
                 <JSONView
                   json={prompt.config}
-                  title="Config"
+                  title={t("config")}
                   className="pb-2"
                 />
               </div>
@@ -647,17 +652,18 @@ export const PromptDetail = ({
                 {pythonCode && <CodeView content={pythonCode} title="Python" />}
                 {jsCode && <CodeView content={jsCode} title="JS/TS" />}
                 <p className="text-muted-foreground pl-1 text-xs">
-                  See{" "}
-                  <a
-                    href="https://langfuse.com/docs/prompts"
-                    className="underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    documentation
-                  </a>{" "}
-                  for more details on how to use prompts in frameworks such as
-                  Langchain.
+                  {td.rich("docs", {
+                    link: (chunks) => (
+                      <a
+                        href="https://langfuse.com/docs/prompts"
+                        className="underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {chunks}
+                      </a>
+                    ),
+                  })}
                 </p>
               </div>
             </TabsBarContent>

@@ -1,5 +1,8 @@
+import type { PropsWithChildren } from "react";
 import { act, renderHook } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
+import { getMessages } from "@/src/features/i18n/messages";
 import { useActivationConfirmation } from "./useActivationConfirmation";
 
 const mocks = vi.hoisted(() => ({
@@ -30,11 +33,18 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: vi.fn(),
 }));
 
+const IntlWrapper = ({ children }: PropsWithChildren) => (
+  <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+    {children}
+  </NextIntlClientProvider>
+);
+
 describe("useActivationConfirmation", () => {
   it("owns estimate, sampling, and confirmation state with React state", async () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
-    const { result } = renderHook(() =>
-      useActivationConfirmation({ projectId: "project-1" }),
+    const { result } = renderHook(
+      () => useActivationConfirmation({ projectId: "project-1" }),
+      { wrapper: IntlWrapper },
     );
 
     await act(() =>

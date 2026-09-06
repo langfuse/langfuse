@@ -54,4 +54,32 @@ describe("getTemplateResultType", () => {
   it("returns Unknown for invalid output definitions", () => {
     expect(getTemplateResultType({ foo: "bar" })).toBe("Unknown");
   });
+
+  it("uses injected localized result type labels", () => {
+    expect(
+      getTemplateResultType(
+        createBooleanEvalOutputDefinition({
+          reasoningDescription: "Why",
+          scoreDescription: "Return true or false",
+        }),
+        {
+          unknown: "Unbekannt",
+          numeric: "Numerisch",
+          categorical: "Kategorisch",
+          boolean: "Boolesch",
+        },
+      ),
+    ).toBe("Boolesch");
+    expect(
+      getTemplateResultType(
+        { foo: "bar" },
+        {
+          unknown: "Unbekannt",
+          numeric: "Numerisch",
+          categorical: "Kategorisch",
+          boolean: "Boolesch",
+        },
+      ),
+    ).toBe("Unbekannt");
+  });
 });

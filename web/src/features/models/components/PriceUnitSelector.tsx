@@ -16,8 +16,10 @@ import {
 } from "@/src/components/ui/select";
 import { PriceUnit } from "@/src/features/models/validation";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { useTranslations } from "next-intl";
 
 export const PriceUnitSelector = () => {
+  const t = useTranslations("settingsEnterprise.models.pricingEditor");
   const { priceUnit, setPriceUnit } = usePriceUnitMultiplier();
 
   return (
@@ -33,7 +35,7 @@ export const PriceUnitSelector = () => {
           onValueChange={(value: PriceUnit) => setPriceUnit(value)}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select unit" />
+            <SelectValue placeholder={t("selectUnit")} />
           </SelectTrigger>
           <SelectContent>
             {Object.values(PriceUnit).map((unit) => (

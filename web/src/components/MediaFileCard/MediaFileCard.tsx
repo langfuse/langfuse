@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
+import { useTranslations } from "next-intl";
 
 export type MediaFileCardProps = {
   contentType: string;
@@ -24,6 +25,7 @@ export function MediaFileCard({
   fileName,
   onClick,
 }: MediaFileCardProps) {
+  const t = useTranslations("sharedUi.mediaFileCard");
   const mediaType = contentType.split("/")[0] ?? "";
   const MediaIcon = MEDIA_TYPE_ICON[mediaType];
   const Icon = MediaIcon ?? File;
@@ -38,8 +40,8 @@ export function MediaFileCard({
       onClick={onClick}
       aria-label={
         isPreviewable
-          ? `Show ${fileName} inline`
-          : `Open ${fileName} in new tab`
+          ? t("showInline", { name: fileName })
+          : t("openNewTab", { name: fileName })
       }
       aria-expanded={isPreviewable ? false : undefined}
       title={fileName}

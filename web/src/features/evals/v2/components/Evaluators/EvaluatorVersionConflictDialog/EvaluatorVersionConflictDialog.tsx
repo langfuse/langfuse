@@ -1,4 +1,5 @@
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorVersionConflictDialog({
   open,
@@ -13,15 +14,17 @@ export function EvaluatorVersionConflictDialog({
   onDiscard: () => void | Promise<void>;
   onOverride: () => void | Promise<void>;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="This evaluator was updated"
-      description="Another user saved a newer version while you were editing. Discard your changes to load the latest version, or override it by saving your changes as the newest version. The other version remains in the version history."
-      cancelLabel="Discard changes"
+      title={t("evaluator.versionConflict.title")}
+      description={t("evaluator.versionConflict.description")}
+      cancelLabel={t("evaluator.versionConflict.discard")}
       onCancel={onDiscard}
-      confirmLabel="Override changes"
+      confirmLabel={t("evaluator.versionConflict.override")}
       confirmVariant="default"
       loading={isOverriding}
       onConfirm={onOverride}

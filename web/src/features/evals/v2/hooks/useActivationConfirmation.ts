@@ -6,6 +6,7 @@ import {
 import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/types/rules";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { useTranslations } from "next-intl";
 
 export type ActivationConfirmationState = {
   open: boolean;
@@ -29,15 +30,15 @@ export function useActivationConfirmation({
 }: {
   projectId: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const utils = api.useUtils();
   const [confirmation, setConfirmation] = useState<ActivationConfirmationState>(
     {
       open: false,
       isConfirming: false,
-      title: "Activate evaluation rule?",
-      description:
-        "Review the estimated cost before activating this evaluation rule.",
-      confirmLabel: "Activate rule",
+      title: t("rules.activation.title"),
+      description: t("rules.activation.description"),
+      confirmLabel: t("rules.activation.confirm"),
       pendingAction: null,
     },
   );

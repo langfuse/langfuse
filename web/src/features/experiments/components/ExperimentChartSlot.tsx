@@ -16,6 +16,7 @@ import type { MetricOption } from "../types/charts";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useTranslations } from "next-intl";
 
 type ExperimentChartSlotProps = {
   chartIndex: number;
@@ -47,6 +48,7 @@ export function ExperimentChartSlot({
   toTimestamp,
   isExternalLoading = false,
 }: ExperimentChartSlotProps) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const { selectedMetricOption, widgetConfig } = useMemo(
     () => ({
       selectedMetricOption: availableMetricOptions.find(
@@ -145,12 +147,14 @@ export function ExperimentChartSlot({
     }
     // Extract label from ID for stale selections
     if (selectedMetricId.startsWith("base:")) {
-      return selectedMetricId === "base:cost" ? "Cost ($)" : "Latency (ms)";
+      return selectedMetricId === "base:cost"
+        ? t("charts.cost")
+        : t("charts.latency");
     }
     // Score IDs like "obs-score-numeric:helpfulness" -> "helpfulness"
     const scoreName = selectedMetricId.split(":").pop();
     return scoreName ?? selectedMetricId;
-  }, [selectedMetricOption, selectedMetricId]);
+  }, [selectedMetricOption, selectedMetricId, t]);
 
   // Check if metric is available for current experiments
   const isMetricAvailable = Boolean(selectedMetricOption);
@@ -165,6 +169,8 @@ export function ExperimentChartSlot({
           variant="ghost"
           size="icon"
           onClick={onRemove}
+          aria-label={t("charts.removeChart")}
+          title={t("charts.removeChart")}
           className="absolute top-1 right-1 z-10 h-6 w-6 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
         >
           <X className="h-3.5 w-3.5" />
@@ -175,7 +181,7 @@ export function ExperimentChartSlot({
       <div className="flex items-center">
         <Select value={selectedMetricId} onValueChange={onMetricChange}>
           <SelectTrigger className="h-7 w-44 text-xs">
-            <SelectValue placeholder="Select metric...">
+            <SelectValue placeholder={t("charts.selectMetricEllipsis")}>
               {selectedLabel}
             </SelectValue>
           </SelectTrigger>
@@ -222,7 +228,7 @@ export function ExperimentChartSlot({
         ) : (
           <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
             <span className="text-muted-foreground text-sm">
-              Select a metric
+              {t("charts.selectMetric")}
             </span>
           </div>
         )}

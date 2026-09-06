@@ -1,0 +1,163 @@
+{
+  "playground": {
+    "page": {
+      "title": "调试台",
+      "description": "在多个窗口中测试和迭代提示词的沙盒",
+      "windowLabel": "窗口 {number}",
+      "windowCount": "{count} 个窗口",
+      "executingWindows": "正在执行 {count} 个窗口",
+      "configureModel": "请先在项目设置中配置模型",
+      "executeAll": "同时执行所有调试台窗口",
+      "runAll": "全部运行",
+      "noContent": "没有可执行的内容",
+      "noContentDescription": "请至少在一个窗口中添加一条包含内容的消息。",
+      "executingAll": "正在执行全部 {count} 个窗口",
+      "executingProgress": "正在执行 {executing}/{total} 个窗口",
+      "maximumWindows": "最多只能打开 {count} 个窗口",
+      "cannotRemoveLastWindow": "无法移除最后一个窗口"
+    },
+    "configuration": {
+      "tools": "工具",
+      "toolsDescription": "配置可供模型使用的工具。",
+      "noTools": "未附加工具。",
+      "schema": "Schema",
+      "structuredOutput": "结构化输出",
+      "structuredOutputDescription": "配置结构化输出的 JSON Schema。",
+      "noSchema": "未提供 Schema。",
+      "variables": "变量",
+      "variablesShort": "变量",
+      "variablesAndPlaceholders": "变量和消息占位符",
+      "variablesDescription": "配置提示词中的变量和消息占位符。",
+      "messagePlaceholders": "消息占位符",
+      "noVariables": "未定义变量或消息占位符。"
+    },
+    "output": {
+      "title": "输出",
+      "toggleJson": "切换输入/输出 JSON",
+      "copy": "复制输出",
+      "addAssistantMessage": "添加为助手消息",
+      "addToMessages": "添加到消息"
+    },
+    "tools": {
+      "search": "搜索工具...",
+      "noneFound": "未找到工具。",
+      "create": "创建新工具",
+      "noneAttached": "未附加工具。",
+      "remove": "移除工具 {name}"
+    },
+    "savePrompt": {
+      "action": "保存为提示词",
+      "newPrompt": "保存为新提示词",
+      "search": "搜索聊天提示词...",
+      "noneFound": "未找到聊天提示词",
+      "chatOnly": "调试台中的提示词包含多条系统/用户消息，因此只能保存为“聊天”提示词。",
+      "newVersion": "保存为提示词的新版本",
+      "or": "或"
+    }
+  },
+  "dashboard": {
+    "homePresets": {
+      "traces": {
+        "name": "追踪",
+        "description": "追踪总数及最常见的追踪名称"
+      },
+      "modelCosts": {
+        "name": "模型成本",
+        "description": "各模型的成本和 Token 用量"
+      },
+      "scores": {
+        "name": "评分",
+        "description": "按名称统计评分数量和平均值"
+      },
+      "traffic": {
+        "name": "追踪和观测趋势",
+        "description": "通过追踪和观测标签页查看流量趋势"
+      },
+      "modelUsage": {
+        "name": "模型用量",
+        "description": "按模型或类型查看成本和用量趋势"
+      },
+      "userConsumption": {
+        "name": "用户用量",
+        "description": "各用户的 Token 成本和追踪数量"
+      },
+      "scoresOverTime": {
+        "name": "评分趋势",
+        "description": "各评分的移动平均值"
+      },
+      "traceLatency": {
+        "name": "追踪延迟百分位数",
+        "description": "各追踪名称的 p50-p99 延迟"
+      },
+      "generationLatency": {
+        "name": "生成延迟百分位数",
+        "description": "各生成名称的 p50-p99 延迟"
+      },
+      "observationLatency": {
+        "name": "观测延迟百分位数",
+        "description": "各观测类型和名称的 p50-p99 延迟"
+      },
+      "modelLatencies": {
+        "name": "模型延迟",
+        "description": "按百分位数标签页查看各 LLM 的延迟"
+      },
+      "scoreAnalytics": {
+        "name": "评分分析",
+        "description": "所选评分的图表和分布"
+      },
+      "fixedConfiguration": "首页卡片 - 固定配置"
+    },
+    "modelCosts": {
+      "title": "模型成本",
+      "model": "模型",
+      "tokens": "Token",
+      "totalCost": "总成本",
+      "calculation": "根据各模型的 Token 数量和每 Token 成本计算。"
+    },
+    "users": {
+      "unknown": "未知",
+      "tokenCost": "Token 成本",
+      "totalCost": "总成本",
+      "traceCount": "追踪数量",
+      "totalTraces": "追踪总数",
+      "traces": "追踪",
+      "title": "用户用量",
+      "emptyDescription": "在追踪中传入用户 ID，即可按用户统计用量。"
+    },
+    "timeSeries": {
+      "traces": "追踪",
+      "observationsByLevel": "按级别统计观测",
+      "observations": "观测",
+      "tracesTracked": "已记录的追踪",
+      "observationsTracked": "已记录的观测",
+      "tracesByTime": "追踪趋势",
+      "observationsByTime": "观测趋势",
+      "emptyDescription": "追踪包含 LLM 应用的详细信息，可使用 SDK 创建。"
+    },
+    "scores": {
+      "title": "评分",
+      "description": "各评分的移动平均值",
+      "emptyDescription": "评分用于评估 LLM 质量，可手动创建或通过 SDK 创建。"
+    },
+    "edit": {
+      "updateFailed": "更新仪表盘失败",
+      "validationError": "验证错误",
+      "nameRequired": "仪表盘名称为必填项",
+      "title": "编辑仪表盘",
+      "name": "名称",
+      "namePlaceholder": "仪表盘名称",
+      "description": "描述",
+      "descriptionPlaceholder": "仪表盘描述",
+      "cancel": "取消",
+      "save": "保存更改"
+    },
+    "homeSelect": {
+      "default": "默认",
+      "thisProject": "此项目",
+      "maintained": "Langfuse 维护",
+      "description": "此项目首页显示的仪表盘",
+      "search": "搜索仪表盘...",
+      "noneFound": "未找到仪表盘"
+    }
+  }
+}

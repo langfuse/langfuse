@@ -14,6 +14,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
+import { useTranslations } from "next-intl";
 
 interface HistogramDataPoint {
   binLabel: string;
@@ -25,12 +26,7 @@ interface HistogramDataPoint {
 
 const HistogramChart = ({
   data,
-  config = {
-    count: {
-      label: "Count",
-      color: "hsl(var(--chart-1))",
-    },
-  },
+  config,
   subtleFill = false,
   metricFormatter = (value, options) => formatMetric(value, options),
 }: {
@@ -39,6 +35,13 @@ const HistogramChart = ({
   subtleFill?: boolean;
   metricFormatter?: MetricFormatterFunction;
 }) => {
+  const t = useTranslations("systemUi.histogram");
+  const resolvedConfig = config ?? {
+    count: {
+      label: t("count"),
+      color: "hsl(var(--chart-1))",
+    },
+  };
   const formatBinEdge = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
@@ -62,7 +65,7 @@ const HistogramChart = ({
 
     // Fallback: treat as regular data points with binLabel
     return data.map((item) => ({
-      binLabel: item.dimension || `Bin ${data.indexOf(item) + 1}`,
+      binLabel: item.dimension || t("bin", { number: data.indexOf(item) + 1 }),
       count: (item.metric as number) || 0,
     }));
   };
@@ -72,14 +75,14 @@ const HistogramChart = ({
   if (!histogramData.length) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center">
-        No data available
+        {t("noData")}
       </div>
     );
   }
 
   return (
     <ChartContainer
-      config={config}
+      config={resolvedConfig}
       className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
     >
       <BarChart
@@ -123,8 +126,8 @@ const HistogramChart = ({
                   formatMetric(Number(v), { style: "compact" }),
                 )
               }
-              nameFormatter={(name) => (name === "count" ? "Count" : name)}
-              labelFormatter={(label) => `Bin: ${label}`}
+              nameFormatter={(name) => (name === "count" ? t("count") : name)}
+              labelFormatter={(label) => t("binLabel", { label })}
             />
           )}
         />

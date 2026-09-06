@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 /**
  * Datadog-style vertical stepper section: a numbered circle with a connector
@@ -29,6 +30,7 @@ export function Stepper({
   onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
+  const t = useTranslations("sharedUi.stepper");
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = open ?? internalOpen;
 
@@ -56,7 +58,7 @@ export function Stepper({
         <button
           type="button"
           className="flex min-h-7 items-center gap-1.5 text-left"
-          aria-label={`Step ${number}: ${title}`}
+          aria-label={t("step", { number, title })}
           aria-expanded={expanded}
           onClick={toggle}
         >

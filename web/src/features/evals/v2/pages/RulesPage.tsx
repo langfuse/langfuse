@@ -12,8 +12,10 @@ import {
   getEvalsV2Tabs,
 } from "@/src/features/navigation/utils/evals-v2-tabs";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { useTranslations } from "next-intl";
 
 export function RulesPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [createOpen, setCreateOpen] = useState(false);
@@ -31,18 +33,17 @@ export function RulesPage() {
   return (
     <Page
       headerProps={{
-        title: "Rules",
+        title: t("rulesPage.title"),
         titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
-          description:
-            "Rules define which incoming observations reusable evaluators run on.",
+          description: t("rulesPage.help"),
         },
         actionButtonsRight: (
           <Button
             disabled={!hasWriteAccess}
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="mr-2 h-4 w-4" /> New rule
+            <Plus className="mr-2 h-4 w-4" /> {t("rulesPage.newRule")}
           </Button>
         ),
         tabsProps: {

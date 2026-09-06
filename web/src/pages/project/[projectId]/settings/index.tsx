@@ -35,6 +35,7 @@ import { ProjectNotificationChannels } from "@/src/features/notifications/compon
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useTranslations } from "next-intl";
 
 type ProjectSettingsPage = {
   title: string;
@@ -43,7 +44,39 @@ type ProjectSettingsPage = {
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
+const defaultProjectSettingsLabels = {
+  general: "General",
+  apiKeys: "API Keys",
+  developerTools: "MCP & CLI",
+  llmConnections: "LLM Connections",
+  modelDefinitions: "Model Definitions",
+  protectedPromptLabels: "Protected Prompt Labels",
+  scoreConfigs: "Scores Configs",
+  members: "Members",
+  integrations: "Integrations",
+  exports: "Exports",
+  batchActions: "Batch Actions",
+  auditLogs: "Audit Logs",
+  notifications: "Notifications",
+  billing: "Billing",
+  organizationSettings: "Organization Settings",
+  v4Migration: "v4 Migration",
+  debugInformation: "Debug Information",
+  metadata: "Metadata",
+  projectMembers: "Project Members",
+  dangerZone: "Danger Zone",
+  transferTitle: "Transfer ownership",
+  transferDescription:
+    "Transfer this project to another organization where you have the ability to create projects.",
+  transferButton: "Transfer Project",
+  deleteTitle: "Delete this project",
+  deleteDescription:
+    "Once you delete a project, there is no going back. Please be certain.",
+  deleteButton: "Delete Project",
+};
+
 export function useProjectSettingsPages(): ProjectSettingsPage[] {
+  const t = useTranslations("workspace.projectSettings");
   const router = useRouter();
   const { project, organization } = useQueryProject();
   const showBillingSettings = useHasEntitlement("cloud-billing");
@@ -64,6 +97,34 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
     showV4Migration,
+    labels: {
+      general: t("general"),
+      apiKeys: t("apiKeys"),
+      developerTools: t("developerTools"),
+      llmConnections: t("llmConnections"),
+      modelDefinitions: t("modelDefinitions"),
+      protectedPromptLabels: t("protectedPromptLabels"),
+      scoreConfigs: t("scoreConfigs"),
+      members: t("members"),
+      integrations: t("integrations"),
+      exports: t("exports"),
+      batchActions: t("batchActions"),
+      auditLogs: t("auditLogs"),
+      notifications: t("notifications"),
+      billing: t("billing"),
+      organizationSettings: t("organizationSettings"),
+      v4Migration: t("v4Migration"),
+      debugInformation: t("debugInformation"),
+      metadata: t("metadata"),
+      projectMembers: t("projectMembers"),
+      dangerZone: t("dangerZone"),
+      transferTitle: t("transferTitle"),
+      transferDescription: t("transferDescription"),
+      transferButton: t("transferButton"),
+      deleteTitle: t("deleteTitle"),
+      deleteDescription: t("deleteDescription"),
+      deleteButton: t("deleteButton"),
+    },
   });
 }
 
@@ -75,6 +136,7 @@ export const getProjectSettingsPages = ({
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
   showV4Migration,
+  labels = defaultProjectSettingsLabels,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -83,9 +145,10 @@ export const getProjectSettingsPages = ({
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
   showV4Migration: boolean;
+  labels?: typeof defaultProjectSettingsLabels;
 }): ProjectSettingsPage[] => [
   {
-    title: "General",
+    title: labels.general,
     slug: "index",
     cmdKKeywords: ["name", "id", "delete", "transfer", "ownership"],
     content: (
@@ -94,9 +157,9 @@ export const getProjectSettingsPages = ({
         <RenameProject />
         {showRetentionSettings && <ConfigureRetention />}
         <div>
-          <Header title="Debug Information" />
+          <Header title={labels.debugInformation} />
           <JSONView
-            title="Metadata"
+            title={labels.metadata}
             json={{
               project: {
                 name: project.name,
@@ -115,11 +178,11 @@ export const getProjectSettingsPages = ({
           />
         </div>
         <SettingsDangerZone
+          title={labels.dangerZone}
           items={[
             {
-              title: "Transfer ownership",
-              description:
-                "Transfer this project to another organization where you have the ability to create projects.",
+              title: labels.transferTitle,
+              description: labels.transferDescription,
               button: (
                 <TransferProjectDialogController
                   project={project}
@@ -131,16 +194,15 @@ export const getProjectSettingsPages = ({
                       disabled={disabled !== undefined}
                       onClick={openDialog}
                     >
-                      Transfer Project
+                      {labels.transferButton}
                     </Button>
                   )}
                 </TransferProjectDialogController>
               ),
             },
             {
-              title: "Delete this project",
-              description:
-                "Once you delete a project, there is no going back. Please be certain.",
+              title: labels.deleteTitle,
+              description: labels.deleteDescription,
               button: (
                 <DeleteProjectDialogController>
                   {({ hasAccess, Trigger }) => (
@@ -149,7 +211,7 @@ export const getProjectSettingsPages = ({
                         variant="destructive-secondary"
                         disabled={!hasAccess}
                       >
-                        Delete Project
+                        {labels.deleteButton}
                       </Button>
                     </Trigger>
                   )}
@@ -162,7 +224,7 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
-    title: "API Keys",
+    title: labels.apiKeys,
     slug: "api-keys",
     cmdKKeywords: ["auth", "public key", "secret key"],
     content: (
@@ -172,7 +234,7 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
-    title: "MCP & CLI",
+    title: labels.developerTools,
     slug: "developer-tools",
     cmdKKeywords: [
       "mcp",
@@ -187,7 +249,7 @@ export const getProjectSettingsPages = ({
     content: <DeveloperToolsSettings projectId={project.id} />,
   },
   {
-    title: "LLM Connections",
+    title: labels.llmConnections,
     slug: "llm-connections",
     cmdKKeywords: [
       "llm",
@@ -208,31 +270,31 @@ export const getProjectSettingsPages = ({
     show: showLLMConnectionsSettings,
   },
   {
-    title: "Model Definitions",
+    title: labels.modelDefinitions,
     slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
   },
   {
-    title: "Protected Prompt Labels",
+    title: labels.protectedPromptLabels,
     slug: "protected-prompt-labels",
     cmdKKeywords: ["prompt", "label", "protect", "lock"],
     content: <ProtectedLabelsSettings projectId={project.id} />,
     show: showProtectedLabelsSettings,
   },
   {
-    title: "Scores Configs",
+    title: labels.scoreConfigs,
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
   },
   {
-    title: "Members",
+    title: labels.members,
     slug: "members",
     cmdKKeywords: ["invite", "user"],
     content: (
       <div>
-        <Header title="Project Members" />
+        <Header title={labels.projectMembers} />
         <MembersTable
           orgId={organization.id}
           project={{ id: project.id, name: project.name }}
@@ -248,31 +310,31 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
-    title: "Integrations",
+    title: labels.integrations,
     slug: "integrations",
     cmdKKeywords: ["posthog", "mixpanel", "analytics", "callback", "webhook"],
     content: <Integrations projectId={project.id} />,
   },
   {
-    title: "Exports",
+    title: labels.exports,
     slug: "exports",
     cmdKKeywords: ["csv", "download", "json", "batch"],
     content: <BatchExportsSettingsPage projectId={project.id} />,
   },
   {
-    title: "Batch Actions",
+    title: labels.batchActions,
     slug: "batch-actions",
     cmdKKeywords: ["bulk", "batch", "action", "dataset", "delete"],
     content: <BatchActionsSettingsPage projectId={project.id} />,
   },
   {
-    title: "Audit Logs",
+    title: labels.auditLogs,
     slug: "audit-logs",
     cmdKKeywords: ["trail"],
     content: <AuditLogsSettingsPage projectId={project.id} />,
   },
   {
-    title: "Notifications",
+    title: labels.notifications,
     slug: "notifications",
     cmdKKeywords: ["inbox", "email", "mention", "alert", "slack", "webhook"],
     content: (
@@ -283,18 +345,18 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
-    title: "Billing",
+    title: labels.billing,
     slug: "billing",
     href: `/organization/${organization.id}/settings/billing`,
     show: showBillingSettings,
   },
   {
-    title: "Organization Settings",
+    title: labels.organizationSettings,
     slug: "organization",
     href: `/organization/${organization.id}/settings`,
   },
   {
-    title: "v4 Migration",
+    title: labels.v4Migration,
     slug: "v4-migration",
     href: "/v4-migration",
     show: showV4Migration,
@@ -302,6 +364,7 @@ export const getProjectSettingsPages = ({
 ];
 
 export default function SettingsPage() {
+  const t = useTranslations("workspace.projectSettings");
   const { project, organization } = useQueryProject();
   const router = useRouter();
   const pages = useProjectSettingsPages();
@@ -311,18 +374,20 @@ export default function SettingsPage() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Project Settings",
+        title: t("title"),
       }}
     >
       <PagedSettingsContainer
         activeSlug={router.query.page as string | undefined}
         pages={pages}
+        selectPlaceholder={t("selectPlaceholder")}
       />
     </ContainerPage>
   );
 }
 
 const Integrations = (props: { projectId: string }) => {
+  const t = useTranslations("settingsEnterprise.integrationsOverview");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
@@ -334,29 +399,26 @@ const Integrations = (props: { projectId: string }) => {
 
   return (
     <div>
-      <Header title="Integrations" />
+      <Header title={t("title")} />
       <div className="space-y-6">
         <Card className="p-3">
           {}
           <PostHogLogo className="text-foreground mb-4 w-40" />
-          <p className="text-primary mb-4 text-sm">
-            We have teamed up with PostHog (OSS product analytics) to make
-            Langfuse Events/Metrics available in your Posthog Dashboards.
-          </p>
+          <p className="text-primary mb-4 text-sm">{t("posthogDescription")}</p>
           <div className="flex items-center gap-2">
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
               href={`/project/${props.projectId}/settings/integrations/posthog`}
             >
-              Configure
+              {t("configure")}
             </ActionButton>
             <Button asChild variant="ghost">
               <Link
                 href="https://langfuse.com/integrations/analytics/posthog"
                 target="_blank"
               >
-                Integration Docs ↗
+                {t("docs")}
               </Link>
             </Button>
           </div>
@@ -365,8 +427,7 @@ const Integrations = (props: { projectId: string }) => {
         <Card className="p-3">
           <MixpanelLogo className="text-foreground mb-4 w-20" />
           <p className="text-primary mb-4 text-sm">
-            Integrate with Mixpanel to sync your Langfuse traces, generations,
-            and scores for advanced product analytics and insights.
+            {t("mixpanelDescription")}
           </p>
           <div className="flex items-center gap-2">
             <ActionButton
@@ -374,25 +435,23 @@ const Integrations = (props: { projectId: string }) => {
               hasAccess={hasAccess}
               href={`/project/${props.projectId}/settings/integrations/mixpanel`}
             >
-              Configure
+              {t("configure")}
             </ActionButton>
             <Button asChild variant="ghost">
               <Link
                 href="https://langfuse.com/integrations/analytics/mixpanel"
                 target="_blank"
               >
-                Integration Docs ↗
+                {t("docs")}
               </Link>
             </Button>
           </div>
         </Card>
 
         <Card className="p-3">
-          <span className="font-bold">Blob Storage</span>
+          <span className="font-bold">{t("blobStorage")}</span>
           <p className="text-primary mb-4 text-sm">
-            Configure scheduled exports of your trace data to S3 compatible
-            storages or Azure Blob Storage. Set up a scheduled export to your
-            own storage for data analysis or backup purposes.
+            {t("blobStorageDescription")}
           </p>
           <div className="flex items-center gap-2">
             <ActionButton
@@ -401,14 +460,14 @@ const Integrations = (props: { projectId: string }) => {
               hasEntitlement={allowBlobStorageIntegration}
               href={`/project/${props.projectId}/settings/integrations/blobstorage`}
             >
-              Configure
+              {t("configure")}
             </ActionButton>
             <Button asChild variant="ghost">
               <Link
                 href="https://langfuse.com/docs/query-traces#blob-storage"
                 target="_blank"
               >
-                Integration Docs ↗
+                {t("docs")}
               </Link>
             </Button>
           </div>
@@ -419,17 +478,14 @@ const Integrations = (props: { projectId: string }) => {
             <SiSlack className="text-foreground h-5 w-5" />
             <span className="font-bold">Slack</span>
           </div>
-          <p className="text-primary mb-4 text-sm">
-            Connect a Slack workspace and create channel automations to receive
-            Langfuse alerts natively in Slack.
-          </p>
+          <p className="text-primary mb-4 text-sm">{t("slackDescription")}</p>
           <div className="flex items-center gap-2">
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
               href={`/project/${props.projectId}/settings/integrations/slack`}
             >
-              Configure
+              {t("configure")}
             </ActionButton>
           </div>
         </Card>

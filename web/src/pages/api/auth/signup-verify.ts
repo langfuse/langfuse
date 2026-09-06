@@ -1,22 +1,15 @@
 import { env } from "@/src/env.mjs";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
+import { getSignupError } from "@/src/features/auth-credentials/lib/signupErrors";
+import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { z } from "zod/v4";
-import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 
-const signupVerifySchema = z.object({
-  email: z.email(),
-  name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
-    message: "Input should not contain a URL",
-  }).refine((value) => /^[a-zA-Z0-9\s]+$/.test(value), {
-    message: "Name can only contain letters, numbers, and spaces",
-  }),
-});
+const signupVerifySchema = signupSchema.pick({ email: true, name: true });
 
 export default async function handler(
   req: NextApiRequest,
@@ -51,7 +44,7 @@ export default async function handler(
     email: normalizedEmail,
   });
   if (eligibilityError) {
-    res.status(422).json({ message: eligibilityError });
+    res.status(422).json(eligibilityError);
     return;
   }
 
@@ -63,9 +56,7 @@ export default async function handler(
   if (existingUser) {
     if (existingUser.password !== null) {
       // User already has a password — they completed signup before
-      res.status(422).json({
-        message: "User with email already exists. Please sign in.",
-      });
+      res.status(422).json(getSignupError("ACCOUNT_EXISTS"));
       return;
     }
     // Passwordless user exists (abandoned previous attempt) — allow re-sending OTP

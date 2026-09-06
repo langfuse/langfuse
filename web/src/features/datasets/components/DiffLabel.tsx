@@ -5,6 +5,7 @@ import {
   type NumericDiff,
 } from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 const getVariant = (direction: "+" | "-", preferNegativeDirection: boolean) => {
   if (preferNegativeDirection) {
@@ -28,6 +29,7 @@ export function DiffLabel({
   className?: string;
   preferNegativeDiff?: boolean;
 }) {
+  const t = useTranslations("coreDetails.datasets.misc");
   if (diff.type === "NUMERIC") {
     return (
       <Badge
@@ -43,7 +45,7 @@ export function DiffLabel({
   if (diff.isDifferent)
     return (
       <Badge size="sm" variant="warning" className="font-bold">
-        Varies
+        {t("varies")}
       </Badge>
     );
 }

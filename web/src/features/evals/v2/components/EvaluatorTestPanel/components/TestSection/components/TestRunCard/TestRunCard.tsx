@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRunButton/TestRunButton";
 import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useTranslations } from "next-intl";
 
 export function TestRunCard({
   projectId,
@@ -15,6 +16,7 @@ export function TestRunCard({
   hasValidModel: boolean;
   onRunTest: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const selectedSampleLabel = useStore(store, (state) => {
     const observation = state.selectedObservation;
     return observation
@@ -36,8 +38,8 @@ export function TestRunCard({
       />
       <p className="text-muted-foreground text-sm">
         {selectedSampleLabel
-          ? `Sample: ${selectedSampleLabel}. Select a different row above to change it.`
-          : "Select an observation above to use it as the test sample."}
+          ? t("test.selectedSample", { sample: selectedSampleLabel })
+          : t("test.selectObservationAbove")}
       </p>
     </div>
   );

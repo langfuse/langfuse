@@ -1,4 +1,6 @@
 import { renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -6,6 +8,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+import { getMessages } from "@/src/features/i18n/messages";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
@@ -97,6 +100,20 @@ const organization = {
   metadata: {},
 };
 
+const localeWrapper = (locale: "en" | "zh-CN") =>
+  function LocaleWrapper({ children }: { children: ReactNode }) {
+    return (
+      <NextIntlClientProvider locale={locale} messages={getMessages(locale)}>
+        {children}
+      </NextIntlClientProvider>
+    );
+  };
+
+const renderSettingsPages = (locale: "en" | "zh-CN" = "en") =>
+  renderHook(() => useOrganizationSettingsPages(), {
+    wrapper: localeWrapper(locale),
+  });
+
 describe("useOrganizationSettingsPages", () => {
   beforeEach(() => {
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
@@ -112,7 +129,7 @@ describe("useOrganizationSettingsPages", () => {
   });
 
   it("hides organization API key settings without organization api key access", () => {
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderSettingsPages();
 
     expect(useHasOrganizationAccess).toHaveBeenCalledWith({
       organizationId: "org-1",
@@ -126,7 +143,7 @@ describe("useOrganizationSettingsPages", () => {
   it("shows organization API key settings with entitlement and access", () => {
     vi.mocked(useHasOrganizationAccess).mockReturnValue(true);
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderSettingsPages();
 
     expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
       true,
@@ -137,7 +154,7 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useHasEntitlement).mockImplementation(() => false);
     vi.mocked(useHasOrganizationAccess).mockReturnValue(true);
 
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderSettingsPages();
 
     expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
       false,
@@ -145,7 +162,7 @@ describe("useOrganizationSettingsPages", () => {
   });
 
   it("gates the v4 migration link on deployment availability", () => {
-    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const { result } = renderSettingsPages();
 
     expect(
       result.current.find((page) => page.slug === "v4-migration")?.show,
@@ -153,12 +170,24 @@ describe("useOrganizationSettingsPages", () => {
 
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(true);
 
-    const { result: enabled } = renderHook(() =>
-      useOrganizationSettingsPages(),
-    );
+    const { result: enabled } = renderSettingsPages();
 
     expect(
       enabled.current.find((page) => page.slug === "v4-migration")?.show,
     ).toBe(true);
+  });
+
+  it("localizes organization settings page titles", () => {
+    const { result } = renderSettingsPages("zh-CN");
+
+    expect(result.current.find((page) => page.slug === "index")?.title).toBe(
+      "通用",
+    );
+    expect(result.current.find((page) => page.slug === "members")?.title).toBe(
+      "成员",
+    );
+    expect(result.current.find((page) => page.slug === "projects")?.title).toBe(
+      "项目",
+    );
   });
 });

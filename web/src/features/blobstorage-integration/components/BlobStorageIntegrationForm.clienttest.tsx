@@ -7,11 +7,14 @@ import {
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { NextIntlClientProvider } from "next-intl";
 import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
 import {
   buildBlobStorageFormValues,
   type BlobStorageFormValues,
 } from "./formValues";
+import englishIntegrationsSettings from "@/src/features/i18n/messages/en/integrationsSettings.json";
+import simplifiedChineseIntegrationsSettings from "@/src/features/i18n/messages/zh-CN/integrationsSettings.json";
 
 // EVENTS-only context (post-cutoff Cloud project, new row): single selectable
 // source, selector hidden — keeps the rendered tree small and the submit
@@ -37,17 +40,28 @@ const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown) => void = () => {},
+  locale: "en" | "zh-CN" = "en",
 ) => (
-  <TooltipProvider>
-    <BlobStorageIntegrationForm
-      key={key}
-      initialValues={initialValues}
-      exportSourceCtx={exportSourceCtx}
-      persistedExportSource={null}
-      isSaving={false}
-      onSubmit={onSubmit}
-    />
-  </TooltipProvider>
+  <NextIntlClientProvider
+    locale={locale}
+    messages={{
+      integrationsSettings:
+        locale === "en"
+          ? englishIntegrationsSettings
+          : simplifiedChineseIntegrationsSettings,
+    }}
+  >
+    <TooltipProvider>
+      <BlobStorageIntegrationForm
+        key={key}
+        initialValues={initialValues}
+        exportSourceCtx={exportSourceCtx}
+        persistedExportSource={null}
+        isSaving={false}
+        onSubmit={onSubmit}
+      />
+    </TooltipProvider>
+  </NextIntlClientProvider>
 );
 
 const bucketInput = () =>
@@ -171,5 +185,20 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("renders blob storage field labels in Chinese", () => {
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(undefined, exportSourceCtx),
+        undefined,
+        "zh-CN",
+      ),
+    );
+
+    expect(screen.getByLabelText("存储桶名称")).toBeInTheDocument();
+    expect(screen.getByLabelText("区域")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument();
   });
 });

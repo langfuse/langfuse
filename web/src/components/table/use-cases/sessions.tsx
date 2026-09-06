@@ -69,6 +69,7 @@ import { toObservedOptions } from "@/src/features/search-bar/lib/observed-option
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTranslations } from "next-intl";
 
 export type SessionTableRow = {
   id: string;
@@ -108,6 +109,7 @@ export default function SessionsTable({
   isBetaEnabled = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const t = useTranslations("coreDetails.tables.sessions");
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
     [isBetaEnabled, omittedFilter],
@@ -382,12 +384,13 @@ export default function SessionsTable({
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
+      const queueName = data.queueName ?? t("annotationQueue");
       showSuccessToast({
-        title: "Sessions added to queue",
-        description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
+        title: t("addedToQueue"),
+        description: t("addedToQueueDescription", { queue: queueName }),
         link: {
           href: `/project/${projectId}/annotation-queues/${data.queueId}`,
-          text: `View queue "${data.queueName}"`,
+          text: t("viewQueue", { queue: queueName }),
         },
       });
     },
@@ -485,9 +488,9 @@ export default function SessionsTable({
     {
       id: ActionId.SessionAddToAnnotationQueue,
       type: BatchActionType.Create,
-      label: "Add to Annotation Queue",
-      description: "Add selected sessions to an annotation queue.",
-      targetLabel: "Annotation Queue",
+      label: t("addToAnnotationQueue"),
+      description: t("addToAnnotationQueueDescription"),
+      targetLabel: t("annotationQueue"),
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
@@ -499,7 +502,7 @@ export default function SessionsTable({
     selectActionColumn,
     createLinkTableColumn<SessionTableRow>({
       accessorKey: "id",
-      header: "ID",
+      header: t("id"),
       size: 200,
       isFixedPosition: true,
       getCell: (value) => {
@@ -517,14 +520,14 @@ export default function SessionsTable({
     }),
     createDateTableColumn<SessionTableRow>({
       accessorKey: "createdAt",
-      header: "Created At",
+      header: t("createdAt"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
     }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "sessionDuration",
-      header: "Duration",
+      header: t("duration"),
       size: 130,
       enableHiding: true,
       formatter: (value) => formatIntervalSeconds(value),
@@ -538,13 +541,13 @@ export default function SessionsTable({
     }),
     createBadgeTableColumn<SessionTableRow>({
       accessorKey: "environment",
-      header: "Environment",
+      header: t("environment"),
       size: 150,
       enableHiding: true,
     }),
     {
       accessorKey: "scores",
-      header: "Scores",
+      header: t("scores"),
       id: "scores",
       enableHiding: true,
       defaultHidden: true,
@@ -556,7 +559,7 @@ export default function SessionsTable({
     createLinkListTableColumn<SessionTableRow>({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.includes("userIds"),
-      header: "User IDs",
+      header: t("userIds"),
       size: 200,
       enableHiding: true,
       getCell: (userIds) => {
@@ -571,10 +574,10 @@ export default function SessionsTable({
     }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "countTraces",
-      header: "Traces",
+      header: t("traces"),
       size: 100,
       headerTooltip: {
-        description: "The number of traces in the session.",
+        description: t("traceCountDescription"),
       },
       enableHiding: true,
       enableSorting: true,
@@ -589,7 +592,7 @@ export default function SessionsTable({
     createNumberTableColumn<SessionTableRow>({
       accessorFn: (row) => row.inputCost?.toNumber(),
       id: "inputCost",
-      header: "Input Cost",
+      header: t("inputCost"),
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -605,7 +608,7 @@ export default function SessionsTable({
     createNumberTableColumn<SessionTableRow>({
       accessorFn: (row) => row.outputCost?.toNumber(),
       id: "outputCost",
-      header: "Output Cost",
+      header: t("outputCost"),
       size: 110,
       enableHiding: true,
       enableSorting: true,
@@ -621,7 +624,7 @@ export default function SessionsTable({
     createNumberTableColumn<SessionTableRow>({
       accessorFn: (row) => row.totalCost?.toNumber(),
       id: "totalCost",
-      header: "Total Cost",
+      header: t("totalCost"),
       size: 110,
       enableHiding: true,
       enableSorting: true,
@@ -635,7 +638,7 @@ export default function SessionsTable({
     }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "inputTokens",
-      header: "Input Tokens",
+      header: t("inputTokens"),
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -650,7 +653,7 @@ export default function SessionsTable({
     }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "outputTokens",
-      header: "Output Tokens",
+      header: t("outputTokens"),
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -665,7 +668,7 @@ export default function SessionsTable({
     }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "totalTokens",
-      header: "Total Tokens",
+      header: t("totalTokens"),
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -681,7 +684,7 @@ export default function SessionsTable({
     createTokenUsageTableColumn<SessionTableRow, number | undefined>({
       id: "usage",
       accessorFn: (row) => row.totalTokens,
-      header: "Usage",
+      header: t("usage"),
       size: 220,
       enableHiding: true,
       enableSorting: true,
@@ -699,7 +702,7 @@ export default function SessionsTable({
     {
       accessorKey: "traceTags",
       id: "traceTags",
-      header: "Trace Tags",
+      header: t("traceTags"),
       size: 250,
       enableHiding: true,
       defaultHidden: true,
@@ -912,8 +915,7 @@ export default function SessionsTable({
               highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               help={{
-                description:
-                  "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
+                description: t("helpDescription"),
                 href: "https://langfuse.com/docs/observability/features/sessions",
               }}
               rowHeight={rowHeight}

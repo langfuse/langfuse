@@ -11,8 +11,10 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { useTranslations } from "next-intl";
 
 export default function Generations() {
+  const t = useTranslations("coreDetails.tables.observations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
@@ -41,15 +43,14 @@ export default function Generations() {
   return (
     <Page
       headerProps={{
-        title: "Tracing",
+        title: t("tracing"),
         // Match traces/index.tsx: no delay badge while onboarding tells the
         // user to set up tracing for the first time.
         titleBadges: showOnboarding ? undefined : (
           <V4MigrationDelayBadge page="observations" />
         ),
         help: {
-          description:
-            "An observation captures a single function call in an application. See docs to learn more.",
+          description: t("helpDescription"),
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps:

@@ -6,8 +6,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { VisibilityState } from "@tanstack/react-table";
+import { NextIntlClientProvider } from "next-intl";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { getMessages } from "@/src/features/i18n/messages";
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -32,39 +34,41 @@ const renderGridCell = (
   output: unknown = null,
 ) =>
   render(
-    <TooltipProvider>
-      <ExperimentGridCell
-        projectId="project-id"
-        itemId="item-id"
-        output={output}
-        level="GENERATION"
-        startTime={new Date("2026-07-30T10:00:00.000Z")}
-        observationId="observation-id"
-        traceId="trace-id"
-        singleLine={false}
-        scores={{
-          [observationScoreKey]: {
-            type: "NUMERIC",
-            values: [0.8],
-            average: 0.8,
-            comment: "Evaluator comment",
-            executionTraceId: "execution-trace-id",
-          },
-        }}
-        traceScores={{
-          [traceScoreKey]: {
-            type: "NUMERIC",
-            values: [0.9],
-            average: 0.9,
-          },
-        }}
-        observationScoreOrder={[observationScoreKey]}
-        traceScoreOrder={[traceScoreKey]}
-        isBaseline
-        columnVisibility={columnVisibility}
-        showScoreLevelLabels={showScoreLevelLabels}
-      />
-    </TooltipProvider>,
+    <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+      <TooltipProvider>
+        <ExperimentGridCell
+          projectId="project-id"
+          itemId="item-id"
+          output={output}
+          level="GENERATION"
+          startTime={new Date("2026-07-30T10:00:00.000Z")}
+          observationId="observation-id"
+          traceId="trace-id"
+          singleLine={false}
+          scores={{
+            [observationScoreKey]: {
+              type: "NUMERIC",
+              values: [0.8],
+              average: 0.8,
+              comment: "Evaluator comment",
+              executionTraceId: "execution-trace-id",
+            },
+          }}
+          traceScores={{
+            [traceScoreKey]: {
+              type: "NUMERIC",
+              values: [0.9],
+              average: 0.9,
+            },
+          }}
+          observationScoreOrder={[observationScoreKey]}
+          traceScoreOrder={[traceScoreKey]}
+          isBaseline
+          columnVisibility={columnVisibility}
+          showScoreLevelLabels={showScoreLevelLabels}
+        />
+      </TooltipProvider>
+    </NextIntlClientProvider>,
   );
 
 describe("ExperimentGridCell", () => {

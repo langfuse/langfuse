@@ -11,8 +11,12 @@ import {
   type ScoreChartDataset,
   type ScoreDimensionKey,
 } from "@/src/features/scores-chart-view/types";
+import { useTranslations } from "next-intl";
+import { type AppMessages } from "@/src/features/i18n/messages";
 
 const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
+type ChartDimensionMessageKey =
+  keyof AppMessages["systemUi"]["chartControls"]["dimensions"];
 
 /**
  * The "Breakdown" picker in the scores chart config panel — options are the
@@ -33,19 +37,24 @@ export const BreakdownSelect = React.memo(function BreakdownSelect({
   value: ScoreDimensionKey;
   onChange: (value: ScoreDimensionKey) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   const options = getScoreDimensionsForDataset(dataset, isTimeSeries);
   return (
     <Select
       value={value}
       onValueChange={(v) => onChange(v as ScoreDimensionKey)}
     >
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Breakdown dimension">
+      <SelectTrigger
+        className={TRIGGER_CLASS}
+        aria-label={t("breakdownDimension")}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {options.map((d) => (
           <SelectItem key={d.key} value={d.key}>
-            {d.label}
+            {labelsT(`dimensions.${d.key as ChartDimensionMessageKey}`)}
           </SelectItem>
         ))}
       </SelectContent>

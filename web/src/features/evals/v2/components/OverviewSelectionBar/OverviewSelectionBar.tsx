@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/ui/layer";
+import { useTranslations } from "next-intl";
 
 export function OverviewSelectionBar({
   selectedCount,
@@ -11,19 +12,22 @@ export function OverviewSelectionBar({
   onClear: () => void;
   children: React.ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   if (selectedCount === 0) return null;
 
   return (
     <Layer name="panel">
       <div className="pointer-events-none fixed inset-x-0 bottom-16 flex justify-center">
         <div className="ring-dark-blue/20 dark:border-dark-blue/30 dark:ring-dark-blue/30 bg-background pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-lg ring-2 backdrop-blur-md dark:shadow-none">
-          <span className="text-sm font-bold">{selectedCount} selected</span>
+          <span className="text-sm font-bold">
+            {t("selection.selected", { count: selectedCount })}
+          </span>
           <Button
             type="button"
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            aria-label="Clear selection"
+            aria-label={t("selection.clear")}
             onClick={onClear}
           >
             <X className="h-4 w-4" />

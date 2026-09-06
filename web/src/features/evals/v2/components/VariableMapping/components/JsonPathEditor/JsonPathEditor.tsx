@@ -9,6 +9,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
+import { useTranslations } from "next-intl";
 
 // Long suggestion lists are unusable in a menu; the input filters the rest.
 const MAX_VISIBLE_SUGGESTIONS = 50;
@@ -25,6 +26,7 @@ export function JsonPathEditor({
   onApply: (jsonSelector: string | null) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const [query, setQuery] = useState(initialPath);
   const trimmed = query.trim();
   const filtered = useMemo(() => {
@@ -58,7 +60,7 @@ export function JsonPathEditor({
           type="button"
           variant="ghost"
           size="icon-xs"
-          title="Apply JSONPath"
+          title={t("variableMapping.jsonPath.apply")}
           onClick={() => apply(query)}
         >
           <Check className="h-3.5 w-3.5" />
@@ -67,7 +69,7 @@ export function JsonPathEditor({
           type="button"
           variant="ghost"
           size="icon-xs"
-          title="Cancel"
+          title={t("cancel")}
           onClick={onCancel}
         >
           <X className="h-3.5 w-3.5" />
@@ -75,7 +77,7 @@ export function JsonPathEditor({
       </div>
       <CommandList>
         <CommandItem value="__full__" onSelect={() => apply("$")}>
-          Full value (no path)
+          {t("variableMapping.jsonPath.fullValue")}
         </CommandItem>
         {trimmed.length > 0 &&
           trimmed !== "$" &&
@@ -84,10 +86,12 @@ export function JsonPathEditor({
               value={trimmed}
               className="font-mono text-xs"
               onSelect={() => apply(trimmed)}
-            >{`Use "${trimmed}"`}</CommandItem>
+            >
+              {t("variableMapping.jsonPath.usePath", { path: trimmed })}
+            </CommandItem>
           )}
         {filtered.length > 0 && (
-          <CommandGroup heading="From sample observation">
+          <CommandGroup heading={t("variableMapping.jsonPath.fromSample")}>
             {filtered.slice(0, MAX_VISIBLE_SUGGESTIONS).map((path) => (
               <CommandItem
                 key={path}

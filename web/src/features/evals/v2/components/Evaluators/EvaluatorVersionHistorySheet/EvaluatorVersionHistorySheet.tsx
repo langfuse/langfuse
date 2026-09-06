@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Sheet,
   SheetContent,
@@ -41,6 +42,7 @@ export function EvaluatorVersionHistorySheet({
   isLoadingMore: boolean;
   onLoadMore: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const [versionToRestore, setVersionToRestore] =
     useState<EvaluatorVersion | null>(null);
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(
@@ -79,9 +81,9 @@ export function EvaluatorVersionHistorySheet({
     >
       <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>Evaluator versions</SheetTitle>
+          <SheetTitle>{t("evaluator.versions.title")}</SheetTitle>
           <SheetDescription>
-            Review or restore saved definition versions for {evaluatorName}.
+            {t("evaluator.versions.description", { evaluatorName })}
           </SheetDescription>
         </SheetHeader>
         <EvaluatorVersionHistoryList
@@ -104,7 +106,9 @@ export function EvaluatorVersionHistorySheet({
             {isLoadingMore ? (
               <>
                 <Spinner size="sm" variant="muted" />
-                <span className="sr-only">Loading more versions</span>
+                <span className="sr-only">
+                  {t("evaluator.versions.loadingMore")}
+                </span>
               </>
             ) : null}
           </div>
@@ -115,9 +119,13 @@ export function EvaluatorVersionHistorySheet({
         onOpenChange={(open) => {
           if (!open) setVersionToRestore(null);
         }}
-        title={`Restore version ${versionToRestore?.version}?`}
-        description={`This will replace the current evaluator definition with version ${versionToRestore?.version}. It won't be saved until you click "Save changes".`}
-        confirmLabel="Restore version"
+        title={t("evaluator.versions.restoreTitle", {
+          version: versionToRestore?.version ?? "",
+        })}
+        description={t("evaluator.versions.restoreDescription", {
+          version: versionToRestore?.version ?? "",
+        })}
+        confirmLabel={t("evaluator.versions.restore")}
         confirmVariant="default"
         onConfirm={() => {
           if (!versionToRestore) return;

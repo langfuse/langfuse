@@ -1,4 +1,5 @@
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 import { EvaluatorsOnboardingView } from "@/src/components/onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView";
 import type { ActionConfig } from "@/src/components/ui/splash-screen";
@@ -13,13 +14,14 @@ export function EvaluatorsOnboarding({
   projectId,
   createEvaluatorAction,
 }: EvaluatorsOnboardingProps) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const { enabled, supportedSourceCodeLanguages } = useIsCodeEvalEnabled();
   const codeEvaluatorLanguageDescription =
     supportedSourceCodeLanguages.includes(EvalTemplateSourceCodeLanguage.PYTHON)
-      ? "TypeScript or Python"
+      ? t("onboarding.typeScriptOrPython")
       : "TypeScript";
   const primaryAction = createEvaluatorAction ?? {
-    label: "Create Evaluator",
+    label: t("onboarding.createEvaluator"),
     href: `/project/${projectId}/evals/new`,
   };
 

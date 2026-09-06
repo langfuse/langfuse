@@ -32,6 +32,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
+import { useTranslations } from "next-intl";
 export const DatasetItemDetailPage = ({
   activeTab,
   withPadding = true,
@@ -41,6 +42,7 @@ export const DatasetItemDetailPage = ({
   withPadding?: boolean;
   children: ReactNode;
 }) => {
+  const t = useTranslations("coreDetails.datasets.itemPage");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -110,11 +112,7 @@ export const DatasetItemDetailPage = ({
 
   const handleDelete = () => {
     if (!hasAccess || mutDelete.isPending) return;
-    if (
-      window.confirm(
-        "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
-      )
-    ) {
+    if (window.confirm(t("deleteConfirm"))) {
       capture("dataset_item:delete");
       mutDelete.mutate({
         projectId,
@@ -131,13 +129,13 @@ export const DatasetItemDetailPage = ({
         title: itemId,
         itemType: "DATASET_ITEM",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          { name: t("datasets"), href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
           {
-            name: "Items",
+            name: t("items"),
             href: `/project/${projectId}/datasets/${datasetId}/items`,
           },
         ],
@@ -162,13 +160,13 @@ export const DatasetItemDetailPage = ({
                     <div className="space-y-2">
                       <h4 className="leading-none font-bold">
                         {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive this item?"
-                          : "Unarchive this item?"}
+                          ? t("archiveTitle")
+                          : t("unarchiveTitle")}
                       </h4>
                       <p className="text-muted-foreground text-sm">
                         {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archiving an item will exclude it from new dataset runs."
-                          : "Unarchiving an item will include it back in new dataset runs."}
+                          ? t("archiveDescription")
+                          : t("unarchiveDescription")}
                       </p>
                     </div>
                     <Button
@@ -182,10 +180,10 @@ export const DatasetItemDetailPage = ({
                       size="sm"
                     >
                       {mutUpdate.isPending
-                        ? "Processing..."
+                        ? t("processing")
                         : item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive"
-                          : "Unarchive"}
+                          ? t("archive")
+                          : t("unarchive")}
                     </Button>
                   </div>
                 </PopoverContent>
@@ -195,7 +193,11 @@ export const DatasetItemDetailPage = ({
               <Button variant="ghost" size="icon-xs" asChild>
                 <Link
                   href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
-                  title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
+                  title={
+                    item.data.sourceObservationId
+                      ? t("viewSourceObservation")
+                      : t("viewSourceTrace")
+                  }
                 >
                   <ListTree className="h-4 w-4" />
                 </Link>
@@ -228,8 +230,8 @@ export const DatasetItemDetailPage = ({
                       variant="outline"
                       size="icon"
                       hasAccess={hasAccess}
-                      title="Copy item"
-                      aria-label="Copy item"
+                      title={t("copy")}
+                      aria-label={t("copy")}
                     >
                       <CopyIcon className="size-3" />
                     </ActionButton>
@@ -253,7 +255,7 @@ export const DatasetItemDetailPage = ({
                   disabled={!hasAccess || isViewingOldVersion || !item.data}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
-                  Edit
+                  {t("edit")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDelete}
@@ -266,7 +268,7 @@ export const DatasetItemDetailPage = ({
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {mutDelete.isPending ? "Deleting..." : "Delete"}
+                  {mutDelete.isPending ? t("deleting") : t("delete")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { useTranslations } from "next-intl";
 
 export function TracePage({
   traceId,
@@ -20,6 +21,7 @@ export function TracePage({
   traceId: string;
   timestamp?: Date;
 }) {
+  const t = useTranslations("coreDetails.traces.page");
   const router = useRouter();
   const session = useSession();
   const routeProjectId = (router.query.projectId as string) ?? "";
@@ -36,22 +38,21 @@ export function TracePage({
     projectIdForAccessCheck,
   );
 
-  if (trace.isUnauthorized)
-    return <ErrorPage message="You do not have access to this trace." />;
+  if (trace.isUnauthorized) return <ErrorPage message={t("accessDenied")} />;
 
   if (trace.isNotFound)
     return (
       <ErrorPage
-        title="Trace not found"
-        message="The trace is either still being processed or has been deleted."
+        title={t("notFound")}
+        message={t("processingOrDeleted")}
         additionalButton={{
-          label: "Retry",
+          label: t("retry"),
           onClick: () => window.location.reload(),
         }}
       />
     );
 
-  if (!trace.data) return <div className="p-3">Loading...</div>;
+  if (!trace.data) return <div className="p-3">{t("loading")}</div>;
 
   const isSharedTrace = trace.data.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
@@ -64,7 +65,7 @@ export function TracePage({
         asChild
         size="sm"
         variant="outline"
-        title="Back to Langfuse"
+        title={t("back")}
         className="px-3"
       >
         <Link href="/">Langfuse</Link>
@@ -74,18 +75,18 @@ export function TracePage({
         asChild
         size="sm"
         variant="default"
-        title="Sign in to Langfuse"
+        title={t("signInTitle")}
         className="px-3"
       >
         <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
-          Sign in
+          {t("signIn")}
         </Link>
       </Button>
     )
   ) : undefined;
   const sharedBadge = showPublicIndicators ? (
     <Badge variant="outline" className="text-xs font-bold">
-      Public
+      {t("public")}
     </Badge>
   ) : undefined;
 
@@ -96,7 +97,7 @@ export function TracePage({
         itemType: "TRACE",
         breadcrumb: [
           {
-            name: "Traces",
+            name: t("traces"),
             href: `/project/${router.query.projectId as string}/traces`,
           },
         ],

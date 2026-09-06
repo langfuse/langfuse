@@ -15,14 +15,18 @@ import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useTranslations } from "next-intl";
 
 export type LatencyTableKind = "traces" | "generations" | "observations";
 
 const LATENCY_TABLE_KINDS: Record<
   LatencyTableKind,
   {
-    title: string;
-    nameHeader: string;
+    title:
+      | "traceLatencyPercentiles"
+      | "generationLatencyPercentiles"
+      | "observationLatencyPercentiles";
+    nameHeader: "traceName" | "generationName" | "observation";
     buildQuery: (
       globalFilterState: FilterState,
       fromTimestamp: Date,
@@ -31,8 +35,8 @@ const LATENCY_TABLE_KINDS: Record<
   }
 > = {
   traces: {
-    title: "Trace latency percentiles",
-    nameHeader: "Trace Name",
+    title: "traceLatencyPercentiles",
+    nameHeader: "traceName",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
       view: "traces",
       dimensions: [{ field: "name" }],
@@ -51,8 +55,8 @@ const LATENCY_TABLE_KINDS: Record<
     }),
   },
   generations: {
-    title: "Generation latency percentiles",
-    nameHeader: "Generation Name",
+    title: "generationLatencyPercentiles",
+    nameHeader: "generationName",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
       view: "observations",
       dimensions: [{ field: "name" }],
@@ -79,8 +83,8 @@ const LATENCY_TABLE_KINDS: Record<
     }),
   },
   observations: {
-    title: "Observation latency percentiles",
-    nameHeader: "Observation",
+    title: "observationLatencyPercentiles",
+    nameHeader: "observation",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
       view: "observations",
       dimensions: [{ field: "type" }, { field: "name" }],
@@ -179,6 +183,7 @@ export const LatencyTable = ({
   metricsVersion?: ViewVersion;
   schedulerId?: string;
 }) => {
+  const t = useTranslations("systemUi.dashboardExtras");
   const { title, nameHeader, buildQuery } = LATENCY_TABLE_KINDS[kind];
 
   const latencies = useScheduledDashboardExecuteQuery(
@@ -205,12 +210,12 @@ export const LatencyTable = ({
       // shrink so the row area scrolls internally. (LFE-11035)
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
-      title={title}
+      title={t(title)}
       isLoading={isLoading || latencies.isPending}
     >
       <DashboardTable
         headers={[
-          nameHeader,
+          t(nameHeader),
           <RightAlignedCell key="p50">p50</RightAlignedCell>,
           <RightAlignedCell key="p90">p90</RightAlignedCell>,
           <RightAlignedCell key="p95">

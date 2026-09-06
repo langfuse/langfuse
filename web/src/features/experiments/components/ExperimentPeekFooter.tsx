@@ -5,8 +5,10 @@ import { useExperimentPeekNavigation } from "../hooks/useExperimentPeekNavigatio
 import { useExperimentNames } from "../hooks/useExperimentNames";
 import { getExperimentColorStyles } from "./table/types";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const {
     currentExperimentId,
     currentIndex,
@@ -23,7 +25,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
     experimentNames.find((e) => e.experimentId === currentExperimentId)
       ?.experimentName ??
     currentExperimentId?.slice(0, 8) ??
-    "Unknown";
+    t("common.unknown");
   const colorStyles = currentExperimentId
     ? getExperimentColorStyles(currentExperimentId, allExperimentIds)
     : undefined;
@@ -42,7 +44,9 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           size="sm"
           className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
         >
-          {currentIndex === 0 ? "Baseline" : "Comp"}
+          {currentIndex === 0
+            ? t("selection.baseline")
+            : t("selection.comparisonShort")}
         </Badge>
       </div>
       <div className="flex items-center gap-1">
@@ -51,7 +55,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           className="gap-1.5 px-2"
           disabled={!hasPrev}
           onClick={goToPrev}
-          title="Previous experiment"
+          title={t("peek.previousExperiment")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -63,7 +67,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           className="gap-1.5 px-2"
           disabled={!hasNext}
           onClick={goToNext}
-          title="Next experiment"
+          title={t("peek.nextExperiment")}
         >
           <ArrowRight className="h-4 w-4" />
         </Button>

@@ -22,6 +22,7 @@ import {
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useTranslations } from "next-intl";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass
@@ -34,6 +35,7 @@ export function V4MigrationDelayBadge({
   // Which table hosts the badge — clicks/hovers/impressions segment by it.
   page: "traces" | "observations" | "experiments";
 }) {
+  const t = useTranslations("remainderUi.migrations");
   const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project } = useQueryProject();
@@ -153,20 +155,20 @@ export function V4MigrationDelayBadge({
   // multiple delayed paths get the generic clause.
   const description =
     actionablePaths > 1
-      ? "Upgrade to v4 for real-time data"
+      ? t("delayBadge.upgradeV4")
       : sdkActionable
-        ? "Update your SDK for real-time data"
+        ? t("delayBadge.updateSdk")
         : otelActionable
-          ? "Update your OTel instrumentation for real-time data"
-          : "Upgrade your instrumentation for real-time data";
+          ? t("delayBadge.updateOtel")
+          : t("delayBadge.upgradeInstrumentation");
 
   return (
     <V4MigrationBadgeContent
       onClick={handleClick}
       onHoverStart={handleHoverStart}
       onHoverEnd={handleHoverEnd}
-      title="New data in ~15 min"
-      description={forceV3 ? "Learn more in the docs" : description}
+      title={t("delayBadge.newDataDelay")}
+      description={forceV3 ? t("delayBadge.learnMore") : description}
     />
   );
 }
@@ -193,6 +195,7 @@ function useEvalUpdateRequiredBadgeState() {
 
 /** Opens the evaluator migration choices from the v4 migration badge. */
 export function V4MigrationUpdateRequiredBadge() {
+  const t = useTranslations("remainderUi.migrations");
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -221,8 +224,8 @@ export function V4MigrationUpdateRequiredBadge() {
     <>
       <V4MigrationBadgeContent
         onClick={handleClick}
-        title="Action required"
-        description="Choose how to upgrade"
+        title={t("common.actionRequired")}
+        description={t("delayBadge.chooseUpgrade")}
       />
       <EvaluatorMigrationDialog
         open={dialogOpen}

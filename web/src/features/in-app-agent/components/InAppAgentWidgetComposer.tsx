@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -26,6 +27,7 @@ export function InAppAgentWidgetComposer({
 }: {
   onSubmitted: () => void;
 }) {
+  const t = useSharedUiTranslations("agent");
   const { isAvailable, openAssistant, submit } = useInAppAiAgent();
   const [request, setRequest] = useState("");
 
@@ -74,19 +76,16 @@ export function InAppAgentWidgetComposer({
     >
       <div className="flex items-center gap-2 font-bold">
         <Sparkles className="h-4 w-4" />
-        Add with Langfuse Assistant
+        {t("widgetTitle")}
       </div>
-      <p className="text-muted-foreground text-xs">
-        Describe the chart you need. The Assistant will create it as a widget
-        and add it to this dashboard.
-      </p>
+      <p className="text-muted-foreground text-xs">{t("widgetDescription")}</p>
       <div className="flex items-end gap-2">
         <Textarea
-          aria-label="Describe the widget you want"
+          aria-label={t("widgetAria")}
           autoComplete="off"
           maxLength={2000}
           rows={1}
-          placeholder="e.g. Show p95 latency by model over the last 7 days"
+          placeholder={t("widgetPlaceholder")}
           value={request}
           onChange={(event) => {
             setRequest(event.target.value);
@@ -100,7 +99,7 @@ export function InAppAgentWidgetComposer({
           size="icon"
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
-          aria-label="Add with Langfuse Assistant"
+          aria-label={t("widgetTitle")}
           disabled={!request.trim()}
         >
           <SendHorizontal className="h-4 w-4" />

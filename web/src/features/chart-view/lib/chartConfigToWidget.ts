@@ -2,6 +2,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type RouterInputs } from "@/src/utils/api";
 import { type ChartViewConfig } from "../types";
 import {
+  type ChartDescriptionFormatter,
   describeConfig,
   getDimension,
   getMetric,
@@ -30,9 +31,11 @@ export type ChartWidgetInput = Omit<
 export function chartConfigToWidgetInput({
   config,
   filters,
+  formatDescription,
 }: {
   config: ChartViewConfig;
   filters: FilterState;
+  formatDescription?: ChartDescriptionFormatter;
 }): ChartWidgetInput {
   const metric = getMetric(config.metric);
   const dimension = getDimension(config.breakdown);
@@ -56,7 +59,7 @@ export function chartConfigToWidgetInput({
   ) as ChartWidgetInput["chartConfig"];
 
   return {
-    name: describeConfig(config),
+    name: describeConfig(config, formatDescription),
     description: "",
     view: "observations",
     dimensions,

@@ -15,6 +15,7 @@ import { IntroSection } from "@/src/features/support-chat/IntroSection";
 import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
 import { SupportFormSection } from "@/src/features/support-chat/SupportFormSection";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export const SupportDrawer = (props: {
   showCloseButton?: boolean;
@@ -36,6 +37,7 @@ const SupportDrawerContent = ({
   showCloseButton?: boolean;
   className?: string;
 }) => {
+  const t = useTranslations("sharedUi.support");
   const { setOpen, initialMode } = useSupportDrawer();
   const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
     initialMode,
@@ -55,7 +57,7 @@ const SupportDrawerContent = ({
             <BreadcrumbList>
               {currentMode === "intro" ? (
                 <BreadcrumbItem>
-                  <BreadcrumbPage>Support</BreadcrumbPage>
+                  <BreadcrumbPage>{t("title")}</BreadcrumbPage>
                 </BreadcrumbItem>
               ) : (
                 <>
@@ -66,7 +68,7 @@ const SupportDrawerContent = ({
                         onClick={() => setCurrentMode("intro")}
                         className="text-foreground"
                       >
-                        Support
+                        {t("title")}
                       </button>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
@@ -74,7 +76,7 @@ const SupportDrawerContent = ({
                     <Slash />
                   </BreadcrumbSeparator>
                   <BreadcrumbItem>
-                    <BreadcrumbPage>Email Engineer</BreadcrumbPage>
+                    <BreadcrumbPage>{t("emailEngineer")}</BreadcrumbPage>
                   </BreadcrumbItem>
                 </>
               )}
@@ -85,7 +87,7 @@ const SupportDrawerContent = ({
               variant="ghost"
               size="icon"
               onClick={close}
-              aria-label="Close"
+              aria-label={t("close")}
             >
               <X className="h-4 w-4" />
             </Button>

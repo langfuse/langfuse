@@ -72,4 +72,36 @@ describe("describeConfig", () => {
       }),
     ).toBe("Count of events");
   });
+
+  it("uses an injected formatter for localized descriptions", () => {
+    const translate = (
+      key: string,
+      values?: Record<string, string>,
+    ): string => {
+      const labels: Record<string, string> = {
+        "metrics.count": "Anzahl",
+        "dimensions.model": "Modell",
+        "aggregations.count": "Anzahl",
+        "descriptions.eventCount": "Anzahl der Ereignisse",
+      };
+
+      if (key === "descriptions.by")
+        return `${values?.base} nach ${values?.dimension}`;
+      if (key === "descriptions.overTime")
+        return `${values?.base} im Zeitverlauf`;
+      return labels[key] ?? key;
+    };
+
+    expect(
+      describeConfig(
+        {
+          ...DEFAULT_CONFIG,
+          metric: "count",
+          breakdown: "model",
+          chartType: "LINE_TIME_SERIES",
+        },
+        translate,
+      ),
+    ).toBe("Anzahl der Ereignisse nach Modell im Zeitverlauf");
+  });
 });

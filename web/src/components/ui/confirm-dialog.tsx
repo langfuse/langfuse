@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 // Constrained width tokens (no free-form className) — `lg` is for confirms whose
 // body carries longer content, e.g. a type-to-confirm field with a long name.
@@ -40,9 +41,9 @@ export function ConfirmDialog({
   title,
   description,
   trigger,
-  confirmLabel = "Confirm",
+  confirmLabel,
   confirmVariant = "destructive",
-  cancelLabel = "Cancel",
+  cancelLabel,
   onCancel,
   onConfirm,
   loading = false,
@@ -66,6 +67,9 @@ export function ConfirmDialog({
   confirmDisabled?: boolean;
   children?: React.ReactNode;
 } & VariantProps<typeof confirmDialogContentVariants>) {
+  const t = useSharedUiTranslations("confirmDialog");
+  const resolvedConfirmLabel = confirmLabel ?? t("confirm");
+  const resolvedCancelLabel = cancelLabel ?? t("cancel");
   const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
   const content = (
     <DialogContent
@@ -95,7 +99,7 @@ export function ConfirmDialog({
           disabled={loading}
           onClick={onCancel ?? (() => onOpenChange(false))}
         >
-          {cancelLabel}
+          {resolvedCancelLabel}
         </Button>
         <Button
           variant={confirmVariant}
@@ -104,7 +108,7 @@ export function ConfirmDialog({
           disabled={confirmDisabled}
           onClick={onConfirm}
         >
-          {confirmLabel}
+          {resolvedConfirmLabel}
         </Button>
       </DialogFooter>
     </DialogContent>

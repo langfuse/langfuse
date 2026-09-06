@@ -7,7 +7,10 @@ import { prepareEvaluatorEmptyState } from "./prepareEvaluatorEmptyState";
 
 describe("prepareEvaluatorEmptyState", () => {
   it("resolves the curated starting points from the managed catalog", () => {
-    const emptyState = prepareEvaluatorEmptyState();
+    const emptyState = prepareEvaluatorEmptyState({
+      detectTopicsTitle: "Themen erkennen",
+      detectTopicsDescription: "Anfragen nach Thema klassifizieren.",
+    });
 
     expect(emptyState.docsHref).toBe(EVALUATOR_EMPTY_STATE_DOCS_HREF);
     expect(emptyState.templateCount).toBe(
@@ -24,7 +27,8 @@ describe("prepareEvaluatorEmptyState", () => {
     ]);
     expect(emptyState.startingPoints[0]).toMatchObject({
       action: "detect-topics",
-      title: "Detect Topics",
+      title: "Themen erkennen",
+      description: "Anfragen nach Thema klassifizieren.",
       template: { key: "topic-classifier" },
     });
     expect(emptyState.startingPoints[1]).toMatchObject({

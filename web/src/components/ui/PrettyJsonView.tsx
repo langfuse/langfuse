@@ -27,6 +27,7 @@ import {
   type Row,
 } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
@@ -146,17 +147,25 @@ function filterTableRows(
     }));
 }
 
-function getEmptyValueDisplay(value: unknown): string | null {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
-  if (value === "") return "empty string";
+function getEmptyValueDisplay(
+  value: unknown,
+  labels: {
+    nullValue: string;
+    undefinedValue: string;
+    emptyString: string;
+    emptyObject: string;
+  },
+): string | null {
+  if (value === null) return labels.nullValue;
+  if (value === undefined) return labels.undefinedValue;
+  if (value === "") return labels.emptyString;
   if (
     typeof value === "object" &&
     value !== null &&
     !Array.isArray(value) &&
     Object.keys(value).length === 0
   ) {
-    return "empty object";
+    return labels.emptyObject;
   }
   return null;
 }
@@ -442,6 +451,7 @@ function JsonPrettyTable({
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
 }) {
+  const t = useSharedUiTranslations("misc");
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
   const [stickyOffsets, setStickyOffsets] = useState({ header: 32, row: 32 });
@@ -467,7 +477,7 @@ function JsonPrettyTable({
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
       accessorKey: "key",
-      header: "Path",
+      header: t("pathLabel"),
       size: 35,
       cell: ({ row }) => {
         // we need to calculate the indentation here for a good line break
@@ -559,7 +569,7 @@ function JsonPrettyTable({
     },
     {
       accessorKey: "value",
-      header: "Value",
+      header: t("valueLabel"),
       size: 65,
       cell: ({ row }) => (
         <ValueCell
@@ -777,6 +787,8 @@ export function PrettyJsonView(props: {
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
 }) {
+  const t = useSharedUiTranslations("misc");
+  const tValueCell = useSharedUiTranslations("table.valueCell");
   const toneClasses = props.tone
     ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
     : undefined;
@@ -1221,7 +1233,12 @@ export function PrettyJsonView(props: {
     }
   };
 
-  const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
+  const emptyValueDisplay = getEmptyValueDisplay(parsedJson, {
+    nullValue: tValueCell("nullValue"),
+    undefinedValue: tValueCell("undefinedValue"),
+    emptyString: tValueCell("emptyString"),
+    emptyObject: tValueCell("emptyObject"),
+  });
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
   const standaloneMediaReferenceStrings =
@@ -1444,7 +1461,7 @@ export function PrettyJsonView(props: {
                   onClick={() => expandAllRef.current?.()}
                   className="hover:bg-border -mr-2"
                   title={
-                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                    allRowsExpanded ? t("collapseAllRows") : t("expandAllRows")
                   }
                 >
                   {allRowsExpanded ? (
@@ -1460,7 +1477,7 @@ export function PrettyJsonView(props: {
                   size="icon-xs"
                   onClick={handleJsonToggleCollapse}
                   className="hover:bg-border -mr-2"
-                  title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
+                  title={jsonIsCollapsed ? t("expandAll") : t("collapseAll")}
                 >
                   {jsonIsCollapsed ? (
                     <UnfoldVertical className="h-3 w-3" />

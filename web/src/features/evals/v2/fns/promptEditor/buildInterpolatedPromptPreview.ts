@@ -14,13 +14,25 @@ export function buildInterpolatedPromptPreview({
   prompt,
   mappings,
   sourceObject,
+  messages = {
+    sampleRequired: SAMPLE_REQUIRED_MESSAGE,
+    mapVariable: (variable: string) =>
+      `Map {{${variable}}} to sample data before previewing the prompt.`,
+    fixVariable: (variable: string) =>
+      `Fix the mapping for {{${variable}}} before previewing the prompt.`,
+  },
 }: {
   prompt: string;
   mappings: Array<{ variable: string; fieldState: VariableFieldState }>;
   sourceObject: Record<string, unknown> | null;
+  messages?: {
+    sampleRequired: string;
+    mapVariable: (variable: string) => string;
+    fixVariable: (variable: string) => string;
+  };
 }): InterpolatedPromptPreviewState {
   if (!sourceObject) {
-    return { status: "unavailable", message: SAMPLE_REQUIRED_MESSAGE };
+    return { status: "unavailable", message: messages.sampleRequired };
   }
 
   const values = new Map<string, string>();
@@ -28,7 +40,7 @@ export function buildInterpolatedPromptPreview({
     if (!fieldState.selectedColumnId) {
       return {
         status: "unavailable",
-        message: `Map {{${variable}}} to sample data before previewing the prompt.`,
+        message: messages.mapVariable(variable),
       };
     }
 
@@ -40,7 +52,7 @@ export function buildInterpolatedPromptPreview({
     if (extracted.error) {
       return {
         status: "unavailable",
-        message: `Fix the mapping for {{${variable}}} before previewing the prompt.`,
+        message: messages.fixVariable(variable),
       };
     }
     values.set(variable, extracted.value);

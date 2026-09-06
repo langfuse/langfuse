@@ -1,6 +1,21 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 
+vi.mock("next-intl", async (importOriginal) => ({
+  ...(await importOriginal()),
+  useTranslations: () => (key: string) => {
+    const messages: Record<string, string> = {
+      input: "Input",
+      output: "Output",
+      placeholder: "Placeholder",
+      unnamedPlaceholder: "Unnamed placeholder",
+      showFormattedView: "Show formatted view",
+      showPassthroughJson: "Show passthrough JSON data",
+    };
+    return messages[key] ?? key;
+  },
+}));
+
 const { copyTextToClipboard } = vi.hoisted(() => ({
   copyTextToClipboard: vi.fn(),
 }));

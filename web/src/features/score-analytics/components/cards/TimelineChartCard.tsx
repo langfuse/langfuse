@@ -15,6 +15,7 @@ import {
   getScoreBooleanColors,
 } from "@/src/features/score-analytics/lib/color-scales";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useFormatter, useTranslations } from "next-intl";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 
@@ -33,6 +34,8 @@ type TimelineTab = "score1" | "score2" | "all" | "matched";
  * - Numeric vs categorical data types
  */
 export function TimelineChartCard() {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
+  const format = useFormatter();
   const { data, isLoading, params, colorMappings, getColorForScore } =
     useScoreAnalytics();
   const [activeTab, setActiveTab] = useState<TimelineTab>("all");
@@ -178,8 +181,15 @@ export function TimelineChartCard() {
     const parts: string[] = [];
 
     // Interval description
+    const formattedInterval = format.number(interval.count, {
+      style: "unit",
+      unit: interval.unit,
+      unitDisplay: "long",
+    });
     parts.push(
-      `${dataType === "NUMERIC" ? "Average" : "Count"} by ${interval.count} ${interval.unit}${interval.count > 1 ? "s" : ""}`,
+      dataType === "NUMERIC"
+        ? t("averageBy", { interval: formattedInterval })
+        : t("countBy", { interval: formattedInterval }),
     );
 
     // Overall average for numeric
@@ -188,28 +198,28 @@ export function TimelineChartCard() {
       overallAverage !== null &&
       overallAverage > 0
     ) {
-      parts.push(`Overall avg: ${overallAverage.toFixed(3)}`);
+      parts.push(t("overallAverage", { value: overallAverage.toFixed(3) }));
     }
 
     // Matched count for two-score mode
     if (mode === "two" && statistics.comparison) {
       if (activeTab === "matched") {
         parts.push(
-          `${statistics.comparison.matchedCount.toLocaleString()} matched`,
+          t("matchedCount", { count: statistics.comparison.matchedCount }),
         );
       }
     }
 
     return parts.join(" | ");
-  }, [data, overallAverage, activeTab, params]);
+  }, [data, overallAverage, activeTab, params, format, t]);
 
   // Loading state
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Trend Over Time</CardTitle>
-          <CardDescription>Loading chart...</CardDescription>
+          <CardTitle>{t("trendOverTime")}</CardTitle>
+          <CardDescription>{t("loadingChart")}</CardDescription>
         </CardHeader>
         <CardContent className="flex h-[340px] grow items-center justify-center">
           <Spinner size="xl" variant="muted" />
@@ -223,11 +233,11 @@ export function TimelineChartCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Trend Over Time</CardTitle>
-          <CardDescription>No data available</CardDescription>
+          <CardTitle>{t("trendOverTime")}</CardTitle>
+          <CardDescription>{t("noDataAvailable")}</CardDescription>
         </CardHeader>
         <CardContent className="text-muted-foreground flex h-[340px] items-center justify-center text-sm">
-          Select a score to view trends
+          {t("selectScoreForTrends")}
         </CardContent>
       </Card>
     );
@@ -262,7 +272,7 @@ export function TimelineChartCard() {
     ? score2.name === score1.name
       ? `${score2.source} · ${score2.name}`
       : score2.name
-    : "Score 2";
+    : t("score2Label");
 
   return (
     <Card>
@@ -271,7 +281,7 @@ export function TimelineChartCard() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2">
-                Trend Over Time
+                {t("trendOverTime")}
                 {data.samplingMetadata.isSampled && (
                   <SamplingDetailsHoverCard
                     samplingMetadata={data.samplingMetadata}
@@ -303,10 +313,10 @@ export function TimelineChartCard() {
                   {truncateLabel(score2FullLabel)}
                 </TabsTrigger>
                 <TabsTrigger value="all" className="h-5 px-2 text-xs">
-                  all
+                  {t("all")}
                 </TabsTrigger>
                 <TabsTrigger value="matched" className="h-5 px-2 text-xs">
-                  matched
+                  {t("matchedTab")}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -338,7 +348,7 @@ export function TimelineChartCard() {
           />
         ) : (
           <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-            No time series data available for the selected time range
+            {t("noTimeSeriesData")}
           </div>
         )}
       </CardContent>

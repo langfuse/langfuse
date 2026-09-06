@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ui/combobox";
 import { Button } from "@/src/components/ui/button";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export interface ScoreOption {
   value: string; // "name-dataType-source"
@@ -28,11 +29,12 @@ export function ScoreCombobox({
   value,
   onChange,
   options,
-  placeholder = "Select score",
+  placeholder,
   filterByDataType,
   disabled = false,
   className,
 }: ScoreComboboxProps) {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   // 1. Filter options by dataType
   const filteredOptions = useMemo(() => {
     if (!filterByDataType) return options;
@@ -57,9 +59,9 @@ export function ScoreCombobox({
     );
 
     const typeLabels: Record<string, string> = {
-      BOOLEAN: "Boolean",
-      CATEGORICAL: "Categorical",
-      NUMERIC: "Numeric",
+      BOOLEAN: t("boolean"),
+      CATEGORICAL: t("categorical"),
+      NUMERIC: t("numeric"),
     };
     const typeOrder = ["BOOLEAN", "CATEGORICAL", "NUMERIC"];
 
@@ -72,7 +74,7 @@ export function ScoreCombobox({
           label: `${opt.name} • ${opt.source}`,
         })),
       }));
-  }, [filteredOptions]);
+  }, [filteredOptions, t]);
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -89,9 +91,9 @@ export function ScoreCombobox({
         value={value ?? ""}
         onValueChange={handleValueChange}
         options={groupedOptions}
-        placeholder={placeholder}
-        searchPlaceholder="Search scores..."
-        emptyText="No scores found."
+        placeholder={placeholder ?? t("selectScore")}
+        searchPlaceholder={t("searchScores")}
+        emptyText={t("noScores")}
         disabled={disabled}
         className={className}
       />
@@ -101,7 +103,7 @@ export function ScoreCombobox({
           variant="ghost"
           size="icon"
           onClick={handleClear}
-          title="Clear selection"
+          title={t("clearSelection")}
           className="h-6 w-6 shrink-0"
         >
           <X className="h-3 w-3" />

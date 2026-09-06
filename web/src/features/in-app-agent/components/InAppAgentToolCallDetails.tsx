@@ -13,6 +13,7 @@ import {
   InAppAgentSandboxWriteArgsSchema,
 } from "@langfuse/shared/in-app-agent";
 import { type z } from "zod";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 import { assertUnreachable } from "@/src/utils/types";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
@@ -120,14 +121,17 @@ function ReadToolCallDetails({
   args: z.infer<typeof InAppAgentSandboxReadArgsSchema>;
   result: z.infer<typeof InAppAgentSandboxReadResultSchema> | undefined;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
-    <SandboxFileFrame operation="Read" path={args.path}>
+    <SandboxFileFrame operation={t("read")} path={args.path}>
       {result ? (
         <pre className="max-h-64 overflow-auto p-2.5 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap">
           {result.content === null ? (
-            <span className="text-destructive">File not found</span>
+            <span className="text-destructive">{t("fileNotFound")}</span>
           ) : result.content === "" ? (
-            <span className="text-muted-foreground italic">Empty file</span>
+            <span className="text-muted-foreground italic">
+              {t("emptyFile")}
+            </span>
           ) : (
             result.content
           )}
@@ -142,11 +146,12 @@ function WriteToolCallDetails({
 }: {
   args: z.infer<typeof InAppAgentSandboxWriteArgsSchema>;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
-    <SandboxFileFrame operation="Write" path={args.path}>
+    <SandboxFileFrame operation={t("write")} path={args.path}>
       <pre className="max-h-64 overflow-auto p-2.5 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap">
         {args.content || (
-          <span className="text-muted-foreground italic">Empty file</span>
+          <span className="text-muted-foreground italic">{t("emptyFile")}</span>
         )}
       </pre>
     </SandboxFileFrame>
@@ -160,14 +165,15 @@ function EditToolCallDetails({
   args: z.infer<typeof InAppAgentSandboxEditArgsSchema>;
   result: z.infer<typeof InAppAgentSandboxEditResultSchema> | undefined;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
-    <SandboxFileFrame operation="Edit" path={args.path}>
+    <SandboxFileFrame operation={t("edit")} path={args.path}>
       <div className="max-h-64 overflow-auto py-1.5 font-mono text-xs leading-5">
         <DiffLines type="removed" value={args.oldText} />
         <DiffLines type="added" value={args.newText} />
       </div>
       {result && !result.replaced ? (
-        <SandboxFooter>No matching text found</SandboxFooter>
+        <SandboxFooter>{t("noMatchingText")}</SandboxFooter>
       ) : null}
     </SandboxFileFrame>
   );
@@ -180,6 +186,7 @@ function BashToolCallDetails({
   args: z.infer<typeof InAppAgentSandboxBashArgsSchema>;
   result: z.infer<typeof InAppAgentSandboxBashResultSchema> | undefined;
 }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <div className="border-border bg-muted text-foreground max-h-64 overflow-auto rounded-md border p-2.5 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap">
       <div>
@@ -198,7 +205,9 @@ function BashToolCallDetails({
             <span className="text-destructive">{result.stderr}</span>
           ) : null}
           {!result.stdout && !result.stderr ? (
-            <span className="text-muted-foreground italic">No output</span>
+            <span className="text-muted-foreground italic">
+              {t("noOutput")}
+            </span>
           ) : null}
         </div>
       ) : null}
@@ -211,7 +220,7 @@ function SandboxFileFrame({
   path,
   children,
 }: {
-  operation: "Read" | "Write" | "Edit";
+  operation: string;
   path: string;
   children: React.ReactNode;
 }) {
@@ -272,10 +281,11 @@ function SandboxFooter({ children }: { children: React.ReactNode }) {
 }
 
 function DefaultToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <div className="flex flex-col gap-2">
       <InAppAgentToolPayload
-        label="Arguments"
+        label={t("arguments")}
         value={tool.args}
         variant="default"
       />

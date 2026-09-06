@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 
 import AIFeatureSwitch from "./AIFeatureSwitch";
+import englishSettingsEnterprise from "@/src/features/i18n/messages/en/settingsEnterprise.json";
+import simplifiedChineseSettingsEnterprise from "@/src/features/i18n/messages/zh-CN/settingsEnterprise.json";
 
 const mocks = vi.hoisted(() => ({
   isLangfuseCloud: true,
@@ -64,6 +67,21 @@ vi.mock("@/src/components/layouts/header", () => ({
   default: ({ title }: { title: string }) => <h2>{title}</h2>,
 }));
 
+const renderSwitch = (locale: "en" | "zh-CN" = "en") =>
+  render(
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        settingsEnterprise:
+          locale === "en"
+            ? englishSettingsEnterprise
+            : simplifiedChineseSettingsEnterprise,
+      }}
+    >
+      <AIFeatureSwitch />
+    </NextIntlClientProvider>,
+  );
+
 describe("AIFeatureSwitch", () => {
   beforeEach(() => {
     mocks.isLangfuseCloud = true;
@@ -79,7 +97,7 @@ describe("AIFeatureSwitch", () => {
   it("hides product-improvement telemetry when the AI-features project is not configured", () => {
     mocks.aiFeaturesTracingConfigured = false;
 
-    render(<AIFeatureSwitch />);
+    renderSwitch();
 
     expect(
       screen.getByText("Enable AI powered features for your organization"),
@@ -93,7 +111,7 @@ describe("AIFeatureSwitch", () => {
   });
 
   it("shows product-improvement telemetry on Cloud when AI features and tracing are on", () => {
-    render(<AIFeatureSwitch />);
+    renderSwitch();
 
     expect(
       screen.getByText("AI Data Use for Product/Service Improvement"),
@@ -106,10 +124,20 @@ describe("AIFeatureSwitch", () => {
   it("hides product-improvement telemetry on self-hosted even when tracing is configured", () => {
     mocks.isLangfuseCloud = false;
 
-    render(<AIFeatureSwitch />);
+    renderSwitch();
 
     expect(
       screen.queryByText("AI Data Use for Product/Service Improvement"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders organization AI settings in Chinese", () => {
+    renderSwitch("zh-CN");
+
+    expect(
+      screen.getByRole("heading", { name: "AI 功能" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("为组织启用 AI 功能")).toBeInTheDocument();
+    expect(screen.getByText("使用 AI 数据改进产品和服务")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
@@ -11,7 +12,7 @@ import {
 import { PopoverContent } from "@/src/components/ui/popover";
 import {
   featurePreviewFlags,
-  featurePreviewLabels,
+  featurePreviewLabelKeys,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -40,6 +41,7 @@ export function UserFeaturePreviewsControl({
     content: ReactNode;
   }) => ReactNode;
 }) {
+  const t = useTranslations("integrationsSettings.featurePreviews");
   const session = useSession();
   const [pendingFlags, setPendingFlags] = useState<Set<FeaturePreviewFlag>>(
     new Set(),
@@ -57,18 +59,16 @@ export function UserFeaturePreviewsControl({
         await session.update();
       }
       showSuccessToast({
-        title: "Feature preview updated",
-        description: `${featurePreviewLabels[variables.flag]} was ${
-          variables.enabled ? "enabled" : "disabled"
-        } for this user.`,
+        title: t("updatedTitle"),
+        description: t("updatedDescription", {
+          feature: t(featurePreviewLabelKeys[variables.flag]),
+          state: variables.enabled ? t("enabled") : t("disabled"),
+        }),
       });
     },
     onError: async () => {
       await utils.members.allFromOrg.invalidate();
-      showErrorToast(
-        "Failed to update feature preview",
-        "Your access may have changed. Refresh and try again.",
-      );
+      showErrorToast(t("updateFailed"), t("accessChanged"));
     },
   });
   const enabledCount = Object.values(featurePreviews).filter(Boolean).length;
@@ -80,15 +80,12 @@ export function UserFeaturePreviewsControl({
         <HoverCardTrigger asChild>
           <span className="inline-flex cursor-not-allowed">
             <Button variant="outline" size="sm" disabled>
-              {enabledCount}/{totalCount} enabled
+              {t("enabledCount", { enabledCount, totalCount })}
             </Button>
           </span>
         </HoverCardTrigger>
         <HoverCardContent align="center" side="left">
-          <p className="text-xs">
-            You can only change this user&apos;s feature flags if you are an
-            administrator in every organization they belong to.
-          </p>
+          <p className="text-xs">{t("managementBlocked")}</p>
         </HoverCardContent>
       </HoverCard>
     );
@@ -101,17 +98,21 @@ export function UserFeaturePreviewsControl({
       <PopoverContent align="end" className="w-80">
         <div className="flex flex-col gap-3">
           <div>
-            <h4 className="text-sm font-bold">Feature previews</h4>
+            <h4 className="text-sm font-bold">{t("popoverTitle")}</h4>
             <p className="text-muted-foreground text-xs">
-              Changes apply to this user in every organization.
+              {t("popoverDescription")}
             </p>
           </div>
           {featurePreviewFlags.map((flag) => (
             <div key={flag} className="flex items-center justify-between gap-4">
-              <span className="text-sm">{featurePreviewLabels[flag]}</span>
+              <span className="text-sm">
+                {t(featurePreviewLabelKeys[flag])}
+              </span>
               <Switch
                 size="sm"
-                aria-label={`Toggle ${featurePreviewLabels[flag]} for user`}
+                aria-label={t("toggleUser", {
+                  feature: t(featurePreviewLabelKeys[flag]),
+                })}
                 checked={featurePreviews[flag]}
                 disabled={pendingFlags.has(flag)}
                 onCheckedChange={(enabled) => {

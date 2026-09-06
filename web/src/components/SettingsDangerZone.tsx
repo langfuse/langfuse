@@ -1,16 +1,19 @@
 import Header from "@/src/components/layouts/header";
 import React from "react";
+import { useTranslations } from "next-intl";
 
 export const SettingsDangerZone: React.FC<{
+  title?: string;
   items: {
     title: string;
     description: string;
     button: React.ReactNode;
   }[];
-}> = ({ items }) => {
+}> = ({ items, title }) => {
+  const t = useTranslations("sharedUi.misc");
   return (
     <div className="space-y-3">
-      <Header title="Danger Zone" />
+      <Header title={title ?? t("dangerZone")} />
       <div className="rounded-lg border">
         {items.map((item, index) => (
           <div

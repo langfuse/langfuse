@@ -16,6 +16,7 @@ import {
 import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
 import { PricePreview } from "@/src/features/models/components/PricePreview";
 import type { FormUpsertModel } from "@/src/features/models/validation";
+import { useTranslations } from "next-intl";
 
 type TierPriceEditorProps = {
   tierIndex: number;
@@ -36,6 +37,7 @@ export function TierPriceEditor({
   onAddUsageType,
   onRemoveUsageType,
 }: TierPriceEditorProps) {
+  const t = useTranslations("settingsEnterprise.models");
   // Names live on the model, prices on the tier; both are watched so a rename
   // in the default tier shows up in every tier's rows immediately.
   const usageTypeValues = useWatch({
@@ -64,10 +66,10 @@ export function TierPriceEditor({
 
   return (
     <div className="space-y-3">
-      <FormLabel>Prices</FormLabel>
+      <FormLabel>{t("common.prices")}</FormLabel>
       <div className="text-muted-foreground grid grid-cols-2 gap-1 text-sm">
-        <span>Usage type</span>
-        <span>Price per unit</span>
+        <span>{t("common.usageType")}</span>
+        <span>{t("common.pricePerUnit")}</span>
       </div>
       {usageTypeRows.map((row, index) => (
         // The row key is opaque form state, so no edit can reorder or remount
@@ -82,8 +84,10 @@ export function TierPriceEditor({
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="Key (e.g. input, output)"
-                      aria-label={`Usage type ${index + 1}`}
+                      placeholder={t("pricingEditor.usageTypePlaceholder")}
+                      aria-label={t("pricingEditor.usageTypeAriaLabel", {
+                        number: index + 1,
+                      })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -110,8 +114,15 @@ export function TierPriceEditor({
                       {...field}
                       value={field.value ?? ""}
                       inputMode="decimal"
-                      placeholder="Price per unit"
-                      aria-label={`${tierName} price for ${nameOf(index) || `usage type ${index + 1}`}`}
+                      placeholder={t("common.pricePerUnit")}
+                      aria-label={t("pricingEditor.priceAriaLabel", {
+                        tierName,
+                        usageType:
+                          nameOf(index) ||
+                          t("pricingEditor.usageTypeAriaLabel", {
+                            number: index + 1,
+                          }),
+                      })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -122,7 +133,7 @@ export function TierPriceEditor({
               <Button
                 type="button"
                 variant="outline"
-                title="Remove price"
+                title={t("pricingEditor.removePrice")}
                 size="icon"
                 disabled={usageTypeRows.length <= 1}
                 onClick={() => onRemoveUsageType(index)}
@@ -141,7 +152,7 @@ export function TierPriceEditor({
           className="flex items-center gap-1"
         >
           <PlusCircle className="h-4 w-4" />
-          <span>Add Price</span>
+          <span>{t("pricingEditor.addPrice")}</span>
         </Button>
       )}
       <PricePreview prices={previewPrices} />

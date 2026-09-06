@@ -21,6 +21,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
+import { useTranslations } from "next-intl";
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
@@ -44,6 +45,7 @@ export const Messages: React.FC<MessagesContext> = (props) => {
 };
 
 const SubmitButton = () => {
+  const t = useTranslations("coreDetails.playground.submit");
   const { handleSubmit, isStreaming } = usePlaygroundContext();
   const defaultStreamingEnabled =
     env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT === "true";
@@ -63,7 +65,7 @@ const SubmitButton = () => {
         }}
         loading={isStreaming}
       >
-        <p>Submit</p>
+        <p>{t("action")}</p>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -82,11 +84,9 @@ const SubmitButton = () => {
             onClick={(e) => e.preventDefault()}
           >
             <div className="flex flex-col">
-              <span className="font-bold">Stream responses</span>
+              <span className="font-bold">{t("streamResponses")}</span>
               <span className="text-muted-foreground text-xs">
-                {streamingEnabled
-                  ? "Real-time response streaming"
-                  : "Complete response at once"}
+                {streamingEnabled ? t("streaming") : t("complete")}
               </span>
             </div>
             <Switch

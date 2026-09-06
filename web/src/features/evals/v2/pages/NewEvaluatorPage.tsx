@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -12,6 +13,7 @@ function requestedEvaluatorType(value: string | string[] | undefined) {
 }
 
 export default function NewEvaluatorPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const templateKey =
@@ -32,7 +34,7 @@ export default function NewEvaluatorPage() {
   }
 
   if (template.isNotFound) {
-    return <div className="p-6">Evaluator template not found</div>;
+    return <div className="p-6">{t("evaluator.templateNotFound")}</div>;
   }
 
   const initialType = requestedEvaluatorType(router.query.type);

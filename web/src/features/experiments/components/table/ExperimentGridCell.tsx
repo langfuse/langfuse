@@ -42,6 +42,7 @@ import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { useTranslations } from "next-intl";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -104,6 +105,7 @@ const ScoreCommentPeek = ({
   executionTraceId?: string | null;
   projectId: string;
 }) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -119,7 +121,7 @@ const ScoreCommentPeek = ({
         <button
           type="button"
           className="inline-flex cursor-pointer"
-          aria-label="View score comment"
+          aria-label={t("grid.viewScoreComment")}
         >
           <MessageCircleMore size={12} className="text-muted-foreground" />
         </button>
@@ -131,7 +133,7 @@ const ScoreCommentPeek = ({
             variant="ghost"
             size="icon-xs"
             className="hover:bg-accent rounded p-1"
-            aria-label={copied ? "Copied" : "Copy to clipboard"}
+            aria-label={copied ? t("grid.copied") : t("grid.copyToClipboard")}
           >
             {copied ? (
               <Check className="h-3 w-3" />
@@ -151,7 +153,7 @@ const ScoreCommentPeek = ({
               onClick={(event) => event.stopPropagation()}
             >
               <ExternalLink className="h-3 w-3" />
-              View execution trace
+              {t("grid.viewExecutionTrace")}
             </Link>
           )}
         </div>
@@ -228,6 +230,7 @@ const ScoreItem = ({
   level: Extract<ScoreLevel, "observation" | "trace">;
   showScoreLevelLabel: boolean;
 }) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
 
@@ -268,11 +271,13 @@ const ScoreItem = ({
           >
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Source:</span>
+                <span className="text-muted-foreground">
+                  {t("grid.source")}:
+                </span>
                 <span className="capitalize">{source.toLowerCase()}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Type:</span>
+                <span className="text-muted-foreground">{t("grid.type")}:</span>
                 <span className="capitalize">{dataType.toLowerCase()}</span>
               </div>
             </div>
@@ -409,6 +414,7 @@ export const ExperimentGridCell = ({
   markerClassName,
   showScoreLevelLabels,
 }: ExperimentGridCellProps) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const scoreDiffs = useMemo(
     () =>
       isBaseline || !baselineScores
@@ -478,7 +484,7 @@ export const ExperimentGridCell = ({
       // Output section
       {
         accessorKey: "output",
-        header: "Output",
+        header: t("table.output"),
         cell: ({ data }) =>
           data.isLoading ? (
             <ConnectedIOTableCell
@@ -498,7 +504,7 @@ export const ExperimentGridCell = ({
       // follows the list-view columns.
       {
         accessorKey: "scores",
-        header: "Scores",
+        header: t("grid.scores"),
         children: [
           ...(columnVisibility.observationScores !== false
             ? orderedObservationKeys.map((key) =>
@@ -515,12 +521,12 @@ export const ExperimentGridCell = ({
       // Metadata group - itemId, observationId, level, startTime
       {
         accessorKey: "metadata",
-        header: "Metadata",
+        header: t("overview.metadata"),
         children: [
           {
             accessorKey: "itemId",
             cell: ({ data }) => (
-              <MetadataItem label="Item ID">
+              <MetadataItem label={t("table.itemId")}>
                 <span className="font-mono text-xs">{data.itemId}</span>
               </MetadataItem>
             ),
@@ -528,7 +534,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "observationId",
             cell: ({ data }) => (
-              <MetadataItem label="Observation">
+              <MetadataItem label={t("grid.observation")}>
                 <span className="font-mono text-xs">{data.observationId}</span>
               </MetadataItem>
             ),
@@ -536,7 +542,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "traceId",
             cell: ({ data }) => (
-              <MetadataItem label="Execution Trace">
+              <MetadataItem label={t("grid.executionTrace")}>
                 <Link
                   href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
                   className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
@@ -556,7 +562,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "level",
             cell: ({ data }) => (
-              <MetadataItem label="Status">
+              <MetadataItem label={t("grid.status")}>
                 <span className="text-xs">{data.level}</span>
               </MetadataItem>
             ),
@@ -564,7 +570,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "startTime",
             cell: ({ data }) => (
-              <MetadataItem label="Start Time">
+              <MetadataItem label={t("table.startTime")}>
                 <span className="text-xs">
                   <LocalIsoDate date={data.startTime} />
                 </span>
@@ -574,7 +580,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "totalCost",
             cell: ({ data }) => (
-              <MetadataItem label="Total Cost">
+              <MetadataItem label={t("table.totalCost")}>
                 <span className="inline-flex items-center gap-1 text-xs">
                   {data.totalCost != null ? (
                     usdFormatter(data.totalCost, 2, 6)
@@ -595,7 +601,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "latencyMs",
             cell: ({ data }) => (
-              <MetadataItem label="Latency">
+              <MetadataItem label={t("table.latency")}>
                 <span className="inline-flex items-center gap-1 text-xs">
                   {data.latencyMs != null ? (
                     latencyFormatter(data.latencyMs)
@@ -622,6 +628,7 @@ export const ExperimentGridCell = ({
       orderedTraceKeys,
       showScoreLevelLabels,
       singleLine,
+      t,
     ],
   );
 
@@ -703,9 +710,10 @@ export const ExperimentGridCell = ({
  * Empty cell component for when there's no data for an experiment.
  */
 export const ExperimentGridCellEmpty = () => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   return (
     <div className="flex h-full w-full min-w-0 items-start justify-start p-2">
-      <span className="text-muted-foreground text-xs">No data</span>
+      <span className="text-muted-foreground text-xs">{t("grid.noData")}</span>
     </div>
   );
 };

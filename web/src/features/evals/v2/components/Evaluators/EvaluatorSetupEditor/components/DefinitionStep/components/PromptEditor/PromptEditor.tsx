@@ -5,6 +5,7 @@ import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluat
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useTranslations } from "next-intl";
 
 export function PromptEditor({
   projectId,
@@ -13,6 +14,7 @@ export function PromptEditor({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
     store,
@@ -28,6 +30,27 @@ export function PromptEditor({
     variableFields: state.variableFields,
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
+    columnLabels: {
+      input: t("variableMapping.columns.input"),
+      output: t("variableMapping.columns.output"),
+      metadata: t("variableMapping.columns.metadata"),
+      toolCalls: t("variableMapping.columns.toolCalls"),
+      experimentItemExpectedOutput: t(
+        "variableMapping.columns.experimentItemExpectedOutput",
+      ),
+      experimentItemMetadata: t(
+        "variableMapping.columns.experimentItemMetadata",
+      ),
+    },
+    messages: {
+      notMapped: t("variableMapping.prompt.notMapped"),
+      emptyMapping: t("variableMapping.prompt.emptyMapping"),
+      sampleRequired: t("variableMapping.prompt.sampleRequired"),
+      mapVariable: (variable) =>
+        t("variableMapping.prompt.mapVariable", { variable }),
+      fixVariable: (variable) =>
+        t("variableMapping.prompt.fixVariable", { variable }),
+    },
   });
 
   return (

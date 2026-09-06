@@ -9,6 +9,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useSession } from "next-auth/react";
 import { buildResizableImageSrc } from "./resizable-image.utils";
 import { getSafeImageUrl } from "@/src/components/ui/safe-url";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 export const COMPACT_IMAGE_MAX_HEIGHT_REM = 16;
 
@@ -75,6 +76,7 @@ export const ResizableImage = ({
   fitContent?: boolean;
   compactWidth?: string;
 }) => {
+  const t = useSharedUiTranslations("resizableImage");
   const safeSrc = getSafeImageUrl(src);
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
@@ -91,22 +93,19 @@ export const ResizableImage = ({
 
   if (session.status !== "authenticated") {
     return (
-      <ImageErrorDisplay
-        src={src}
-        displayError="Images not rendered on public traces and observations"
-      />
+      <ImageErrorDisplay src={src} displayError={t("publicUnavailable")} />
     );
   }
 
   if (isValidImage.isLoading && isImageVisible) {
     return (
       <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
-        <span className="opacity-80">Loading image...</span>
+        <span className="opacity-80">{t("loading")}</span>
       </Skeleton>
     );
   }
 
-  const displayError = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
+  const displayError = `${t("cannotLoad")} ${src.includes("http") ? t("httpBlocked") : t("invalidUrl")}`;
 
   return (
     <div
@@ -133,7 +132,7 @@ export const ResizableImage = ({
               <Image
                 loader={customLoader}
                 src={safeSrc}
-                alt={alt ?? `Markdown Image-${Math.random()}`}
+                alt={alt ?? t("markdownImage")}
                 loading="lazy"
                 width={0}
                 height={0}
@@ -157,6 +156,7 @@ export const ResizableImage = ({
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
+                title={t(isZoomedIn ? "expand" : "collapse")}
               >
                 {isZoomedIn ? (
                   <Maximize2 className="h-4 w-4"></Maximize2>
@@ -168,14 +168,14 @@ export const ResizableImage = ({
           ) : (
             <div className="bg-muted/30 text-muted-foreground/60 flex w-full items-center gap-2 rounded border border-dashed p-2 text-xs">
               <Button
-                title="Render image"
+                title={t("render")}
                 type="button"
                 size="sm"
                 variant="secondary"
                 onClick={() => setIsImageVisible(!isImageVisible)}
                 disabled={!safeSrc}
               >
-                Load Image
+                {t("load")}
               </Button>
               <div className="flex min-w-0 flex-1 items-center overflow-hidden">
                 {safeSrc ? (

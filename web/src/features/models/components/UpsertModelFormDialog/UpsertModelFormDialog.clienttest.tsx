@@ -2,15 +2,27 @@ import {
   act,
   cleanup,
   fireEvent,
-  render,
+  render as testingLibraryRender,
   screen,
   within,
   waitFor,
 } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { type GetModelResult } from "@/src/features/models/validation";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
+import settingsEnterpriseMessages from "@/src/features/i18n/messages/en/settingsEnterprise.json";
+
+const render = (ui: Parameters<typeof testingLibraryRender>[0]) =>
+  testingLibraryRender(
+    <NextIntlClientProvider
+      locale="en"
+      messages={{ settingsEnterprise: settingsEnterpriseMessages }}
+    >
+      {ui}
+    </NextIntlClientProvider>,
+  );
 
 const upsertMutateAsync = vi.fn().mockResolvedValue({
   id: "model-1",

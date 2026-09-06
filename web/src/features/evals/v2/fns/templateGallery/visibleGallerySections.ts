@@ -15,6 +15,7 @@ function isGalleryAllSection(activeSection: string | null) {
 export function gallerySidebarItems(
   navigationItems: GalleryNavigationItem[],
   sections: GallerySection[],
+  allLabel = "All",
 ): GalleryNavigationItem[] {
   const categoryItems = navigationItems.filter(
     (item) => item.key !== EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
@@ -35,7 +36,7 @@ export function gallerySidebarItems(
   return [
     {
       key: EVALUATOR_GALLERY_ALL_SECTION_KEY,
-      label: "All",
+      label: allLabel,
       icon: getGalleryCategoryPresentation(EVALUATOR_GALLERY_ALL_SECTION_KEY)
         .icon,
       count: allCount,

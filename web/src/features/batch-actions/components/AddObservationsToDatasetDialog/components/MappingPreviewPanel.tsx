@@ -23,6 +23,7 @@ import {
   type JsonPathMissInfo,
   type JsonPathErrorInfo,
 } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 type MappingPreviewPanelProps = {
   fieldLabel: string;
@@ -48,6 +49,7 @@ export function MappingPreviewPanel({
   schema,
   onValidationChange,
 }: MappingPreviewPanelProps) {
+  const t = useTranslations("operationsUi.batchActions.addToDataset.preview");
   const hasSchema = schema !== null && schema !== undefined;
 
   // Compute source data to display
@@ -99,7 +101,10 @@ export function MappingPreviewPanel({
         path: err.mappingKey
           ? `${err.sourceField} (key: "${err.mappingKey}")`
           : err.sourceField,
-        message: `Invalid JSONPath "${err.jsonPath}": ${err.message}`,
+        message: t("invalidJsonPathMessage", {
+          jsonPath: err.jsonPath,
+          message: err.message,
+        }),
       }),
     );
 
@@ -139,7 +144,7 @@ export function MappingPreviewPanel({
       // If schema validation fails to run, treat as valid (don't block on validation errors)
       return { isValid: true, errors: [] as SchemaValidationError[] };
     }
-  }, [hasSchema, config.mode, resultData, schema, jsonPathErrors]);
+  }, [hasSchema, config.mode, resultData, schema, jsonPathErrors, t]);
 
   // Track previous validation state to avoid redundant callbacks
   const prevValidationRef = useRef<{
@@ -181,19 +186,19 @@ export function MappingPreviewPanel({
         if (sources.size === 1) {
           return `observation.${Array.from(sources)[0]}`;
         }
-        return "multiple sources";
+        return t("multipleSources");
       }
     }
     return `observation.${defaultSourceField}`;
-  }, [config, defaultSourceField]);
+  }, [config, defaultSourceField, t]);
 
   if (isLoading) {
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-bold">Preview</h3>
+          <h3 className="text-sm font-bold">{t("title")}</h3>
           <p className="text-muted-foreground text-xs">
-            Sample from first observation
+            {t("sampleDescription")}
           </p>
         </div>
         <Skeleton className="h-32 w-full" />
@@ -206,15 +211,13 @@ export function MappingPreviewPanel({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-bold">Preview</h3>
+          <h3 className="text-sm font-bold">{t("title")}</h3>
           <p className="text-muted-foreground text-xs">
-            Sample from first observation
+            {t("sampleDescription")}
           </p>
         </div>
         <div className="bg-muted/30 flex h-64 items-center justify-center rounded-md border p-4">
-          <p className="text-muted-foreground text-sm">
-            No observation data available
-          </p>
+          <p className="text-muted-foreground text-sm">{t("noObservation")}</p>
         </div>
       </div>
     );
@@ -223,16 +226,16 @@ export function MappingPreviewPanel({
   return (
     <div className="space-y-2">
       <div>
-        <h3 className="text-sm font-bold">Preview</h3>
+        <h3 className="text-sm font-bold">{t("title")}</h3>
         <p className="text-muted-foreground text-xs">
-          Sample from first observation
+          {t("sampleDescription")}
         </p>
       </div>
 
       {/* Source data */}
       <div className="space-y-2">
         <p className="text-muted-foreground text-xs font-bold">
-          Source: {sourceLabel}
+          {t("source", { source: sourceLabel })}
         </p>
         <div className="bg-muted/30 max-h-[21vh] overflow-auto rounded-md border">
           <JSONView json={sourceData} className="text-xs" />
@@ -248,7 +251,7 @@ export function MappingPreviewPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <p className="text-muted-foreground text-xs font-bold">
-            Result: Dataset Item {fieldLabel}
+            {t("result", { field: fieldLabel })}
           </p>
           {/* Validation status indicator */}
           {config.mode !== "none" && (
@@ -284,12 +287,12 @@ export function MappingPreviewPanel({
 
         {/* JSONPath syntax errors (always blocking) */}
         {jsonPathErrors.length > 0 && config.mode !== "none" && (
-          <IssueList variant="error" title="Invalid JSONPath:">
+          <IssueList variant="error" title={t("invalidJsonPathTitle")}>
             {jsonPathErrors.map((err, idx) => (
               <IssueItem key={idx}>
                 <span className="font-mono">{err.jsonPath}</span>
-                {err.mappingKey ? ` (key: "${err.mappingKey}")` : ""}:{" "}
-                {err.message}
+                {err.mappingKey ? t("mappingKey", { key: err.mappingKey }) : ""}
+                : {err.message}
               </IssueItem>
             ))}
           </IssueList>
@@ -299,10 +302,10 @@ export function MappingPreviewPanel({
         {hasSchema &&
           jsonPathErrors.length === 0 &&
           validationResult.errors.length > 0 && (
-            <IssueList variant="error" title="Schema validation errors:">
+            <IssueList variant="error" title={t("schemaErrorsTitle")}>
               {validationResult.errors.map((error, idx) => (
                 <IssueItem key={idx}>
-                  <span className="font-mono">{error.path || "root"}</span>:{" "}
+                  <span className="font-mono">{error.path || t("root")}</span>:{" "}
                   {error.message}
                 </IssueItem>
               ))}
@@ -311,15 +314,16 @@ export function MappingPreviewPanel({
 
         {/* JSONPath warnings */}
         {jsonPathMisses.length > 0 && config.mode !== "none" && (
-          <IssueList
-            variant="warning"
-            title="JSONPath warnings (preview observation):"
-          >
+          <IssueList variant="warning" title={t("warningsTitle")}>
             {jsonPathMisses.map((miss, idx) => (
               <IssueItem key={idx}>
-                <span className="font-mono">{miss.jsonPath}</span> did not match
-                any data in {miss.sourceField}
-                {miss.mappingKey ? ` (key: "${miss.mappingKey}")` : ""}
+                {t("pathDidNotMatch", {
+                  jsonPath: miss.jsonPath,
+                  source: miss.sourceField,
+                  mappingKey: miss.mappingKey
+                    ? t("mappingKey", { key: miss.mappingKey })
+                    : "",
+                })}
               </IssueItem>
             ))}
           </IssueList>

@@ -114,6 +114,38 @@ describe("describeScoreChartConfig", () => {
       }),
     ).toBe("Count of scores");
   });
+
+  it("uses an injected formatter for localized descriptions", () => {
+    const translate = (
+      key: string,
+      values?: Record<string, string>,
+    ): string => {
+      const labels: Record<string, string> = {
+        "metrics.count": "Anzahl",
+        "dimensions.name": "Name",
+        "aggregations.count": "Anzahl",
+        "descriptions.scoreCount": "Anzahl der Bewertungen",
+      };
+
+      if (key === "descriptions.by")
+        return `${values?.base} nach ${values?.dimension}`;
+      if (key === "descriptions.overTime")
+        return `${values?.base} im Zeitverlauf`;
+      return labels[key] ?? key;
+    };
+
+    expect(
+      describeScoreChartConfig(
+        {
+          ...DEFAULT_SCORE_CHART_CONFIG,
+          metric: "count",
+          breakdown: "name",
+          chartType: "LINE_TIME_SERIES",
+        },
+        translate,
+      ),
+    ).toBe("Anzahl der Bewertungen nach Name im Zeitverlauf");
+  });
 });
 
 describe("scoreMetricField", () => {

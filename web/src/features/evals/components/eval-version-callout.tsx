@@ -7,23 +7,37 @@ import {
   isExperimentTarget,
   isDatasetTarget,
 } from "@/src/features/evals/utils/typeHelpers";
+import { useTranslations } from "next-intl";
 
 interface EvalVersionCalloutProps {
   targetObject: string;
   evalCapabilities: EvalCapabilities;
 }
 
-interface CalloutContent {
-  visible: boolean;
-  title: string;
-  description: React.ReactNode;
-}
+type CalloutContent =
+  | { visible: false }
+  | {
+      visible: true;
+      titleKey:
+        | "versionCallout.verifySdkVersion"
+        | "versionCallout.verifyExperimentRunnerSdk"
+        | "versionCallout.legacySdkMethods"
+        | "versionCallout.upgradeToObservationEvaluators";
+      descriptionKey:
+        | "versionCallout.observationDescription"
+        | "versionCallout.experimentDescription"
+        | "versionCallout.datasetDescription"
+        | "versionCallout.traceDescription";
+      href: string;
+    };
 
 const getCalloutContent = (
   targetObject: string,
   evalCapabilities: EvalCapabilities,
 ): CalloutContent => {
-  const hidden = { visible: false, title: "", description: "" };
+  const hidden = {
+    visible: false,
+  } as const;
 
   // For event/observation target
   if (isEventTarget(targetObject)) {
@@ -33,23 +47,9 @@ const getCalloutContent = (
 
     return {
       visible: true,
-      title: "Please verify your SDK version",
-      description: (
-        <>
-          This evaluator targets observations, which require JS SDK v4+ or
-          Python SDK v3+. You can still configure this evaluator now—it will
-          start running once you upgrade.{" "}
-          <a
-            href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
-          >
-            Learn more
-          </a>
-          .
-        </>
-      ),
+      titleKey: "versionCallout.verifySdkVersion",
+      descriptionKey: "versionCallout.observationDescription",
+      href: "https://langfuse.com/docs/observability/sdk/upgrade-path",
     };
   }
 
@@ -58,23 +58,9 @@ const getCalloutContent = (
     if (!evalCapabilities.isNewCompatible) {
       return {
         visible: true,
-        title: "Please verify you are using the Experiment Runner SDK",
-        description: (
-          <>
-            The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+.
-            You can still configure this evaluator now—it will start running
-            once you upgrade.{" "}
-            <a
-              href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
-            >
-              Learn more about the Experiment Runner SDK.
-            </a>
-            .
-          </>
-        ),
+        titleKey: "versionCallout.verifyExperimentRunnerSdk",
+        descriptionKey: "versionCallout.experimentDescription",
+        href: "https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk",
       };
     }
 
@@ -91,24 +77,9 @@ const getCalloutContent = (
 
     return {
       visible: true,
-      title: "Legacy low-level SDK methods",
-      description: (
-        <>
-          This evaluator targets traces from legacy low-level SDK methods for
-          dataset runs that manually linked dataset items to traces. Consider
-          upgrading to the Experiment Runner SDK for improved performance and
-          features.{" "}
-          <a
-            href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
-          >
-            Learn more
-          </a>
-          .
-        </>
-      ),
+      titleKey: "versionCallout.legacySdkMethods",
+      descriptionKey: "versionCallout.datasetDescription",
+      href: "https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk",
     };
   }
 
@@ -122,22 +93,9 @@ const getCalloutContent = (
 
     return {
       visible: true,
-      title: "Consider upgrading to observation evaluators",
-      description: (
-        <>
-          Observation evaluators provide more granular control and an easier
-          workflow. We strongly recommend upgrading to observation evaluators.{" "}
-          <a
-            href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
-          >
-            Learn more
-          </a>
-          .
-        </>
-      ),
+      titleKey: "versionCallout.upgradeToObservationEvaluators",
+      descriptionKey: "versionCallout.traceDescription",
+      href: "https://langfuse.com/faq/all/llm-as-a-judge-migration",
     };
   }
 
@@ -148,6 +106,7 @@ export function EvalVersionCallout({
   targetObject,
   evalCapabilities,
 }: EvalVersionCalloutProps) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const content = getCalloutContent(targetObject, evalCapabilities);
 
   if (!content.visible) {
@@ -163,9 +122,22 @@ export function EvalVersionCallout({
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-foreground font-bold">{content.title}</span>
+            <span className="text-foreground font-bold">
+              {t(content.titleKey)}
+            </span>
             <span className="text-foreground text-sm">
-              {content.description}
+              {t.rich(content.descriptionKey, {
+                link: (chunks) => (
+                  <a
+                    href={content.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-dark-blue font-bold hover:opacity-80"
+                  >
+                    {chunks}
+                  </a>
+                ),
+              })}
             </span>
           </div>
         </div>

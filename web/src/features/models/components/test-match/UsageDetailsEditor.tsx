@@ -2,6 +2,7 @@ import { PlusCircle, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 type UsageDetailsEditorProps = {
   usageDetails: Record<string, number>;
@@ -14,6 +15,7 @@ export function UsageDetailsEditor({
   usageDetails,
   onChange,
 }: UsageDetailsEditorProps) {
+  const t = useTranslations("settingsEnterprise.models");
   const [entries, setEntries] = useState<Array<{ key: string; value: number }>>(
     Object.entries(usageDetails).map(([key, value]) => ({ key, value })),
   );
@@ -59,17 +61,18 @@ export function UsageDetailsEditor({
   return (
     <div className="space-y-4">
       <div>
-        <div className="pb-2 text-sm font-bold">Usage Details (optional)</div>
+        <div className="pb-2 text-sm font-bold">
+          {t("testMatch.usageDetailsOptional")}
+        </div>
         <div className="text-muted-foreground text-sm">
-          Add usage details to test pricing tier matching. Leave empty to match
-          the default tier.
+          {t("testMatch.usageDetailsDescription")}
         </div>
       </div>
 
       {/* Template Buttons */}
       <div className="space-y-2">
         <div className="text-muted-foreground text-sm">
-          Prefill from template:
+          {t("testMatch.prefill")}
         </div>
         <div className="flex gap-2">
           <Button
@@ -106,14 +109,14 @@ export function UsageDetailsEditor({
       {entries.length > 0 ? (
         <div className="space-y-2 rounded-lg border p-3">
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-bold">
-            <div>Usage Type</div>
-            <div>Value</div>
+            <div>{t("common.usageType")}</div>
+            <div>{t("common.value")}</div>
             <div className="w-10" />
           </div>
           {entries.map((entry, index) => (
             <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <Input
-                placeholder="e.g. input"
+                placeholder={t("testMatch.usagePlaceholder")}
                 value={entry.key}
                 onChange={(e) => handleKeyChange(index, e.target.value)}
               />
@@ -130,6 +133,9 @@ export function UsageDetailsEditor({
                 variant="ghost"
                 size="sm"
                 onClick={() => handleRemoveRow(index)}
+                aria-label={t("testMatch.removeUsageDetail", {
+                  number: index + 1,
+                })}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -145,7 +151,7 @@ export function UsageDetailsEditor({
         className="w-full"
       >
         <PlusCircle className="mr-2 h-4 w-4" />
-        Add Usage Type
+        {t("testMatch.addUsageDetail")}
       </Button>
     </div>
   );

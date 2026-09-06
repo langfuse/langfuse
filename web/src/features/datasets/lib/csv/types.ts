@@ -58,4 +58,10 @@ export type ParseOptions = {
   isPreview?: boolean;
   collectSamples?: boolean;
   processor?: RowProcessor;
+  errorMessages?: {
+    emptyFile: string;
+    parseFailed: (details: string) => string;
+    itemTooLarge: string;
+    readFailed: string;
+  };
 };

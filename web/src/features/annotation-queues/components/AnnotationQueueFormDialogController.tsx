@@ -11,6 +11,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type AnnotationQueueFormDialogControllerProps = {
   projectId: string;
@@ -30,6 +31,7 @@ type AnnotationQueueFormDialogControllerProps = {
 export function AnnotationQueueFormDialogController(
   props: AnnotationQueueFormDialogControllerProps,
 ) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const { projectId, onSuccess, mode, children } = props;
   const queueId = mode === "edit" ? props.queueId : undefined;
 
@@ -44,7 +46,8 @@ export function AnnotationQueueFormDialogController(
   const disabled = hasQueueAccess
     ? undefined
     : {
-        reason: `You don't have permission to ${mode} annotation queues.`,
+        reason:
+          mode === "edit" ? t("noEditPermission") : t("noCreatePermission"),
       };
 
   const openDialog = () => {
@@ -121,10 +124,7 @@ export function AnnotationQueueFormDialogController(
         onSuccess(targetQueueId);
         setOpen(false);
       } catch {
-        showErrorToast(
-          "Operation failed",
-          "Failed to create or update queue or assign users. Please try again.",
-        );
+        showErrorToast(t("operationFailed"), t("operationFailedDescription"));
       }
     },
     [
@@ -135,6 +135,7 @@ export function AnnotationQueueFormDialogController(
       onSuccess,
       projectId,
       props,
+      t,
       utils.annotationQueueAssignments,
       utils.annotationQueues,
     ],
@@ -182,7 +183,7 @@ export function AnnotationQueueFormDialogController(
             hasQueueAssignmentsReadAccess={hasQueueAssignmentsReadAccess}
             isSubmitting={isSubmitting}
             onSubmit={handleSubmit}
-            submitLabel={mode === "edit" ? "Save queue" : "Create queue"}
+            submitLabel={mode === "edit" ? t("saveQueue") : t("createQueue")}
           />
         </DialogContent>
       ) : null}

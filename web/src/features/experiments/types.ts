@@ -1,22 +1,34 @@
 import { ZodModelConfig } from "@langfuse/shared";
 import z from "zod";
 
-export const CreateExperimentData = z.object({
-  name: z
-    .string()
-    .min(1, "Please enter an experiment name")
-    .transform((str) => str.trim()),
-  runName: z.string().min(1, "Run name is required"),
-  promptId: z.string().min(1, "Please select a prompt"),
-  datasetId: z.string().min(1, "Please select a dataset"),
-  datasetVersion: z.coerce.date().optional(),
-  description: z.string().max(1000).optional(),
-  modelConfig: z.object({
-    provider: z.string().min(1, "Please select a provider"),
-    model: z.string().min(1, "Please select a model"),
-    modelParams: ZodModelConfig,
-  }),
-  structuredOutputSchema: z.record(z.string(), z.unknown()).optional(),
-});
+type CreateExperimentValidationMessages = {
+  experimentNameRequired: string;
+  runNameRequired: string;
+  promptRequired: string;
+  datasetRequired: string;
+  providerRequired: string;
+  modelRequired: string;
+};
 
-export type CreateExperiment = z.infer<typeof CreateExperimentData>;
+export const createExperimentData = (
+  messages: CreateExperimentValidationMessages,
+) =>
+  z.object({
+    name: z
+      .string()
+      .min(1, messages.experimentNameRequired)
+      .transform((str) => str.trim()),
+    runName: z.string().min(1, messages.runNameRequired),
+    promptId: z.string().min(1, messages.promptRequired),
+    datasetId: z.string().min(1, messages.datasetRequired),
+    datasetVersion: z.coerce.date().optional(),
+    description: z.string().max(1000).optional(),
+    modelConfig: z.object({
+      provider: z.string().min(1, messages.providerRequired),
+      model: z.string().min(1, messages.modelRequired),
+      modelParams: ZodModelConfig,
+    }),
+    structuredOutputSchema: z.record(z.string(), z.unknown()).optional(),
+  });
+
+export type CreateExperiment = z.infer<ReturnType<typeof createExperimentData>>;

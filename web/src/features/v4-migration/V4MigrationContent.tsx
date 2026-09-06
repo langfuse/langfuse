@@ -33,7 +33,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
-  formatSdkUpgradeRequirement,
   formatSdkVersion,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
@@ -71,6 +70,7 @@ import {
   getCodingAgentName,
   type MigrationSdkName,
 } from "@/src/features/v4-migration/apiMigrationGuidance";
+import { useTranslations } from "next-intl";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -80,7 +80,6 @@ const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "November 16, 2026";
 // Headline form of the deadline; the year is noise in a title.
-const V4_MIGRATION_DEADLINE_SHORT = "November 16";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -124,6 +123,7 @@ const WALKTHROUGH_VIDEO_URL = "https://www.youtube.com/watch?v=g3YbbqVGt4g";
 // shared by the panel/modal header CTA and the status page.
 export function useCopyMigrationPrompt() {
   const capture = usePostHogClientCapture();
+  const t = useTranslations("remainderUi.migrations");
 
   return async () => {
     // Falls back to a hidden textarea on non-secure contexts (plain-HTTP
@@ -131,8 +131,8 @@ export function useCopyMigrationPrompt() {
     await copyTextToClipboard(V4_CODING_AGENT_PROMPT);
     capture("v4_migration:coding_agent_prompt_copied");
     showSuccessToast({
-      title: "Prompt copied",
-      description: "Paste it into Cursor, Codex, or another coding agent.",
+      title: t("agent.promptCopied"),
+      description: t("agent.promptCopiedDescription"),
     });
   };
 }
@@ -295,6 +295,7 @@ function CodeBlockWithCopy({
   scrollable?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   const [copied, setCopied] = useState(false);
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The timeout is an external system: clear it so a panel closed right
@@ -328,8 +329,8 @@ function CodeBlockWithCopy({
           if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
           copiedTimeout.current = setTimeout(() => setCopied(false), 2000);
         }}
-        aria-label={copied ? "Copied" : copyLabel}
-        title={copied ? "Copied" : copyLabel}
+        aria-label={copied ? t("common.copied") : copyLabel}
+        title={copied ? t("common.copied") : copyLabel}
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
@@ -365,6 +366,7 @@ function SdkUsageSeriesRows({
   analyticsSection: string;
 }) {
   const capture = usePostHogClientCapture();
+  const t = useTranslations("remainderUi.migrations");
   if (series.length === 0) return null;
 
   return (
@@ -383,7 +385,7 @@ function SdkUsageSeriesRows({
             : usage.publicKey
           : hideMissingApiKey
             ? null
-            : "No API key";
+            : t("sdk.noApiKey");
         const evidenceHref =
           projectId && usage.eventCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
@@ -410,8 +412,10 @@ function SdkUsageSeriesRows({
                 <span title={usage.publicKey || undefined}>{publicKey}</span>
               ) : null}
               <span>
-                {publicKey ? "· " : ""}last seen{" "}
-                {formatCompactRelativeTime(new Date(usage.lastSeen))}
+                {publicKey ? "· " : ""}
+                {t("common.lastSeen", {
+                  time: formatCompactRelativeTime(new Date(usage.lastSeen)),
+                })}
               </span>
               {/* Deep link to the exact evidence: the events table filtered by
                   this public key, plus SDK name and version when attributed,
@@ -440,7 +444,7 @@ function SdkUsageSeriesRows({
                     }}
                     className="underline"
                   >
-                    View observations
+                    {t("common.viewObservations")}
                   </Link>
                 </>
               ) : null}
@@ -466,6 +470,7 @@ export function V4MigrationSdkSection({
   defaultOpen?: boolean;
   projectId?: string;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   const section = getSdkSectionState(sdk);
   if (section.status === "latest" || section.status === "no_data") return null;
 
@@ -474,7 +479,7 @@ export function V4MigrationSdkSection({
 
   return (
     <Section
-      title="Update SDK"
+      title={t("sdk.title")}
       analyticsSection="sdk"
       count={
         isTransient || section.actionableCount === 0
@@ -483,35 +488,30 @@ export function V4MigrationSdkSection({
       }
       meta={
         section.status === "checking"
-          ? "Checking…"
+          ? t("common.checking")
           : section.status === "error"
-            ? "Check failed"
+            ? t("common.checkFailed")
             : undefined
       }
       defaultOpen={defaultOpen}
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        {section.status === "checking" ? (
-          "Checking the latest traces for this project…"
-        ) : section.status === "error" ? (
-          "We could not check the latest traces for this project. Try again later."
-        ) : (
-          <>
-            {section.actionableCount} detected SDK{" "}
-            {section.actionableCount === 1
-              ? "configuration needs"
-              : "configurations need"}{" "}
-            an update, based on ingestion seen in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
-            <ExternalLink
-              href={SDK_UPGRADE_URL}
-              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
-            >
-              upgrade path
-            </ExternalLink>
-            .
-          </>
-        )}
+        {section.status === "checking"
+          ? t("sdk.checkingDescription")
+          : section.status === "error"
+            ? t("sdk.errorDescription")
+            : t.rich("sdk.description", {
+                count: section.actionableCount,
+                days: V4_MIGRATION_LOOKBACK_DAYS,
+                link: (chunks) => (
+                  <ExternalLink
+                    href={SDK_UPGRADE_URL}
+                    analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
+                  >
+                    {chunks}
+                  </ExternalLink>
+                ),
+              })}
       </p>
       <SdkUsageSeriesRows
         series={section.series}
@@ -520,9 +520,16 @@ export function V4MigrationSdkSection({
         needsAction={isActionableSdkSeries}
         suffix={(usage) =>
           usage.v4MigrationStatus === "upgrade_required" ? (
-            <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
+            <span>
+              ·{" "}
+              {usage.latestSdkMajor
+                ? t("sdk.upgradeRequiredVersion", {
+                    version: usage.latestSdkMajor,
+                  })
+                : t("sdk.upgradeRequired")}
+            </span>
           ) : usage.v4MigrationStatus === "unknown" ? (
-            <span>· version not recognized</span>
+            <span>· {t("sdk.versionNotRecognized")}</span>
           ) : null
         }
       />
@@ -542,6 +549,7 @@ export function V4MigrationOtelSection({
   defaultOpen?: boolean;
   projectId?: string;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   const section = getOtelSectionState(sdk);
   if (
     sdk.status === "checking" ||
@@ -552,23 +560,23 @@ export function V4MigrationOtelSection({
 
   return (
     <Section
-      title="Update OTel Instrumentation"
+      title={t("otel.title")}
       analyticsSection="otel"
       count={section.delayedCount}
       defaultOpen={defaultOpen}
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        Your OpenTelemetry data is using delayed ingestion. For real-time
-        ingestion, upgrade your integration or, if you use OpenTelemetry
-        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
-        your OTLP exporter.{" "}
-        <ExternalLink
-          href={OTEL_V4_MIGRATION_URL}
-          analytics={{ section: "otel", link: "otel_migration_docs" }}
-        >
-          Migration guide
-        </ExternalLink>
-        .
+        {t.rich("otel.description", {
+          code: (chunks) => <MonoValue>{chunks}</MonoValue>,
+          link: (chunks) => (
+            <ExternalLink
+              href={OTEL_V4_MIGRATION_URL}
+              analytics={{ section: "otel", link: "otel_migration_docs" }}
+            >
+              {chunks}
+            </ExternalLink>
+          ),
+        })}
       </p>
       <SdkUsageSeriesRows
         series={section.series}
@@ -577,9 +585,9 @@ export function V4MigrationOtelSection({
         needsAction={(usage) => usage.actionLevel === "required"}
         suffix={(usage) =>
           usage.deliveryMode === "delayed" ? (
-            <span>· delayed</span>
+            <span>· {t("common.delayed")}</span>
           ) : (
-            <span>· real-time</span>
+            <span>· {t("common.realTime")}</span>
           )
         }
       />
@@ -599,6 +607,7 @@ export function V4MigrationCustomInstrumentationSection({
   defaultOpen?: boolean;
   projectId?: string;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   const section = getCustomInstrumentationSectionState(sdk);
   if (
     sdk.status === "checking" ||
@@ -609,40 +618,41 @@ export function V4MigrationCustomInstrumentationSection({
 
   return (
     <Section
-      title="Upgrade Instrumentation"
+      title={t("customInstrumentation.title")}
       analyticsSection="custom_instrumentation"
       count={section.series.length}
       defaultOpen={defaultOpen}
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        Data is arriving through the ingestion API without a Langfuse SDK
-        header, so this looks like custom instrumentation or a very old SDK
-        version. Please upgrade to the latest version of{" "}
-        <ExternalLink
-          href={SDK_OVERVIEW_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "sdk_overview_docs",
-          }}
-        >
-          any Langfuse SDK
-        </ExternalLink>
-        , or use the{" "}
-        <ExternalLink
-          href={OTEL_INTEGRATION_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "otel_integration_docs",
-          }}
-        >
-          OpenTelemetry endpoint
-        </ExternalLink>
-        .
+        {t.rich("customInstrumentation.description", {
+          sdkLink: (chunks) => (
+            <ExternalLink
+              href={SDK_OVERVIEW_URL}
+              analytics={{
+                section: "custom_instrumentation",
+                link: "sdk_overview_docs",
+              }}
+            >
+              {chunks}
+            </ExternalLink>
+          ),
+          otelLink: (chunks) => (
+            <ExternalLink
+              href={OTEL_INTEGRATION_URL}
+              analytics={{
+                section: "custom_instrumentation",
+                link: "otel_integration_docs",
+              }}
+            >
+              {chunks}
+            </ExternalLink>
+          ),
+        })}
       </p>
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
-        unknownSeriesLabel="Custom instrumentation"
+        unknownSeriesLabel={t("customInstrumentation.seriesLabel")}
         hideMissingApiKey
         analyticsSection="custom_instrumentation"
         needsAction={() => true}
@@ -659,20 +669,20 @@ export function V4MigrationDetectedInstrumentationSection({
   sdk: V4MigrationSdkState;
   projectId?: string;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   const series = getDetectedInstrumentationSeries(sdk);
   if (series.length === 0) return null;
 
   return (
     <Section
-      title="Detected V4-compatible instrumentation"
+      title={t("detectedInstrumentation.title")}
       analyticsSection="detected_instrumentation"
       count={series.length}
       statusVariant="done"
       tone="muted"
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        These configurations are already on the latest SDK major or use
-        real-time OTel ingestion.
+        {t("detectedInstrumentation.description")}
       </p>
       <SdkUsageSeriesRows
         series={series}
@@ -681,9 +691,9 @@ export function V4MigrationDetectedInstrumentationSection({
         needsAction={() => false}
         suffix={(usage) =>
           usage.remediationType === "update_sdk" ? (
-            <span>· up to date</span>
+            <span>· {t("common.upToDate")}</span>
           ) : (
-            <span>· real-time</span>
+            <span>· {t("common.realTime")}</span>
           )
         }
       />
@@ -711,73 +721,70 @@ export function V4MigrationEvalsSection({
   defaultOpen?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+  const t = useTranslations("remainderUi.migrations");
   return (
     <Section
-      title="Update Evals"
+      title={t("evals.title")}
       analyticsSection="evals"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
         state.status === "loading"
-          ? "Checking…"
+          ? t("common.checking")
           : state.status === "error"
-            ? "Check failed"
+            ? t("common.checkFailed")
             : undefined
       }
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
         <p className="text-muted-foreground text-sm">
-          Checking configured evals…
+          {t("evals.checkingDescription")}
         </p>
       ) : state.status === "error" ? (
         <p className="text-muted-foreground text-sm">
-          We could not check configured evals. Try again later.
+          {t("evals.errorDescription")}
         </p>
       ) : state.count > 0 ? (
         <>
           <p className="text-muted-foreground mb-2 text-sm">
-            {evalsUrl ? (
-              <Link
-                href={evalsUrl}
-                onClick={() => {
-                  capture("v4_migration:section_link_clicked", {
-                    section: "evals",
-                    link: "evals_table",
-                  });
-                  onNavigate?.();
-                }}
-                className="underline"
-              >
-                {state.count}{" "}
-                {state.count === 1 ? "eval targets" : "evals target"} trace
-                input/output
-              </Link>
-            ) : (
-              <>
-                {state.count}{" "}
-                {state.count === 1 ? "eval targets" : "evals target"} trace
-                input/output
-              </>
-            )}
-            , which v4 no longer sets. Update{" "}
-            {state.count === 1 ? "it" : "them"} to target observations.
+            {t.rich("evals.actionDescription", {
+              count: state.count,
+              target: (chunks) =>
+                evalsUrl ? (
+                  <Link
+                    href={evalsUrl}
+                    onClick={() => {
+                      capture("v4_migration:section_link_clicked", {
+                        section: "evals",
+                        link: "evals_table",
+                      });
+                      onNavigate?.();
+                    }}
+                    className="underline"
+                  >
+                    {chunks}
+                  </Link>
+                ) : (
+                  chunks
+                ),
+            })}
           </p>
           {assistant && (
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
                   <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                  Use Assistant
+                  {t("common.useAssistant")}
                 </>
               ) : (
-                "Update evals"
+                t("evals.update")
               )}
             </Button>
           )}
         </>
       ) : (
         <p className="text-muted-foreground text-sm">
-          No deprecated evals detected.
+          {t("evals.noneDetected")}
         </p>
       )}
     </Section>
@@ -793,79 +800,72 @@ export function V4MigrationExperimentsSection({
   upgradePath: "sdk" | "api" | null;
   defaultOpen?: boolean;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   return (
     <Section
-      title="Update Experiments"
+      title={t("experiments.title")}
       analyticsSection="experiments"
       meta={
         state.status === "loading"
-          ? "Checking…"
+          ? t("common.checking")
           : state.status === "error"
-            ? "Check failed"
+            ? t("common.checkFailed")
             : undefined
       }
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
         <p className="text-muted-foreground text-sm">
-          Checking experiment instrumentation…
+          {t("experiments.checkingDescription")}
         </p>
       ) : state.status === "error" ? (
         <p className="text-muted-foreground text-sm">
-          We could not check experiment instrumentation. Try again later.
+          {t("experiments.errorDescription")}
         </p>
       ) : state.result !== "not_required" ? (
         <p className="text-muted-foreground text-sm">
-          {upgradePath === "api" ? (
-            <>
-              This project called the deprecated{" "}
-              <MonoValue>POST /dataset-run-items</MonoValue>. Replace this
-              direct API call with OTel experiment instrumentation. See the{" "}
-              <ExternalLink
-                href={EXPERIMENT_OTEL_INGESTION_URL}
-                analytics={{
-                  section: "experiments",
-                  link: "experiments_otel_docs",
-                }}
-              >
-                OTel experiment instrumentation guide
-              </ExternalLink>{" "}
-              for more details.
-            </>
-          ) : state.result === "sdk_usage_inconclusive" ? (
-            <>
-              This project called <MonoValue>POST /dataset-run-items</MonoValue>{" "}
-              with an SDK version that supports the experiment runner. Review
-              that you are using the experiment runner SDK and not the
-              deprecated{" "}
-              <>
-                <>
-                  <code className="bg-muted px-1 font-mono text-sm">
-                    .link()
-                  </code>{" "}
-                  method. This warning will{" "}
-                </>
-                disappear once you{" "}
-              </>
-              upgrade to latest SDK version.
-            </>
-          ) : (
-            <>
-              This project called <MonoValue>POST /dataset-run-items</MonoValue>{" "}
-              with an outdated SDK.{" "}
-              <ExternalLink
-                href={SDK_UPGRADE_URL}
-                analytics={{ section: "experiments", link: "sdk_upgrade_docs" }}
-              >
-                Upgrade the SDK
-              </ExternalLink>{" "}
-              and use the experiment runner method.
-            </>
-          )}
+          {upgradePath === "api"
+            ? t.rich("experiments.apiUpgradeDescription", {
+                api: (chunks) => <MonoValue>{chunks}</MonoValue>,
+                link: (chunks) => (
+                  <ExternalLink
+                    href={EXPERIMENT_OTEL_INGESTION_URL}
+                    analytics={{
+                      section: "experiments",
+                      link: "experiments_otel_docs",
+                    }}
+                  >
+                    {chunks}
+                  </ExternalLink>
+                ),
+              })
+            : state.result === "sdk_usage_inconclusive"
+              ? t.rich("experiments.reviewDescription", {
+                  api: (chunks) => <MonoValue>{chunks}</MonoValue>,
+                  code: (chunks) => (
+                    <code className="bg-muted px-1 font-mono text-sm">
+                      {chunks}
+                    </code>
+                  ),
+                })
+              : t.rich("experiments.sdkUpgradeDescription", {
+                  api: (chunks) => <MonoValue>{chunks}</MonoValue>,
+                  link: (chunks) => (
+                    <ExternalLink
+                      href={SDK_UPGRADE_URL}
+                      analytics={{
+                        section: "experiments",
+                        link: "sdk_upgrade_docs",
+                      }}
+                    >
+                      {chunks}
+                    </ExternalLink>
+                  ),
+                })}
         </p>
       ) : (
         <p className="text-muted-foreground text-sm">
-          No experiment instrumentation updates required.
+          {t("experiments.noneRequired")}
         </p>
       )}
     </Section>
@@ -893,39 +893,45 @@ export function V4MigrationApisSection({
   }[];
   defaultOpen?: boolean;
 }) {
+  const t = useTranslations("remainderUi.migrations");
   return (
     <Section
-      title="Migrate APIs"
+      title={t("apis.title")}
       analyticsSection="apis"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
         state.status === "loading"
-          ? "Checking…"
+          ? t("common.checking")
           : state.status === "error"
-            ? "Check failed"
+            ? t("common.checkFailed")
             : undefined
       }
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
         <p className="text-muted-foreground text-sm">
-          Checking public API usage…
+          {t("apis.checkingDescription")}
         </p>
       ) : state.status === "error" ? (
         <p className="text-muted-foreground text-sm">
-          We could not check public API usage. Try again later.
+          {t("apis.errorDescription")}
         </p>
       ) : usage.length > 0 ? (
         <>
           <p className="text-muted-foreground mb-2 text-sm">
-            You&apos;ve recently called deprecated endpoints that will stop
-            working after the migration deadline. Please check the{" "}
-            <ExternalLink
-              href={DEPRECATED_API_MIGRATION_URL}
-              analytics={{ section: "apis", link: "deprecated_api_docs" }}
-            >
-              migration guide
-            </ExternalLink>
+            {t.rich("apis.description", {
+              link: (chunks) => (
+                <ExternalLink
+                  href={DEPRECATED_API_MIGRATION_URL}
+                  analytics={{
+                    section: "apis",
+                    link: "deprecated_api_docs",
+                  }}
+                >
+                  {chunks}
+                </ExternalLink>
+              ),
+            })}
           </p>
           <div className="flex flex-col gap-3">
             {usage.map((row) => {
@@ -960,11 +966,15 @@ export function V4MigrationApisSection({
                     {!hasKnownCallers ? (
                       <span
                         className="text-muted-foreground text-sm whitespace-nowrap"
-                        title={`Last seen at ${row.lastSeen}`}
+                        title={t("apis.lastSeenAt", { time: row.lastSeen })}
                       >
-                        {numberFormatter(roundedCount, 0)}{" "}
-                        {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
-                        {formatCompactRelativeTime(new Date(row.lastSeen))}
+                        {t("apis.callsLastSeen", {
+                          count: roundedCount,
+                          countLabel: numberFormatter(roundedCount, 0),
+                          time: formatCompactRelativeTime(
+                            new Date(row.lastSeen),
+                          ),
+                        })}
                       </span>
                     ) : null}
                   </div>
@@ -980,12 +990,12 @@ export function V4MigrationApisSection({
                           caller.sdkVersion,
                         );
                         const callerName = caller.isOther
-                          ? "Unknown callers"
+                          ? t("apis.unknownCallers")
                           : caller.sdkName
                             ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
                             : codingAgent
                               ? codingAgent
-                              : caller.userAgent || "Unknown caller";
+                              : caller.userAgent || t("apis.unknownCaller");
                         const callerCount = Math.max(
                           1,
                           Math.round(caller.count),
@@ -1003,73 +1013,93 @@ export function V4MigrationApisSection({
                               </div>
                               <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
                                 <span>
-                                  {numberFormatter(callerCount, 0)}{" "}
-                                  {callerCount === 1 ? "call" : "calls"} · last
-                                  seen{" "}
-                                  {formatCompactRelativeTime(
-                                    new Date(caller.lastSeen),
-                                  )}
+                                  {t("apis.callsLastSeen", {
+                                    count: callerCount,
+                                    countLabel: numberFormatter(callerCount, 0),
+                                    time: formatCompactRelativeTime(
+                                      new Date(caller.lastSeen),
+                                    ),
+                                  })}
                                 </span>
                               </div>
                             </div>
                             {codingAgent && !caller.sdkName ? (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                This looks like traffic from a coding agent. If
-                                the call was only exploratory and is not part of
-                                a running service, you may not need to migrate
-                                application code.{" "}
-                                <ExternalLink
-                                  href={DEPRECATED_API_MIGRATION_URL}
-                                  analytics={{
-                                    section: "apis",
-                                    link: "deprecated_api_caller_docs",
-                                  }}
-                                >
-                                  See docs.
-                                </ExternalLink>
+                                {t.rich("apis.codingAgentDescription", {
+                                  link: (chunks) => (
+                                    <ExternalLink
+                                      href={DEPRECATED_API_MIGRATION_URL}
+                                      analytics={{
+                                        section: "apis",
+                                        link: "deprecated_api_caller_docs",
+                                      }}
+                                    >
+                                      {chunks}
+                                    </ExternalLink>
+                                  ),
+                                })}
                               </p>
                             ) : guidance.currentMethod &&
                               guidance.replacementMethod ? (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                Replace{" "}
-                                <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
-                                with{" "}
-                                <MonoValue>
-                                  {guidance.replacementMethod}
-                                </MonoValue>
-                                {guidance.requiresUpgrade &&
-                                guidance.minimumVersion ? (
-                                  <>
-                                    . First upgrade to SDK version{" "}
-                                    <MonoValue>
-                                      {guidance.minimumVersion} or newer
-                                    </MonoValue>
-                                  </>
-                                ) : null}
-                                .{" "}
-                                <ExternalLink
-                                  href={DEPRECATED_API_MIGRATION_URL}
-                                  analytics={{
-                                    section: "apis",
-                                    link: "deprecated_api_caller_docs",
-                                  }}
-                                >
-                                  See docs.
-                                </ExternalLink>
+                                {t.rich(
+                                  guidance.requiresUpgrade &&
+                                    guidance.minimumVersion
+                                    ? "apis.replaceMethodWithUpgrade"
+                                    : "apis.replaceMethod",
+                                  {
+                                    current: () => (
+                                      <MonoValue>
+                                        {guidance.currentMethod}
+                                      </MonoValue>
+                                    ),
+                                    replacement: () => (
+                                      <MonoValue>
+                                        {guidance.replacementMethod}
+                                      </MonoValue>
+                                    ),
+                                    version: () => (
+                                      <MonoValue>
+                                        {guidance.minimumVersion}{" "}
+                                        {t("apis.orNewer")}
+                                      </MonoValue>
+                                    ),
+                                    link: (chunks) => (
+                                      <ExternalLink
+                                        href={DEPRECATED_API_MIGRATION_URL}
+                                        analytics={{
+                                          section: "apis",
+                                          link: "deprecated_api_caller_docs",
+                                        }}
+                                      >
+                                        {chunks}
+                                      </ExternalLink>
+                                    ),
+                                  },
+                                )}
                               </p>
                             ) : (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                Migrate calls to{" "}
-                                <MonoValue>{guidance.replacement}</MonoValue>.{" "}
-                                <ExternalLink
-                                  href={DEPRECATED_API_MIGRATION_URL}
-                                  analytics={{
-                                    section: "apis",
-                                    link: "deprecated_api_caller_docs",
-                                  }}
-                                >
-                                  See docs.
-                                </ExternalLink>
+                                {t.rich("apis.migrateCalls", {
+                                  replacement: () => (
+                                    <MonoValue>
+                                      {guidance.usesGenericFallback
+                                        ? t("apis.genericReplacement")
+                                        : guidance.replacement}
+                                    </MonoValue>
+                                  ),
+                                  link: (chunks) => (
+                                    <ExternalLink
+                                      href={DEPRECATED_API_MIGRATION_URL}
+                                      analytics={{
+                                        section: "apis",
+                                        link: "deprecated_api_caller_docs",
+                                      }}
+                                    >
+                                      {chunks}
+                                    </ExternalLink>
+                                  ),
+                                })}
                               </p>
                             )}
                           </li>
@@ -1084,9 +1114,7 @@ export function V4MigrationApisSection({
         </>
       ) : (
         <p className="text-muted-foreground text-sm">
-          No deprecated public API usage detected in the last{" "}
-          {V4_MIGRATION_LOOKBACK_DAYS} days. This check refreshes about every 15
-          minutes.
+          {t("apis.noneDetected", { days: V4_MIGRATION_LOOKBACK_DAYS })}
         </p>
       )}
     </Section>
@@ -1107,32 +1135,33 @@ export function V4MigrationIntegrationsSection({
   defaultOpen?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+  const t = useTranslations("remainderUi.migrations");
   return (
     <Section
-      title="Migrate Integrations"
+      title={t("integrations.title")}
       analyticsSection="integrations"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
         state.status === "loading"
-          ? "Checking…"
+          ? t("common.checking")
           : state.status === "error"
-            ? "Check failed"
+            ? t("common.checkFailed")
             : undefined
       }
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
-        <p className="text-muted-foreground text-sm">Checking integrations…</p>
+        <p className="text-muted-foreground text-sm">
+          {t("integrations.checkingDescription")}
+        </p>
       ) : state.status === "error" ? (
         <p className="text-muted-foreground text-sm">
-          We could not check integrations. Try again later.
+          {t("integrations.errorDescription")}
         </p>
       ) : integrations.length > 0 ? (
         <>
           <p className="text-muted-foreground mb-2 text-sm">
-            These exports still read from the old data source. Switching them
-            over can change what downstream consumers receive, so worth a quick
-            check.
+            {t("integrations.description")}
           </p>
           <div className="flex flex-col">
             {integrations.map((name) => (
@@ -1168,7 +1197,7 @@ export function V4MigrationIntegrationsSection({
                     link: "integration_migration_docs",
                   }}
                 >
-                  Migration guide
+                  {t("common.migrationGuide")}
                 </ExternalLink>
               </div>
             ))}
@@ -1176,7 +1205,7 @@ export function V4MigrationIntegrationsSection({
         </>
       ) : (
         <p className="text-muted-foreground text-sm">
-          No deprecated integration exports detected.
+          {t("integrations.noneDetected")}
         </p>
       )}
     </Section>
@@ -1199,12 +1228,13 @@ export function useHasV4MigrationDeadline(): boolean {
 // Docs link and deadline note are shared by the panel/modal header and the
 // account-level status page so both surfaces read the same.
 export function V4MigrationDocsLink() {
+  const t = useTranslations("remainderUi.migrations");
   return (
     <ExternalLink
       href={V4_DOCS_URL}
       analytics={{ section: "header", link: "v4_docs" }}
     >
-      See docs.
+      {t("common.seeDocs")}
     </ExternalLink>
   );
 }
@@ -1216,33 +1246,34 @@ export function V4MigrationDocsLink() {
  * not their deployment, are the thing left to update.
  */
 export function useV4MigrationTitle(): string {
+  const t = useTranslations("remainderUi.migrations");
   return useHasV4MigrationDeadline()
-    ? `Ensure compatibility after ${V4_MIGRATION_DEADLINE_SHORT}`
-    : "Ensure compatibility";
+    ? t("header.titleWithDeadline", {
+        deadline: t("deadline.short"),
+      })
+    : t("header.title");
 }
 
 export function V4MigrationDeadlineNote() {
   const hasDeadline = useHasV4MigrationDeadline();
+  const t = useTranslations("remainderUi.migrations");
 
   if (!hasDeadline) {
-    return (
-      <p>
-        Some features may stop working if you don&apos;t update integrations
-        before your administrator disables the legacy mode.
-      </p>
-    );
+    return <p>{t("deadline.selfHostedNote")}</p>;
   }
 
   return (
     <p>
-      After{" "}
-      <ExternalLink
-        href={V4_TIMELINE_URL}
-        analytics={{ section: "header", link: "v4_timeline" }}
-      >
-        {V4_MIGRATION_DEADLINE}
-      </ExternalLink>{" "}
-      some features may stop working if you don&apos;t update integrations.
+      {t.rich("deadline.cloudNote", {
+        deadline: (chunks) => (
+          <ExternalLink
+            href={V4_TIMELINE_URL}
+            analytics={{ section: "header", link: "v4_timeline" }}
+          >
+            {chunks}
+          </ExternalLink>
+        ),
+      })}
     </p>
   );
 }
@@ -1263,6 +1294,7 @@ export function V4MigrationHeaderContent({
 }) {
   const actionNeeded = readiness === "action-needed";
   const title = useV4MigrationTitle();
+  const t = useTranslations("remainderUi.migrations");
 
   return (
     <>
@@ -1276,47 +1308,61 @@ export function V4MigrationHeaderContent({
       </div>
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
-          Langfuse v4 is live: a re-architecture of our data model and database
-          tables. It is up to 165× more performant in UI and on APIs. It also
-          enables new features such as{" "}
-          <ExternalLink
-            href={FULL_TEXT_SEARCH_URL}
-            analytics={{ section: "header", link: "full_text_search_docs" }}
-          >
-            full-text search
-          </ExternalLink>
-          , a{" "}
-          <ExternalLink
-            href={FILTER_SEARCH_BAR_URL}
-            analytics={{ section: "header", link: "filter_search_bar_docs" }}
-          >
-            new filter search bar
-          </ExternalLink>
-          ,{" "}
-          <ExternalLink
-            href={ALERTS_URL}
-            analytics={{ section: "header", link: "alerts_docs" }}
-          >
-            alerts
-          </ExternalLink>
-          ,{" "}
-          <ExternalLink
-            href={CODE_EVALUATORS_URL}
-            analytics={{ section: "header", link: "code_evaluators_docs" }}
-          >
-            code evaluators
-          </ExternalLink>
-          , and the{" "}
-          <ExternalLink
-            href={LANGFUSE_ASSISTANT_URL}
-            analytics={{ section: "header", link: "langfuse_assistant_docs" }}
-          >
-            Langfuse Assistant
-          </ExternalLink>
-          .
-          {actionNeeded
-            ? " Complete the action items below to avoid disruption."
-            : ""}{" "}
+          {t.rich("header.description", {
+            fullText: (chunks) => (
+              <ExternalLink
+                href={FULL_TEXT_SEARCH_URL}
+                analytics={{
+                  section: "header",
+                  link: "full_text_search_docs",
+                }}
+              >
+                {chunks}
+              </ExternalLink>
+            ),
+            filterBar: (chunks) => (
+              <ExternalLink
+                href={FILTER_SEARCH_BAR_URL}
+                analytics={{
+                  section: "header",
+                  link: "filter_search_bar_docs",
+                }}
+              >
+                {chunks}
+              </ExternalLink>
+            ),
+            alerts: (chunks) => (
+              <ExternalLink
+                href={ALERTS_URL}
+                analytics={{ section: "header", link: "alerts_docs" }}
+              >
+                {chunks}
+              </ExternalLink>
+            ),
+            evaluators: (chunks) => (
+              <ExternalLink
+                href={CODE_EVALUATORS_URL}
+                analytics={{
+                  section: "header",
+                  link: "code_evaluators_docs",
+                }}
+              >
+                {chunks}
+              </ExternalLink>
+            ),
+            assistant: (chunks) => (
+              <ExternalLink
+                href={LANGFUSE_ASSISTANT_URL}
+                analytics={{
+                  section: "header",
+                  link: "langfuse_assistant_docs",
+                }}
+              >
+                {chunks}
+              </ExternalLink>
+            ),
+          })}
+          {actionNeeded ? t("header.actionNeededSuffix") : ""}{" "}
           <V4MigrationDocsLink />
         </p>
         {actionNeeded && <V4MigrationDeadlineNote />}
@@ -1337,6 +1383,7 @@ export function V4MigrationAgentUpgradeSection({
 }) {
   const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const t = useTranslations("remainderUi.migrations");
 
   const [generatedKeys, setGeneratedKeys] = useState<{
     projectId: string;
@@ -1381,10 +1428,7 @@ export function V4MigrationAgentUpgradeSection({
       })
       .catch((error) => {
         console.error(error);
-        showErrorToast(
-          "Could not create API keys",
-          "Something went wrong. Please try again.",
-        );
+        showErrorToast(t("agent.createKeysError"), t("common.tryAgain"));
       });
   };
 
@@ -1397,7 +1441,7 @@ export function V4MigrationAgentUpgradeSection({
       disabled={missingApiKeyAccess || mutCreateProjectApiKey.isPending}
       onClick={handleCreateKeys}
     >
-      Create API keys
+      {t("agent.createKeys")}
     </Button>
   );
 
@@ -1413,22 +1457,22 @@ export function V4MigrationAgentUpgradeSection({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
-          Upgrade using coding agents
+          {t("agent.title")}
         </div>
         <p className="text-muted-foreground text-sm">
-          Paste prompt into Claude Code or other coding agents
+          {t("agent.description")}
         </p>
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
           <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate" title="Copy prompt">
-            Copy prompt
+          <span className="min-w-0 truncate" title={t("agent.copyPrompt")}>
+            {t("agent.copyPrompt")}
           </span>
         </RainbowButton>
         <CodeBlockWithCopy
           text={V4_CODING_AGENT_PROMPT}
-          copyLabel="Copy prompt to clipboard"
+          copyLabel={t("agent.copyPromptToClipboard")}
           onCopy={() => capture("v4_migration:coding_agent_prompt_copied")}
           scrollable
           className="my-3"
@@ -1437,7 +1481,7 @@ export function V4MigrationAgentUpgradeSection({
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-muted-foreground min-w-0 text-sm leading-relaxed">
-                Create project API keys to give your agent access
+                {t("agent.createKeysDescription")}
               </p>
               {!envBlock &&
                 (missingApiKeyAccess ? (
@@ -1449,8 +1493,7 @@ export function V4MigrationAgentUpgradeSection({
                     </HoverCardTrigger>
                     <HoverCardPortal>
                       <HoverCardContent className="w-80 text-sm">
-                        Only users with admin access can create project API
-                        keys. Please contact your admins.
+                        {t("agent.adminOnlyKeys")}
                       </HoverCardContent>
                     </HoverCardPortal>
                   </HoverCard>
@@ -1461,7 +1504,7 @@ export function V4MigrationAgentUpgradeSection({
             {envBlock && (
               <CodeBlockWithCopy
                 text={envBlock}
-                copyLabel="Copy keys"
+                copyLabel={t("agent.copyKeys")}
                 onCopy={() => capture("v4_migration:project_keys_copied")}
               />
             )}
@@ -1486,6 +1529,7 @@ export function V4MigrationDetailsContent({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { openWithMode: openSupportDrawerWithMode } = useSupportDrawer();
+  const t = useTranslations("remainderUi.migrations");
 
   const routeProjectId = router.query.projectId;
   const projectId =
@@ -1564,17 +1608,22 @@ export function V4MigrationDetailsContent({
     migrationData.exports.status === "loaded" &&
     migrationData.exports.count === 0;
   const cleanSectionLabels = [
-    evalsClean ? "evals" : null,
-    experimentsClean ? "experiments" : null,
-    apisClean ? "APIs" : null,
-    exportsClean ? "integrations" : null,
+    evalsClean ? t("details.labels.evals") : null,
+    experimentsClean ? t("details.labels.experiments") : null,
+    apisClean ? t("details.labels.apis") : null,
+    exportsClean ? t("details.labels.integrations") : null,
   ].filter((label): label is string => label !== null);
   const joinedCleanLabels =
     cleanSectionLabels.length > 1
-      ? `${cleanSectionLabels.slice(0, -1).join(", ")} and ${cleanSectionLabels[cleanSectionLabels.length - 1]}`
+      ? t("details.joinLabels", {
+          prefix: cleanSectionLabels.slice(0, -1).join(", "),
+          last: cleanSectionLabels[cleanSectionLabels.length - 1],
+        })
       : cleanSectionLabels[0];
   const cleanSummary = joinedCleanLabels
-    ? `${joinedCleanLabels.charAt(0).toUpperCase()}${joinedCleanLabels.slice(1)} are up to date.`
+    ? t("details.cleanSummary", {
+        items: `${joinedCleanLabels.charAt(0).toUpperCase()}${joinedCleanLabels.slice(1)}`,
+      })
     : null;
 
   const handleEmailEngineer = () => {
@@ -1616,13 +1665,12 @@ export function V4MigrationDetailsContent({
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
-          Action items
+          {t("details.actionItems")}
         </div>
         <p className="text-muted-foreground text-sm">
-          SDK, instrumentation, experiment, and API checks cover activity from
-          the last {V4_MIGRATION_LOOKBACK_DAYS} days. API and experiment usage
-          counts refresh about every 15 minutes, so recent calls may not appear
-          yet.
+          {t("details.checkDescription", {
+            days: V4_MIGRATION_LOOKBACK_DAYS,
+          })}
         </p>
         <div>
           <V4MigrationSdkSection
@@ -1697,12 +1745,12 @@ export function V4MigrationDetailsContent({
             <div className="flex w-full items-center gap-2.5 py-2.5">
               <V4MigrationStatusDot variant="neutral" />
               <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
-                Compare traces while you upgrade
+                {t("details.compareTraces")}
                 <HoverCard openDelay={200}>
                   <HoverCardTrigger asChild>
                     <button
                       type="button"
-                      aria-label="Why compare traces?"
+                      aria-label={t("details.whyCompareTraces")}
                       className="shrink-0"
                     >
                       <Info className="h-3.5 w-3.5" />
@@ -1710,17 +1758,19 @@ export function V4MigrationDetailsContent({
                   </HoverCardTrigger>
                   <HoverCardPortal>
                     <HoverCardContent className="w-80 text-sm">
-                      The latest SDK no longer sets trace input and output;{" "}
-                      <ExternalLink
-                        href={OBSERVATIONS_DATA_MODEL_URL}
-                        analytics={{
-                          section: "compare_row",
-                          link: "observations_data_model_docs",
-                        }}
-                      >
-                        v4 infers them from observations
-                      </ExternalLink>
-                      .
+                      {t.rich("details.compareDescription", {
+                        link: (chunks) => (
+                          <ExternalLink
+                            href={OBSERVATIONS_DATA_MODEL_URL}
+                            analytics={{
+                              section: "compare_row",
+                              link: "observations_data_model_docs",
+                            }}
+                          >
+                            {chunks}
+                          </ExternalLink>
+                        ),
+                      })}
                     </HoverCardContent>
                   </HoverCardPortal>
                 </HoverCard>
@@ -1739,7 +1789,7 @@ export function V4MigrationDetailsContent({
       <Separator />
 
       <div className="flex flex-col gap-2">
-        <p className="text-base font-bold">Need help?</p>
+        <p className="text-base font-bold">{t("help.title")}</p>
         <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <a
             href={V4_DOCS_URL}
@@ -1748,7 +1798,7 @@ export function V4MigrationDetailsContent({
             onClick={() => capture("v4_migration:panel_docs_link_clicked")}
             className="underline"
           >
-            Docs
+            {t("common.docs")}
           </a>
           <span>·</span>
           <button
@@ -1756,7 +1806,7 @@ export function V4MigrationDetailsContent({
             onClick={handleEmailEngineer}
             className="underline"
           >
-            Email an engineer
+            {t("help.emailEngineer")}
           </button>
           <span>·</span>
           <a
@@ -1766,7 +1816,7 @@ export function V4MigrationDetailsContent({
             onClick={() => capture("v4_migration:contact_book_call_clicked")}
             className="underline"
           >
-            Book a call
+            {t("help.bookCall")}
           </a>
           {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
             <>
@@ -1780,7 +1830,7 @@ export function V4MigrationDetailsContent({
                 }
                 className="underline"
               >
-                Walkthrough video
+                {t("help.walkthroughVideo")}
               </a>
             </>
           )}

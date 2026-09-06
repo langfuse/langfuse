@@ -3,6 +3,7 @@ import { createBreadcrumbItems } from "@/src/features/folders/utils";
 export const getDatasetBreadcrumb = (
   projectId: string,
   datasetId: string,
+  datasetsLabel: string,
   datasetName?: string,
 ) => {
   const segments = (datasetName ?? "")
@@ -14,7 +15,7 @@ export const getDatasetBreadcrumb = (
     segments.length > 0 ? segments[segments.length - 1] : undefined;
 
   return [
-    { name: "Datasets", href: `/project/${projectId}/datasets` },
+    { name: datasetsLabel, href: `/project/${projectId}/datasets` },
     ...breadcrumbItems.map((item) => ({
       name: item.name,
       href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,

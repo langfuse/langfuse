@@ -43,15 +43,30 @@ export function formatFilterPreview(filter: FilterState[number]) {
   return `${label} ${filter.operator} ${formatFilterValue(filter)}`;
 }
 
-export function summarizeTableViewPreset(view: TableViewPresetState) {
+export type TableViewPresetPreviewFormatter = {
+  search: (query: string) => string;
+  sort: (column: string, order: string) => string;
+  savedColumnLayout: string;
+};
+
+const defaultPreviewFormatter: TableViewPresetPreviewFormatter = {
+  search: (query) => `Search "${query}"`,
+  sort: (column, order) => `Sort ${column} ${order}`,
+  savedColumnLayout: "Saved column layout",
+};
+
+export function summarizeTableViewPreset(
+  view: TableViewPresetState,
+  formatter: TableViewPresetPreviewFormatter = defaultPreviewFormatter,
+) {
   const previewParts = view.filters.map(formatFilterPreview);
 
   if (previewParts.length < 2 && view.searchQuery?.trim()) {
-    previewParts.push(`Search "${view.searchQuery.trim()}"`);
+    previewParts.push(formatter.search(view.searchQuery.trim()));
   }
 
   if (previewParts.length < 2 && view.orderBy?.column) {
-    previewParts.push(`Sort ${view.orderBy.column} ${view.orderBy.order}`);
+    previewParts.push(formatter.sort(view.orderBy.column, view.orderBy.order));
   }
 
   if (
@@ -59,7 +74,7 @@ export function summarizeTableViewPreset(view: TableViewPresetState) {
     (view.columnOrder.length > 0 ||
       Object.keys(view.columnVisibility).length > 0)
   ) {
-    previewParts.push("Saved column layout");
+    previewParts.push(formatter.savedColumnLayout);
   }
 
   return previewParts.join(" · ");

@@ -3,6 +3,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export const StripeCustomerPortalButton = ({
   orgId,
@@ -13,6 +14,7 @@ export const StripeCustomerPortalButton = ({
   title: string;
   variant: "secondary" | "default";
 }) => {
+  const t = useTranslations("settingsEnterprise.billing");
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "langfuseCloudBilling:CRUD",
@@ -58,10 +60,10 @@ export const StripeCustomerPortalButton = ({
       if (data) {
         window.location.href = data;
       } else {
-        toast.error("Could not open billing portal");
+        toast.error(t("portal.couldNotOpen"));
       }
     } catch (_e) {
-      toast.error("Failed to open billing portal");
+      toast.error(t("portal.openFailed"));
     } finally {
       // do not reset to avoid flickering when opening the portal
       // setLoading(false);
@@ -79,7 +81,7 @@ export const StripeCustomerPortalButton = ({
       disabled={!orgId || loading}
       title={title}
     >
-      {loading ? "Opening…" : title}
+      {loading ? t("common.opening") : title}
     </Button>
   );
 };

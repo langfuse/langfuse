@@ -9,6 +9,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import type { GalleryNavigationItem } from "@/src/features/evals/v2/types/templateGallery";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorGallerySidebar({
   items,
@@ -19,17 +20,18 @@ export function EvaluatorGallerySidebar({
   activeSection: string | null;
   onSelectSection: (key: string) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const selectedSection = activeSection ?? items[0]?.key;
   const selectedItem = items.find((item) => item.key === selectedSection);
 
   return (
     <>
       <nav
-        aria-label="Browse categories"
+        aria-label={t("gallery.browseCategories")}
         className="hidden w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4 @2xl:flex"
       >
         <div className="text-muted-foreground px-3 pb-2 text-xs font-bold tracking-wide uppercase">
-          Browse
+          {t("gallery.browse")}
         </div>
         {items.map((item) => {
           const isActive = selectedSection === item.key;
@@ -69,10 +71,16 @@ export function EvaluatorGallerySidebar({
         })}
       </nav>
 
-      <nav aria-label="Browse categories" className="border-b p-3 @2xl:hidden">
+      <nav
+        aria-label={t("gallery.browseCategories")}
+        className="border-b p-3 @2xl:hidden"
+      >
         <Select value={selectedSection} onValueChange={onSelectSection}>
-          <SelectTrigger aria-label="Browse categories" className="w-full">
-            <SelectValue placeholder="Browse categories">
+          <SelectTrigger
+            aria-label={t("gallery.browseCategories")}
+            className="w-full"
+          >
+            <SelectValue placeholder={t("gallery.browseCategories")}>
               {selectedItem?.label}
             </SelectValue>
           </SelectTrigger>

@@ -31,6 +31,7 @@ import {
   type OutlierStripSettings,
 } from "./lib/useOutlierStripSettings";
 import { canApplyOutlierStripFilters } from "./lib/filterCompatibility";
+import { useTranslations } from "next-intl";
 
 /**
  * Production container for the outlier strip ("Pulse") above the events table
@@ -53,9 +54,6 @@ const BAR_SLOT_TARGET_PX = 5;
 type StripMode = OutlierStripSettings["mode"];
 
 const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
-
-const modeLabel = (mode: StripMode): string =>
-  OUTLIER_STRIP_METRICS[mode].shortLabel;
 
 type OutlierDropdownButtonVariant = "mode" | "aggregation";
 
@@ -155,10 +153,12 @@ const ModeDropdownController = ({
   children,
   options,
   onChange,
+  getLabel,
 }: {
   children: React.ComponentProps<typeof DropdownMenuController>["children"];
   options: StripMode[];
   onChange: (mode: StripMode) => void;
+  getLabel: (mode: StripMode) => string;
 }) => {
   const focusGuard = usePointerSelectionFocusGuard();
   return (
@@ -176,7 +176,7 @@ const ModeDropdownController = ({
               }}
               className="text-xs"
             >
-              {modeLabel(mode)}
+              {getLabel(mode)}
             </DropdownMenuItem>
           ))}
         </>
@@ -203,6 +203,12 @@ export function EventsOutlierStrip({
   searchIgnored?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
 }) {
+  const t = useTranslations("coreObservability.events");
+  const modeLabels: Record<StripMode, string> = {
+    count: t("modes.count"),
+    cost: t("modes.cost"),
+    latency: t("modes.latency"),
+  };
   const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
   // Transient drag selection (LFE-14532, Grafana-style). Window-keyed: a
@@ -416,12 +422,13 @@ export function EventsOutlierStrip({
                 <ModeDropdownController
                   options={MODE_OPTIONS}
                   onChange={handleModeChange}
+                  getLabel={(mode) => modeLabels[mode]}
                 >
                   {({ Trigger }) => (
                     <Trigger asChild>
                       <OutlierDropdownButton
-                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-                        label={modeLabel(mode)}
+                        ariaLabel={t("chartMode", { mode: modeLabels[mode] })}
+                        label={modeLabels[mode]}
                         variant="mode"
                       />
                     </Trigger>
@@ -436,14 +443,14 @@ export function EventsOutlierStrip({
                 stepMs={stepMs}
                 metric={mode}
                 widthPx={chartWidth}
-                disabledReason="Chart unavailable for the current filters"
+                disabledReason={t("chartUnavailableForFilters")}
               />
             </div>
           ) : isLoading || width === 0 ? (
             <div className="bg-muted h-[76px] animate-pulse rounded" />
           ) : queryResult.isError ? (
             <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
-              No Data
+              {t("noData")}
             </div>
           ) : (
             <div
@@ -460,12 +467,13 @@ export function EventsOutlierStrip({
                 <ModeDropdownController
                   options={MODE_OPTIONS}
                   onChange={handleModeChange}
+                  getLabel={(mode) => modeLabels[mode]}
                 >
                   {({ Trigger }) => (
                     <Trigger asChild>
                       <OutlierDropdownButton
-                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-                        label={modeLabel(mode)}
+                        ariaLabel={t("chartMode", { mode: modeLabels[mode] })}
+                        label={modeLabels[mode]}
                         variant="mode"
                       />
                     </Trigger>

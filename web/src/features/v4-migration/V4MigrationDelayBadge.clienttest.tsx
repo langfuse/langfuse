@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { V4MigrationDelayBadge } from "./V4MigrationDelayBadge";
+import { render } from "./test-utils";
 import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,

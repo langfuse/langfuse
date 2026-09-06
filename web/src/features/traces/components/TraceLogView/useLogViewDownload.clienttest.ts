@@ -1,16 +1,21 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextIntlClientProvider } from "next-intl";
 
 import { useLogViewDownload } from "./useLogViewDownload";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
+import englishMessages from "@/src/features/i18n/messages/en/coreDetails.json";
+import chineseMessages from "@/src/features/i18n/messages/zh-CN/coreDetails.json";
+import { createElement, type ReactNode } from "react";
 
-const { copyTextToClipboard } = vi.hoisted(() => ({
+const { copyTextToClipboard, toastSuccess } = vi.hoisted(() => ({
   copyTextToClipboard: vi.fn(),
+  toastSuccess: vi.fn(),
 }));
 
 vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
+  toast: { success: toastSuccess, warning: vi.fn(), error: vi.fn() },
 }));
 
 // jsdom implements neither URL.createObjectURL nor Blob#text.
@@ -40,17 +45,29 @@ const observations: ObservationIOData[] = [
   },
 ];
 
-function renderDownloadHook() {
-  return renderHook(() =>
-    useLogViewDownload({
-      traceId: "trace-1",
-      isCacheOnly: false,
-      allObservationsData: observations,
-      isLoadingAllData: false,
-      failedObservationIds: [],
-      loadAllData: async () => observations,
-      buildDataFromCache: () => observations,
-    }),
+function renderDownloadHook(locale: "en" | "zh-CN" = "en") {
+  const messages = locale === "zh-CN" ? chineseMessages : englishMessages;
+  return renderHook(
+    () =>
+      useLogViewDownload({
+        traceId: "trace-1",
+        isCacheOnly: false,
+        allObservationsData: observations,
+        isLoadingAllData: false,
+        failedObservationIds: [],
+        loadAllData: async () => observations,
+        buildDataFromCache: () => observations,
+      }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => {
+        const providerProps = {
+          locale,
+          messages: { coreDetails: messages },
+          children,
+        };
+        return createElement(NextIntlClientProvider, providerProps);
+      },
+    },
   );
 }
 
@@ -64,6 +81,7 @@ describe("useLogViewDownload", () => {
   beforeEach(() => {
     lastBlob = undefined;
     copyTextToClipboard.mockClear();
+    toastSuccess.mockClear();
     createObjectURL.mockImplementation((blob: Blob) => {
       lastBlob = blob;
       return "blob:mock";
@@ -106,5 +124,15 @@ describe("useLogViewDownload", () => {
     expect(content).toContain("こんにちは");
     expect(content).toContain("ありがとう");
     expect(content).not.toContain("\\u3053");
+  });
+
+  it("shows a localized success message in Chinese", async () => {
+    const { result } = renderDownloadHook("zh-CN");
+
+    await act(async () => {
+      await result.current.handleCopyJson();
+    });
+
+    expect(toastSuccess).toHaveBeenCalledWith("已复制到剪贴板");
   });
 });

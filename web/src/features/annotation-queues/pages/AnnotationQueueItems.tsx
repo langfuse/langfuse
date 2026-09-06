@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/side-panel";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { useTranslations } from "next-intl";
 
 export default function QueueItems({
   projectId,
@@ -26,6 +27,7 @@ export default function QueueItems({
   projectId: string;
   queueId: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const queue = api.annotationQueues.byId.useQuery(
     {
       queueId,
@@ -52,14 +54,14 @@ export default function QueueItems({
         itemType: "ANNOTATION_QUEUE",
         breadcrumb: [
           {
-            name: "Annotation Queues",
+            name: t("title"),
             href: `/project/${projectId}/annotation-queues`,
           },
         ],
         actionButtonsRight: !hasWriteAccess ? (
           <Button disabled>
             <Lock className="mr-1 h-4 w-4" />
-            <span className="text-sm">Process queue</span>
+            <span className="text-sm">{t("processQueue")}</span>
           </Button>
         ) : (
           <Button asChild>
@@ -67,7 +69,7 @@ export default function QueueItems({
               href={`/project/${projectId}/annotation-queues/${queueId}/items`}
             >
               <ClipboardPen className="mr-1 h-4 w-4" />
-              <span className="text-sm">Process queue</span>
+              <span className="text-sm">{t("processQueue")}</span>
             </Link>
           </Button>
         ),
@@ -78,12 +80,12 @@ export default function QueueItems({
           <AnnotationQueueItemsTable projectId={projectId} queueId={queueId} />
         </div>
         <SidePanel
-          mobileTitle={queue.data?.name ?? "Queue details"}
+          mobileTitle={queue.data?.name ?? t("queueDetails")}
           id="queue-details"
         >
           <SidePanelHeader>
             <SidePanelTitle>
-              {queue.data?.name ?? "Queue details"}
+              {queue.data?.name ?? t("queueDetails")}
             </SidePanelTitle>
             <CreateOrEditAnnotationQueueButton
               projectId={projectId}
@@ -101,7 +103,7 @@ export default function QueueItems({
                   </CardDescription>
                 )}
                 <div className="flex flex-col gap-2">
-                  <SubHeaderLabel title="Score Configs" />
+                  <SubHeaderLabel title={t("scoreConfigs")} />
                   <div className="flex flex-wrap gap-2">
                     {queue.data?.scoreConfigs.map((scoreConfig) => (
                       <Badge key={scoreConfig.id} variant="outline">

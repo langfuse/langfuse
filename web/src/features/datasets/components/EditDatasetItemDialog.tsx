@@ -29,35 +29,12 @@ import {
   type DatasetSchema,
 } from "../utils/datasetItemUtils";
 import { isValidDatasetJson } from "../utils/parseDatasetJson";
+import { useTranslations } from "next-intl";
 
 const formSchema = z.object({
-  input: z.string().refine(
-    (value) => {
-      return isValidDatasetJson(value);
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  expectedOutput: z.string().refine(
-    (value) => {
-      return isValidDatasetJson(value);
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  metadata: z.string().refine(
-    (value) => {
-      return isValidDatasetJson(value);
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
+  input: z.string(),
+  expectedOutput: z.string(),
+  metadata: z.string(),
 });
 
 type EditDatasetItemDialogProps = {
@@ -75,6 +52,12 @@ export const EditDatasetItemDialog = ({
   datasetItem,
   dataset,
 }: EditDatasetItemDialogProps) => {
+  const t = useTranslations("coreDetails.datasets.itemDialog");
+  const tMisc = useTranslations("coreDetails.datasets.misc");
+  const serializationError = {
+    title: tMisc("stringifyFailed"),
+    description: tMisc("stringifyFailedDescription"),
+  };
   const [formError, setFormError] = useState<string | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
@@ -83,7 +66,16 @@ export const EditDatasetItemDialog = ({
   const utils = api.useUtils();
 
   const form = useForm<DatasetItemFormValues, unknown, DatasetItemFormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(
+      formSchema.superRefine((values, context) => {
+        const message = t("invalidInput");
+        (["input", "expectedOutput", "metadata"] as const).forEach((field) => {
+          if (!isValidDatasetJson(values[field])) {
+            context.addIssue({ code: "custom", path: [field], message });
+          }
+        });
+      }),
+    ),
     defaultValues: {
       input: "",
       expectedOutput: "",
@@ -101,9 +93,15 @@ export const EditDatasetItemDialog = ({
   useEffect(() => {
     if (datasetItem && open) {
       form.reset({
-        input: stringifyDatasetItemData(datasetItem.input),
-        expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
-        metadata: stringifyDatasetItemData(datasetItem.metadata),
+        input: stringifyDatasetItemData(datasetItem.input, serializationError),
+        expectedOutput: stringifyDatasetItemData(
+          datasetItem.expectedOutput,
+          serializationError,
+        ),
+        metadata: stringifyDatasetItemData(
+          datasetItem.metadata,
+          serializationError,
+        ),
       });
       setFormError(null);
       // The hook lives above DialogContent (which unmounts on close), so its
@@ -137,7 +135,7 @@ export const EditDatasetItemDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl">
         <DialogHeader>
-          <DialogTitle>Edit Dataset Item</DialogTitle>
+          <DialogTitle>{t("editTitle")}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form
@@ -147,7 +145,7 @@ export const EditDatasetItemDialog = ({
             <DialogBody>
               {formError ? (
                 <p className="text-destructive mb-4">
-                  <span className="font-bold">Error:</span> {formError}
+                  <span className="font-bold">{t("error")}</span> {formError}
                 </p>
               ) : null}
               <DatasetItemFields
@@ -168,7 +166,7 @@ export const EditDatasetItemDialog = ({
                 onClick={() => onOpenChange(false)}
                 disabled={updateDatasetItemMutation.isPending}
               >
-                Cancel
+                {t("cancel")}
               </Button>
               <SaveChangesButton
                 control={form.control}
@@ -204,6 +202,7 @@ const SaveChangesButton = ({
   isPending: boolean;
   pendingUploads: PendingMediaUpload[];
 }) => {
+  const t = useTranslations("coreDetails.datasets.itemDialog");
   const [input, expectedOutput] = useWatch({
     control,
     name: ["input", "expectedOutput"],
@@ -226,7 +225,7 @@ const SaveChangesButton = ({
         pendingUploads.length > 0
       }
     >
-      Save changes
+      {t("saveChanges")}
     </Button>
   );
 };

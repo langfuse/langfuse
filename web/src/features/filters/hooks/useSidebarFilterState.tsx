@@ -60,6 +60,65 @@ import {
 export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
+
+const FILTER_FACET_LABEL_KEYS = {
+  Status: "status",
+  "Trace ID": "traceId",
+  "Execution Trace ID": "executionTraceId",
+  Environment: "environment",
+  Name: "name",
+  Source: "source",
+  "Data Type": "dataType",
+  Metadata: "metadata",
+  "Numeric Value": "numericValue",
+  "Boolean Value": "booleanValue",
+  "Categorical Value": "categoricalValue",
+  "Session ID": "sessionId",
+  "Trace Name": "traceName",
+  "Observation ID": "observationId",
+  "User ID": "userId",
+  "Trace Tags": "traceTags",
+  Type: "type",
+  Labels: "labels",
+  Tags: "tags",
+  Version: "version",
+  Release: "release",
+  "Comment Count": "commentCount",
+  "Comment Content": "commentContent",
+  Latency: "latency",
+  "Input Tokens": "inputTokens",
+  "Output Tokens": "outputTokens",
+  "Total Tokens": "totalTokens",
+  "Input Cost": "inputCost",
+  "Output Cost": "outputCost",
+  "Total Cost": "totalCost",
+  "Categorical Scores": "categoricalScores",
+  "Numeric Scores": "numericScores",
+  "Boolean Scores": "booleanScores",
+  Target: "target",
+  "Time Scope": "timeScope",
+  Severity: "severity",
+  "User IDs": "userIds",
+  "Session Duration": "sessionDuration",
+  "Traces Count": "tracesCount",
+  Model: "model",
+  "Model ID": "modelId",
+  "Prompt Name": "promptName",
+  "Time to First Token": "timeToFirstToken",
+  "Tool Names (Available)": "availableToolNames",
+  "Tool Names (Called)": "calledToolNames",
+  "Available Tools": "availableTools",
+  "Tool Calls": "toolCalls",
+} as const;
+
+const FILTER_FACET_TOOLTIP_KEYS = {
+  "Filters scores by numeric value. For BOOLEAN scores, use the 'Boolean Value' filter below. For CATEGORICAL scores, use the 'Categorical Value' filter below.":
+    "numericValueHelp",
+  "Filters BOOLEAN scores by true or false.": "booleanValueHelp",
+  "Filters scores by string value. Applies to CATEGORICAL data type scores only.":
+    "categoricalValueHelp",
+} as const;
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -1008,6 +1067,26 @@ export function useSidebarFilterPresentation(
   const { loading, loadingColumns } = presentationOptions;
   const isV4Surface = presentationOptions.isV4 ?? false;
   const capture = usePostHogClientCapture();
+  const t = useSharedUiTranslations("filterFacets");
+  const localizeFacetLabel = useCallback(
+    (label: string) => {
+      const key =
+        FILTER_FACET_LABEL_KEYS[label as keyof typeof FILTER_FACET_LABEL_KEYS];
+      return key ? t(`labels.${key}`) : label;
+    },
+    [t],
+  );
+  const localizeFacetTooltip = useCallback(
+    (tooltip?: string) => {
+      if (!tooltip) return undefined;
+      const key =
+        FILTER_FACET_TOOLTIP_KEYS[
+          tooltip as keyof typeof FILTER_FACET_TOOLTIP_KEYS
+        ];
+      return key ? t(key) : tooltip;
+    },
+    [t],
+  );
   const {
     filterState,
     explicitFilterState,
@@ -1335,7 +1414,7 @@ export function useSidebarFilterPresentation(
       if (staticDisabled) {
         return {
           isDisabled: true,
-          reason: facet.disabledReason ?? "This filter is currently disabled.",
+          reason: facet.disabledReason ?? t("disabled"),
         };
       }
 
@@ -1359,8 +1438,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "numeric",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: currentRange,
@@ -1393,8 +1472,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "string",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: currentValue,
@@ -1456,8 +1535,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "keyValue",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: activeFilters,
@@ -1538,8 +1617,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "numericKeyValue",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: activeFilters,
@@ -1590,8 +1669,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "booleanKeyValue",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: activeFilters,
@@ -1647,8 +1726,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "stringKeyValue",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: activeFilters,
@@ -1719,8 +1798,8 @@ export function useSidebarFilterPresentation(
           return {
             type: "categorical",
             column: facet.column,
-            label: facet.label,
-            tooltip: facet.tooltip,
+            label: localizeFacetLabel(facet.label),
+            tooltip: localizeFacetTooltip(facet.tooltip),
             help: facet.help,
 
             value: selectedOptions,
@@ -1888,8 +1967,8 @@ export function useSidebarFilterPresentation(
         return {
           type: "categorical",
           column: facet.column,
-          label: facet.label,
-          tooltip: facet.tooltip,
+          label: localizeFacetLabel(facet.label),
+          tooltip: localizeFacetTooltip(facet.tooltip),
           help: facet.help,
 
           value: selectedValues,
@@ -1973,6 +2052,9 @@ export function useSidebarFilterPresentation(
     setFilterState,
     managedEnvironmentColumn,
     managedEnvironmentPolicyConfig.hiddenEnvironments,
+    localizeFacetLabel,
+    localizeFacetTooltip,
+    t,
   ]);
 
   return {

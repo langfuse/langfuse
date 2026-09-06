@@ -10,86 +10,86 @@ import type { ColumnDefinition } from "@langfuse/shared";
 // These must align with packages/shared/src/server/tableMappings/mapExperimentTable.ts
 export const experimentsTableCols: ColumnDefinition[] = [
   {
-    name: "ID",
+    name: "id",
     id: "id",
     type: "string",
     internal: "experiment_id",
   },
   {
-    name: "Name",
+    name: "name",
     id: "name",
     type: "string",
     internal: "experiment_name",
   },
   {
-    name: "Description",
+    name: "description",
     id: "description",
     type: "string",
     internal: "experiment_description",
     nullable: true,
   },
   {
-    name: "Metadata",
+    name: "metadata",
     id: "metadata",
     type: "stringObject",
     internal: "experiment_metadata",
     nullable: true,
   },
   {
-    name: "Referenced Prompts",
+    name: "prompts",
     id: "prompts",
     type: "string",
     internal: "prompts",
     nullable: true,
   },
   {
-    name: "Dataset",
+    name: "experimentDatasetId",
     id: "experimentDatasetId",
     type: "stringOptions",
     internal: "experiment_dataset_id",
     options: [],
   },
   {
-    name: "Start Time",
+    name: "startTime",
     id: "startTime",
     type: "datetime",
     internal: "start_time",
   },
   {
-    name: "Item Count",
+    name: "itemCount",
     id: "itemCount",
     type: "number",
     internal: "item_count",
   },
   {
-    name: "Total Cost ($)",
+    name: "totalCost",
     id: "totalCost",
     type: "number",
     internal: "total_cost",
     nullable: true,
   },
   {
-    name: "Latency (s)",
+    name: "latencyAvg",
     id: "latencyAvg",
     type: "number",
     internal: "latency_avg",
     nullable: true,
   },
   {
-    name: "Error Count",
+    name: "errorCount",
     id: "errorCount",
     type: "number",
     internal: "error_count",
   },
   // Observation-level scores (eos.* alias in backend)
   {
-    name: "Scores (numeric)",
+    name: "obs_scores_avg",
     id: "obs_scores_avg",
     type: "numberObject",
     internal: "obs_scores_avg",
   },
   {
-    name: "Scores (categorical)",
+    name: "obs_score_categories",
     id: "obs_score_categories",
     type: "categoryOptions",
     internal: "obs_score_categories",
@@ -97,7 +97,7 @@ export const experimentsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Scores (boolean)",
+    name: "obs_score_booleans",
     id: "obs_score_booleans",
     type: "booleanObject",
     internal: "obs_score_booleans",
@@ -105,13 +105,13 @@ export const experimentsTableCols: ColumnDefinition[] = [
   },
   // Trace-level scores (ets.* alias in backend)
   {
-    name: "Trace Scores (numeric)",
+    name: "trace_scores_avg",
     id: "trace_scores_avg",
     type: "numberObject",
     internal: "trace_scores_avg",
   },
   {
-    name: "Trace Scores (categorical)",
+    name: "trace_score_categories",
     id: "trace_score_categories",
     type: "categoryOptions",
     internal: "trace_score_categories",
@@ -119,7 +119,7 @@ export const experimentsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Trace Scores (boolean)",
+    name: "trace_score_booleans",
     id: "trace_score_booleans",
     type: "booleanObject",
     internal: "trace_score_booleans",
@@ -203,7 +203,19 @@ export function isExperimentsOmittableFilterColumn(
 }
 
 export function getExperimentsFilterConfig(
+  getLabel: (columnId: string) => string,
   omittedFilter: ExperimentsOmittableFilterColumn[] = [],
 ): FilterConfig {
-  return omitFilterFacets(experimentsFilterConfig, omittedFilter);
+  const config = omitFilterFacets(experimentsFilterConfig, omittedFilter);
+  return {
+    ...config,
+    columnDefinitions: config.columnDefinitions.map((column) => ({
+      ...column,
+      name: getLabel(column.id),
+    })),
+    facets: config.facets.map((facet) => ({
+      ...facet,
+      label: getLabel(facet.column),
+    })),
+  };
 }

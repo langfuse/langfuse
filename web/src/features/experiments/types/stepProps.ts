@@ -24,6 +24,11 @@ type ValidationResult =
   | {
       isValid: false;
       message: string;
+      code:
+        | "PROMPT_NOT_FOUND"
+        | "PROMPT_HAS_NO_VARIABLES"
+        | "DATASET_EMPTY"
+        | "DATASET_ITEMS_HAVE_NO_VARIABLES";
     }
   | undefined;
 

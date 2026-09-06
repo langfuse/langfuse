@@ -19,8 +19,10 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { LockIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 
 export default function RenameOrganization() {
+  const t = useTranslations("settingsEnterprise.generalSettings");
   const { update: updateSession } = useSession();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -65,19 +67,22 @@ export default function RenameOrganization() {
 
   return (
     <div>
-      <Header title="Organization Name" />
+      <Header title={t("organizationName.title")} />
       <Card className="mb-4 p-3">
         {form.getValues().name !== "" ? (
           <p className="text-primary mb-4 text-sm">
-            Your Organization will be renamed from &quot;
-            {orgName}
-            &quot; to &quot;
-            <b>{form.watch().name}</b>&quot;.
+            {t.rich("organizationName.renamed", {
+              currentName: orgName,
+              newName: form.watch().name,
+              strong: (chunks) => <b>{chunks}</b>,
+            })}
           </p>
         ) : (
           <p className="mb-4 text-sm">
-            Your Organization is currently named &quot;<b>{orgName}</b>
-            &quot;.
+            {t.rich("organizationName.current", {
+              name: orgName,
+              strong: (chunks) => <b>{chunks}</b>,
+            })}
           </p>
         )}
         <Form {...form}>
@@ -100,7 +105,7 @@ export default function RenameOrganization() {
                         disabled={!hasAccess}
                       />
                       {!hasAccess && (
-                        <span title="No access">
+                        <span title={t("common.noAccess")}>
                           <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
                         </span>
                       )}
@@ -118,7 +123,7 @@ export default function RenameOrganization() {
                 disabled={form.getValues().name === "" || !hasAccess}
                 className="mt-4"
               >
-                Save
+                {t("common.save")}
               </Button>
             )}
           </form>

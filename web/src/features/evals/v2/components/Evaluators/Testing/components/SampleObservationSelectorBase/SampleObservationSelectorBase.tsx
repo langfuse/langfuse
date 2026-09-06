@@ -41,6 +41,7 @@ import {
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -49,7 +50,7 @@ const PAGE_SIZE = 25;
 
 const EXAMPLES = [
   {
-    label: "Root spans",
+    labelKey: "sampleSelector.examples.rootSpans" as const,
     icon: ListTree,
     filters: [
       {
@@ -61,7 +62,7 @@ const EXAMPLES = [
     ] satisfies FilterState,
   },
   {
-    label: "Generations",
+    labelKey: "sampleSelector.examples.generations" as const,
     icon: Sparkles,
     filters: [
       {
@@ -73,7 +74,7 @@ const EXAMPLES = [
     ] satisfies FilterState,
   },
   {
-    label: "Experiments",
+    labelKey: "sampleSelector.examples.experiments" as const,
     icon: FlaskConical,
     filters: [
       {
@@ -85,7 +86,7 @@ const EXAMPLES = [
     ] satisfies FilterState,
   },
   {
-    label: "Tools",
+    labelKey: "sampleSelector.examples.tools" as const,
     icon: Wrench,
     filters: [
       {
@@ -97,7 +98,7 @@ const EXAMPLES = [
     ] satisfies FilterState,
   },
   {
-    label: "Exclude experiments & evals",
+    labelKey: "sampleSelector.examples.excludeExperimentsAndEvals" as const,
     icon: EyeOff,
     filters: EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
   },
@@ -155,6 +156,8 @@ export type SampleObservationSelectorBaseProps = {
 export function SampleObservationSelectorBase(
   props: SampleObservationSelectorBaseProps,
 ) {
+  const t = useTranslations("productTables.evaluators");
+  const tEvaluations = useTranslations("evaluationAnalytics.evaluations");
   const {
     projectId,
     timeRange,
@@ -383,21 +386,21 @@ export function SampleObservationSelectorBase(
       ...leadingColumns,
       createDateTableColumn<SampleObservation>({
         accessorKey: "startTime",
-        header: "Start time",
+        header: tEvaluations("sampleSelector.columns.startTime"),
         size: 170,
         enableHiding: true,
       }),
       {
         accessorKey: "type",
         id: "type",
-        header: "Type",
+        header: tEvaluations("sampleSelector.columns.type"),
         size: 110,
         enableHiding: true,
       },
       {
         accessorKey: "name",
         id: "name",
-        header: "Name",
+        header: tEvaluations("sampleSelector.columns.name"),
         size: 200,
         enableHiding: true,
         cell: ({ row }) => row.original.name ?? "—",
@@ -405,7 +408,7 @@ export function SampleObservationSelectorBase(
       {
         accessorKey: "traceName",
         id: "traceName",
-        header: "Trace name",
+        header: tEvaluations("sampleSelector.columns.traceName"),
         size: 180,
         enableHiding: true,
         defaultHidden: true,
@@ -413,7 +416,7 @@ export function SampleObservationSelectorBase(
       },
       createIOTableColumn<SampleObservation>({
         accessorKey: "input",
-        header: "Input",
+        header: tEvaluations("sampleSelector.columns.input"),
         size: 300,
         enableHiding: true,
         getCell: (_value, { row }) => {
@@ -427,7 +430,7 @@ export function SampleObservationSelectorBase(
       }),
       createIOTableColumn<SampleObservation>({
         accessorKey: "output",
-        header: "Output",
+        header: tEvaluations("sampleSelector.columns.output"),
         size: 300,
         enableHiding: true,
         getCell: (_value, { row }) => {
@@ -441,7 +444,7 @@ export function SampleObservationSelectorBase(
       }),
       createIOTableColumn<SampleObservation>({
         accessorKey: "metadata",
-        header: "Metadata",
+        header: tEvaluations("sampleSelector.columns.metadata"),
         size: 300,
         enableHiding: true,
         getCell: (_value, { row }) => {
@@ -455,13 +458,19 @@ export function SampleObservationSelectorBase(
       {
         accessorKey: "environment",
         id: "environment",
-        header: "Environment",
+        header: tEvaluations("sampleSelector.columns.environment"),
         size: 130,
         enableHiding: true,
         defaultHidden: true,
       },
     ],
-    [observationIOById, observationIOPending, leadingColumns, rowHeight],
+    [
+      observationIOById,
+      observationIOPending,
+      leadingColumns,
+      rowHeight,
+      tEvaluations,
+    ],
   );
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SampleObservation>(
@@ -488,7 +497,7 @@ export function SampleObservationSelectorBase(
     <div className="flex shrink-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
         <SectionHeader
-          title="Filter observations"
+          title={tEvaluations("sampleSelector.filterTitle")}
           meta={null}
           description={filterDescription}
           tooltip={filterTooltip}
@@ -517,7 +526,7 @@ export function SampleObservationSelectorBase(
         <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
             <Button
-              key={example.label}
+              key={example.labelKey}
               type="button"
               variant="outline"
               size="sm"
@@ -529,7 +538,7 @@ export function SampleObservationSelectorBase(
               }}
             >
               <example.icon className="h-4 w-4" />
-              <span>{example.label}</span>
+              <span>{tEvaluations(example.labelKey)}</span>
             </Button>
           ))}
         </div>
@@ -537,7 +546,7 @@ export function SampleObservationSelectorBase(
 
       <section className="flex min-h-0 flex-col gap-2">
         <SectionHeader
-          title="Matching observations"
+          title={tEvaluations("sampleSelector.matchingTitle")}
           meta={
             options.approxTotalCount !== null ? (
               <span className="text-muted-foreground shrink-0 text-sm">
@@ -596,7 +605,7 @@ export function SampleObservationSelectorBase(
             rowHeight={rowHeight}
             onRowClick={onOpenTrace}
             getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
+            noResultsMessage={t("noMatchingObservations")}
           />
         </div>
       </section>

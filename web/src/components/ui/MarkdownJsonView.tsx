@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { cn } from "@/src/utils/tailwind";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
@@ -39,11 +40,12 @@ export function MarkdownJsonViewHeader({
   collapseControl,
   inset = false,
 }: MarkdownJsonViewHeaderProps) {
+  const t = useSharedUiTranslations("accessibility");
   const [isCopied, setIsCopied] = useState(false);
   const collapseLabel = collapseControl
     ? collapseControl.isCollapsed
-      ? "Expand system prompt"
-      : "Collapse system prompt"
+      ? t("expandSystemPrompt")
+      : t("collapseSystemPrompt")
     : undefined;
   // Keep the visible title in the title-button name (WCAG 2.5.3). A generic
   // aria-label would hide message `name`s from assistive tech.
@@ -102,12 +104,12 @@ export function MarkdownJsonViewHeader({
             aria-label={collapseLabel}
             className="text-muted-foreground hover:bg-border w-fit text-xs"
           >
-            {collapseControl.isCollapsed ? "Expand" : "Collapse"}
+            {collapseControl.isCollapsed ? t("expand") : t("collapse")}
           </Button>
         ) : null}
         {controlButtons}
         <Button
-          title="Copy to clipboard"
+          title={t("copyClipboard")}
           variant="ghost"
           size="icon-xs"
           type="button"

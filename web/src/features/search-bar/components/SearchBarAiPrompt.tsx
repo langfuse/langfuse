@@ -27,15 +27,7 @@ import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarSt
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-
-// "No such score X" note for score filters the server dropped because their
-// name matches no observed score (exactly or normalized).
-function unknownScoresMessage(names: string[]): string {
-  const quoted = names.map((n) => `"${n}"`).join(", ");
-  return names.length === 1
-    ? `No score named ${quoted} exists in this project — that filter was not applied.`
-    : `No scores named ${quoted} exist in this project — those filters were not applied.`;
-}
+import { useTranslations } from "next-intl";
 
 export function SearchBarAiPrompt({
   projectId,
@@ -65,10 +57,17 @@ export function SearchBarAiPrompt({
   /** Leave AI mode and restore the grammar composer. */
   onExit: () => void;
 }) {
+  const t = useTranslations("sharedUi.searchBar");
   const capture = usePostHogClientCapture();
   const [value, setValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const unknownScoresMessage = (names: string[]) => {
+    const quoted = names.map((name) => `"${name}"`).join(", ");
+    return t(names.length === 1 ? "unknownScore" : "unknownScores", {
+      names: quoted,
+    });
+  };
   // Set on unmount (e.g. Back clicked mid-generation). `mutateAsync` keeps
   // running after unmount, so we check this before applying — otherwise a
   // generation the user cancelled would silently replace their filters when it
@@ -90,8 +89,8 @@ export function SearchBarAiPrompt({
   const refineContext = useStore(store, (s) => s.draft).trim();
   const refining = refineContext.length > 0;
   const placeholder = refining
-    ? "Refine your filters — e.g. only errors, or drop the env filter"
-    : "Describe the filters you want — e.g. slow production errors from today";
+    ? t("refinePlaceholder")
+    : t("describePlaceholder");
 
   const generateFilter = api.searchBar.generateFilter.useMutation();
   const pending = generateFilter.isPending;
@@ -147,7 +146,7 @@ export function SearchBarAiPrompt({
           reason: "stale",
           isV4: true,
         });
-        setError("Filters changed while generating — try again.");
+        setError(t("filtersChanged"));
         return;
       }
       if (result.filters.length === 0) {
@@ -162,7 +161,7 @@ export function SearchBarAiPrompt({
         setError(
           result.unknownScoreNames.length > 0
             ? unknownScoresMessage(result.unknownScoreNames)
-            : "Couldn't build filters from that — try rephrasing.",
+            : t("buildFailed"),
         );
         return;
       }
@@ -177,7 +176,7 @@ export function SearchBarAiPrompt({
         // Partial apply: the rest of the filters went through, so exit as
         // usual but surface which score clause was dropped and why.
         showErrorToast(
-          "Score filter skipped",
+          t("scoreSkipped"),
           unknownScoresMessage(result.unknownScoreNames),
           "WARNING",
         );
@@ -196,7 +195,7 @@ export function SearchBarAiPrompt({
         reason: "error",
         isV4: true,
       });
-      setError("Couldn't reach the AI service. Please try again.");
+      setError(t("serviceFailed"));
     }
   };
 
@@ -218,7 +217,7 @@ export function SearchBarAiPrompt({
             onMouseDown={(event) => event.preventDefault()}
             className="text-muted-foreground mb-1.5 flex min-w-0 items-center gap-1.5 pl-1 text-xs"
           >
-            <span className="shrink-0">Refining</span>
+            <span className="shrink-0">{t("refining")}</span>
             <code
               className="ph-no-capture bg-muted text-foreground/80 min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-[11px]"
               title={refineContext}
@@ -232,8 +231,8 @@ export function SearchBarAiPrompt({
               you're in a sub-mode you can leave. */}
           <button
             type="button"
-            aria-label="Back to search"
-            title="Back (Esc)"
+            aria-label={t("back")}
+            title={t("backShortcut")}
             onMouseDown={(event) => event.preventDefault()}
             onClick={onExit}
             className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
@@ -246,7 +245,7 @@ export function SearchBarAiPrompt({
             value={value}
             disabled={pending}
             placeholder={placeholder}
-            aria-label="Ask AI to build filters"
+            aria-label={t("askAiBuild")}
             data-testid="search-bar-ai-input"
             spellCheck={false}
             autoComplete="off"
@@ -283,14 +282,14 @@ export function SearchBarAiPrompt({
                 className="h-3.5 w-3.5 animate-spin"
                 aria-hidden="true"
               />
-              Generating…
+              {t("generating")}
             </span>
           ) : (
             <div className="flex shrink-0 items-center gap-1.5">
               {value.trim().length > 0 && (
                 <span className="hidden md:inline-flex">
                   <KeyboardShortcut
-                    title="Press Enter to generate"
+                    title={t("generateShortcut")}
                     keys={["Enter"]}
                   />
                 </span>
@@ -300,8 +299,8 @@ export function SearchBarAiPrompt({
               </span>
               <button
                 type="button"
-                aria-label="Generate filters"
-                title="Generate filters (Enter)"
+                aria-label={t("generate")}
+                title={t("generateEnter")}
                 data-testid="search-bar-ai-submit"
                 disabled={value.trim().length === 0}
                 onMouseDown={(event) => event.preventDefault()}

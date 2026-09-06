@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useBillingInformation } from "./useBillingInformation";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useFormatter, useTranslations } from "next-intl";
 
 type InvoiceRow = {
   id: string;
@@ -30,6 +31,8 @@ type InvoiceRow = {
 };
 
 export function BillingInvoiceTable() {
+  const t = useTranslations("settingsEnterprise.billing");
+  const format = useFormatter();
   const { organization } = useBillingInformation();
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   // Provider-agnostic: getInvoices dispatches to whichever provider bills the
@@ -120,22 +123,23 @@ export function BillingInvoiceTable() {
     {
       accessorKey: "created",
       id: "created",
-      header: "Date",
+      header: t("invoice.date"),
       cell: ({ row }) => {
         const value = row.getValue("created") as InvoiceRow["created"];
         if (!value) return undefined;
         const date = new Date(value);
-        const year = date.getFullYear();
-        const month = date.toLocaleDateString("en-US", { month: "short" });
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
+        return format.dateTime(date, {
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+        });
       },
       size: 90,
     },
     {
       accessorKey: "status",
       id: "status",
-      header: "Status",
+      header: t("common.status"),
       size: 100,
       cell: ({ row }) => {
         const status = (row.getValue("status") as string | null)?.toLowerCase();
@@ -152,42 +156,42 @@ export function BillingInvoiceTable() {
     createNumberTableColumn<InvoiceRow>({
       accessorFn: (row) => (row.breakdown?.subscriptionCents ?? 0) / 100,
       id: "subscription",
-      header: "Subscription",
+      header: t("invoice.subscription"),
       size: 100,
       formatter: costFormatter,
     }),
     createNumberTableColumn<InvoiceRow>({
       accessorFn: (row) => (row.breakdown?.usageCents ?? 0) / 100,
       id: "usage",
-      header: "Usage",
+      header: t("invoice.usage"),
       size: 90,
       formatter: costFormatter,
     }),
     createNumberTableColumn<InvoiceRow>({
       accessorFn: (row) => (row.breakdown?.discountCents ?? 0) / 100,
       id: "discounts",
-      header: "Discounts",
+      header: t("invoice.discounts"),
       size: 90,
       formatter: costFormatter,
     }),
     createNumberTableColumn<InvoiceRow>({
       accessorFn: (row) => (row.breakdown?.taxCents ?? 0) / 100,
       id: "tax",
-      header: "Tax",
+      header: t("invoice.tax"),
       size: 90,
       formatter: costFormatter,
     }),
     createNumberTableColumn<InvoiceRow>({
       accessorFn: (row) => (row.breakdown?.totalCents ?? 0) / 100,
       id: "total",
-      header: "Total",
+      header: t("invoice.total"),
       size: 90,
       formatter: costFormatter,
     }),
     {
       accessorKey: "actions",
       id: "actions",
-      header: "Actions",
+      header: t("common.actions"),
       size: 160,
       cell: ({ row }) => {
         const { hostedInvoiceUrl, invoicePdfUrl } = row.original;
@@ -195,14 +199,26 @@ export function BillingInvoiceTable() {
           <div className="flex gap-2">
             {hostedInvoiceUrl ? (
               <a href={hostedInvoiceUrl} target="_blank" rel="noreferrer">
-                <Button size="sm" variant="ghost">
-                  <ExternalLink className="mr-1 h-4 w-4" /> View
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={t("invoice.viewAriaLabel", {
+                    number: row.original.number ?? row.original.id,
+                  })}
+                >
+                  <ExternalLink className="mr-1 h-4 w-4" /> {t("invoice.view")}
                 </Button>
               </a>
             ) : null}
             {invoicePdfUrl ? (
               <a href={invoicePdfUrl} target="_blank" rel="noreferrer">
-                <Button size="sm" variant="ghost">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={t("invoice.downloadAriaLabel", {
+                    number: row.original.number ?? row.original.id,
+                  })}
+                >
                   <Download className="mr-1 h-4 w-4" /> PDF
                 </Button>
               </a>
@@ -274,7 +290,7 @@ export function BillingInvoiceTable() {
   return (
     <div className="space-y-0">
       <div className="flex items-center justify-between pt-4">
-        <h3 className="font-bold">Invoice History</h3>
+        <h3 className="font-bold">{t("invoice.history")}</h3>
       </div>
       <DataTableToolbar columns={columns} />
       <DataTable

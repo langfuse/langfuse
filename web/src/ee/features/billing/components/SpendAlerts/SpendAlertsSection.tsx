@@ -5,12 +5,14 @@ import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useTranslations } from "next-intl";
 
 interface SpendAlertsSectionProps {
   orgId: string;
 }
 
 export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
+  const t = useTranslations("settingsEnterprise.billing.spendAlerts");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
@@ -34,17 +36,16 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between pt-4">
           <div>
-            <h3 className="font-bold">Spend Alerts</h3>
+            <h3 className="font-bold">{t("title")}</h3>
             <p className="text-muted-foreground max-w-prose text-sm">
-              Get notified when your organization&apos;s spending exceeds
-              configured thresholds. Alerts may be delayed by up to 90 minutes.
+              {t("description")}
             </p>
             <p className="text-muted-foreground max-w-prose text-sm"></p>
           </div>
 
           <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Create Alert
+            {t("create")}
           </Button>
         </div>
 

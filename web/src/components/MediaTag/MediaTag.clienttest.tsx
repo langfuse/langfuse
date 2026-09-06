@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { NextIntlClientProvider } from "next-intl";
 
 import { MediaTag } from "./MediaTag";
+import { SharedUiProvider } from "@/src/utils/shared-ui-translations";
+import chineseMessages from "@/src/features/i18n/messages/zh-CN/sharedUi.json";
 
 const OFFICE_CONTENT_TYPES = [
   ["application/msword", "DOC"],
@@ -14,6 +17,25 @@ const OFFICE_CONTENT_TYPES = [
 ] as const;
 
 describe("MediaTag", () => {
+  it("localizes generated accessibility and preview fallback text", () => {
+    render(
+      <NextIntlClientProvider
+        locale="zh-CN"
+        messages={{ sharedUi: chineseMessages }}
+      >
+        <SharedUiProvider>
+          <MediaTag contentType="text/plain" status="ready" url="#" open />
+        </SharedUiProvider>
+      </NextIntlClientProvider>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "PLAIN 媒体" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("不支持内嵌预览")).toBeInTheDocument();
+    expect(screen.getByTitle("在新标签页中打开")).toBeInTheDocument();
+  });
+
   it("blocks the portaled preview from PostHog session recordings", () => {
     const description = "customer-provided media description";
 

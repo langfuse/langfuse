@@ -18,25 +18,25 @@ export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
     level: "obs",
     dataType: "numeric",
     filterKey: "obs_scores_avg",
-    group: "Observation Scores",
+    group: "observationScores",
   },
   "obs:categorical": {
     level: "obs",
     dataType: "categorical",
     filterKey: "obs_score_categories",
-    group: "Observation Scores",
+    group: "observationScores",
   },
   "experiment:numeric": {
     level: "experiment",
     dataType: "numeric",
     filterKey: "experiment_scores_avg",
-    group: "Experiment Scores",
+    group: "experimentScores",
   },
   "experiment:categorical": {
     level: "experiment",
     dataType: "categorical",
     filterKey: "experiment_score_categories",
-    group: "Experiment Scores",
+    group: "experimentScores",
   },
 };
 

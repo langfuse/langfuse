@@ -12,6 +12,7 @@ import {
   type OutlierStripMetricKey,
   type OutlierStripTick,
 } from "./lib/binning";
+import { useTranslations } from "next-intl";
 
 /**
  * OutlierBarStrip — compact, Firefox-devtools-inspired bar strip (LFE-14451).
@@ -99,6 +100,12 @@ export function OutlierBarStrip({
   disabledReason,
   className,
 }: OutlierBarStripProps) {
+  const t = useTranslations("coreObservability.events");
+  const metricLabel: Record<OutlierStripMetricKey, string> = {
+    count: t("modes.count"),
+    cost: t("modes.cost"),
+    latency: t("modes.latency"),
+  };
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
   // Touch model: taps and drags PREVIEW (pinned tooltip with an explicit
@@ -371,7 +378,7 @@ export function OutlierBarStrip({
         width={widthPx}
         height={heightPx + labelHeight}
         role="img"
-        aria-label={`${metricSpec.shortLabel} per bucket`}
+        aria-label={t("perBucket", { metric: metricLabel[metric] })}
         // pan-y: horizontal touch drags select a range; vertical stays with
         // the page scroll (LF-34 mobile gesture requirement). select-none +
         // the pointerdown preventDefault keep a range-drag from ALSO
@@ -547,8 +554,10 @@ export function OutlierBarStrip({
           style={{ height: heightPx }}
         >
           {hasActivity
-            ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
-            : "No observations in range"}
+            ? t("noMetricDataInRange", {
+                metric: metricSpec.shortLabel.toLowerCase(),
+              })
+            : t("noObservationsInRange")}
         </span>
       )}
 
@@ -582,11 +591,11 @@ export function OutlierBarStrip({
               {hovered.value !== null
                 ? metricSpec.format(hovered.value)
                 : hovered.count > 0
-                  ? "no data"
+                  ? t("noDataLowercase")
                   : metricSpec.format(0)}
               {metric !== "count" && (
                 <span className="text-muted-foreground ml-1.5 font-normal">
-                  · {hovered.count} observations
+                  · {t("observationCount", { count: hovered.count })}
                 </span>
               )}
             </div>
@@ -632,18 +641,18 @@ export function OutlierBarStrip({
                   {previewStats.value !== null
                     ? metricSpec.format(previewStats.value)
                     : previewStats.count > 0
-                      ? "no data"
+                      ? t("noDataLowercase")
                       : metricSpec.format(0)}
                   {metric !== "count" && (
                     <span className="text-muted-foreground ml-1.5 font-normal">
-                      · {previewStats.count} observations
+                      · {t("observationCount", { count: previewStats.count })}
                     </span>
                   )}
                 </div>
               </div>
               <button
                 type="button"
-                aria-label="Dismiss preview"
+                aria-label={t("dismissPreview")}
                 className="text-muted-foreground -mt-0.5 -mr-0.5 p-0.5"
                 onClick={() => {
                   setTouchPreview(null);
@@ -669,7 +678,7 @@ export function OutlierBarStrip({
                   onSelectBucket?.(range, { trigger: "touch_explore" });
                 }}
               >
-                Explore this window
+                {t("exploreWindow")}
               </Button>
             )}
           </div>

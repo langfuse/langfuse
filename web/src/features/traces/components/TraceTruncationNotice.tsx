@@ -13,8 +13,10 @@
 import { useState } from "react";
 import { TriangleAlert, X } from "lucide-react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTranslations } from "next-intl";
 
 export function TraceTruncationNotice() {
+  const t = useTranslations("coreDetails.traces.truncation");
   const {
     truncatedAtObservations,
     detachedObservationId,
@@ -35,8 +37,8 @@ export function TraceTruncationNotice() {
   const detachedNote = !detachedObservationId
     ? null
     : detachedObservationIsMisplaced
-      ? " The one you opened is loaded separately, and appears at the top level because its parent is missing too."
-      : " The one you opened is loaded separately.";
+      ? t("detachedMisplaced")
+      : t("detached");
 
   // Ranked by how much the message says. Dismissing hides that message and
   // everything it already covered, but never a later one that says MORE — so
@@ -57,16 +59,13 @@ export function TraceTruncationNotice() {
         {/* No total: the server stops counting at the cap, so we know "more than
             this", never how many. */}
         <span className="font-bold">
-          Showing the first {truncatedAtObservations.toLocaleString()}{" "}
-          observations
+          {t("showingFirst", { count: truncatedAtObservations })}
         </span>{" "}
-        by start time. Later ones are missing here — find them in the
-        observations table.
-        {detachedNote}
+        {t("missing")} {detachedNote}
       </p>
       <button
         type="button"
-        aria-label="Dismiss"
+        aria-label={t("dismiss")}
         onClick={() => setDismissedRank(rank)}
         className="hover:bg-muted-foreground/10 hover:text-foreground shrink-0 rounded p-0.5"
       >

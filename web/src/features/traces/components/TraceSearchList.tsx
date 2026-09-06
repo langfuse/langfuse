@@ -18,8 +18,10 @@ import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
 import { XIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function TraceSearchList() {
+  const t = useTranslations("coreDetails.traces.search");
   const { searchItems } = useTraceData();
   const { searchQuery, setSearchInputValue } = useSearch();
   const { selectedNodeId, setSelectedNodeId } = useSelection();
@@ -60,17 +62,15 @@ export function TraceSearchList() {
     return (
       <div className="flex h-full flex-col items-center justify-center p-8 text-center">
         <div className="space-y-4">
-          <p className="text-muted-foreground">No results found</p>
-          <p className="text-muted-foreground text-sm">
-            Try searching by type, title, or id
-          </p>
+          <p className="text-muted-foreground">{t("none")}</p>
+          <p className="text-muted-foreground text-sm">{t("hint")}</p>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setSearchInputValue("")}
           >
             <XIcon className="mr-2 h-4 w-4" />
-            Clear search
+            {t("clear")}
           </Button>
         </div>
       </div>

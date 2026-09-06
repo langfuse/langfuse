@@ -1,5 +1,6 @@
 import { DeleteButton } from "@/src/components/deleteButton";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type DeleteAnnotationQueueButtonProps = {
   projectId: string;
@@ -10,6 +11,7 @@ export const DeleteAnnotationQueueButton = ({
   projectId,
   queueId,
 }: DeleteAnnotationQueueButtonProps) => {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const utils = api.useUtils();
   const deleteMutation = api.annotationQueues.delete.useMutation();
 
@@ -23,12 +25,12 @@ export const DeleteAnnotationQueueButton = ({
       icon
       variant="ghost"
       size="icon-xs"
-      title="Delete"
-      aria-label="delete"
+      title={t("deleteAction")}
+      aria-label={t("deleteAction")}
       captureDeleteOpen={() => undefined}
       captureDeleteSuccess={() => undefined}
-      customDeletePrompt="This action cannot be undone and removes queue items attached to this queue. Scores added while annotating in this queue will not be deleted."
-      entityToDeleteName="annotation queue"
+      customDeletePrompt={t("deleteDescription")}
+      entityToDeleteName={t("entityName")}
       executeDeleteMutation={async (onSuccess) => {
         await deleteMutation.mutateAsync({
           projectId,

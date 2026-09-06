@@ -5,28 +5,29 @@ import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { cn } from "@/src/utils/tailwind";
-import {
-  DEFAULT_REASONING_DESCRIPTION,
-  DEFAULT_SCORE_DESCRIPTION,
-} from "@/src/features/evals/v2/scoreOutputDefaults";
+import { useTranslations } from "next-intl";
 
 function DescriptionLabel({
   children,
   tooltip,
+  tooltipLabel,
+  optionalLabel,
   disabled,
 }: {
   children: string;
   tooltip: string;
+  tooltipLabel: string;
+  optionalLabel: string;
   disabled: boolean;
 }) {
   return (
     <Label className="flex items-center gap-1.5">
       {children}
-      <span className="text-muted-foreground font-regular">(optional)</span>
+      <span className="text-muted-foreground font-regular">
+        {optionalLabel}
+      </span>
       {!disabled ? (
-        <InfoTooltip label={`About ${children.toLowerCase()}`}>
-          {tooltip}
-        </InfoTooltip>
+        <InfoTooltip label={tooltipLabel}>{tooltip}</InfoTooltip>
       ) : null}
     </Label>
   );
@@ -47,6 +48,7 @@ export function ScoreOutputDescriptionFields({
   disabled: boolean;
   defaultAdvancedOpen?: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen);
 
   return (
@@ -63,21 +65,23 @@ export function ScoreOutputDescriptionFields({
             !advancedOpen && "-rotate-90",
           )}
         />
-        Advanced
+        {t("scoreOutput.advanced")}
       </button>
 
       {advancedOpen ? (
         <div className="col-start-2 mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <DescriptionLabel
-              tooltip="Gives the judge context on what the score field should capture."
+              tooltip={t("scoreOutput.scoreDescriptionTooltip")}
+              tooltipLabel={t("scoreOutput.aboutScoreDescription")}
+              optionalLabel={t("optional")}
               disabled={disabled}
             >
-              Score description
+              {t("scoreOutput.scoreDescription")}
             </DescriptionLabel>
             <Textarea
               className="min-h-16"
-              placeholder={DEFAULT_SCORE_DESCRIPTION}
+              placeholder={t("scoreOutput.scoreDescriptionPlaceholder")}
               value={scoreDescription}
               disabled={disabled}
               onChange={(event) => onScoreDescriptionChange(event.target.value)}
@@ -86,14 +90,16 @@ export function ScoreOutputDescriptionFields({
 
           <div className="flex flex-col gap-2">
             <DescriptionLabel
-              tooltip="Tells the judge what its written reasoning should cover."
+              tooltip={t("scoreOutput.reasoningDescriptionTooltip")}
+              tooltipLabel={t("scoreOutput.aboutReasoningDescription")}
+              optionalLabel={t("optional")}
               disabled={disabled}
             >
-              Reasoning description
+              {t("scoreOutput.reasoningDescription")}
             </DescriptionLabel>
             <Textarea
               className="min-h-16"
-              placeholder={DEFAULT_REASONING_DESCRIPTION}
+              placeholder={t("scoreOutput.reasoningDescriptionPlaceholder")}
               value={reasoningDescription}
               disabled={disabled}
               onChange={(event) =>

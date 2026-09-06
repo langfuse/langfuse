@@ -1,0 +1,457 @@
+{
+  "batchActions": {
+    "table": {
+      "actionType": "操作类型",
+      "table": "数据表",
+      "status": "状态",
+      "progress": "进度",
+      "failedCount": "失败 {count} 项",
+      "created": "创建时间",
+      "finished": "完成时间",
+      "createdBy": "创建者",
+      "unknown": "未知",
+      "log": "日志",
+      "actionTypes": {
+        "scoreDelete": "删除分数",
+        "datasetDelete": "删除数据集",
+        "traceDelete": "删除追踪",
+        "traceAddToAnnotationQueue": "将追踪添加到标注队列",
+        "sessionAddToAnnotationQueue": "将会话添加到标注队列",
+        "observationAddToAnnotationQueue": "将观测添加到标注队列",
+        "addToDataset": "添加到数据集",
+        "runEvaluation": "运行评估",
+        "experimentCompare": "比较实验"
+      },
+      "tables": {
+        "scores": "分数",
+        "sessions": "会话",
+        "observations": "观测",
+        "events": "事件",
+        "traces": "追踪",
+        "datasets": "数据集",
+        "datasetRunItems": "数据集运行条目",
+        "datasetItems": "数据集条目",
+        "auditLogs": "审计日志"
+      },
+      "statuses": {
+        "queued": "排队中",
+        "processing": "处理中",
+        "completed": "已完成",
+        "failed": "失败",
+        "partial": "部分完成"
+      }
+    },
+    "addToDataset": {
+      "dialogTitle": "将 {count} 条观测添加到数据集",
+      "choice": {
+        "existingTitle": "现有数据集",
+        "existingDescription": "添加到已有的数据集",
+        "newTitle": "新建数据集",
+        "newDescription": "为这些观测创建新数据集"
+      },
+      "create": {
+        "title": "创建新数据集",
+        "description": "填写信息以创建新数据集"
+      },
+      "select": {
+        "title": "选择数据集",
+        "description": "选择要添加这些观测的现有数据集",
+        "placeholder": "选择数据集...",
+        "searchPlaceholder": "搜索数据集...",
+        "empty": "未找到数据集。"
+      },
+      "fields": {
+        "input": "输入",
+        "output": "输出",
+        "expectedOutput": "预期输出",
+        "metadata": "元数据"
+      },
+      "mapping": {
+        "fullInput": "完整观测输入",
+        "fullOutput": "完整观测输出",
+        "fullMetadata": "完整观测元数据",
+        "fullField": "完整观测{field}",
+        "title": "数据集条目{field}",
+        "description": "配置如何将观测数据映射到数据集条目的{field}。",
+        "custom": "自定义映射",
+        "none": "无",
+        "target": "目标",
+        "root": "根值",
+        "keyValueMap": "键值映射",
+        "source": "来源",
+        "jsonPath": "JSONPath",
+        "jsonPathHint": "以 $. 开头可使用 JSONPath（例如 $.field）",
+        "keyValueMappings": "键值映射",
+        "keyValueDescription": "使用自定义键构建对象。以 $ 开头的值会被视为 JSONPath。",
+        "addField": "添加字段",
+        "key": "键",
+        "fromSchema": "（来自 Schema）",
+        "requiredFieldCannotBeRemoved": "无法删除 Schema 中的必填字段",
+        "removeField": "删除字段",
+        "value": "值",
+        "literal": "（字面量）",
+        "literalPlaceholder": "字面量值",
+        "invalidJsonPath": "无效的 JSONPath",
+        "noSourceMatch": "在源数据中未找到匹配项"
+      },
+      "preview": {
+        "title": "预览",
+        "sampleDescription": "取第一条观测作为样例",
+        "noObservation": "没有可用的观测数据",
+        "source": "来源：{source}",
+        "multipleSources": "多个来源",
+        "result": "结果：数据集条目{field}",
+        "invalidJsonPathTitle": "无效的 JSONPath：",
+        "invalidJsonPathMessage": "无效的 JSONPath \"{jsonPath}\"：{message}",
+        "mappingKey": "（键：\"{key}\"）",
+        "schemaErrorsTitle": "Schema 校验错误：",
+        "root": "根值",
+        "warningsTitle": "JSONPath 警告（预览观测）：",
+        "pathDidNotMatch": "{jsonPath} 未匹配 {source} 中的任何数据{mappingKey}"
+      },
+      "review": {
+        "title": "检查配置",
+        "summary": "正在将 {count} 条观测添加到数据集 \"{dataset}\"",
+        "invalidTitle": "部分 JSONPath 无效",
+        "invalidDescription": "处理时将跳过使用这些映射的条目。",
+        "missTitle": "部分 JSONPath 未匹配预览观测",
+        "missDescription": "处理时将跳过映射失败的观测。",
+        "sampleDescription": "数据集条目预览（取第一条选中的观测）：",
+        "noObservation": "没有可供预览的观测数据",
+        "editMapping": "编辑{field}映射",
+        "edit": "编辑",
+        "invalidPathCount": "{count} 条路径语法无效",
+        "missedPathCount": "{count} 条路径未匹配预览观测",
+        "issueSeparator": "；",
+        "issueSummary": "{issues}。处理时将跳过这些条目。"
+      },
+      "status": {
+        "addingTitle": "正在向数据集添加观测",
+        "successTitle": "添加成功",
+        "issuesTitle": "已完成，但存在问题",
+        "addingDescription": "正在将 {count} 条观测添加到 {dataset}",
+        "successDescription": "已将 {count} 条观测添加到 {dataset}",
+        "issuesDescription": "已添加 {processed} 条观测，{failed} 条失败",
+        "safeClose": "可以安全关闭此对话框。操作正在后台运行，你可以在<link>批量操作表</link>中查看进度。",
+        "results": "结果",
+        "progress": "进度",
+        "processedOfTotal": "已处理 {processed}/{total}",
+        "processed": "已处理",
+        "failed": "失败",
+        "successfullyProcessed": "成功处理",
+        "errorSummary": "错误摘要：",
+        "close": "关闭",
+        "goToDataset": "前往数据集"
+      },
+      "buttons": {
+        "back": "返回",
+        "continue": "继续",
+        "creating": "正在创建...",
+        "createAndContinue": "创建并继续",
+        "next": "下一步",
+        "adding": "正在添加...",
+        "addToDataset": "添加到数据集"
+      },
+      "descriptions": {
+        "choice": "选择要将观测添加到哪里",
+        "select": "选择现有数据集",
+        "create": "创建新数据集",
+        "inputMapping": "配置数据集条目输入映射",
+        "outputMapping": "配置数据集条目预期输出映射",
+        "metadataMapping": "配置数据集条目元数据映射",
+        "preview": "检查并确认配置",
+        "status": "批量操作状态"
+      },
+      "failedToSchedule": "无法安排此操作"
+    },
+    "runEvaluation": {
+      "failedToSchedule": "无法安排评估",
+      "queuedTitle": "评估已加入队列",
+      "queuedExperiments": "已安排对 {experimentCount} 个所选实验中的条目使用 {evaluatorCount} 个评估器进行评估。",
+      "queuedExperimentItems": "已安排使用 {evaluatorCount} 个评估器，对 {experimentCount} 个实验中的最多 {itemCount} 个实验条目进行评估。",
+      "queuedObservations": "已安排使用 {evaluatorCount} 个评估器对 {count} 条所选观测进行评估。",
+      "viewBatchActions": "查看批量操作",
+      "titleExperiments": "评估 {count} 个实验中的条目",
+      "titleExperimentItems": "评估 {experimentCount} 个实验中的最多 {itemCount} 个实验条目",
+      "titleObservations": "评估 {count} 条观测",
+      "reviewDescription": "运行前请检查评估配置。",
+      "selectDescription": "请选择一个或多个评估器。",
+      "back": "返回",
+      "continue": "继续",
+      "continueWith": "使用 {count} 个评估器继续",
+      "run": "运行评估",
+      "loadingPreview": "正在加载预览...",
+      "previewUnavailable": "当前选择无法预览。",
+      "invalidMapping": "评估器映射无法用于观测预览。",
+      "templateHasNoPrompt": "模板没有提示词。",
+      "loadingEvaluators": "正在加载评估器...",
+      "failedToLoad": "无法加载评估器：{error}",
+      "noEvaluators": "未找到评估器。创建新评估器后，它会显示在这里。",
+      "searchPlaceholder": "搜索评估器...",
+      "clearSearch": "清除评估器搜索",
+      "removeEvaluator": "移除 {name}",
+      "noSelection": "尚未选择评估器",
+      "noSearchResults": "没有符合搜索条件的评估器。",
+      "previewEvaluator": "预览 {name}",
+      "selectEvaluator": "选择 {name}",
+      "createEvaluatorAria": "新建评估器（在新标签页中打开）",
+      "createEvaluator": "新建评估器",
+      "promptPreview": "使用第一条所选观测预览提示词",
+      "confirmation": {
+        "observations": "观测：",
+        "evaluators": "评估器：",
+        "estimatedCost": "预计 LLM API 密钥费用：",
+        "costUnavailable": "无法估算实验范围评估的费用",
+        "background": "评估将在后台运行。",
+        "noData": "暂无数据",
+        "costDescription": "这是关联 API 密钥（而非 Langfuse）的预计费用，根据过去 7 天评估器的平均执行费用估算。",
+        "partialEstimate": "*仅为部分估算，部分评估器没有执行历史。"
+      }
+    }
+  },
+  "monitors": {
+    "pages": {
+      "alerts": "告警",
+      "help": "告警会在成本突增、质量下降、延迟变化或系统出现其他重要变化时通知团队和自动化工作流。",
+      "newAlert": "新建告警",
+      "editAlert": "编辑告警",
+      "editAlertNamed": "编辑告警 - {monitorName}",
+      "notFoundTitle": "未找到告警",
+      "notFoundMessage": "此告警不存在或已被删除。",
+      "editErrorTitle": "无法编辑告警",
+      "pageNotFoundTitle": "未找到页面",
+      "pageNotFoundMessage": "此页面不存在。"
+    },
+    "onboarding": {
+      "title": "在问题影响用户之前及时发现",
+      "description": "当成本、质量、延迟或其他关键指标超出预期范围时接收通知。",
+      "channelsTitle": "选择告警发送位置",
+      "channelsDescription": "将告警发送到 Slack、Webhook 或 GitHub Actions，让团队和工作流能够自动响应。",
+      "connectSlack": "连接 Slack",
+      "connectWebhooks": "连接 Webhook",
+      "connectGithub": "连接 GitHub Actions",
+      "monitorTitle": "选择要监控的内容",
+      "monitorDescription": "为成本突增、质量下降、延迟变化或其他重要变化创建告警。",
+      "createAlert": "创建告警"
+    },
+    "table": {
+      "pausedTitle": "告警已暂停",
+      "resumedTitle": "告警已恢复",
+      "pausedDescription": "评估已停止，直到你恢复告警。",
+      "resumedDescription": "评估已恢复。",
+      "updateStatusError": "无法更新告警状态",
+      "severity": "严重程度",
+      "name": "名称",
+      "tags": "标签",
+      "actions": "操作",
+      "editAlert": "编辑告警",
+      "edit": "编辑",
+      "resumeAlert": "恢复告警",
+      "pauseAlert": "暂停告警",
+      "resume": "恢复",
+      "pause": "暂停",
+      "delete": "删除",
+      "alertActions": "告警操作"
+    },
+    "form": {
+      "createdTitle": "告警已创建",
+      "createdDescription": "\"{name}\" 现已启用。",
+      "createError": "无法创建告警",
+      "savedTitle": "告警已保存",
+      "savedDescription": "对 \"{name}\" 的更改已应用。",
+      "saveError": "无法保存告警",
+      "configurationTitle": "告警配置",
+      "configurationDescription": "当指标越过阈值时接收通知，例如成本突然增加或准确率下降。",
+      "metricDefinition": "指标定义",
+      "view": "视图",
+      "measure": "度量",
+      "aggregation": "聚合方式",
+      "filters": "筛选条件",
+      "conditions": "告警条件",
+      "triggerWhen": "当数值满足以下条件时触发",
+      "threshold": "阈值",
+      "optional": "可选",
+      "overPast": "统计过去",
+      "advancedOptions": "高级选项",
+      "notifications": "通知",
+      "name": "名称",
+      "tagsLabel": "告警标签",
+      "addTag": "添加标签",
+      "automations": "自动化",
+      "automationsDescription": "将告警发送到 Slack、Webhook 和 GitHub Actions。",
+      "saveAlert": "保存告警",
+      "createAlert": "创建告警",
+      "whenNoData": "没有数据时",
+      "treatMissingAsZero": "将缺失数据视为 <code>0</code>",
+      "keepPreviousSeverity": "保留之前的<severity>严重程度</severity>",
+      "showSeverity": "显示严重程度 <badge></badge>",
+      "notifyAfterSustained": "持续无数据后通知 <badge></badge>",
+      "notifyAfter": "通知等待时间",
+      "minutes": "分钟",
+      "renotify": "重复通知",
+      "renotifyOff": "关闭（仅在状态变化时告警）",
+      "renotifyEvery": "定期再次告警",
+      "renotifyEveryMinutes": "再次告警间隔（分钟）",
+      "viewDescriptions": {
+        "observations": "追踪中的单次请求或操作。",
+        "scoresNumeric": "用于评估的数值型分数。",
+        "scoresBoolean": "用于评估的布尔型分数。",
+        "scoresCategorical": "用于评估的分类型分数。"
+      },
+      "measureOptions": {
+        "count": { "label": "数量", "description": "记录总数。" },
+        "traceId": { "label": "追踪 ID", "description": "唯一追踪数量。" },
+        "uniqueUserIds": {
+          "label": "唯一用户 ID",
+          "description": "不同用户的数量。"
+        },
+        "uniqueSessionIds": {
+          "label": "唯一会话 ID",
+          "description": "不同会话的数量。"
+        },
+        "latency": {
+          "label": "延迟",
+          "description": "从观测开始到结束的耗时。"
+        },
+        "streamingLatency": {
+          "label": "流式延迟",
+          "description": "从补全开始到观测结束的耗时。"
+        },
+        "inputTokens": {
+          "label": "输入 Token",
+          "description": "观测消耗的输入 Token。"
+        },
+        "outputTokens": {
+          "label": "输出 Token",
+          "description": "观测生成的输出 Token。"
+        },
+        "totalTokens": {
+          "label": "Token 总数",
+          "description": "观测消耗的 Token 总数。"
+        },
+        "outputTokensPerSecond": {
+          "label": "每秒输出 Token",
+          "description": "平均每秒生成的输出 Token。"
+        },
+        "tokensPerSecond": {
+          "label": "每秒 Token",
+          "description": "平均每秒消耗的 Token。"
+        },
+        "inputCost": {
+          "label": "输入费用",
+          "description": "观测产生的输入费用。"
+        },
+        "outputCost": {
+          "label": "输出费用",
+          "description": "观测产生的输出费用。"
+        },
+        "totalCost": { "label": "总费用", "description": "观测产生的总费用。" },
+        "timeToFirstToken": {
+          "label": "首 Token 时间",
+          "description": "生成首个 Token 的耗时。"
+        },
+        "countScores": {
+          "label": "分数数量",
+          "description": "关联到观测的唯一分数数量。"
+        },
+        "toolDefinitions": {
+          "label": "工具定义",
+          "description": "每条观测可用的工具数量。"
+        },
+        "toolCalls": {
+          "label": "工具调用",
+          "description": "每条观测的工具调用数量。"
+        },
+        "toolCallInvocations": {
+          "label": "工具调用次数",
+          "description": "每条观测中的单次工具调用次数。"
+        },
+        "costByType": {
+          "label": "按类型统计费用",
+          "description": "按类别分组的费用。"
+        },
+        "usageByType": {
+          "label": "按类型统计用量",
+          "description": "按类别分组的 Token 用量。"
+        },
+        "value": { "label": "数值", "description": "分数数值。" }
+      }
+    },
+    "automations": {
+      "empty": "设置 Slack、Webhook 和 GitHub Actions 自动化以接收告警",
+      "automation": "自动化",
+      "newAutomation": "新建自动化",
+      "webhook": "Webhook",
+      "slack": "Slack",
+      "githubDispatch": "GitHub Dispatch",
+      "secretCreated": "Webhook 密钥已创建",
+      "secretDescription": "请复制下方的 Webhook 密钥，它只会显示一次。",
+      "savedSecret": "我已保存密钥",
+      "dialogDescription": "此自动化可供项目中的所有告警使用。"
+    },
+    "chart": {
+      "title": "实时预览",
+      "warning": "警告",
+      "alert": "告警"
+    },
+    "labels": {
+      "views": {
+        "observations": "观测",
+        "scoresNumeric": "分数（数值型）",
+        "scoresBoolean": "分数（布尔型）",
+        "scoresCategorical": "分数（分类型）"
+      },
+      "operators": {
+        "gt": "高于",
+        "gte": "高于或等于",
+        "lt": "低于",
+        "lte": "低于或等于",
+        "eq": "等于",
+        "neq": "不等于"
+      },
+      "windows": {
+        "fiveMinutes": "5 分钟",
+        "tenMinutes": "10 分钟",
+        "fifteenMinutes": "15 分钟",
+        "thirtyMinutes": "30 分钟",
+        "oneHour": "1 小时",
+        "twoHours": "2 小时",
+        "fourHours": "4 小时",
+        "oneDay": "1 天",
+        "twoDays": "2 天",
+        "oneWeek": "1 周"
+      },
+      "proseWindows": {
+        "oneHour": "1 小时",
+        "oneDay": "1 天",
+        "oneWeek": "1 周"
+      },
+      "aggregations": {
+        "sum": "总和",
+        "avg": "平均值",
+        "count": "数量",
+        "max": "最大值",
+        "min": "最小值",
+        "p50": "p50",
+        "p75": "p75",
+        "p90": "p90",
+        "p95": "p95",
+        "p99": "p99",
+        "histogram": "直方图",
+        "uniq": "唯一值数量"
+      },
+      "metricSubject": "{view}{measure}",
+      "metricDescription": "{subject}的{aggregation}",
+      "namePlaceholder": "{metric}{operator}{value}",
+      "chartSubtitle": "{metric}，每{window}统计一次",
+      "severity": {
+        "unknown": "等待中",
+        "noData": "无数据",
+        "paused": "已暂停",
+        "ok": "正常",
+        "warning": "警告",
+        "alert": "告警"
+      }
+    }
+  }
+}

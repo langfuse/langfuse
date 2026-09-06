@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
+import { useTranslations } from "next-intl";
 
 type ModernSessionSaveViewDialogContentProps = {
   isSaving: boolean;
@@ -20,13 +21,14 @@ export function ModernSessionSaveViewDialogContent({
   onCancel,
   onSave,
 }: ModernSessionSaveViewDialogContentProps) {
+  const t = useTranslations("sessions.views");
   const [viewName, setViewName] = useState("");
   const saveView = () => onSave(viewName.trim());
 
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>Save as new view</DialogTitle>
+        <DialogTitle>{t("saveTitle")}</DialogTitle>
       </DialogHeader>
       <DialogBody>
         <div>
@@ -34,13 +36,13 @@ export function ModernSessionSaveViewDialogContent({
             htmlFor="modern-session-view-name"
             className="mb-2 block text-sm font-bold"
           >
-            View name
+            {t("viewName")}
           </label>
           <Input
             id="modern-session-view-name"
             value={viewName}
             onChange={(event) => setViewName(event.target.value)}
-            placeholder="Name this view"
+            placeholder={t("namePlaceholder")}
             autoFocus
             onKeyDown={(event) => {
               if (event.key === "Enter" && viewName.trim() && !isSaving) {
@@ -52,14 +54,14 @@ export function ModernSessionSaveViewDialogContent({
       </DialogBody>
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
-          Cancel
+          {t("cancel")}
         </Button>
         <Button
           loading={isSaving}
           disabled={!viewName.trim()}
           onClick={saveView}
         >
-          Save view
+          {t("save")}
         </Button>
       </DialogFooter>
     </DialogContent>

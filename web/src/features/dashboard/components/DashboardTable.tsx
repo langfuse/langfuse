@@ -27,6 +27,8 @@ import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
+import { getManagedDashboardMessageKey } from "@/src/features/dashboard/lib/managed-dashboard-localization";
 
 type DashboardTableRow = {
   id: string;
@@ -35,6 +37,7 @@ type DashboardTableRow = {
   createdAt: Date;
   updatedAt: Date;
   owner: "PROJECT" | "LANGFUSE";
+  rawName?: string;
 };
 
 function CloneDashboardButton({
@@ -46,6 +49,7 @@ function CloneDashboardButton({
   projectId: string;
   owner: DashboardTableRow["owner"];
 }) {
+  const t = useTranslations("systemUi.dashboardExtras");
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
   const capture = usePostHogClientCapture();
@@ -59,12 +63,12 @@ function CloneDashboardButton({
         owner,
       });
       showSuccessToast({
-        title: "Dashboard cloned",
-        description: "The dashboard has been cloned successfully",
+        title: t("dashboardCloned"),
+        description: t("dashboardClonedDescription"),
       });
     },
     onError: (e) => {
-      showErrorToast("Failed to clone dashboard", e.message);
+      showErrorToast(t("cloneFailed"), e.message);
     },
   });
 
@@ -88,7 +92,7 @@ function CloneDashboardButton({
       onClick={handleCloneDashboard}
     >
       <Copy className="mr-2 h-4 w-4" />
-      Clone
+      {t("clone")}
     </Button>
   );
 }
@@ -104,6 +108,7 @@ function EditDashboardButton({
   dashboardName: string;
   dashboardDescription: string;
 }) {
+  const t = useTranslations("systemUi.dashboardExtras");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
 
@@ -116,7 +121,7 @@ function EditDashboardButton({
         onClick={() => setIsDialogOpen(true)}
       >
         <Edit className="mr-2 h-4 w-4" />
-        Edit
+        {t("edit")}
       </Button>
 
       <EditDashboardDialog
@@ -135,11 +140,14 @@ function LockedEditDashboardButton({
   dashboardId,
   projectId,
   dashboardName,
+  dashboardDisplayName,
 }: {
   dashboardId: string;
   projectId: string;
   dashboardName: string;
+  dashboardDisplayName: string;
 }) {
+  const t = useTranslations("systemUi.dashboardExtras");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
   const capture = usePostHogClientCapture();
@@ -160,7 +168,7 @@ function LockedEditDashboardButton({
         }}
       >
         <Edit className="mr-2 h-4 w-4" />
-        Edit
+        {t("edit")}
       </Button>
 
       <CloneFirstDialog
@@ -169,15 +177,32 @@ function LockedEditDashboardButton({
         projectId={projectId}
         dashboardId={dashboardId}
         dashboardName={dashboardName}
+        dashboardDisplayName={dashboardDisplayName}
       />
     </>
   );
 }
 
 export function DashboardTable() {
+  const t = useTranslations("systemUi.dashboardExtras");
   const projectId = useProjectIdFromURL() as string;
   const { setDetailPageList } = useDetailPageLists();
   const router = useRouter();
+  const localizeManagedDashboard = (
+    dashboard: DashboardTableRow,
+  ): DashboardTableRow => {
+    if (dashboard.owner !== "LANGFUSE") return dashboard;
+
+    const messageKey = getManagedDashboardMessageKey(dashboard);
+    if (!messageKey) return dashboard;
+
+    return {
+      ...dashboard,
+      rawName: dashboard.name,
+      name: t(`managedDashboards.${messageKey}.name`),
+      description: t(`managedDashboards.${messageKey}.description`),
+    };
+  };
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -219,7 +244,7 @@ export function DashboardTable() {
   const dashboardColumns = [
     createLinkTableColumn<DashboardTableRow>({
       accessorKey: "name",
-      header: "Name",
+      header: t("name"),
       enableSorting: true,
       size: 200,
       getCell: (name, { row }) => {
@@ -238,12 +263,12 @@ export function DashboardTable() {
     }),
     createTextTableColumn<DashboardTableRow>({
       accessorKey: "description",
-      header: "Description",
+      header: t("description"),
       size: 300,
     }),
     columnHelper.display({
       id: "ownerTag",
-      header: "Owner",
+      header: t("owner"),
       size: 80,
       cell: (row) => {
         return row.row.original.owner === "LANGFUSE" ? (
@@ -255,30 +280,31 @@ export function DashboardTable() {
           </span>
         ) : (
           <span className="flex gap-1 px-2 py-0.5 text-xs">
-            <UserIcon className="h-3 w-3" /> Project
+            <UserIcon className="h-3 w-3" /> {t("project")}
           </span>
         );
       },
     }),
     createDateTableColumn<DashboardTableRow>({
       accessorKey: "createdAt",
-      header: "Created At",
+      header: t("createdAt"),
       enableSorting: true,
       size: 150,
     }),
     createDateTableColumn<DashboardTableRow>({
       accessorKey: "updatedAt",
-      header: "Updated At",
+      header: t("updatedAt"),
       enableSorting: true,
       size: 150,
     }),
     columnHelper.display({
       id: "actions",
-      header: "Actions",
+      header: t("actions"),
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
         const name = row.row.original.name;
+        const rawName = row.row.original.rawName ?? name;
         const description = row.row.original.description;
         const owner = row.row.original.owner;
         return (
@@ -304,7 +330,8 @@ export function DashboardTable() {
                     <LockedEditDashboardButton
                       dashboardId={id}
                       projectId={projectId}
-                      dashboardName={name}
+                      dashboardName={rawName}
+                      dashboardDisplayName={name}
                     />
                   </DropdownMenuItem>
                 )}
@@ -348,7 +375,9 @@ export function DashboardTable() {
             : {
                 isLoading: false,
                 isError: false,
-                data: safeExtract(dashboards.data, "dashboards", []),
+                data: safeExtract(dashboards.data, "dashboards", []).map(
+                  localizeManagedDashboard,
+                ),
               }
       }
       orderBy={orderByState}

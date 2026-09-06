@@ -4,6 +4,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
+import { useTranslations } from "next-intl";
 
 type CreateDatasetTarget =
   | { type: "root" }
@@ -23,10 +24,11 @@ export function CreateDatasetDialogContent({
   target,
   onFormSuccess,
 }: CreateDatasetDialogContentProps) {
+  const t = useTranslations("coreDetails.datasets.dialogs");
   return (
     <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
       <DialogHeader>
-        <DialogTitle>Create new dataset</DialogTitle>
+        <DialogTitle>{t("createDataset")}</DialogTitle>
       </DialogHeader>
       <DatasetForm
         mode="create"

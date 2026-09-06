@@ -9,12 +9,14 @@ import {
   clearAllPlaygroundData,
 } from "../storage/windowStorage";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 /**
  * Hook to persist window IDs across page refreshes.
  * Manages the list of active playground windows by orchestrating with storage utilities.
  */
 export function usePersistedWindowIds() {
+  const t = useTranslations("playgroundDashboard.playground.page");
   const [windowIds, setWindowIds] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -44,14 +46,14 @@ export function usePersistedWindowIds() {
       }
       if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
         toast.error(
-          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+          t("maximumWindows", { count: MULTI_WINDOW_CONFIG.MAX_WINDOWS }),
         );
         return null;
       }
       setWindowIds((prev) => [...prev, windowId]);
       return windowId;
     },
-    [windowIds],
+    [t, windowIds],
   );
 
   /**
@@ -63,7 +65,7 @@ export function usePersistedWindowIds() {
     (sourceWindowId?: string) => {
       if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
         toast.error(
-          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+          t("maximumWindows", { count: MULTI_WINDOW_CONFIG.MAX_WINDOWS }),
         );
         return null;
       }
@@ -78,7 +80,7 @@ export function usePersistedWindowIds() {
       setWindowIds((prev) => [...prev, newWindowId]);
       return newWindowId;
     },
-    [windowIds],
+    [t, windowIds],
   );
 
   /**
@@ -88,14 +90,14 @@ export function usePersistedWindowIds() {
   const removeWindowId = useCallback(
     (windowId: string) => {
       if (windowIds.length <= 1) {
-        toast.error("Cannot remove the last remaining window");
+        toast.error(t("cannotRemoveLastWindow"));
         return;
       }
 
       removeWindowState(windowId);
       setWindowIds((prev) => prev.filter((id) => id !== windowId));
     },
-    [windowIds.length],
+    [t, windowIds.length],
   );
 
   /**

@@ -1,0 +1,161 @@
+{
+  "list": {
+    "title": "LLM 连接",
+    "description": "连接你的 LLM 服务，以启用评估和调试台功能。提供商将根据用量收费。",
+    "accessDeniedTitle": "无权访问",
+    "accessDeniedDescription": "你没有查看此项目 LLM API 密钥的权限。",
+    "columns": {
+      "provider": "提供商",
+      "adapter": "适配器",
+      "baseUrl": "基础 URL",
+      "apiKey": "API 密钥",
+      "extraHeaders": "额外请求头"
+    },
+    "none": "无",
+    "defaultBaseUrl": "默认",
+    "delete": {
+      "title": "删除 LLM 连接",
+      "description": "确定要删除此连接吗？此操作无法撤销。",
+      "confirm": "永久删除"
+    }
+  },
+  "dialog": {
+    "add": "添加 LLM 连接",
+    "createTitle": "新建 LLM 连接",
+    "updateTitle": "更新 LLM 连接"
+  },
+  "validation": {
+    "providerRequired": "请输入用于标识此连接的提供商名称。",
+    "providerNoColons": "提供商名称不能包含冒号。请改用类似“OpenRouter_Mistral”的格式。",
+    "invalidUrl": "请输入有效的 URL。",
+    "customModelNameRequired": "请输入自定义模型名称。",
+    "headerNameRequired": "请输入请求头名称。",
+    "headerValueRequired": "请输入请求头值。",
+    "awsRegionRequired": "请输入 AWS 区域。",
+    "awsAccessKeyRequired": "请输入 AWS Access Key ID。",
+    "awsSecretAccessKeyRequired": "请输入 AWS Secret Access Key。",
+    "bedrockApiKeyRequired": "请输入 Bedrock API 密钥。",
+    "customModelRequired": "此适配器至少需要一个自定义模型。",
+    "customModelRequiredWithoutDefaults": "禁用默认模型时，至少需要一个自定义模型名称。",
+    "vertexServiceAccountRequired": "Vertex AI 需要 GCP 服务账号 JSON 密钥。",
+    "vertexCredentialsRequired": "需要 GCP 服务账号 JSON 密钥或应用默认凭据。",
+    "secretKeyRequired": "请输入密钥。",
+    "azureBaseUrlRequired": "Azure 连接需要 API 基础 URL。",
+    "providerExists": "此提供商已存在 API 密钥。",
+    "verifyFailed": "无法验证 API 密钥。"
+  },
+  "form": {
+    "adapter": {
+      "label": "LLM 适配器",
+      "description": "此提供商端点接受的请求结构。",
+      "placeholder": "选择 LLM 提供商",
+      "otherModel": "其他模型",
+      "otherModelDescription": "只要模型提供商支持列表中的任一适配器，就可以将其用作 LLM 连接。许多提供商支持 OpenAI API 结构，例如 Z.ai、OpenRouter、Qwen、Mistral 和 Hugging Face 等。将 API 基础 URL 替换为模型端点，然后添加提供商的自定义模型名称和 API 密钥即可。",
+      "learnMore": "了解支持的提供商",
+      "select": "选择适配器"
+    },
+    "provider": {
+      "label": "提供商名称",
+      "description": "用于在 Langfuse 中标识此连接的键，不能包含冒号。",
+      "placeholder": "例如 {adapter}"
+    },
+    "customModels": {
+      "label": "自定义模型",
+      "description": "指定端点接受的自定义模型名称。",
+      "azureDescription": "对于 Azure，模型名称应与 Azure 中的部署名称一致。用于评估时，请选择支持函数调用的模型。",
+      "bedrockDescription": "对于 Bedrock，模型名称是 Bedrock 推理配置文件 ID，例如“eu.anthropic.claude-sonnet-4-6”。",
+      "placeholder": "自定义模型名称 {number}",
+      "add": "添加自定义模型名称"
+    },
+    "extraHeaders": {
+      "label": "额外请求头",
+      "cloudDescription": "随 LLM 提供商请求发送的可选额外 HTTP 请求头。所有请求头值都会加密存储在我们的服务器上。",
+      "selfHostedDescription": "随 LLM 提供商请求发送的可选额外 HTTP 请求头。所有请求头值都会加密存储在你的数据库中。",
+      "namePlaceholder": "请求头名称",
+      "valuePlaceholder": "请求头值",
+      "add": "添加请求头"
+    },
+    "authentication": {
+      "label": "身份验证方式",
+      "description": "选择 Langfuse 向 Bedrock 进行身份验证的方式。",
+      "accessKeys": "AWS 访问密钥",
+      "apiKey": "API 密钥"
+    },
+    "aws": {
+      "region": "AWS 区域",
+      "current": "当前值：",
+      "regionPlaceholder": "例如 us-east-1",
+      "bedrockApiKey": "Bedrock API 密钥",
+      "bedrockApiKeyCreateDescription": "使用<link>Amazon Bedrock API 密钥</link>。",
+      "bedrockApiKeyUpdateDescription": "使用<link>Amazon Bedrock API 密钥</link>替换当前身份验证。",
+      "bedrockPreservedPlaceholder": "{secret}（除非替换，否则保留）",
+      "enterBedrockApiKey": "输入 Bedrock API 密钥",
+      "accessKeyId": "AWS Access Key ID",
+      "secretAccessKey": "AWS Secret Access Key",
+      "optional": "可选",
+      "keepExistingDescription": "留空可保留现有凭据。若要更新，请同时提供 Access Key ID 和 Secret Access Key。",
+      "provideBothDescription": "请同时提供 Access Key ID 和 Secret Access Key。",
+      "cloudAccessKeysDescription": "应使用拥有 `bedrock:InvokeModel` 权限的 AWS 用户长期凭据。",
+      "selfHostedAccessKeysDescription": "在自托管部署中，AWS 凭据为可选项。省略时，身份验证将使用 AWS SDK 默认凭据提供程序链。",
+      "usingDefaultCredentials": "正在使用默认 AWS 凭据",
+      "existingCredentialsPlaceholder": "••••••••（留空则保留现有凭据）",
+      "preservedIfEmptyPlaceholder": "{secret}（留空则保留）",
+      "enterAccessKeyId": "输入 AWS Access Key ID",
+      "enterSecretAccessKey": "输入 AWS Secret Access Key",
+      "defaultChainTitle": "默认凭据提供程序链：",
+      "defaultChainDescription": "省略 AWS 凭据时，系统会按以下顺序自动查找凭据：",
+      "environmentVariables": "环境变量（AWS_ACCESS_KEY_ID、AWS_SECRET_ACCESS_KEY）",
+      "credentialsFile": "AWS 凭据文件（~/.aws/credentials）",
+      "ec2Roles": "EC2 实例的 IAM 角色",
+      "ecsRoles": "ECS 任务的 IAM 角色",
+      "learnMore": "了解 AWS 凭据提供程序 →"
+    },
+    "vertex": {
+      "useAdc": "使用应用默认凭据（ADC）",
+      "useAdcDescription": "启用后，身份验证将使用 GCP 环境的默认凭据，而不是服务账号密钥。",
+      "serviceAccountKey": "GCP 服务账号密钥（JSON）",
+      "cloudStorageDescription": "你的 API 密钥会加密存储在我们的服务器上。",
+      "selfHostedStorageDescription": "你的 API 密钥会加密存储在你的数据库中。",
+      "serviceAccountDescription": "在此粘贴 GCP 服务账号 JSON 密钥。服务账号必须具有 `Vertex AI User` 角色权限。JSON 示例：",
+      "adcTitle": "应用默认凭据（ADC）：",
+      "adcDescription": "启用后，系统会按以下顺序自动查找凭据：",
+      "environmentVariable": "环境变量（GOOGLE_APPLICATION_CREDENTIALS）",
+      "gcloudCredentials": "gcloud CLI 凭据（gcloud auth application-default login）",
+      "gkeIdentity": "GKE Workload Identity",
+      "cloudRunServiceAccount": "Cloud Run 服务账号",
+      "gceServiceAccount": "GCE 实例服务账号（元数据服务）",
+      "learnMore": "了解 GCP 应用默认凭据 →"
+    },
+    "apiKey": {
+      "label": "API 密钥",
+      "cloudStorageDescription": "你的 API 密钥会加密存储在我们的服务器上。",
+      "selfHostedStorageDescription": "你的 API 密钥会加密存储在你的数据库中。"
+    },
+    "baseUrl": {
+      "label": "API 基础 URL",
+      "azureDescription": "请按以下格式（或兼容 API）添加基础 URL：{format}",
+      "defaultDescription": "留空将使用所选 LLM 适配器的默认基础 URL。",
+      "openAiDefault": "OpenAI 默认值：https://api.openai.com/v1",
+      "anthropicDefault": "Anthropic 默认值：https://api.anthropic.com（不含 /v1/messages）",
+      "defaultPlaceholder": "默认"
+    },
+    "advanced": {
+      "show": "显示高级设置",
+      "hide": "隐藏高级设置"
+    },
+    "vertexLocation": {
+      "label": "区域（可选）",
+      "description": "Google Cloud 区域（例如 global、us-central1、europe-west4）。Gemini 3 模型要求默认使用 <global>global</global>。"
+    },
+    "responsesApi": {
+      "label": "使用 Responses API",
+      "description": "通过 Responses API 而不是 Chat Completions 发送 OpenAI 请求。"
+    },
+    "defaultModels": {
+      "label": "启用默认模型",
+      "description": "所选适配器的默认模型将在 Langfuse 功能中可用。"
+    },
+    "create": "创建连接",
+    "save": "保存更改"
+  }
+}

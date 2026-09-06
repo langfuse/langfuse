@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 /**
  * Full-text search input for the mobile Filters sheet, used when the grammar
@@ -34,6 +35,7 @@ export function MobileFullTextSearch({
   tableName?: string;
   isV4?: boolean;
 }) {
+  const t = useTranslations("sharedUi.table.toolbar");
   const capture = usePostHogClientCapture();
   const committed = currentQuery ?? "";
   const [draft, setDraft] = useState(committed);
@@ -61,8 +63,10 @@ export function MobileFullTextSearch({
       size="large"
       placeholder={
         tableAllowsFullTextSearch
-          ? "Search…"
-          : `Search (${metadataSearchFields?.join(", ") ?? ""})`
+          ? t("search")
+          : t("searchFields", {
+              fields: metadataSearchFields?.join(", ") ?? "",
+            })
       }
       value={draft}
       onChange={(next) => {

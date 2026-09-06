@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "noAccess": "You do not have access to this resource. Ask your administrator to grant access.",
+    "notInPlan": "This feature is not available in your current plan.",
+    "limitReached": "You have reached the limit ({current}/{max}) for this resource on your current plan. Upgrade your plan to increase the limit."
+  },
+  "delete": {
+    "action": "Delete",
+    "noPermission": "You don't have permission to delete this {entity}.",
+    "confirm": "Please confirm",
+    "defaultDescription": "This action cannot be undone. It removes all data associated with this {entity}. If this is the project default, it will be deleted for all users.",
+    "typeToConfirm": "Type \"{value}\" to confirm",
+    "incorrectConfirmation": "Please type the correct confirmation",
+    "deleteEntity": "Delete {entity}",
+    "entities": {
+      "trace": "trace",
+      "dataset": "dataset",
+      "dashboard": "dashboard",
+      "alert": "alert",
+      "runningEvaluator": "running evaluator",
+      "defaultEvaluationModel": "default evaluation model"
+    },
+    "traceDeleted": "Trace deleted",
+    "traceDeletedDescription": "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
+    "dashboardDeleted": "Dashboard deleted",
+    "dashboardDeletedDescription": "The dashboard has been deleted successfully.",
+    "alertDeleted": "Alert deleted",
+    "alertDeletedDescription": "The alert has been deleted successfully.",
+    "alertDescription": "This action cannot be undone. It stops all evaluations and removes its alert history.",
+    "evaluatorDeleted": "Running evaluator deleted",
+    "evaluatorDeletedDescription": "The running evaluator has been deleted successfully.",
+    "evaluatorDescription": "This action cannot be undone and removes all logs associated with this running evaluator. Scores produced by this evaluator will not be deleted.",
+    "modelDeleted": "Default evaluation model deleted",
+    "modelDeletedDescription": "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
+    "modelDescription": "Deleting this model might cause running evaluators to fail. Make sure no running evaluators rely on this model."
+  },
+  "export": {
+    "queued": "Export queued",
+    "emailNotice": "You will receive an email when the export is ready.",
+    "viewExports": "View exports",
+    "action": "Export",
+    "asFormat": "as {format}",
+    "warnings": {
+      "traces": "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.",
+      "observations": "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.",
+      "events": "Note: Filters on Comments are not included in event exports. You may receive more data than expected.",
+      "sessions": "Note: Filters on Comments are not included in session exports. You may receive more data than expected.",
+      "auditLogs": "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported."
+    }
+  }
+}

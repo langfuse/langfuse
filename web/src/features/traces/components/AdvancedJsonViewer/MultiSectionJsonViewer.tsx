@@ -28,6 +28,7 @@ import { SectionContextProvider } from "./contexts/SectionContext";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type CommentedPathsByField } from "./utils/commentRanges";
+import { useTranslations } from "next-intl";
 
 export interface MultiSectionJsonViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -117,6 +118,7 @@ export const MultiSectionJsonViewer = forwardRef<
   },
   ref,
 ) {
+  const t = useTranslations("coreDetails.traces.jsonViewer");
   // Ref for child viewer (either virtualized or simple)
   const viewerRef = useRef<
     VirtualizedMultiSectionViewerHandle | SimpleMultiSectionViewerHandle
@@ -232,7 +234,7 @@ export const MultiSectionJsonViewer = forwardRef<
   );
 
   if (!tree) {
-    return <div className={className}>Building tree...</div>;
+    return <div className={className}>{t("buildingTree")}</div>;
   }
 
   return (

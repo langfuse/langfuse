@@ -42,6 +42,7 @@ import {
   TimeSeriesLegend,
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { useLocale } from "next-intl";
 
 /** computeMetricExtent returns the [min, max] of all numeric metric values across the data, for sizing the eq/neq band. */
 const computeMetricExtent = (
@@ -207,6 +208,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   connectNulls = false,
   hideXAxisLabels = false,
 }) => {
+  const locale = useLocale();
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
 
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
@@ -241,9 +243,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
-        { hideCategoryTickLabels: hideXAxisLabels },
+        { hideCategoryTickLabels: hideXAxisLabels, locale },
       ),
-    [groupedData, maxTicks, hideXAxisLabels],
+    [groupedData, maxTicks, hideXAxisLabels, locale],
   );
 
   const {

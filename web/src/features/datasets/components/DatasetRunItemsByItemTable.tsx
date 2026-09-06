@@ -22,12 +22,14 @@ import {
   TraceObservationIOCell,
 } from "@/src/features/datasets/components/DatasetIOCells";
 import { type DatasetRunItemByItemRowData } from "@/src/features/datasets/lib/types";
+import { useTranslations } from "next-intl";
 
 export function DatasetRunItemsByItemTable(props: {
   projectId: string;
   datasetId: string;
   datasetItemId: string;
 }) {
+  const t = useTranslations("coreDetails.datasets.tables");
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -67,7 +69,7 @@ export function DatasetRunItemsByItemTable(props: {
   const columns: LangfuseColumnDef<DatasetRunItemByItemRowData>[] = [
     {
       accessorKey: "datasetRunName",
-      header: "Run Name",
+      header: t("runName"),
       id: "datasetRunName",
       size: 150,
       isPinnedLeft: true,
@@ -79,12 +81,12 @@ export function DatasetRunItemsByItemTable(props: {
     },
     createDateTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "runAt",
-      header: "Run At",
+      header: t("runAt"),
       size: 150,
     }),
     {
       accessorKey: "input",
-      header: "Trace Input",
+      header: t("traceInput"),
       id: "input",
       size: 200,
       enableHiding: true,
@@ -108,7 +110,7 @@ export function DatasetRunItemsByItemTable(props: {
     },
     {
       accessorKey: "output",
-      header: "Trace Output",
+      header: t("traceOutput"),
       id: "output",
       size: 200,
       enableHiding: true,
@@ -132,7 +134,7 @@ export function DatasetRunItemsByItemTable(props: {
     },
     {
       accessorKey: "expectedOutput",
-      header: "Expected Output",
+      header: t("expectedOutput"),
       id: "expectedOutput",
       size: 200,
       enableHiding: true,
@@ -152,7 +154,7 @@ export function DatasetRunItemsByItemTable(props: {
       DatasetRunItemByItemRowData["trace"]
     >({
       accessorKey: "trace",
-      header: "Trace",
+      header: t("trace"),
       size: 60,
       getCell: (trace) => {
         if (!trace) return undefined;
@@ -161,7 +163,10 @@ export function DatasetRunItemsByItemTable(props: {
             type: "link",
             props: {
               path: `/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`,
-              value: `Trace: ${trace.traceId}, Observation: ${trace.observationId}`,
+              value: t("traceAndObservation", {
+                trace: trace.traceId,
+                observation: trace.observationId,
+              }),
               icon: ListTree,
             },
           };
@@ -170,7 +175,7 @@ export function DatasetRunItemsByItemTable(props: {
           type: "link",
           props: {
             path: `/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}`,
-            value: `Trace: ${trace.traceId}`,
+            value: t("traceValue", { trace: trace.traceId }),
             icon: ListTree,
           },
         };
@@ -178,7 +183,7 @@ export function DatasetRunItemsByItemTable(props: {
     }),
     {
       accessorKey: "latency",
-      header: "Latency",
+      header: t("latency"),
       id: "latency",
       size: 70,
       enableHiding: true,
@@ -190,7 +195,7 @@ export function DatasetRunItemsByItemTable(props: {
     },
     {
       accessorKey: "totalCost",
-      header: "Cost",
+      header: t("cost"),
       id: "totalCost",
       size: 60,
       enableHiding: true,
@@ -202,7 +207,7 @@ export function DatasetRunItemsByItemTable(props: {
     },
     {
       accessorKey: "scores",
-      header: "Scores",
+      header: t("scores"),
       id: "scores",
       enableHiding: true,
       defaultHidden: true,

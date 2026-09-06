@@ -6,8 +6,10 @@ import {
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { renderLevelIcon } from "@/src/components/level-colors";
 
+export type EventsTableColumnId = (typeof eventsTableCols)[number]["id"];
+
 // Helper function to get column name from eventsTableCols by ID
-export const getEventsColumnName = (id: string): string => {
+export const getEventsColumnName = (id: EventsTableColumnId): string => {
   const column = eventsTableCols.find((col) => col.id === id);
   if (!column) {
     throw new Error(`Column ${id} not found in eventsTableCols`);
@@ -334,6 +336,38 @@ export const observationEventsFilterConfig: FilterConfig = {
 
 export function getObservationEventsFilterConfig(
   omittedFilter: ObservationEventsOmittableFilterColumn[] = [],
+  localization?: {
+    getColumnName: (id: EventsTableColumnId) => string;
+    rootObservationTooltip: string;
+    observationTypesDescription: string;
+  },
 ): FilterConfig {
-  return omitFilterFacets(observationEventsFilterConfig, omittedFilter);
+  const config = localization
+    ? {
+        ...observationEventsFilterConfig,
+        columnDefinitions: eventsTableCols.map((column) => ({
+          ...column,
+          name: localization.getColumnName(column.id),
+        })),
+        facets: observationEventsFilterConfig.facets.map((facet) => ({
+          ...facet,
+          label: localization.getColumnName(
+            facet.column as EventsTableColumnId,
+          ),
+          ...(facet.column === "isRootObservation"
+            ? { tooltip: localization.rootObservationTooltip }
+            : {}),
+          ...(facet.column === "type" && facet.help
+            ? {
+                help: {
+                  ...facet.help,
+                  description: localization.observationTypesDescription,
+                },
+              }
+            : {}),
+        })),
+      }
+    : observationEventsFilterConfig;
+
+  return omitFilterFacets(config, omittedFilter);
 }

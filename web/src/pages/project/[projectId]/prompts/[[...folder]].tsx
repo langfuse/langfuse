@@ -22,8 +22,10 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export default function PromptsWithFolder() {
+  const t = useTranslations("coreDetails.prompts.page");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const routeSegments = router.query.folder;
@@ -76,7 +78,7 @@ export default function PromptsWithFolder() {
       URL.revokeObjectURL(url);
       capture("prompts:bulk_export", { mode });
     } catch {
-      toast.error("Failed to export prompts. Please try again.");
+      toast.error(t("exportFailed"));
     } finally {
       setIsExporting(false);
     }
@@ -120,10 +122,9 @@ export default function PromptsWithFolder() {
   return (
     <Page
       headerProps={{
-        title: "Prompts",
+        title: t("title"),
         help: {
-          description:
-            "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+          description: t("description"),
           href: "https://langfuse.com/docs/prompt-management/get-started",
         },
         actionButtonsRight: (
@@ -134,15 +135,15 @@ export default function PromptsWithFolder() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" disabled={isExporting}>
                     <UploadIcon className="mr-1 h-4 w-4" />
-                    {isExporting ? "Exporting…" : "Export"}
+                    {isExporting ? t("exporting") : t("export")}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => handleExport("latest")}>
-                    Latest version per prompt
+                    {t("latestVersion")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport("all")}>
-                    All versions
+                    {t("allVersions")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -157,7 +158,7 @@ export default function PromptsWithFolder() {
                     onClick={openDialog}
                   >
                     <Download className="mr-1 h-4 w-4" />
-                    Import
+                    {t("import")}
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
@@ -177,7 +178,7 @@ export default function PromptsWithFolder() {
                   : undefined
               }
             >
-              New prompt
+              {t("newPrompt")}
             </ActionButton>
           </>
         ),

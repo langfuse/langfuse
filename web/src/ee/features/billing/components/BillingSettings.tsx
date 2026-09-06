@@ -15,8 +15,10 @@ import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/Bill
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
+import { useTranslations } from "next-intl";
 
 export const BillingSettings = () => {
+  const t = useTranslations("settingsEnterprise.billing.settings");
   const router = useRouter();
   const orgId = router.query.organizationId as string | undefined;
   const hasAccess = useHasOrganizationAccess({
@@ -42,11 +44,8 @@ export const BillingSettings = () => {
   if (!hasAccess) {
     return (
       <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
-          You do not have permission to view the billing settings of this
-          organization.
-        </AlertDescription>
+        <AlertTitle>{t("accessDenied")}</AlertTitle>
+        <AlertDescription>{t("accessDeniedDescription")}</AlertDescription>
       </Alert>
     );
   }
@@ -55,7 +54,7 @@ export const BillingSettings = () => {
     <div>
       <BillingScheduleNotification />
 
-      <Header title="Usage & Billing" />
+      <Header title={t("title")} />
       <div className="space-y-6">
         <BillingUsageChart />
         <BillingPlanPeriodView />

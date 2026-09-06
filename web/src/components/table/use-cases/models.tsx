@@ -31,6 +31,7 @@ import { TestModelMatchButton } from "@/src/features/models/components/test-matc
 import { ActionButton } from "@/src/components/ActionButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { useTranslations } from "next-intl";
 
 export type ModelTableRow = {
   modelId: string;
@@ -43,24 +44,8 @@ export type ModelTableRow = {
   serverResponse: GetModelResult;
 };
 
-const modelConfigDescriptions = {
-  modelName:
-    "Standardized model name. Generations are assigned to this model name if they match the `matchPattern` upon ingestion.",
-  matchPattern:
-    "Regex pattern to match `model` parameter of generations to model pricing",
-  startDate:
-    "Date to start pricing model. If not set, model is active unless a more recent version exists.",
-  prices: "Prices per usage type",
-  tokenizerId:
-    "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
-  config:
-    "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
-  maintainer:
-    "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
-  lastUsed: "Start time of the latest generation using this model",
-} as const;
-
 export default function ModelTable({ projectId }: { projectId: string }) {
+  const t = useTranslations("settingsEnterprise.models");
   const router = useRouter();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -109,9 +94,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "modelName",
       id: "modelName",
-      header: "Model Name",
+      header: t("common.modelName"),
       headerTooltip: {
-        description: modelConfigDescriptions.modelName,
+        description: t("table.nameDescription"),
       },
       cell: ({ row }) => {
         return (
@@ -128,9 +113,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "maintainer",
       id: "maintainer",
-      header: "Maintainer",
+      header: t("common.maintainer"),
       headerTooltip: {
-        description: modelConfigDescriptions.maintainer,
+        description: t("table.maintainerDescription"),
       },
       size: 60,
       cell: ({ row }) => {
@@ -146,7 +131,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 )}
               </TooltipTrigger>
               <TooltipContent>
-                {isLangfuse ? "Langfuse maintained" : "User maintained"}
+                {isLangfuse
+                  ? t("table.langfuseMaintained")
+                  : t("table.userMaintained")}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -157,9 +144,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "matchPattern",
       id: "matchPattern",
       headerTooltip: {
-        description: modelConfigDescriptions.matchPattern,
+        description: t("table.patternDescription"),
       },
-      header: "Match Pattern",
+      header: t("common.matchPattern"),
       size: 200,
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
@@ -177,7 +164,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       header: () => {
         return (
           <div className="flex items-center gap-2">
-            <span>Prices {priceUnit}</span>
+            <span>{t("common.priceWithUnit", { unit: priceUnit })}</span>
             <PriceUnitSelector />
           </div>
         );
@@ -200,18 +187,18 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     },
     createTextTableColumn<ModelTableRow>({
       accessorKey: "tokenizerId",
-      header: "Tokenizer",
+      header: t("common.tokenizer"),
       headerTooltip: {
-        description: modelConfigDescriptions.tokenizerId,
+        description: t("table.tokenizerDescription"),
       },
       enableHiding: true,
       size: 120,
     }),
     createIOTableColumn<ModelTableRow>({
       accessorKey: "config",
-      header: "Tokenizer Configuration",
+      header: t("common.tokenizerConfig"),
       headerTooltip: {
-        description: modelConfigDescriptions.config,
+        description: t("table.configDescription"),
       },
       enableHiding: true,
       size: 120,
@@ -221,9 +208,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     createTextTableColumn<ModelTableRow>({
       accessorFn: () => undefined,
       id: "lastUsed",
-      header: "Last used",
+      header: t("table.lastUsed"),
       headerTooltip: {
-        description: modelConfigDescriptions.lastUsed,
+        description: t("table.lastUsedDescription"),
       },
       enableHiding: true,
       size: 120,
@@ -234,7 +221,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     }),
     {
       accessorKey: "actions",
-      header: "Actions",
+      header: t("table.actions"),
       size: 120,
       cell: ({ row }) => {
         return row.original.maintainer !== "Langfuse" ? (
@@ -315,7 +302,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 hasAccess={hasWriteAccess}
                 trackingEventName="models:new_form_open"
               >
-                Add Model Definition
+                {t("actions.add")}
               </ActionButton>
             </UpsertModelFormDialog>
           </>

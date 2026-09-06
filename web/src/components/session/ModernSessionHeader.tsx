@@ -31,6 +31,7 @@ import {
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { useTranslations } from "next-intl";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -139,7 +140,8 @@ const SessionHeaderDetailWithVisibilityControl = ({
     control: HTMLButtonElement,
   ) => void;
 }) => {
-  const action = isHidden ? "Show" : "Hide";
+  const t = useTranslations("coreDetails.sessions.header");
+  const action = isHidden ? t("show") : t("hide");
   return (
     <span
       className={cn(
@@ -150,8 +152,11 @@ const SessionHeaderDetailWithVisibilityControl = ({
       {detail.content}
       <button
         type="button"
-        aria-label={`${action} ${detail.visibilityLabel} in session header`}
-        title={`${action} in session header`}
+        aria-label={t("visibilityAction", {
+          action,
+          detail: detail.visibilityLabel,
+        })}
+        title={t("visibilityActionShort", { action })}
         className="bg-header hover:bg-muted focus-visible:ring-ring absolute right-0 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
         onClick={(event) =>
           onVisibilityChange(detail, !isHidden, location, event.currentTarget)
@@ -203,32 +208,36 @@ const MetadataJsonPathPill = ({
 }: {
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
-}) => (
-  <span className="group flex items-center">
-    <ModernSessionHeaderPill variant="display">
-      <span className="max-w-40 truncate" title={display.path}>
-        {display.label}
-      </span>
-      <span
-        className="text-foreground max-w-56 truncate"
-        title={display.displayValue}
-      >
-        {display.displayValue}
-      </span>
-      <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
-        <button
-          type="button"
-          aria-label={`Remove metadata JSONPath ${display.path}`}
-          title="Remove metadata JSONPath"
-          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-          onClick={() => onRemove(display.path)}
+}) => {
+  const t = useTranslations("coreDetails.sessions.header");
+
+  return (
+    <span className="group flex items-center">
+      <ModernSessionHeaderPill variant="display">
+        <span className="max-w-40 truncate" title={display.path}>
+          {display.label}
+        </span>
+        <span
+          className="text-foreground max-w-56 truncate"
+          title={display.displayValue}
         >
-          <X className="h-3 w-3" />
-        </button>
-      </span>
-    </ModernSessionHeaderPill>
-  </span>
-);
+          {display.displayValue}
+        </span>
+        <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
+          <button
+            type="button"
+            aria-label={t("removeMetadataPath", { path: display.path })}
+            title={t("removeMetadata")}
+            className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+            onClick={() => onRemove(display.path)}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      </ModernSessionHeaderPill>
+    </span>
+  );
+};
 
 const MetadataJsonPathEditorContent = ({
   metadataJsonPaths,
@@ -239,6 +248,7 @@ const MetadataJsonPathEditorContent = ({
   onClose: () => void;
   onSave: (path: string) => void;
 }) => {
+  const t = useTranslations("coreDetails.sessions.header");
   const [draftPath, setDraftPath] = useState("");
   const normalizedDraftPath = draftPath.trim();
   const draftResolution = resolveAgainstSource(
@@ -260,14 +270,12 @@ const MetadataJsonPathEditorContent = ({
   };
 
   return (
-    <PopoverContent
-      align="end"
-      className="w-96"
-      aria-label="Add metadata JSONPath"
-    >
+    <PopoverContent align="end" className="w-96" aria-label={t("addMetadata")}>
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="session-metadata-jsonpath">Metadata JSONPath</Label>
+          <Label htmlFor="session-metadata-jsonpath">
+            {t("metadataJsonPath")}
+          </Label>
           <Input
             id="session-metadata-jsonpath"
             value={draftPath}
@@ -278,52 +286,50 @@ const MetadataJsonPathEditorContent = ({
           />
         </div>
         <div className="bg-muted/40 flex min-h-14 flex-col gap-1 rounded-md border p-2 text-xs">
-          <span className="text-muted-foreground font-bold">Preview</span>
+          <span className="text-muted-foreground font-bold">
+            {t("preview")}
+          </span>
           {normalizedDraftPath.length === 0 ? (
-            <span className="text-muted-foreground">
-              Enter a JSONPath to preview metadata.
-            </span>
+            <span className="text-muted-foreground">{t("enterPath")}</span>
           ) : draftIsDuplicate ? (
-            <span className="text-muted-foreground">
-              This JSONPath is already shown.
-            </span>
+            <span className="text-muted-foreground">{t("duplicatePath")}</span>
           ) : draftResolution.state === "match" ? (
             <span className="font-mono break-all">
               {draftResolution.displayValue}
             </span>
           ) : draftResolution.state === "invalid" ? (
-            <span className="text-destructive">{draftResolution.message}</span>
+            <span className="text-destructive">{t("invalidPath")}</span>
           ) : draftResolution.state === "loading" ||
             draftResolution.state === "idle" ? (
             <span className="text-muted-foreground">
-              Loading first visible observation…
+              {t("loadingObservation")}
             </span>
           ) : draftResolution.state === "error" ? (
             <span className="text-destructive">
-              Could not load the first visible observation.
+              {t("observationLoadFailed")}
             </span>
           ) : draftResolution.state === "empty" ? (
             <span className="text-muted-foreground">
-              No observation matches the current view.
+              {t("noMatchingObservation")}
             </span>
           ) : (
             <span className="text-muted-foreground">
-              No match on the first visible observation.
+              {t("noMetadataMatch")}
             </span>
           )}
           {metadataJsonPaths.source.state === "ready" &&
           metadataJsonPaths.source.metadataTruncated ? (
             <span className="text-amber-600 dark:text-amber-500">
-              Metadata is truncated in this session preview.
+              {t("metadataTruncated")}
             </span>
           ) : null}
         </div>
         <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button type="submit" size="sm" disabled={!draftIsValid}>
-            Save
+            {t("save")}
           </Button>
         </div>
       </form>
@@ -344,6 +350,7 @@ export function ModernSessionHeader({
   metadataJsonPaths,
   scores,
 }: ModernSessionHeaderProps) {
+  const t = useTranslations("coreDetails.sessions.header");
   const capture = usePostHogClientCapture();
   const [rawHiddenDetailKeys, setRawHiddenDetailKeys] =
     useLocalStorage<unknown>(
@@ -399,19 +406,21 @@ export function ModernSessionHeader({
   const pills: SessionHeaderDetail[] = [
     {
       key: "traces",
-      searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
-      visibilityLabel: "trace and span counts",
+      searchText: `${t("tracesSearch")} ${countTraces} ${t("spansSearch")} ${spanCount ?? ""}`,
+      visibilityLabel: t("traceSpanCounts"),
       type: "traces",
       content: (
         <ModernSessionHeaderPill variant="display">
           <span>
-            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue>{" "}
+            {t("traces", { count: countTraces })}
           </span>
           {spanCount !== null ? (
             <>
               <ChipDot />
               <span>
-                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
+                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue>{" "}
+                {t("spans", { count: spanCount })}
               </span>
             </>
           ) : null}
@@ -424,7 +433,7 @@ export function ModernSessionHeader({
     pills.push({
       key: "latency",
       searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
-      visibilityLabel: "latency percentiles",
+      visibilityLabel: t("latencyPercentiles"),
       type: "latency",
       content: (
         <ModernSessionHeaderPill variant="display">
@@ -452,16 +461,16 @@ export function ModernSessionHeader({
     const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
     pills.push({
       key: "tokens",
-      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
-      visibilityLabel: "token usage",
+      searchText: `${t("tokens")} ${tokensIn} ${tokensOut} ${totalTokens}`,
+      visibilityLabel: t("tokenUsage"),
       type: "tokens",
       content: (
         <ModernSessionHeaderPill
           variant="display"
-          title={`tokens ${exactTokenCounts}`}
+          title={`${t("tokens")} ${exactTokenCounts}`}
         >
           <span>
-            tokens{" "}
+            {t("tokens")}{" "}
             <ChipValue>
               {compactTokenFormatter(tokensIn)} →{" "}
               {compactTokenFormatter(tokensOut)} (Σ{" "}
@@ -475,16 +484,16 @@ export function ModernSessionHeader({
 
   pills.push({
     key: "cost",
-    searchText: `cost ${totalCost}`,
-    visibilityLabel: "cost",
+    searchText: `${t("cost")} ${totalCost}`,
+    visibilityLabel: t("cost"),
     type: "cost",
     content: (
       <ModernSessionHeaderPill
         variant="display"
-        title={`exact $${totalCost.toFixed(6)}`}
+        title={t("exactCost", { cost: totalCost.toFixed(6) })}
       >
         <span>
-          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
+          {t("cost")} <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
         </span>
       </ModernSessionHeaderPill>
     ),
@@ -501,7 +510,7 @@ export function ModernSessionHeader({
     pills.push({
       key: sessionHeaderDynamicDetailKey("score", score.id),
       searchText: `score ${score.name} ${value}`,
-      visibilityLabel: `score ${index + 1}`,
+      visibilityLabel: t("scoreNumber", { number: index + 1 }),
       type: "score",
       content: (
         <ModernSessionHeaderPill variant="display" title={score.name}>
@@ -521,12 +530,12 @@ export function ModernSessionHeader({
     pills.push({
       key: "environment",
       searchText: `environment env ${environment}`,
-      visibilityLabel: "environment",
+      visibilityLabel: t("environment"),
       type: "environment",
       content: (
         <ModernSessionHeaderPill variant="display">
           <span>
-            env <ChipValue>{environment}</ChipValue>
+            {t("environmentShort")} <ChipValue>{environment}</ChipValue>
           </span>
         </ModernSessionHeaderPill>
       ),
@@ -537,7 +546,7 @@ export function ModernSessionHeader({
     (user, index): SessionHeaderDetail => ({
       key: sessionHeaderDynamicDetailKey("user", user),
       searchText: `user ${user}`,
-      visibilityLabel: `user ${index + 1}`,
+      visibilityLabel: t("userNumber", { number: index + 1 }),
       type: "user",
       content: <UserChip projectId={projectId} user={user} />,
     }),
@@ -561,7 +570,7 @@ export function ModernSessionHeader({
     pills.push({
       key: sessionHeaderDynamicDetailKey("metadata", path),
       searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
-      visibilityLabel: `metadata ${index + 1}`,
+      visibilityLabel: t("metadataNumber", { number: index + 1 }),
       type: "metadata",
       content: (
         <MetadataJsonPathPill
@@ -641,7 +650,7 @@ export function ModernSessionHeader({
             <PopoverTrigger asChild>
               <ModernSessionHeaderPill
                 variant="button"
-                ariaLabel="Add metadata JSONPath"
+                ariaLabel={t("addMetadata")}
                 ref={metadataEditorButtonRef}
               >
                 <Plus className="h-3 w-3" />
@@ -693,7 +702,9 @@ export function ModernSessionHeader({
               <PopoverTrigger asChild>
                 <ModernSessionHeaderPill
                   variant="button"
-                  ariaLabel={`Show ${overflowItemCount} hidden session details`}
+                  ariaLabel={t("showHiddenDetails", {
+                    count: overflowItemCount,
+                  })}
                   ref={overflowButtonRef}
                 >
                   +{overflowItemCount}
@@ -702,7 +713,7 @@ export function ModernSessionHeader({
               <PopoverContent
                 align="end"
                 className="w-80 p-0"
-                aria-label="All session details"
+                aria-label={t("allDetails")}
               >
                 <div className="relative border-b p-2">
                   <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
@@ -713,14 +724,14 @@ export function ModernSessionHeader({
                       setSearch(event.target.value);
                       setVisibleUserCount(SESSION_USERS_PER_PAGE);
                     }}
-                    placeholder="Search session details"
-                    aria-label="Search session details"
+                    placeholder={t("searchDetails")}
+                    aria-label={t("searchDetails")}
                     className="h-8 pl-8 text-xs"
                   />
                 </div>
                 <div
                   role="region"
-                  aria-label="Session detail results"
+                  aria-label={t("detailResults")}
                   className="flex max-h-72 flex-col items-start gap-2 overflow-y-auto p-2"
                   onScroll={(event) => {
                     const element = event.currentTarget;
@@ -761,7 +772,7 @@ export function ModernSessionHeader({
                     </>
                   ) : (
                     <p className="text-muted-foreground px-2 py-4 text-xs">
-                      No session details found.
+                      {t("noDetails")}
                     </p>
                   )}
                 </div>

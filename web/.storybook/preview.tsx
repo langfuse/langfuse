@@ -2,6 +2,7 @@ import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
 import addonDocs from "@storybook/addon-docs";
 import { DocsContainer } from "@storybook/addon-docs/blocks";
+import { NextIntlClientProvider } from "next-intl";
 import { GLOBALS_UPDATED, SET_GLOBALS } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
 import { themes } from "storybook/theming";
@@ -15,6 +16,9 @@ import { TooltipProvider } from "../src/components/ui/tooltip";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
+import { DEFAULT_LOCALE, DEFAULT_TIME_ZONE } from "../src/features/i18n/config";
+import { getMessages } from "../src/features/i18n/messages";
+import { SharedUiProvider } from "../src/utils/shared-ui-translations";
 import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
@@ -150,20 +154,28 @@ export default definePreview({
   },
   decorators: [
     (Story, context) => (
-      <StorybookThemeProvider
-        fullHeight={context.viewMode !== "docs"}
-        theme={context.globals.theme === "dark" ? "dark" : "light"}
+      <NextIntlClientProvider
+        locale={DEFAULT_LOCALE}
+        messages={getMessages(DEFAULT_LOCALE)}
+        timeZone={DEFAULT_TIME_ZONE}
       >
-        {/* MarkdownContextProvider mirrors the app: pages render inside it so
+        <SharedUiProvider>
+          <StorybookThemeProvider
+            fullHeight={context.viewMode !== "docs"}
+            theme={context.globals.theme === "dark" ? "dark" : "light"}
+          >
+            {/* MarkdownContextProvider mirrors the app: pages render inside it so
               the JSON/IO viewers (CodeJsonViewer's JSONView calls
               useMarkdownContext) work identically to production. Without it,
               multi-line IOTableCell renders (rowHeight m/l) throw. */}
-        <MarkdownContextProvider>
-          <TooltipProvider>
-            <Story />
-          </TooltipProvider>
-        </MarkdownContextProvider>
-      </StorybookThemeProvider>
+            <MarkdownContextProvider>
+              <TooltipProvider>
+                <Story />
+              </TooltipProvider>
+            </MarkdownContextProvider>
+          </StorybookThemeProvider>
+        </SharedUiProvider>
+      </NextIntlClientProvider>
     ),
   ],
   parameters: {

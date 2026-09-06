@@ -1,0 +1,774 @@
+{
+  "versionUpdate": {
+    "message": "Langfuse just got an update",
+    "reload": "Reload",
+    "dismiss": "Dismiss"
+  },
+  "backgroundMigration": {
+    "retryScheduled": "Migration scheduled for retry",
+    "retryFailed": "Failed to retry migration",
+    "apiKeyRequired": "Admin API key is required",
+    "title": "Retry Background Migration",
+    "description": "This action schedules the migration for retry. Restart the worker containers to re-initiate the migration.",
+    "apiKey": "Admin API Key",
+    "apiKeyPlaceholder": "Enter admin API key",
+    "apiKeyHelp": "Required for security. This key must match your ADMIN_API_KEY environment variable",
+    "docs": "Docs",
+    "cancel": "Cancel",
+    "retry": "Retry Migration"
+  },
+  "detailNavigation": {
+    "up": "Navigate up",
+    "down": "Navigate down"
+  },
+  "traceGraph": {
+    "noData": "No graph data available",
+    "label": "Trace agent graph",
+    "layingOut": "Laying out graph...",
+    "largeGraph": "This is a large graph - the tree and timeline stay usable while it finishes.",
+    "layoutFailed": "Could not lay out the graph. Try the tree or timeline view to explore this trace.",
+    "retry": "Retry",
+    "tooLarge": "This graph is too large to lay out",
+    "counts": "({nodes} nodes, {connections} connections)",
+    "tryPrefix": "Try the ",
+    "trySuffix": "tree or timeline view to explore this trace.",
+    "expandedGraph": "expanded graph",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit to view"
+  },
+  "tableActions": {
+    "allMatching": "All matching selected",
+    "selected": "{count} selected",
+    "select": "Select...",
+    "inProgress": "Batch action is in progress, please wait.",
+    "confirm": "Confirm",
+    "selectAll": "Select all",
+    "selectRow": "Select row"
+  },
+  "setupTracing": {
+    "copyFailed": "Failed to copy to clipboard",
+    "copied": "Copied",
+    "copyPrompt": "Copy prompt",
+    "createKeyFailed": "Failed to create API key",
+    "waiting": "Waiting for first trace",
+    "title": "Time to log your first trace, it only takes a minute",
+    "description": "Get your API keys first, then ask your coding agent to add observability with Langfuse to your application.",
+    "createKeys": "Create API keys",
+    "createKeysDescription": "Your application needs API keys to send traces to Langfuse.",
+    "createNewKey": "Create new API key",
+    "manageKeys": "Manage API keys",
+    "agentTitle": "Add tracing with your coding agent",
+    "recommended": "Recommended",
+    "agentDescription": "Paste this prompt into Claude, Cursor, Copilot, or another coding agent.",
+    "manualDocs": "or follow our docs to set up tracing manually",
+    "runApp": "Run your app - traces will appear here",
+    "runAppDescription": "Once your app makes an LLM call, traces show up within seconds.",
+    "configure": "Configure Tracing"
+  },
+  "onboardingSurvey": {
+    "settingUp": "Setting up your project",
+    "takingToTracing": "Taking you to tracing...",
+    "loadFailed": "Failed to load onboarding",
+    "refresh": "Refresh the page to try again.",
+    "referralQuestion": "Where did you hear about us?",
+    "referralPlaceholder": "Colleague, Word of Mouth, X, Reddit, Event",
+    "organizationSettings": "Organizational settings",
+    "organizationSettingsDescription": "This setting applies to all users in your organization. You can change it later in organization settings.",
+    "enableAi": "Enable AI powered features",
+    "aiDescription": "Relevant project data can be sent to AWS Bedrock within your Langfuse data region. Your data will not be used for training models.",
+    "learnMore": "Learn more",
+    "next": "Next"
+  },
+  "scoreConfigs": {
+    "noArchivePermission": "You don't have permission to archive this score config.",
+    "noChangePermission": "You don't have permission to {mode} score configs.",
+    "createVerb": "create",
+    "editVerb": "edit",
+    "restoreTitle": "Restore config",
+    "archiveTitle": "Archive config",
+    "archivedDescription": "Your config is currently archived. Restore if you want to use \"{name}\" in annotation again.",
+    "activeDescription": "Your config is currently active. Archive if you no longer want to use \"{name}\" in annotation. Historic \"{name}\" scores will still be shown and can be deleted. You can restore your config at any point.",
+    "confirm": "Confirm",
+    "descriptionLabel": "Description: {description}",
+    "range": "Range: [{min}, {max}]",
+    "fullName": "Full name: {name}",
+    "updateTitle": "Update score config",
+    "addTitle": "Add new score config",
+    "name": "Name",
+    "dataType": "Data type",
+    "selectDataType": "Select a data type",
+    "types": {
+      "NUMERIC": "Numeric",
+      "CATEGORICAL": "Categorical",
+      "BOOLEAN": "Boolean",
+      "TEXT": "Text"
+    },
+    "minimum": "Minimum (optional)",
+    "maximum": "Maximum (optional)",
+    "value": "Value",
+    "label": "Label",
+    "mappingHelp": "This is how the {type} label is mapped to an integer value internally.",
+    "category": "category",
+    "boolean": "boolean",
+    "addCategory": "Add category",
+    "removeCategory": "Remove category",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "Provide an optional description of the score config...",
+    "error": "Error:",
+    "submit": "Submit",
+    "submitFailed": "An error occurred while submitting config."
+  },
+  "scores": {
+    "cannotDeselectPopulated": "Cannot deselect a populated score",
+    "emptyScores": "empty scores",
+    "comment": "Score Comment",
+    "discardChanges": "Discard Changes",
+    "saveChanges": "Save Changes",
+    "annotate": "Annotate",
+    "saving": "Saving score data",
+    "saved": "Score data saved",
+    "description": "Annotate {entity} with scores to capture human evaluation across different dimensions.",
+    "entities": {
+      "session": "session",
+      "trace": "trace",
+      "observation": "observation"
+    },
+    "deleteFailed": "Failed to delete score",
+    "updateFailed": "Failed to update score",
+    "createFailed": "Failed to create score",
+    "commentUpdateFailed": "Failed to update comment",
+    "value": "Value",
+    "manageConfigs": "Manage score configs",
+    "commentAction": "Add or view score comment",
+    "textPlaceholder": "Enter free form text...",
+    "deleteArchived": "Delete archived score",
+    "archivedTitle": "Your score is archived",
+    "archivedDescription": "This action will delete your score irreversibly.",
+    "delete": "Delete",
+    "deleteFromTarget": "Delete score from trace/observation",
+    "moveFields": "move between fields",
+    "selectOption": "select option",
+    "editField": "edit field",
+    "selectCategory": "Select category",
+    "searchCategories": "Search categories...",
+    "noCategory": "No category found.",
+    "addCategory": "Add new category",
+    "addNamedCategory": "Add \"{name}\"",
+    "categoryRequired": "Category name is required",
+    "categoryExists": "A category with this name already exists",
+    "addCategoryFailed": "Failed to add category",
+    "addCategoryTitle": "Add category",
+    "addCategoryDescription": "This adds a category to <strong>{name}</strong> for everyone in this project.",
+    "categoryName": "Category name",
+    "categoryPlaceholder": "Enter a category name",
+    "cancel": "Cancel",
+    "notInRange": "Not in range: [{min},{max}]",
+    "source": "Source",
+    "metadata": "Metadata",
+    "loading": "Loading...",
+    "invalidJson": "Invalid JSON"
+  },
+  "miscUi": {
+    "pages": {
+      "widgets": "Widgets",
+      "widgetsDescription": "Manage and create widgets for your dashboard.",
+      "newWidget": "New widget",
+      "dashboards": "Dashboards",
+      "dashboardsDescription": "Manage and create dashboards for your project.",
+      "newDashboard": "New dashboard",
+      "scores": "Scores",
+      "scoresDescription": "A score is an evaluation of a trace or observation. It can be created from user feedback, model-based evaluations, or manual review. See the docs to learn more."
+    },
+    "users": {
+      "title": "Users",
+      "descriptionBefore": "Attribute data in Langfuse to a user by adding a userId to your traces. See",
+      "docs": "docs",
+      "descriptionAfter": "to learn more.",
+      "userId": "User ID",
+      "userIdDescription": "The unique identifier for the user that was logged in Langfuse. See the docs for details on how to set this up.",
+      "environment": "Environment",
+      "firstEvent": "First Event",
+      "firstEventDescription": "The earliest trace recorded for this user.",
+      "lastEvent": "Last Event",
+      "lastEventDescription": "The latest trace recorded for this user.",
+      "totalEvents": "Total Events",
+      "totalEventsDescription": "Total number of events for the user, including traces and observations. See the data model for details.",
+      "totalTokens": "Total Tokens",
+      "totalTokensDescription": "Total number of tokens used for the user across all generations.",
+      "totalCost": "Total Cost",
+      "totalCostDescription": "Total cost for the user across all generations."
+    },
+    "widgetImport": {
+      "import": "Import",
+      "uploaded": "Widget uploaded successfully",
+      "loaded": "Widget configuration has been loaded.",
+      "filtersAdjusted": "Widget filters were adjusted",
+      "filtersRemoved": "Some imported filters or filter values were removed because they are not available in this project.",
+      "malformed": "Malformed input",
+      "malformedDescription": "This operation can't be done due to malformed input."
+    },
+    "backgroundMigrations": {
+      "title": "Background Migrations",
+      "name": "Name",
+      "script": "Script",
+      "arguments": "Args",
+      "status": "Status",
+      "failedReason": "Failed Reason",
+      "state": "State",
+      "actions": "Actions"
+    },
+    "graphModes": {
+      "aggregated": "Aggregated",
+      "aggregatedDescription": "Repeated steps grouped into one node - the overall shape",
+      "expanded": "Expanded",
+      "expandedDescription": "Every call as its own node, in the order it ran"
+    },
+    "scoreConfigTable": {
+      "minimum": "Minimum",
+      "maximum": "Maximum",
+      "name": "Name",
+      "dataType": "Data Type",
+      "range": "Range",
+      "description": "Description",
+      "configId": "Config ID",
+      "createdAt": "Created At",
+      "status": "Status",
+      "archived": "Archived",
+      "active": "Active",
+      "action": "Action",
+      "edit": "Edit",
+      "archive": "Archive",
+      "add": "Add new score config"
+    },
+    "general": {
+      "activeIncident": "Active incident",
+      "addModelDefinition": "Add a model definition for \"{name}\"",
+      "copyValue": "Copy \"{value}\"",
+      "showMoreScores": "Show {count} more {count, plural, one {score} other {scores}}",
+      "viewScoreComment": "View comment for {name}: {value}",
+      "viewScoreMetadata": "View metadata for {name}: {value}",
+      "viewExecutionTrace": "View execution trace",
+      "openPrompt": "Open prompt: {name}",
+      "openFile": "Open {name} in new tab",
+      "invalidMediaTag": "Invalid Langfuse media tag",
+      "path": "Path",
+      "value": "Value",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "expandAllRows": "Expand all rows",
+      "collapseAllRows": "Collapse all rows"
+    }
+  },
+  "histogram": {
+    "count": "Count",
+    "bin": "Bin {number}",
+    "binLabel": "Bin: {label}",
+    "noData": "No data available"
+  },
+  "resourceMetrics": {
+    "latency": "Latency",
+    "averageTotalCost": "Average Total Cost ($)"
+  },
+  "pivotTable": {
+    "sortedAscending": "Sorted ascending",
+    "sortedDescending": "Sorted descending",
+    "subtotal": "{value} (Subtotal)",
+    "total": "Total"
+  },
+  "chartControls": {
+    "metrics": {
+      "count": "Count",
+      "value": "Value",
+      "latency": "Latency",
+      "totalCost": "Cost",
+      "totalTokens": "Tokens",
+      "inputCost": "Input Cost",
+      "outputCost": "Output Cost",
+      "timeToFirstToken": "Time To First Token",
+      "outputTokensPerSecond": "Output Tokens Per Second"
+    },
+    "dimensions": {
+      "none": "Total (no breakdown)",
+      "model": "Model",
+      "name": "Name",
+      "level": "Status",
+      "type": "Type",
+      "environment": "Environment",
+      "id": "ID",
+      "source": "Source",
+      "dataType": "Data Type",
+      "traceId": "Trace ID",
+      "traceName": "Trace Name",
+      "configId": "Config ID",
+      "timestampMonth": "Timestamp Month",
+      "timestampDay": "Timestamp Day",
+      "observationId": "Observation ID",
+      "observationName": "Observation Name",
+      "observationModelName": "Observation Model Name",
+      "observationPromptName": "Observation Prompt Name",
+      "observationPromptVersion": "Observation Prompt Version",
+      "userId": "User ID",
+      "sessionId": "Session ID",
+      "tags": "Tags",
+      "traceRelease": "Trace Release",
+      "traceVersion": "Trace Version",
+      "datasetRunId": "Dataset Run ID",
+      "stringValue": "String Value",
+      "booleanValue": "Boolean Value"
+    },
+    "aggregations": {
+      "count": "Count",
+      "sum": "Sum",
+      "avg": "Average",
+      "min": "Min",
+      "max": "Max",
+      "p50": "Median (p50)",
+      "p95": "p95",
+      "p99": "p99"
+    },
+    "chartTypes": {
+      "LINE_TIME_SERIES": "Line",
+      "AREA_TIME_SERIES": "Area",
+      "BAR_TIME_SERIES": "Bars",
+      "HORIZONTAL_BAR": "Ranked",
+      "VERTICAL_BAR": "Vertical bars",
+      "HISTOGRAM": "Histogram",
+      "PIE": "Pie",
+      "NUMBER": "Number",
+      "PIVOT_TABLE": "Pivot table"
+    },
+    "granularities": {
+      "minute": "Minute",
+      "hour": "Hour",
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "descriptions": {
+      "eventCount": "Count of events",
+      "scoreCount": "Count of scores",
+      "metric": "{aggregation} {metric}",
+      "by": "{base} by {dimension}",
+      "overTime": "{base} over time"
+    },
+    "showSeries": "Show {label}",
+    "hideSeries": "Hide {label}",
+    "showAllSeries": "Show all series",
+    "showOnlySeries": "Show only {label}",
+    "seriesOverflow": "+{count} more"
+  },
+  "scoreChartView": {
+    "numericScores": "Scores (numeric)",
+    "booleanScores": "Scores (boolean)",
+    "categoricalScores": "Scores (categorical)",
+    "widerRange": "Pick a wider time range to chart.",
+    "buildFailed": "Couldn't build a chart for the current view.",
+    "categoricalValueNotice": "Categorical and text scores have no numeric value, so they're excluded from Value.",
+    "chartMode": "Chart mode: {mode}",
+    "aggregationLabel": "{metric} aggregation: {aggregation}",
+    "filtersUnavailable": "Chart unavailable for the current filters",
+    "noData": "No Data"
+  },
+  "scoreOutlierStrip": {
+    "perBucket": "{metric} per bucket",
+    "noMetricData": "No {metric} data in range",
+    "noScores": "No scores in range",
+    "noData": "no data",
+    "dismissPreview": "Dismiss preview",
+    "exploreWindow": "Explore this window"
+  },
+  "dashboardExtras": {
+    "newDefaultName": "New Dashboard",
+    "managedDashboards": {
+      "home": {
+        "name": "Langfuse Home",
+        "description": "Overview of traces, costs, scores, usage, and latencies in this project. Shown on the project home page."
+      },
+      "cost": {
+        "name": "Langfuse Cost Dashboard",
+        "description": "Review your LLM costs."
+      },
+      "latency": {
+        "name": "Langfuse Latency Dashboard",
+        "description": "Monitor latency metrics across traces and generations for performance optimization."
+      },
+      "usage": {
+        "name": "Langfuse Usage Management",
+        "description": "Track usage metrics across traces, observations, and scores to manage resource allocation."
+      }
+    },
+    "description": "Description",
+    "cancel": "Cancel",
+    "create": "Create",
+    "afterCreate": "After creating the dashboard, you can add widgets to visualize your data.",
+    "error": "Error: {message}",
+    "noneFound": "No dashboards found.",
+    "skip": "Skip",
+    "add": "Add to Dashboard",
+    "allModels": "All models",
+    "updateFailed": "Error updating dashboard",
+    "homeUpdateFailed": "Failed to update home dashboard",
+    "renameFailed": "Error renaming dashboard",
+    "filtersSaveFailed": "Error saving filters",
+    "duplicateWidgetFailed": "Failed to duplicate widget",
+    "widgetCopyName": "{name} (Copy)",
+    "cannotPasteWidget": "Cannot paste widget",
+    "filtersAdjusted": "Widget filters were adjusted",
+    "pastedFiltersRemoved": "Some pasted filters were removed because they are not available in this view.",
+    "pasteWidgetFailed": "Failed to paste widget",
+    "clipboardUnavailable": "Clipboard unavailable",
+    "clipboardUnavailableDescription": "Your browser did not allow reading the clipboard. Paste with Cmd/Ctrl+V on the dashboard instead.",
+    "cannotPasteCard": "Cannot paste card",
+    "noWidgetClipboard": "No widget in clipboard",
+    "noWidgetClipboardDescription": "The clipboard does not contain a Langfuse widget JSON. Copy one via a widget's actions menu first.",
+    "importFailed": "Failed to import dashboard",
+    "widgetCreateFailed": "Could not create the dashboard's widgets.",
+    "imported": "Dashboard imported",
+    "importedDescription": "Added {count, plural, one {# widget} other {# widgets}} from \"{name}\".",
+    "importedFiltersRemoved": "Some imported filters were removed because they are not available in this view.",
+    "cardsSkipped": "Some cards were skipped",
+    "cardsSkippedDescription": "{count, plural, one {# preset card} other {# preset cards}} in the file are not available in this Langfuse version.",
+    "cannotImport": "Cannot import dashboard",
+    "cannotImportCard": "Cannot import card",
+    "unsupportedFile": "Unsupported file",
+    "unsupportedFileDescription": "Only Langfuse dashboard or widget JSON files can be dropped here.",
+    "cloneFailed": "Failed to clone dashboard",
+    "dashboard": "Dashboard",
+    "maintained": "Langfuse Maintained",
+    "rename": "Rename dashboard",
+    "dashboards": "Dashboards",
+    "noDescription": "No description available",
+    "environment": "Environment",
+    "environmentShort": "Env",
+    "saving": "Saving...",
+    "saveFilters": "Save Filters",
+    "addWidget": "Add Widget",
+    "clone": "Clone",
+    "moreActions": "More actions",
+    "pasteWidget": "Paste widget",
+    "shownOnHome": "Shown on Home",
+    "useAsHome": "Use as Home",
+    "editMetadata": "Edit name & description",
+    "dropToImport": "Drop to import",
+    "dropHint": "Langfuse dashboard or widget JSON",
+    "modelUsage": "Model Usage",
+    "costByModel": "Cost by model",
+    "costByType": "Cost by type",
+    "usageByModel": "Usage by model",
+    "usageByType": "Usage by type",
+    "cost": "Cost",
+    "units": "Units",
+    "tokens": "Tokens",
+    "percentile50": "50th Percentile",
+    "percentile75": "75th Percentile",
+    "percentile90": "90th Percentile",
+    "percentile95": "95th Percentile",
+    "percentile99": "99th Percentile",
+    "modelLatencies": "Model latencies",
+    "modelLatenciesDescription": "Latencies (seconds) per LLM generation",
+    "latency": "Latency",
+    "scores": "Scores",
+    "name": "Name",
+    "average": "Avg",
+    "scoresEmptyDescription": "Scores evaluate LLM quality and can be created manually or using the SDK.",
+    "totalScoresTracked": "Total scores tracked",
+    "unknown": "Unknown",
+    "traces": "Traces",
+    "totalTracesTracked": "Total traces tracked",
+    "tracesEmptyDescription": "Traces contain details about LLM applications and can be created using the SDK.",
+    "showTop": "Show top {count}",
+    "showAll": "Show all",
+    "traceLatencyPercentiles": "Trace latency percentiles",
+    "generationLatencyPercentiles": "Generation latency percentiles",
+    "observationLatencyPercentiles": "Observation latency percentiles",
+    "traceName": "Trace Name",
+    "generationName": "Generation Name",
+    "observation": "Observation",
+    "scoresAnalytics": "Scores Analytics",
+    "scoresAnalyticsDescription": "Aggregate scores and averages over time",
+    "searchScore": "Search score...",
+    "totalAggregateScores": "Total aggregate scores",
+    "aggregateLimit": "Aggregate of up to 10,000 scores",
+    "movingAverageOverTime": "Moving average over time",
+    "scoresOverTime": "Scores over time",
+    "selectScoreForAnalytics": "Select a score to view analytics",
+    "dashboardCloned": "Dashboard cloned",
+    "dashboardClonedDescription": "The dashboard has been cloned successfully",
+    "edit": "Edit",
+    "owner": "Owner",
+    "project": "Project",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "actions": "Actions",
+    "editableCopyCreated": "Editable copy created",
+    "copyIsHome": "The copy is now this project's Home dashboard",
+    "workingOnCopy": "You are now working on your own copy",
+    "createCopyFailed": "Failed to create copy",
+    "createEditableCopy": "Create your editable copy",
+    "maintainedCopyDescription": "is maintained by Langfuse and can't be edited directly. We'll create your own editable copy in this project",
+    "withChangeApplied": "with your change applied",
+    "showOnHome": "and show it on your Home page from now on",
+    "maintainedTilesDescription": "Langfuse-maintained tiles on the copy can be rearranged or removed; editing their content will become available in a future release.",
+    "existingCopy": "You already have a copy:",
+    "openingDiscardsChange": "opening it will discard your attempted change",
+    "openInstead": "Open it instead",
+    "createMyCopy": "Create my copy",
+    "selectTab": "Select a tab",
+    "tabs": "Tabs",
+    "filterColumns": {
+      "traceName": "Trace Name",
+      "observationName": "Observation Name",
+      "scoreName": "Score Name",
+      "tags": "Tags",
+      "user": "User",
+      "session": "Session",
+      "metadata": "Metadata",
+      "release": "Release",
+      "version": "Version"
+    }
+  },
+  "previewDeployment": {
+    "deploymentOf": "Deployment of",
+    "pullRequest": "PR #{number}",
+    "genericPullRequest": "a pull request",
+    "by": "by",
+    "updated": "updated {time}"
+  },
+  "widgetExtras": {
+    "error": "Error",
+    "loading": "Loading...",
+    "customChartDescription": "Pick a data view, metrics, and chart type from scratch",
+    "yourWidgets": "Your widgets ({count})",
+    "homeCards": "Home cards ({count})",
+    "hiddenTraceWidgets": "{count, plural, one {# trace-based widget hidden} other {# trace-based widgets hidden}} - the Traces view is not available for new charts. Manage them under Widgets.",
+    "noSavedWidgets": "No saved widgets in this project yet - build one with Custom Chart.",
+    "cancel": "Cancel",
+    "confirmDeletion": "Please confirm deletion",
+    "inUseTitle": "Widget in use",
+    "inUseDescription": "Widget is still in use. Please remove it from all dashboards before deleting it.",
+    "projectMissing": "Project ID is missing",
+    "downloadFailed": "Failed to download widget",
+    "unknownError": "Unknown error",
+    "copiedTitle": "Widget copied",
+    "pasteDescription": "Paste it on any dashboard with Cmd/Ctrl+V.",
+    "copyFailed": "Failed to copy widget",
+    "clonedTitle": "Widget cloned",
+    "clonedDescription": "Created \"{name} (Copy)\".",
+    "duplicateFailed": "Failed to duplicate widget",
+    "copyWidget": "Copy widget",
+    "clone": "Clone",
+    "downloadJson": "Download as JSON",
+    "downloadCsv": "Download data as CSV",
+    "delete": "Delete",
+    "deleteConfirmLabel": "Delete Widget",
+    "viewType": "View Type",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "actions": "Actions",
+    "copyDialogDescription": "{name} is maintained by Langfuse and can't be edited directly. We'll replace this tile with your own editable copy and open it in the widget editor - the rest of the dashboard stays unchanged.",
+    "createMyCopy": "Create my copy",
+    "cardCopied": "Card copied",
+    "unknownPreset": "Unknown preset: {id}",
+    "managedWidgets": {
+      "cmawk617300iiad07zaes6h3l": {
+        "name": "P 95 Latency by Use Case",
+        "description": "P95 latency metrics segmented by trace name"
+      },
+      "cmawk6isp00kbad07t66dohjn": {
+        "name": "P 95 Latency by Level (Observations)",
+        "description": "P95 latency metrics for observations segmented by level"
+      },
+      "cma2f2ioc001had07f7810kg1": {
+        "name": "Total costs",
+        "description": "Total cost across all use cases"
+      },
+      "cmawk9xbu00lfad07s9j1bxnx": {
+        "name": "Top 20 Users by Cost",
+        "description": "Aggregated model cost (observation.totalCost) by trace.userId"
+      },
+      "cmawkfg0m00kzad07jyofrnq2": {
+        "name": "Top 20 Use Cases (Observation) by Cost",
+        "description": "Aggregated model cost (observation.totalCost) by observation.name"
+      },
+      "cmawk6nqs00jwad07hwpsj3z2": {
+        "name": "Top 20 Use Cases (Trace) by Cost",
+        "description": "Aggregated model cost (observation.totalCost) by trace.name"
+      },
+      "cmawk7btd00khad07g625cqmp": {
+        "name": "Cost by Environment",
+        "description": "Total cost broken down by trace.environment"
+      },
+      "cmawk94z800ldad07jjox8ugd": {
+        "name": "Max Latency by User Id (Traces)",
+        "description": "Maximum latency for the top 50 users by trace userId"
+      },
+      "cmawka1fk00kdad07vdipgz04": {
+        "name": "Avg Time To First Token by Prompt Name (Observations)",
+        "description": "Average time to first token segmented by prompt name"
+      },
+      "cmawksk8h00phad07s9c7v6d7": {
+        "name": "P 95 Time To First Token by Model",
+        "description": "P95 time to first token metrics segmented by model"
+      },
+      "cmawktot400pkad07m8gy30vq": {
+        "name": "P 95 Latency by Model",
+        "description": "P95 latency metrics for observations segmented by model"
+      },
+      "cmawl83ks001ead076pk2wcex": {
+        "name": "Avg Output Tokens Per Second by Model",
+        "description": "Average output tokens per second segmented by model"
+      },
+      "cmawle4zj0096ad0650rzeh0z": {
+        "name": "P 95 Cost per Trace",
+        "description": "95th percentile of cost for each trace"
+      },
+      "cmawljmu100v7ad07pd3apnwe": {
+        "name": "P 95 Output Cost per Observation",
+        "description": "95th percentile of output cost for each observation (llm call)"
+      },
+      "cmawlkgt300vsad06g69vqqej": {
+        "name": "P 95 Input Cost per Observation",
+        "description": "95th percentile of input cost for each observation (llm call)"
+      },
+      "cmawloc0k010uad06e4git5kz": {
+        "name": "Total Trace Count",
+        "description": "Total count of traces across all environments"
+      },
+      "cmawlaqoa004kad07e2q0za6k": {
+        "name": "Total Count Traces",
+        "description": "Shows the count of Traces"
+      },
+      "cmawlbdu2004nad07lks0j8lw": {
+        "name": "Total Count Observations",
+        "description": "Shows the count of Observations"
+      },
+      "cmawk5sik00igad07kjetg17j": {
+        "name": "Cost by Model Name",
+        "description": "Total cost broken down by model name"
+      },
+      "cmawlotp500zcad076b8u704s": {
+        "name": "Total Observation Count",
+        "description": "Total count of observations across all environments"
+      },
+      "cmawlpv4600y0ad0770qyrix9": {
+        "name": "Total Score Count (numeric)",
+        "description": "Total count of numeric scores across all environments"
+      },
+      "cmawlqkxk00xfad07r8zoc4ag": {
+        "name": "Total Score Count (categorical)",
+        "description": "Total count of categorical scores across all environments"
+      },
+      "cmawlrhom00xhad07phtqc81k": {
+        "name": "Total Trace Count (over time)",
+        "description": "Trend of trace count over time"
+      },
+      "cmawlt6wi00zmad07cvxeeepq": {
+        "name": "Total Observation Count (over time)",
+        "description": "Trend of observation count over time"
+      },
+      "cmawltpsx00yaad07f51yvkwg": {
+        "name": "Total Score Count (numeric)",
+        "description": "Trend of numeric score count over time"
+      },
+      "cmawlu5bs00zsad07maibk7ef": {
+        "name": "Total Score Count (categorical)",
+        "description": "Trend of categorical score count over time"
+      },
+      "cmawlw4s700zvad07qq4qi0gp": {
+        "name": "Total Trace Count (by env)",
+        "description": "Distribution of trace count across different environments"
+      },
+      "cmawlxdo00106ad07crpey1if": {
+        "name": "Total Observation Count (by env)",
+        "description": "Distribution of observation count across different environments"
+      }
+    },
+    "copyCard": "Copy card",
+    "filtersNotShown": "{count, plural, one {# filter} other {# filters}} not shown in the table",
+    "configurationDescription": "Configure your widget by selecting data and visualization options",
+    "tracesUnavailableTitle": "Traces view is not available in v4",
+    "tracesUnavailableDescription": "This widget uses the traces view which is not supported in v4. It will continue to use v3 definitions. To use v4, change the view to observations or scores.",
+    "presets": "Presets",
+    "experimentDataPreset": "Experiment Data",
+    "metric": "Metric",
+    "metrics": "Metrics",
+    "save": "Save Widget",
+    "waitingForInput": "Waiting for Input / Loading...",
+    "aggregationAuto": "Aggregation is automatically set to \"histogram\" for histogram charts",
+    "metricLabel": "Metric {number} {requirement}",
+    "required": "(Required)",
+    "optional": "(Optional)",
+    "selectPreviousMetric": "Select previous metric first",
+    "noMoreMeasures": "No more measures available",
+    "selectMeasure": "Select measure",
+    "addMetric": "Add Metric {number}",
+    "rowDimensionsDescription": "Configure up to {count} dimensions for pivot table rows. Each dimension creates groupings with subtotals.",
+    "dimensionLabel": "Dimension {number} (Optional)",
+    "selectPreviousDimension": "Select previous dimension first",
+    "defaultSortDescription": "Configure the default sort order for the pivot table. This will be applied when the widget is first loaded.",
+    "unsupportedFilters": "Unsupported legacy filter column(s): {columns}. Remove them or switch to a compatible view before saving this widget.",
+    "unsupportedFiltersTitle": "Some filters are not supported",
+    "unsupportedFiltersDescription": "The following filter columns are not available for this view: {columns}.",
+    "views": {
+      "traces": "Traces",
+      "observations": "Observations",
+      "scoresNumeric": "Scores (numeric)",
+      "scoresCategorical": "Scores (categorical)",
+      "scoresBoolean": "Scores (boolean)"
+    },
+    "widgetSuggestions": {
+      "noMetrics": "No Metrics",
+      "moreMetrics": "{metrics} + {count} more",
+      "name": {
+        "metric": "{aggregation} {metric}",
+        "by": "{base} by {dimension}",
+        "withView": "{base} ({view})"
+      },
+      "description": {
+        "multiMetric": "Shows {metrics} of {view}",
+        "count": "Shows the count of {view}",
+        "metric": "Shows the {aggregation} {metric} of {view}",
+        "by": "{base} by {dimension}",
+        "filteredByColumn": "{base}, filtered by {column}",
+        "filteredByColumns": "{base}, filtered by {firstColumn} and {secondColumn}",
+        "filteredByConditions": "{base}, filtered by {count, plural, one {# condition} other {# conditions}}"
+      }
+    },
+    "validation": {
+      "metricRequired": "At least one metric is required.",
+      "unsupportedBreakdown": "This chart type does not support a breakdown dimension.",
+      "pivotMetricRequired": "At least one metric is required for pivot tables.",
+      "pivotMetricLimit": "A pivot table supports at most {count} metrics.",
+      "pivotDimensionLimit": "A pivot table supports at most {count} dimensions.",
+      "singleMetricRequired": "This chart type requires exactly one metric.",
+      "selectMeasure": "Select a measure.",
+      "breakdownLimit": "This chart type supports at most one breakdown dimension.",
+      "histogramSingleMetric": "A histogram uses a single metric.",
+      "histogramAggregationRequired": "A histogram requires the histogram aggregation.",
+      "measureNotHistogramCapable": "This measure cannot be shown as a histogram.",
+      "histogramAggregationOnly": "The histogram aggregation is only valid for histogram charts."
+    },
+    "chartNames": {
+      "NUMBER": "Big Number",
+      "LINE_TIME_SERIES": "Line Chart",
+      "BAR_TIME_SERIES": "Vertical Bar Chart",
+      "HORIZONTAL_BAR": "Horizontal Bar Chart",
+      "VERTICAL_BAR": "Vertical Bar Chart",
+      "HISTOGRAM": "Histogram",
+      "PIE": "Pie Chart",
+      "PIVOT_TABLE": "Pivot Table"
+    },
+    "chartTypeDisplayNames": {
+      "LINE_TIME_SERIES": "Line Chart (Time Series)",
+      "AREA_TIME_SERIES": "Area Chart (Time Series)",
+      "BAR_TIME_SERIES": "Bar Chart (Time Series)",
+      "HORIZONTAL_BAR": "Horizontal Bar Chart (Total Value)",
+      "VERTICAL_BAR": "Vertical Bar Chart (Total Value)",
+      "PIE": "Pie Chart (Total Value)",
+      "NUMBER": "Big Number (Total Value)",
+      "HISTOGRAM": "Histogram (Total Value)",
+      "PIVOT_TABLE": "Pivot Table (Total Value)"
+    }
+  }
+}

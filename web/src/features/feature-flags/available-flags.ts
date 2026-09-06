@@ -13,6 +13,10 @@ export const filterFeaturePreviewFlags = (
   flags: string[],
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
+export const featurePreviewLabelKeys = {
+  modernSession: "labels.modernSession",
+} as const satisfies Record<FeaturePreviewFlag, string>;
+
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
 } satisfies Record<FeaturePreviewFlag, string>;

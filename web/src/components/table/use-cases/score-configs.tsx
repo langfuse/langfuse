@@ -31,6 +31,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
 import { UpsertScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import { useLocale, useTranslations } from "next-intl";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -49,13 +50,14 @@ type ScoreConfigTableRow = {
 
 function getConfigRange(
   originalRow: ScoreConfigTableRow,
+  labels: { minimum: string; maximum: string },
 ): undefined | Prisma.JsonValue {
   const { range, dataType } = originalRow;
 
   if (isNumericDataType(dataType)) {
     return {
-      Minimum: range.minValue ?? "-∞",
-      Maximum: range.maxValue ?? "∞",
+      [labels.minimum]: range.minValue ?? "-∞",
+      [labels.maximum]: range.maxValue ?? "∞",
     };
   }
 
@@ -73,6 +75,8 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
+  const t = useTranslations("systemUi.miscUi.scoreConfigTable");
+  const locale = useLocale();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -102,20 +106,24 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
     createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "name",
-      header: "Name",
+      header: t("name"),
       enableHiding: true,
     }),
     {
       accessorKey: "dataType",
       id: "dataType",
-      header: "Data Type",
+      header: t("dataType"),
       size: 80,
       enableHiding: true,
     },
     createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
-      accessorFn: getConfigRange,
-      header: "Range",
+      accessorFn: (row) =>
+        getConfigRange(row, {
+          minimum: t("minimum"),
+          maximum: t("maximum"),
+        }),
+      header: t("range"),
       enableHiding: true,
       size: 300,
       getCell: (value) => value || undefined,
@@ -123,7 +131,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     }),
     createIOTableColumn<ScoreConfigTableRow>({
       accessorKey: "description",
-      header: "Description",
+      header: t("description"),
       enableHiding: true,
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
@@ -131,31 +139,31 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "id",
       id: "id",
-      header: "Config ID",
+      header: t("configId"),
       enableHiding: true,
       defaultHidden: true,
     },
     {
       accessorKey: "createdAt",
       id: "createdAt",
-      header: "Created At",
+      header: t("createdAt"),
       enableHiding: true,
       defaultHidden: true,
     },
     {
       accessorKey: "isArchived",
       id: "isArchived",
-      header: "Status",
+      header: t("status"),
       size: 80,
       enableHiding: true,
       cell: ({ row }) => {
         const { isArchived } = row.original;
-        return isArchived ? "Archived" : "Active";
+        return isArchived ? t("archived") : t("active");
       },
     },
     {
       accessorKey: "action",
-      header: "Action",
+      header: t("action"),
       size: 70,
       isFixedPosition: true,
       enableHiding: true,
@@ -197,12 +205,12 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     <DropdownMenuContent>
                       <Trigger asChild>
                         <DropdownMenuItem
-                          aria-label="edit"
+                          aria-label={t("edit")}
                           disabled={editDisabled !== undefined}
                           title={editDisabled?.reason}
                         >
                           <Edit className="mr-2 h-4 w-4" />
-                          Edit
+                          {t("edit")}
                         </DropdownMenuItem>
                       </Trigger>
                       <DropdownMenuItem
@@ -213,7 +221,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                         onSelect={openPopover}
                       >
                         <Archive className="mr-2 h-4 w-4" />
-                        Archive
+                        {t("archive")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -265,7 +273,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     className="mr-1.5 -ml-0.5 h-4 w-4"
                     aria-hidden="true"
                   />
-                  Add new score config
+                  {t("add")}
                 </Button>
               </Trigger>
             )}
@@ -294,8 +302,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                       name: config.name,
                       dataType: config.dataType,
                       description: config.description,
-                      createdAt: config.createdAt.toLocaleString(),
-                      updatedAt: config.updatedAt.toLocaleString(),
+                      createdAt: config.createdAt.toLocaleString(locale),
+                      updatedAt: config.updatedAt.toLocaleString(locale),
                       range: {
                         maxValue: config.maxValue,
                         minValue: config.minValue,

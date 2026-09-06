@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 
 import Header from "@/src/components/layouts/header";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -17,7 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
-  featurePreviewLabels,
+  featurePreviewLabelKeys,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -35,6 +36,7 @@ export function OrganizationFeaturePreviewsSettings({
 }: {
   orgId: string;
 }) {
+  const t = useTranslations("integrationsSettings.featurePreviews");
   const [proposedChange, setProposedChange] = useState<ProposedChange | null>(
     null,
   );
@@ -57,22 +59,23 @@ export function OrganizationFeaturePreviewsSettings({
         session.update(),
       ]);
       showSuccessToast({
-        title: "Feature preview default updated",
-        description: `${featurePreviewLabels[variables.flag]} was ${
-          variables.enabled ? "enabled" : "disabled"
-        } for this organization.`,
+        title: t("organization.defaultUpdatedTitle"),
+        description: t("organization.defaultUpdatedDescription", {
+          feature: t(featurePreviewLabelKeys[variables.flag]),
+          state: variables.enabled ? t("enabled") : t("disabled"),
+        }),
       });
     },
     onError: (error) => {
       setProposedChange(null);
-      showErrorToast("Failed to update feature preview", error.message);
+      showErrorToast(t("updateFailed"), error.message);
     },
   });
 
   if (defaultsQuery.isError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Feature previews unavailable</AlertTitle>
+        <AlertTitle>{t("organization.unavailableTitle")}</AlertTitle>
         <AlertDescription>{defaultsQuery.error.message}</AlertDescription>
       </Alert>
     );
@@ -86,20 +89,17 @@ export function OrganizationFeaturePreviewsSettings({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Header title="Feature Previews" />
+        <Header title={t("organization.title")} />
         <p className="text-muted-foreground text-sm">
-          Enable previews for everyone while they are using this organization.
-          New members inherit these defaults automatically.
+          {t("organization.description")}
         </p>
       </div>
 
       {experimentalFeaturesEnabled ? (
         <Alert>
-          <AlertTitle>Experimental features enabled deployment-wide</AlertTitle>
+          <AlertTitle>{t("organization.experimentalTitle")}</AlertTitle>
           <AlertDescription>
-            Every preview on this page is enabled by the env variable
-            LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not
-            disable these previews.
+            {t("organization.experimentalDescription")}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -116,16 +116,19 @@ export function OrganizationFeaturePreviewsSettings({
               className="flex items-start justify-between gap-6 p-4"
             >
               <div className="flex min-w-0 flex-col gap-1">
-                <h3 className="font-bold">{featurePreviewLabels[flag]}</h3>
+                <h3 className="font-bold">
+                  {t(featurePreviewLabelKeys[flag])}
+                </h3>
                 {requiresPersonalEnablement ? (
                   <p className="text-destructive text-xs">
-                    Enable this preview in your personal Feature Preview
-                    settings before enabling it for the organization.
+                    {t("organization.requiresPersonal")}
                   </p>
                 ) : null}
               </div>
               <Switch
-                aria-label={`Toggle ${featurePreviewLabels[flag]} organization default`}
+                aria-label={t("toggleOrganization", {
+                  feature: t(featurePreviewLabelKeys[flag]),
+                })}
                 checked={experimentalFeaturesEnabled || selected}
                 disabled={
                   experimentalFeaturesEnabled ||
@@ -143,8 +146,7 @@ export function OrganizationFeaturePreviewsSettings({
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Defaults apply only in this organization. A user&apos;s global personal
-        opt-out always wins.
+        {t("organization.defaultsNote")}
       </p>
 
       <AlertDialog
@@ -156,31 +158,35 @@ export function OrganizationFeaturePreviewsSettings({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {proposedChange?.enabled ? "Enable" : "Disable"} feature preview?
+              {t("organization.confirmTitle", {
+                action: proposedChange?.enabled
+                  ? t("organization.enable")
+                  : t("organization.disable"),
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will {proposedChange?.enabled ? "enable" : "disable"}{" "}
-              {proposedChange
-                ? featurePreviewLabels[proposedChange.flag]
-                : "this preview"}{" "}
-              for up to {memberCount} current member
-              {memberCount === 1 ? "" : "s"}. New members inherit enabled
-              organization defaults.
+              {t("organization.confirmDescription", {
+                action: proposedChange?.enabled
+                  ? t("organization.enable").toLowerCase()
+                  : t("organization.disable").toLowerCase(),
+                feature: proposedChange
+                  ? t(featurePreviewLabelKeys[proposedChange.flag])
+                  : t("organization.thisPreview"),
+                memberCount,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {proposedChange?.enabled ? (
             <Alert>
-              <AlertTitle>Already enabled for you</AlertTitle>
+              <AlertTitle>{t("organization.alreadyEnabledTitle")}</AlertTitle>
               <AlertDescription>
-                This preview is already enabled in your personal Feature Preview
-                settings. Make sure you have tested it before enabling it for
-                the organization.
+                {t("organization.alreadyEnabledDescription")}
               </AlertDescription>
             </Alert>
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={updateDefault.isPending}>
-              Cancel
+              {t("organization.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={updateDefault.isPending || proposedChange === null}
@@ -189,7 +195,7 @@ export function OrganizationFeaturePreviewsSettings({
                 updateDefault.mutate({ orgId, ...proposedChange });
               }}
             >
-              Confirm
+              {t("organization.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,6 +2,9 @@ import { render, screen } from "@testing-library/react";
 import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { PostHogStatusSection } from "./PostHogStatusSection";
+import { NextIntlClientProvider } from "next-intl";
+import englishIntegrationsSettings from "@/src/features/i18n/messages/en/integrationsSettings.json";
+import simplifiedChineseIntegrationsSettings from "@/src/features/i18n/messages/zh-CN/integrationsSettings.json";
 
 type PostHogIntegrationConfig = NonNullable<
   RouterOutputs["posthogIntegration"]["get"]["config"]
@@ -21,8 +24,23 @@ const baseConfig: PostHogIntegrationConfig = {
   lastErrorAt: null,
 };
 
-const renderSection = (overrides: Partial<PostHogIntegrationConfig> = {}) =>
-  render(<PostHogStatusSection config={{ ...baseConfig, ...overrides }} />);
+const renderSection = (
+  overrides: Partial<PostHogIntegrationConfig> = {},
+  locale: "en" | "zh-CN" = "en",
+) =>
+  render(
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        integrationsSettings:
+          locale === "en"
+            ? englishIntegrationsSettings
+            : simplifiedChineseIntegrationsSettings,
+      }}
+    >
+      <PostHogStatusSection config={{ ...baseConfig, ...overrides }} />
+    </NextIntlClientProvider>,
+  );
 
 // The destructive styling is the user-visible "this is a problem" signal, so
 // the variant is asserted alongside the alert role rather than the class alone.
@@ -141,5 +159,14 @@ describe("PostHogStatusSection sync line", () => {
     renderSection();
 
     expect(screen.getByRole("heading", { name: "Status" })).toBeInTheDocument();
+  });
+
+  it("renders the status section in Chinese", () => {
+    renderSection({ lastSyncAt: null }, "zh-CN");
+
+    expect(screen.getByRole("heading", { name: "状态" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/数据已同步至：从未同步（等待中）/),
+    ).toBeInTheDocument();
   });
 });

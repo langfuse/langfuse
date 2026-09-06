@@ -35,6 +35,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { useTranslations } from "next-intl";
 
 const resolvePricingTier = <T extends { id: string }>(
   tiers: T[],
@@ -48,6 +49,7 @@ const resolvePricingTier = <T extends { id: string }>(
 };
 
 export default function ModelDetailPage() {
+  const t = useTranslations("settingsEnterprise.models");
   const router = useRouter();
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const projectId = router.query.projectId as string;
@@ -96,10 +98,10 @@ export default function ModelDetailPage() {
   if (!isLoading && !model) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="mb-4 text-xl font-bold">Model not found</div>
+        <div className="mb-4 text-xl font-bold">{t("detail.notFound")}</div>
         <Button variant="outline" asChild>
           <Link href={`/project/${projectId}/settings/models`}>
-            Return to Models page
+            {t("detail.return")}
           </Link>
         </Button>
       </div>
@@ -109,7 +111,7 @@ export default function ModelDetailPage() {
   const isLangfuseModel = !Boolean(model?.projectId);
 
   if (isLoading || !model) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("detail.loading")}</div>;
   }
 
   return (
@@ -118,16 +120,16 @@ export default function ModelDetailPage() {
       headerProps={{
         title: model.modelName,
         help: {
-          description: "Model configuration and pricing details",
+          description: t("detail.help"),
           href: "https://langfuse.com/docs/model-usage-and-cost",
         },
         breadcrumb: [
           {
-            name: "Settings",
+            name: t("detail.settings"),
             href: `/project/${router.query.projectId as string}/settings`,
           },
           {
-            name: "Models",
+            name: t("detail.models"),
             href: `/project/${router.query.projectId as string}/settings/models`,
           },
           { name: model.modelName },
@@ -160,36 +162,38 @@ export default function ModelDetailPage() {
       <div className="grid grid-cols-2 gap-6 p-2">
         <Card>
           <CardHeader>
-            <CardTitle>Model configuration</CardTitle>
+            <CardTitle>{t("detail.configuration")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
               <div className="text-muted-foreground text-sm font-bold">
-                Match Pattern
+                {t("common.matchPattern")}
               </div>
               <div className="mt-1 font-mono text-sm">{model.matchPattern}</div>
             </div>
 
             <div>
               <div className="text-muted-foreground text-sm font-bold">
-                Maintained by
+                {t("detail.maintainedBy")}
               </div>
               <div className="mt-1 text-sm">
-                {isLangfuseModel ? "Langfuse" : "User"}
+                {isLangfuseModel ? "Langfuse" : t("detail.user")}
               </div>
             </div>
 
             <div>
               <div className="text-muted-foreground text-sm font-bold">
-                Tokenizer
+                {t("common.tokenizer")}
               </div>
-              <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
+              <div className="mt-1 text-sm">
+                {model.tokenizerId || t("common.none")}
+              </div>
             </div>
 
             {model.tokenizerId && (
               <div>
                 <div className="text-muted-foreground text-sm font-bold">
-                  Tokenizer Config
+                  {t("upsert.tokenizerConfigLabel")}
                 </div>
                 <pre className="bg-muted mt-1 rounded p-2 text-sm">
                   <JSONView json={model.tokenizerConfig} />
@@ -202,18 +206,18 @@ export default function ModelDetailPage() {
         <Card id="pricing-section">
           <CardHeader>
             <div className="flex flex-col gap-2">
-              <CardTitle>Pricing</CardTitle>
+              <CardTitle>{t("common.pricing")}</CardTitle>
               {model.pricingTiers.length > 1 && (
                 <div className="flex items-center gap-4">
                   <label className="text-muted-foreground text-sm font-bold">
-                    Pricing Tier
+                    {t("common.pricingTier")}
                   </label>
                   <Select
                     value={activeTier?.id ?? ""}
                     onValueChange={setSelectedTierId}
                   >
                     <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Select tier" />
+                      <SelectValue placeholder={t("detail.selectTier")} />
                     </SelectTrigger>
                     <SelectContent>
                       {model.pricingTiers.map((tier) => (
@@ -232,7 +236,7 @@ export default function ModelDetailPage() {
                           size="sm"
                         >
                           <InfoIcon className="h-3 w-3" />
-                          <span>Conditions</span>
+                          <span>{t("common.conditions")}</span>
                         </Button>
                       </HoverCardTrigger>
                       <HoverCardContent
@@ -240,11 +244,10 @@ export default function ModelDetailPage() {
                         collisionPadding={20}
                       >
                         <p className="text-sm font-bold">
-                          Pricing Tier Conditions
+                          {t("detail.tierConditions")}
                         </p>
                         <p className="text-muted-foreground pt-2 text-sm">
-                          This tier is applied when the following conditions are
-                          met:
+                          {t("detail.tierConditionsDescription")}
                         </p>
                         <div className="mt-2">
                           <CodeMirrorEditor
@@ -269,9 +272,9 @@ export default function ModelDetailPage() {
           <CardContent>
             <div className="flex flex-col gap-2">
               <div className="border-border text-muted-foreground grid grid-cols-2 gap-2 border-b text-sm font-bold">
-                <span>Usage Type</span>
+                <span>{t("common.usageType")}</span>
                 <span className="flex items-center gap-2">
-                  <span>Price {priceUnit}</span>
+                  <span>{t("common.priceWithUnit", { unit: priceUnit })}</span>
                   <PriceUnitSelector />
                 </span>
               </div>
@@ -300,13 +303,13 @@ export default function ModelDetailPage() {
         <Card className="col-span-2 min-w-0">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Model observations</span>
+              <span>{t("detail.observations")}</span>
               <Button variant="ghost" asChild>
                 <Link
                   href={`/project/${projectId}/observations`}
                   className="flex items-center gap-1"
                 >
-                  <span className="text-sm">View all</span>
+                  <span className="text-sm">{t("detail.viewAll")}</span>
                   <SquareArrowOutUpRight className="h-4 w-4" />
                 </Link>
               </Button>

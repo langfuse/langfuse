@@ -53,6 +53,7 @@ import {
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
@@ -250,6 +251,7 @@ export function DataTable<TData extends object, TValue>({
   topAlignCells = false,
   cellPadding = "compact",
 }: DataTableProps<TData, TValue>) {
+  const t = useTranslations("sharedUi.table");
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
   const capture = usePostHogClientCapture();
@@ -565,7 +567,10 @@ export function DataTable<TData extends object, TValue>({
                               />
                             )}
                             {sortingEnabled && orderBy?.column === columnDef.id
-                              ? renderOrderingIndicator(orderBy)
+                              ? renderOrderingIndicator(
+                                  orderBy,
+                                  t("sortByColumn"),
+                                )
                               : null}
 
                             <div
@@ -724,11 +729,14 @@ function TableRefetchBar({ active }: { active: boolean }) {
   );
 }
 
-function renderOrderingIndicator(orderBy?: OrderByState) {
+function renderOrderingIndicator(
+  orderBy: OrderByState | undefined,
+  title: string,
+) {
   if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
   return (
-    <span className="ml-1" title="Sort by this column">
+    <span className="ml-1" title={title}>
       ▼
     </span>
   );
@@ -828,6 +836,7 @@ function TableBodyComponent<TData>({
   cellPadding = "compact",
   tableSnapshot: _tableSnapshot,
 }: TableBodyComponentProps<TData>) {
+  const t = useTranslations("common.table");
   const visibleColumns = table.getVisibleLeafColumns();
   const rowModelRows = table.getRowModel().rows;
   const tableState = table.getState();
@@ -986,7 +995,7 @@ function TableBodyComponent<TData>({
             <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
               {noResultsMessage ?? (
                 <>
-                  No results.{" "}
+                  {t("noResults")}{" "}
                   {help && (
                     <DocPopup description={help.description} href={help.href} />
                   )}

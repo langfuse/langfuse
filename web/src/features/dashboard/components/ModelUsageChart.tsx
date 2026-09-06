@@ -25,6 +25,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 export const ModelUsageChart = ({
   className,
@@ -51,6 +52,7 @@ export const ModelUsageChart = ({
   schedulerId?: string;
   syncId?: string;
 }) => {
+  const t = useTranslations("systemUi.dashboardExtras");
   const {
     allModels,
     selectedModels,
@@ -314,39 +316,39 @@ export const ModelUsageChart = ({
 
   const data = [
     {
-      tabTitle: "Cost by model",
+      tabTitle: t("costByModel"),
       data: costByModel,
       totalMetric: costFormatter(totalCost),
-      metricDescription: `Cost`,
+      metricDescription: t("cost"),
       chartMetricLabel: "USD",
       chartUnit: "USD",
     },
     {
-      tabTitle: "Cost by type",
+      tabTitle: t("costByType"),
       data: costByType,
       totalMetric: costFormatter(totalCost),
-      metricDescription: `Cost`,
+      metricDescription: t("cost"),
       chartMetricLabel: "USD",
       chartUnit: "USD",
     },
     {
-      tabTitle: "Usage by model",
+      tabTitle: t("usageByModel"),
       data: unitsByModel,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Units`,
-      chartMetricLabel: "Tokens",
+      metricDescription: t("units"),
+      chartMetricLabel: t("tokens"),
       chartUnit: "tokens",
     },
     {
-      tabTitle: "Usage by type",
+      tabTitle: t("usageByType"),
       data: unitsByType,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Units`,
-      chartMetricLabel: "Tokens",
+      metricDescription: t("units"),
+      chartMetricLabel: t("tokens"),
       chartUnit: "tokens",
     },
   ];
@@ -354,7 +356,7 @@ export const ModelUsageChart = ({
   return (
     <DashboardCard
       className={className}
-      title="Model Usage"
+      title={t("modelUsage")}
       isLoading={
         isLoading || (queryResult.isPending && selectedModels.length > 0)
       }

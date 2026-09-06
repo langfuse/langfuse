@@ -134,13 +134,13 @@ export function buildMetricOptions(
   return [
     {
       id: BASE_CHART_IDS.COST,
-      label: "Cost ($)",
-      group: "Base Metrics",
+      label: "cost",
+      group: "base",
     },
     {
       id: BASE_CHART_IDS.LATENCY,
-      label: "Latency (ms)",
-      group: "Base Metrics",
+      label: "latency",
+      group: "base",
     },
     ...scoreOptions,
   ];

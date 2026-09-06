@@ -15,6 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type CreateProjectMemberDialogControllerProps = {
   orgId: string;
@@ -38,6 +39,7 @@ export function CreateProjectMemberDialogController({
   project,
   children,
 }: CreateProjectMemberDialogControllerProps) {
+  const t = useTranslations("accessSettings.memberDialog");
   const hasOrgAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:CUD",
@@ -96,8 +98,11 @@ export function CreateProjectMemberDialogController({
         <>
           <DialogHeader>
             <DialogTitle>
-              Add new member to the{" "}
-              {hasOnlySingleProjectAccess ? "project" : "organization"}
+              {t("title", {
+                target: hasOnlySingleProjectAccess
+                  ? t("project")
+                  : t("organization"),
+              })}
             </DialogTitle>
           </DialogHeader>
           <CreateProjectMemberDialogContent

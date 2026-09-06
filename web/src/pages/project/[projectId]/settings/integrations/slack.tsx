@@ -19,8 +19,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { useTranslations } from "next-intl";
 
 export default function SlackIntegrationSettings() {
+  const t = useTranslations("integrationsSettings");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -41,7 +43,7 @@ export default function SlackIntegrationSettings() {
         window.opener.postMessage(
           {
             type: "slack-oauth-success",
-            teamName: teamName || "your Slack workspace",
+            teamName: teamName || t("slack.workspaceFallback"),
           },
           window.location.origin,
         );
@@ -62,7 +64,7 @@ export default function SlackIntegrationSettings() {
         window.close();
       }
     }
-  }, [router.query]);
+  }, [router.query, t]);
 
   const { data: integrationStatus, isLoading } =
     api.slack.getIntegrationStatus.useQuery(
@@ -92,9 +94,12 @@ export default function SlackIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Slack Integration",
+        title: t("slack.title"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("common.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: <AutomationButton projectId={projectId} />,
@@ -109,22 +114,22 @@ export default function SlackIntegrationSettings() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Test Integration
+                {t("slack.testTitle")}
               </CardTitle>
-              <CardDescription>
-                Test your Slack integration by sending a message to a channel.
-              </CardDescription>
+              <CardDescription>{t("slack.testDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h4 className="mb-2 text-sm font-bold">Select Test Channel</h4>
+                <h4 className="mb-2 text-sm font-bold">
+                  {t("slack.selectChannel")}
+                </h4>
                 <div className="max-w-md">
                   <ChannelSelector
                     projectId={projectId}
                     selectedChannelId={selectedChannel?.id}
                     selectedChannel={selectedChannel}
                     onChannelSelect={setSelectedChannel}
-                    placeholder="Choose a channel to test"
+                    placeholder={t("slack.chooseChannel")}
                     showRefreshButton={true}
                   />
                 </div>
@@ -134,32 +139,40 @@ export default function SlackIntegrationSettings() {
                 <div className="space-y-4 border-t pt-4">
                   <div>
                     <h4 className="mb-3 text-sm font-bold">
-                      Channel Information
+                      {t("slack.channelInformation")}
                     </h4>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
-                        <p className="text-sm font-bold">Channel Name</p>
+                        <p className="text-sm font-bold">
+                          {t("slack.channelName")}
+                        </p>
                         <p className="text-muted-foreground text-sm">
                           #{selectedChannel.name}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm font-bold">Channel Type</p>
+                        <p className="text-sm font-bold">
+                          {t("slack.channelType")}
+                        </p>
                         {isManualEntry ? (
                           <span className="text-muted-foreground text-xs">
-                            Available after sending a test message
+                            {t("slack.availableAfterTest")}
                           </span>
                         ) : (
                           <Badge variant="outline" className="text-xs">
-                            {selectedChannel.isPrivate ? "Private" : "Public"}
+                            {selectedChannel.isPrivate
+                              ? t("slack.private")
+                              : t("slack.public")}
                           </Badge>
                         )}
                       </div>
                       <div>
-                        <p className="text-sm font-bold">Channel ID</p>
+                        <p className="text-sm font-bold">
+                          {t("slack.channelId")}
+                        </p>
                         {isManualEntry ? (
                           <span className="text-muted-foreground text-xs">
-                            Available after sending a test message
+                            {t("slack.availableAfterTest")}
                           </span>
                         ) : (
                           <p className="text-muted-foreground font-mono text-sm">
@@ -196,12 +209,13 @@ export default function SlackIntegrationSettings() {
 
               {!selectedChannel && (
                 <div className="text-muted-foreground text-sm">
-                  Select a channel above to view its details and test message
-                  delivery. For private channels, invite the app first with{" "}
-                  <code className="bg-muted rounded px-1 py-0.5">
-                    /invite @Langfuse
-                  </code>{" "}
-                  in that channel.
+                  {t.rich("slack.noSelection", {
+                    command: (chunks) => (
+                      <code className="bg-muted rounded px-1 py-0.5">
+                        {chunks}
+                      </code>
+                    ),
+                  })}
                 </div>
               )}
             </CardContent>

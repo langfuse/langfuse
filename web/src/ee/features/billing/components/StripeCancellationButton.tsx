@@ -15,6 +15,7 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
+import { useTranslations } from "next-intl";
 
 export const StripeCancellationButton = ({
   orgId,
@@ -25,13 +26,14 @@ export const StripeCancellationButton = ({
   variant: "secondary" | "default";
   className?: string;
 }) => {
+  const t = useTranslations("settingsEnterprise.billing");
   const { cancellation } = useBillingInformation();
   const [loading, setLoading] = useState(false);
   const [_opId, setOpId] = useState<string | null>(null);
 
   const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
     onSuccess: () => {
-      toast.success("Subscription will be cancelled at period end");
+      toast.success(t("cancellation.scheduled"));
       setLoading(false);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
@@ -39,14 +41,14 @@ export const StripeCancellationButton = ({
     onError: () => {
       setLoading(false);
       setOpId(null);
-      toast.error("Failed to cancel subscription");
+      toast.error(t("cancellation.cancelFailed"));
     },
   });
 
   const reactivateMutation =
     api.cloudBilling.reactivateStripeSubscription.useMutation({
       onSuccess: () => {
-        toast.success("Subscription reactivated");
+        toast.success(t("cancellation.reactivated"));
         setLoading(false);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
@@ -54,7 +56,7 @@ export const StripeCancellationButton = ({
       onError: () => {
         setLoading(false);
         setOpId(null);
-        toast.error("Failed to reactivate subscription");
+        toast.error(t("cancellation.reactivateFailed"));
       },
     });
 
@@ -71,7 +73,7 @@ export const StripeCancellationButton = ({
       }
       await reactivateMutation.mutateAsync({ orgId, opId });
     } catch (_e) {
-      toast.error("Failed to reactivate subscription");
+      toast.error(t("cancellation.reactivateFailed"));
     }
   };
 
@@ -86,7 +88,7 @@ export const StripeCancellationButton = ({
       }
       await cancelMutation.mutateAsync({ orgId, opId });
     } catch (_e) {
-      toast.error("Failed to cancel subscription");
+      toast.error(t("cancellation.cancelFailed"));
     }
   };
 
@@ -98,35 +100,30 @@ export const StripeCancellationButton = ({
           <Button
             variant={variant}
             disabled={loading}
-            title="Reactivate Subscription"
+            title={t("cancellation.reactivate")}
             className={className}
           >
-            {loading ? "Working…" : "Reactivate Subscription"}
+            {loading ? t("cancellation.working") : t("cancellation.reactivate")}
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-lg">
-              Confirm Reactivation: Keep Your Subscription
+              {t("cancellation.reactivateTitle")}
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="text-sm">
-            <p>
-              Reactivating removes the scheduled cancellation. Your subscription
-              will continue beyond the current billing period and renew until
-              you cancel again.
-            </p>
-            <p>
-              Your features and usage billing remain unchanged. By confirming,
-              you agree to future renewals and charges.
-            </p>
+            <p>{t("cancellation.reactivateDescription")}</p>
+            <p>{t("cancellation.reactivateConfirmation")}</p>
           </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t("common.cancel")}</Button>
             </DialogClose>
             <Button variant="default" onClick={onReactivate} disabled={loading}>
-              {loading ? "Reactivating…" : "Confirm Reactivation"}
+              {loading
+                ? t("cancellation.reactivating")
+                : t("cancellation.confirmReactivation")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -141,33 +138,31 @@ export const StripeCancellationButton = ({
         <Button
           variant={variant}
           disabled={loading}
-          title="Cancel Subscription"
+          title={t("cancellation.cancelSubscription")}
         >
-          Cancel Subscription
+          {t("cancellation.cancelSubscription")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-lg">Confirm Cancellation</DialogTitle>
+          <DialogTitle className="text-lg">
+            {t("cancellation.cancelTitle")}
+          </DialogTitle>
         </DialogHeader>
         <DialogBody className="text-sm">
-          <p>
-            Your subscription will not renew. You will retain access until the
-            end of the current billing period
-          </p>
-          <p>
-            Usage during the remainder of the period is still billed under your
-            current plan. By confirming, you schedule the cancellation for
-            period end. You can reactivate before that date if you change your
-            mind.
-          </p>
+          <p>{t("cancellation.cancelDescription")}</p>
+          <p>{t("cancellation.cancelConfirmation")}</p>
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="secondary">Keep Subscription</Button>
+            <Button variant="secondary">
+              {t("cancellation.keepSubscription")}
+            </Button>
           </DialogClose>
           <Button variant="destructive" onClick={onCancel} disabled={loading}>
-            {loading ? "Cancelling…" : "Confirm Cancellation"}
+            {loading
+              ? t("cancellation.cancelling")
+              : t("cancellation.confirmCancellation")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -11,6 +11,7 @@ import { type GetModelResult } from "@/src/features/models/validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 export const DeleteModelButton = ({
   modelData,
@@ -21,6 +22,7 @@ export const DeleteModelButton = ({
   projectId: string;
   onSuccess?: () => void;
 }) => {
+  const t = useTranslations("settingsEnterprise.models.actions");
   const [isOpen, setIsOpen] = useState(false);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -41,18 +43,16 @@ export const DeleteModelButton = ({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          title="Delete model"
+          title={t("deleteTitle")}
           disabled={!hasAccess}
           className="border-light-red flex items-center"
         >
-          <span className="text-dark-red">Delete</span>
+          <span className="text-dark-red">{t("delete")}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="mb-3 font-bold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          This action permanently deletes this model definition.
-        </p>
+        <h2 className="mb-3 font-bold">{t("confirm")}</h2>
+        <p className="mb-3 text-sm">{t("deleteDescription")}</p>
         <div className="flex justify-end space-x-4">
           <Button
             type="button"
@@ -68,7 +68,7 @@ export const DeleteModelButton = ({
               setIsOpen(false);
             }}
           >
-            Delete Model
+            {t("deleteModel")}
           </Button>
         </div>
       </PopoverContent>

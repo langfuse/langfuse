@@ -4,6 +4,7 @@ import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { useTranslations } from "next-intl";
 
 export function NameStep({
   step,
@@ -28,21 +29,21 @@ export function NameStep({
     typeof AIAssistedInput
   >["aiAssistance"];
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <Stepper
       number={step}
-      title="Name evaluator"
-      description="Give the evaluator a clear name (it's also used as the score name) and explain when it should be used."
+      title={t("setup.name.title")}
+      description={t("setup.name.description")}
       open={open}
       onOpenChange={onOpenChange}
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
-            Name
-            <InfoTooltip label="About evaluator names">
-              The evaluator name is also used as the score name for the scores
-              it produces.
+            {t("setup.name.nameLabel")}
+            <InfoTooltip label={t("setup.name.aboutNames")}>
+              {t("setup.name.nameTooltip")}
             </InfoTooltip>
           </Label>
           <AIAssistedInput
@@ -51,17 +52,17 @@ export function NameStep({
             onChange={(event) => onNameChange(event.target.value)}
             placeholder={
               nameAIAssistance.state === "generating"
-                ? "Generating a name…"
-                : "Evaluator name"
+                ? t("setup.name.generatingName")
+                : t("setup.name.namePlaceholder")
             }
             aiAssistance={nameAIAssistance}
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="evaluator-description">
-            Description{" "}
+            {t("setup.name.descriptionLabel")}{" "}
             <span className="text-muted-foreground font-normal">
-              (optional)
+              {t("optional")}
             </span>
           </Label>
           <AIAssistedInput
@@ -70,10 +71,10 @@ export function NameStep({
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={
               descriptionAIAssistance.state === "generating"
-                ? "Generating a description…"
-                : "Describe what this evaluator measures"
+                ? t("setup.name.generatingDescription")
+                : t("setup.name.descriptionPlaceholder")
             }
-            fieldName="description"
+            fieldName={t("setup.name.descriptionLabel")}
             aiAssistance={descriptionAIAssistance}
           />
         </div>

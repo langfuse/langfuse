@@ -5,6 +5,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
+import { useTranslations } from "next-intl";
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -19,6 +20,7 @@ export function RequestResetPasswordEmailButton({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const session = useSession();
   const capture = usePostHogClientCapture();
+  const t = useTranslations("auth");
   const isValidEmail = z.email().safeParse(email).success;
 
   const handleResetPassword = async () => {
@@ -38,15 +40,15 @@ export function RequestResetPasswordEmailButton({
       if (res?.error) {
         setErrorMessage(
           res.error === "AccessDenied"
-            ? "This email is not associated with any account."
-            : res.error,
+            ? t("passwordReset.accessDenied")
+            : t("common.unexpectedError"),
         );
       } else if (res?.ok) {
         setIsEmailSent(true);
       }
     } catch (error) {
       console.error("Error sending reset password email:", error);
-      setErrorMessage("An unexpected error occurred. Please try again.");
+      setErrorMessage(t("common.unexpectedError"));
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +71,7 @@ export function RequestResetPasswordEmailButton({
       window.location.href = url;
     } catch (error) {
       console.error("Error verifying code:", error);
-      setErrorMessage("An unexpected error occurred. Please try again.");
+      setErrorMessage(t("common.unexpectedError"));
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +82,7 @@ export function RequestResetPasswordEmailButton({
       {isEmailSent ? (
         <div>
           <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
-            Check your inbox for the code
+            {t("verification.inbox")}
           </label>
           <Input
             id="otp-code"
@@ -89,7 +91,7 @@ export function RequestResetPasswordEmailButton({
             maxLength={6}
             value={code}
             onChange={(event) => setCode(event.target.value.trim())}
-            placeholder="One time passcode"
+            placeholder={t("verification.oneTimePasscode")}
             className="mb-8 w-full"
           />
           <Button
@@ -98,7 +100,7 @@ export function RequestResetPasswordEmailButton({
             disabled={!code || code.length !== 6}
             className="w-full"
           >
-            Verify code
+            {t("verification.verifyCode")}
           </Button>
         </div>
       ) : (
@@ -109,8 +111,8 @@ export function RequestResetPasswordEmailButton({
           className="w-full"
         >
           {session.status === "authenticated"
-            ? "Verify email to change password"
-            : "Request password reset"}
+            ? t("verification.verifyToChange")
+            : t("passwordReset.request")}
         </Button>
       )}
       {errorMessage && (

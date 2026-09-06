@@ -15,6 +15,7 @@ import { useCallback } from "react";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import { type ScoreDataTypeType } from "@langfuse/shared";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
@@ -42,6 +43,7 @@ function HeatmapTooltipContent({
   score2Color,
   totalMatchedPairs,
 }: HeatmapTooltipContentProps) {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   const percentage = (cell.metadata?.percentage as number) ?? 0;
 
   return (
@@ -50,7 +52,7 @@ function HeatmapTooltipContent({
       <div className="border-border border-b pb-2">
         <p className="text-muted-foreground text-sm font-bold">
           {dataType === "NUMERIC"
-            ? `Bin ${cell.row}×${cell.col}`
+            ? t("bin", { row: cell.row, column: cell.col })
             : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
         </p>
       </div>
@@ -58,11 +60,13 @@ function HeatmapTooltipContent({
       {/* Primary Metrics Section */}
       <div className="space-y-1">
         <p className="text-foreground text-base font-bold">
-          {cell.value.toLocaleString()} observations
+          {t("observationCount", { count: cell.value })}
         </p>
         <p className="text-muted-foreground text-xs">
-          {percentage.toFixed(1)}% of {totalMatchedPairs.toLocaleString()}{" "}
-          matched pairs
+          {t("matchedPairPercentage", {
+            percentage: percentage.toFixed(1),
+            count: totalMatchedPairs,
+          })}
         </p>
       </div>
 
@@ -139,6 +143,7 @@ function HeatmapTooltipContent({
  * - Numeric vs categorical data types
  */
 export function HeatmapCard() {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   const { data, isLoading, params, getColorForScore } = useScoreAnalytics();
 
   // Compute max value for color scaling (must be before early returns)
@@ -162,8 +167,8 @@ export function HeatmapCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Score Comparison</CardTitle>
-          <CardDescription>Loading heatmap...</CardDescription>
+          <CardTitle>{t("scoreComparison")}</CardTitle>
+          <CardDescription>{t("loadingHeatmapShort")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col items-center justify-center pl-1">
           <Spinner size="xl" variant="muted" />
@@ -177,11 +182,11 @@ export function HeatmapCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Score Comparison</CardTitle>
-          <CardDescription>No data available</CardDescription>
+          <CardTitle>{t("scoreComparison")}</CardTitle>
+          <CardDescription>{t("noDataAvailable")}</CardDescription>
         </CardHeader>
         <CardContent className="text-muted-foreground flex flex-1 flex-col items-center justify-center pl-0 text-sm">
-          Select a score to view comparison
+          {t("selectScoreForComparison")}
         </CardContent>
       </Card>
     );
@@ -195,16 +200,16 @@ export function HeatmapCard() {
   const totalMatchedPairs = statistics.comparison?.matchedCount ?? 0;
 
   const title =
-    dataType === "NUMERIC" ? "Score Comparison Heatmap" : "Confusion Matrix";
+    dataType === "NUMERIC" ? t("scoreComparisonHeatmap") : t("confusionMatrix");
 
   const description =
     mode === "single"
       ? dataType === "NUMERIC"
-        ? "Distribution of matched score pairs showing correlation patterns"
-        : "Agreement matrix between categorical scores"
+        ? t("correlationDistribution")
+        : t("categoricalAgreementMatrix")
       : dataType === "NUMERIC"
-        ? `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`
-        : `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+        ? t("matchedCorrelation", { count: totalMatchedPairs })
+        : t("matchedAgreement", { count: totalMatchedPairs });
 
   // Single score mode - show placeholder
   if (mode === "single") {
@@ -223,7 +228,7 @@ export function HeatmapCard() {
             showAxisLabels={true}
           />
           <p className="text-muted-foreground text-center text-sm">
-            Select a second score to view comparison heatmap
+            {t("selectSecondScoreForHeatmap")}
           </p>
         </CardContent>
       </Card>
@@ -299,6 +304,7 @@ export function HeatmapCard() {
             colLabels={heatmap.colLabels}
             xAxisLabel={`${score2?.name} (${score2?.source})`}
             yAxisLabel={`${score1.name} (${score1.source})`}
+            ariaLabel={t("scoreComparisonHeatmap")}
             getColor={getColor}
             showValues={false}
             renderTooltip={(cell) => (

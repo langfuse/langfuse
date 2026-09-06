@@ -5,6 +5,10 @@
  * PrettyJsonView entirely, while normal fields render exactly as before.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import englishCoreObservabilityMessages from "@/src/features/i18n/messages/en/coreObservability.json";
+import simplifiedChineseCoreObservabilityMessages from "@/src/features/i18n/messages/zh-CN/coreObservability.json";
+import type { ReactElement } from "react";
 
 // PrettyJsonView is the unvirtualized render path we must NOT reach for
 // over-limit fields — mock it so its presence is observable by test id.
@@ -33,10 +37,42 @@ import { JSON_VIEW_RENDER_CHAR_LIMIT } from "./fns/jsonViewSizeGate";
 
 const FALLBACK_TEXT = /too large to render in JSON view/i;
 
+function renderWithCoreMessages(
+  ui: ReactElement,
+  locale: "en" | "zh-CN" = "en",
+) {
+  const coreObservability =
+    locale === "en"
+      ? englishCoreObservabilityMessages
+      : simplifiedChineseCoreObservabilityMessages;
+
+  return render(
+    <NextIntlClientProvider locale={locale} messages={{ coreObservability }}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
+
 describe("IOPreviewJSONSimple size gating", () => {
+  it("localizes the input section title", () => {
+    renderWithCoreMessages(
+      <IOPreviewJSONSimple
+        input={{ messages: [{ role: "user", content: "hi" }] }}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+      "zh-CN",
+    );
+
+    expect(screen.getByTestId("pretty-json-view")).toHaveTextContent("输入");
+  });
+
   it("renders the fallback and NOT PrettyJsonView for an over-limit field", () => {
     const huge = "x".repeat(JSON_VIEW_RENDER_CHAR_LIMIT + 1);
-    render(
+    renderWithCoreMessages(
       <IOPreviewJSONSimple
         input={huge}
         hideOutput
@@ -86,7 +122,7 @@ describe("IOPreviewJSONSimple size gating", () => {
       downloadName = this.download;
     });
 
-    render(
+    renderWithCoreMessages(
       <IOPreviewJSONSimple
         input={rawString}
         hideOutput
@@ -110,7 +146,7 @@ describe("IOPreviewJSONSimple size gating", () => {
   });
 
   it("hides a null field with hideIfNull and shows no fallback", () => {
-    render(
+    renderWithCoreMessages(
       <IOPreviewJSONSimple
         input={null}
         hideOutput
@@ -126,7 +162,7 @@ describe("IOPreviewJSONSimple size gating", () => {
   });
 
   it("renders PrettyJsonView (not the fallback) for normal small I/O", () => {
-    render(
+    renderWithCoreMessages(
       <IOPreviewJSONSimple
         input={{ messages: [{ role: "user", content: "hi" }] }}
         hideOutput

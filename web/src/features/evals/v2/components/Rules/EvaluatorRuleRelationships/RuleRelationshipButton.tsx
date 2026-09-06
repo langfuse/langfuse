@@ -1,6 +1,7 @@
 import { ListTree } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { useTranslations } from "next-intl";
 
 function RuleCount({ count }: { count: number }) {
   return (
@@ -19,19 +20,20 @@ export function RuleRelationshipButton({
   shouldCallAttention?: boolean;
   onClick: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <Button
       type="button"
       variant="outline"
       title={
         shouldCallAttention
-          ? "Attach this evaluator to a rule"
-          : "View attached rules"
+          ? t("rules.relationships.attachTitle")
+          : t("rules.relationships.viewTitle")
       }
       onClick={onClick}
     >
       <ListTree className="mr-2 h-4 w-4" />
-      Rules
+      {t("rulesPage.title")}
       {shouldCallAttention ? (
         <span
           aria-hidden="true"

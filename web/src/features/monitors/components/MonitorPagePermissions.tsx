@@ -5,6 +5,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useTranslations } from "next-intl";
 
 /** MonitorScope is the RBAC scope a monitor page can require for entry. */
 type MonitorScope = "alerts:read" | "alerts:CUD";
@@ -17,12 +18,18 @@ export function MonitorPagePermissions({
   scope: MonitorScope;
   children: ReactNode;
 }) {
+  const t = useTranslations("operationsUi.monitors.pages");
   const projectId = useProjectIdFromURL();
   const v4WriteMode = useLangfuseV4WriteMode();
   const hasAccess = useHasProjectAccess({ projectId, scope });
 
   if (!v4WriteMode || v4WriteMode === "legacy") {
-    return <ErrorPage title="Not found" message="This page does not exist." />;
+    return (
+      <ErrorPage
+        title={t("pageNotFoundTitle")}
+        message={t("pageNotFoundMessage")}
+      />
+    );
   }
 
   if (!hasAccess) {

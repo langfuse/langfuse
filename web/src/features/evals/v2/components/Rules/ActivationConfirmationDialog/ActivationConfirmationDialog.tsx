@@ -4,6 +4,7 @@ import type {
   ActivationEstimateState,
 } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
 import { ActivationCostEstimateDetails } from "./components/ActivationCostEstimateDetails/ActivationCostEstimateDetails";
+import { useTranslations } from "next-intl";
 
 export function ActivationConfirmationDialog({
   confirmation,
@@ -18,6 +19,7 @@ export function ActivationConfirmationDialog({
   onSamplingChange?: (sampling: number) => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const hasOnlyUnavailableEstimates =
     estimate.estimates.length === 0 && estimate.unavailableEstimateCount > 0;
   const hasCostDetails =
@@ -35,7 +37,7 @@ export function ActivationConfirmationDialog({
       confirmVariant="default"
       size={hasOnlyUnavailableEstimates ? "default" : "lg"}
       loading={confirmation.isConfirming}
-      loadingText="Validating rule..."
+      loadingText={t("rules.footer.validatingRule")}
       onConfirm={onConfirm}
     >
       {hasCostDetails ? (

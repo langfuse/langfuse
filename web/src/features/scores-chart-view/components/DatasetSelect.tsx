@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { type ScoreChartDataset } from "@/src/features/scores-chart-view/types";
+import { useTranslations } from "next-intl";
 
 const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
 
@@ -14,10 +15,10 @@ const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
 // (`viewLabels` in `@/src/features/monitors/helpers/monitorLabels`,
 // the scores filter groups in `@/src/features/experiments/config/
 // experiment-items-filter-config`) — not fresh labels invented here.
-const DATASET_OPTIONS: { key: ScoreChartDataset; label: string }[] = [
-  { key: "numeric", label: "Scores (numeric)" },
-  { key: "boolean", label: "Scores (boolean)" },
-  { key: "categorical", label: "Scores (categorical)" },
+const DATASET_OPTIONS: ScoreChartDataset[] = [
+  "numeric",
+  "boolean",
+  "categorical",
 ];
 
 /**
@@ -34,18 +35,20 @@ export const DatasetSelect = React.memo(function DatasetSelect({
   value: ScoreChartDataset;
   onChange: (value: ScoreChartDataset) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.scoreChartView");
   return (
     <Select
       value={value}
       onValueChange={(v) => onChange(v as ScoreChartDataset)}
     >
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="View">
+      <SelectTrigger className={TRIGGER_CLASS} aria-label={t("view")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {DATASET_OPTIONS.map((d) => (
-          <SelectItem key={d.key} value={d.key}>
-            {d.label}
+        {DATASET_OPTIONS.map((dataset) => (
+          <SelectItem key={dataset} value={dataset}>
+            {labelsT(`${dataset}Scores`)}
           </SelectItem>
         ))}
       </SelectContent>

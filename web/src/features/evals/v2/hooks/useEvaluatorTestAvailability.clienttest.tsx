@@ -1,13 +1,22 @@
+import type { PropsWithChildren } from "react";
 import { act, renderHook } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { getMessages } from "@/src/features/i18n/messages";
 
 import { useEvaluatorTestAvailability } from "./useEvaluatorTestAvailability";
 
 vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
   useEvaluatorSetupSample: () => ({ id: "sample" }),
 }));
+
+const IntlWrapper = ({ children }: PropsWithChildren) => (
+  <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+    {children}
+  </NextIntlClientProvider>
+);
 
 describe("useEvaluatorTestAvailability", () => {
   const store = createEvaluatorSetupStore({
@@ -33,7 +42,10 @@ describe("useEvaluatorTestAvailability", () => {
           store,
           hasValidModel,
         }),
-      { initialProps: { hasValidModel: false } },
+      {
+        initialProps: { hasValidModel: false },
+        wrapper: IntlWrapper,
+      },
     );
 
     expect(result.current).toBe("Select a model before running a test.");

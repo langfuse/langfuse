@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
 import { featurePreviewFlags } from "../available-flags";
+import englishIntegrationsSettings from "@/src/features/i18n/messages/en/integrationsSettings.json";
+import simplifiedChineseIntegrationsSettings from "@/src/features/i18n/messages/zh-CN/integrationsSettings.json";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -95,18 +98,29 @@ vi.mock("@/src/utils/api", () => ({
 
 const renderControl = (
   props: Omit<ComponentProps<typeof UserFeaturePreviewsControl>, "children">,
+  locale: "en" | "zh-CN" = "en",
 ) =>
   render(
-    <UserFeaturePreviewsControl {...props}>
-      {({ enabledCount, totalCount, content }) => (
-        <div>
-          <button type="button">
-            {enabledCount}/{totalCount} enabled
-          </button>
-          {content}
-        </div>
-      )}
-    </UserFeaturePreviewsControl>,
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        integrationsSettings:
+          locale === "en"
+            ? englishIntegrationsSettings
+            : simplifiedChineseIntegrationsSettings,
+      }}
+    >
+      <UserFeaturePreviewsControl {...props}>
+        {({ enabledCount, totalCount, content }) => (
+          <div>
+            <button type="button">
+              {enabledCount}/{totalCount} enabled
+            </button>
+            {content}
+          </div>
+        )}
+      </UserFeaturePreviewsControl>
+    </NextIntlClientProvider>,
   );
 
 describe("UserFeaturePreviewsControl", () => {
@@ -222,5 +236,23 @@ describe("UserFeaturePreviewsControl", () => {
 
     await waitFor(() => expect(mocks.invalidate).toHaveBeenCalledOnce());
     expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
+  it("renders feature preview labels and controls in Chinese", () => {
+    renderControl(
+      {
+        orgId: "org-1",
+        userId: "user-1",
+        featurePreviews: { modernSession: false },
+        management: { allowed: true },
+      },
+      "zh-CN",
+    );
+
+    expect(screen.getByText("功能预览")).toBeInTheDocument();
+    expect(screen.getByText("紧凑会话视图")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "为用户切换紧凑会话视图" }),
+    ).toBeInTheDocument();
   });
 });

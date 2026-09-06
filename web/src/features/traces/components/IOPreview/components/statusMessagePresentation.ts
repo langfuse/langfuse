@@ -21,31 +21,34 @@ export function parseStructuredStatusMessage(message: string) {
   return typeof parsed === "object" && parsed !== null ? parsed : undefined;
 }
 
-export function getStatusMessagePresentation(level: ObservationLevelType) {
+export function getStatusMessagePresentation(
+  level: ObservationLevelType,
+  titles: Record<ObservationLevelType, string>,
+) {
   if (level === "ERROR") {
     return {
-      title: "Error",
+      title: titles.ERROR,
       tone: "danger" as const,
     };
   }
 
   if (level === "WARNING") {
     return {
-      title: "Warning",
+      title: titles.WARNING,
       tone: "warning" as const,
     };
   }
 
   if (level === "DEBUG") {
     return {
-      title: "Debug",
+      title: titles.DEBUG,
       tone: "muted" as const,
     };
   }
 
   if (level === "DEFAULT") {
     return {
-      title: "Status",
+      title: titles.DEFAULT,
       tone: "neutral" as const,
     };
   }

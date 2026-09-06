@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderMonitorWithIntl } from "../test-utils";
 
 const existingRow = {
   id: "auto-1",
@@ -76,7 +77,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
       onSuccess("auto-2");
     };
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         triggerIds={["trig-1"]}
@@ -107,7 +108,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />
     );
-    const { rerender } = render(panel());
+    const { rerender } = renderMonitorWithIntl(panel());
 
     await openCreateDialog(/^webhook$/i);
     // The create invalidates the list, so the first automation lands while the
@@ -142,7 +143,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />
     );
-    const { rerender } = render(panel([]));
+    const { rerender } = renderMonitorWithIntl(panel([]));
 
     await openCreateDialog(/new automation/i);
     fireEvent.click(await screen.findByRole("button", { name: /stub save/i }));

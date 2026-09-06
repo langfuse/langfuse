@@ -168,10 +168,15 @@ function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
     .join(" ");
 }
 
-export function getInAppAgentToolProgressLabelResolution(toolName: string): {
+export type InAppAgentToolProgressLabelResolution = {
   source: "docs" | "skill" | "override" | "auto";
   label: string;
-} {
+  key?: string;
+};
+
+export function getInAppAgentToolProgressLabelResolution(
+  toolName: string,
+): InAppAgentToolProgressLabelResolution {
   if (isInAppAgentDocsToolName(toolName)) {
     return { source: "docs", label: "Reading Langfuse docs" };
   }
@@ -183,12 +188,13 @@ export function getInAppAgentToolProgressLabelResolution(toolName: string): {
   const strippedName = getInAppAgentToolDisplayName(toolName);
   const override = IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES[strippedName];
   if (override) {
-    return { source: "override", label: override };
+    return { source: "override", label: override, key: strippedName };
   }
 
   return {
     source: "auto",
     label: getAutoInAppAgentToolProgressLabel(strippedName),
+    key: strippedName,
   };
 }
 
@@ -214,16 +220,22 @@ function getInAppAgentToolProgressNounKey(toolName: string): string | null {
 
 export function getInAppAgentActivityProgressLabel(
   toolNames: string[],
+  options?: {
+    workingLabel?: string;
+    formatLabel?: (resolution: InAppAgentToolProgressLabelResolution) => string;
+    formatLookingAt?: (noun: string) => string;
+  },
 ): string {
   const latestToolName = toolNames.at(-1);
   if (!latestToolName) {
-    return "Working…";
+    return options?.workingLabel ?? "Working…";
   }
 
   const resolution = getInAppAgentToolProgressLabelResolution(latestToolName);
+  const formattedLabel = options?.formatLabel?.(resolution) ?? resolution.label;
   const latestNounKey = getInAppAgentToolProgressNounKey(latestToolName);
   if (!latestNounKey) {
-    return resolution.label;
+    return formattedLabel;
   }
 
   let streak = 1;
@@ -250,8 +262,8 @@ export function getInAppAgentActivityProgressLabel(
   return derived &&
     IN_APP_AGENT_TOOL_PROGRESS_LOOKING_VERBS.has(derived.verb) &&
     derived.noun
-    ? `Looking at ${derived.noun}`
-    : resolution.label;
+    ? (options?.formatLookingAt?.(derived.noun) ?? `Looking at ${derived.noun}`)
+    : formattedLabel;
 }
 
 const InAppAgentToolRejectionErrorSchema = z.object({
@@ -334,10 +346,11 @@ const InkeepChoiceResultSchema = z.object({
 export function getInAppAgentError(
   error: unknown,
   now = Date.now(),
+  fallbackMessage = "Assistant request failed. Please try again.",
 ): InAppAgentError {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
   const payload = parsedError.success ? parsedError.data.payload : undefined;
-  const message = getErrorMessage(error);
+  const message = getErrorMessage(error, fallbackMessage);
   const rateLimitError =
     parseRateLimitError(payload) ??
     parseRateLimitError(error) ??
@@ -389,10 +402,10 @@ function parseEmbeddedRateLimitError(message: string) {
   return null;
 }
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage(error: unknown, fallbackMessage: string) {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
   if (!parsedError.success) {
-    return "Assistant request failed. Please try again.";
+    return fallbackMessage;
   }
 
   const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
@@ -402,9 +415,7 @@ function getErrorMessage(error: unknown) {
     return legacyPayload.data.error;
   }
 
-  return (
-    parsedError.data.message ?? "Assistant request failed. Please try again."
-  );
+  return parsedError.data.message ?? fallbackMessage;
 }
 
 export function getDrawerMessages({

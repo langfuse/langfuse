@@ -180,6 +180,8 @@ export type TimeAxis = {
 
 /** Options that let a caller override the default axis presentation. */
 export type PrepareTimeAxisOptions = {
+  /** Locale used for temporal tick and tooltip labels. */
+  locale?: string;
   /**
    * Hide the tick labels on a categorical (entity-name) axis entirely, keeping
    * the full name in the tooltip. Off by default: the category branch shows its
@@ -200,6 +202,7 @@ export function prepareTimeAxis(
   maxTicks = 6,
   options: PrepareTimeAxisOptions = {},
 ): TimeAxis {
+  const locale = options.locale ?? "en-US";
   const timestamps: number[] = [];
   for (const value of rawValues) {
     const date = parseChartTimestamp(value);
@@ -306,19 +309,19 @@ export function prepareTimeAxis(
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
     if (mode === "time") {
-      return date.toLocaleTimeString("en-US", {
+      return date.toLocaleTimeString(locale, {
         hour: "numeric",
         ...(subHour ? { minute: "2-digit" } : {}),
       });
     }
     if (mode === "month") {
-      return date.toLocaleDateString("en-US", {
+      return date.toLocaleDateString(locale, {
         timeZone: calendarTimeZone,
         month: "short",
         year: "numeric",
       });
     }
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(locale, {
       timeZone: calendarTimeZone,
       month: "short",
       day: "numeric",
@@ -333,7 +336,7 @@ export function prepareTimeAxis(
   const formatTooltip = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
-    return date.toLocaleString("en-US", {
+    return date.toLocaleString(locale, {
       ...(calendarTimeZone ? { timeZone: calendarTimeZone } : {}),
       month: "short",
       day: "numeric",

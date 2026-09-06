@@ -19,16 +19,22 @@ export const validateNumericScore = ({
   value,
   minValue,
   maxValue,
+  formatError,
 }: {
   value?: number | null;
   minValue?: number | null;
   maxValue?: number | null;
+  formatError?: (min: number | string, max: number | string) => string;
 }): string | null => {
   if (
     (isPresent(maxValue) && Number(value) > maxValue) ||
     (isPresent(minValue) && Number(value) < minValue)
   ) {
-    return `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`;
+    const min = minValue ?? "-∞";
+    const max = maxValue ?? "∞";
+    return formatError
+      ? formatError(min, max)
+      : `Not in range: [${min},${max}]`;
   }
   return null;
 };
@@ -87,11 +93,12 @@ export const nextCategoryValue = (
 export const validateNewCategoryLabel = (
   label: string,
   categories: Pick<ScoreConfigCategoryDomain, "label">[],
+  messages?: { required: string; exists: string },
 ): string | null => {
   const trimmed = label.trim();
-  if (!trimmed) return "Category name is required";
+  if (!trimmed) return messages?.required ?? "Category name is required";
   if (categories.some((category) => category.label === trimmed)) {
-    return "A category with this name already exists";
+    return messages?.exists ?? "A category with this name already exists";
   }
   return null;
 };
@@ -99,12 +106,13 @@ export const validateNewCategoryLabel = (
 export const getAddCategoryActionLabel = (
   search: string,
   existingLabels: string[],
+  messages?: { addNamed: (name: string) => string; addNew: string },
 ): string => {
   const trimmed = search.trim();
   if (trimmed && !existingLabels.includes(trimmed)) {
-    return `Add "${trimmed}"`;
+    return messages?.addNamed(trimmed) ?? `Add "${trimmed}"`;
   }
-  return "Add new category";
+  return messages?.addNew ?? "Add new category";
 };
 
 export const appendCategoryToExisting = (

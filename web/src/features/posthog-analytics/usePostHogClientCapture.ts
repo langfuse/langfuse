@@ -318,7 +318,11 @@ const events = {
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
   ],
-  user_settings: ["theme_changed", "feature_preview_toggled"],
+  user_settings: [
+    "theme_changed",
+    "feature_preview_toggled",
+    "language_changed",
+  ],
   project_settings: [
     "project_delete",
     "rename_form_submit",

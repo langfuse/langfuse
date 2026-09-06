@@ -17,6 +17,7 @@ import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variabl
 import { useVariableMappingController } from "@/src/features/evals/v2/hooks/useVariableMappingController";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
+import { useTranslations } from "next-intl";
 
 export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   evaluatorId,
@@ -26,7 +27,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   store,
   sampleObject,
   unvalidatedSourceColumnIds = [],
-  sourceUnavailableMessage = "No matching observation is available to validate JSON paths.",
+  sourceUnavailableMessage,
   disabled = false,
   costEstimate,
 }: {
@@ -41,6 +42,9 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   disabled?: boolean;
   costEstimate: ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+  const resolvedSourceUnavailableMessage =
+    sourceUnavailableMessage ?? t("rules.mapping.noObservationForValidation");
   const [open, setOpen] = useState(false);
   const variableMappingOverride = useStore(
     store,
@@ -121,16 +125,19 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                   </span>
                   {!isCodeEvaluator ? (
                     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
-                      {mappedVariableCount}/{mapping.length} variables mapped
+                      {t("rules.mapping.variablesMapped", {
+                        mapped: mappedVariableCount,
+                        total: mapping.length,
+                      })}
                       {allVariablesMapped ? (
                         <Check
-                          aria-label="All variables mapped"
+                          aria-label={t("rules.mapping.allMapped")}
                           className="text-dark-green h-3.5 w-3.5"
                         />
                       ) : hasInvalidMappings ? (
                         <span
-                          aria-label="Some variables are not mapped correctly"
-                          title="Some variables are not mapped correctly"
+                          aria-label={t("rules.mapping.someInvalid")}
+                          title={t("rules.mapping.someInvalid")}
                           className="text-dark-yellow h-3.5 w-3.5"
                         >
                           <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
@@ -152,19 +159,17 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
             onClick={() => detachEvaluator(evaluatorId)}
           >
             <Unlink className="h-3.5 w-3.5" />
-            Disconnect
+            {t("rules.mapping.disconnect")}
           </Button>
         </div>
         <CollapsibleContent className="border-t p-3">
           {isCodeEvaluator ? (
             <p className="text-muted-foreground text-sm">
-              Observation data is available directly in code evaluators, so no
-              variable mapping is required.
+              {t("rules.mapping.codeNotRequired")}
             </p>
           ) : mapping.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No variable mapping is required because this evaluator does not
-              define prompt variables.
+              {t("rules.mapping.noVariablesRequired")}
             </p>
           ) : (
             <VariableMapping
@@ -175,7 +180,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
               sourceObject={sampleObject}
               hasMatchingObservations={Boolean(sampleObject)}
               unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
-              sourceUnavailableMessage={sourceUnavailableMessage}
+              sourceUnavailableMessage={resolvedSourceUnavailableMessage}
             />
           )}
         </CollapsibleContent>

@@ -4,15 +4,19 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorExecutionHistory({
   traces,
 }: {
   traces: Array<{ id: string; level: string; timestamp: Date }>;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   if (traces.length === 0) {
     return (
-      <span className="text-muted-foreground text-xs">No recent runs</span>
+      <span className="text-muted-foreground text-xs">
+        {t("rules.execution.noRecentRuns")}
+      </span>
     );
   }
 
@@ -21,9 +25,11 @@ export function EvaluatorExecutionHistory({
       className="flex items-center gap-1"
       role="img"
       aria-label={traces
-        .map(
-          (trace) =>
-            `${trace.level.toLowerCase()} at ${trace.timestamp.toLocaleString()}`,
+        .map((trace) =>
+          t("rules.execution.levelAtTime", {
+            level: trace.level.toLowerCase(),
+            time: trace.timestamp.toLocaleString(),
+          }),
         )
         .join(", ")}
     >
@@ -42,7 +48,10 @@ export function EvaluatorExecutionHistory({
             />
           </TooltipTrigger>
           <TooltipContent>
-            {trace.level.toLowerCase()} at {trace.timestamp.toLocaleString()}
+            {t("rules.execution.levelAtTime", {
+              level: trace.level.toLowerCase(),
+              time: trace.timestamp.toLocaleString(),
+            })}
           </TooltipContent>
         </Tooltip>
       ))}

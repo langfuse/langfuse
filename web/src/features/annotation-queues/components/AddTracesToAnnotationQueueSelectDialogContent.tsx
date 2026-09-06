@@ -24,6 +24,7 @@ import {
 } from "@/src/components/ui/select";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 
 type AnnotationQueueSelectOption = {
   id: string;
@@ -62,6 +63,7 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
   hasAccess,
   batchActionState,
 }: AddTracesToAnnotationQueueSelectDialogContentProps) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<SelectFormValues>({
     defaultValues: { targetId: initialTargetId },
@@ -84,7 +86,7 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
   return (
     <>
       <DialogHeader variant="action">
-        <DialogTitle>Add to Annotation Queue</DialogTitle>
+        <DialogTitle>{t("add")}</DialogTitle>
       </DialogHeader>
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(handleSubmit)}>
@@ -103,7 +105,7 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
                 }
                 onClick={onCreateNewQueue}
               >
-                Create new queue
+                {t("createNewQueue")}
               </Button>
             </div>
             <FormField
@@ -120,7 +122,9 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
                       <SelectTrigger>
                         <SelectValue
                           placeholder={
-                            isQueueOptionsLoading ? "Loading..." : "Select..."
+                            isQueueOptionsLoading
+                              ? t("loading")
+                              : t("selectPlaceholder")
                           }
                         />
                       </SelectTrigger>
@@ -143,7 +147,7 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
               <div className="flex items-center gap-1">
                 <Spinner size="xxs" />
                 <p className="text-muted-foreground text-sm">
-                  Batch action is in progress, please wait.
+                  {t("batchActionInProgress")}
                 </p>
               </div>
             ) : null}
@@ -157,7 +161,7 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
                 !form.watch("targetId")
               }
             >
-              Confirm
+              {t("confirm")}
             </ActionButton>
           </DialogFooter>
         </form>

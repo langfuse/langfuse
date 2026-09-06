@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
+import { useTranslations } from "next-intl";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -22,6 +23,7 @@ interface TraceAnnotationProcessorProps {
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const traceId = item.parentTraceId ?? item.objectId;
 
   const [, setCurrentObservationId] = useQueryParam("observation", StringParam);
@@ -35,7 +37,7 @@ export const TraceAnnotationProcessor: React.FC<
     }
   }, [item, setCurrentObservationId]);
 
-  if (!data) return <div className="p-3">Loading...</div>;
+  if (!data) return <div className="p-3">{t("loading")}</div>;
 
   const leftPanel = (
     <Trace

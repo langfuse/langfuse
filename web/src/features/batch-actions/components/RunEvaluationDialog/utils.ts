@@ -44,11 +44,12 @@ export function renderPromptPreviewFromObservation(params: {
   prompt: string | null | undefined;
   variableMapping: ObservationVariableMapping[];
   observation: ObservationPreview | EventPreview;
+  emptyPromptMessage?: string;
 }): string {
-  const { prompt, variableMapping, observation } = params;
+  const { prompt, variableMapping, observation, emptyPromptMessage } = params;
 
   if (!prompt) {
-    return "Template has no prompt.";
+    return emptyPromptMessage ?? "Template has no prompt.";
   }
 
   // Both source records carry tool calls in the raw storage shape (name-less

@@ -10,6 +10,7 @@ import {
   type createRuleSetupStore,
   isRuleDraftDirty,
 } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { useTranslations } from "next-intl";
 
 export function RuleDialogFooter({
   ruleSetupStore,
@@ -30,6 +31,7 @@ export function RuleDialogFooter({
   onCancel: () => void;
   onSave: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const name = useStore(ruleSetupStore, (state) => state.name);
   const dirty = useStore(ruleSetupStore, isRuleDraftDirty);
   const nameMissing = !name.trim();
@@ -38,7 +40,9 @@ export function RuleDialogFooter({
       type="button"
       loading={mutationPending || nameGenerationPending}
       loadingText={
-        nameGenerationPending ? "Generating name..." : "Validating rule..."
+        nameGenerationPending
+          ? t("rules.footer.generatingName")
+          : t("rules.footer.validatingRule")
       }
       disabled={
         !canEdit ||
@@ -54,21 +58,23 @@ export function RuleDialogFooter({
       }
       onClick={onSave}
     >
-      {isEditing ? "Save changes" : "Save and activate"}
+      {isEditing
+        ? t("rules.footer.saveChanges")
+        : t("rules.footer.saveActivate")}
     </Button>
   );
 
   return (
     <DialogFooter>
       <Button type="button" variant="outline" onClick={onCancel}>
-        {dirty ? "Cancel" : "Close"}
+        {dirty ? t("cancel") : t("close")}
       </Button>
       {nameMissing && !nameAIAssistanceAvailable && canEdit ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex cursor-not-allowed">{saveButton}</span>
           </TooltipTrigger>
-          <TooltipContent>Add a rule name before saving.</TooltipContent>
+          <TooltipContent>{t("rules.footer.nameRequired")}</TooltipContent>
         </Tooltip>
       ) : (
         saveButton

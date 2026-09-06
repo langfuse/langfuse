@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { diffLines as calculateDiffLines, diffWords } from "diff";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 type DiffSegmentPart = {
   value: string;
@@ -99,6 +100,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   newSubLabel,
   className,
 }) => {
+  const t = useSharedUiTranslations("accessibility");
   const [diffLines, setDiffLines] = useState<{
     left: DiffSegment[];
     right: DiffSegment[];
@@ -193,7 +195,9 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   };
 
   if (oldString === newString) {
-    return <div className="text-muted-foreground text-sm">No changes</div>;
+    return (
+      <div className="text-muted-foreground text-sm">{t("noChanges")}</div>
+    );
   }
 
   return (

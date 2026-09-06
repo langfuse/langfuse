@@ -49,11 +49,11 @@ import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/compone
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import {
-  getSearchButtonLabel,
   getSearchMode,
   hasFullTextSearchType,
   searchModeToType,
 } from "@/src/components/table/utils/searchUtils";
+import { useTranslations } from "next-intl";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -163,44 +163,6 @@ interface DataTableToolbarProps<TData, TValue> {
   leadingControls?: React.ReactNode;
 }
 
-// Helper function to get the description for DocPopup
-function getSearchDescription(
-  searchType: TracingSearchType[] | undefined,
-  metadataFields: string[] | undefined,
-  hidePerformanceWarning: boolean | undefined,
-  tableAllowsFullTextSearch: boolean | undefined,
-): React.ReactNode {
-  const fields = metadataFields?.join(", ") ?? "";
-  const performanceWarning = !hidePerformanceWarning
-    ? " For improved performance, please filter the table down."
-    : "";
-
-  if (tableAllowsFullTextSearch && searchType?.includes("content")) {
-    return (
-      <p className="text-primary text-xs font-normal">
-        Searches in Input/Output and {fields}.{performanceWarning}
-      </p>
-    );
-  }
-  if (tableAllowsFullTextSearch && searchType?.includes("input")) {
-    return (
-      <p className="text-primary text-xs font-normal">
-        Searches in Input and {fields}.{performanceWarning}
-      </p>
-    );
-  }
-  if (tableAllowsFullTextSearch && searchType?.includes("output")) {
-    return (
-      <p className="text-primary text-xs font-normal">
-        Searches in Output and {fields}.{performanceWarning}
-      </p>
-    );
-  }
-  return (
-    <p className="text-primary text-xs font-normal">Searches in {fields}.</p>
-  );
-}
-
 export function DataTableToolbar<TData, TValue>({
   columns,
   filterColumnDefinition,
@@ -232,6 +194,7 @@ export function DataTableToolbar<TData, TValue>({
   viewModeToggle,
   leadingControls,
 }: DataTableToolbarProps<TData, TValue>) {
+  const t = useTranslations("sharedUi.table.toolbar");
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
@@ -268,11 +231,41 @@ export function DataTableToolbar<TData, TValue>({
   };
 
   const searchButtonLabel = searchConfig?.tableAllowsFullTextSearch
-    ? getSearchButtonLabel(
-        searchConfig.searchType,
-        searchConfig.customDropdownLabels?.metadata,
-      )
+    ? searchConfig.searchType?.includes("content")
+      ? `${t("fullText")}: ${t("inputOutput")}`
+      : searchConfig.searchType?.includes("input")
+        ? `${t("fullText")}: ${t("input")}`
+        : searchConfig.searchType?.includes("output")
+          ? `${t("fullText")}: ${t("output")}`
+          : (searchConfig.customDropdownLabels?.metadata ?? t("idsNames"))
     : undefined;
+
+  const getSearchDescription = () => {
+    const fields = searchConfig?.metadataSearchFields?.join(", ") ?? "";
+    const warning = searchConfig?.hidePerformanceWarning
+      ? ""
+      : t("searchPerformanceWarning");
+
+    let description = t("searchMetadata", { fields });
+    if (
+      searchConfig?.tableAllowsFullTextSearch &&
+      searchConfig.searchType?.includes("content")
+    ) {
+      description = t("searchInputOutput", { fields, warning });
+    } else if (
+      searchConfig?.tableAllowsFullTextSearch &&
+      searchConfig.searchType?.includes("input")
+    ) {
+      description = t("searchInput", { fields, warning });
+    } else if (
+      searchConfig?.tableAllowsFullTextSearch &&
+      searchConfig.searchType?.includes("output")
+    ) {
+      description = t("searchOutput", { fields, warning });
+    }
+
+    return <p className="text-primary text-xs font-normal">{description}</p>;
+  };
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
@@ -309,8 +302,11 @@ export function DataTableToolbar<TData, TValue>({
               autoFocus
               placeholder={
                 searchConfig.tableAllowsFullTextSearch
-                  ? "Search..."
-                  : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
+                  ? t("search")
+                  : t("searchFields", {
+                      fields:
+                        searchConfig.metadataSearchFields?.join(", ") ?? "",
+                    })
               }
               value={searchString}
               onChange={(newValue) => {
@@ -332,14 +328,7 @@ export function DataTableToolbar<TData, TValue>({
                   ? {
                       label: searchButtonLabel,
                       labelAccessory: (
-                        <DocPopup
-                          description={getSearchDescription(
-                            searchConfig.searchType,
-                            searchConfig.metadataSearchFields,
-                            searchConfig.hidePerformanceWarning,
-                            searchConfig.tableAllowsFullTextSearch,
-                          )}
-                        />
+                        <DocPopup description={getSearchDescription()} />
                       ),
                       content: (
                         <DropdownMenuRadioGroup
@@ -360,7 +349,7 @@ export function DataTableToolbar<TData, TValue>({
                         >
                           <DropdownMenuRadioItem value="metadata">
                             {searchConfig.customDropdownLabels?.metadata ??
-                              "IDs / Names"}
+                              t("idsNames")}
                           </DropdownMenuRadioItem>
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger
@@ -374,7 +363,7 @@ export function DataTableToolbar<TData, TValue>({
                                   <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
                                 )}
                                 {searchConfig.customDropdownLabels?.fullText ??
-                                  "Full Text"}
+                                  t("fullText")}
                               </span>
                             </DropdownMenuSubTrigger>
                             <DropdownMenuSubContent>
@@ -394,21 +383,21 @@ export function DataTableToolbar<TData, TValue>({
                                   searchConfig.availableSearchTypes
                                     .content) && (
                                   <DropdownMenuRadioItem value="metadata_fulltext">
-                                    Input/Output
+                                    {t("inputOutput")}
                                   </DropdownMenuRadioItem>
                                 )}
                                 {(searchConfig.availableSearchTypes ===
                                   undefined ||
                                   searchConfig.availableSearchTypes.input) && (
                                   <DropdownMenuRadioItem value="metadata_fulltext_input">
-                                    Input
+                                    {t("input")}
                                   </DropdownMenuRadioItem>
                                 )}
                                 {(searchConfig.availableSearchTypes ===
                                   undefined ||
                                   searchConfig.availableSearchTypes.output) && (
                                   <DropdownMenuRadioItem value="metadata_fulltext_output">
-                                    Output
+                                    {t("output")}
                                   </DropdownMenuRadioItem>
                                 )}
                               </DropdownMenuRadioGroup>
@@ -441,8 +430,8 @@ export function DataTableToolbar<TData, TValue>({
         )}
         {environmentFilter && (
           <MultiSelectFilter
-            title="Environment"
-            label="Env"
+            title={t("environment")}
+            label={t("environmentShort")}
             values={environmentFilter.values}
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}

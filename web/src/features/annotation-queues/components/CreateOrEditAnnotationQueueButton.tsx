@@ -6,6 +6,7 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
+import { useTranslations } from "next-intl";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -20,6 +21,7 @@ export const CreateOrEditAnnotationQueueButton = ({
   size?: ButtonProps["size"];
   isTableAction?: boolean;
 }) => {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const hasQueueAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "annotationQueues:CUD",
@@ -47,8 +49,8 @@ export const CreateOrEditAnnotationQueueButton = ({
         isTableAction ? (
           <IconOnlyButton
             icon={<Pen className="h-4 w-4" />}
-            label="Edit"
-            aria-label="edit"
+            label={t("editAction")}
+            aria-label={t("editAction")}
             disabledReason={disabled?.reason}
             onClick={(event) => {
               event.stopPropagation();
@@ -75,7 +77,7 @@ export const CreateOrEditAnnotationQueueButton = ({
             size={size}
           >
             <span className="ml-1 text-sm font-normal">
-              {queueId ? "Edit" : "New queue"}
+              {queueId ? t("editAction") : t("newQueue")}
             </span>
           </ActionButton>
         )

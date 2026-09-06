@@ -4,6 +4,7 @@
 // AutocompletePopover (positioning); Storybook renders it directly.
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
@@ -13,6 +14,11 @@ import type {
   CompletionPlan,
 } from "@/src/features/search-bar/lib/completions";
 import { optionDomId } from "@/src/features/search-bar/components/presentation";
+import {
+  localizeCompletionDetail,
+  localizeCompletionSection,
+  type SearchBarTranslator,
+} from "@/src/features/search-bar/lib/localization";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
   const cls = "h-3.5 w-3.5 flex-none opacity-55";
@@ -38,6 +44,9 @@ export function AutocompleteListbox({
   onHighlight,
   listboxId = "search-bar-listbox",
 }: AutocompleteListboxProps) {
+  const t = useTranslations("sharedUi.searchBar");
+  const translate: SearchBarTranslator = (key, values) =>
+    t(key as never, values as never);
   // Hover may only highlight on REAL pointer movement. When the list
   // re-renders under a stationary mouse (typing/pasting grows the popover),
   // Chromium fires synthetic mouseover events — honoring those would arm
@@ -69,7 +78,7 @@ export function AutocompleteListbox({
     <div
       id={listboxId}
       role="listbox"
-      aria-label="Search suggestions"
+      aria-label={t("searchSuggestions")}
       data-testid="search-bar-autocomplete"
       data-stage={plan.stage}
       className={cn(
@@ -83,26 +92,26 @@ export function AutocompleteListbox({
           data-testid="search-bar-autocomplete-loading"
           className="text-muted-foreground mx-1 flex min-h-8 items-center gap-2 px-3 text-xs"
         >
-          Loading values…
+          {t("loadingValues")}
         </div>
       )}
       {!plan.loading && plan.sections.length === 0 && (
         <div className="text-muted-foreground mx-1 flex min-h-8 items-center gap-2 px-3 text-xs">
-          No suggestions
+          {t("noSuggestions")}
         </div>
       )}
       {plan.sections.map((sec, i) => (
         <div
           key={sec.title}
           role="group"
-          aria-label={sec.title}
+          aria-label={localizeCompletionSection(sec.title, translate)}
           className={cn(i > 0 && "mt-1.5 border-t pt-1.5")}
         >
           <div
             data-testid="search-bar-autocomplete-section"
             className="text-muted-foreground px-3 pt-1.5 pb-1 text-[10px] tracking-[0.06em] uppercase"
           >
-            {sec.title}
+            {localizeCompletionSection(sec.title, translate)}
           </div>
           {sec.options.map((o) => (
             <div
@@ -142,12 +151,12 @@ export function AutocompleteListbox({
               {o.kind === "value" && o.active && (
                 <Check
                   className="text-foreground/80 h-3.5 w-3.5 flex-none"
-                  aria-label="selected"
+                  aria-label={t("selected")}
                 />
               )}
-              {"detail" in o && o.detail !== undefined && (
+              {localizeCompletionDetail(o, translate) !== undefined && (
                 <span className="text-muted-foreground ml-auto pl-6 font-sans text-[11px]">
-                  {o.detail}
+                  {localizeCompletionDetail(o, translate)}
                 </span>
               )}
             </div>

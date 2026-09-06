@@ -344,3 +344,31 @@ describe("[...nextauth] credentials callback method guard", () => {
     expect(mockNextAuth).not.toHaveBeenCalled();
   });
 });
+
+describe("[...nextauth] locale propagation", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("passes a supported locale cookie to the auth options", async () => {
+    await callHandler({
+      cookies: { NEXT_LOCALE: "zh-CN" },
+    });
+
+    expect(mockGetAuthOptions).toHaveBeenCalledWith({
+      adClickIds: {},
+      locale: "zh-CN",
+    });
+  });
+
+  it("falls back to English for an unsupported locale cookie", async () => {
+    await callHandler({
+      cookies: { NEXT_LOCALE: "de" },
+    });
+
+    expect(mockGetAuthOptions).toHaveBeenCalledWith({
+      adClickIds: {},
+      locale: "en",
+    });
+  });
+});

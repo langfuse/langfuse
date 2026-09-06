@@ -8,6 +8,7 @@ import {
 import { MAX_CHARTS } from "@/src/features/experiments/constants/charts";
 import { api } from "@/src/utils/api";
 import { type ScoreFilterOptions } from "@/src/features/experiments/types/charts";
+import { useTranslations } from "next-intl";
 
 const processCategoricalScoreOptions = (
   categories: Array<{ label: string; values: string[] }>,
@@ -25,6 +26,7 @@ export function useExperimentChartsGridSelection({
   projectId: string;
   experimentIds: string[];
 }) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   // Default charts
   const defaultCharts = useMemo(() => getDefaultCharts(), []);
 
@@ -70,8 +72,23 @@ export function useExperimentChartsGridSelection({
 
   // Build all available metric options for the dropdowns
   const availableMetricOptions = useMemo(
-    () => buildMetricOptions(transformedScoreOptions),
-    [transformedScoreOptions],
+    () =>
+      buildMetricOptions(transformedScoreOptions).map((option) => ({
+        ...option,
+        label:
+          option.id === "base:cost"
+            ? t("charts.cost")
+            : option.id === "base:latency"
+              ? t("charts.latency")
+              : option.label,
+        group:
+          option.group === "base"
+            ? t("charts.baseMetrics")
+            : option.group === "observationScores"
+              ? t("table.observationScores")
+              : t("charts.experimentScores"),
+      })),
+    [t, transformedScoreOptions],
   );
 
   const availableMetric = useMemo(() => {

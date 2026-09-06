@@ -1,30 +1,26 @@
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
-import { type BaseActionHandler } from "./BaseActionHandler";
+import {
+  type ActionValidationError,
+  type BaseActionHandler,
+} from "./BaseActionHandler";
 import { GitHubDispatchActionForm } from "./GitHubDispatchActionForm";
 import {
   type AutomationDomain,
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod";
 import { areGitHubDispatchUrlsEquivalent } from "../../githubDispatchUrl";
 
-// Define the form schema for GitHub dispatch actions
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
-const GitHubDispatchActionFormSchema = z.object({
-  githubDispatch: z.object({
-    url: z.url("Invalid URL"),
-    eventType: z.string().min(1, "Event type is required").max(100),
-    githubToken: z.string(),
-    displayGitHubToken: z.string().optional(), // Display value for existing token
-    originalUrl: z.string().optional(),
-  }),
-});
-
-type GitHubDispatchActionFormData = z.infer<
-  typeof GitHubDispatchActionFormSchema
->;
+type GitHubDispatchActionFormData = {
+  githubDispatch: {
+    url: string;
+    eventType: string;
+    githubToken: string;
+    displayGitHubToken?: string;
+    originalUrl?: string;
+  };
+};
 
 export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDispatchActionFormData> {
   actionType = "GITHUB_DISPATCH" as const;
@@ -65,18 +61,18 @@ export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDisp
 
   validateFormData(formData: GitHubDispatchActionFormData): {
     isValid: boolean;
-    errors?: string[];
+    errors?: ActionValidationError[];
   } {
-    const errors: string[] = [];
+    const errors: ActionValidationError[] = [];
 
     if (!formData.githubDispatch?.url) {
-      errors.push("GitHub dispatch URL is required");
+      errors.push({ code: "githubDispatchUrlRequired" });
     }
 
     if (!formData.githubDispatch?.eventType) {
-      errors.push("Event type is required");
+      errors.push({ code: "eventTypeRequired" });
     } else if (formData.githubDispatch.eventType.length > 100) {
-      errors.push("Event type must be 100 characters or less");
+      errors.push({ code: "eventTypeTooLong" });
     }
 
     const existingUrl = formData.githubDispatch?.originalUrl;
@@ -88,12 +84,12 @@ export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDisp
       );
 
     if (isUrlChanged && !formData.githubDispatch?.githubToken.trim()) {
-      errors.push("GitHub token is required when changing the dispatch URL");
+      errors.push({ code: "githubTokenRequiredForUrlChange" });
     } else if (
       !formData.githubDispatch?.githubToken.trim() &&
       !formData.githubDispatch?.displayGitHubToken
     ) {
-      errors.push("GitHub token is required");
+      errors.push({ code: "githubTokenRequired" });
     }
 
     return {

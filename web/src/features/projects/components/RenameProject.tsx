@@ -19,8 +19,10 @@ import { LockIcon } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslations } from "next-intl";
 
 export default function RenameProject() {
+  const t = useTranslations("settingsEnterprise.generalSettings");
   const { update: updateSession } = useSession();
   const utils = api.useUtils();
   const { project } = useQueryProject();
@@ -62,20 +64,22 @@ export default function RenameProject() {
 
   return (
     <div>
-      <Header title="Project Name" />
+      <Header title={t("projectName.title")} />
       <Card className="mb-4 p-3">
         {form.getValues().name !== "" ? (
           <p className="text-primary mb-4 text-sm">
-            Your Project will be renamed from &quot;
-            {project?.name ?? ""}
-            &quot; to &quot;
-            <b>{form.watch().name}</b>&quot;.
+            {t.rich("projectName.renamed", {
+              currentName: project?.name ?? "",
+              newName: form.watch().name,
+              strong: (chunks) => <b>{chunks}</b>,
+            })}
           </p>
         ) : (
           <p className="text-primary mb-4 text-sm">
-            Your Project is currently named &quot;
-            <b>{project?.name ?? ""}</b>
-            &quot;.
+            {t.rich("projectName.current", {
+              name: project?.name ?? "",
+              strong: (chunks) => <b>{chunks}</b>,
+            })}
           </p>
         )}
         <Form {...form}>
@@ -98,7 +102,7 @@ export default function RenameProject() {
                         disabled={!hasAccess}
                       />
                       {!hasAccess && (
-                        <span title="No access">
+                        <span title={t("common.noAccess")}>
                           <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
                         </span>
                       )}
@@ -116,7 +120,7 @@ export default function RenameProject() {
                 disabled={form.getValues().name === "" || !hasAccess}
                 className="mt-4"
               >
-                Save
+                {t("common.save")}
               </Button>
             )}
           </form>

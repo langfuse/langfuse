@@ -20,6 +20,118 @@ export interface InterpretationResult {
   description: string;
 }
 
+export type InterpretationMessageKey =
+  | "strength.notAvailable"
+  | "strength.veryStrong"
+  | "strength.strong"
+  | "strength.moderate"
+  | "strength.weak"
+  | "strength.veryWeak"
+  | "strength.perfect"
+  | "strength.almostPerfect"
+  | "strength.substantial"
+  | "strength.fair"
+  | "strength.slight"
+  | "strength.poor"
+  | "strength.excellent"
+  | "strength.good"
+  | "strength.veryPoor"
+  | "direction.positive"
+  | "direction.negative"
+  | "direction.none"
+  | "error.veryLow"
+  | "error.low"
+  | "error.moderate"
+  | "error.high"
+  | "error.veryHigh"
+  | "noData"
+  | "linearCorrelation"
+  | "veryWeakLinearCorrelation"
+  | "monotonicRelationship"
+  | "veryWeakMonotonicRelationship"
+  | "agreementBetweenScores"
+  | "poorAgreement"
+  | "classificationPerformance"
+  | "predictionsMatch"
+  | "relativeError"
+  | "averageError"
+  | "rootMeanSquaredError";
+
+type InterpretationMessageValues = Record<string, string | number>;
+
+export type InterpretationTranslator = (
+  key: InterpretationMessageKey,
+  values?: InterpretationMessageValues,
+) => string;
+
+const defaultInterpretationTranslator: InterpretationTranslator = (
+  key,
+  values = {},
+) => {
+  const messages: Record<
+    InterpretationMessageKey,
+    (messageValues: InterpretationMessageValues) => string
+  > = {
+    "strength.notAvailable": () => "N/A",
+    "strength.veryStrong": () => "Very Strong",
+    "strength.strong": () => "Strong",
+    "strength.moderate": () => "Moderate",
+    "strength.weak": () => "Weak",
+    "strength.veryWeak": () => "Very Weak",
+    "strength.perfect": () => "Perfect",
+    "strength.almostPerfect": () => "Almost Perfect",
+    "strength.substantial": () => "Substantial",
+    "strength.fair": () => "Fair",
+    "strength.slight": () => "Slight",
+    "strength.poor": () => "Poor",
+    "strength.excellent": () => "Excellent",
+    "strength.good": () => "Good",
+    "strength.veryPoor": () => "Very Poor",
+    "direction.positive": () => "positive",
+    "direction.negative": () => "negative",
+    "direction.none": () => "no",
+    "error.veryLow": () => "Very low",
+    "error.low": () => "Low",
+    "error.moderate": () => "Moderate",
+    "error.high": () => "High",
+    "error.veryHigh": () => "Very high",
+    noData: () => "No data available",
+    linearCorrelation: ({ strength, direction }) =>
+      `${strength} ${direction} linear correlation`,
+    veryWeakLinearCorrelation: () => "Very weak or no linear correlation",
+    monotonicRelationship: ({ strength, direction }) =>
+      `${strength} ${direction} monotonic relationship`,
+    veryWeakMonotonicRelationship: () =>
+      "Very weak or no monotonic relationship",
+    agreementBetweenScores: ({ strength }) =>
+      `${strength} agreement between scores`,
+    poorAgreement: () => "Poor agreement (worse than chance)",
+    classificationPerformance: ({ strength }) =>
+      `${strength} classification performance`,
+    predictionsMatch: ({ percentage }) => `${percentage}% of predictions match`,
+    relativeError: ({ severity, percentage }) =>
+      `${severity} error (${percentage}% of range)`,
+    averageError: ({ value }) => `Average error: ${value}`,
+    rootMeanSquaredError: ({ value }) => `Root mean squared error: ${value}`,
+  };
+
+  return messages[key](values);
+};
+
+function interpretationResult(
+  strengthKey: InterpretationMessageKey,
+  color: string,
+  descriptionKey: InterpretationMessageKey,
+  translate: InterpretationTranslator,
+  values?: InterpretationMessageValues,
+): InterpretationResult {
+  return {
+    strength: translate(strengthKey),
+    color,
+    description: translate(descriptionKey, values),
+  };
+}
+
 // ============================================================================
 // Categorical Statistics Calculations
 // ============================================================================
@@ -202,51 +314,68 @@ export function calculateOverallAgreement(
  */
 export function interpretPearsonCorrelation(
   r: number | null,
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
 ): InterpretationResult {
   if (r === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   const abs = Math.abs(r);
-  const direction = r > 0 ? "positive" : r < 0 ? "negative" : "no";
+  const direction = translate(
+    r > 0
+      ? "direction.positive"
+      : r < 0
+        ? "direction.negative"
+        : "direction.none",
+  );
 
   if (abs >= 0.9) {
-    return {
-      strength: "Very Strong",
-      color: "green",
-      description: `Very strong ${direction} linear correlation`,
-    };
+    return interpretationResult(
+      "strength.veryStrong",
+      "green",
+      "linearCorrelation",
+      translate,
+      { strength: translate("strength.veryStrong"), direction },
+    );
   }
   if (abs >= 0.7) {
-    return {
-      strength: "Strong",
-      color: "blue",
-      description: `Strong ${direction} linear correlation`,
-    };
+    return interpretationResult(
+      "strength.strong",
+      "blue",
+      "linearCorrelation",
+      translate,
+      { strength: translate("strength.strong"), direction },
+    );
   }
   if (abs >= 0.5) {
-    return {
-      strength: "Moderate",
-      color: "yellow",
-      description: `Moderate ${direction} linear correlation`,
-    };
+    return interpretationResult(
+      "strength.moderate",
+      "yellow",
+      "linearCorrelation",
+      translate,
+      { strength: translate("strength.moderate"), direction },
+    );
   }
   if (abs >= 0.3) {
-    return {
-      strength: "Weak",
-      color: "orange",
-      description: `Weak ${direction} linear correlation`,
-    };
+    return interpretationResult(
+      "strength.weak",
+      "orange",
+      "linearCorrelation",
+      translate,
+      { strength: translate("strength.weak"), direction },
+    );
   }
-  return {
-    strength: "Very Weak",
-    color: "red",
-    description: `Very weak or no linear correlation`,
-  };
+  return interpretationResult(
+    "strength.veryWeak",
+    "red",
+    "veryWeakLinearCorrelation",
+    translate,
+  );
 }
 
 /**
@@ -258,51 +387,68 @@ export function interpretPearsonCorrelation(
  */
 export function interpretSpearmanCorrelation(
   rho: number | null,
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
 ): InterpretationResult {
   if (rho === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   const abs = Math.abs(rho);
-  const direction = rho > 0 ? "positive" : rho < 0 ? "negative" : "no";
+  const direction = translate(
+    rho > 0
+      ? "direction.positive"
+      : rho < 0
+        ? "direction.negative"
+        : "direction.none",
+  );
 
   if (abs >= 0.9) {
-    return {
-      strength: "Very Strong",
-      color: "green",
-      description: `Very strong ${direction} monotonic relationship`,
-    };
+    return interpretationResult(
+      "strength.veryStrong",
+      "green",
+      "monotonicRelationship",
+      translate,
+      { strength: translate("strength.veryStrong"), direction },
+    );
   }
   if (abs >= 0.7) {
-    return {
-      strength: "Strong",
-      color: "blue",
-      description: `Strong ${direction} monotonic relationship`,
-    };
+    return interpretationResult(
+      "strength.strong",
+      "blue",
+      "monotonicRelationship",
+      translate,
+      { strength: translate("strength.strong"), direction },
+    );
   }
   if (abs >= 0.5) {
-    return {
-      strength: "Moderate",
-      color: "yellow",
-      description: `Moderate ${direction} monotonic relationship`,
-    };
+    return interpretationResult(
+      "strength.moderate",
+      "yellow",
+      "monotonicRelationship",
+      translate,
+      { strength: translate("strength.moderate"), direction },
+    );
   }
   if (abs >= 0.3) {
-    return {
-      strength: "Weak",
-      color: "orange",
-      description: `Weak ${direction} monotonic relationship`,
-    };
+    return interpretationResult(
+      "strength.weak",
+      "orange",
+      "monotonicRelationship",
+      translate,
+      { strength: translate("strength.weak"), direction },
+    );
   }
-  return {
-    strength: "Very Weak",
-    color: "red",
-    description: `Very weak or no monotonic relationship`,
-  };
+  return interpretationResult(
+    "strength.veryWeak",
+    "red",
+    "veryWeakMonotonicRelationship",
+    translate,
+  );
 }
 
 /**
@@ -315,62 +461,77 @@ export function interpretSpearmanCorrelation(
  */
 export function interpretCohensKappa(
   kappa: number | null,
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
 ): InterpretationResult {
   if (kappa === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   if (kappa >= 1.0) {
-    return {
-      strength: "Perfect",
-      color: "green",
-      description: "perfect agreement between scores",
-    };
+    return interpretationResult(
+      "strength.perfect",
+      "green",
+      "agreementBetweenScores",
+      translate,
+      { strength: translate("strength.perfect") },
+    );
   }
   if (kappa >= 0.81) {
-    return {
-      strength: "Almost Perfect",
-      color: "green",
-      description: "Almost perfect agreement between scores",
-    };
+    return interpretationResult(
+      "strength.almostPerfect",
+      "green",
+      "agreementBetweenScores",
+      translate,
+      { strength: translate("strength.almostPerfect") },
+    );
   }
   if (kappa >= 0.61) {
-    return {
-      strength: "Substantial",
-      color: "blue",
-      description: "Substantial agreement between scores",
-    };
+    return interpretationResult(
+      "strength.substantial",
+      "blue",
+      "agreementBetweenScores",
+      translate,
+      { strength: translate("strength.substantial") },
+    );
   }
   if (kappa >= 0.41) {
-    return {
-      strength: "Moderate",
-      color: "yellow",
-      description: "Moderate agreement between scores",
-    };
+    return interpretationResult(
+      "strength.moderate",
+      "yellow",
+      "agreementBetweenScores",
+      translate,
+      { strength: translate("strength.moderate") },
+    );
   }
   if (kappa >= 0.21) {
-    return {
-      strength: "Fair",
-      color: "orange",
-      description: "Fair agreement between scores",
-    };
+    return interpretationResult(
+      "strength.fair",
+      "orange",
+      "agreementBetweenScores",
+      translate,
+      { strength: translate("strength.fair") },
+    );
   }
   if (kappa > 0) {
-    return {
-      strength: "Slight",
-      color: "red",
-      description: "Slight agreement between scores",
-    };
+    return interpretationResult(
+      "strength.slight",
+      "red",
+      "agreementBetweenScores",
+      translate,
+      { strength: translate("strength.slight") },
+    );
   }
-  return {
-    strength: "Poor",
-    color: "red",
-    description: "Poor agreement (worse than chance)",
-  };
+  return interpretationResult(
+    "strength.poor",
+    "red",
+    "poorAgreement",
+    translate,
+  );
 }
 
 /**
@@ -380,48 +541,62 @@ export function interpretCohensKappa(
  * @param f1 - F1 score
  * @returns Interpretation with strength, color, and description
  */
-export function interpretF1Score(f1: number | null): InterpretationResult {
+export function interpretF1Score(
+  f1: number | null,
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
+): InterpretationResult {
   if (f1 === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   if (f1 >= 0.9) {
-    return {
-      strength: "Excellent",
-      color: "green",
-      description: "Excellent classification performance",
-    };
+    return interpretationResult(
+      "strength.excellent",
+      "green",
+      "classificationPerformance",
+      translate,
+      { strength: translate("strength.excellent") },
+    );
   }
   if (f1 >= 0.8) {
-    return {
-      strength: "Good",
-      color: "blue",
-      description: "Good classification performance",
-    };
+    return interpretationResult(
+      "strength.good",
+      "blue",
+      "classificationPerformance",
+      translate,
+      { strength: translate("strength.good") },
+    );
   }
   if (f1 >= 0.6) {
-    return {
-      strength: "Fair",
-      color: "yellow",
-      description: "Fair classification performance",
-    };
+    return interpretationResult(
+      "strength.fair",
+      "yellow",
+      "classificationPerformance",
+      translate,
+      { strength: translate("strength.fair") },
+    );
   }
   if (f1 >= 0.4) {
-    return {
-      strength: "Poor",
-      color: "orange",
-      description: "Poor classification performance",
-    };
+    return interpretationResult(
+      "strength.poor",
+      "orange",
+      "classificationPerformance",
+      translate,
+      { strength: translate("strength.poor") },
+    );
   }
-  return {
-    strength: "Very Poor",
-    color: "red",
-    description: "Very poor classification performance",
-  };
+  return interpretationResult(
+    "strength.veryPoor",
+    "red",
+    "classificationPerformance",
+    translate,
+    { strength: translate("strength.veryPoor") },
+  );
 }
 
 /**
@@ -432,50 +607,62 @@ export function interpretF1Score(f1: number | null): InterpretationResult {
  */
 export function interpretOverallAgreement(
   agreement: number | null,
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
 ): InterpretationResult {
   if (agreement === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   const percentage = Math.round(agreement * 100);
 
   if (agreement >= 0.9) {
-    return {
-      strength: "Excellent",
-      color: "green",
-      description: `${percentage}% of predictions match`,
-    };
+    return interpretationResult(
+      "strength.excellent",
+      "green",
+      "predictionsMatch",
+      translate,
+      { percentage },
+    );
   }
   if (agreement >= 0.8) {
-    return {
-      strength: "Good",
-      color: "blue",
-      description: `${percentage}% of predictions match`,
-    };
+    return interpretationResult(
+      "strength.good",
+      "blue",
+      "predictionsMatch",
+      translate,
+      { percentage },
+    );
   }
   if (agreement >= 0.6) {
-    return {
-      strength: "Fair",
-      color: "yellow",
-      description: `${percentage}% of predictions match`,
-    };
+    return interpretationResult(
+      "strength.fair",
+      "yellow",
+      "predictionsMatch",
+      translate,
+      { percentage },
+    );
   }
   if (agreement >= 0.4) {
-    return {
-      strength: "Poor",
-      color: "orange",
-      description: `${percentage}% of predictions match`,
-    };
+    return interpretationResult(
+      "strength.poor",
+      "orange",
+      "predictionsMatch",
+      translate,
+      { percentage },
+    );
   }
-  return {
-    strength: "Very Poor",
-    color: "red",
-    description: `${percentage}% of predictions match`,
-  };
+  return interpretationResult(
+    "strength.veryPoor",
+    "red",
+    "predictionsMatch",
+    translate,
+    { percentage },
+  );
 }
 
 /**
@@ -489,13 +676,15 @@ export function interpretOverallAgreement(
 export function interpretMAE(
   mae: number | null,
   scale?: { min: number; max: number },
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
 ): InterpretationResult {
   if (mae === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   if (scale) {
@@ -503,46 +692,73 @@ export function interpretMAE(
     const relativeError = mae / range;
 
     if (relativeError <= 0.05) {
-      return {
-        strength: "Excellent",
-        color: "green",
-        description: `Very low error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.excellent",
+        "green",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.veryLow"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
     if (relativeError <= 0.1) {
-      return {
-        strength: "Good",
-        color: "blue",
-        description: `Low error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.good",
+        "blue",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.low"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
     if (relativeError <= 0.2) {
-      return {
-        strength: "Fair",
-        color: "yellow",
-        description: `Moderate error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.fair",
+        "yellow",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.moderate"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
     if (relativeError <= 0.3) {
-      return {
-        strength: "Poor",
-        color: "orange",
-        description: `High error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.poor",
+        "orange",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.high"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
-    return {
-      strength: "Very Poor",
-      color: "red",
-      description: `Very high error (${(relativeError * 100).toFixed(1)}% of range)`,
-    };
+    return interpretationResult(
+      "strength.veryPoor",
+      "red",
+      "relativeError",
+      translate,
+      {
+        severity: translate("error.veryHigh"),
+        percentage: (relativeError * 100).toFixed(1),
+      },
+    );
   }
 
   // Without scale context, just report the value
-  return {
-    strength: "N/A",
-    color: "gray",
-    description: `Average error: ${mae.toFixed(3)}`,
-  };
+  return interpretationResult(
+    "strength.notAvailable",
+    "gray",
+    "averageError",
+    translate,
+    { value: mae.toFixed(3) },
+  );
 }
 
 /**
@@ -557,13 +773,15 @@ export function interpretMAE(
 export function interpretRMSE(
   rmse: number | null,
   scale?: { min: number; max: number },
+  translate: InterpretationTranslator = defaultInterpretationTranslator,
 ): InterpretationResult {
   if (rmse === null) {
-    return {
-      strength: "N/A",
-      color: "gray",
-      description: "No data available",
-    };
+    return interpretationResult(
+      "strength.notAvailable",
+      "gray",
+      "noData",
+      translate,
+    );
   }
 
   if (scale) {
@@ -571,44 +789,71 @@ export function interpretRMSE(
     const relativeError = rmse / range;
 
     if (relativeError <= 0.05) {
-      return {
-        strength: "Excellent",
-        color: "green",
-        description: `Very low error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.excellent",
+        "green",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.veryLow"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
     if (relativeError <= 0.1) {
-      return {
-        strength: "Good",
-        color: "blue",
-        description: `Low error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.good",
+        "blue",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.low"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
     if (relativeError <= 0.2) {
-      return {
-        strength: "Fair",
-        color: "yellow",
-        description: `Moderate error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.fair",
+        "yellow",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.moderate"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
     if (relativeError <= 0.3) {
-      return {
-        strength: "Poor",
-        color: "orange",
-        description: `High error (${(relativeError * 100).toFixed(1)}% of range)`,
-      };
+      return interpretationResult(
+        "strength.poor",
+        "orange",
+        "relativeError",
+        translate,
+        {
+          severity: translate("error.high"),
+          percentage: (relativeError * 100).toFixed(1),
+        },
+      );
     }
-    return {
-      strength: "Very Poor",
-      color: "red",
-      description: `Very high error (${(relativeError * 100).toFixed(1)}% of range)`,
-    };
+    return interpretationResult(
+      "strength.veryPoor",
+      "red",
+      "relativeError",
+      translate,
+      {
+        severity: translate("error.veryHigh"),
+        percentage: (relativeError * 100).toFixed(1),
+      },
+    );
   }
 
   // Without scale context, just report the value
-  return {
-    strength: "N/A",
-    color: "gray",
-    description: `Root mean squared error: ${rmse.toFixed(3)}`,
-  };
+  return interpretationResult(
+    "strength.notAvailable",
+    "gray",
+    "rootMeanSquaredError",
+    translate,
+    { value: rmse.toFixed(3) },
+  );
 }

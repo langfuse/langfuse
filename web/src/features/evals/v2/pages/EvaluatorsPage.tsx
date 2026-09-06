@@ -72,6 +72,7 @@ import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4Mi
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { useTranslations } from "next-intl";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -101,6 +102,7 @@ function EvaluatorsOverviewSelectionBar({
     selectedIds: string[];
   }) => void;
 }) {
+  const t = useTranslations("productTables.evaluators");
   const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
   const selectAll = useStore(selectionStore, (state) => state.selectAll);
   const selectedIds = Object.keys(rowSelection).filter(
@@ -122,7 +124,7 @@ function EvaluatorsOverviewSelectionBar({
         onClick={() => onDeleteSelection({ selectAll, selectedIds })}
       >
         <Trash2 className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:inline">Delete</span>
+        <span className="hidden sm:inline">{t("delete")}</span>
       </Button>
     </OverviewSelectionBar>
   );
@@ -167,6 +169,8 @@ function EvaluatorsTableToolbar({
 }
 
 export default function EvaluatorsPage() {
+  const t = useTranslations("productTables.evaluators");
+  const tEvaluations = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -215,14 +219,14 @@ export default function EvaluatorsPage() {
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
                   <Badge variant="secondary" size="sm">
-                    Project default
+                    {tEvaluations("projectDefault")}
                   </Badge>
                 ) : null,
             }
           : facet,
       ),
     }),
-    [projectDefaultModel.defaultModel?.model],
+    [projectDefaultModel.defaultModel?.model, tEvaluations],
   );
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: filterOptionsQuery.isPending,
@@ -319,8 +323,8 @@ export default function EvaluatorsPage() {
         isAllMatching: deleteAll,
       });
       showSuccessToast({
-        title: "Evaluators deleted",
-        description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
+        title: t("deletedTitle"),
+        description: t("deletedDescription", { count: deletedCount }),
       });
       await Promise.all([
         utils.evalsV2.list.invalidate({ projectId }),
@@ -342,7 +346,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "name",
         id: "name",
-        header: "Name",
+        header: t("columns.name"),
         size: 320,
         isFixedPosition: true,
         enableSorting: true,
@@ -355,7 +359,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "status",
         id: "status",
-        header: "Status",
+        header: t("columns.status"),
         size: 130,
         enableHiding: true,
         cell: ({ row }) => (
@@ -371,7 +375,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "executionTraces",
         id: "executionTraces",
-        header: "Last 5 runs",
+        header: t("columns.lastRuns"),
         size: 130,
         enableHiding: true,
         cell: ({ row }) => {
@@ -387,7 +391,7 @@ export default function EvaluatorsPage() {
             <button
               type="button"
               className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View executions for ${row.original.name}`}
+              aria-label={t("viewExecutions", { name: row.original.name })}
               onClick={() =>
                 router.push(
                   evaluatorExecutionsUrl(
@@ -408,7 +412,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "type",
         id: "type",
-        header: "Type",
+        header: t("columns.type"),
         size: 160,
         enableHiding: true,
         enableSorting: true,
@@ -417,7 +421,7 @@ export default function EvaluatorsPage() {
       createNumberTableColumn<EvaluatorRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
+        header: t("columns.totalCost"),
         size: 140,
         enableHiding: true,
         emptyValue: "—",
@@ -434,7 +438,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "model",
         id: "model",
-        header: "Model",
+        header: t("columns.model"),
         size: 180,
         enableHiding: true,
         cell: ({ row }) => {
@@ -450,7 +454,7 @@ export default function EvaluatorsPage() {
       },
       createUserTableColumn<EvaluatorRow>({
         accessorKey: "createdByUser",
-        header: "Created by",
+        header: t("columns.createdBy"),
         size: 180,
         enableHiding: true,
         variant: "text",
@@ -459,7 +463,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "createdAt",
         id: "createdAt",
-        header: "Created at",
+        header: t("columns.createdAt"),
         size: 180,
         enableHiding: true,
         defaultHidden: true,
@@ -469,7 +473,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "updatedAt",
         id: "updatedAt",
-        header: "Updated at",
+        header: t("columns.updatedAt"),
         size: 180,
         enableHiding: true,
         enableSorting: true,
@@ -478,7 +482,7 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "actions",
         id: "actions",
-        header: "Actions",
+        header: t("columns.actions"),
         size: 170,
         isFixedPosition: true,
         enableSorting: false,
@@ -530,6 +534,7 @@ export default function EvaluatorsPage() {
       recentExecutions.isPending,
       router,
       selectActionColumn,
+      t,
     ],
   );
   const [columnVisibility, setColumnVisibility] =
@@ -571,11 +576,10 @@ export default function EvaluatorsPage() {
   return (
     <Page
       headerProps={{
-        title: "Evaluators",
+        title: t("title"),
         titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
-          description:
-            "Create reusable evaluator definitions and test them before activation.",
+          description: t("help"),
         },
         actionButtonsRight: (
           <div className="flex gap-2">
@@ -609,9 +613,9 @@ export default function EvaluatorsPage() {
                     mode="default"
                     defaultModel={projectDefaultModel.defaultModel}
                     selectedModel={null}
-                    missingDefaultLabel="Set project default model"
+                    missingDefaultLabel={t("setDefaultModel")}
                     loading={projectDefaultModel.update.isPending}
-                    loadingText="Setting model..."
+                    loadingText={t("settingModel")}
                     disabled={
                       !projectDefaultModel.canUpdate ||
                       !projectDefaultModel.canRead ||
@@ -624,7 +628,7 @@ export default function EvaluatorsPage() {
             )}
             <Button onClick={() => setGalleryOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              New evaluator
+              {t("new")}
             </Button>
           </div>
         ),
@@ -731,7 +735,7 @@ export default function EvaluatorsPage() {
                   onRowClick={(row) =>
                     router.push(`/project/${projectId}/evals/${row.id}`)
                   }
-                  noResultsMessage="No evaluators found."
+                  noResultsMessage={t("noResults")}
                 />
               </div>
             </ResizableFilterLayout>

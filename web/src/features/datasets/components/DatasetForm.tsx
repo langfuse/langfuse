@@ -34,6 +34,7 @@ import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { DatasetSchemaInput } from "./DatasetSchemaInput";
 import { DatasetSchemaValidationError } from "./DatasetSchemaValidationError";
+import { useTranslations } from "next-intl";
 
 type ServerSideSchemaValidationErrors = {
   datasetItemId: string;
@@ -84,48 +85,54 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
 type DatasetFormProps = CreateDatasetFormProps | UpdateDatasetFormProps;
 
 // Validation schema for JSON Schema strings
-const jsonSchemaStringValidator = z.string().refine(
-  (value) => {
-    if (value === "") return true; // Empty is valid (means no schema)
-
-    try {
-      const parsed = JSON.parse(value);
-
-      return isValidJSONSchema(parsed);
-    } catch {
-      return false;
-    }
-  },
-  {
-    message: "Must be a valid JSON Schema",
-  },
-);
-
-const formSchema = z.object({
-  name: DatasetNameSchema,
-  description: z.string(),
-  metadata: z.string().refine(
+const jsonSchemaStringValidator = (message: string) =>
+  z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
+      if (value === "") return true; // Empty is valid (means no schema)
 
-        return true;
+      try {
+        const parsed = JSON.parse(value);
+
+        return isValidJSONSchema(parsed);
       } catch {
         return false;
       }
     },
     {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
+      message,
     },
-  ),
-  inputSchema: jsonSchemaStringValidator,
-  expectedOutputSchema: jsonSchemaStringValidator,
-});
+  );
+
+const createFormSchema = (messages: {
+  invalidJson: string;
+  validJsonSchema: string;
+}) =>
+  z.object({
+    name: DatasetNameSchema,
+    description: z.string(),
+    metadata: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message: messages.invalidJson,
+      },
+    ),
+    inputSchema: jsonSchemaStringValidator(messages.validJsonSchema),
+    expectedOutputSchema: jsonSchemaStringValidator(messages.validJsonSchema),
+  });
 
 export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
   (props, ref) => {
+    const t = useTranslations("productTables.datasets.form");
+    const tValidation = useTranslations("coreDetails.datasets.formValidation");
     const [formError, setFormError] = useState<string | null>(null);
     const [
       serverSideSchemaValidationErrors,
@@ -143,7 +150,12 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
         : "";
 
     const form = useForm({
-      resolver: zodResolver(formSchema),
+      resolver: zodResolver(
+        createFormSchema({
+          invalidJson: tValidation("invalidJson"),
+          validJsonSchema: tValidation("validJsonSchema"),
+        }),
+      ),
       defaultValues:
         props.mode === "update"
           ? {
@@ -189,7 +201,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
       currentName: form.watch("name"),
       allNames: allDatasetNames,
       form,
-      errorMessage: "Dataset name already exists.",
+      errorMessage: tValidation("nameExists"),
       whitelistedName: props.mode === "update" ? props.datasetName : undefined,
     });
 
@@ -239,7 +251,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
       [],
     );
 
-    function onSubmit(values: z.infer<typeof formSchema>) {
+    function onSubmit(values: z.infer<ReturnType<typeof createFormSchema>>) {
       // Parse schemas if they're not empty (tRPC expects objects for DatasetJSONSchema)
       const inputSchema =
         values.inputSchema === "" ? null : JSON.parse(values.inputSchema);
@@ -333,11 +345,8 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormDescription>
-                      Use slashes &apos;/&apos; in dataset names to organize
-                      them into <em>folders</em>.
-                    </FormDescription>
+                    <FormLabel>{t("name")}</FormLabel>
+                    <FormDescription>{t("nameDescription")}</FormDescription>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -350,7 +359,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description (optional)</FormLabel>
+                    <FormLabel>{t("descriptionOptional")}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -363,7 +372,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                 name="metadata"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Metadata (optional)</FormLabel>
+                    <FormLabel>{t("metadataOptional")}</FormLabel>
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
@@ -382,8 +391,8 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                 name="inputSchema"
                 render={({ field }) => (
                   <DatasetSchemaInput
-                    label="Input schema"
-                    description="Validate dataset item inputs against a JSON Schema. All new and existing items must conform to this schema."
+                    label={t("inputSchema")}
+                    description={t("inputSchemaDescription")}
                     value={field.value}
                     onChange={field.onChange}
                     initialValue={inputSchemaString}
@@ -395,8 +404,8 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                 name="expectedOutputSchema"
                 render={({ field }) => (
                   <DatasetSchemaInput
-                    label="Expected output schema"
-                    description="Validate dataset item expected outputs against a JSON Schema. All new and existing items must conform to this schema."
+                    label={t("expectedOutputSchema")}
+                    description={t("expectedOutputSchemaDescription")}
                     value={field.value}
                     onChange={field.onChange}
                     initialValue={expectedOutputSchemaString}
@@ -428,13 +437,11 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                   }
                   className="w-full"
                 >
-                  {props.mode === "create"
-                    ? "Create dataset"
-                    : "Update dataset"}
+                  {props.mode === "create" ? t("create") : t("update")}
                 </Button>
                 {formError && (
                   <p className="mt-4 text-center text-sm text-red-500">
-                    <span className="font-bold">Error:</span> {formError}
+                    <span className="font-bold">{t("error")}</span> {formError}
                   </p>
                 )}
               </div>

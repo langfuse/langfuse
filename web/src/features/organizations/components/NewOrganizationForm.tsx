@@ -11,9 +11,13 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import {
+  createOrganizationFormSchema,
+  type organizationFormSchema,
+} from "@/src/features/organizations/utils/organizationNameSchema";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { ExternalLink } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export const NewOrganizationForm = ({
   isLangfuseCloud,
@@ -22,8 +26,14 @@ export const NewOrganizationForm = ({
   isLangfuseCloud: boolean;
   onSubmit: (values: z.infer<typeof organizationFormSchema>) => Promise<void>;
 }) => {
+  const t = useTranslations("workspace");
+  const localizedFormSchema = createOrganizationFormSchema({
+    noHtml: t("validation.noHtml"),
+    minLength: t("validation.minLength"),
+    maxLength: t("validation.maxLength"),
+  });
   const form = useForm({
-    resolver: zodResolver(organizationFormSchema),
+    resolver: zodResolver(localizedFormSchema),
     defaultValues: {
       name: "",
       aiFeaturesEnabled: true,
@@ -34,13 +44,8 @@ export const NewOrganizationForm = ({
     try {
       await onSubmit(values);
       form.reset();
-    } catch (error) {
-      form.setError("name", {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to create organization",
-      });
+    } catch {
+      form.setError("name", { message: t("organizationForm.createFailed") });
     }
   }
 
@@ -62,7 +67,7 @@ export const NewOrganizationForm = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Organization name</FormLabel>
+              <FormLabel>{t("organizationForm.name")}</FormLabel>
               <FormControl>
                 <Input
                   placeholder="my-org"
@@ -80,11 +85,11 @@ export const NewOrganizationForm = ({
           render={({ field }) => (
             <FormItem className="flex flex-row items-start justify-between gap-4 rounded-md border p-3">
               <div className="flex flex-col gap-1">
-                <FormLabel>Enable AI powered features</FormLabel>
+                <FormLabel>{t("organizationForm.enableAiFeatures")}</FormLabel>
                 <p className="text-muted-foreground text-sm">
                   {isLangfuseCloud
-                    ? "Relevant project data can be sent to AWS Bedrock within your Langfuse data region. Your data will not be used for training models."
-                    : "Relevant project data can be sent to the model provider configured by your instance administrator."}{" "}
+                    ? t("organizationForm.cloudAiDescription")
+                    : t("organizationForm.selfHostedAiDescription")}{" "}
                   {isLangfuseCloud && (
                     <a
                       href="https://langfuse.com/security/ai-features"
@@ -92,7 +97,7 @@ export const NewOrganizationForm = ({
                       rel="noopener noreferrer"
                       className="text-primary inline-flex items-center gap-1 hover:underline"
                     >
-                      Learn more
+                      {t("organizationForm.learnMore")}
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
@@ -102,14 +107,14 @@ export const NewOrganizationForm = ({
                 <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
-                  aria-label="Enable AI powered features"
+                  aria-label={t("organizationForm.enableAiFeatures")}
                 />
               </FormControl>
             </FormItem>
           )}
         />
         <Button type="submit" loading={form.formState.isSubmitting}>
-          Create
+          {t("organizationForm.create")}
         </Button>
       </form>
     </Form>

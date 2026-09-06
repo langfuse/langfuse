@@ -21,10 +21,14 @@ export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
   search,
+  projectSectionLabel = "Your templates",
+  projectSectionDescription = "Start from a template this project already created.",
 }: {
   customTemplates: CustomEvaluatorTemplate[];
   customTemplateCount: number;
   search: string;
+  projectSectionLabel?: string;
+  projectSectionDescription?: string;
 }): {
   navigationItems: GalleryNavigationItem[];
   sections: GallerySection[];
@@ -66,7 +70,7 @@ export function prepareEvaluatorGallery({
   const navigationItems: GalleryNavigationItem[] = [
     {
       key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-      label: "Your templates",
+      label: projectSectionLabel,
       icon: getGalleryCategoryPresentation(
         EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
       ).icon,
@@ -84,8 +88,8 @@ export function prepareEvaluatorGallery({
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your templates",
-            description: "Start from a template this project already created.",
+            label: projectSectionLabel,
+            description: projectSectionDescription,
             totalCount: customTemplateCount,
             templates: filteredCustom.map((template) => ({
               source: "custom" as const,

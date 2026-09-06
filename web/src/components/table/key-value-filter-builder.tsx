@@ -34,6 +34,7 @@ import type {
   BooleanKeyValueFilterEntry,
   StringKeyValueFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useTranslations } from "next-intl";
 
 type KeyValueFilterBuilderProps =
   | {
@@ -251,6 +252,7 @@ function SuggestingInput({
 }
 
 export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
+  const t = useTranslations("sharedUi.table.controls");
   const {
     mode,
     keyOptions,
@@ -453,11 +455,13 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   <PopoverContent className="w-[200px] p-0" align="start">
                     <InputCommand>
                       <InputCommandInput
-                        placeholder="Search keys..."
+                        placeholder={t("search")}
                         variant="bottom"
                       />
                       <InputCommandList>
-                        <InputCommandEmpty>No keys found.</InputCommandEmpty>
+                        <InputCommandEmpty>
+                          {t("noOptionsFound")}
+                        </InputCommandEmpty>
                         <InputCommandGroup>
                           {mergedKeyOptions.map((option) => (
                             <InputCommandItem
@@ -537,14 +541,14 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any of">any of</SelectItem>
-                    <SelectItem value="none of">none of</SelectItem>
+                    <SelectItem value="any of">{t("anyOf")}</SelectItem>
+                    <SelectItem value="none of">{t("noneOf")}</SelectItem>
                   </SelectContent>
                 </Select>
 
                 {/* Values multi-select */}
                 <MultiSelect
-                  title="Values"
+                  title={t("filterValues")}
                   options={availableValuesForKey.map((v) => ({ value: v }))}
                   values={filter.value as string[]}
                   onValueChange={(values) =>
@@ -581,7 +585,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 {/* Numeric value input */}
                 <Input
                   type="number"
-                  placeholder="Value"
+                  placeholder={t("enterValue")}
                   value={(filter as NumericKeyValueFilterEntry).value}
                   onChange={(e) =>
                     handleFilterChange(index, {
@@ -630,7 +634,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Value" />
+                    <SelectValue placeholder={t("enterValue")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">true</SelectItem>
@@ -670,7 +674,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   suggestions={
                     filter.key ? (valueOptions?.[filter.key] ?? []) : []
                   }
-                  placeholder="Value"
+                  placeholder={t("enterValue")}
                   disabled={!filter.key}
                 />
               </>
@@ -687,7 +691,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         className="w-full"
       >
         <Plus className="mr-2 h-4 w-4" />
-        Add filter
+        {t("addFilter")}
       </Button>
     </div>
   );

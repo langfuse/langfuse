@@ -8,6 +8,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useTranslations } from "next-intl";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 
@@ -20,6 +21,7 @@ export function RuleActiveSwitchCell({
   projectId: string;
   hasWriteAccess: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const setEnabled = api.evalsV2.rules.setEnabled.useMutation({
@@ -41,9 +43,7 @@ export function RuleActiveSwitchCell({
   };
   const isLegacy = isLegacyEvalTarget(rule.targetObject);
   const legacyDisabledReason =
-    isLegacy && !rule.enabled
-      ? "Legacy rules cannot be re-enabled because trace- and dataset-level evaluations are deprecated. Create an observation-based rule instead."
-      : null;
+    isLegacy && !rule.enabled ? t("rules.legacyDisabledReason") : null;
 
   const switchControl = (
     <Switch
@@ -52,7 +52,11 @@ export function RuleActiveSwitchCell({
       disabled={
         !hasWriteAccess || Boolean(legacyDisabledReason) || setEnabled.isPending
       }
-      aria-label={`${rule.enabled ? "Disable" : "Enable"} ${rule.name}`}
+      aria-label={
+        rule.enabled
+          ? t("rules.disableNamed", { name: rule.name })
+          : t("rules.enableNamed", { name: rule.name })
+      }
       onCheckedChange={(enabled) => {
         if (!hasWriteAccess) return;
         onStatusChange(enabled).catch(() => undefined);

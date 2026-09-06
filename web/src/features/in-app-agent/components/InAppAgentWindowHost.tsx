@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
@@ -26,6 +27,7 @@ function DeleteConversationDialog({
   conversation: InAppAgentWindowConversation | null;
   onDeleteConversation: (conversationId: string) => Promise<void>;
 }) {
+  const t = useSharedUiTranslations("agent");
   const [deleteConversation, isDeletingConversation] =
     useWatchedPromiseCallback(async () => {
       if (!conversation) {
@@ -48,9 +50,9 @@ function DeleteConversationDialog({
           close();
         }
       }}
-      title="Delete conversation"
-      description="This removes the conversation from your recent conversations. This action cannot be undone."
-      confirmLabel="Delete conversation"
+      title={t("deleteConversation")}
+      description={t("deleteConversationDescription")}
+      confirmLabel={t("deleteConversation")}
       loading={isDeletingConversation}
       onConfirm={deleteConversation}
     />

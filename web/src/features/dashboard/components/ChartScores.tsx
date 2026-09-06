@@ -19,6 +19,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useTranslations } from "next-intl";
 
 // Static — hoisted so its reference is stable across re-renders (keeps the
 // memoized <Chart> from reconciling on dashboard scheduler re-renders).
@@ -40,6 +41,7 @@ export function ChartScores(props: {
   schedulerId?: string;
   syncId?: string;
 }) {
+  const t = useTranslations("playgroundDashboard.dashboard.scores");
   const scoresQuery: QueryType = {
     view: "scores-numeric",
     dimensions: [{ field: "name" }, { field: "dataType" }, { field: "source" }],
@@ -114,8 +116,8 @@ export function ChartScores(props: {
   return (
     <DashboardCard
       className={props.className}
-      title="Scores"
-      description="Moving average per score"
+      title={t("title")}
+      description={t("description")}
       isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
@@ -135,7 +137,7 @@ export function ChartScores(props: {
       ) : (
         <NoDataOrLoading
           isLoading={props.isLoading || scores.isPending}
-          description="Scores evaluate LLM quality and can be created manually or using the SDK."
+          description={t("emptyDescription")}
           href="https://langfuse.com/docs/evaluation/overview"
           className="h-auto grow"
         />

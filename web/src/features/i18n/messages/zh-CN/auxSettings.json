@@ -1,0 +1,104 @@
+{
+  "personalNotifications": {
+    "title": "个人通知",
+    "loading": "正在加载通知偏好...",
+    "emailTitle": "邮件通知",
+    "emailDescription": "管理此项目的个人邮件通知偏好。",
+    "commentMentions": "评论提及",
+    "commentMentionsDescription": "当有人在评论中提及你时接收邮件",
+    "updateFailed": "更新通知偏好失败，请重试。"
+  },
+  "projectNotifications": {
+    "title": "项目通知",
+    "description": "管理项目通知。除了管理员邮件外，还会向通知渠道发送消息。",
+    "channels": {
+      "loading": "正在加载渠道...",
+      "edit": "编辑渠道",
+      "delete": "删除渠道",
+      "add": "添加渠道"
+    },
+    "events": {
+      "title": "事件",
+      "withChannelsDescription": "选择要发送到通知渠道的事件。",
+      "withoutChannelsDescription": "请先配置上方的渠道以启用项目通知。",
+      "blobExportFailed": {
+        "title": "Blob 存储导出失败",
+        "description": "定时 Blob 存储导出失败时发送。"
+      },
+      "posthogExportFailed": {
+        "title": "PostHog 导出失败",
+        "description": "当 PostHog 导出因配置错误（例如主机无法访问）而被禁用时发送。"
+      },
+      "evaluatorBlocked": {
+        "title": "评估器已停用",
+        "description": "当评估器因无法恢复的错误（例如模型或 LLM 连接已删除）而停用时发送。"
+      }
+    },
+    "webhookSecretDialog": {
+      "title": "Webhook 密钥已创建",
+      "description": "复制下面的 Webhook 密钥；它只会显示一次。",
+      "saved": "我已保存密钥"
+    }
+  },
+  "webhookSecret": {
+    "title": "Webhook 密钥",
+    "description": "此密钥仅可查看一次。如有需要，你可以在自动化设置中重新生成。请使用此密钥在你的端点中验证 Webhook 签名。"
+  },
+  "developerTools": {
+    "title": "MCP 与 CLI",
+    "description": "将 Langfuse 带入你的终端和 AI 编码智能体。这些工具让你和智能体无需离开开发环境，即可读取和写入 Langfuse 中的链路、提示词、数据集、评分等数据。",
+    "documentation": "文档 ↗",
+    "manageApiKeys": "管理 API 密钥",
+    "agentSkill": {
+      "title": "智能体技能",
+      "description": "Langfuse Agent Skill 是遵循 Anthropic Agent Skills 标准的开源技能。它为 AI 编码智能体（Claude Code、Cursor、Windsurf）提供原生 Langfuse 能力，并引导它们遵循最佳实践，从而在安装后获得更好的结果。"
+    },
+    "mcpServer": {
+      "title": "MCP 服务器",
+      "description": "Langfuse MCP 服务器让 AI 助手和智能体能够通过模型上下文协议，以编程方式与 Langfuse 数据交互。它支持读取和写入操作，也可以通过允许列表限制为只读访问。请使用项目范围的 API 密钥对进行身份验证。"
+    },
+    "cli": {
+      "title": "CLI",
+      "description": "Langfuse CLI 提供从终端访问完整 Langfuse API 的能力。它封装了所有 API 端点，因此你可以直接通过 shell 或脚本管理链路、提示词、数据集、评分和会话。它使用与 Langfuse SDK 相同的 API 密钥对。"
+    }
+  },
+  "models": {
+    "title": "模型定义",
+    "description": "用于存储 LLM 模型定价信息的配置。模型定义指定每个输入和输出 Token 的成本，使 Langfuse 能够根据 Token 用量自动计算生成费用。"
+  },
+  "scoreConfigs": {
+    "title": "评分配置",
+    "description": "评分配置决定了项目中哪些评分可用于<annotation>人工标注</annotation>。请注意，所有评分配置创建后都无法修改。"
+  },
+  "batchActions": {
+    "title": "批量操作",
+    "description": "跟踪在表格中执行的批量操作状态，例如将观测添加到数据集、删除链路，以及将项目添加到标注队列。操作会在后台异步处理。",
+    "accessDeniedTitle": "无权访问",
+    "accessDeniedDescription": "你没有查看批量操作的权限。"
+  },
+  "batchExports": {
+    "title": "导出",
+    "description": "通过 Langfuse 各处的导出按钮，以你偏好的格式导出大型数据集。导出任务会异步处理，并在下方显示的到期时间之前保持可下载状态。导出准备就绪后，你会收到邮件通知。",
+    "accessDeniedTitle": "无权访问",
+    "accessDeniedDescription": "你没有查看批量导出的权限。",
+    "columns": {
+      "name": "名称",
+      "status": "状态",
+      "action": "操作",
+      "expires": "到期时间",
+      "format": "格式",
+      "createdBy": "创建者"
+    },
+    "created": "创建时间：{date}",
+    "finished": "完成时间：{date}",
+    "downloadExpires": "下载到期时间：{date}",
+    "download": "下载",
+    "expired": "已到期",
+    "cancel": "取消",
+    "cancelTitle": "取消批量导出？",
+    "cancelDescription": "确定要取消此批量导出吗？此操作无法撤销。",
+    "keep": "否，保留任务",
+    "confirmCancel": "是，取消导出",
+    "unknown": "未知"
+  }
+}

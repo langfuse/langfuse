@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderMonitorWithIntl } from "../test-utils";
 
 const automationRow = {
   id: "auto-1",
@@ -28,7 +29,7 @@ describe("MonitorAutomationsPanel toggle immutability", () => {
   it("does not mutate the memoized set: toggling the same unselected row twice reports it selected both times", () => {
     useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         triggerIds={[]}

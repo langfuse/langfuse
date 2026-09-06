@@ -6,11 +6,11 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { formatDistanceToNow } from "date-fns";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ActionExecutionStatus } from "@langfuse/shared";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { useFormatter, useTranslations } from "next-intl";
 
 const actionExecutionStatusToStatus = {
   [ActionExecutionStatus.COMPLETED]: "completed",
@@ -39,6 +39,8 @@ interface AutomationExecutionsTableProps {
 export const AutomationExecutionsTable: React.FC<
   AutomationExecutionsTableProps
 > = ({ projectId, automationId }) => {
+  const t = useTranslations("remainderUi.automations.executions");
+  const format = useFormatter();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -65,13 +67,13 @@ export const AutomationExecutionsTable: React.FC<
   const columns: LangfuseColumnDef<ActionExecutionRow>[] = [
     createStatusTableColumn<ActionExecutionRow, ActionExecutionStatus>({
       accessorKey: "status",
-      header: "Status",
+      header: t("status"),
       getStatus: (status) =>
         status ? actionExecutionStatusToStatus[status] : undefined,
     }),
     {
       accessorKey: "startedAt",
-      header: "Started",
+      header: t("started"),
       id: "startedAt",
       cell: ({ row }) => {
         const value = row.getValue("startedAt") as string | null;
@@ -79,11 +81,12 @@ export const AutomationExecutionsTable: React.FC<
         const date = new Date(value);
         return (
           <div className="flex flex-col">
-            <span className="text-xs">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
+            <span className="text-xs">{format.relativeTime(date)}</span>
             <span className="text-muted-foreground text-xs">
-              {date.toLocaleString()}
+              {format.dateTime(date, {
+                dateStyle: "medium",
+                timeStyle: "medium",
+              })}
             </span>
           </div>
         );
@@ -91,7 +94,7 @@ export const AutomationExecutionsTable: React.FC<
     },
     {
       accessorKey: "duration",
-      header: "Duration",
+      header: t("duration"),
       id: "duration",
       cell: ({ row }) => {
         const duration = row.getValue("duration") as number | null;
@@ -103,17 +106,17 @@ export const AutomationExecutionsTable: React.FC<
     },
     createIOTableColumn<ActionExecutionRow>({
       accessorKey: "input",
-      header: "Input",
+      header: t("input"),
     }),
     createIOTableColumn<ActionExecutionRow>({
       accessorKey: "output",
-      header: "Output",
+      header: t("output"),
       getCell: (value) => value || "-",
       variant: "output",
     }),
     {
       accessorKey: "error",
-      header: "Error",
+      header: t("error"),
       id: "error",
       size: 150,
       cell: ({ row }) => {
@@ -147,7 +150,7 @@ export const AutomationExecutionsTable: React.FC<
   if (isError) {
     return (
       <div className="py-4 text-center text-red-600">
-        Error loading execution history: {error?.message}
+        {t("loadError", { message: error?.message ?? t("error") })}
       </div>
     );
   }

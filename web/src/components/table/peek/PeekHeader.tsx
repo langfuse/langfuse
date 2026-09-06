@@ -26,6 +26,7 @@ import {
   planPeekHeaderLayout,
   type PeekHeaderPlan,
 } from "@/src/components/table/peek/peekHeaderOverflow";
+import { useTranslations } from "next-intl";
 
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
@@ -119,6 +120,7 @@ export function PeekHeader({
   openInNewTab,
   onClose,
 }: PeekHeaderProps) {
+  const t = useTranslations("sharedUi.peekHeader");
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
   // The header width equals the peek width and so doesn't change when the
   // controls settle (or data loads) after the first measurement — observe the
@@ -234,13 +236,13 @@ export function PeekHeader({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      aria-label="More actions"
+                      aria-label={t("moreActions")}
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
-                <TooltipContent>More</TooltipContent>
+                <TooltipContent>{t("more")}</TooltipContent>
               </Tooltip>
               <PopoverContent
                 align="end"
@@ -254,7 +256,7 @@ export function PeekHeader({
                     className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    Open in new tab
+                    {t("openNewTab")}
                   </button>
                 ) : null}
               </PopoverContent>
@@ -269,7 +271,7 @@ export function PeekHeader({
 
           {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
             <div ref={openInTabRef}>
-              <HeaderIconButton label="Open in new tab" onClick={openInNewTab}>
+              <HeaderIconButton label={t("openNewTab")} onClick={openInNewTab}>
                 <ExternalLink className="h-4 w-4" />
               </HeaderIconButton>
             </div>
@@ -292,7 +294,7 @@ export function PeekHeader({
             )}
             {expand && (
               <HeaderIconButton
-                label={expand.isExpanded ? "Collapse" : "Expand"}
+                label={expand.isExpanded ? t("collapse") : t("expand")}
                 onClick={expand.onToggle}
               >
                 {expand.isExpanded ? (
@@ -302,7 +304,7 @@ export function PeekHeader({
                 )}
               </HeaderIconButton>
             )}
-            <HeaderIconButton label="Close" onClick={onClose}>
+            <HeaderIconButton label={t("close")} onClick={onClose}>
               <X className="h-4 w-4" />
             </HeaderIconButton>
           </div>

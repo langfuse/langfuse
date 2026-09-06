@@ -12,7 +12,6 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getExperimentsFilterConfig,
-  getExperimentsColumnName,
   isExperimentsOmittableFilterColumn,
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -74,6 +73,7 @@ import {
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
+import { useTranslations } from "next-intl";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -115,6 +115,7 @@ function ExperimentsMultiSelectActionMenu({
   store: ExperimentsTableStore;
   datasetIdByExperimentId: Record<string, string>;
 }) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -203,13 +204,13 @@ function ExperimentsMultiSelectActionMenu({
     {
       id: ActionId.ExperimentCompare,
       type: BatchActionType.Create,
-      label: "Compare",
-      description: "Compare selected experiments",
+      label: t("table.compare"),
+      description: t("table.compareSelected"),
       icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
-        ? `Select only up to ${MAX_SELECTED_EXPERIMENTS} experiments to compare`
+        ? t("table.compareLimit", { count: MAX_SELECTED_EXPERIMENTS })
         : undefined,
       accessCheck: {
         scope: "project:read",
@@ -220,8 +221,8 @@ function ExperimentsMultiSelectActionMenu({
           {
             id: ActionId.ObservationBatchEvaluation,
             type: BatchActionType.Create,
-            label: "Run Evaluator",
-            description: "Run evaluators on selected experiments",
+            label: t("table.runEvaluator"),
+            description: t("table.evaluateSelectedExperiments"),
             icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
             customDialog: true,
             accessCheck: {
@@ -273,15 +274,60 @@ export default function ExperimentsTable({
   sessionFilterContextId,
   showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const router = useRouter();
+  const getFilterLabel = useCallback(
+    (columnId: string) => {
+      switch (columnId) {
+        case "id":
+          return t("filters.id");
+        case "name":
+          return t("table.name");
+        case "description":
+          return t("common.description");
+        case "metadata":
+          return t("overview.metadata");
+        case "prompts":
+          return t("filters.referencedPrompts");
+        case "experimentDatasetId":
+          return t("table.dataset");
+        case "startTime":
+          return t("table.startTime");
+        case "itemCount":
+          return t("table.itemCount");
+        case "totalCost":
+          return t("table.totalCost");
+        case "latencyAvg":
+          return t("filters.latencySeconds");
+        case "errorCount":
+          return t("table.errorCount");
+        case "obs_scores_avg":
+          return t("filters.numericScores");
+        case "obs_score_categories":
+          return t("filters.categoricalScores");
+        case "obs_score_booleans":
+          return t("filters.booleanScores");
+        case "trace_scores_avg":
+          return t("filters.numericTraceScores");
+        case "trace_score_categories":
+          return t("filters.categoricalTraceScores");
+        case "trace_score_booleans":
+          return t("filters.booleanTraceScores");
+        default:
+          return columnId;
+      }
+    },
+    [t],
+  );
   const filterConfig = useMemo(
     () =>
       getExperimentsFilterConfig(
+        getFilterLabel,
         fixedFilter
           .map((filter) => filter.column)
           .filter(isExperimentsOmittableFilterColumn),
       ),
-    [fixedFilter],
+    [fixedFilter, getFilterLabel],
   );
 
   const { setDetailPageList } = useDetailPageLists();
@@ -468,7 +514,7 @@ export default function ExperimentsTable({
     {
       accessorKey: "name",
       id: "name",
-      header: getExperimentsColumnName("name"),
+      header: t("table.name"),
       size: 200,
       isPinnedLeft: true,
       cell: ({ row }) => {
@@ -478,7 +524,7 @@ export default function ExperimentsTable({
     },
     createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
-      header: getExperimentsColumnName("description"),
+      header: t("common.description"),
       size: 300,
       enableHiding: true,
       getCell: (value) => value || undefined,
@@ -490,21 +536,21 @@ export default function ExperimentsTable({
       // resize handle sat flush against the table edge and could not be dragged
       // wider in a maximized browser (LFE-10460).
       accessorKey: "metadata",
-      header: getExperimentsColumnName("metadata"),
+      header: t("overview.metadata"),
       size: 100,
       enableHiding: true,
       singleLine: rowHeight === "s",
     }),
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
-      header: getExperimentsColumnName("itemCount"),
+      header: t("table.itemCount"),
       size: 100,
       formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "errorCount",
       id: "errorCount",
-      header: getExperimentsColumnName("errorCount"),
+      header: t("table.errorCount"),
       size: 100,
       cell: ({ row }) => {
         const value: number = row.getValue("errorCount");
@@ -521,7 +567,7 @@ export default function ExperimentsTable({
     },
     createDateTableColumn<ExperimentsTableRow>({
       accessorKey: "startTime",
-      header: getExperimentsColumnName("startTime"),
+      header: t("table.startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -529,7 +575,7 @@ export default function ExperimentsTable({
     {
       accessorKey: "datasetId",
       id: "datasetId",
-      header: getExperimentsColumnName("experimentDatasetId"),
+      header: t("table.dataset"),
       size: 150,
       cell: ({ row }) => {
         const datasetId: string | undefined = row.getValue("datasetId");
@@ -560,7 +606,7 @@ export default function ExperimentsTable({
     {
       accessorKey: "prompts",
       id: "prompts",
-      header: getExperimentsColumnName("prompts"),
+      header: t("table.prompts"),
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {
@@ -595,24 +641,24 @@ export default function ExperimentsTable({
     },
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "latencyAvg",
-      header: getExperimentsColumnName("latencyAvg"),
+      header: t("table.averageLatency"),
       size: 100,
       enableHiding: true,
       headerTooltip: {
-        description: "Average duration of the root span per experiment item.",
+        description: t("table.averageLatencyDescription"),
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
     }),
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "totalCost",
-      header: getExperimentsColumnName("totalCost"),
+      header: t("table.totalCost"),
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
     }),
     {
       accessorKey: "traceItemScores",
-      header: "Trace Item Scores",
+      header: t("table.traceItemScores"),
       id: "traceItemScores",
       enableHiding: true,
       defaultHidden: true,
@@ -625,7 +671,7 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: t("table.observationItemScores"),
       id: "observationItemScores",
       enableHiding: true,
       defaultHidden: true,
@@ -638,7 +684,7 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: t("table.experimentLevelScores"),
       id: "experimentScores",
       enableHiding: true,
       defaultHidden: true,
@@ -824,7 +870,9 @@ export default function ExperimentsTable({
               <AccordionItem value="charts" className="border-t">
                 <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Charts</span>
+                    <span className="text-sm font-bold">
+                      {t("charts.title")}
+                    </span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">

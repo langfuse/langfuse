@@ -27,6 +27,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import { type Prisma } from "@langfuse/shared";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 const RemoteExperimentTriggerSchema = z.object({
   payload: z.string(),
@@ -50,6 +51,7 @@ export const RemoteExperimentTriggerModal = ({
   };
   setShowTriggerModal: (show: boolean) => void;
 }) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
     scope: "datasets:CUD",
@@ -72,21 +74,19 @@ export const RemoteExperimentTriggerModal = ({
       onSuccess: (data) => {
         if (data.success && data.skipped) {
           showErrorToast(
-            "Trigger is disabled",
-            "Enable the trigger in settings to run remote experiments.",
+            t("remote.triggerDisabled"),
+            t("remote.enableTriggerToRun"),
             "WARNING",
           );
         } else if (data.success) {
           showSuccessToast({
-            title: "Remote experiment triggered",
-            description:
-              "Your remote experiment may take a few minutes to complete.",
+            title: t("remote.triggered"),
+            description: t("remote.triggeredDescription"),
           });
         } else {
           showErrorToast(
-            "Failed to trigger remote experiment",
-            data.error ||
-              "Please try again or check your remote experiment configuration.",
+            t("remote.triggerFailed"),
+            data.error || t("remote.triggerFailedDescription"),
           );
         }
         setShowTriggerModal(false);
@@ -99,7 +99,7 @@ export const RemoteExperimentTriggerModal = ({
         JSON.parse(data.payload);
       } catch {
         form.setError("payload", {
-          message: "Invalid JSON format",
+          message: t("remote.invalidJson"),
         });
         return;
       }
@@ -124,12 +124,13 @@ export const RemoteExperimentTriggerModal = ({
           onClick={() => setShowTriggerModal(false)}
           className="inline-block self-start"
         >
-          ← Back
+          {t("common.back")}
         </Button>
-        <DialogTitle>Run remote dataset run</DialogTitle>
+        <DialogTitle>{t("remote.runRemoteDatasetRun")}</DialogTitle>
         <DialogDescription>
-          This action will send the following information to{" "}
-          <strong>{remoteExperimentConfig.url}</strong>.
+          {t.rich("remote.sendInformationTo", {
+            url: () => <strong>{remoteExperimentConfig.url}</strong>,
+          })}
         </DialogDescription>
       </DialogHeader>
 
@@ -142,11 +143,11 @@ export const RemoteExperimentTriggerModal = ({
                 name="payload"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Config</FormLabel>
+                    <FormLabel>{t("remote.config")}</FormLabel>
                     <FormDescription>
-                      Confirm the config you want to send to the remote dataset
-                      run URL along with the{" "}
-                      <strong>{dataset.data?.name}</strong> dataset information.
+                      {t.rich("remote.confirmConfigDescription", {
+                        dataset: () => <strong>{dataset.data?.name}</strong>,
+                      })}
                     </FormDescription>
                     <FormControl>
                       <CodeMirrorEditor
@@ -173,7 +174,7 @@ export const RemoteExperimentTriggerModal = ({
                 onClick={() => setShowTriggerModal(false)}
                 disabled={runRemoteExperimentMutation.isPending}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -184,7 +185,7 @@ export const RemoteExperimentTriggerModal = ({
                     <Spinner size="sm" />
                   </div>
                 )}
-                Run
+                {t("common.run")}
               </Button>
             </div>
           </DialogFooter>

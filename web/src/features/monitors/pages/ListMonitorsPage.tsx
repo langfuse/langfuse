@@ -13,19 +13,19 @@ import { MonitorsTable } from "@/src/features/monitors/components/MonitorsTable"
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
+import { type ComponentProps } from "react";
 
-/** headerProps are shared by all of the ListMonitorPage headers */
-const headerProps = {
-  title: "Alerts",
-  help: {
-    description:
-      "Alerts notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
-  },
-};
+type MonitorHeaderProps = ComponentProps<typeof Page>["headerProps"];
 
 /** ListMonitorsPage displays the list of monitors for a project, or an onboarding splash when the project has none. */
 export default function ListMonitorsPage() {
+  const t = useTranslations("operationsUi.monitors");
   const projectId = useProjectIdFromURL();
+  const headerProps: MonitorHeaderProps = {
+    title: t("pages.alerts"),
+    help: { description: t("pages.help") },
+  };
 
   const {
     isLoading,
@@ -39,21 +39,29 @@ export default function ListMonitorsPage() {
   return (
     <MonitorPagePermissions scope="alerts:read">
       {!projectId || isLoading ? (
-        <EmptyPage />
+        <EmptyPage headerProps={headerProps} />
       ) : isSuccess && hasMonitors ? (
-        <MainPage projectId={projectId} />
+        <MainPage projectId={projectId} headerProps={headerProps} />
       ) : (
-        <OnboardingPage projectId={projectId} />
+        <OnboardingPage projectId={projectId} headerProps={headerProps} />
       )}
     </MonitorPagePermissions>
   );
 }
 
 /** EmptyPage is an empty monitor page */
-const EmptyPage = () => <Page headerProps={headerProps}>{null}</Page>;
+const EmptyPage = ({ headerProps }: { headerProps: MonitorHeaderProps }) => (
+  <Page headerProps={headerProps}>{null}</Page>
+);
 
 /** OnboardingPage shows the onboarding message */
-const OnboardingPage = ({ projectId }: { projectId: string }) => {
+const OnboardingPage = ({
+  projectId,
+  headerProps,
+}: {
+  projectId: string;
+  headerProps: MonitorHeaderProps;
+}) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -68,7 +76,14 @@ const OnboardingPage = ({ projectId }: { projectId: string }) => {
 };
 
 /** MainPage loads and displays the list of monitors  */
-const MainPage = ({ projectId }: { projectId: string }) => {
+const MainPage = ({
+  projectId,
+  headerProps,
+}: {
+  projectId: string;
+  headerProps: MonitorHeaderProps;
+}) => {
+  const t = useTranslations("operationsUi.monitors.pages");
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -113,7 +128,7 @@ const MainPage = ({ projectId }: { projectId: string }) => {
                 href={`/project/${projectId}/alerts/new`}
                 variant="default"
               >
-                New Alert
+                {t("newAlert")}
               </ActionButton>
             </>
           ),

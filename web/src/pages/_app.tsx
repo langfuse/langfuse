@@ -7,6 +7,8 @@ import { type AppType } from "next/app";
 import Head from "next/head";
 import { type Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
+import { NextIntlClientProvider } from "next-intl";
+import { SharedUiProvider } from "@/src/utils/shared-ui-translations";
 import { setUser } from "@sentry/nextjs";
 import {
   clearV4BetaEnabledSentryTag,
@@ -97,6 +99,8 @@ import {
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
 } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+import { DEFAULT_TIME_ZONE, getAppLocale } from "@/src/features/i18n/config";
+import { getMessages } from "@/src/features/i18n/messages";
 
 // Session replay is a Langfuse Cloud feature, so self-hosted never records.
 // The product-analytics gate makes this redundant in HIPAA (PostHog is not
@@ -143,6 +147,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const locale = getAppLocale(router.locale);
   const skipAppLayout =
     "skipAppLayout" in Component && Component.skipAppLayout === true;
   const authBasePath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`;
@@ -170,68 +175,74 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    <>
-      {/* Replaces Next's default `width=device-width` (next/head dedupes by
+    <NextIntlClientProvider
+      locale={locale}
+      messages={getMessages(locale)}
+      timeZone={DEFAULT_TIME_ZONE}
+    >
+      <SharedUiProvider>
+        {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
           the engine-level zoom block is `touch-action` on `#__next` and the
           overlay layers — NOT on html/body, which WebKit ignores for page
           pinch (styles/globals.css). `viewport-fit=cover` is what makes
           `env(safe-area-inset-*)` non-zero. */}
-      <Head>
-        <meta
-          name="viewport"
-          content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
-        />
-      </Head>
-      <QueryParamProvider
-        adapter={NextAdapterPagesWithReadyGuard}
-        options={{ enableBatching: true }}
-      >
-        <TooltipProvider>
-          <CommandMenuProvider>
-            <PostHogProvider client={posthog}>
-              <SessionProvider
-                session={session}
-                refetchOnWindowFocus={true}
-                refetchInterval={5 * 60} // 5 minutes
-                basePath={authBasePath}
-              >
-                <ResilientSessionProvider basePath={authBasePath}>
-                  <DetailPageListsProvider>
-                    <MarkdownContextProvider>
-                      <MarkdownRenderCharacterLimitProvider>
-                        <ThemeProvider
-                          attribute="class"
-                          enableSystem
-                          disableTransitionOnChange
-                        >
-                          <ScoreCacheProvider>
-                            <CorrectionCacheProvider>
-                              <SupportDrawerProvider defaultOpen={false}>
-                                <V4MigrationPanelProvider defaultOpen={false}>
-                                  <InAppAiAgentProvider defaultOpen={false}>
-                                    {skipAppLayout ? (
-                                      page
-                                    ) : (
-                                      <AppLayout>{page}</AppLayout>
-                                    )}
-                                  </InAppAiAgentProvider>
-                                </V4MigrationPanelProvider>
-                              </SupportDrawerProvider>
-                            </CorrectionCacheProvider>
-                          </ScoreCacheProvider>
-                        </ThemeProvider>
-                      </MarkdownRenderCharacterLimitProvider>
-                    </MarkdownContextProvider>
-                  </DetailPageListsProvider>
-                </ResilientSessionProvider>
-              </SessionProvider>
-            </PostHogProvider>
-          </CommandMenuProvider>
-        </TooltipProvider>
-      </QueryParamProvider>
-    </>
+        <Head>
+          <meta
+            name="viewport"
+            content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
+          />
+        </Head>
+        <QueryParamProvider
+          adapter={NextAdapterPagesWithReadyGuard}
+          options={{ enableBatching: true }}
+        >
+          <TooltipProvider>
+            <CommandMenuProvider>
+              <PostHogProvider client={posthog}>
+                <SessionProvider
+                  session={session}
+                  refetchOnWindowFocus={true}
+                  refetchInterval={5 * 60} // 5 minutes
+                  basePath={authBasePath}
+                >
+                  <ResilientSessionProvider basePath={authBasePath}>
+                    <DetailPageListsProvider>
+                      <MarkdownContextProvider>
+                        <MarkdownRenderCharacterLimitProvider>
+                          <ThemeProvider
+                            attribute="class"
+                            enableSystem
+                            disableTransitionOnChange
+                          >
+                            <ScoreCacheProvider>
+                              <CorrectionCacheProvider>
+                                <SupportDrawerProvider defaultOpen={false}>
+                                  <V4MigrationPanelProvider defaultOpen={false}>
+                                    <InAppAiAgentProvider defaultOpen={false}>
+                                      {skipAppLayout ? (
+                                        page
+                                      ) : (
+                                        <AppLayout>{page}</AppLayout>
+                                      )}
+                                    </InAppAiAgentProvider>
+                                  </V4MigrationPanelProvider>
+                                </SupportDrawerProvider>
+                              </CorrectionCacheProvider>
+                            </ScoreCacheProvider>
+                          </ThemeProvider>
+                        </MarkdownRenderCharacterLimitProvider>
+                      </MarkdownContextProvider>
+                    </DetailPageListsProvider>
+                  </ResilientSessionProvider>
+                </SessionProvider>
+              </PostHogProvider>
+            </CommandMenuProvider>
+          </TooltipProvider>
+        </QueryParamProvider>
+      </SharedUiProvider>
+    </NextIntlClientProvider>
   );
 };
 

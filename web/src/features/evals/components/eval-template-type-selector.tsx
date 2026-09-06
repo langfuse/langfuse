@@ -19,6 +19,7 @@ import {
   type CodeEvalSourceCodeLanguage,
   getDefaultCodeEvalSource,
 } from "@/src/features/evals/utils/code-eval-template-validation";
+import { useTranslations } from "next-intl";
 
 type EvalTemplateFormInput = z.input<typeof templateFormSchema>;
 type EvalTemplateFormOutput = z.output<typeof templateFormSchema>;
@@ -48,6 +49,7 @@ export function EvalTemplateTypeSelector({
   hasExistingTemplate: boolean;
   onChange?: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const sourceCodeDraftsRef = useRef<CodeEvalSourceDrafts>({});
   const evalTemplateType = form.watch("type");
   const sourceCodeLanguage =
@@ -101,7 +103,7 @@ export function EvalTemplateTypeSelector({
       name="type"
       render={() => (
         <FormItem>
-          <FormLabel>Type</FormLabel>
+          <FormLabel>{t("templateType.type")}</FormLabel>
           <FormControl>
             <Tabs
               value={selectedValue}
@@ -119,7 +121,7 @@ export function EvalTemplateTypeSelector({
                     value={EvalTemplateType.LLM_AS_JUDGE}
                     className="min-w-[100px]"
                   >
-                    LLM-as-judge
+                    {t("templateType.llmAsJudge")}
                   </TabsTrigger>
                 ) : null}
                 <TabsTrigger

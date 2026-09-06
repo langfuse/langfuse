@@ -39,6 +39,7 @@ import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProces
 import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
 import { useSession } from "next-auth/react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { useTranslations } from "next-intl";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs on the right.
@@ -57,6 +58,7 @@ export const AnnotationQueueItemPage: React.FC<{
   projectId: string;
   queryItemId?: string;
 }> = ({ annotationQueueId, projectId, queryItemId }) => {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const router = useRouter();
   const { status: sessionStatus } = useSession();
   const sessionLoaded = sessionStatus !== "loading";
@@ -362,8 +364,8 @@ export const AnnotationQueueItemPage: React.FC<{
   if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
     return (
       <SplashScreen
-        title="All queue items processed"
-        description="There are no more items left to annotate."
+        title={t("allItemsProcessed")}
+        description={t("noMoreItems")}
       />
     );
   }
@@ -384,9 +386,7 @@ export const AnnotationQueueItemPage: React.FC<{
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
           <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
-            Item has been <strong>deleted from annotation queue</strong>.
-            Previously added scores and underlying reference trace are
-            unaffected by this action.
+            {t("itemDeletedDescription")}
           </span>
         </Card>
       );
@@ -440,7 +440,7 @@ export const AnnotationQueueItemPage: React.FC<{
                     shortcutPulse === "back" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
-                  aria-label="Previous item"
+                  aria-label={t("previous")}
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span className="hidden md:inline-flex">
@@ -449,7 +449,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <span>Previous item</span>
+                <span>{t("previous")}</span>
                 <span className="ml-2 hidden md:inline-flex">
                   <KeyboardShortcut keys={["ArrowLeft"]} />
                 </span>
@@ -458,18 +458,18 @@ export const AnnotationQueueItemPage: React.FC<{
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
               <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
-              complete + next ·
+              {t("completeAndNextShort")} ·
               <KeyboardShortcut size="sm" keys={["ArrowRight"]} />
-              skip
+              {t("skip")}
             </span>
             <button
               type="button"
               onClick={() => setShowShortcuts(true)}
               className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
-              aria-label="Show keyboard shortcuts"
+              aria-label={t("showKeyboardShortcuts")}
             >
               <KeyboardShortcut size="sm" keys={["?"]} />
-              shortcuts
+              {t("shortcuts")}
             </button>
           </div>
         )}
@@ -488,7 +488,7 @@ export const AnnotationQueueItemPage: React.FC<{
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
                   variant="outline"
-                  aria-label="Skip to next item"
+                  aria-label={t("skipToNext")}
                 >
                   <ArrowRight className="h-4 w-4" />
                   <span className="hidden md:inline-flex">
@@ -497,7 +497,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <span>Skip to next item</span>
+                <span>{t("skipToNext")}</span>
                 <span className="ml-2 hidden md:inline-flex">
                   <KeyboardShortcut keys={["ArrowRight"]} />
                 </span>
@@ -521,7 +521,7 @@ export const AnnotationQueueItemPage: React.FC<{
                       objectData.isError
                     }
                   >
-                    <span>Mark Completed</span>
+                    <span>{t("markCompleted")}</span>
                     {!isSingleItem && (
                       <span className="hidden md:inline-flex">
                         <KeyboardShortcut
@@ -535,8 +535,8 @@ export const AnnotationQueueItemPage: React.FC<{
                 <TooltipContent>
                   <span>
                     {isSingleItem
-                      ? "Mark completed"
-                      : "Mark completed + go to next item"}
+                      ? t("markCompleted")
+                      : t("markCompletedAndNext")}
                   </span>
                   {!isSingleItem && (
                     <span className="ml-2 hidden md:inline-flex">
@@ -547,7 +547,7 @@ export const AnnotationQueueItemPage: React.FC<{
               </Tooltip>
             ) : (
               <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
-                Completed
+                {t("complete")}
               </div>
             ))}
         </div>
@@ -557,56 +557,56 @@ export const AnnotationQueueItemPage: React.FC<{
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Keyboard className="h-4 w-4" />
-              Keyboard shortcuts
+              {t("keyboardShortcuts")}
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="gap-4 py-3">
             <div>
               <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
-                Navigate
+                {t("navigate")}
               </p>
-              <ShortcutRow label="Complete & go to next item">
+              <ShortcutRow label={t("completeAndNext")}>
                 <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
               </ShortcutRow>
-              <ShortcutRow label="Skip to next item">
+              <ShortcutRow label={t("skipToNext")}>
                 <KeyboardShortcut size="sm" keys={["ArrowRight"]} />
               </ShortcutRow>
-              <ShortcutRow label="Previous item">
+              <ShortcutRow label={t("previous")}>
                 <KeyboardShortcut size="sm" keys={["ArrowLeft"]} />
               </ShortcutRow>
             </div>
             <div>
               <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
-                Score the item
+                {t("scoreItem")}
               </p>
-              <ShortcutRow label="Move between score fields">
+              <ShortcutRow label={t("moveBetweenScoreFields")}>
                 <KeyboardShortcut size="sm" keys={["ArrowUp"]} />
                 <KeyboardShortcut size="sm" keys={["ArrowDown"]} />
               </ShortcutRow>
-              <ShortcutRow label="Select an option on the focused field">
+              <ShortcutRow label={t("selectFocusedOption")}>
                 <KeyboardShortcut size="sm" keys={["1"]} />
                 <span className="text-muted-foreground text-xs">–</span>
                 <KeyboardShortcut size="sm" keys={["9"]} />
               </ShortcutRow>
-              <ShortcutRow label="Edit a field / open a dropdown">
+              <ShortcutRow label={t("editFieldOrOpenDropdown")}>
                 <KeyboardShortcut size="sm" keys={["Enter"]} />
               </ShortcutRow>
-              <ShortcutRow label="Commit a number / leave a text field">
+              <ShortcutRow label={t("commitNumberOrLeaveText")}>
                 <KeyboardShortcut size="sm" keys={["Escape"]} />
                 <span className="text-muted-foreground text-xs">/</span>
                 <KeyboardShortcut size="sm" keys={["Tab"]} />
               </ShortcutRow>
             </div>
             <p className="text-muted-foreground border-t pt-3 text-xs">
-              Bare{" "}
+              {t("bareKeyPrefix")}{" "}
               <span className="hidden md:inline-flex">
                 <KeyboardShortcut size="sm" keys={["Enter"]} />
               </span>{" "}
-              inside a text field (e.g. Feedback) inserts a new line — use{" "}
+              {t("textFieldNewline")}{" "}
               <span className="hidden md:inline-flex">
                 <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
               </span>{" "}
-              to complete.
+              {t("toComplete")}
             </p>
           </DialogBody>
         </DialogContent>

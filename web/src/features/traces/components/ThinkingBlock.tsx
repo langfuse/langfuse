@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 interface ThinkingBlockProps {
   content: string;
@@ -13,6 +14,7 @@ export function ThinkingBlock({
   summary,
   defaultExpanded = false,
 }: ThinkingBlockProps) {
+  const t = useTranslations("coreDetails.traces.thinking");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const displayContent = summary || content;
 
@@ -30,7 +32,7 @@ export function ThinkingBlock({
             expanded && "rotate-90",
           )}
         />
-        <span className="text-xs font-bold">Thinking</span>
+        <span className="text-xs font-bold">{t("title")}</span>
         {!expanded && (
           <span className="ph-no-capture line-clamp-1 text-xs italic">
             {displayContent}
@@ -57,6 +59,7 @@ export function RedactedThinkingBlock({
   data,
   defaultExpanded = false,
 }: RedactedThinkingBlockProps) {
+  const t = useTranslations("coreDetails.traces.thinking");
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
@@ -73,9 +76,9 @@ export function RedactedThinkingBlock({
             expanded && "rotate-90",
           )}
         />
-        <span className="text-xs font-bold">Thinking (redacted)</span>
+        <span className="text-xs font-bold">{t("redacted")}</span>
         {!expanded && (
-          <span className="text-xs italic">[Encrypted thinking data]</span>
+          <span className="text-xs italic">[{t("encrypted")}]</span>
         )}
       </button>
 

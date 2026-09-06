@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { V4MigrationPanel } from "./V4MigrationPanel";
 import type { ProjectMigrationStatus } from "./migrationData";
+import { render } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   migrationData: {

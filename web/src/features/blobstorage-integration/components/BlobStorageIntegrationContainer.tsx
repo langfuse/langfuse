@@ -16,6 +16,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
+import { useTranslations } from "next-intl";
 
 // State layer. Owns everything async and entity-scoped: availability
 // derivation, the four mutations, and the entity-action buttons. The form
@@ -33,6 +34,7 @@ export const BlobStorageIntegrationContainer = ({
   projectId: string;
   writeMode: V4WriteMode;
 }) => {
+  const t = useTranslations("settingsEnterprise.blobActions");
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
@@ -62,7 +64,7 @@ export const BlobStorageIntegrationContainer = ({
       utils.blobStorageIntegration.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to save integration", error.message);
+      showErrorToast(t("saveFailed"), error.message);
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -78,12 +80,12 @@ export const BlobStorageIntegrationContainer = ({
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
-        title: data.message,
-        description: `Test file: ${data.testFileName}`,
+        title: t("validationSuccess"),
+        description: t("testFile", { fileName: data.testFileName }),
       });
     },
     onError: (error) => {
-      showErrorToast("Validation failed", error.message);
+      showErrorToast(t("validationFailed"), error.message);
     },
   });
 
@@ -123,43 +125,33 @@ export const BlobStorageIntegrationContainer = ({
         variant="secondary"
         loading={mutValidate.isPending}
         disabled={!config}
-        title="Test your saved configuration by uploading a small test file to your storage"
+        title={t("validateTooltip")}
         onClick={() => {
           mutValidate.mutate({ projectId });
         }}
       >
-        Validate
+        {t("validate")}
       </Button>
       <Button
         variant="secondary"
         loading={mutRunNow.isPending}
         disabled={!config?.enabled}
-        title="Trigger an immediate export of all data since the last sync"
+        title={t("runNowTooltip")}
         onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-            )
-          )
-            mutRunNow.mutate({ projectId });
+          if (confirm(t("runNowConfirm"))) mutRunNow.mutate({ projectId });
         }}
       >
-        Run Now
+        {t("runNow")}
       </Button>
       <Button
         variant="ghost"
         loading={mutDelete.isPending}
         disabled={!config}
         onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to reset the Blob Storage integration for this project?",
-            )
-          )
-            mutDelete.mutate({ projectId });
+          if (confirm(t("resetConfirm"))) mutDelete.mutate({ projectId });
         }}
       >
-        Reset
+        {t("reset")}
       </Button>
     </BlobStorageIntegrationForm>
   );

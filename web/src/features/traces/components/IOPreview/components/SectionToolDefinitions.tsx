@@ -3,6 +3,7 @@ import {
   type ToolDefinition,
 } from "./ToolCallDefinitionCard";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
+import { useTranslations } from "next-intl";
 
 // SectionToolDefinitions props
 export interface SectionToolDefinitionsProps {
@@ -23,6 +24,7 @@ export function SectionToolDefinitions({
   toolCallsByName,
   toolNameToDefinitionNumber,
 }: SectionToolDefinitionsProps) {
+  const t = useTranslations("coreObservability.ioPreview");
   if (tools.length === 0) {
     return null;
   }
@@ -31,7 +33,7 @@ export function SectionToolDefinitions({
     <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
       <div className="border-border mb-4 border-b pb-4">
         <div className="io-message-header px-1 py-1 text-sm font-bold capitalize">
-          Tools
+          {t("tools")}
         </div>
         <ToolCallDefinitionCard
           tools={tools}

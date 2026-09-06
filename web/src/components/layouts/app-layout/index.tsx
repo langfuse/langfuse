@@ -29,6 +29,7 @@ import { useAuthGuard } from "./hooks/useAuthGuard";
 import { useProjectAccess } from "./hooks/useProjectAccess";
 import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
+import { useTranslations } from "next-intl";
 
 /**
  * Main layout component
@@ -39,6 +40,7 @@ import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
  * - User permissions
  */
 export function AppLayout(props: PropsWithChildren) {
+  const t = useTranslations("sharedUi.layout");
   const router = useRouter();
   const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
@@ -108,10 +110,10 @@ export function AppLayout(props: PropsWithChildren) {
     // every mount (thousands of events / hundreds of users of pure noise).
     return (
       <ErrorPage
-        title="Project Not Found"
-        message="The project you are trying to access does not exist or you do not have access to it."
+        title={t("projectNotFound")}
+        message={t("projectNotFoundDescription")}
         additionalButton={{
-          label: "Go to Home",
+          label: t("goHome"),
           href: "/",
         }}
       />
@@ -140,7 +142,7 @@ export function AppLayout(props: PropsWithChildren) {
   // The authGuard hook ensures we don't reach here without a valid session
   if (!sessionData) {
     // This should never happen due to guards above, but TypeScript needs this
-    return <LoadingLayout message="Loading" />;
+    return <LoadingLayout message={t("loading")} />;
   }
 
   return (

@@ -13,6 +13,7 @@ import type {
   MappingMode,
   CustomMappingConfig,
 } from "./types";
+import { useTranslations } from "next-intl";
 
 export function MappingStep({
   field,
@@ -25,6 +26,7 @@ export function MappingStep({
   schema,
   onValidationChange,
 }: MappingStepProps) {
+  const t = useTranslations("operationsUi.batchActions.addToDataset.mapping");
   const hasSchema = schema !== null && schema !== undefined;
   const isObjectType = hasSchema && isObjectSchema(schema);
   const hasInitializedRef = useRef(false);
@@ -73,13 +75,13 @@ export function MappingStep({
   const getFullLabel = () => {
     switch (field) {
       case "input":
-        return "Full observation input";
+        return t("fullInput");
       case "expectedOutput":
-        return "Full observation output";
+        return t("fullOutput");
       case "metadata":
-        return "Full observation metadata";
+        return t("fullMetadata");
       default:
-        return `Full observation ${field}`;
+        return t("fullField", { field });
     }
   };
 
@@ -118,7 +120,7 @@ export function MappingStep({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="grow text-lg font-bold">
-              Dataset Item {fieldLabel}
+              {t("title", { field: fieldLabel })}
             </h3>
             {hasSchema && (
               <DatasetSchemaHoverCard
@@ -131,8 +133,7 @@ export function MappingStep({
             )}
           </div>
           <p className="text-muted-foreground text-sm">
-            Configure how observation data maps to the Dataset Item {fieldLabel}
-            .
+            {t("description", { field: fieldLabel })}
           </p>
         </div>
 

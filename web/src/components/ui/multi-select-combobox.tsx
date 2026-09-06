@@ -4,6 +4,7 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Search, X, MoreHorizontal } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 interface MultiSelectComboboxProps<T> {
   selectedItems: T[];
@@ -37,7 +38,7 @@ export function MultiSelectCombobox<T>({
   onSearchChange,
   searchResults,
   isLoading = false,
-  placeholder = "Search...",
+  placeholder,
   hasMoreResults = false,
   renderItem,
   renderSelectedItem,
@@ -49,6 +50,8 @@ export function MultiSelectCombobox<T>({
   dropdownClassName,
   labelLeft,
 }: MultiSelectComboboxProps<T>) {
+  const t = useSharedUiTranslations("multiSelectCombobox");
+  const searchPlaceholder = placeholder ?? t("search");
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [previousResults, setPreviousResults] = useState<T[]>([]);
@@ -178,9 +181,9 @@ export function MultiSelectCombobox<T>({
               placeholder={
                 showSelectedItemsInInput
                   ? selectedItems.length === 0
-                    ? placeholder
+                    ? searchPlaceholder
                     : ""
-                  : placeholder
+                  : searchPlaceholder
               }
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
@@ -237,9 +240,7 @@ export function MultiSelectCombobox<T>({
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
                   <MoreHorizontal className="h-4 w-4" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs italic">
-                      More results available, refine your search
-                    </p>
+                    <p className="text-xs italic">{t("moreResults")}</p>
                   </div>
                 </div>
               )}
@@ -247,8 +248,8 @@ export function MultiSelectCombobox<T>({
           ) : (
             <div className="bg-background text-muted-foreground absolute top-0 z-10 w-full rounded-md border py-6 text-center text-xs shadow-md">
               {searchQuery
-                ? `No results found for "${searchQuery}"`
-                : "No results available"}
+                ? t("noResultsFor", { query: searchQuery })
+                : t("noResults")}
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 /**
  * Trailing state for one recent-conversation row. Exactly one can show, so the
@@ -13,9 +14,10 @@ export function ConversationActivityIndicator({
 }: {
   state: InAppAgentActivityState;
 }) {
+  const t = useSharedUiTranslations("agent");
   if (state === "approval") {
     return (
-      <ConversationActivityIndicatorSlot label="Needs your approval">
+      <ConversationActivityIndicatorSlot label={t("needsApproval")}>
         <CircleAlert className="text-primary-accent size-3" />
       </ConversationActivityIndicatorSlot>
     );
@@ -23,7 +25,7 @@ export function ConversationActivityIndicator({
 
   if (state === "running") {
     return (
-      <ConversationActivityIndicatorSlot label="Working">
+      <ConversationActivityIndicatorSlot label={t("working")}>
         <Loader2 className="text-muted-foreground size-3 animate-spin" />
       </ConversationActivityIndicatorSlot>
     );
@@ -31,7 +33,7 @@ export function ConversationActivityIndicator({
 
   return (
     <ConversationActivityIndicatorSlot
-      label={state === "failed-unread" ? "Failed" : "Finished"}
+      label={state === "failed-unread" ? t("failed") : t("finished")}
     >
       <span
         className={cn(

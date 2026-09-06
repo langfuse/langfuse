@@ -9,8 +9,11 @@ import {
   interpretCohensKappa,
   interpretF1Score,
   interpretOverallAgreement,
+  type InterpretationTranslator,
   type ConfusionMatrixRow,
 } from "@/src/features/score-analytics/lib/statistics-utils";
+import { createTranslator } from "next-intl";
+import { getMessages } from "@/src/features/i18n/messages";
 
 describe("Cohen's Kappa Calculation", () => {
   it("should calculate perfect agreement (κ = 1.0)", () => {
@@ -403,5 +406,27 @@ describe("Overall Agreement Interpretation", () => {
     expect(result.strength).toBe("Very Poor");
     expect(result.color).toBe("red");
     expect(result.description).toContain("20%");
+  });
+});
+
+describe("localized statistic interpretations", () => {
+  it("uses the active catalog for strength and description text", () => {
+    const t = createTranslator({
+      locale: "zh-CN",
+      messages: getMessages("zh-CN"),
+      namespace: "evaluationAnalytics.scoreAnalytics.interpretations",
+    });
+    const translate: InterpretationTranslator = (key, values) => t(key, values);
+
+    expect(interpretPearsonCorrelation(0.95, translate)).toEqual({
+      strength: "非常强",
+      color: "green",
+      description: "非常强的正向线性相关",
+    });
+    expect(interpretOverallAgreement(0.85, translate)).toEqual({
+      strength: "良好",
+      color: "blue",
+      description: "85% 的预测结果一致",
+    });
   });
 });

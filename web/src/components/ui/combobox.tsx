@@ -20,6 +20,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/ui/badge";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 interface ComboboxOption<T extends string | number | boolean | { id: string }> {
   value: T;
@@ -89,14 +90,15 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
   options,
   value,
   onValueChange,
-  placeholder = "Select option...",
-  emptyText = "No option found.",
-  searchPlaceholder = "Search...",
+  placeholder,
+  emptyText,
+  searchPlaceholder,
   disabled = false,
   className,
   name,
   footer,
 }: ComboboxProps<T>) {
+  const t = useSharedUiTranslations("combobox");
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const close = () => {
@@ -116,9 +118,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     return options.find((option) => isEqual(option.value, value));
   }, [options, value]);
 
+  const resolvedPlaceholder = placeholder ?? t("selectOption");
+  const resolvedEmptyText = emptyText ?? t("noOption");
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t("search");
   const buttonText = selectedOption
     ? (selectedOption.label ?? String(selectedOption.value))
-    : placeholder;
+    : resolvedPlaceholder;
 
   return (
     <Popover
@@ -160,13 +165,13 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
       <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
         <Command>
           <CommandInput
-            placeholder={searchPlaceholder}
+            placeholder={resolvedSearchPlaceholder}
             className="text-xs"
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandEmpty>{resolvedEmptyText}</CommandEmpty>
             {isGroupedOptions(options) ? (
               // Render with groups
               options.map((group, groupIndex) => (

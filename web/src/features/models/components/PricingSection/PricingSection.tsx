@@ -10,6 +10,7 @@ import { TierAccordionItem } from "./components/TierAccordionItem";
 import { TierPriceEditor } from "./components/TierPriceEditor";
 import { TierPrefillButtons } from "./components/TierPrefillButtons";
 import type { FormUpsertModel } from "@/src/features/models/validation";
+import { useTranslations } from "next-intl";
 
 type PricingSectionProps = {
   form: UseFormReturn<FormUpsertModel>;
@@ -25,6 +26,7 @@ const NEW_TIER_CONDITION = {
 };
 
 export function PricingSection({ form }: PricingSectionProps) {
+  const t = useTranslations("settingsEnterprise.models");
   const tiers = useFieldArray({ control: form.control, name: "pricingTiers" });
   // Radix seeds `defaultValue` once, at mount, so a tier added later would
   // render collapsed. Track what the user closed instead: new tiers are open.
@@ -73,10 +75,13 @@ export function PricingSection({ form }: PricingSectionProps) {
     const existing = form.getValues("pricingTiers");
     const takenNames = new Set(existing.map((tier) => tier.name.trim()));
     let suffix = 1;
-    while (takenNames.has(`Custom Tier ${suffix}`)) suffix++;
+    while (
+      takenNames.has(t("pricingEditor.customTierName", { number: suffix }))
+    )
+      suffix++;
 
     tiers.append({
-      name: `Custom Tier ${suffix}`,
+      name: t("pricingEditor.customTierName", { number: suffix }),
       isDefault: false,
       conditions: [{ ...NEW_TIER_CONDITION }],
       // Prices are keyed by usage type row key, so this copies by identity.
@@ -101,11 +106,8 @@ export function PricingSection({ form }: PricingSectionProps) {
     return (
       <div className="space-y-4">
         <div>
-          <FormLabel>Prices</FormLabel>
-          <FormDescription>
-            Set prices per usage type for this model. Usage types must exactly
-            match the keys of the ingested usage details.
-          </FormDescription>
+          <FormLabel>{t("common.prices")}</FormLabel>
+          <FormDescription>{t("pricingEditor.description")}</FormDescription>
         </div>
 
         <TierPrefillButtons onPrefill={prefillUsageTypes} />
@@ -117,7 +119,7 @@ export function PricingSection({ form }: PricingSectionProps) {
 
         <Button type="button" variant="ghost" onClick={addTier}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add Custom Pricing Tier
+          {t("pricingEditor.addCustomPricingTier")}
         </Button>
       </div>
     );
@@ -130,11 +132,8 @@ export function PricingSection({ form }: PricingSectionProps) {
   return (
     <div className="space-y-4">
       <div>
-        <FormLabel>Pricing Tiers</FormLabel>
-        <FormDescription>
-          Define pricing rules evaluated in priority order. Tiers are checked
-          from top to bottom until conditions match.
-        </FormDescription>
+        <FormLabel>{t("pricingEditor.tiers")}</FormLabel>
+        <FormDescription>{t("pricingEditor.tiersDescription")}</FormDescription>
       </div>
 
       <Accordion
@@ -169,7 +168,7 @@ export function PricingSection({ form }: PricingSectionProps) {
 
       <Button type="button" variant="outline" onClick={addTier}>
         <PlusCircle className="mr-2 h-4 w-4" />
-        Add Custom Tier
+        {t("pricingEditor.addCustomTier")}
       </Button>
     </div>
   );

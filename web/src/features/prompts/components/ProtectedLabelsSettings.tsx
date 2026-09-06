@@ -37,6 +37,7 @@ import {
   PRODUCTION_LABEL,
   PromptLabelSchema,
 } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 const AddLabelFormSchema = z.object({
   label: PromptLabelSchema,
@@ -49,6 +50,9 @@ export default function ProtectedLabelsSettings({
 }: {
   projectId: string;
 }) {
+  const t = useTranslations(
+    "settingsEnterprise.generalSettings.protectedLabels",
+  );
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "promptProtectedLabels:CUD",
@@ -108,13 +112,9 @@ export default function ProtectedLabelsSettings({
 
   return (
     <div>
-      <Header title="Protected Prompt Labels" />
+      <Header title={t("title")} />
       <Card className="mb-4 p-3">
-        <p className="text-primary mb-4 text-sm">
-          Protected labels can only be modified by users with admin or owner
-          access. This prevents other users from changing or removing these
-          labels from prompts.
-        </p>
+        <p className="text-primary mb-4 text-sm">{t("description")}</p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (
             <StatusBadge
@@ -129,14 +129,11 @@ export default function ProtectedLabelsSettings({
                   size="icon"
                   className="h-4 w-4 p-0 hover:bg-transparent"
                   onClick={() => {
-                    if (
-                      confirm(
-                        `Are you sure you want to remove the protected label "${label}"?`,
-                      )
-                    ) {
+                    if (confirm(t("removeConfirm", { label }))) {
                       removeProtectedLabel.mutate({ projectId, label });
                     }
                   }}
+                  aria-label={t("removeAriaLabel", { label })}
                 >
                   <XIcon className="h-3 w-3" />
                 </Button>
@@ -167,7 +164,7 @@ export default function ProtectedLabelsSettings({
                           )}
                           disabled={!hasAccess || !hasEntitlement}
                         >
-                          {field.value || "Select or enter a label"}
+                          {field.value || t("select")}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -175,12 +172,12 @@ export default function ProtectedLabelsSettings({
                     <PopoverContent className="w-full p-0">
                       <Command>
                         <CommandInput
-                          placeholder="Search or enter a new label..."
+                          placeholder={t("search")}
                           onValueChange={(value) => {
                             field.onChange(value);
                           }}
                         />
-                        <CommandEmpty>No label found</CommandEmpty>
+                        <CommandEmpty>{t("empty")}</CommandEmpty>
                         <CommandGroup>
                           {availableLabels.map((label) => (
                             <CommandItem
@@ -217,7 +214,7 @@ export default function ProtectedLabelsSettings({
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
             >
-              Add
+              {t("add")}
             </ActionButton>
           </form>
         </Form>

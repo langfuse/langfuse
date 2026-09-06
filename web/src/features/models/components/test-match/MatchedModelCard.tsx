@@ -5,6 +5,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
+import { useTranslations } from "next-intl";
 
 export type MatchedModelCardProps = {
   model: {
@@ -15,13 +16,14 @@ export type MatchedModelCardProps = {
 };
 
 export function MatchedModelCard({ model }: MatchedModelCardProps) {
+  const t = useTranslations("settingsEnterprise.models.testMatch");
   const isLangfuseModel = !model.projectId;
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-          Matched Model
+          {t("matchedModel")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -37,7 +39,7 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
         </div>
         <div className="space-y-1">
           <div className="text-muted-foreground text-xs font-bold">
-            Pattern:
+            {t("pattern")}
           </div>
           <code className="bg-muted/50 block rounded p-2 text-xs break-all">
             {model.matchPattern}

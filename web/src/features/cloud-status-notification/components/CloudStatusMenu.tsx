@@ -2,8 +2,10 @@ import { api } from "@/src/utils/api";
 import Link from "next/link";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useTranslations } from "next-intl";
 
 export function CloudStatusMenu() {
+  const t = useTranslations("systemUi.miscUi.general");
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { data, isLoading } = api.cloudStatus.getStatus.useQuery(undefined, {
     refetchOnMount: false,
@@ -30,7 +32,7 @@ export function CloudStatusMenu() {
   }
 
   return (
-    <SidebarMenuButton asChild tooltip="Active incident">
+    <SidebarMenuButton asChild tooltip={t("activeIncident")}>
       <Link
         href="https://status.langfuse.com"
         target="_blank"
@@ -39,7 +41,7 @@ export function CloudStatusMenu() {
         <div className="relative mx-1 flex h-2 w-2 shrink-0 items-center justify-center">
           <span className="bg-destructive inline-flex h-2 w-2 rounded-full" />
         </div>
-        Active incident
+        {t("activeIncident")}
       </Link>
     </SidebarMenuButton>
   );

@@ -1,0 +1,163 @@
+{
+  "playground": {
+    "page": {
+      "title": "Playground",
+      "description": "A sandbox to test and iterate your prompts across multiple windows",
+      "windowLabel": "Window {number}",
+      "windowCount": "{count, plural, one {# window} other {# windows}}",
+      "executingWindows": "Executing {count, plural, one {# window} other {# windows}}",
+      "configureModel": "Please configure a model in Project Settings first",
+      "executeAll": "Execute all playground windows simultaneously",
+      "runAll": "Run All",
+      "noContent": "No content to execute",
+      "noContentDescription": "Please add at least one message with content to any window.",
+      "executingAll": "Executing all {count, plural, one {# window} other {# windows}}",
+      "executingProgress": "Executing {executing} of {total} windows",
+      "maximumWindows": "Maximum window limit of {count} reached",
+      "cannotRemoveLastWindow": "Cannot remove the last remaining window"
+    },
+    "configuration": {
+      "tools": "Tools",
+      "toolsDescription": "Configure tools for your model to use.",
+      "noTools": "No tools attached.",
+      "schema": "Schema",
+      "structuredOutput": "Structured Output",
+      "structuredOutputDescription": "Configure JSON schema for structured output.",
+      "noSchema": "No schema provided.",
+      "variables": "Variables",
+      "variablesShort": "Vars",
+      "variablesAndPlaceholders": "Variables & Message Placeholders",
+      "variablesDescription": "Configure variables and message placeholders for your prompts.",
+      "messagePlaceholders": "Message Placeholders",
+      "noVariables": "No variables or message placeholders defined."
+    },
+    "output": {
+      "title": "Output",
+      "toggleJson": "Toggle Input/Output JSON",
+      "copy": "Copy output",
+      "addAssistantMessage": "Add as assistant message",
+      "addToMessages": "Add to messages"
+    },
+    "tools": {
+      "search": "Search tools...",
+      "noneFound": "No tools found.",
+      "create": "Create new tool",
+      "noneAttached": "No tools attached.",
+      "remove": "Remove tool {name}"
+    },
+    "savePrompt": {
+      "action": "Save as prompt",
+      "newPrompt": "Save as new prompt",
+      "search": "Search chat prompts...",
+      "noneFound": "No chat prompt found",
+      "chatOnly": "Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages.",
+      "newVersion": "Save as new prompt version",
+      "or": "or"
+    }
+  },
+  "dashboard": {
+    "homePresets": {
+      "traces": {
+        "name": "Traces",
+        "description": "Total traces with the top trace names"
+      },
+      "modelCosts": {
+        "name": "Model Costs",
+        "description": "Cost and token usage per model"
+      },
+      "scores": {
+        "name": "Scores",
+        "description": "Score counts and averages by name"
+      },
+      "traffic": {
+        "name": "Traces & Observations over time",
+        "description": "Traffic volume with tabbed trace/observation views"
+      },
+      "modelUsage": {
+        "name": "Model Usage",
+        "description": "Cost and usage over time, by model or by type"
+      },
+      "userConsumption": {
+        "name": "User Consumption",
+        "description": "Token cost and trace counts per user"
+      },
+      "scoresOverTime": {
+        "name": "Scores over time",
+        "description": "Moving average per score"
+      },
+      "traceLatency": {
+        "name": "Trace Latency Percentiles",
+        "description": "p50-p99 latencies per trace name"
+      },
+      "generationLatency": {
+        "name": "Generation Latency Percentiles",
+        "description": "p50-p99 latencies per generation name"
+      },
+      "observationLatency": {
+        "name": "Observation Latency Percentiles",
+        "description": "p50-p99 latencies per observation type and name"
+      },
+      "modelLatencies": {
+        "name": "Model Latencies",
+        "description": "Latency percentiles per LLM, tabbed by percentile"
+      },
+      "scoreAnalytics": {
+        "name": "Score Analytics",
+        "description": "Per-score charts and distributions for selected scores"
+      },
+      "fixedConfiguration": "Home card - fixed configuration"
+    },
+    "modelCosts": {
+      "title": "Model costs",
+      "model": "Model",
+      "tokens": "Tokens",
+      "totalCost": "Total cost",
+      "calculation": "Calculated by multiplying the number of tokens by the cost per token for each model."
+    },
+    "users": {
+      "unknown": "Unknown",
+      "tokenCost": "Token cost",
+      "totalCost": "Total cost",
+      "traceCount": "Count of Traces",
+      "totalTraces": "Total traces",
+      "traces": "Traces",
+      "title": "User consumption",
+      "emptyDescription": "Consumption per user is tracked by passing their IDs on traces."
+    },
+    "timeSeries": {
+      "traces": "Traces",
+      "observationsByLevel": "Observations by Level",
+      "observations": "Observations",
+      "tracesTracked": "Traces tracked",
+      "observationsTracked": "Observations tracked",
+      "tracesByTime": "Traces by time",
+      "observationsByTime": "Observations by time",
+      "emptyDescription": "Traces contain details about LLM applications and can be created using the SDK."
+    },
+    "scores": {
+      "title": "Scores",
+      "description": "Moving average per score",
+      "emptyDescription": "Scores evaluate LLM quality and can be created manually or using the SDK."
+    },
+    "edit": {
+      "updateFailed": "Failed to update dashboard",
+      "validationError": "Validation error",
+      "nameRequired": "Dashboard name is required",
+      "title": "Edit Dashboard",
+      "name": "Name",
+      "namePlaceholder": "Dashboard name",
+      "description": "Description",
+      "descriptionPlaceholder": "Dashboard description",
+      "cancel": "Cancel",
+      "save": "Save Changes"
+    },
+    "homeSelect": {
+      "default": "Default",
+      "thisProject": "This project",
+      "maintained": "Langfuse-maintained",
+      "description": "The dashboard shown on this project's home page",
+      "search": "Search dashboards...",
+      "noneFound": "No dashboards found"
+    }
+  }
+}

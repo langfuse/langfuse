@@ -21,6 +21,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
 import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 /**
  * Resolution state of the previewable content. The collapsed chip renders the
@@ -129,6 +130,7 @@ function KindIcon({
 type PreviewRenderer = (params: {
   url: string;
   onError: () => void;
+  noPreviewLabel: string;
 }) => React.ReactNode;
 
 const MEDIA_KIND_PREVIEW = {
@@ -163,10 +165,10 @@ const MEDIA_KIND_PREVIEW = {
       preload="metadata"
     />
   ),
-  file: () => (
+  file: ({ noPreviewLabel }) => (
     <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
       <File className="h-5 w-5" />
-      <span className="text-xs">No inline preview</span>
+      <span className="text-xs">{noPreviewLabel}</span>
     </div>
   ),
 } satisfies Record<MediaKind, PreviewRenderer>;
@@ -178,17 +180,21 @@ function PeekBody({
   status,
   url,
   onPreviewError,
+  noPreviewLabel,
+  loadFailedLabel,
 }: {
   kind: MediaKind;
   status: MediaTagStatus;
   url?: string;
   onPreviewError: () => void;
+  noPreviewLabel: string;
+  loadFailedLabel: string;
 }) {
   if (status === "error") {
     return (
       <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
         <ImageOff className="h-5 w-5" />
-        <span className="text-xs">Failed to load media</span>
+        <span className="text-xs">{loadFailedLabel}</span>
       </div>
     );
   }
@@ -197,7 +203,11 @@ function PeekBody({
     return <Skeleton className="h-32 w-64" />;
   }
 
-  return MEDIA_KIND_PREVIEW[kind]({ url, onError: onPreviewError });
+  return MEDIA_KIND_PREVIEW[kind]({
+    url,
+    onError: onPreviewError,
+    noPreviewLabel,
+  });
 }
 
 /**
@@ -224,6 +234,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
     },
     ref,
   ) => {
+    const t = useSharedUiTranslations("mediaTag");
     const kind = getMediaKind(contentType);
     const chipLabel = label ?? getDefaultLabel(contentType);
     const hasGeneratedLabel = label === undefined;
@@ -257,7 +268,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             // (`closest("[data-media-tag]")`): IOTableCell suppresses its
             // expand-on-hover card and native title while over a chip.
             data-media-tag=""
-            aria-label={`${chipLabel} media`}
+            aria-label={t("mediaLabel", { label: chipLabel })}
             aria-expanded={isOpen}
             className={mediaTagVariants({ intent })}
             onClick={openPeek}
@@ -315,7 +326,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                 variant="outline"
                 size={openActionLabel ? "sm" : "icon-xs"}
                 className={openActionLabel ? "gap-1.5" : undefined}
-                title="Open in new tab"
+                title={t("openNewTab")}
               >
                 <a href={url} target="_blank" rel="noopener noreferrer">
                   {openActionLabel ? <span>{openActionLabel}</span> : null}
@@ -328,7 +339,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                 size={openActionLabel ? "sm" : "icon-xs"}
                 className={openActionLabel ? "gap-1.5" : undefined}
                 disabled
-                title="Open in new tab"
+                title={t("openNewTab")}
               >
                 {openActionLabel ? <span>{openActionLabel}</span> : null}
                 <ExternalLink className="h-3 w-3" />
@@ -345,6 +356,8 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             status={previewStatus}
             url={url}
             onPreviewError={() => setFailedPreviewUrl(url ?? null)}
+            noPreviewLabel={t("noInlinePreview")}
+            loadFailedLabel={t("loadFailed")}
           />
         </HoverCardContent>
       </HoverCard>

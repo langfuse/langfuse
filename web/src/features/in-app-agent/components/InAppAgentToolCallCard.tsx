@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 import { Check, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
@@ -25,6 +26,7 @@ export function InAppAgentToolCallCard({
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {
+  const t = useSharedUiTranslations("agent");
   const [activeDecision, setActiveDecision] = useState<
     "once" | "conversation" | "reject" | null
   >(null);
@@ -33,8 +35,8 @@ export function InAppAgentToolCallCard({
   const isApprovalSubmitting = approval?.status === "submitting";
   const isDecisionSubmitting = isApprovalSubmitting || activeDecision !== null;
   const displayName = getInAppAgentToolDisplayName(tool.name);
-  const approveLabel = `Approve ${displayName}?`;
-  const usedLabel = `Used ${displayName}`;
+  const approveLabel = t("approveTool", { name: displayName });
+  const usedLabel = t("usedTool", { name: displayName });
 
   const decide = async (
     decision: NonNullable<typeof activeDecision>,
@@ -93,7 +95,7 @@ export function InAppAgentToolCallCard({
                 ) : (
                   <Check className="mr-1 size-3" />
                 )}
-                Approve
+                {t("approve")}
               </Button>
               {onAlwaysAllowToolCall ? (
                 <Button
@@ -101,8 +103,8 @@ export function InAppAgentToolCallCard({
                   size="sm"
                   variant="outline"
                   className="h-7"
-                  title={`Always approve ${displayName} for this conversation`}
-                  aria-label="Always approve for this conversation"
+                  title={t("alwaysApproveTitle", { name: displayName })}
+                  aria-label={t("alwaysApproveAria")}
                   disabled={isDisabled || isDecisionSubmitting}
                   aria-busy={activeDecision === "conversation"}
                   onClick={() => {
@@ -114,7 +116,7 @@ export function InAppAgentToolCallCard({
                   {activeDecision === "conversation" ? (
                     <Loader2 className="mr-1 size-3 animate-spin" />
                   ) : null}
-                  Always approve*
+                  {t("alwaysApprove")}
                 </Button>
               ) : null}
               <Button
@@ -133,12 +135,12 @@ export function InAppAgentToolCallCard({
                 {activeDecision === "reject" ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : null}
-                Decline
+                {t("reject")}
               </Button>
             </div>
             {onAlwaysAllowToolCall ? (
               <p className="text-muted-foreground text-xs">
-                * Approves every use of this tool in this conversation.
+                {t("alwaysApproveDescription")}
               </p>
             ) : null}
           </div>
@@ -151,10 +153,10 @@ export function InAppAgentToolCallCard({
               {usedLabel}
             </span>
             <span className="text-muted-foreground text-xs group-open/tool:hidden">
-              Show
+              {t("show")}
             </span>
             <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
-              Hide
+              {t("hide")}
             </span>
           </summary>
           <div className="mt-2 space-y-2">

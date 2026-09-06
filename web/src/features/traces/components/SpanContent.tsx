@@ -31,6 +31,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 import type Decimal from "decimal.js";
+import { useTranslations } from "next-intl";
 
 // How many distinct score groups to show inline on a tree/search row before
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
@@ -56,6 +57,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
+  const t = useTranslations("coreDetails.traces.timeline");
   const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
   const {
     showDuration,
@@ -104,7 +106,8 @@ export function SpanContent({
     traceLevelScoreOwnerIds,
   );
 
-  const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
+  const nodeDisplayName =
+    node.name || t("unnamed", { type: node.type.toLowerCase() });
 
   return (
     <button
@@ -151,9 +154,7 @@ export function SpanContent({
             {shouldRenderDuration && (duration || node.latency) ? (
               <span
                 title={
-                  node.type === "TRACE"
-                    ? "Total trace duration"
-                    : "Own span duration"
+                  node.type === "TRACE" ? t("totalDuration") : t("ownDuration")
                 }
                 className={cn(
                   "text-foreground-tertiary text-xs",
@@ -175,7 +176,7 @@ export function SpanContent({
             {/* Subtree wall-clock duration — async descendants outlive the parent span */}
             {shouldRenderSubtreeDuration ? (
               <span
-                title="Subtree wall-clock duration (first start → last end)"
+                title={t("subtreeDuration")}
                 className="text-foreground-tertiary text-xs"
               >
                 {"∑ "}
@@ -200,7 +201,7 @@ export function SpanContent({
               <span
                 title={
                   node.children.length > 0 || node.type === "TRACE"
-                    ? "Aggregated cost of all child observations"
+                    ? t("aggregatedCost")
                     : undefined
                 }
                 className={cn(

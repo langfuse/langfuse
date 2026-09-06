@@ -37,6 +37,7 @@ import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
@@ -70,7 +71,29 @@ const promptLanguage = StreamLanguage.define({
   },
 });
 
-export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
+type PromptDiagnosticMessages = {
+  variablesCannotSpanLines: string;
+  unclosedVariableBrackets: string;
+  emptyVariableNotAllowed: string;
+  invalidVariableName: string;
+  malformedPromptDependency: string;
+  invalidPromptDependencyFormat: string;
+};
+
+const DEFAULT_PROMPT_DIAGNOSTIC_MESSAGES: PromptDiagnosticMessages = {
+  variablesCannotSpanLines: "Variables cannot span multiple lines",
+  unclosedVariableBrackets: "Unclosed variable brackets",
+  emptyVariableNotAllowed: "Empty variable is not allowed",
+  invalidVariableName:
+    "Variable must start with a letter and can only contain letters and underscores",
+  malformedPromptDependency: "Malformed prompt dependency tag",
+  invalidPromptDependencyFormat: "Invalid prompt dependency tag format",
+};
+
+export const getPromptVariableDiagnostics = (
+  content: string,
+  messages: PromptDiagnosticMessages = DEFAULT_PROMPT_DIAGNOSTIC_MESSAGES,
+): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
 
   // Check for multiline variables
@@ -79,7 +102,7 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
       from: match.index,
       to: match.index + match[0].length,
       severity: "error",
-      message: "Variables cannot span multiple lines",
+      message: messages.variablesCannotSpanLines,
     });
   }
 
@@ -89,7 +112,7 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
       from: match.index,
       to: match.index + 2,
       severity: "error",
-      message: "Unclosed variable brackets",
+      message: messages.unclosedVariableBrackets,
     });
   }
 
@@ -101,15 +124,14 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
         from: match.index,
         to: match.index + match[0].length,
         severity: "error",
-        message: "Empty variable is not allowed",
+        message: messages.emptyVariableNotAllowed,
       });
     } else if (!isValidVariableName(variable)) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
         severity: "error",
-        message:
-          "Variable must start with a letter and can only contain letters and underscores",
+        message: messages.invalidVariableName,
       });
     }
   }
@@ -125,7 +147,7 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
           from: match.index,
           to: match.index + match[0].length,
           severity: "warning",
-          message: "Malformed prompt dependency tag",
+          message: messages.malformedPromptDependency,
         });
       }
     } catch {
@@ -133,18 +155,13 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
         from: match.index,
         to: match.index + match[0].length,
         severity: "warning",
-        message: "Invalid prompt dependency tag format",
+        message: messages.invalidPromptDependencyFormat,
       });
     }
   }
 
   return diagnostics;
 };
-
-// Linter for prompt variables
-const promptLinter = linter((view) =>
-  getPromptVariableDiagnostics(view.state.doc.toString()),
-);
 
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
@@ -441,11 +458,42 @@ export function CodeMirrorEditor({
   // media drop/paste handler. Memoize at the call site to avoid reconfiguring.
   extensions?: Extension[];
 }) {
+  const t = useSharedUiTranslations("codeMirror");
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!value && value !== "",
+  );
+  const promptDiagnosticMessages = useMemo<PromptDiagnosticMessages>(
+    () => ({
+      variablesCannotSpanLines: t("variablesCannotSpanLines"),
+      unclosedVariableBrackets: t("unclosedVariableBrackets"),
+      emptyVariableNotAllowed: t("emptyVariableNotAllowed"),
+      invalidVariableName: t("invalidVariableName"),
+      malformedPromptDependency: t("malformedPromptDependency"),
+      invalidPromptDependencyFormat: t("invalidPromptDependencyFormat"),
+    }),
+    [t],
+  );
+  const magicPasteMessages = useMemo(
+    () => ({
+      pasteRaw: t("magicPaste.pasteRaw"),
+      pasteRawTitle: (shortcut: string) =>
+        t("magicPaste.pasteRawTitle", { shortcut }),
+      pasteRawAriaLabel: t("magicPaste.pasteRawAriaLabel"),
+    }),
+    [t],
+  );
+  const localizedPromptLinter = useMemo(
+    () =>
+      linter((view) =>
+        getPromptVariableDiagnostics(
+          view.state.doc.toString(),
+          promptDiagnosticMessages,
+        ),
+      ),
+    [promptDiagnosticMessages],
   );
 
   const handleEditorRef = useCallback(
@@ -517,8 +565,10 @@ export function CodeMirrorEditor({
       // Magic paste: when editing JSON, escape pasted text inside a string (or
       // wrap a blob pasted into a blank field) so the JSON stays valid, with a
       // "Paste raw" escape hatch. Conservative — defers to normal paste otherwise.
-      ...(editable && mode === "json" ? [createJsonMagicPasteExtension()] : []),
-      ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
+      ...(editable && mode === "json"
+        ? [createJsonMagicPasteExtension(magicPasteMessages)]
+        : []),
+      ...(mode === "prompt" ? [promptSupport, localizedPromptLinter] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
       ...(additionalExtensions ?? []),
     ],
@@ -531,6 +581,8 @@ export function CodeMirrorEditor({
       linterEnabled,
       lineWrapping,
       additionalExtensions,
+      localizedPromptLinter,
+      magicPasteMessages,
     ],
   );
 

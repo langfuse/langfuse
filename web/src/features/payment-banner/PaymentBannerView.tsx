@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 const paymentBannerVariants = cva(
   "fixed top-0 z-51 flex w-full flex-col gap-1 px-4 py-1.5 sm:flex-row sm:items-center sm:gap-3 sm:py-1",
@@ -45,6 +46,7 @@ export function PaymentBannerView({
   severity,
   ref,
 }: PaymentBannerViewProps) {
+  const t = useTranslations("settingsEnterprise.paymentBanner");
   return (
     <div
       ref={ref}
@@ -56,8 +58,8 @@ export function PaymentBannerView({
         {/* mt-0.5 optically centers the 16px icon on the first 20px text line */}
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
         <p className="min-w-0 text-sm wrap-break-word">
-          <span className="font-bold">Billing Issue:</span>{" "}
-          {`We have problems collecting subscription payment for your organization '${organizationName}'. Please update your payment information to continue using Langfuse.`}
+          <span className="font-bold">{t("title")}</span>{" "}
+          {t("description", { organizationName })}
         </p>
       </div>
       <Button
@@ -68,7 +70,7 @@ export function PaymentBannerView({
       >
         <Link href={billingSettingsHref}>
           <CreditCard className="mr-2 h-4 w-4" />
-          Update Payment
+          {t("update")}
         </Link>
       </Button>
     </div>

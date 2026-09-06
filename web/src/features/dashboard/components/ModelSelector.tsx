@@ -20,6 +20,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 export const ModelSelectorPopover = ({
   allModels,
@@ -36,6 +37,8 @@ export const ModelSelectorPopover = ({
   isAllSelected: boolean;
   handleSelectAll: () => void;
 }) => {
+  const t = useTranslations("evaluationAnalytics.dashboard");
+  const widgetT = useTranslations("evaluationAnalytics.widgets");
   const [open, setOpen] = useState(false);
 
   return (
@@ -53,8 +56,8 @@ export const ModelSelectorPopover = ({
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0">
         <InputCommand>
-          <InputCommandInput placeholder="Search models..." variant="bottom" />
-          <InputCommandEmpty>No model found.</InputCommandEmpty>
+          <InputCommandInput placeholder={t("searchModels")} variant="bottom" />
+          <InputCommandEmpty>{t("noModel")}</InputCommandEmpty>
           <InputCommandGroup>
             <InputCommandItem onSelect={handleSelectAll}>
               <Check
@@ -64,7 +67,7 @@ export const ModelSelectorPopover = ({
                 )}
               />
               <span>
-                <p className="font-bold">Select All</p>
+                <p className="font-bold">{t("selectAll")}</p>
               </span>
             </InputCommandItem>
             <InputCommandSeparator className="my-1" />
@@ -89,7 +92,7 @@ export const ModelSelectorPopover = ({
                     )}
                   />
                   {!model.model || model.model === "" ? (
-                    <i>none</i>
+                    <i>{widgetT("none")}</i>
                   ) : (
                     model.model
                   )}
@@ -114,6 +117,8 @@ export const useModelSelection = (
     queryId: string;
   },
 ) => {
+  const t = useTranslations("systemUi.dashboardExtras");
+  const tableT = useTranslations("systemUi.tableActions");
   const allModels = useAllModels(
     projectId,
     globalFilterState,
@@ -129,8 +134,8 @@ export const useModelSelection = (
   const isAllSelected = selectedModels.length === allModels.length;
 
   const buttonText = isAllSelected
-    ? "All models"
-    : `${selectedModels.length} selected`;
+    ? t("allModels")
+    : tableT("selected", { count: selectedModels.length });
 
   const handleSelectAll = () => {
     setSelectedModels(isAllSelected ? [] : [...allModels.map((m) => m.model)]);

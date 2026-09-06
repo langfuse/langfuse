@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { useTranslations } from "next-intl";
 
 export type ModernSessionFilterDialogViewActions =
   | { type: "none" }
@@ -42,12 +43,13 @@ export function ModernSessionFilterDialogContent({
   onCancel,
   onApplyFilters,
 }: ModernSessionFilterDialogContentProps) {
+  const t = useTranslations("sessions.views");
   const [filters, setFilters] = useState(initialFilters);
 
   return (
     <DialogContent size="lg">
       <DialogHeader>
-        <DialogTitle>Filter observations</DialogTitle>
+        <DialogTitle>{t("filterTitle")}</DialogTitle>
       </DialogHeader>
       <DialogBody className="overflow-y-auto">
         <InlineFilterBuilder
@@ -59,14 +61,14 @@ export function ModernSessionFilterDialogContent({
       </DialogBody>
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
-          Cancel
+          {t("cancel")}
         </Button>
         {viewActions.type !== "none" ? (
           <Button
             variant="outline"
             onClick={() => viewActions.onCreate(filters)}
           >
-            Save as new view
+            {t("saveAsNew")}
           </Button>
         ) : null}
         {viewActions.type === "update" ? (
@@ -75,10 +77,12 @@ export function ModernSessionFilterDialogContent({
             loading={viewActions.isUpdating}
             onClick={() => viewActions.onUpdate(filters)}
           >
-            Update &quot;{viewActions.viewName}&quot;
+            {t("update", { name: viewActions.viewName })}
           </Button>
         ) : null}
-        <Button onClick={() => onApplyFilters(filters)}>Apply filters</Button>
+        <Button onClick={() => onApplyFilters(filters)}>
+          {t("applyFilters")}
+        </Button>
       </DialogFooter>
     </DialogContent>
   );

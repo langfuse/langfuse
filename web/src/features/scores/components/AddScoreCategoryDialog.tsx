@@ -17,6 +17,7 @@ import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { type AnalyticsData } from "@/src/features/scores/types";
+import { useTranslations } from "next-intl";
 
 export function AddScoreCategoryDialog({
   projectId,
@@ -33,11 +34,15 @@ export function AddScoreCategoryDialog({
   onClose: () => void;
   onCategoryAdded: (label: string, numericValue: number) => void;
 }) {
+  const t = useTranslations("systemUi.scores");
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [label, setLabel] = useState(initialLabel);
   const existingCategories = config.categories ?? [];
-  const validationError = validateNewCategoryLabel(label, existingCategories);
+  const validationError = validateNewCategoryLabel(label, existingCategories, {
+    required: t("categoryRequired"),
+    exists: t("categoryExists"),
+  });
 
   const appendCategory = api.scoreConfigs.appendCategory.useMutation({
     onSuccess: async (data, variables) => {
@@ -58,7 +63,7 @@ export function AddScoreCategoryDialog({
       onClose();
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to add category");
+      toast.error(error.message ?? t("addCategoryFailed"));
     },
   });
 
@@ -80,11 +85,14 @@ export function AddScoreCategoryDialog({
     >
       <DialogContent closeOnInteractionOutside>
         <DialogHeader variant="action">
-          <DialogTitle>Add category</DialogTitle>
+          <DialogTitle>{t("addCategoryTitle")}</DialogTitle>
           <DialogDescription>
-            This adds a category to{" "}
-            <span className="text-foreground font-bold">{config.name}</span> for
-            everyone in this project.
+            {t.rich("addCategoryDescription", {
+              name: config.name,
+              strong: (chunks) => (
+                <span className="text-foreground font-bold">{chunks}</span>
+              ),
+            })}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -95,13 +103,15 @@ export function AddScoreCategoryDialog({
         >
           <DialogBody>
             <div className="grid gap-2">
-              <Label htmlFor="new-score-category-label">Category name</Label>
+              <Label htmlFor="new-score-category-label">
+                {t("categoryName")}
+              </Label>
               <Input
                 id="new-score-category-label"
                 value={label}
                 autoFocus
                 onChange={(event) => setLabel(event.target.value)}
-                placeholder="Enter a category name"
+                placeholder={t("categoryPlaceholder")}
               />
               {label.trim() && validationError ? (
                 <p className="text-destructive text-sm">{validationError}</p>
@@ -115,14 +125,14 @@ export function AddScoreCategoryDialog({
               onClick={onClose}
               disabled={appendCategory.isPending}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               type="submit"
               disabled={!!validationError}
               loading={appendCategory.isPending}
             >
-              Add category
+              {t("addCategoryTitle")}
             </Button>
           </DialogFooter>
         </form>

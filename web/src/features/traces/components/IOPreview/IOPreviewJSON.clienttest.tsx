@@ -11,6 +11,24 @@
  */
 import { render, screen } from "@testing-library/react";
 
+vi.mock("next-intl", async (importOriginal) => ({
+  ...(await importOriginal()),
+  useTranslations:
+    () => (key: string, values?: Record<string, string | number>) => {
+      const messages: Record<string, string> = {
+        input: "Input",
+        output: "Output",
+        metadata: "Metadata",
+        outputCorrection: "Output correction",
+        rows: `${values?.count ?? ""} rows`,
+        characters: `${values?.count ?? ""} characters`,
+        tooLarge: `${values?.size ?? ""} - too large to render in JSON view`,
+        downloadField: `Download ${values?.field ?? ""}`,
+      };
+      return messages[key] ?? key;
+    },
+}));
+
 // Mock MultiSectionJsonViewer: expose each section's key, whether it carries
 // data (hideData=false) vs. is gated (hideData=true, tree never built), and
 // render its footer so the fallback is observable.

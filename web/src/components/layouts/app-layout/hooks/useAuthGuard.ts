@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { PATH_CONSTANTS } from "../utils/pathClassification";
 import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import type { SessionContextValue } from "next-auth/react";
+import { useTranslations } from "next-intl";
 
 /** Result of auth guard evaluation */
 export type AuthGuardResult =
@@ -32,13 +33,14 @@ export function useAuthGuard(
   _hideNavigation: boolean,
 ): AuthGuardResult {
   const router = useRouter();
+  const t = useTranslations("sharedUi.layout");
 
   return useMemo(() => {
     const { pathname, query, asPath } = router;
 
     // Loading state
     if (session.status === "loading") {
-      return { action: "loading", message: "Loading" };
+      return { action: "loading", message: t("loading") };
     }
 
     const isUnauthPath = PATH_CONSTANTS.unauthenticated.some((p) =>
@@ -74,7 +76,7 @@ export function useAuthGuard(
       !isPublishable &&
       !isPublicPath
     ) {
-      return { action: "sign-out", message: "Redirecting" };
+      return { action: "sign-out", message: t("redirecting") };
     }
 
     // Unauthenticated user trying to access protected route
@@ -98,7 +100,7 @@ export function useAuthGuard(
       return {
         action: "redirect",
         url: `/auth/sign-in${targetPathQuery}`,
-        message: "Redirecting",
+        message: t("redirecting"),
       };
     }
 
@@ -110,11 +112,11 @@ export function useAuthGuard(
       return {
         action: "redirect",
         url: routerRedirectUrl,
-        message: "Redirecting",
+        message: t("redirecting"),
       };
     }
 
     // All checks passed - allow access
     return { action: "allow" };
-  }, [session.status, session.data, router]);
+  }, [session.status, session.data, router, t]);
 }

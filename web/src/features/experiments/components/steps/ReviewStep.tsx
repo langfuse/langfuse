@@ -14,6 +14,7 @@ import {
 import { InfoIcon } from "lucide-react";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { useTranslations } from "next-intl";
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({
   formState,
@@ -21,6 +22,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   errorMessage,
   summary,
 }) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const { form } = formState;
   const { setActiveStep } = navigationState;
   const {
@@ -38,8 +40,8 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   return (
     <div className="space-y-6">
       <StepHeader
-        title="Review & Run"
-        description="Review your experiment configuration before running it. You can go back to any step to make changes."
+        title={t("steps.review.title")}
+        description={t("steps.review.description")}
         errorMessage={errorMessage}
       />
 
@@ -51,15 +53,17 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Prompt</CardTitle>
+            <CardTitle className="text-base">{t("common.prompt")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
+              <span className="text-muted-foreground">{t("common.name")}:</span>
               <span className="font-bold">{selectedPromptName}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Version:</span>
+              <span className="text-muted-foreground">
+                {t("common.version")}:
+              </span>
               <span className="font-bold">v{selectedPromptVersion}</span>
             </div>
           </CardContent>
@@ -71,33 +75,41 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Model</CardTitle>
+            <CardTitle className="text-base">{t("common.model")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Provider:</span>
+              <span className="text-muted-foreground">
+                {t("steps.review.provider")}:
+              </span>
               <span>{modelParams.provider.value}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Model:</span>
+              <span className="text-muted-foreground">
+                {t("common.model")}:
+              </span>
               <span>{modelParams.model.value}</span>
             </div>
             {modelParams.temperature.enabled && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Temperature:</span>
+                <span className="text-muted-foreground">
+                  {t("steps.review.temperature")}:
+                </span>
                 <span>{modelParams.temperature.value}</span>
               </div>
             )}
             {modelParams.max_tokens.enabled && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Max Tokens:</span>
+                <span className="text-muted-foreground">
+                  {t("steps.review.maxTokens")}:
+                </span>
                 <span>{modelParams.max_tokens.value}</span>
               </div>
             )}
             {structuredOutputEnabled && selectedSchemaName && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground">
-                  Structured Output:
+                  {t("steps.review.structuredOutput")}:
                 </span>
                 <span>{selectedSchemaName}</span>
               </div>
@@ -111,16 +123,18 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           onClick={() => setActiveStep("dataset")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Dataset</CardTitle>
+            <CardTitle className="text-base">{t("common.dataset")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
+              <span className="text-muted-foreground">{t("common.name")}:</span>
               <span className="font-bold">{selectedDataset?.name}</span>
             </div>
             {validationResult?.isValid && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Items:</span>
+                <span className="text-muted-foreground">
+                  {t("steps.review.items")}:
+                </span>
                 <span>{validationResult.totalItems}</span>
               </div>
             )}
@@ -135,7 +149,9 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
-                Evaluators ({activeEvaluatorNames.length})
+                {t("steps.review.evaluators", {
+                  count: activeEvaluatorNames.length,
+                })}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -156,30 +172,36 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           onClick={() => setActiveStep("details")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Experiment Run Details</CardTitle>
+            <CardTitle className="text-base">
+              {t("steps.details.title")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Experiment Name:</span>
+              <span className="text-muted-foreground">
+                {t("steps.details.experimentName")}:
+              </span>
               <span className="font-bold">{formValues.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Run Name:</span>
+              <span className="text-muted-foreground">
+                {t("steps.review.runName")}:
+              </span>
               <span className="font-bold">{formValues.runName}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[300px]">
-                  This run name is auto-generated from the experiment name and
-                  can be used to fetch the resulting experiment run via the
-                  public API.
+                  {t("steps.review.runNameDescription")}
                 </TooltipContent>
               </Tooltip>
             </div>
             {formValues.description && (
               <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground">Description:</span>
+                <span className="text-muted-foreground">
+                  {t("common.description")}:
+                </span>
                 <span className="text-sm">{formValues.description}</span>
               </div>
             )}

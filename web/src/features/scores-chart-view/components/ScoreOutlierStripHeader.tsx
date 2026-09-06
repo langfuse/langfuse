@@ -7,16 +7,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
 import {
   type ScoreOutlierAggKey,
   type ScoreOutlierMetricKey,
 } from "@/src/features/scores-chart-view/types";
+import { useTranslations } from "next-intl";
 
 const MODE_OPTIONS: ScoreOutlierMetricKey[] = ["count", "value"];
-
-const modeLabel = (mode: ScoreOutlierMetricKey): string =>
-  SCORE_OUTLIER_STRIP_METRICS[mode].shortLabel;
 
 /**
  * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
@@ -58,21 +55,24 @@ export function ScoreOutlierStripHeader({
   aggOptions: readonly ScoreOutlierAggKey[];
   onAggregationChange: (aggregation: ScoreOutlierAggKey) => void;
 }) {
+  const labelsT = useTranslations("systemUi.chartControls");
+  const t = useTranslations("systemUi.scoreChartView");
   const modeFocusGuard = usePointerSelectionFocusGuard();
   const aggregationFocusGuard = usePointerSelectionFocusGuard();
-  const def = SCORE_OUTLIER_STRIP_METRICS[mode];
+  const modeLabel = (value: ScoreOutlierMetricKey) =>
+    labelsT(`metrics.${value}`);
 
   // "Count" covers every score type; "Value" only reflects numeric/Boolean
   // rows, so flag that explicitly rather than leaving it a silent gap.
   const valueModeInfo =
     mode === "value" ? (
-      <DocPopup description="Categorical and text scores have no numeric value, so they're excluded from Value." />
+      <DocPopup description={t("categoricalValueNotice")} />
     ) : null;
 
   const modeMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Chart mode: ${modeLabel(mode)}`}
+        aria-label={t("chartMode", { mode: modeLabel(mode) })}
         className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-xs leading-none font-bold"
       >
         {modeLabel(mode)}
@@ -103,10 +103,13 @@ export function ScoreOutlierStripHeader({
       <span className="flex items-baseline gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger
-            aria-label={`${def.shortLabel} aggregation: ${aggregation}`}
+            aria-label={t("aggregationLabel", {
+              metric: modeLabel(mode),
+              aggregation: labelsT(`aggregations.${aggregation}`),
+            })}
             className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-xs leading-none underline-offset-2 hover:underline"
           >
-            {aggregation}
+            {labelsT(`aggregations.${aggregation}`)}
             <ChevronDown className="h-2.5 w-2.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -122,7 +125,7 @@ export function ScoreOutlierStripHeader({
                 }}
                 className="text-xs"
               >
-                {agg}
+                {labelsT(`aggregations.${agg}`)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

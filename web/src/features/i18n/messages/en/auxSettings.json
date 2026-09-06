@@ -1,0 +1,104 @@
+{
+  "personalNotifications": {
+    "title": "Personal Notifications",
+    "loading": "Loading preferences...",
+    "emailTitle": "Email Notifications",
+    "emailDescription": "Manage your personal email notification preferences for this project.",
+    "commentMentions": "Comment Mentions",
+    "commentMentionsDescription": "Receive an email when someone mentions you in a comment",
+    "updateFailed": "Failed to update notification preference. Please try again."
+  },
+  "projectNotifications": {
+    "title": "Project Notifications",
+    "description": "Manage project notifications. Channel notifications are sent in addition to the admin emails.",
+    "channels": {
+      "loading": "Loading channels...",
+      "edit": "Edit channel",
+      "delete": "Delete channel",
+      "add": "Add channel"
+    },
+    "events": {
+      "title": "Events",
+      "withChannelsDescription": "Choose which events are delivered to your channels.",
+      "withoutChannelsDescription": "Configure a channel above to enable project notifications.",
+      "blobExportFailed": {
+        "title": "Blob storage export failed",
+        "description": "Sent when a scheduled blob storage export fails."
+      },
+      "posthogExportFailed": {
+        "title": "PostHog export failed",
+        "description": "Sent when a PostHog export is disabled after a configuration error, such as an unreachable host."
+      },
+      "evaluatorBlocked": {
+        "title": "Evaluator deactivated",
+        "description": "Sent when an evaluator is deactivated due to an unrecoverable error, such as a deleted model or LLM connection."
+      }
+    },
+    "webhookSecretDialog": {
+      "title": "Webhook Secret Created",
+      "description": "Copy the webhook secret below; it will only be shown once.",
+      "saved": "I've saved the secret"
+    }
+  },
+  "webhookSecret": {
+    "title": "Webhook Secret",
+    "description": "This secret can only be viewed once. You can regenerate it in the automation settings if needed. Use this secret to verify webhook signatures in your endpoint."
+  },
+  "developerTools": {
+    "title": "MCP & CLI",
+    "description": "Bring Langfuse into your terminal and AI coding agents. These tools let you and your agents read and write Langfuse data—traces, prompts, datasets, scores, and more—without leaving your development environment.",
+    "documentation": "Documentation ↗",
+    "manageApiKeys": "Manage API keys",
+    "agentSkill": {
+      "title": "Agent Skill",
+      "description": "The Langfuse Agent Skill is an open-source skill following Anthropic's Agent Skills standard. It equips AI coding agents (Claude Code, Cursor, Windsurf) with native Langfuse capabilities and conditions them to follow best practices, so agents produce better results when it is installed."
+    },
+    "mcpServer": {
+      "title": "MCP Server",
+      "description": "The Langfuse MCP server lets AI assistants and agents interact with your Langfuse data programmatically via the Model Context Protocol. It supports both read and write operations, and you can restrict it to read-only access with an allowlist. Authenticate with a project-scoped API key pair."
+    },
+    "cli": {
+      "title": "CLI",
+      "description": "The Langfuse CLI provides terminal access to the full Langfuse API. It wraps every API endpoint, so you can manage traces, prompts, datasets, scores, and sessions directly from your shell or scripts. It uses the same API key pair as the Langfuse SDKs."
+    }
+  },
+  "models": {
+    "title": "Model Definitions",
+    "description": "A configuration that stores pricing information for an LLM model. Model definitions specify the cost per input and output token, enabling Langfuse to automatically calculate the price of generations based on token usage."
+  },
+  "scoreConfigs": {
+    "title": "Score Configs",
+    "description": "Score configs define which scores are available for <annotation>annotation</annotation> in your project. Please note that all score configs are immutable."
+  },
+  "batchActions": {
+    "title": "Batch Actions",
+    "description": "Track the status of bulk operations performed on tables, such as adding observations to datasets, deleting traces, and adding items to annotation queues. Actions are processed asynchronously in the background.",
+    "accessDeniedTitle": "Access Denied",
+    "accessDeniedDescription": "You do not have permission to view batch actions."
+  },
+  "batchExports": {
+    "title": "Exports",
+    "description": "Export large datasets in your preferred format via the export buttons across Langfuse. Exports are processed asynchronously and remain available for download until the expiry shown for each export below. You will receive an email notification once your export is ready.",
+    "accessDeniedTitle": "Access Denied",
+    "accessDeniedDescription": "You do not have permission to view batch exports.",
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "action": "Action",
+      "expires": "Expires",
+      "format": "Format",
+      "createdBy": "Created By"
+    },
+    "created": "Created: {date}",
+    "finished": "Finished: {date}",
+    "downloadExpires": "Download expires: {date}",
+    "download": "Download",
+    "expired": "Expired",
+    "cancel": "Cancel",
+    "cancelTitle": "Cancel batch export?",
+    "cancelDescription": "Are you sure you want to cancel this batch export? This action cannot be undone.",
+    "keep": "No, keep it",
+    "confirmCancel": "Yes, cancel export",
+    "unknown": "Unknown"
+  }
+}

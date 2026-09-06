@@ -10,6 +10,7 @@ import {
   type RuleEvaluatorOption,
 } from "@/src/features/evals";
 import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import { useTranslations } from "next-intl";
 
 export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
   ExperimentEvaluatorAssignmentsHandle,
@@ -38,9 +39,10 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
   },
   ref,
 ) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const [store] = useState(() =>
     createRuleSetupStore({
-      name: "Experiment evaluators",
+      name: t("evaluatorAssignments.name"),
       filter: [],
       sampling: 1,
       assignments: initialAssignments,
@@ -76,8 +78,8 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
         costEstimates={[]}
         estimatingEvaluatorIds={[]}
         footerTrailing={null}
-        emptyDescription="Attach an evaluator to score experiments on this dataset."
-        sourceUnavailableMessage="No dataset item is available to validate JSON paths."
+        emptyDescription={t("evaluatorAssignments.emptyDescription")}
+        sourceUnavailableMessage={t("evaluatorAssignments.sourceUnavailable")}
         disabled={disabled}
       />
       {showSaveButton ? (
@@ -92,7 +94,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
               });
             }}
           >
-            Save
+            {t("common.save")}
           </Button>
         </div>
       ) : null}

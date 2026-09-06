@@ -2,8 +2,10 @@ import { api } from "@/src/utils/api";
 import { Badge } from "@/src/components/ui/badge";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
+import { useTranslations } from "next-intl";
 
 export const BillingDiscountView = () => {
+  const t = useTranslations("settingsEnterprise.billing.discount");
   const { organization, billingProvider } = useBillingInformation();
 
   const shouldRenderComponent = Boolean(
@@ -53,14 +55,19 @@ export const BillingDiscountView = () => {
   return (
     <div className="flex flex-col gap-2">
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-        <span className="mr-1">Discounts:</span>
+        <span className="mr-1">{t("title")}</span>
         {discounts.map((d) => {
           const labelParts: string[] = [];
           if (d.code) labelParts.push(d.code);
           else if (d.name) labelParts.push(d.name);
 
-          if (d.kind === "percent") labelParts.push(`${d.value}% off`);
-          else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
+          if (d.kind === "percent") {
+            labelParts.push(t("percentOff", { value: d.value }));
+          } else {
+            labelParts.push(
+              t("amountOff", { value: formatAmount(d.value, d.currency) }),
+            );
+          }
 
           return (
             <Badge key={d.id} variant="secondary" className="font-normal">

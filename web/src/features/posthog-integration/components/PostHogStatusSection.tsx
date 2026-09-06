@@ -1,6 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { type RouterOutputs } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type PostHogIntegrationConfig = NonNullable<
   RouterOutputs["posthogIntegration"]["get"]["config"]
@@ -17,9 +18,10 @@ export const PostHogStatusSection = ({
 }: {
   config: PostHogIntegrationConfig;
 }) => {
+  const t = useTranslations("integrationsSettings");
   return (
     <>
-      <Header title="Status" className="mt-8" />
+      <Header title={t("common.status")} className="mt-8" />
       {config.lastError && (
         <Alert variant="destructive" className="mb-4">
           {/* A fault normally arrives with the auto-disable, but the disable is
@@ -27,8 +29,8 @@ export const PostHogStatusSection = ({
               enabled integration — so only promise "disabled" when it is. */}
           <AlertTitle>
             {config.enabled
-              ? "Last export failed"
-              : "Export disabled – action required"}
+              ? t("posthog.lastExportFailed")
+              : t("posthog.disabledActionRequired")}
           </AlertTitle>
           <AlertDescription>
             {config.lastError}
@@ -44,10 +46,11 @@ export const PostHogStatusSection = ({
         </Alert>
       )}
       <p className="text-primary text-sm">
-        Data synced until:{" "}
-        {config.lastSyncAt
-          ? new Date(config.lastSyncAt).toLocaleString()
-          : "Never (pending)"}
+        {t("posthog.syncedUntil", {
+          value: config.lastSyncAt
+            ? new Date(config.lastSyncAt).toLocaleString()
+            : t("common.neverPending"),
+        })}
       </p>
     </>
   );

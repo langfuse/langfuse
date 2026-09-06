@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PreviewDeploymentBanner } from "./PreviewDeploymentBanner";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "@/src/features/i18n/messages";
 
 // Shared mutable mock state (hoisted above the vi.mock factories).
 const h = vi.hoisted(() => ({
@@ -15,13 +17,25 @@ vi.mock("@/src/features/top-banner", () => ({
   useTopBannerRegistration: () => {},
 }));
 
+const renderBanner = () =>
+  render(
+    <NextIntlClientProvider
+      locale="en"
+      messages={getMessages("en")}
+      timeZone="UTC"
+      now={new Date()}
+    >
+      <PreviewDeploymentBanner />
+    </NextIntlClientProvider>,
+  );
+
 describe("PreviewDeploymentBanner", () => {
   afterEach(() => {
     for (const key of Object.keys(h.env)) delete h.env[key];
   });
 
   it("renders nothing when the preview env vars are unset", () => {
-    const { container } = render(<PreviewDeploymentBanner />);
+    const { container } = renderBanner();
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -33,7 +47,7 @@ describe("PreviewDeploymentBanner", () => {
       Date.now() - 2 * 60 * 60 * 1000,
     ).toISOString();
 
-    render(<PreviewDeploymentBanner />);
+    renderBanner();
 
     expect(screen.getByRole("link", { name: "PR #15580" })).toHaveAttribute(
       "href",
@@ -43,7 +57,7 @@ describe("PreviewDeploymentBanner", () => {
       "href",
       "https://github.com/nmtrang29",
     );
-    expect(screen.getByText(/updated about 2 hours ago/)).toBeInTheDocument();
+    expect(screen.getByText(/updated 2 hours ago/)).toBeInTheDocument();
   });
 
   it("omits the updated segment for an unparsable timestamp", () => {
@@ -51,7 +65,7 @@ describe("PreviewDeploymentBanner", () => {
       "https://github.com/langfuse/langfuse/pull/1";
     h.env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED = "not-a-date";
 
-    render(<PreviewDeploymentBanner />);
+    renderBanner();
 
     expect(screen.getByRole("link", { name: "PR #1" })).toBeInTheDocument();
     expect(screen.queryByText(/updated/)).not.toBeInTheDocument();
@@ -60,7 +74,7 @@ describe("PreviewDeploymentBanner", () => {
   it("falls back to a generic link label when the URL has no PR number", () => {
     h.env.NEXT_PUBLIC_PREVIEW_PR_URL = "https://github.com/langfuse/langfuse";
 
-    render(<PreviewDeploymentBanner />);
+    renderBanner();
 
     expect(
       screen.getByRole("link", { name: "a pull request" }),

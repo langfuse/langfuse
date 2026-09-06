@@ -193,26 +193,20 @@ type ActiveTip = {
   message: string;
 };
 
-const setMagicPasteTip = StateEffect.define<ActiveTip | null>();
+export type MagicPasteMessages = {
+  pasteRaw: string;
+  pasteRawTitle: (shortcut: string) => string;
+  pasteRawAriaLabel: string;
+};
 
-const magicPasteTipField = StateField.define<ActiveTip | null>({
-  create() {
-    return null;
-  },
-  update(value, tr) {
-    // A magic paste sets the tip in the same transaction it edits the doc, so
-    // the effect always wins over the dismiss rule below.
-    for (const effect of tr.effects) {
-      if (effect.is(setMagicPasteTip)) return effect.value;
-    }
-    // Dismiss on the next real edit (not a bare cursor move) so the control
-    // survives navigation/reading; a blur handler clears it on focus-out.
-    if (value && tr.docChanged) return null;
-    return value;
-  },
-  provide: (field) =>
-    showTooltip.from(field, (tip) => (tip ? buildTooltip(tip) : null)),
-});
+const defaultMagicPasteMessages: MagicPasteMessages = {
+  pasteRaw: "Paste raw",
+  pasteRawTitle: (shortcut) =>
+    `Insert the original text, unescaped (${shortcut})`,
+  pasteRawAriaLabel: "Paste raw — insert the original text, unescaped",
+};
+
+const setMagicPasteTip = StateEffect.define<ActiveTip | null>();
 
 const PASTE_RAW_KEY = "Mod-Shift-v";
 // `Mod` is Cmd on macOS, Ctrl elsewhere; mirror that in the hint and the
@@ -238,7 +232,10 @@ function revertToRaw(view: EditorView, tip: ActiveTip): void {
   view.focus();
 }
 
-function buildTooltip(tip: ActiveTip): Tooltip {
+function buildTooltip(
+  tip: ActiveTip,
+  messages: MagicPasteMessages = defaultMagicPasteMessages,
+): Tooltip {
   return {
     // Anchor at the caret (end of the insert), where `scrollIntoView` brought the
     // viewport — anchoring at the start would land off-screen when a long paste
@@ -265,12 +262,9 @@ function buildTooltip(tip: ActiveTip): Tooltip {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "cm-json-magic-paste-action";
-      button.textContent = "Paste raw";
-      button.title = `Insert the original text, unescaped (${PASTE_RAW_KEY_LABEL})`;
-      button.setAttribute(
-        "aria-label",
-        `Paste raw — insert the original text, unescaped`,
-      );
+      button.textContent = messages.pasteRaw;
+      button.title = messages.pasteRawTitle(PASTE_RAW_KEY_LABEL);
+      button.setAttribute("aria-label", messages.pasteRawAriaLabel);
       button.setAttribute("aria-keyshortcuts", PASTE_RAW_ARIA_KEYS);
       // Keep editor focus so the replace doesn't blur the editor first.
       button.addEventListener("mousedown", (event) => event.preventDefault());
@@ -286,6 +280,28 @@ function buildTooltip(tip: ActiveTip): Tooltip {
     },
   };
 }
+
+const createMagicPasteTipField = (messages: MagicPasteMessages) =>
+  StateField.define<ActiveTip | null>({
+    create() {
+      return null;
+    },
+    update(value, tr) {
+      // A magic paste sets the tip in the same transaction it edits the doc, so
+      // the effect always wins over the dismiss rule below.
+      for (const effect of tr.effects) {
+        if (effect.is(setMagicPasteTip)) return effect.value;
+      }
+      // Dismiss on the next real edit (not a bare cursor move) so the control
+      // survives navigation/reading; a blur handler clears it on focus-out.
+      if (value && tr.docChanged) return null;
+      return value;
+    },
+    provide: (field) =>
+      showTooltip.from(field, (tip) =>
+        tip ? buildTooltip(tip, messages) : null,
+      ),
+  });
 
 const magicPasteTheme = EditorView.baseTheme({
   // Paint our own surface from app tokens (instead of inheriting CodeMirror's
@@ -331,7 +347,10 @@ const magicPasteTheme = EditorView.baseTheme({
  * (see module docs). Files are left to a sibling drop/paste handler. Add it to a
  * `mode="json"` editor's `extensions` (memoize at the call site).
  */
-export function createJsonMagicPasteExtension(): Extension {
+export function createJsonMagicPasteExtension(
+  messages: MagicPasteMessages = defaultMagicPasteMessages,
+): Extension {
+  const magicPasteTipField = createMagicPasteTipField(messages);
   return [
     magicPasteTipField,
     magicPasteTheme,

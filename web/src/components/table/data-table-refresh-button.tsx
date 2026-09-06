@@ -13,6 +13,7 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 interface DataTableRefreshButtonProps {
   onRefresh: () => void;
@@ -35,6 +36,7 @@ export function DataTableRefreshButton({
   setInterval,
   compact = false,
 }: DataTableRefreshButtonProps) {
+  const t = useSharedUiTranslations("misc");
   const activeInterval = REFRESH_INTERVALS.find((i) => i.value === interval);
   // Only a real interval counts as active; null ("Off") is the resting state.
   const isActive = interval != null;
@@ -54,7 +56,7 @@ export function DataTableRefreshButton({
           "rounded-r-none border-r-0",
           compact && isActive && "border-primary",
         )}
-        title="Refresh"
+        title={t("refresh")}
       >
         <RefreshCw className={cn("h-4 w-4", isSpinning && "animate-spin")} />
       </Button>
@@ -76,7 +78,7 @@ export function DataTableRefreshButton({
               )
             ) : (
               <span className="ml-1 text-sm">
-                {activeInterval?.label ?? "Off"}
+                {activeInterval?.label ?? t("off")}
               </span>
             )}
           </Button>
@@ -96,8 +98,8 @@ export function DataTableRefreshButton({
                 value={String(option.value)}
               >
                 {option.label === "Off"
-                  ? "Auto-refresh off"
-                  : `Every ${option.label}`}
+                  ? t("autoRefreshOff")
+                  : t("every", { interval: option.label })}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

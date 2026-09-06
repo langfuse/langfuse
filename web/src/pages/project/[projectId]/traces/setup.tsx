@@ -10,6 +10,7 @@ import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKey
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useTranslations } from "next-intl";
 
 export const TracingSetup = ({
   projectId,
@@ -18,6 +19,7 @@ export const TracingSetup = ({
   projectId: string;
   hasTracingConfigured?: boolean;
 }) => {
+  const t = useTranslations("coreDetails.tables.traces");
   const baseUrl = useLangfuseBaseUrl();
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
@@ -41,7 +43,7 @@ export const TracingSetup = ({
   return (
     <div className="space-y-8">
       <div>
-        <SubHeader title="1. Get API keys" />
+        <SubHeader title={t("setupApiKeysTitle")} />
         {apiKeys ? (
           <ApiKeyDetailContent
             scope="project"
@@ -54,8 +56,7 @@ export const TracingSetup = ({
         ) : (
           <div className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
-              You need to create an API key to start tracing your application.
-              You can create more keys later in the project settings.
+              {t("setupApiKeysDescription")}
             </p>
             <div className="flex gap-2">
               <Button
@@ -63,13 +64,13 @@ export const TracingSetup = ({
                 loading={mutCreateApiKey.isPending}
                 className="self-start"
               >
-                Create new API key
+                {t("createApiKey")}
               </Button>
               <ActionButton
                 href={`/project/${projectId}/settings/api-keys`}
                 variant="secondary"
               >
-                Manage API keys
+                {t("manageApiKeys")}
               </ActionButton>
             </div>
           </div>
@@ -78,17 +79,14 @@ export const TracingSetup = ({
 
       <div>
         <SubHeader
-          title="2. Add tracing to your application"
+          title={t("setupInstrumentationTitle")}
           status={hasTracingConfigured ? "active" : "pending"}
         />
         <p className="text-muted-foreground mb-4 text-sm">
-          Langfuse relies on OpenTelemetry to instrument your application and
-          export LLM application/agent traces to Langfuse. You can use one of
-          our SDKs or 50+ framework integrations. Please follow the quickstart
-          in the documentation to add Langfuse to your application.
+          {t("setupInstrumentationDescription")}
         </p>
         <ActionButton href="https://langfuse.com/docs/observability/get-started">
-          Quickstart guide
+          {t("quickstart")}
         </ActionButton>
       </div>
     </div>
@@ -96,6 +94,7 @@ export const TracingSetup = ({
 };
 
 export default function TracesSetupPage() {
+  const t = useTranslations("coreDetails.tables.traces");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { project } = useQueryProject();
@@ -130,10 +129,9 @@ export default function TracesSetupPage() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Tracing Setup",
+        title: t("setupTitle"),
         help: {
-          description:
-            "Setup tracing to track and analyze your LLM calls. You can create API keys and integrate Langfuse with your application.",
+          description: t("setupDescription"),
           href: "https://langfuse.com/docs/observability/overview",
         },
       }}

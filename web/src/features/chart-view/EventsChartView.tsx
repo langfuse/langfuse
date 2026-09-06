@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { type ChartViewConfig } from "./types";
@@ -7,6 +7,8 @@ import { chartConfigToWidgetInput } from "./lib/chartConfigToWidget";
 import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
+import { type ChartDescriptionFormatter } from "./vocab";
+import { useTranslations } from "next-intl";
 
 /**
  * Production chart view for the v4 events table. Builds the observations
@@ -30,6 +32,12 @@ export function EventsChartView({
   config: ChartViewConfig;
   onConfigChange: (patch: Partial<ChartViewConfig>) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
+  const formatDescription = useCallback<ChartDescriptionFormatter>(
+    (key, values) => labelsT(key as Parameters<typeof labelsT>[0], values),
+    [labelsT],
+  );
   const filters = useMemo(() => toChartFilters(filterState), [filterState]);
 
   const query = useMemo(
@@ -57,15 +65,14 @@ export function EventsChartView({
   );
 
   const error = !validRange
-    ? "Pick a wider time range to chart."
+    ? t("widerRange")
     : queryResult.isError
-      ? (queryResult.error?.message ??
-        "Couldn't build a chart for the current view.")
+      ? (queryResult.error?.message ?? t("buildFailed"))
       : null;
 
   const widgetInput = useMemo(
-    () => chartConfigToWidgetInput({ config, filters }),
-    [config, filters],
+    () => chartConfigToWidgetInput({ config, filters, formatDescription }),
+    [config, filters, formatDescription],
   );
 
   return (

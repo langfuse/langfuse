@@ -9,6 +9,7 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { type MouseEvent } from "react";
+import { useTranslations } from "next-intl";
 
 export type AnnotationQueueItemMenuQueue = {
   id: string;
@@ -32,6 +33,7 @@ export function AnnotationQueueItemMenuContent({
   queues,
   onQueueItemToggle,
 }: AnnotationQueueItemMenuContentProps) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const preventMenuItemAction = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -39,7 +41,7 @@ export function AnnotationQueueItemMenuContent({
 
   return (
     <DropdownMenuContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
-      <DropdownMenuLabel>In queue(s)</DropdownMenuLabel>
+      <DropdownMenuLabel>{t("inQueues")}</DropdownMenuLabel>
       {queues.length ? (
         queues.map((queue) => (
           <DropdownMenuCheckboxItem
@@ -62,7 +64,7 @@ export function AnnotationQueueItemMenuContent({
         ))
       ) : (
         <DropdownMenuItem onClick={preventMenuItemAction}>
-          No queues defined
+          {t("noQueuesDefined")}
         </DropdownMenuItem>
       )}
       <DropdownMenuSeparator />
@@ -70,7 +72,7 @@ export function AnnotationQueueItemMenuContent({
         <div>
           <ExternalLink className="mr-2 h-4 w-4" />
           <Link href={`/project/${projectId}/annotation-queues`}>
-            Manage queues
+            {t("manageQueues")}
           </Link>
         </div>
       </DropdownMenuItem>

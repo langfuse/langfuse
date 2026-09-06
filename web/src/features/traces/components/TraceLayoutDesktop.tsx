@@ -22,6 +22,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
+import { useTranslations } from "next-intl";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
@@ -543,6 +544,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
 }: {
   children: ReactNode;
 }) {
+  const t = useTranslations("coreDetails.traces.panel");
   const {
     detailPanelRef,
     setIsDetailPanelCollapsed,
@@ -579,8 +581,8 @@ TraceLayoutDesktop.DetailPanel = function Detail({
           <Button
             variant="ghost"
             size="icon"
-            title="Show detail panel"
-            aria-label="Show detail panel"
+            title={t("showDetail")}
+            aria-label={t("showDetail")}
             onClick={expandDetailPanel}
             className="h-7 w-7 shrink-0"
           >

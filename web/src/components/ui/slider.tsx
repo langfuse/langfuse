@@ -6,6 +6,7 @@ import * as SliderPrimitive from "@radix-ui/react-slider";
 import { Input } from "./input";
 
 import { cn } from "@/src/utils/tailwind";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 interface SliderProps extends React.ComponentPropsWithoutRef<
   typeof SliderPrimitive.Root
@@ -24,6 +25,7 @@ const Slider = React.forwardRef<
     { className, showInput, displayAsPercentage, decimalPlaces = 2, ...props },
     ref,
   ) => {
+    const t = useSharedUiTranslations("accessibility");
     const [inputValue, setInputValue] = React.useState<string>("");
 
     // Calculate display value based on the first slider value
@@ -138,7 +140,7 @@ const Slider = React.forwardRef<
                     : 100
                   : props.max
               }
-              aria-label="Slider value"
+              aria-label={t("sliderValue")}
             />
             {displayAsPercentage && (
               <span className="text-muted-foreground text-sm">%</span>

@@ -21,6 +21,7 @@ import {
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { useTranslations } from "next-intl";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
 const GRID_VIEW_ROW_HEIGHTS = {
@@ -82,6 +83,7 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   // Keep the explicit baseline separate from the comparison list. A baseline
   // is optional, so c-only URLs render every selected experiment here.
   const allExperimentIds = useMemo(
@@ -125,7 +127,9 @@ export const ExperimentGridView = ({
                 size="sm"
                 className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
               >
-                {isBaseline ? "Baseline" : "Comp"}
+                {isBaseline
+                  ? t("selection.baseline")
+                  : t("selection.comparisonShort")}
               </Badge>
             )}
           </div>
@@ -193,6 +197,7 @@ export const ExperimentGridView = ({
     columnVisibility,
     useExperimentColors,
     singleLine,
+    t,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
@@ -202,14 +207,14 @@ export const ExperimentGridView = ({
       ...(selectActionColumn ? [selectActionColumn] : []),
       createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        header: "Input",
+        header: t("table.input"),
         size: 200,
         getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
       }),
       createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "expectedOutput",
-        header: "Expected Output",
+        header: t("table.expectedOutput"),
         size: 200,
         getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
@@ -217,7 +222,7 @@ export const ExperimentGridView = ({
       }),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [experimentColumns, isLoading, selectActionColumn, singleLine, t],
   );
 
   return (

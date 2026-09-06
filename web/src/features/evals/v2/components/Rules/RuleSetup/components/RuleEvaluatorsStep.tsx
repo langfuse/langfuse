@@ -12,6 +12,7 @@ import { useRuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEs
 import { usdFormatter } from "@/src/utils/numbers";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import { useTranslations } from "next-intl";
 
 export function RuleEvaluatorsStep({
   projectId,
@@ -26,6 +27,7 @@ export function RuleEvaluatorsStep({
   search: string;
   onSearchChange: (search: string) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const selectedObservation = useStore(
     store,
     (state) => state.selectedObservation,
@@ -76,22 +78,21 @@ export function RuleEvaluatorsStep({
               <p className="font-mono leading-none font-bold whitespace-nowrap tabular-nums">
                 ≈ {usdFormatter(totalCostUsd, 2, 2)}
               </p>
-              <InfoTooltip label="About total estimated LLM costs">
-                Sum of the available weekly LLM cost estimates for attached
-                evaluators.
+              <InfoTooltip label={t("rules.cost.aboutTotal")}>
+                {t("rules.cost.totalTooltip")}
               </InfoTooltip>
             </div>
             <p className="text-muted-foreground text-xs whitespace-nowrap">
-              estimated LLM costs / week
+              {t("rules.cost.estimatedPerWeek")}
             </p>
           </div>
         ) : costEstimate.status === "estimating" ? (
           <Skeleton className="ml-auto h-5 w-28" />
         ) : (
           <div>
-            <p className="font-mono font-bold">Unavailable</p>
+            <p className="font-mono font-bold">{t("unavailable")}</p>
             <p className="text-muted-foreground text-xs whitespace-nowrap">
-              estimated LLM costs / week
+              {t("rules.cost.estimatedPerWeek")}
             </p>
           </div>
         )}
@@ -101,8 +102,8 @@ export function RuleEvaluatorsStep({
   return (
     <Stepper
       number={2}
-      title="Attach evaluators"
-      description="Choose which evaluators should run on matching observations."
+      title={t("rules.setup.evaluators.title")}
+      description={t("rules.setup.evaluators.description")}
     >
       <EvaluatorAssignmentsEditor
         evaluatorOptions={evaluatorOptions}
@@ -116,7 +117,7 @@ export function RuleEvaluatorsStep({
       />
       {costEstimate.status === "error" && assignments.length > 0 ? (
         <p className="text-muted-foreground text-xs">
-          Cost estimates are temporarily unavailable.
+          {t("rules.cost.temporarilyUnavailable")}
         </p>
       ) : null}
     </Stepper>

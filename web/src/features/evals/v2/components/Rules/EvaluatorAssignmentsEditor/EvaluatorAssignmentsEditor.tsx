@@ -27,6 +27,7 @@ import { EvaluatorPickerOption } from "@/src/features/evals/v2/components/Rules/
 import type { RuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
 import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorAssignmentsEditor({
   evaluatorOptions,
@@ -35,7 +36,7 @@ export function EvaluatorAssignmentsEditor({
   onSearchChange,
   sampleObject,
   unvalidatedSourceColumnIds,
-  emptyDescription = "Attach an evaluator to run on matching observations.",
+  emptyDescription,
   sourceUnavailableMessage,
   disabled = false,
   costEstimates,
@@ -55,6 +56,9 @@ export function EvaluatorAssignmentsEditor({
   estimatingEvaluatorIds: string[];
   footerTrailing: ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+  const resolvedEmptyDescription =
+    emptyDescription ?? t("rules.assignments.emptyDescription");
   const [pickerOpen, setPickerOpen] = useState(false);
   const assignments = useStore(store, (state) => state.assignments);
   const attachedIds = useStore(
@@ -85,10 +89,10 @@ export function EvaluatorAssignmentsEditor({
           >
             <span className="flex items-center gap-2 text-sm font-bold">
               <Link2 className="h-4 w-4" />
-              Attach evaluator
+              {t("rules.assignments.attach")}
             </span>
             <span className="text-muted-foreground text-sm font-normal">
-              {emptyDescription}
+              {resolvedEmptyDescription}
             </span>
           </button>
         ) : (
@@ -100,7 +104,7 @@ export function EvaluatorAssignmentsEditor({
             className="text-foreground hover:text-foreground h-auto px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Attach another evaluator
+            {t("rules.assignments.attachAnother")}
           </Button>
         )}
       </PopoverTrigger>
@@ -110,14 +114,14 @@ export function EvaluatorAssignmentsEditor({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Find an evaluator..."
+            placeholder={t("rules.assignments.findEvaluator")}
             value={search}
             onValueChange={onSearchChange}
           />
           <CommandList className="min-h-0 flex-1">
-            <CommandEmpty>No evaluator found.</CommandEmpty>
+            <CommandEmpty>{t("rules.assignments.noneFound")}</CommandEmpty>
             {attached.length > 0 ? (
-              <CommandGroup heading="Already attached">
+              <CommandGroup heading={t("alreadyAttached")}>
                 {attached.map((evaluator) => (
                   <CommandItem
                     key={evaluator.id}
@@ -132,7 +136,7 @@ export function EvaluatorAssignmentsEditor({
               </CommandGroup>
             ) : null}
             {available.length > 0 ? (
-              <CommandGroup heading="Available evaluators">
+              <CommandGroup heading={t("rules.assignments.available")}>
                 {available.map((evaluator) => (
                   <CommandItem
                     key={evaluator.id}
@@ -185,7 +189,9 @@ export function EvaluatorAssignmentsEditor({
                   key={evaluatorId}
                   evaluatorId={evaluatorId}
                   evaluatorName={
-                    assignment?.evaluatorName ?? evaluator?.name ?? "Evaluator"
+                    assignment?.evaluatorName ??
+                    evaluator?.name ??
+                    t("evaluatorFallback")
                   }
                   evaluatorType={
                     assignment?.evaluatorType ??

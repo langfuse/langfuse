@@ -4,6 +4,7 @@
  */
 
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
@@ -86,6 +87,7 @@ export function useFilteredNavigation(
   organization: Organization,
 ) {
   const router = useRouter();
+  const t = useTranslations("navigation.items");
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -147,6 +149,7 @@ export function useFilteredNavigation(
 
       return {
         ...route,
+        title: t(route.titleKey),
         url,
         isActive:
           isPathActive(route.pathname, router.pathname) ||
@@ -187,5 +190,6 @@ export function useFilteredNavigation(
     router.pathname,
     session?.user?.v4BetaEnabled,
     forceV3Experience,
+    t,
   ]);
 }

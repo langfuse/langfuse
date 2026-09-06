@@ -7,3 +7,16 @@ export const projectNameSchema = z.object({
     "Must have at most 60 characters",
   ),
 });
+
+export const createProjectNameSchema = (messages: {
+  noHtml: string;
+  minLength: string;
+  maxLength: string;
+}) =>
+  z.object({
+    name: z
+      .string()
+      .refine((value) => StringNoHTML.safeParse(value).success, messages.noHtml)
+      .min(3, messages.minLength)
+      .max(60, messages.maxLength),
+  });

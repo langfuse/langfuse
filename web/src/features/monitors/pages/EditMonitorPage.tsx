@@ -7,6 +7,7 @@ import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { api, type APIError } from "@/src/utils/api";
 import { type Monitor } from "@langfuse/shared/monitors";
+import { useTranslations } from "next-intl";
 
 /** EditMonitorPage gates the edit-monitor route and defers all data fetching to EditMonitorPageContent so blocked users never trigger the monitor query. */
 export default function EditMonitorPage() {
@@ -41,10 +42,20 @@ function EditMonitorPageRouter() {
 
 /** EditMonitorFormPage renders the edit monitors form */
 const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
+  const t = useTranslations("operationsUi.monitors.pages");
   const [liveName, setLiveName] = useState(monitor.name);
 
   return (
-    <Page withPadding headerProps={getHeaderProps(monitor.projectId, liveName)}>
+    <Page
+      withPadding
+      headerProps={getHeaderProps({
+        projectId: monitor.projectId,
+        title: liveName
+          ? t("editAlertNamed", { monitorName: liveName })
+          : t("editAlert"),
+        alertsLabel: t("alerts"),
+      })}
+    >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}
@@ -56,29 +67,44 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
 
 /** GetMonitorErrorPage renders the error message returned by the api.monitors.get method */
 const GetMonitorErrorPage = ({ error }: { error: APIError }) => {
+  const t = useTranslations("operationsUi.monitors.pages");
+
   if (error?.data?.code == "NOT_FOUND") {
     return (
-      <ErrorPage
-        title="Alert not found"
-        message="This alert doesn't exist or has been deleted."
-      />
+      <ErrorPage title={t("notFoundTitle")} message={t("notFoundMessage")} />
     );
   }
 
-  return (
-    <ErrorPage title="Alert could not be edited" message={error.message} />
-  );
+  return <ErrorPage title={t("editErrorTitle")} message={error.message} />;
 };
 
 /** EditMonitorLoadingPage renders a loading page while the monitor is loading */
-const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => (
-  <Page withPadding headerProps={getHeaderProps(projectId)}>
-    <></>
-  </Page>
-);
+const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => {
+  const t = useTranslations("operationsUi.monitors.pages");
+  return (
+    <Page
+      withPadding
+      headerProps={getHeaderProps({
+        projectId,
+        title: t("editAlert"),
+        alertsLabel: t("alerts"),
+      })}
+    >
+      <></>
+    </Page>
+  );
+};
 
 /** getHeaderProps returns the page header properties for the EditMonitors page */
-const getHeaderProps = (projectId: string, monitorName?: string) => ({
-  title: `Edit Alert${monitorName ? " - " + monitorName : ""}`,
-  breadcrumb: [{ name: "Alerts", href: `/project/${projectId}/alerts` }],
+const getHeaderProps = ({
+  projectId,
+  title,
+  alertsLabel,
+}: {
+  projectId: string;
+  title: string;
+  alertsLabel: string;
+}) => ({
+  title,
+  breadcrumb: [{ name: alertsLabel, href: `/project/${projectId}/alerts` }],
 });

@@ -3,6 +3,27 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { type ParsedUrlQuery } from "querystring";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
+
+const PAGE_TAB_LABEL_KEYS = {
+  Dashboards: "dashboards",
+  Widgets: "widgets",
+  Item: "item",
+  Experiments: "experiments",
+  Outputs: "outputs",
+  Charts: "charts",
+  "Running Evaluators": "runningEvaluators",
+  "Evaluator Library": "evaluatorLibrary",
+  Evaluators: "evaluators",
+  Rules: "rules",
+  Results: "results",
+  Analytics: "analytics",
+  Versions: "versions",
+  Metrics: "metrics",
+  Scores: "scores",
+  Traces: "traces",
+  Observations: "observations",
+} as const;
 
 type TabDefinition = {
   value: string;
@@ -37,6 +58,7 @@ export const PageTabs = ({
   scrollable = false,
 }: PageTabsProps) => {
   const router = useRouter();
+  const t = useSharedUiTranslations("pageTabs");
   return (
     <div className={cn(scrollable && "-mx-1 overflow-x-auto px-1", className)}>
       <div
@@ -46,6 +68,9 @@ export const PageTabs = ({
         )}
       >
         {tabs.map((tab) => {
+          const labelKey =
+            PAGE_TAB_LABEL_KEYS[tab.label as keyof typeof PAGE_TAB_LABEL_KEYS];
+          const label = labelKey ? t(labelKey) : tab.label;
           const tabClassName = cn(
             "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
             tab.value === activeTab
@@ -66,7 +91,7 @@ export const PageTabs = ({
                 className={tabClassName}
                 onClick={tab.onClick}
               >
-                {tab.label}
+                {label}
               </Link>
             );
           }
@@ -80,7 +105,7 @@ export const PageTabs = ({
                 className={tabClassName}
                 disabled={tab.disabled}
               >
-                {tab.label}
+                {label}
               </button>
             );
           }

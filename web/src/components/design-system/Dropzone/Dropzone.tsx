@@ -5,6 +5,7 @@ import { PaperclipIcon, UploadIcon } from "lucide-react";
 import { useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/src/utils/tailwind";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 const renderBytes = (bytes: number) => {
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -62,6 +63,7 @@ export const Dropzone = ({
   src,
   variant,
 }: DropzoneProps) => {
+  const t = useSharedUiTranslations("dropzone");
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept,
     maxFiles,
@@ -83,13 +85,16 @@ export const Dropzone = ({
   const contentText = useMemo(() => {
     if (variant === "compact") {
       if (!src?.length) {
-        return "Attach files";
+        return t("attachFiles");
       }
 
-      return `${src.length} file${src.length > 1 ? "s" : ""} • ${(
-        src.reduce((total, file) => total + file.size, 0) /
-        (1024 * 1024)
-      ).toFixed(2)} MB`;
+      return t("fileCount", {
+        count: src.length,
+        size: (
+          src.reduce((total, file) => total + file.size, 0) /
+          (1024 * 1024)
+        ).toFixed(2),
+      });
     }
 
     if (!src) {
@@ -97,39 +102,54 @@ export const Dropzone = ({
     }
 
     if (src.length > MAX_LABEL_ITEMS) {
-      return `${new Intl.ListFormat("en").format(
-        src.slice(0, MAX_LABEL_ITEMS).map((file) => file.name),
-      )} and ${src.length - MAX_LABEL_ITEMS} more`;
+      return t("andMore", {
+        files: new Intl.ListFormat("en").format(
+          src.slice(0, MAX_LABEL_ITEMS).map((file) => file.name),
+        ),
+        count: src.length - MAX_LABEL_ITEMS,
+      });
     }
 
     return new Intl.ListFormat("en").format(src.map((file) => file.name));
-  }, [src, variant]);
+  }, [src, t, variant]);
 
   const caption = useMemo(() => {
     const acceptedTypes = accept
-      ? `Accepts ${new Intl.ListFormat("en").format(Object.keys(accept))}`
+      ? t("accepts", {
+          types: new Intl.ListFormat("en").format(Object.keys(accept)),
+        })
       : "";
 
     if (minSize && maxSize) {
-      return `${acceptedTypes} between ${renderBytes(minSize)} and ${renderBytes(maxSize)}`;
+      return t("between", {
+        acceptedTypes,
+        min: renderBytes(minSize),
+        max: renderBytes(maxSize),
+      });
     }
 
     if (minSize) {
-      return `${acceptedTypes} at least ${renderBytes(minSize)}`;
+      return t("atLeast", {
+        acceptedTypes,
+        min: renderBytes(minSize),
+      });
     }
 
     if (maxSize) {
-      return `${acceptedTypes} less than ${renderBytes(maxSize)}`;
+      return t("lessThan", {
+        acceptedTypes,
+        max: renderBytes(maxSize),
+      });
     }
 
     return acceptedTypes;
-  }, [accept, maxSize, minSize]);
+  }, [accept, maxSize, minSize, t]);
 
-  const emptyStateTitle = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
-  const emptyStateDescription = "Drag and drop or click to upload";
+  const emptyStateTitle = t("upload", { count: maxFiles });
+  const emptyStateDescription = t("uploadDescription");
   const panelTitle = src?.length ? contentText : emptyStateTitle;
   const panelDescription = src?.length
-    ? "Drag and drop or click to replace"
+    ? t("replaceDescription")
     : emptyStateDescription;
 
   return (

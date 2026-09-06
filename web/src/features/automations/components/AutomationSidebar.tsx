@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { useTranslations } from "next-intl";
 
 interface AutomationSidebarProps {
   projectId: string;
@@ -19,6 +20,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   selectedAutomation,
   onAutomationSelect,
 }) => {
+  const t = useTranslations("remainderUi.automations");
   const { data: automations, isLoading } =
     api.automations.getAutomations.useQuery(
       {
@@ -40,7 +42,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
         )}
       >
         <div className="text-muted-foreground p-4 text-center text-sm">
-          Loading automations...
+          {t("sidebar.loading")}
         </div>
       </div>
     );
@@ -55,8 +57,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
         )}
       >
         <div className="text-muted-foreground p-4 text-center text-sm">
-          No automations configured. Create your first automation to streamline
-          workflows.
+          {t("sidebar.empty")}
         </div>
       </div>
     );
@@ -108,15 +109,17 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         <span className="font-mono">
                           {automation.trigger.eventSource ===
                           TriggerEventSource.Monitor
-                            ? "alert"
-                            : automation.trigger.eventSource}
+                            ? t("eventSources.alert")
+                            : t("eventSources.prompt")}
                         </span>
                         {" → "}
                         {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
+                          ? t("actionTypes.webhook")
                           : automation.action.type === "SLACK"
-                            ? "Slack"
-                            : "Annotation Queue"}
+                            ? t("actionTypes.slack")
+                            : automation.action.type === "GITHUB_DISPATCH"
+                              ? t("actionTypes.githubDispatch")
+                              : t("actionTypes.annotationQueue")}
                       </p>
                     </div>
                   </div>

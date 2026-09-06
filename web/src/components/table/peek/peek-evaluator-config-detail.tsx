@@ -29,6 +29,7 @@ import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { useTranslations } from "next-intl";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -37,6 +38,7 @@ const PeekViewEvaluatorConfigDetail = ({
   projectId: string;
   readOnly: boolean;
 }) => {
+  const t = useTranslations("sharedUi.misc");
   const router = useRouter();
   const peekId = router.query.peek as string | undefined;
   const [isEditMode, setIsEditMode] = useState(false);
@@ -75,9 +77,9 @@ const PeekViewEvaluatorConfigDetail = ({
     (readOnly || legacyEditingDisabled);
   const editModeDisabled = readOnly || !hasAccess || legacyEditingDisabled;
   const editModeDisabledReason = readOnly
-    ? "This legacy evaluator is inactive and can only be viewed or deleted"
+    ? t("legacyInactiveReason")
     : legacyEditingDisabled
-      ? "Deprecated evaluators are only available in read-only mode"
+      ? t("deprecatedReadOnlyReason")
       : undefined;
 
   return (
@@ -85,7 +87,9 @@ const PeekViewEvaluatorConfigDetail = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex flex-row items-center gap-2">
-            <span className="max-h-fit text-lg font-bold">Configuration</span>
+            <span className="max-h-fit text-lg font-bold">
+              {t("evaluatorConfiguration")}
+            </span>
             <div className="flex items-center gap-2">
               <StatusBadge type={displayStatus.toLowerCase()} isLive />
               {!readOnly ? (
@@ -102,7 +106,7 @@ const PeekViewEvaluatorConfigDetail = ({
           <div className="flex items-center gap-2">
             {evaluatorRequiresMigration && (
               <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
-                Deprecated
+                {t("deprecated")}
               </span>
             )}
             <span
@@ -111,7 +115,7 @@ const PeekViewEvaluatorConfigDetail = ({
                 isEditMode ? "" : "text-muted-foreground",
               )}
             >
-              Edit Mode
+              {t("editMode")}
             </span>
             <Switch
               disabled={editModeDisabled}
@@ -120,7 +124,7 @@ const PeekViewEvaluatorConfigDetail = ({
               title={editModeDisabledReason}
             />
             <DeleteEvalConfigButton
-              aria-label="delete"
+              aria-label={t("delete")}
               itemId={evalConfig.id}
               projectId={projectId}
               deleteConfirmation={evalConfig.scoreName}
@@ -130,7 +134,7 @@ const PeekViewEvaluatorConfigDetail = ({
               icon
               variant="ghost"
               size="icon-xs"
-              title="Delete"
+              title={t("delete")}
             />
           </div>
         </div>
@@ -138,11 +142,9 @@ const PeekViewEvaluatorConfigDetail = ({
         {showLegacyReadOnlyNotice ? (
           <Alert className="border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Legacy evaluator is read-only</AlertTitle>
+            <AlertTitle>{t("legacyReadOnlyTitle")}</AlertTitle>
             <AlertDescription>
-              This evaluator uses a legacy target that the current rule editor
-              cannot represent safely. You can review or delete it here, but it
-              cannot be edited or reactivated.
+              {t("legacyReadOnlyDescription")}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -155,7 +157,9 @@ const PeekViewEvaluatorConfigDetail = ({
       />
 
       <CardDescription className="flex items-center text-sm">
-        <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
+        <span className="mr-2 text-sm font-bold">
+          {t("referencedEvaluator")}
+        </span>
         {evalConfig.evalTemplate && (
           <span className="mr-1 flex min-h-6 items-center">
             <TextLink
@@ -198,18 +202,17 @@ const PeekViewEvaluatorConfigDetail = ({
               setIsEditMode(false);
               utils.evals.invalidate();
               showSuccessToast({
-                title: "Running Evaluator updated",
-                description: "The evaluator configuration has been updated.",
+                title: t("evaluatorUpdated"),
+                description: t("evaluatorUpdatedDescription"),
               });
             }}
           />
         ) : (
           <Alert>
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Referenced evaluator unavailable</AlertTitle>
+            <AlertTitle>{t("evaluatorUnavailable")}</AlertTitle>
             <AlertDescription>
-              This legacy rule no longer has an evaluator attached, so its
-              evaluator configuration cannot be displayed.
+              {t("evaluatorUnavailableDescription")}
             </AlertDescription>
           </Alert>
         )}

@@ -2,7 +2,6 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
 import {
@@ -15,7 +14,65 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { BatchActionStatus } from "@langfuse/shared";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { useTranslations } from "next-intl";
+
+const actionTypeMessageKey: Record<
+  string,
+  | "scoreDelete"
+  | "datasetDelete"
+  | "traceDelete"
+  | "traceAddToAnnotationQueue"
+  | "sessionAddToAnnotationQueue"
+  | "observationAddToAnnotationQueue"
+  | "addToDataset"
+  | "runEvaluation"
+  | "experimentCompare"
+> = {
+  "score-delete": "scoreDelete",
+  "dataset-delete": "datasetDelete",
+  "trace-delete": "traceDelete",
+  "trace-add-to-annotation-queue": "traceAddToAnnotationQueue",
+  "session-add-to-annotation-queue": "sessionAddToAnnotationQueue",
+  "observation-add-to-annotation-queue": "observationAddToAnnotationQueue",
+  "observation-add-to-dataset": "addToDataset",
+  "observation-run-batched-evaluation": "runEvaluation",
+  "experiment-compare": "experimentCompare",
+};
+
+const tableMessageKey: Record<
+  string,
+  | "scores"
+  | "sessions"
+  | "traces"
+  | "observations"
+  | "events"
+  | "datasets"
+  | "datasetRunItems"
+  | "datasetItems"
+  | "auditLogs"
+> = {
+  scores: "scores",
+  sessions: "sessions",
+  observations: "observations",
+  events: "events",
+  traces: "traces",
+  datasets: "datasets",
+  dataset_run_items: "datasetRunItems",
+  dataset_items: "datasetItems",
+  audit_logs: "auditLogs",
+};
+
+const statusMessageKey: Record<
+  string,
+  "queued" | "processing" | "completed" | "failed" | "partial"
+> = {
+  QUEUED: "queued",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  PARTIAL: "partial",
+};
 
 type BatchActionRow = {
   id: string;
@@ -35,6 +92,7 @@ type BatchActionRow = {
 };
 
 export function BatchActionsTable(props: { projectId: string }) {
+  const t = useTranslations("operationsUi.batchActions.table");
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
@@ -49,43 +107,48 @@ export function BatchActionsTable(props: { projectId: string }) {
   const columns: LangfuseColumnDef<BatchActionRow>[] = [
     createTextTableColumn<BatchActionRow>({
       accessorKey: "actionType",
-      header: "Action Type",
+      header: t("actionType"),
       size: 200,
-      mapValue: (value) =>
-        value
-          ?.split("-")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(" "),
+      mapValue: (value) => {
+        const key = value ? actionTypeMessageKey[value] : undefined;
+        return key
+          ? t(`actionTypes.${key}`)
+          : value
+              ?.split("-")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+      },
     }),
     {
       accessorKey: "tableName",
       id: "tableName",
-      header: "Table",
+      header: t("table"),
       size: 120,
       cell: ({ row }) => {
         const tableName = row.getValue("tableName") as string;
-        return <span className="capitalize">{tableName}</span>;
+        const key = tableMessageKey[tableName];
+        return <span>{key ? t(`tables.${key}`) : tableName}</span>;
       },
     },
-    createStatusTableColumn<BatchActionRow, string>({
+    {
       accessorKey: "status",
-      getStatus: (status) => {
-        if (status === BatchActionStatus.Queued) return "queued";
-        if (status === BatchActionStatus.Processing) return "processing";
-        if (status === BatchActionStatus.Completed) return "completed";
-        if (status === BatchActionStatus.Failed) return "failed";
-        if (status === BatchActionStatus.Partial) return "partial";
-        if (!status) return undefined;
-
-        return status.toLowerCase();
-      },
-      header: "Status",
+      id: "status",
+      header: t("status"),
       size: 110,
-    }),
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const key = statusMessageKey[status];
+        return (
+          <StatusBadge type={status.toLowerCase()} showText={false}>
+            {key ? t(`statuses.${key}`) : status}
+          </StatusBadge>
+        );
+      },
+    },
     {
       accessorKey: "progress",
       id: "progress",
-      header: "Progress",
+      header: t("progress"),
       size: 150,
       cell: ({ row }) => {
         const totalCount = row.original.totalCount;
@@ -102,7 +165,7 @@ export function BatchActionsTable(props: { projectId: string }) {
             </div>
             {failedCount > 0 && (
               <div className="text-destructive text-xs">
-                {failedCount} failed
+                {t("failedCount", { count: failedCount })}
               </div>
             )}
           </div>
@@ -111,13 +174,13 @@ export function BatchActionsTable(props: { projectId: string }) {
     },
     createDateTableColumn<BatchActionRow>({
       accessorKey: "createdAt",
-      header: "Created",
+      header: t("created"),
       size: 150,
     }),
     {
       accessorKey: "finishedAt",
       id: "finishedAt",
-      header: "Finished",
+      header: t("finished"),
       size: 150,
       cell: ({ row }) => {
         const finishedAt = row.getValue("finishedAt") as Date | null;
@@ -130,15 +193,15 @@ export function BatchActionsTable(props: { projectId: string }) {
     },
     createUserTableColumn<BatchActionRow>({
       accessorKey: "user",
-      header: "Created By",
+      header: t("createdBy"),
       size: 150,
       variant: "avatar",
-      emptyValue: "Unknown",
+      emptyValue: t("unknown"),
     }),
     {
       accessorKey: "log",
       id: "log",
-      header: "Log",
+      header: t("log"),
       size: 300,
       cell: ({ row }) => {
         const log = row.getValue("log") as string | null;

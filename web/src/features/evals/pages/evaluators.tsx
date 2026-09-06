@@ -14,8 +14,10 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { useTranslations } from "next-intl";
 
 export default function EvaluatorsPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -59,10 +61,9 @@ export default function EvaluatorsPage() {
     return (
       <Page
         headerProps={{
-          title: "Evaluators",
+          title: t("evaluators"),
           help: {
-            description:
-              "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
+            description: t("evaluatorsDescription"),
             href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
           },
         }}
@@ -71,7 +72,7 @@ export default function EvaluatorsPage() {
         <EvaluatorsOnboarding
           projectId={projectId}
           createEvaluatorAction={{
-            label: "Create Evaluator",
+            label: t("createEvaluator"),
             href: `/project/${projectId}/evals/legacy/new`,
           }}
         />
@@ -82,11 +83,10 @@ export default function EvaluatorsPage() {
   return (
     <Page
       headerProps={{
-        title: "Evaluators",
+        title: t("evaluators"),
         titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
-          description:
-            "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
+          description: t("evaluatorsDescription"),
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
         },
         tabsProps: {
@@ -111,7 +111,7 @@ export default function EvaluatorsPage() {
                   : undefined
               }
             >
-              Set up evaluator
+              {t("setupEvaluator")}
             </ActionButton>
           </>
         ),

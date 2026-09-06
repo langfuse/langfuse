@@ -65,6 +65,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import { useTranslations } from "next-intl";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -77,6 +78,7 @@ export function ConnectedObservationDetailView({
   projectId,
   traceId,
 }: ConnectedObservationDetailViewProps) {
+  const t = useTranslations("coreObservability.traceDetail");
   // Tab and view state from URL (via SelectionContext)
   const {
     selectedTab: globalSelectedTab,
@@ -333,20 +335,22 @@ export function ConnectedObservationDetailView({
         {showTabsBar && (
           <TooltipProvider>
             <TabsBarList>
-              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              <TabsBarTrigger value="preview">{t("preview")}</TabsBarTrigger>
               {showScoresTab ? (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                <TabsBarTrigger value="scores">{t("scores")}</TabsBarTrigger>
               ) : null}
               {showLogViewTab ? (
                 <TabsBarTrigger value="log">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span>Log View</span>
+                      <span>{t("logView")}</span>
                     </TooltipTrigger>
                     <TooltipContent className="text-xs">
                       {isLogViewVirtualized
-                        ? `Shows all ${observations.length} observations with virtualization enabled.`
-                        : "Shows all observations concatenated. Great for quickly scanning through them."}
+                        ? t("virtualizedLogView", {
+                            count: observations.length,
+                          })
+                        : t("standardLogView")}
                     </TooltipContent>
                   </Tooltip>
                 </TabsBarTrigger>
@@ -378,7 +382,7 @@ export function ConnectedObservationDetailView({
                         value="pretty"
                         className="h-fit px-1 text-xs"
                       >
-                        Formatted
+                        {t("formatted")}
                       </TabsTrigger>
                       {selectedTab === "log" && isLogViewVirtualized ? (
                         <HoverCard openDelay={200}>
@@ -398,14 +402,15 @@ export function ConnectedObservationDetailView({
                             className="w-64 text-sm"
                             sideOffset={8}
                           >
-                            <p className="font-bold">JSON view unavailable</p>
+                            <p className="font-bold">
+                              {t("jsonViewUnavailable")}
+                            </p>
                             <p className="text-muted-foreground mt-1">
-                              Disabled for traces with{" "}
-                              {
-                                TRACE_VIEW_CONFIG.logView
-                                  .virtualizationThreshold
-                              }
-                              + observations to maintain performance.
+                              {t("jsonViewUnavailableDescription", {
+                                count:
+                                  TRACE_VIEW_CONFIG.logView
+                                    .virtualizationThreshold,
+                              })}
                             </p>
                           </HoverCardContent>
                         </HoverCard>
@@ -428,7 +433,7 @@ export function ConnectedObservationDetailView({
                           onCheckedChange={handleBetaToggle}
                         />
                         <span className="text-muted-foreground text-xs">
-                          Beta
+                          {t("beta")}
                         </span>
                       </div>
                     )}

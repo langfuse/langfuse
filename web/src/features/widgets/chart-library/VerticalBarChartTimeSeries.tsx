@@ -24,6 +24,7 @@ import {
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
+import { useLocale } from "next-intl";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -51,6 +52,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   subtleFill = false,
   hideXAxisLabels = false,
 }) => {
+  const locale = useLocale();
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
@@ -68,9 +70,9 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
-        { hideCategoryTickLabels: hideXAxisLabels },
+        { hideCategoryTickLabels: hideXAxisLabels, locale },
       ),
-    [groupedData, maxTicks, hideXAxisLabels],
+    [groupedData, maxTicks, hideXAxisLabels, locale],
   );
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({

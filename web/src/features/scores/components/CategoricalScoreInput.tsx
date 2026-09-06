@@ -13,6 +13,7 @@ import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { getAddCategoryActionLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScoreCategoryDialog";
 import { type AnalyticsData } from "@/src/features/scores/types";
+import { useTranslations } from "next-intl";
 
 const CHAR_CUTOFF = 6;
 const DIGIT_SHORTCUTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
@@ -50,6 +51,7 @@ export function CategoricalScoreInput({
   source: AnalyticsData["source"] | undefined;
   onValueChange: (value: string, numericValue?: number) => void;
 }) {
+  const t = useTranslations("systemUi.scores");
   const hasConfigCudAccess = useHasProjectAccess({
     projectId,
     scope: "scoreConfigs:CUD",
@@ -74,7 +76,10 @@ export function CategoricalScoreInput({
       }}
     >
       <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-      {getAddCategoryActionLabel(search, existingLabels)}
+      {getAddCategoryActionLabel(search, existingLabels, {
+        addNamed: (name) => t("addNamedCategory", { name }),
+        addNew: t("addCategory"),
+      })}
     </button>
   );
 
@@ -90,9 +95,9 @@ export function CategoricalScoreInput({
             value: category.label,
             disabled: category.isOutdated,
           }))}
-          placeholder="Select category"
-          searchPlaceholder="Search categories..."
-          emptyText="No category found."
+          placeholder={t("selectCategory")}
+          searchPlaceholder={t("searchCategories")}
+          emptyText={t("noCategory")}
           footer={
             canAddCategory
               ? ({ search, close }) => addCategoryButton(search, close)
@@ -157,7 +162,7 @@ export function CategoricalScoreInput({
               type="button"
               variant="ghost"
               size="icon-xs"
-              title="Add new category"
+              title={t("addCategory")}
               onClick={() => setPendingLabel("")}
             >
               <Plus className="h-3.5 w-3.5" />

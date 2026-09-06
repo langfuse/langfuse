@@ -7,6 +7,7 @@ import { TestResultActions } from "@/src/features/evals/v2/components/EvaluatorT
 import { TestRunCard } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRunCard/TestRunCard";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useTranslations } from "next-intl";
 
 export function TestSectionContainer({
   projectId,
@@ -29,6 +30,7 @@ export function TestSectionContainer({
   onRunTest: () => void;
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const type = useStore(store, (state) => state.type);
   const executionTraceId =
     testResult &&
@@ -52,11 +54,17 @@ export function TestSectionContainer({
           />
         ) : (
           <TestResultPanelView
-            title={type === "LLM_AS_JUDGE" ? "LLM Output" : "Code Output"}
+            title={
+              type === "LLM_AS_JUDGE"
+                ? t("test.llmOutput")
+                : t("test.codeOutput")
+            }
             result={toTestResultPanelState({
               type,
               isPending: testPending,
               result: testResult,
+              fallbackErrorMessage: t("test.evaluatorTestFailed"),
+              unnamedScore: (number) => t("test.unnamedScore", { number }),
             })}
             durationMs={durationMs}
             estimatedCostUsd={estimatedCostUsd}

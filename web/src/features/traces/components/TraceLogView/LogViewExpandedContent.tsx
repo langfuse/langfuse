@@ -10,6 +10,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
@@ -36,6 +37,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
   externalExpansionState,
   onExternalExpansionChange,
 }: LogViewExpandedContentProps) {
+  const t = useTranslations("coreDetails.traces.logView");
   // Fetch I/O data lazily
   const { data, isLoading, isError } = useLogViewObservationIO({
     observationId: node.id,
@@ -70,13 +72,15 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {isLoading && (
         <div className="flex items-center justify-center py-4">
           <Spinner size="sm" variant="muted" />
-          <span className="text-muted-foreground ml-2 text-xs">Loading...</span>
+          <span className="text-muted-foreground ml-2 text-xs">
+            {t("loading")}
+          </span>
         </div>
       )}
 
       {isError && (
         <div className="bg-destructive/10 text-destructive flex h-full w-full items-center px-6 py-2 text-xs">
-          Failed to load data
+          {t("loadFailed")}
         </div>
       )}
 
@@ -98,7 +102,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
 
       {!jsonData && !isLoading && !isError && (
         <div className="text-muted-foreground py-2 pl-6 text-xs">
-          No input/output/metadata
+          {t("noData")}
         </div>
       )}
     </div>

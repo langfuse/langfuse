@@ -1,7 +1,23 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+} from "@testing-library/react";
 import { useState } from "react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { StringMapEditor } from "./StringMapEditor";
+import settingsEnterpriseMessages from "@/src/features/i18n/messages/en/settingsEnterprise.json";
+
+const render = (ui: Parameters<typeof testingLibraryRender>[0]) =>
+  testingLibraryRender(
+    <NextIntlClientProvider
+      locale="en"
+      messages={{ settingsEnterprise: settingsEnterpriseMessages }}
+    >
+      {ui}
+    </NextIntlClientProvider>,
+  );
 
 function TestEditor({
   initialEntries = {},

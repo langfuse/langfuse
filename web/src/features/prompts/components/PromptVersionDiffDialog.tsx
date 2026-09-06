@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { type Prompt } from "@langfuse/shared";
 import DiffViewer from "@/src/components/DiffViewer";
+import { useTranslations } from "next-intl";
 
 type PromptVersionDiffDialogProps = {
   leftPrompt: Prompt;
@@ -53,24 +54,30 @@ const createSmartDiff = (
 export const PromptVersionDiffDialogContent = (
   props: PromptVersionDiffDialogProps,
 ) => {
+  const t = useTranslations("coreDetails.prompts.diff");
   const { leftPrompt, rightPrompt, closeDialog } = props;
 
   return (
     <>
       <DialogHeader>
         <DialogTitle>
-          Changes v{leftPrompt.version} → v{rightPrompt.version}
+          {t("title", {
+            left: leftPrompt.version,
+            right: rightPrompt.version,
+          })}
         </DialogTitle>
 
         <DialogDescription className="flex items-center gap-2">
-          <span className="font-bold">Prompt {leftPrompt.name}</span>
+          <span className="font-bold">
+            {t("prompt", { name: leftPrompt.name })}
+          </span>
         </DialogDescription>
       </DialogHeader>
       <DialogBody>
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <h3 className="mb-2 text-base font-bold">Content</h3>
+              <h3 className="mb-2 text-base font-bold">{t("content")}</h3>
               <DiffViewer
                 {...createSmartDiff(leftPrompt, rightPrompt)}
                 oldLabel={`v${leftPrompt.version}`}
@@ -80,7 +87,7 @@ export const PromptVersionDiffDialogContent = (
               />
             </div>
             <div>
-              <h3 className="mb-2 text-base font-bold">Config</h3>
+              <h3 className="mb-2 text-base font-bold">{t("config")}</h3>
               <DiffViewer
                 oldString={JSON.stringify(leftPrompt.config, null, 2)}
                 newString={JSON.stringify(rightPrompt.config, null, 2)}
@@ -93,7 +100,7 @@ export const PromptVersionDiffDialogContent = (
       </DialogBody>
 
       <DialogFooter>
-        <Button onClick={closeDialog}>Close</Button>
+        <Button onClick={closeDialog}>{t("close")}</Button>
       </DialogFooter>
     </>
   );

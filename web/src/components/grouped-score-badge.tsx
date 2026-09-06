@@ -10,6 +10,7 @@ import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { scoreLevelFromScore } from "@/src/components/score-tag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 /**
  * Bucket scores by name, the way the badges group them. Exported so a caller that
@@ -64,6 +65,7 @@ export const GroupedScoreBadges = <
    */
   expandable?: boolean;
 }) => {
+  const t = useSharedUiTranslations("misc");
   const groupedScores = groupScoresByName(scores);
 
   // Level tags only when this selection MIXES levels (LFE-10596): a row whose
@@ -115,7 +117,9 @@ export const GroupedScoreBadges = <
                 className={overflowButtonClassName}
                 // aria-label, not title: a native tooltip would stack on top of
                 // the hover-card preview.
-                aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
+                aria-label={t("showMoreScores", {
+                  count: hiddenScores.length,
+                })}
                 // Chips render inside clickable rows (tree nodes, table rows) —
                 // expanding must not also select/navigate the row. Still swallowed
                 // when expansion is off, or the row would react to a click aimed at
@@ -151,8 +155,8 @@ export const GroupedScoreBadges = <
           <button
             type="button"
             className={overflowButtonClassName}
-            title="Show fewer scores"
-            aria-label="Show fewer scores"
+            title={t("showFewerScores")}
+            aria-label={t("showFewerScores")}
             onClick={(event) => {
               event.stopPropagation();
               setExpanded(false);

@@ -12,6 +12,26 @@
  */
 import { render, screen } from "@testing-library/react";
 
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => {
+    const messages: Record<string, string> = {
+      correctionDiffTitle: "Output Correction Diff",
+      correctionDiffDescription:
+        "Compare the original output with the corrected version",
+      originalTooLarge: "Original output too large to diff",
+      originalTooLargeDescription:
+        "The original output is too large to load here, so it cannot be compared side by side.",
+      correctedOutput: "Corrected Output",
+      noOriginalOutput: "No original output",
+      noOriginalOutputDescription:
+        "There is no original output to compare with the correction.",
+      originalOutput: "Original Output",
+      close: "Close",
+    };
+    return messages[key] ?? key;
+  },
+}));
+
 vi.mock("@/src/components/ui/dialog", () => ({
   Dialog: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>

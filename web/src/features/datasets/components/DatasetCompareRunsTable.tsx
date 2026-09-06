@@ -29,6 +29,7 @@ import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { useTranslations } from "next-intl";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -44,6 +45,8 @@ function DatasetCompareRunsTableInternal(props: {
   datasetId: string;
   runIds: string[];
 }) {
+  const t = useTranslations("productTables.datasets");
+  const td = useTranslations("coreDetails.datasets.tables");
   const { toggleField, isFieldSelected } = useDatasetCompareFields();
   const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
   const {
@@ -142,7 +145,7 @@ function DatasetCompareRunsTableInternal(props: {
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
     createLinkTableColumn<DatasetCompareRunRowData>({
       accessorKey: "id",
-      header: "Item id",
+      header: td("itemId"),
       size: 90,
       enableHiding: true,
       defaultHidden: true,
@@ -159,26 +162,26 @@ function DatasetCompareRunsTableInternal(props: {
     }),
     createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "input",
-      header: "Input",
+      header: td("input"),
       size: 200,
       enableHiding: true,
     }),
     createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "expectedOutput",
-      header: "Expected Output",
+      header: td("expectedOutput"),
       size: 200,
       enableHiding: true,
       variant: "output",
     }),
     createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "metadata",
-      header: "Metadata",
+      header: td("metadata"),
       size: 200,
       enableHiding: true,
       defaultHidden: true,
     }),
     {
-      ...getDatasetRunAggregateColumnProps(cellsLoading),
+      ...getDatasetRunAggregateColumnProps(cellsLoading, td("experiments")),
       columns: runAggregateColumns,
     },
   ];
@@ -211,7 +214,7 @@ function DatasetCompareRunsTableInternal(props: {
                 onClick={() => setIsFieldsDropdownOpen(!isFieldsDropdownOpen)}
               >
                 <LayoutList className="mr-2 h-4 w-4" />
-                <span>Fields</span>
+                <span>{td("fields")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -221,19 +224,19 @@ function DatasetCompareRunsTableInternal(props: {
                 checked={isFieldSelected("output")}
                 onCheckedChange={() => toggleField("output")}
               >
-                Output
+                {td("output")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={isFieldSelected("scores")}
                 onCheckedChange={() => toggleField("scores")}
               >
-                Scores
+                {td("scores")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={isFieldSelected("resourceMetrics")}
                 onCheckedChange={() => toggleField("resourceMetrics")}
               >
-                Latency and cost
+                {td("latencyCost")}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -279,10 +282,8 @@ function DatasetCompareRunsTableInternal(props: {
         noResultsMessage={
           hasActiveRunFilters ? (
             <div className="text-muted-foreground flex flex-col items-center gap-1 text-sm">
-              <span>No dataset run items match the current filters.</span>
-              <span className="text-xs">
-                Adjust or clear filters to compare items again.
-              </span>
+              <span>{t("noFilteredRunItems")}</span>
+              <span className="text-xs">{t("adjustFilters")}</span>
             </div>
           ) : undefined
         }

@@ -3,8 +3,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { BatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { useTranslations } from "next-intl";
 
 export function BatchExportsSettingsPage(props: { projectId: string }) {
+  const t = useTranslations("auxSettings.batchExports");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "batchExports:read",
@@ -12,23 +14,16 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
 
   return (
     <>
-      <Header title="Exports" />
-      <p className="mb-4 text-sm">
-        Export large datasets in your preferred format via the export buttons
-        across Langfuse. Exports are processed asynchronously and remain
-        available for download until the expiry shown for each export below. You
-        will receive an email notification once your export is ready.
-      </p>
+      <Header title={t("title")} />
+      <p className="mb-4 text-sm">{t("description")}</p>
       {hasAccess ? (
         <SettingsTableCard>
           <BatchExportsTable projectId={props.projectId} />
         </SettingsTableCard>
       ) : (
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
-            You do not have permission to view batch exports.
-          </AlertDescription>
+          <AlertTitle>{t("accessDeniedTitle")}</AlertTitle>
+          <AlertDescription>{t("accessDeniedDescription")}</AlertDescription>
         </Alert>
       )}
     </>

@@ -9,6 +9,7 @@ import {
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { PRODUCTION_LABEL, LATEST_PROMPT_LABEL } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 interface TruncatedLabelsProps {
   labels: string[];
@@ -23,6 +24,7 @@ export function TruncatedLabels({
   className,
   showSimpleBadges = false,
 }: TruncatedLabelsProps) {
+  const t = useSharedUiTranslations("accessibility");
   // Enhanced sorting: prioritize latest and production labels
   const sortedLabels = [...labels].sort((a, b) => {
     // Production label comes first
@@ -73,12 +75,12 @@ export function TruncatedLabels({
               size="sm"
               className="text-muted-foreground hover:text-foreground h-6 cursor-pointer text-xs"
             >
-              +{hiddenLabels.length} more
+              {t("moreLabels", { count: hiddenLabels.length })}
             </Button>
           </HoverCardTrigger>
           <HoverCardContent className="w-80 p-3" side="bottom" align="start">
             <div className="space-y-2">
-              <h4 className="text-sm font-bold">All Labels</h4>
+              <h4 className="text-sm font-bold">{t("allLabels")}</h4>
               <div className="flex flex-wrap gap-1">
                 {sortedLabels.map((label) =>
                   showSimpleBadges ? (

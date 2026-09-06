@@ -9,8 +9,10 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 
 export default function ExperimentAnalytics() {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -34,7 +36,7 @@ export default function ExperimentAnalytics() {
 
   if (!isExperimentsBetaActive) {
     return (
-      <Page headerProps={{ title: "Analytics" }}>
+      <Page headerProps={{ title: t("pages.analytics") }}>
         <div className="flex h-full items-center justify-center">
           <Spinner size="xl" variant="muted" />
         </div>
@@ -45,10 +47,13 @@ export default function ExperimentAnalytics() {
   return (
     <Page
       headerProps={{
-        title: "Analytics",
+        title: t("pages.analytics"),
         itemType: "EXPERIMENT",
         breadcrumb: [
-          { name: "Experiments", href: `/project/${projectId}/experiments` },
+          {
+            name: t("pages.experiments"),
+            href: `/project/${projectId}/experiments`,
+          },
         ],
         tabsProps: {
           tabs: getExperimentRunTabs(projectId, handleResultsClick),
@@ -63,11 +68,10 @@ export default function ExperimentAnalytics() {
           </div>
           <div className="space-y-2">
             <h3 className="text-xl font-bold tracking-tight">
-              Analytics Coming Soon
+              {t("pages.analyticsComingSoon")}
             </h3>
             <p className="text-muted-foreground text-sm leading-relaxed">
-              We are working on adding advanced analytics capabilities for
-              experiments.
+              {t("pages.analyticsComingSoonDescription")}
             </p>
           </div>
         </div>

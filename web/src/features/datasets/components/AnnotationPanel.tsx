@@ -13,8 +13,10 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { useTranslations } from "next-intl";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
+  const t = useTranslations("coreDetails.datasets.misc");
   const [hasCommentDraft, setHasCommentDraft] = useState(false);
   const { activeCell, clearActiveCell } = useActiveCell();
 
@@ -72,10 +74,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
                   variant="outline"
                   size="icon"
                   onClick={() => {
-                    if (hasCommentDraft)
-                      toast.error(
-                        "Please save or discard your comment before proceeding",
-                      );
+                    if (hasCommentDraft) toast.error(t("saveComment"));
                     else clearActiveCell();
                   }}
                 >
@@ -85,8 +84,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
             />
             {hasNonAnnotationScores && (
               <div className="text-muted-foreground mt-4 text-xs">
-                API and eval scores visible on left. Add manual annotations
-                above.
+                {t("annotationHint")}
               </div>
             )}
           </>

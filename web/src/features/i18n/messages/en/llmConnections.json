@@ -1,0 +1,161 @@
+{
+  "list": {
+    "title": "LLM Connections",
+    "description": "Connect your LLM services to enable evaluations and playground features. Your provider will charge based on usage.",
+    "accessDeniedTitle": "Access Denied",
+    "accessDeniedDescription": "You do not have permission to view LLM API keys for this project.",
+    "columns": {
+      "provider": "Provider",
+      "adapter": "Adapter",
+      "baseUrl": "Base URL",
+      "apiKey": "API Key",
+      "extraHeaders": "Extra headers"
+    },
+    "none": "None",
+    "defaultBaseUrl": "default",
+    "delete": {
+      "title": "Delete LLM Connection",
+      "description": "Are you sure you want to delete this connection? This action cannot be undone.",
+      "confirm": "Permanently delete"
+    }
+  },
+  "dialog": {
+    "add": "Add LLM Connection",
+    "createTitle": "New LLM Connection",
+    "updateTitle": "Update LLM Connection"
+  },
+  "validation": {
+    "providerRequired": "Please add a provider name that identifies this connection.",
+    "providerNoColons": "Provider name cannot contain colons. Use a format like 'OpenRouter_Mistral' instead.",
+    "invalidUrl": "Enter a valid URL.",
+    "customModelNameRequired": "Custom model name is required.",
+    "headerNameRequired": "Header name is required.",
+    "headerValueRequired": "Header value is required.",
+    "awsRegionRequired": "AWS region is required.",
+    "awsAccessKeyRequired": "AWS Access Key ID is required.",
+    "awsSecretAccessKeyRequired": "AWS Secret Access Key is required.",
+    "bedrockApiKeyRequired": "Bedrock API key is required.",
+    "customModelRequired": "At least one custom model is required for this adapter.",
+    "customModelRequiredWithoutDefaults": "At least one custom model name is required when default models are disabled.",
+    "vertexServiceAccountRequired": "GCP service account JSON key is required for Vertex AI.",
+    "vertexCredentialsRequired": "GCP service account JSON key or Application Default Credentials is required.",
+    "secretKeyRequired": "Secret key is required.",
+    "azureBaseUrlRequired": "API Base URL is required for Azure connections.",
+    "providerExists": "There already exists an API key for this provider.",
+    "verifyFailed": "Could not verify the API key."
+  },
+  "form": {
+    "adapter": {
+      "label": "LLM adapter",
+      "description": "Schema that is accepted at that provider endpoint.",
+      "placeholder": "Select an LLM provider",
+      "otherModel": "other model",
+      "otherModelDescription": "You can use any model provider as an LLM connection if it supports one of the adapters in the list. Many providers support the OpenAI API schema, such as Z.ai, OpenRouter, Qwen, Mistral, Hugging Face, and more. Replace the API Base URL with the model endpoint, then add your provider's custom model names and API key.",
+      "learnMore": "Learn more about supported providers",
+      "select": "Select an adapter"
+    },
+    "provider": {
+      "label": "Provider name",
+      "description": "Key to identify the connection within Langfuse. Cannot contain colons.",
+      "placeholder": "e.g. {adapter}"
+    },
+    "customModels": {
+      "label": "Custom models",
+      "description": "Custom model names accepted by the given endpoint.",
+      "azureDescription": "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities.",
+      "bedrockDescription": "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-sonnet-4-6'",
+      "placeholder": "Custom model name {number}",
+      "add": "Add custom model name"
+    },
+    "extraHeaders": {
+      "label": "Extra Headers",
+      "cloudDescription": "Optional additional HTTP headers to include with requests to the LLM provider. All header values are stored encrypted on our servers.",
+      "selfHostedDescription": "Optional additional HTTP headers to include with requests to the LLM provider. All header values are stored encrypted in your database.",
+      "namePlaceholder": "Header name",
+      "valuePlaceholder": "Header value",
+      "add": "Add Header"
+    },
+    "authentication": {
+      "label": "Authentication Method",
+      "description": "Select how Langfuse should authenticate to Bedrock.",
+      "accessKeys": "AWS access keys",
+      "apiKey": "API key"
+    },
+    "aws": {
+      "region": "AWS Region",
+      "current": "Current:",
+      "regionPlaceholder": "e.g., us-east-1",
+      "bedrockApiKey": "Bedrock API Key",
+      "bedrockApiKeyCreateDescription": "Use <link>Amazon Bedrock API keys</link>.",
+      "bedrockApiKeyUpdateDescription": "Use <link>Amazon Bedrock API keys</link> to replace the current authentication.",
+      "bedrockPreservedPlaceholder": "{secret} (preserved unless replaced)",
+      "enterBedrockApiKey": "Enter Bedrock API key",
+      "accessKeyId": "AWS Access Key ID",
+      "secretAccessKey": "AWS Secret Access Key",
+      "optional": "optional",
+      "keepExistingDescription": "Leave empty to keep existing credentials. To update, provide both Access Key ID and Secret Access Key.",
+      "provideBothDescription": "Provide both Access Key ID and Secret Access Key.",
+      "cloudAccessKeysDescription": "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission.",
+      "selfHostedAccessKeysDescription": "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain.",
+      "usingDefaultCredentials": "Using default AWS credentials",
+      "existingCredentialsPlaceholder": "•••••••• (existing credentials preserved if empty)",
+      "preservedIfEmptyPlaceholder": "{secret} (preserved if empty)",
+      "enterAccessKeyId": "Enter AWS access key ID",
+      "enterSecretAccessKey": "Enter AWS secret access key",
+      "defaultChainTitle": "Default credential provider chain:",
+      "defaultChainDescription": "When AWS credentials are omitted, the system will automatically check for credentials in this order:",
+      "environmentVariables": "Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)",
+      "credentialsFile": "AWS credentials file (~/.aws/credentials)",
+      "ec2Roles": "IAM roles for EC2 instances",
+      "ecsRoles": "IAM roles for ECS tasks",
+      "learnMore": "Learn more about AWS credential providers →"
+    },
+    "vertex": {
+      "useAdc": "Use Application Default Credentials (ADC)",
+      "useAdcDescription": "When enabled, authentication uses the GCP environment's default credentials instead of a service account key.",
+      "serviceAccountKey": "GCP Service Account Key (JSON)",
+      "cloudStorageDescription": "Your API keys are stored encrypted on our servers.",
+      "selfHostedStorageDescription": "Your API keys are stored encrypted in your database.",
+      "serviceAccountDescription": "Paste your GCP service account JSON key here. The service account must have `Vertex AI User` role permissions. Example JSON:",
+      "adcTitle": "Application Default Credentials (ADC):",
+      "adcDescription": "When enabled, the system will automatically check for credentials in this order:",
+      "environmentVariable": "Environment variable (GOOGLE_APPLICATION_CREDENTIALS)",
+      "gcloudCredentials": "gcloud CLI credentials (gcloud auth application-default login)",
+      "gkeIdentity": "GKE Workload Identity",
+      "cloudRunServiceAccount": "Cloud Run service account",
+      "gceServiceAccount": "GCE instance service account (metadata service)",
+      "learnMore": "Learn more about GCP Application Default Credentials →"
+    },
+    "apiKey": {
+      "label": "API Key",
+      "cloudStorageDescription": "Your API keys are stored encrypted on our servers.",
+      "selfHostedStorageDescription": "Your API keys are stored encrypted in your database."
+    },
+    "baseUrl": {
+      "label": "API Base URL",
+      "azureDescription": "Please add the base URL in the following format (or compatible API): {format}",
+      "defaultDescription": "Leave blank to use the default base URL for the given LLM adapter.",
+      "openAiDefault": "OpenAI default: https://api.openai.com/v1",
+      "anthropicDefault": "Anthropic default: https://api.anthropic.com (excluding /v1/messages)",
+      "defaultPlaceholder": "default"
+    },
+    "advanced": {
+      "show": "Show advanced settings",
+      "hide": "Hide advanced settings"
+    },
+    "vertexLocation": {
+      "label": "Location (Optional)",
+      "description": "Google Cloud region (e.g., global, us-central1, europe-west4). Defaults to <global>global</global> as required for Gemini 3 models."
+    },
+    "responsesApi": {
+      "label": "Use Responses API",
+      "description": "Route OpenAI requests through the Responses API instead of Chat Completions."
+    },
+    "defaultModels": {
+      "label": "Enable default models",
+      "description": "Default models for the selected adapter will be available in Langfuse features."
+    },
+    "create": "Create connection",
+    "save": "Save changes"
+  }
+}

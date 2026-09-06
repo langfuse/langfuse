@@ -10,6 +10,7 @@ import {
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export const V4MigrationPanel = ({
   showCloseButton = true,
@@ -18,6 +19,7 @@ export const V4MigrationPanel = ({
   showCloseButton?: boolean;
   className?: string;
 }) => {
+  const t = useTranslations("remainderUi.migrations");
   const { open, setOpen, targetProject } = useV4MigrationPanel();
   const { project: routeProject } = useQueryProject();
 
@@ -62,7 +64,7 @@ export const V4MigrationPanel = ({
           size="icon"
           className="absolute top-2 right-2"
           onClick={() => setOpen(false)}
-          aria-label="Close"
+          aria-label={t("common.close")}
         >
           <X className="h-4 w-4" />
         </Button>

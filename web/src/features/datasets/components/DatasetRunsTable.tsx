@@ -63,6 +63,7 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useTranslations } from "next-intl";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   scoreFilters,
@@ -98,6 +99,7 @@ const DatasetRunTableMultiSelectAction = ({
   datasetId: string;
   setRowSelection: (value: Record<string, boolean>) => void;
 }) => {
+  const t = useTranslations("productTables.datasets");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -116,7 +118,7 @@ const DatasetRunTableMultiSelectAction = ({
             disabled={selectedRunIds.length < 1}
             onClick={() => capture("dataset_run:compare_view_click")}
           >
-            Actions ({selectedRunIds.length} selected)
+            {t("actionsSelected", { count: selectedRunIds.length })}
             <ChevronDown className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
@@ -130,7 +132,7 @@ const DatasetRunTableMultiSelectAction = ({
           >
             <DropdownMenuItem>
               <Columns3 className="mr-2 h-4 w-4" />
-              <span>Compare</span>
+              <span>{t("actions.compare")}</span>
             </DropdownMenuItem>
           </Link>
           <DropdownMenuItem
@@ -138,7 +140,7 @@ const DatasetRunTableMultiSelectAction = ({
             onClick={() => setIsDeleteDialogOpen(true)}
           >
             <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
+            <span>{t("actions.delete")}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -154,11 +156,9 @@ const DatasetRunTableMultiSelectAction = ({
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="mb-4">Please confirm</DialogTitle>
+            <DialogTitle className="mb-4">{t("actions.confirm")}</DialogTitle>
             <DialogDescription className="p-0">
-              This action cannot be undone and removes all the data associated
-              with {selectedRunIds.length} dataset run
-              {selectedRunIds.length > 1 ? "s" : ""}.
+              {t("confirmDeleteRuns", { count: selectedRunIds.length })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -177,7 +177,7 @@ const DatasetRunTableMultiSelectAction = ({
                 setIsDeleteDialogOpen(false);
               }}
             >
-              Delete Experiments
+              {t("actions.deleteExperiments")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -192,6 +192,13 @@ export function DatasetRunsTable(props: {
   selectedMetrics: string[];
   setScoreOptions: (options: { key: string; value: string }[]) => void;
 }) {
+  const t = useTranslations("productTables.datasets");
+  const td = useTranslations("coreDetails.datasets.misc");
+  const tm = useTranslations("systemUi.resourceMetrics");
+  const resourceMetrics = RESOURCE_METRICS.map((metric) => ({
+    ...metric,
+    label: metric.key === "latency" ? tm("latency") : tm("averageTotalCost"),
+  }));
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -301,7 +308,7 @@ export function DatasetRunsTable(props: {
             datasetRunIds: runs.data?.runs.map((r) => r.id),
           })
         : [],
-      prefix: "Run-level",
+      prefix: td("runLevel"),
       isFilterDataPending: runs.isPending,
     });
 
@@ -368,7 +375,7 @@ export function DatasetRunsTable(props: {
                   setSelectedRows({});
                 }
               }}
-              aria-label="Select all"
+              aria-label={t("actions.selectAll")}
               variant="muted"
             />
           </div>
@@ -379,7 +386,7 @@ export function DatasetRunsTable(props: {
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
+            aria-label={t("actions.selectRow")}
             variant="muted"
           />
         );
@@ -387,7 +394,7 @@ export function DatasetRunsTable(props: {
     },
     createLinkTableColumn<DatasetRunRowData>({
       accessorKey: "name",
-      header: "Name",
+      header: t("columns.name"),
       size: 150,
       isFixedPosition: true,
       isPinnedLeft: true,
@@ -404,7 +411,7 @@ export function DatasetRunsTable(props: {
     }),
     createLinkTableColumn<DatasetRunRowData>({
       accessorKey: "id",
-      header: "Id",
+      header: t("columns.id"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
@@ -421,13 +428,13 @@ export function DatasetRunsTable(props: {
     }),
     createTextTableColumn<DatasetRunRowData>({
       accessorKey: "description",
-      header: "Description",
+      header: t("columns.description"),
       size: 300,
       enableHiding: true,
     }),
     createNumberTableColumn<DatasetRunRowData, bigint>({
       accessorKey: "countRunItems",
-      header: "Run Items",
+      header: t("columns.runItems"),
       size: 90,
       enableHiding: true,
       formatter: (value) => String(value),
@@ -438,7 +445,7 @@ export function DatasetRunsTable(props: {
     }),
     createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "avgLatency",
-      header: "Latency (avg)",
+      header: t("columns.averageLatency"),
       size: 120,
       enableHiding: true,
       formatter: (value) => formatIntervalSeconds(value),
@@ -449,7 +456,7 @@ export function DatasetRunsTable(props: {
     }),
     createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "avgTotalCost",
-      header: "Trace Cost (avg)",
+      header: t("columns.averageTraceCost"),
       size: 130,
       enableHiding: true,
       formatter: (value) => usdFormatter(value),
@@ -460,7 +467,7 @@ export function DatasetRunsTable(props: {
     }),
     createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "totalCost",
-      header: "Trace Cost (sum)",
+      header: t("columns.totalTraceCost"),
       size: 130,
       enableHiding: true,
       formatter: (value) => usdFormatter(value),
@@ -471,7 +478,7 @@ export function DatasetRunsTable(props: {
     }),
     {
       accessorKey: "runScores",
-      header: "Run-Level Scores",
+      header: t("columns.runLevelScores"),
       id: "runScores",
       enableHiding: true,
       defaultHidden: true,
@@ -484,7 +491,7 @@ export function DatasetRunsTable(props: {
     },
     {
       accessorKey: "runItemScores",
-      header: "Run Item Scores",
+      header: t("columns.runItemScores"),
       id: "runItemScores",
       enableHiding: true,
       defaultHidden: true,
@@ -495,13 +502,13 @@ export function DatasetRunsTable(props: {
     },
     createDateTableColumn<DatasetRunRowData>({
       accessorKey: "createdAt",
-      header: "Created",
+      header: t("columns.created"),
       size: 150,
       enableHiding: true,
     }),
     createIOTableColumn<DatasetRunRowData>({
       accessorKey: "metadata",
-      header: "Metadata",
+      header: t("columns.metadata"),
       size: 200,
       enableHiding: true,
       getCell: (value) => value || undefined,
@@ -510,7 +517,7 @@ export function DatasetRunsTable(props: {
     {
       id: "actions",
       accessorKey: "actions",
-      header: "Actions",
+      header: t("columns.actions"),
       size: 70,
       cell: ({ row }) => {
         const id: DatasetRunRowData["id"] = row.getValue("id");
@@ -519,12 +526,14 @@ export function DatasetRunsTable(props: {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">Open menu</span>
+                <span className="sr-only relative">
+                  {t("actions.openMenu")}
+                </span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("columns.actions")}</DropdownMenuLabel>
               <DeleteDatasetRunButton
                 projectId={props.projectId}
                 datasetRunId={id}
@@ -550,7 +559,7 @@ export function DatasetRunsTable(props: {
       totalCost: item.totalCost?.toNumber() ?? 0,
       runItemScores: item.scores,
       runScores: item.runScores
-        ? addPrefixToScoreKeys(item.runScores, "Run-level")
+        ? addPrefixToScoreKeys(item.runScores, td("runLevel"))
         : {},
       description: item.description ?? "",
       metadata: item.metadata,
@@ -592,7 +601,7 @@ export function DatasetRunsTable(props: {
               <div className="flex h-full w-full gap-4">
                 {props.selectedMetrics.map((key) => {
                   const title =
-                    RESOURCE_METRICS.find((metric) => metric.key === key)
+                    resourceMetrics.find((metric) => metric.key === key)
                       ?.label ?? getScoreLabelFromKey(key);
 
                   if (!Boolean(runAggregatedMetrics?.size)) {
@@ -640,7 +649,7 @@ export function DatasetRunsTable(props: {
                         </span>
                         <NoDataOrLoading
                           isLoading={runsMetrics.isPending}
-                          description="No chart data available for the selected runs."
+                          description={t("noChartData")}
                           className="min-h-[200px]"
                         />
                       </div>

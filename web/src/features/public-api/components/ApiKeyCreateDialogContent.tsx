@@ -10,6 +10,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
+import { useTranslations } from "next-intl";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -33,6 +34,7 @@ export function ApiKeyCreateDialogContent(
   props: ApiKeyCreateDialogContentProps,
 ) {
   const { scope } = props;
+  const t = useTranslations("accessSettings.apiKeys");
 
   if (props.type === "detail") {
     const { secretKey, publicKey, baseUrl } = props;
@@ -40,7 +42,7 @@ export function ApiKeyCreateDialogContent(
     return (
       <DialogContent closeOnInteractionOutside>
         <DialogHeader>
-          <DialogTitle>API Keys</DialogTitle>
+          <DialogTitle>{t("detailTitle")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <ApiKeyDetailContent
@@ -60,15 +62,15 @@ export function ApiKeyCreateDialogContent(
   return (
     <DialogContent closeOnInteractionOutside>
       <DialogHeader>
-        <DialogTitle>Create API Keys</DialogTitle>
+        <DialogTitle>{t("createTitle")}</DialogTitle>
       </DialogHeader>
       <DialogBody>
         <div className="space-y-4">
           <div>
-            <Label htmlFor="note">Note (optional)</Label>
+            <Label htmlFor="note">{t("noteOptional")}</Label>
             <Input
               id="note"
-              placeholder="Production key"
+              placeholder={t("notePlaceholder")}
               value={note}
               onChange={(e) => onNoteChange(e.target.value)}
               onKeyDown={(e) => {
@@ -83,7 +85,7 @@ export function ApiKeyCreateDialogContent(
       </DialogBody>
       <DialogFooter>
         <Button onClick={onSubmit} loading={isPending}>
-          Create API keys
+          {t("create")}
         </Button>
       </DialogFooter>
     </DialogContent>

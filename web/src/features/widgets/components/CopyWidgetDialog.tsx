@@ -8,6 +8,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
+import { useTranslations } from "next-intl";
 
 /**
  * Copy-first flow for Langfuse-managed widgets on a project dashboard:
@@ -27,6 +28,8 @@ export function CopyWidgetDialog({
   onConfirm: () => void;
   isPending: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   return (
     <Dialog
       open={open}
@@ -39,16 +42,11 @@ export function CopyWidgetDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Edit your copy of this widget</DialogTitle>
+          <DialogTitle>{t("editCopy")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <p className="text-muted-foreground py-4 text-sm">
-            <span className="text-foreground font-bold">
-              &ldquo;{widgetName}&rdquo;
-            </span>{" "}
-            is maintained by Langfuse and can&rsquo;t be edited directly.
-            We&rsquo;ll replace this tile with your own editable copy and open
-            it in the widget editor — the rest of the dashboard stays unchanged.
+            {extrasT("copyDialogDescription", { name: widgetName })}
           </p>
         </DialogBody>
         <DialogFooter>
@@ -59,10 +57,10 @@ export function CopyWidgetDialog({
               type="button"
               disabled={isPending}
             >
-              Cancel
+              {extrasT("cancel")}
             </Button>
             <Button onClick={onConfirm} type="button" loading={isPending}>
-              Create my copy
+              {extrasT("createMyCopy")}
             </Button>
           </div>
         </DialogFooter>

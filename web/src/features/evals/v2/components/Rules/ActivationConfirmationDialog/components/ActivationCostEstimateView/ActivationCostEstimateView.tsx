@@ -3,6 +3,7 @@ import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
 import { usdFormatter } from "@/src/utils/numbers";
+import { useTranslations } from "next-intl";
 
 export function ActivationCostEstimateView({
   estimates,
@@ -16,6 +17,7 @@ export function ActivationCostEstimateView({
     estimatedCostUsd: number;
   }>;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const totalCostUsd = estimates.reduce(
     (total, estimate) => total + estimate.estimatedCostUsd,
     0,
@@ -50,13 +52,12 @@ export function ActivationCostEstimateView({
             <p className="font-mono font-bold whitespace-nowrap tabular-nums">
               ≈ {usdFormatter(totalCostUsd, 2, 2)}
             </p>
-            <InfoTooltip label="About total estimated LLM costs">
-              Sum of the available weekly LLM cost estimates for attached
-              evaluators.
+            <InfoTooltip label={t("rules.cost.aboutTotal")}>
+              {t("rules.cost.totalTooltip")}
             </InfoTooltip>
           </div>
           <p className="text-muted-foreground text-xs whitespace-nowrap">
-            estimated LLM costs / week
+            {t("rules.cost.estimatedPerWeek")}
           </p>
         </div>
       </div>

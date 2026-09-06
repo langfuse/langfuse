@@ -44,8 +44,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
+import { useTranslations } from "next-intl";
 
 export default function Dashboard() {
+  const t = useTranslations("sharedUi.projectHome");
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -85,33 +87,33 @@ export default function Dashboard() {
 
   const filterColumns: ColumnDefinition[] = [
     {
-      name: "Trace Name",
+      name: t("traceName"),
       id: "traceName",
       type: "stringOptions",
       options: nameOptions,
       internal: "internalValue",
     },
     {
-      name: "Tags",
+      name: t("tags"),
       id: "tags",
       type: "arrayOptions",
       options: tagsOptions,
       internal: "internalValue",
     },
     {
-      name: "User",
+      name: t("user"),
       id: "user",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Release",
+      name: t("release"),
       id: "release",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Version",
+      name: t("version"),
       id: "version",
       type: "string",
       internal: "internalValue",
@@ -187,7 +189,7 @@ export default function Dashboard() {
       setPeekId(null);
     },
     onError: (e) => {
-      showErrorToast("Failed to set the default Home dashboard", e.message);
+      showErrorToast(t("setDefaultFailed"), e.message);
     },
   });
 
@@ -266,12 +268,12 @@ export default function Dashboard() {
         withPadding
         scrollable
         headerProps={{
-          title: "Home",
+          title: t("home"),
           actionButtonsLeft: (
             <>
               <MultiSelect
-                title="Environment"
-                label="Env"
+                title={t("environment")}
+                label={t("environmentShort")}
                 values={selectedEnvironments}
                 onValueChange={useDebounce(setSelectedEnvironments)}
                 options={environmentOptions.map((env) => ({
@@ -304,12 +306,13 @@ export default function Dashboard() {
                   setPeekId(id === appliedDefaultId ? null : id);
                 }}
                 currentDashboardName={dashboardName}
+                currentDashboardOwner={dashboardOwner}
               />
               {Boolean(peekId) && hasRbacCUDAccess && (
                 <Button
                   variant="outline"
                   loading={setHomeDashboard.isPending}
-                  title="Show this dashboard on Home for everyone in this project"
+                  title={t("setDefaultTitle")}
                   onClick={() => {
                     capture("dashboard:home_dashboard_set_default", {
                       dashboard_id: dashboardId,
@@ -324,13 +327,13 @@ export default function Dashboard() {
                     });
                   }}
                 >
-                  Set default
+                  {t("setDefault")}
                 </Button>
               )}
               <Button
                 variant="outline"
                 size="icon"
-                title="Edit this dashboard in Dashboards"
+                title={t("editDashboard")}
                 asChild
               >
                 <Link
@@ -343,9 +346,7 @@ export default function Dashboard() {
                   }
                 >
                   <PencilIcon className="h-4 w-4" />
-                  <span className="sr-only">
-                    Edit this dashboard in Dashboards
-                  </span>
+                  <span className="sr-only">{t("editDashboard")}</span>
                 </Link>
               </Button>
               <SetupTracingButton />

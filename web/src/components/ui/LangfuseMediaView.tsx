@@ -20,6 +20,7 @@ import {
 } from "@/src/features/media/validation";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -41,6 +42,7 @@ export const LangfuseMediaView = ({
   // Non-previewable types (e.g. PDF) are always a click-to-open icon.
   variant?: "inline" | "icon" | "preview";
 }) => {
+  const t = useSharedUiTranslations("media");
   let mediaData: {
     id: string;
     type: MediaContentType;
@@ -75,7 +77,7 @@ export const LangfuseMediaView = ({
   }
 
   if (!mediaData) {
-    const text = "Invalid Langfuse Media Tag";
+    const text = t("invalidTag");
 
     return (
       <div className="flex items-center gap-2">
@@ -162,6 +164,7 @@ function FileViewer({
   contentType: MediaContentType;
   defaultExpanded?: boolean;
 }) {
+  const t = useSharedUiTranslations("media");
   const mimeType = String(contentType);
   const fileType = mimeType.split("/")[0];
   const isImage = fileType === "image";
@@ -237,8 +240,8 @@ function FileViewer({
             variant="outline"
             size="icon"
             onClick={openInNewTab}
-            aria-label={`Open ${fileName} in new tab`}
-            title={`Open ${fileName} in new tab`}
+            aria-label={t("openFile", { name: fileName })}
+            title={t("openFile", { name: fileName })}
             className="shrink-0"
           >
             <ExternalLink className="h-4 w-4" />
@@ -256,23 +259,25 @@ function FileViewer({
 }
 
 function AudioPlayer({ src }: { src?: string }) {
+  const t = useSharedUiTranslations("media");
   if (!src) return null;
 
   return (
     <audio controls className="w-full" preload="metadata">
       <source src={src} />
-      Your browser does not support the audio element.
+      {t("audioUnsupported")}
     </audio>
   );
 }
 
 function VideoPlayer({ src }: { src?: string }) {
+  const t = useSharedUiTranslations("media");
   if (!src) return null;
 
   return (
     <video controls className="w-full" preload="metadata" playsInline>
       <source src={src} />
-      Your browser does not support the video element.
+      {t("videoUnsupported")}
     </video>
   );
 }

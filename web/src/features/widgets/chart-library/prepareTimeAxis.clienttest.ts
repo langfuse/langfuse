@@ -20,6 +20,16 @@ describe("prepareTimeAxis", () => {
     expect(MONTH_DAY.test(label)).toBe(false); // never a date on a time-scale tick
   });
 
+  it("formats temporal labels with the requested locale", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const values = Array.from({ length: 24 }, (_, h) => iso(start + h * HOUR));
+    const axis = prepareTimeAxis(values, 6, { locale: "zh-CN" });
+
+    expect(axis.formatTick(values[5])).toContain("时");
+    expect(axis.formatTick(values[5])).not.toMatch(/\b(?:AM|PM)\b/);
+    expect(axis.formatTooltip(values[5])).not.toMatch(/\b(?:AM|PM)\b/);
+  });
+
   it("temporal axes opt into vertical grid lines; categorical axes stay clean", () => {
     const start = Date.UTC(2026, 5, 28, 0);
     const temporal = Array.from({ length: 24 }, (_, h) =>

@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -76,16 +75,9 @@ import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRange
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  operatorLabels,
-  operatorSymbol,
-  viewLabels,
-  windowLabels,
-} from "../helpers/monitorLabels";
-import {
-  aggregationLabel,
-  renderNamePlaceholder,
-} from "../helpers/renderMonitorLabels";
+import { operatorSymbol } from "../helpers/monitorLabels";
+import { useTranslations } from "next-intl";
+import { useMonitorLabels } from "../helpers/useMonitorLabels";
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
@@ -151,6 +143,16 @@ export const MonitorForm = ({
   /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
   onNameChange?: (name: string) => void;
 }) => {
+  const t = useTranslations("operationsUi.monitors.form");
+  const {
+    aggregationLabel,
+    measurePresentation,
+    namePlaceholder: buildNamePlaceholder,
+    operatorLabel,
+    viewDescription,
+    viewLabel,
+    windowLabel,
+  } = useMonitorLabels();
   /** router is the Next router used to redirect after a successful create. */
   const router = useRouter();
   /** isEdit is true when the form is bound to an existing monitor. */
@@ -195,12 +197,12 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title: "Alert created",
-        description: `"${variables.name}" is now active.`,
+        title: t("createdTitle"),
+        description: t("createdDescription", { name: variables.name }),
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to create alert", e.message),
+    onError: (e) => showErrorToast(t("createError"), e.message),
   });
 
   /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
@@ -208,12 +210,12 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title: "Alert saved",
-        description: `Your changes to "${variables.name}" have been applied.`,
+        title: t("savedTitle"),
+        description: t("savedDescription", { name: variables.name }),
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to save alert", e.message),
+    onError: (e) => showErrorToast(t("saveError"), e.message),
   });
 
   /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
@@ -285,12 +287,10 @@ export const MonitorForm = ({
   /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum of Observations Latency is below 100"). */
   const namePlaceholder = useMemo(
     () =>
-      renderNamePlaceholder({
+      buildNamePlaceholder({
         view: (watched.view ?? "observations") as MonitorView,
-        metric: {
-          measure: watched.metric?.measure ?? "count",
-          aggregation: watched.metric?.aggregation ?? "count",
-        },
+        measure: watched.metric?.measure ?? "count",
+        aggregation: watched.metric?.aggregation ?? "count",
         thresholdOperator: (watched.thresholdOperator ??
           MonitorThresholdOperatorSchema.enum.GT) as MonitorThresholdOperator,
         alertThreshold: watched.alertThreshold,
@@ -301,6 +301,7 @@ export const MonitorForm = ({
       watched.metric?.aggregation,
       watched.thresholdOperator,
       watched.alertThreshold,
+      buildNamePlaceholder,
     ],
   );
 
@@ -335,21 +336,17 @@ export const MonitorForm = ({
         <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
           <Card className="flex h-full flex-col">
             <CardHeader>
-              <CardTitle>Alert Configuration</CardTitle>
-              <CardDescription>
-                Receive notifications when a metric crosses a threshold. (eg.
-                &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has
-                dropped&rdquo;)
-              </CardDescription>
+              <CardTitle>{t("configurationTitle")}</CardTitle>
+              <CardDescription>{t("configurationDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0">
-              <Section title="Metric Definition" step={1}>
+              <Section title={t("metricDefinition")} step={1}>
                 <FormField
                   control={form.control}
                   name="view"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>View</FormLabel>
+                      <FormLabel>{t("view")}</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={(next) => {
@@ -376,10 +373,8 @@ export const MonitorForm = ({
                             <WidgetPropertySelectItem
                               key={v}
                               value={v}
-                              label={viewLabels[v]}
-                              description={
-                                viewDeclarations.v2[v]?.description ?? undefined
-                              }
+                              label={viewLabel(v)}
+                              description={viewDescription(v)}
                             />
                           ))}
                         </SelectContent>
@@ -397,7 +392,7 @@ export const MonitorForm = ({
                     const measures = viewDeclarations.v2[view]?.measures ?? {};
                     return (
                       <FormItem>
-                        <FormLabel>Measure</FormLabel>
+                        <FormLabel>{t("measure")}</FormLabel>
                         <Select
                           value={field.value}
                           onValueChange={(next) => {
@@ -431,12 +426,16 @@ export const MonitorForm = ({
                           <SelectContent>
                             {measureOptions.map((m) => {
                               const meta = measures[m];
+                              const presentation = measurePresentation(
+                                m,
+                                meta?.description,
+                              );
                               return (
                                 <WidgetPropertySelectItem
                                   key={m}
                                   value={m}
-                                  label={startCase(m)}
-                                  description={meta?.description}
+                                  label={presentation.label}
+                                  description={presentation.description}
                                   unit={meta?.unit}
                                   type={meta?.type}
                                 />
@@ -455,7 +454,7 @@ export const MonitorForm = ({
                     name="metric.aggregation"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Aggregation</FormLabel>
+                        <FormLabel>{t("aggregation")}</FormLabel>
                         <Select
                           value={field.value}
                           onValueChange={field.onChange}
@@ -484,7 +483,7 @@ export const MonitorForm = ({
                   name="filters"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Filters</FormLabel>
+                      <FormLabel>{t("filters")}</FormLabel>
                       <FormControl>
                         <MetricsFilterBuilder
                           version="v2"
@@ -506,14 +505,14 @@ export const MonitorForm = ({
                 )}
               </Section>
 
-              <Section title="Alert Conditions" step={2}>
+              <Section title={t("conditions")} step={2}>
                 <FormField
                   control={form.control}
                   name="thresholdOperator"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center gap-2 space-y-0">
                       <span className="text-muted-foreground text-sm whitespace-nowrap">
-                        Trigger when the value is
+                        {t("triggerWhen")}
                       </span>
                       <Select
                         value={field.value}
@@ -539,7 +538,7 @@ export const MonitorForm = ({
                         <SelectContent>
                           {MonitorThresholdOperatorSchema.options.map((op) => (
                             <SelectItem key={op} value={op}>
-                              {operatorLabels[op]}
+                              {operatorLabel(op)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -557,7 +556,7 @@ export const MonitorForm = ({
                           severity={MonitorSeveritySchema.enum.ALERT}
                         />
                         <span className="text-sm whitespace-nowrap">
-                          Threshold
+                          {t("threshold")}
                         </span>
                         <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
@@ -601,7 +600,7 @@ export const MonitorForm = ({
                           severity={MonitorSeveritySchema.enum.WARNING}
                         />
                         <span className="text-sm whitespace-nowrap">
-                          Threshold
+                          {t("threshold")}
                         </span>
                         <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
@@ -616,7 +615,7 @@ export const MonitorForm = ({
                           <Input
                             type="number"
                             className="flex-1"
-                            placeholder="optional"
+                            placeholder={t("optional")}
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
@@ -641,7 +640,7 @@ export const MonitorForm = ({
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center gap-2 space-y-0">
                       <span className="text-muted-foreground text-sm whitespace-nowrap">
-                        Over the past
+                        {t("overPast")}
                       </span>
                       <Select
                         value={field.value}
@@ -656,7 +655,7 @@ export const MonitorForm = ({
                         <SelectContent>
                           {MonitorWindowSchema.options.map((w) => (
                             <SelectItem key={w} value={w}>
-                              {windowLabels[w]}
+                              {windowLabel(w)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -667,7 +666,7 @@ export const MonitorForm = ({
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-b-0">
                     <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                      Advanced Options
+                      {t("advancedOptions")}
                     </AccordionTrigger>
                     <AccordionContent className="space-y-6 px-1 pt-2">
                       <FormField
@@ -703,13 +702,13 @@ export const MonitorForm = ({
                 </Accordion>
               </Section>
 
-              <Section title="Notifications" step={3} className="pb-2">
+              <Section title={t("notifications")} step={3} className="pb-2">
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>{t("name")}</FormLabel>
                       <FormControl>
                         <Input
                           maxLength={200}
@@ -735,6 +734,7 @@ export const MonitorForm = ({
                       <FormControl>
                         <TagManager
                           itemName="alert"
+                          label={t("tagsLabel")}
                           tags={(field.value ?? []) as string[]}
                           allTags={
                             monitorFilterOptions.data?.tags.map(
@@ -752,7 +752,7 @@ export const MonitorForm = ({
                               className="gap-1"
                             >
                               <Plus className="h-3 w-3" />
-                              Add tag
+                              {t("addTag")}
                             </Button>
                           }
                         />
@@ -766,10 +766,10 @@ export const MonitorForm = ({
                   name="triggerIds"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Automations</FormLabel>
+                      <FormLabel>{t("automations")}</FormLabel>
                       <FormMessage />
                       <FormDescription>
-                        Send Alerts to Slack, Webhooks, and GitHub Actions.
+                        {t("automationsDescription")}
                       </FormDescription>
                       <FormControl>
                         <MonitorAutomationsPanel
@@ -792,7 +792,7 @@ export const MonitorForm = ({
                   className="w-full"
                   disabled={!hasAccess || submitting}
                 >
-                  {isEdit ? "Save Alert" : "Create Alert"}
+                  {isEdit ? t("saveAlert") : t("createAlert")}
                 </Button>
               </div>
             </CardFooter>
@@ -875,86 +875,110 @@ const NoDataField = ({
   value: MonitorNoData;
   onChange: (next: MonitorNoData) => void;
   disabled?: boolean;
-}) => (
-  <div className="space-y-2">
-    <Label>When there is no data</Label>
-    <Select
-      value={value.mode}
-      onValueChange={(mode) =>
-        onChange(
-          mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA
-            ? {
+}) => {
+  const t = useTranslations("operationsUi.monitors.form");
+  return (
+    <div className="space-y-2">
+      <Label>{t("whenNoData")}</Label>
+      <Select
+        value={value.mode}
+        onValueChange={(mode) =>
+          onChange(
+            mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA
+              ? {
+                  mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+                  intervalMinutes: 60,
+                }
+              : {
+                  mode: mode as Exclude<
+                    MonitorNoData["mode"],
+                    "NOTIFY_NO_DATA"
+                  >,
+                },
+          )
+        }
+        disabled={disabled}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO}>
+            <span className="inline-flex items-center gap-1.5">
+              {t.rich("treatMissingAsZero", {
+                code: (chunks) => (
+                  <code className="bg-secondary rounded border px-0.5">
+                    {chunks}
+                  </code>
+                ),
+              })}
+            </span>
+          </SelectItem>
+          <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
+            <span className="inline-flex items-center gap-1.5">
+              {t.rich("keepPreviousSeverity", {
+                severity: (chunks) => (
+                  <Badge
+                    variant="secondary"
+                    className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
+                  >
+                    {chunks}
+                  </Badge>
+                ),
+              })}
+            </span>
+          </SelectItem>
+          <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
+            <span className="inline-flex items-center gap-1.5">
+              {t.rich("showSeverity", {
+                badge: () => (
+                  <MonitorSeverityBadge
+                    severity={MonitorSeveritySchema.enum.NO_DATA}
+                  />
+                ),
+              })}
+            </span>
+          </SelectItem>
+          <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
+            <span className="inline-flex items-center gap-1.5">
+              {t.rich("notifyAfterSustained", {
+                badge: () => (
+                  <MonitorSeverityBadge
+                    severity={MonitorSeveritySchema.enum.NO_DATA}
+                  />
+                ),
+              })}
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      {value.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA && (
+        <div className="flex items-center gap-2">
+          <Label className="text-muted-foreground text-xs">
+            {t("notifyAfter")}
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            max={60 * 24}
+            value={value.intervalMinutes}
+            onChange={(e) =>
+              onChange({
                 mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
-                intervalMinutes: 60,
-              }
-            : {
-                mode: mode as Exclude<MonitorNoData["mode"], "NOTIFY_NO_DATA">,
-              },
-        )
-      }
-      disabled={disabled}
-    >
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO}>
-          <span className="inline-flex items-center gap-1.5">
-            Treat missing data as
-            <code className="bg-secondary rounded border px-0.5">0</code>
-          </span>
-        </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
-          <span className="inline-flex items-center gap-1.5">
-            Keep the previous
-            <Badge
-              variant="secondary"
-              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
-            >
-              SEVERITY
-            </Badge>
-          </span>
-        </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
-          <span className="inline-flex items-center gap-1.5">
-            Show severity
-            <MonitorSeverityBadge
-              severity={MonitorSeveritySchema.enum.NO_DATA}
-            />
-          </span>
-        </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
-          <span className="inline-flex items-center gap-1.5">
-            Notify after sustained
-            <MonitorSeverityBadge
-              severity={MonitorSeveritySchema.enum.NO_DATA}
-            />
-          </span>
-        </SelectItem>
-      </SelectContent>
-    </Select>
-    {value.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA && (
-      <div className="flex items-center gap-2">
-        <Label className="text-muted-foreground text-xs">Notify after</Label>
-        <Input
-          type="number"
-          min={1}
-          max={60 * 24}
-          value={value.intervalMinutes}
-          onChange={(e) =>
-            onChange({
-              mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
-              intervalMinutes: Math.max(1, Number(e.target.value) || 1),
-            })
-          }
-          disabled={disabled}
-          className="w-24"
-        />
-        <Label className="text-muted-foreground text-xs">minutes</Label>
-      </div>
-    )}
-  </div>
-);
+                intervalMinutes: Math.max(1, Number(e.target.value) || 1),
+              })
+            }
+            disabled={disabled}
+            className="w-24"
+          />
+          <Label className="text-muted-foreground text-xs">
+            {t("minutes")}
+          </Label>
+        </div>
+      )}
+    </div>
+  );
+};
 
 /** RenotifyField renders the renotify mode picker plus its interval input. */
 const RenotifyField = ({
@@ -965,51 +989,54 @@ const RenotifyField = ({
   value: MonitorRenotify;
   onChange: (next: MonitorRenotify) => void;
   disabled?: boolean;
-}) => (
-  <div className="space-y-2">
-    <Label>Renotify</Label>
-    <Select
-      value={value.mode}
-      onValueChange={(mode) =>
-        onChange(
-          mode === "EVERY"
-            ? { mode: "EVERY", intervalMinutes: 60 }
-            : { mode: "OFF" },
-        )
-      }
-      disabled={disabled}
-    >
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="OFF">Off (alert only on transitions)</SelectItem>
-        <SelectItem value="EVERY">Re-alert at a regular interval</SelectItem>
-      </SelectContent>
-    </Select>
-    {value.mode === "EVERY" && (
-      <div className="flex items-center gap-2">
-        <Label className="text-muted-foreground text-xs">
-          Re-alert every (minutes)
-        </Label>
-        <Input
-          type="number"
-          min={1}
-          max={60 * 24 * 7}
-          value={value.intervalMinutes}
-          onChange={(e) =>
-            onChange({
-              mode: "EVERY",
-              intervalMinutes: Math.max(1, Number(e.target.value) || 1),
-            })
-          }
-          disabled={disabled}
-          className="w-32"
-        />
-      </div>
-    )}
-  </div>
-);
+}) => {
+  const t = useTranslations("operationsUi.monitors.form");
+  return (
+    <div className="space-y-2">
+      <Label>{t("renotify")}</Label>
+      <Select
+        value={value.mode}
+        onValueChange={(mode) =>
+          onChange(
+            mode === "EVERY"
+              ? { mode: "EVERY", intervalMinutes: 60 }
+              : { mode: "OFF" },
+          )
+        }
+        disabled={disabled}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="OFF">{t("renotifyOff")}</SelectItem>
+          <SelectItem value="EVERY">{t("renotifyEvery")}</SelectItem>
+        </SelectContent>
+      </Select>
+      {value.mode === "EVERY" && (
+        <div className="flex items-center gap-2">
+          <Label className="text-muted-foreground text-xs">
+            {t("renotifyEveryMinutes")}
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            max={60 * 24 * 7}
+            value={value.intervalMinutes}
+            onChange={(e) =>
+              onChange({
+                mode: "EVERY",
+                intervalMinutes: Math.max(1, Number(e.target.value) || 1),
+              })
+            }
+            disabled={disabled}
+            className="w-32"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
 
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {

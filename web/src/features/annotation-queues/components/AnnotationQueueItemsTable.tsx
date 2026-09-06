@@ -34,6 +34,7 @@ import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { useLocale, useTranslations } from "next-intl";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -44,6 +45,7 @@ const QueueItemTableMultiSelectAction = ({
   projectId: string;
   onDeleteSuccess: () => void;
 }) => {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
 
@@ -63,7 +65,7 @@ const QueueItemTableMultiSelectAction = ({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button disabled={selectedItemIds.length < 1}>
-            Actions ({selectedItemIds.length} selected)
+            {t("selectedActions", { count: selectedItemIds.length })}
             <ChevronDown className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
@@ -75,7 +77,7 @@ const QueueItemTableMultiSelectAction = ({
             }}
           >
             <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
+            <span>{t("deleteAction")}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -89,12 +91,8 @@ const QueueItemTableMultiSelectAction = ({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete queue items</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone and removes the selected annotation
-              queue item(s), but
-              <strong> does not delete associated scores.</strong>
-            </DialogDescription>
+            <DialogTitle>{t("deleteItemsTitle")}</DialogTitle>
+            <DialogDescription>{t("deleteItemsDescription")}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-start">
             <Button
@@ -113,7 +111,7 @@ const QueueItemTableMultiSelectAction = ({
                   });
               }}
             >
-              Delete {selectedItemIds.length} item(s)
+              {t("deleteItems", { count: selectedItemIds.length })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -161,6 +159,8 @@ export function AnnotationQueueItemsTable({
   projectId: string;
   queueId: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
+  const locale = useLocale();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -199,7 +199,7 @@ export function AnnotationQueueItemsTable({
                   setSelectedRows({});
                 }
               }}
-              aria-label="Select all"
+              aria-label={t("selectAll")}
               variant="muted"
             />
           </div>
@@ -211,7 +211,7 @@ export function AnnotationQueueItemsTable({
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
-              aria-label="Select row"
+              aria-label={t("selectRow")}
               variant="muted"
             />
           </span>
@@ -220,7 +220,7 @@ export function AnnotationQueueItemsTable({
     },
     createLinkTableColumn<QueueItemRowData>({
       accessorKey: "id",
-      header: "Id",
+      header: t("columns.id"),
       size: 70,
       isFixedPosition: true,
       getCell: (id) => {
@@ -239,21 +239,20 @@ export function AnnotationQueueItemsTable({
     }),
     {
       accessorKey: "objectType",
-      header: "Type",
+      header: t("columns.type"),
       id: "objectType",
       size: 50,
       cell: ({ row }) => {
         const objectType: QueueItemRowData["objectType"] =
           row.getValue("objectType");
-        return <span className="capitalize">{objectType.toLowerCase()}</span>;
+        return <span>{t(`objectTypes.${objectType}`)}</span>;
       },
     },
     createLinkTableColumn<QueueItemRowData, QueueItemRowData["source"]>({
       accessorKey: "source",
-      header: "Source",
+      header: t("columns.source"),
       headerTooltip: {
-        description:
-          "Link to the source trace, observation or session based on which this item was added",
+        description: t("sourceDescription"),
       },
       size: 50,
       getCell: (_, { row }) => {
@@ -265,7 +264,9 @@ export function AnnotationQueueItemsTable({
             type: "link",
             props: {
               path: `/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`,
-              value: `Observation: ${rowData.source.observationId}`,
+              value: t("sourceObservation", {
+                id: rowData.source.observationId,
+              }),
               icon: ListTree,
             },
           };
@@ -276,7 +277,7 @@ export function AnnotationQueueItemsTable({
             type: "link",
             props: {
               path: `/project/${projectId}/traces/${rowData.source.traceId}`,
-              value: `Trace: ${rowData.source.traceId}`,
+              value: t("sourceTrace", { id: rowData.source.traceId }),
               icon: ListTree,
             },
           };
@@ -286,7 +287,7 @@ export function AnnotationQueueItemsTable({
           type: "link",
           props: {
             path: `/project/${projectId}/sessions/${rowData.source.sessionId}`,
-            value: `Session: ${rowData.source.sessionId}`,
+            value: t("sourceSession", { id: rowData.source.sessionId }),
             icon: ListTree,
           },
         };
@@ -294,14 +295,14 @@ export function AnnotationQueueItemsTable({
     }),
     createIdTableColumn<QueueItemRowData>({
       accessorKey: "sourceId",
-      header: "Source ID",
+      header: t("columns.sourceId"),
       size: 50,
       enableHiding: true,
       defaultHidden: true,
     }),
     createStatusTableColumn<QueueItemRowData, AnnotationQueueStatus>({
       accessorKey: "status",
-      header: "Status",
+      header: t("columns.status"),
       getStatus: (status) =>
         status
           ? (
@@ -316,7 +317,7 @@ export function AnnotationQueueItemsTable({
     }),
     {
       accessorKey: "completedAt",
-      header: "Completed At",
+      header: t("columns.completedAt"),
       id: "completedAt",
       defaultHidden: true,
       enableHiding: true,
@@ -324,7 +325,7 @@ export function AnnotationQueueItemsTable({
     },
     createUserTableColumn<QueueItemRowData, QueueItemRowData["annotatorUser"]>({
       accessorKey: "annotatorUser",
-      header: "Completed by",
+      header: t("columns.completedBy"),
       enableHiding: true,
       size: 80,
       variant: "avatar",
@@ -346,7 +347,9 @@ export function AnnotationQueueItemsTable({
   ): QueueItemRowData => {
     const baseData = {
       id: item.id,
-      completedAt: item.completedAt?.toLocaleString() ?? "",
+      completedAt: item.completedAt
+        ? new Date(item.completedAt).toLocaleString(locale)
+        : "",
       status: item.status,
       annotatorUser: {
         userId: item.annotatorUserId ?? undefined,
@@ -446,8 +449,7 @@ export function AnnotationQueueItemsTable({
                 }
         }
         help={{
-          description:
-            "Add traces and/or observations to your annotation queue to have them annotated by your team across predefined dimensions.",
+          description: t("itemsHelp"),
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues",
         }}
         pagination={{

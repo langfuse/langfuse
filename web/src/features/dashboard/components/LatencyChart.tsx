@@ -22,6 +22,7 @@ import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 export const GenerationLatencyChart = ({
   className,
@@ -46,6 +47,7 @@ export const GenerationLatencyChart = ({
   schedulerId?: string;
   syncId?: string;
 }) => {
+  const t = useTranslations("systemUi.dashboardExtras");
   const {
     allModels,
     selectedModels,
@@ -142,19 +144,19 @@ export const GenerationLatencyChart = ({
           )
         : [];
     return [
-      { tabTitle: "50th Percentile", data: getData("p50_latency") },
-      { tabTitle: "75th Percentile", data: getData("p75_latency") },
-      { tabTitle: "90th Percentile", data: getData("p90_latency") },
-      { tabTitle: "95th Percentile", data: getData("p95_latency") },
-      { tabTitle: "99th Percentile", data: getData("p99_latency") },
+      { tabTitle: t("percentile50"), data: getData("p50_latency") },
+      { tabTitle: t("percentile75"), data: getData("p75_latency") },
+      { tabTitle: t("percentile90"), data: getData("p90_latency") },
+      { tabTitle: t("percentile95"), data: getData("p95_latency") },
+      { tabTitle: t("percentile99"), data: getData("p99_latency") },
     ];
-  }, [latencies.data, selectedModels]);
+  }, [latencies.data, selectedModels, t]);
 
   return (
     <DashboardCard
       className={className}
-      title="Model latencies"
-      description="Latencies (seconds) per LLM generation"
+      title={t("modelLatencies")}
+      description={t("modelLatenciesDescription")}
       isLoading={
         isLoading || (latencies.isPending && selectedModels.length > 0)
       }
@@ -185,7 +187,7 @@ export const GenerationLatencyChart = ({
                   <div className="h-80 w-full shrink-0 grow lg:h-56">
                     <DashboardLineTimeSeriesChart
                       data={item.data}
-                      label="Latency"
+                      label={t("latency")}
                       unit="millisecond"
                       syncId={syncId}
                       missingValue="gap"

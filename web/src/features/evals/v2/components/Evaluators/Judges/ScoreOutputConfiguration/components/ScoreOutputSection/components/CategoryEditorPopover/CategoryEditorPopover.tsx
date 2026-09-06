@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { type ScoreOutputChoice } from "@/src/features/evals/v2/scoreOutputTypes";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 /** Edits one categorical score option inside a controlled popover. */
 export function CategoryEditorPopover({
@@ -33,6 +34,7 @@ export function CategoryEditorPopover({
   onDelete: (() => void) | null;
   onDone: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       {children}
@@ -41,13 +43,13 @@ export function CategoryEditorPopover({
           <div>
             <p className="text-sm font-bold">{title}</p>
             <p className="text-muted-foreground text-xs">
-              Set the returned label.
+              {t("scoreOutput.category.setReturnedLabel")}
             </p>
           </div>
           <Input
             id={`score-output-category-${idSuffix}`}
-            aria-label="Category label"
-            placeholder="Category label"
+            aria-label={t("scoreOutput.category.label")}
+            placeholder={t("scoreOutput.category.label")}
             value={choice.label}
             onChange={(event) => onChange({ label: event.target.value })}
             onKeyDown={(event) => {
@@ -70,17 +72,17 @@ export function CategoryEditorPopover({
                   variant="ghost"
                   size="sm"
                   className="text-destructive hover:text-destructive"
-                  aria-label="Delete category"
+                  aria-label={t("scoreOutput.category.delete")}
                   onClick={onDelete}
                 >
                   <Trash2 className="mr-1.5 h-4 w-4" />
-                  Delete
+                  {t("delete")}
                 </Button>
               </PopoverClose>
             ) : null}
             <PopoverClose asChild>
               <Button type="button" size="sm" onClick={onDone}>
-                Done
+                {t("done")}
               </Button>
             </PopoverClose>
           </div>

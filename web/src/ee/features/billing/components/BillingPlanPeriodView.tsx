@@ -2,8 +2,10 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
+import { useTranslations } from "next-intl";
 
 export const BillingPlanPeriodView = () => {
+  const t = useTranslations("settingsEnterprise.billing.plan");
   const router = useRouter();
   const orgId = router.query.organizationId as string | undefined;
 
@@ -16,12 +18,12 @@ export const BillingPlanPeriodView = () => {
     <div className="text-muted-foreground flex flex-col gap-1 text-sm">
       <BillingCurrentPlanLabel />
       <p>
-        Billing period:{" "}
-        {!isLoading && data?.billingPeriod && (
-          <>
-            {`${formatLocalIsoDate(data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(data.billingPeriod.end, false, "day")}`}
-          </>
-        )}
+        {t("billingPeriod", {
+          period:
+            !isLoading && data?.billingPeriod
+              ? `${formatLocalIsoDate(data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(data.billingPeriod.end, false, "day")}`
+              : "",
+        })}
       </p>
     </div>
   );

@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { TriggerEventSource } from "@langfuse/shared";
+import { NextIntlClientProvider } from "next-intl";
+
+import { getMessages } from "@/src/features/i18n/messages";
 
 const createAutomationMutateAsync = vi.fn().mockResolvedValue({
   automation: { id: "auto-1" },
@@ -61,6 +64,15 @@ vi.mock("@/src/features/organizations/hooks", () => ({
 
 import { AutomationForm } from "./automationForm";
 
+const renderAutomationForm = (
+  props: React.ComponentProps<typeof AutomationForm>,
+) =>
+  render(
+    <NextIntlClientProvider locale="zh-CN" messages={getMessages("zh-CN")}>
+      <AutomationForm {...props} />
+    </NextIntlClientProvider>,
+  );
+
 describe("AutomationForm handleActionTypeChange", () => {
   beforeAll(() => {
     vi.stubGlobal(
@@ -81,16 +93,14 @@ describe("AutomationForm handleActionTypeChange", () => {
   });
 
   it("monitor-source trigger: switching action type away and back to WEBHOOK keeps apiVersion monitor", async () => {
-    render(
-      <AutomationForm
-        projectId="p1"
-        isEditing={true}
-        prefill={{
-          eventSource: TriggerEventSource.Monitor,
-          actionType: "WEBHOOK",
-        }}
-      />,
-    );
+    renderAutomationForm({
+      projectId: "p1",
+      isEditing: true,
+      prefill: {
+        eventSource: TriggerEventSource.Monitor,
+        actionType: "WEBHOOK",
+      },
+    });
 
     // comboboxes: [0] eventSource, [1] actionType.
     fireEvent.click(screen.getAllByRole("combobox")[1]);
@@ -99,14 +109,14 @@ describe("AutomationForm handleActionTypeChange", () => {
     fireEvent.click(screen.getAllByRole("combobox")[1]);
     fireEvent.click(await screen.findByRole("option", { name: "Webhook" }));
 
-    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+    fireEvent.change(screen.getByPlaceholderText("自动化名称"), {
       target: { value: "My automation" },
     });
     fireEvent.change(screen.getByPlaceholderText(/https/i), {
       target: { value: "https://example.com/hook" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存自动化" }));
 
     await waitFor(() => {
       expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
@@ -117,26 +127,24 @@ describe("AutomationForm handleActionTypeChange", () => {
   });
 
   it("switching event source from prompt to monitor derives apiVersion monitor", async () => {
-    render(
-      <AutomationForm
-        projectId="p1"
-        isEditing={true}
-        prefill={{ actionType: "WEBHOOK" }}
-      />,
-    );
+    renderAutomationForm({
+      projectId: "p1",
+      isEditing: true,
+      prefill: { actionType: "WEBHOOK" },
+    });
 
     // comboboxes: [0] eventSource, [1] actionType.
     fireEvent.click(screen.getAllByRole("combobox")[0]);
-    fireEvent.click(await screen.findByRole("option", { name: "Alert" }));
+    fireEvent.click(await screen.findByRole("option", { name: "告警" }));
 
-    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+    fireEvent.change(screen.getByPlaceholderText("自动化名称"), {
       target: { value: "My automation" },
     });
     fireEvent.change(screen.getByPlaceholderText(/https/i), {
       target: { value: "https://example.com/hook" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存自动化" }));
 
     await waitFor(() => {
       expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
@@ -147,15 +155,27 @@ describe("AutomationForm handleActionTypeChange", () => {
   });
 
   it("does not render an API version control for webhook actions", () => {
-    render(
-      <AutomationForm
-        projectId="p1"
-        isEditing={true}
-        prefill={{ actionType: "WEBHOOK" }}
-      />,
-    );
+    renderAutomationForm({
+      projectId: "p1",
+      isEditing: true,
+      prefill: { actionType: "WEBHOOK" },
+    });
 
     expect(screen.queryByText("API Version")).toBeNull();
     expect(screen.queryByText("Select API version")).toBeNull();
+  });
+
+  it("renders automation form controls in Chinese", () => {
+    renderAutomationForm({
+      projectId: "p1",
+      isEditing: true,
+      prefill: { actionType: "WEBHOOK" },
+    });
+
+    expect(screen.getByPlaceholderText("自动化名称")).toBeInTheDocument();
+    expect(screen.getByText("触发条件")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "保存自动化" }),
+    ).toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@ import {
   PLAYGROUND_EVENTS,
 } from "../types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useTranslations } from "next-intl";
 
 /**
  * Playground window registry for coordinating actions across multiple playground windows
@@ -33,6 +34,7 @@ const playgroundEventBus = new EventTarget();
  * @returns WindowCoordinationReturn interface with coordination functions
  */
 export const useWindowCoordination = (): WindowCoordinationReturn => {
+  const t = useTranslations("playgroundDashboard.playground.page");
   const [isExecutingAll, setIsExecutingAll] = useState(false);
   const [hasAnyModelConfigured, setHasAnyModelConfigured] = useState(false);
   const executionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -140,10 +142,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
 
       if (!anyExecuting) {
         // No windows are executing - they must all be empty
-        showErrorToast(
-          "No content to execute",
-          "Please add at least one message with content to any window.",
-        );
+        showErrorToast(t("noContent"), t("noContentDescription"));
         setIsExecutingAll(false);
       } else {
         // At least one window is executing, set global state
@@ -182,7 +181,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
         setTimeout(checkExecutionCompletion, 1000);
       }
     }, 500); // Check after 500ms
-  }, []);
+  }, [t]);
 
   /**
    * Stop all currently executing playground windows
@@ -226,11 +225,14 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
     }
 
     if (executingCount === totalCount) {
-      return `Executing all ${totalCount} windows`;
+      return t("executingAll", { count: totalCount });
     }
 
-    return `Executing ${executingCount} of ${totalCount} windows`;
-  }, []);
+    return t("executingProgress", {
+      executing: executingCount,
+      total: totalCount,
+    });
+  }, [t]);
 
   // Listen for model configuration changes
   useEffect(() => {

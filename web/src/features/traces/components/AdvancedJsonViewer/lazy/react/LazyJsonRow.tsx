@@ -9,6 +9,7 @@ import React from "react";
 import { ChevronRight, Copy, Loader2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { JsonNodeType, JsonRow } from "../rowModel";
+import { useTranslations } from "next-intl";
 
 const INDENT_PX = 14;
 // Past this nesting level the indent stops growing, so a very deep chain stays
@@ -48,6 +49,7 @@ function LazyJsonRowImpl({
   onLoadMore,
   onCopyValue,
 }: LazyJsonRowProps) {
+  const t = useTranslations("coreDetails.traces.jsonViewer");
   const paddingLeft = Math.min(row.depth, MAX_VISUAL_DEPTH) * INDENT_PX;
 
   // Synthetic "reveal next page" row for a paginated wide container.
@@ -86,7 +88,7 @@ function LazyJsonRowImpl({
           ) : (
             <button
               type="button"
-              aria-label={row.expanded ? "Collapse" : "Expand"}
+              aria-label={row.expanded ? t("collapse") : t("expand")}
               className="text-muted-foreground hover:text-foreground flex h-4 w-4 items-center justify-center"
               onClick={() => onToggle(row.nodeId, row.expanded)}
             >
@@ -137,8 +139,8 @@ function LazyJsonRowImpl({
       {!isContainer && row.truncatedPreview ? (
         <button
           type="button"
-          aria-label="Copy full value"
-          title="Copy full value"
+          aria-label={t("copyFullValue")}
+          title={t("copyFullValue")}
           className="text-muted-foreground hover:text-foreground ml-1 shrink-0 opacity-0 group-hover:opacity-100"
           onClick={() => onCopyValue(row.nodeId)}
         >

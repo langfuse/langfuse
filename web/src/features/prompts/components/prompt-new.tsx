@@ -3,8 +3,10 @@ import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import Page from "@/src/components/layouts/page";
+import { useTranslations } from "next-intl";
 
 export const NewPrompt = () => {
+  const t = useTranslations("coreDetails.prompts.page");
   const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
 
@@ -21,16 +23,16 @@ export const NewPrompt = () => {
   );
 
   if (isLoading) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("loading")}</div>;
   }
 
   const breadcrumb: { name: string; href?: string }[] = [
     {
-      name: "Prompts",
+      name: t("title"),
       href: `/project/${projectId}/prompts/`,
     },
     {
-      name: "New prompt",
+      name: t("newPrompt"),
     },
   ];
 
@@ -41,7 +43,7 @@ export const NewPrompt = () => {
         name: initialPrompt.name,
         href: `/project/${projectId}/prompts/${encodeURIComponent(initialPrompt.name)}`,
       },
-      { name: "New version" },
+      { name: t("newVersion") },
     );
   }
 
@@ -51,21 +53,17 @@ export const NewPrompt = () => {
       scrollable
       headerProps={{
         title: initialPrompt
-          ? `${initialPrompt.name} \u2014 New version`
-          : "Create new prompt",
+          ? t("newVersionTitle", { name: initialPrompt.name })
+          : t("create"),
         help: {
-          description:
-            "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+          description: t("description"),
           href: "https://langfuse.com/docs/prompts",
         },
         breadcrumb: breadcrumb,
       }}
     >
       {initialPrompt ? (
-        <p className="text-muted-foreground text-sm">
-          Prompts are immutable in Langfuse. To update a prompt, create a new
-          version.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("immutable")}</p>
       ) : null}
       <div className="my-8">
         <NewPromptForm {...{ initialPrompt }} />

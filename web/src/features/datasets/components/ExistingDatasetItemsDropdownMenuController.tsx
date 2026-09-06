@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { type RouterOutputs } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 const ExistingDatasetItemsDropdownMenuContext = createContext<{
   isDropdownEnabled: boolean;
@@ -88,6 +89,7 @@ export function ExistingDatasetItemsDropdownMenuController(props: {
     openDropdown: () => void;
   }) => ReactNode;
 }) {
+  const t = useTranslations("coreDetails.datasets.misc");
   const [isOpen, setIsOpen] = useState(false);
   const hasDatasetItems = props.datasetItems.length > 0;
   const isDropdownEnabled = hasDatasetItems && !props.disabled;
@@ -133,7 +135,7 @@ export function ExistingDatasetItemsDropdownMenuController(props: {
             <DropdownMenuSeparator />
             <DropdownMenuItem className="capitalize" onSelect={openDialog}>
               <PlusIcon size={16} className="mr-2" aria-hidden="true" />
-              Add to more datasets
+              {t("addMoreDatasets")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         ) : null}

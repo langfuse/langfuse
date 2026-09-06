@@ -1,14 +1,28 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import SignIn, { type PageProps } from "@/src/pages/auth/sign-in";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "@/src/features/i18n/messages";
+import type { AppLocale } from "@/src/features/i18n/config";
 
-const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
-  vi.hoisted(() => ({
-    captureExceptionMock: vi.fn(),
-    addBreadcrumbMock: vi.fn(),
-    signInMock: vi.fn(),
-    routerState: { query: {} as Record<string, string> },
-  }));
+const {
+  captureExceptionMock,
+  addBreadcrumbMock,
+  signInMock,
+  routerState,
+  envState,
+} = vi.hoisted(() => ({
+  captureExceptionMock: vi.fn(),
+  addBreadcrumbMock: vi.fn(),
+  signInMock: vi.fn(),
+  routerState: {
+    query: {} as Record<string, string>,
+    locale: "en" as AppLocale,
+  },
+  envState: {
+    NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN: undefined as string | undefined,
+  },
+}));
 
 vi.mock("@sentry/nextjs", () => ({
   captureException: captureExceptionMock,
@@ -23,13 +37,15 @@ vi.mock("next-auth/react", () => ({
 vi.mock("next/router", () => ({
   useRouter: () => ({
     asPath: "/auth/sign-in",
+    pathname: "/auth/sign-in",
+    locale: routerState.locale,
     query: routerState.query,
     push: vi.fn(),
     replace: vi.fn(),
   }),
 }));
 
-vi.mock("@/src/env.mjs", () => ({ env: {} }));
+vi.mock("@/src/env.mjs", () => ({ env: envState }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -80,13 +96,18 @@ const renderSignIn = (
   } = {},
 ) =>
   render(
-    <SignIn
-      authProviders={authProviders}
-      signUpDisabled={false}
-      runningOnHuggingFaceSpaces={false}
-      emailVerificationRequired={false}
-      {...props}
-    />,
+    <NextIntlClientProvider
+      locale={routerState.locale}
+      messages={getMessages(routerState.locale)}
+    >
+      <SignIn
+        authProviders={authProviders}
+        signUpDisabled={false}
+        runningOnHuggingFaceSpaces={false}
+        emailVerificationRequired={false}
+        {...props}
+      />
+    </NextIntlClientProvider>,
   );
 
 describe("sign-in page NextAuth error classification", () => {
@@ -97,6 +118,8 @@ describe("sign-in page NextAuth error classification", () => {
     addBreadcrumbMock.mockClear();
     signInMock.mockReset();
     routerState.query = {};
+    routerState.locale = "en";
+    envState.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN = undefined;
     window.localStorage.clear();
     warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
   });
@@ -219,5 +242,68 @@ describe("sign-in page NextAuth error classification", () => {
 
     expect(screen.getByText("Sign in to your account")).toBeInTheDocument();
     expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("renders the credentials flow in Simplified Chinese", () => {
+    routerState.locale = "zh-CN";
+    renderSignIn();
+
+    expect(screen.getByText("登录你的账户")).toBeInTheDocument();
+    expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.getByText("还没有账户？")).toBeInTheDocument();
+  });
+
+  it("updates a query-derived error when the locale changes", () => {
+    routerState.locale = "zh-CN";
+    routerState.query = { error: "OAuthAccountNotLinked" };
+    const { rerender } = renderSignIn();
+
+    expect(
+      screen.getByText(/请使用创建此账户时相同的登录服务商/),
+    ).toBeInTheDocument();
+
+    routerState.locale = "en";
+    rerender(
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        <SignIn
+          authProviders={authProviders}
+          signUpDisabled={false}
+          runningOnHuggingFaceSpaces={false}
+          emailVerificationRequired={false}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(
+      screen.getByText(/Please sign in with the same provider/),
+    ).toBeInTheDocument();
+  });
+
+  it("updates a preview sign-in error without retrying on locale change", async () => {
+    envState.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN = "true";
+    routerState.locale = "zh-CN";
+    signInMock.mockResolvedValue({ ok: false, error: "CredentialsSignin" });
+    const { rerender } = renderSignIn();
+
+    expect(await screen.findByText(/预览环境自动登录失败/)).toBeInTheDocument();
+    expect(signInMock).toHaveBeenCalledTimes(1);
+
+    routerState.locale = "en";
+    rerender(
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        <SignIn
+          authProviders={authProviders}
+          signUpDisabled={false}
+          runningOnHuggingFaceSpaces={false}
+          emailVerificationRequired={false}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(
+      screen.getByText(/Automatic preview sign-in failed/),
+    ).toBeInTheDocument();
+    expect(signInMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
@@ -14,6 +14,8 @@ import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
 import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
+import { useTranslations } from "next-intl";
+import { type ChartDescriptionFormatter } from "@/src/features/chart-view/vocab";
 
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the
@@ -55,6 +57,12 @@ export function ScoresChartView({
   onConfigChange: (patch: Partial<ScoreChartViewConfig>) => void;
   viewVersion: ViewVersion;
 }) {
+  const t = useTranslations("systemUi.scoreChartView");
+  const labelsT = useTranslations("systemUi.chartControls");
+  const formatDescription = useCallback<ChartDescriptionFormatter>(
+    (key, values) => labelsT(key as Parameters<typeof labelsT>[0], values),
+    [labelsT],
+  );
   const filters = useMemo(
     () =>
       mapLegacyUiTableFilterToView(
@@ -91,15 +99,19 @@ export function ScoresChartView({
   );
 
   const error = !validRange
-    ? "Pick a wider time range to chart."
+    ? t("widerRange")
     : queryResult.isError
-      ? (queryResult.error?.message ??
-        "Couldn't build a chart for the current view.")
+      ? t("buildFailed")
       : null;
 
   const widgetInput = useMemo(
-    () => scoreChartConfigToWidgetInput({ config, filters }),
-    [config, filters],
+    () =>
+      scoreChartConfigToWidgetInput({
+        config,
+        filters,
+        formatDescription,
+      }),
+    [config, filters, formatDescription],
   );
 
   return (

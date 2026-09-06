@@ -1,4 +1,5 @@
 import type { FilterState } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
@@ -27,6 +28,8 @@ export function RuleFilterPills({
   display?: "compact" | "search-bar";
   disabledReasons?: ReadonlyMap<number, string>;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+
   const renderWithDisabledReason = (
     content: ReactNode,
     index: number,
@@ -62,7 +65,9 @@ export function RuleFilterPills({
         >
           <div className={COMPOSER_TEXT_CLASSES}>
             {filter.length === 0 ? (
-              <span className="text-muted-foreground">No filters</span>
+              <span className="text-muted-foreground">
+                {t("rules.noFilters")}
+              </span>
             ) : (
               filter.map((condition, index) => {
                 const query = filterStateToQueryText(
@@ -123,7 +128,9 @@ export function RuleFilterPills({
             className="m-0"
           />
           {!hasFilters ? (
-            <span className="text-muted-foreground">No filters</span>
+            <span className="text-muted-foreground">
+              {t("rules.noFilters")}
+            </span>
           ) : null}
         </div>
       </div>
@@ -131,7 +138,11 @@ export function RuleFilterPills({
   }
 
   if (filter.length === 0) {
-    return <span className="text-muted-foreground text-sm">No filters</span>;
+    return (
+      <span className="text-muted-foreground text-sm">
+        {t("rules.noFilters")}
+      </span>
+    );
   }
 
   const items = filter.map((condition, index) => ({

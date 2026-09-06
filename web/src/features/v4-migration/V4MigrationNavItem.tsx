@@ -5,8 +5,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectV4MigrationActions } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+import { useTranslations } from "next-intl";
 
 export function V4MigrationNavItem() {
+  const t = useTranslations("remainderUi.migrations");
   const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const openMigrationPanel = useOpenV4MigrationPanel();
@@ -17,7 +19,7 @@ export function V4MigrationNavItem() {
   if (!v4UpgradeUiEnabled || !project || !actionNeeded) {
     return null;
   }
-  const label = "Action required";
+  const label = t("common.actionRequired");
 
   const handleClick = () => {
     capture("sidebar:v4_migration_card_clicked");

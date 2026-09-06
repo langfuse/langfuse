@@ -72,8 +72,19 @@ import {
   APP_SHELL_CHROME_ROW_TEST_ID,
 } from "@/src/components/layouts/app-shell-chrome";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+
+const SIDEBAR_NOTIFICATION_MESSAGE_KEYS = {
+  "lw5-1": "launchDay1",
+  "lw5-2": "launchDay2",
+  "lw5-3": "launchDay3",
+  "lw5-4": "launchDay4",
+  "lw5-5": "launchDay5",
+  "github-star": "githubStar",
+} as const;
 
 type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
 
@@ -345,8 +356,20 @@ function SidebarNotifications({
   state: SidebarNotificationState;
   activeNotifications: SidebarNotification[];
 }) {
+  const t = useTranslations("sharedUi.sidebarRemainder");
+  const tn = useSharedUiTranslations("sidebarNotifications");
   const visibleNotifications = activeNotifications.slice(0, 3);
   const frontNotification = visibleNotifications[0];
+  const notificationKey =
+    SIDEBAR_NOTIFICATION_MESSAGE_KEYS[
+      frontNotification.id as keyof typeof SIDEBAR_NOTIFICATION_MESSAGE_KEYS
+    ];
+  const notificationTitle = notificationKey
+    ? tn(`${notificationKey}.title`)
+    : frontNotification.title;
+  const notificationDescription = notificationKey
+    ? tn(`${notificationKey}.description`)
+    : frontNotification.description;
   const backCount = visibleNotifications.length - 1;
   const peekOffset = 8;
   const peekScaleStep = 0.05;
@@ -384,14 +407,14 @@ function SidebarNotifications({
             size="sm"
             className="absolute top-2.5 right-1.5 h-5 w-5 p-0"
             onClick={() => state.onDismiss(frontNotification.id)}
-            title="Dismiss"
+            title={t("dismiss")}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
-            <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
+            <CardTitle className="text-sm">{notificationTitle}</CardTitle>
             <CardDescription className="mt-1">
-              {frontNotification.description}
+              {notificationDescription}
             </CardDescription>
           </CardHeader>
           <CardContent className="px-3 pt-1.5 pb-2.5">
@@ -404,7 +427,11 @@ function SidebarNotifications({
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    alt={frontNotification.linkImage.alt}
+                    alt={
+                      notificationKey === "githubStar"
+                        ? tn("githubStar.imageAlt")
+                        : frontNotification.linkImage.alt
+                    }
                     src={frontNotification.linkImage.src}
                   />
                 </Link>
@@ -420,7 +447,10 @@ function SidebarNotifications({
                     target="_blank"
                     onClick={() => state.onLinkClick(frontNotification.id)}
                   >
-                    {frontNotification.linkTitle ?? "Learn more"} &rarr;
+                    {notificationKey
+                      ? tn(`${notificationKey}.linkTitle`)
+                      : (frontNotification.linkTitle ?? t("learnMore"))}{" "}
+                    &rarr;
                   </Link>
                 </Button>
               ))}
@@ -540,15 +570,17 @@ function NavUser({
 }
 
 const DemoBadge = () => {
+  const t = useTranslations("sharedUi.sidebarRemainder");
+
   return (
     <SidebarGroup className="border-b">
-      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+      <SidebarGroupLabel>{t("demoProject")}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              tooltip="Use Demo App to create traces"
+              tooltip={t("useDemoTooltip")}
               variant="cta"
             >
               <Link
@@ -557,15 +589,15 @@ const DemoBadge = () => {
                 rel="noopener noreferrer"
               >
                 <ExternalLink className="h-4 w-4" />
-                <span>Use Demo App</span>
+                <span>{t("useDemo")}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
+            <SidebarMenuButton asChild tooltip={t("organizationsTooltip")}>
               <Link href="/">
                 <Grid2X2 className="h-4 w-4" />
-                <span>Your Langfuse Orgs</span>
+                <span>{t("organizations")}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -576,6 +608,7 @@ const DemoBadge = () => {
 };
 
 const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
+  const t = useTranslations("sharedUi.sidebarRemainder");
   const selfHostedPlanLabel =
     state.deployment === "self-hosted"
       ? selfHostedPlanLabels[state.plan]
@@ -628,13 +661,16 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         {update ? (
           <>
             <DropdownMenuLabel>
-              New {update.updateType} version: {update.latestRelease}
+              {t("newVersion", {
+                type: update.updateType,
+                version: update.latestRelease,
+              })}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
         ) : state.deployment === "self-hosted" ? (
           <>
-            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("latestRelease")}</DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
         ) : null}
@@ -653,14 +689,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             target="_blank"
           >
             <SiGithub size={16} className="mr-2" />
-            Releases
+            {t("releases")}
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
               <ArrowUp10 size={16} className="mr-2" />
-              Background Migrations
+              {t("backgroundMigrations")}
               {backgroundMigrationStatus && (
                 <StatusBadge
                   type={backgroundMigrationStatus}

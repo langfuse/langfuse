@@ -6,6 +6,7 @@ import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
 import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
 import { Button } from "@/src/components/ui/button";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 const DEFAULT_HINT_DELAY_MS = 2000;
 const PROGRESS_REVEAL_DELAY_MS = 1000;
@@ -29,7 +30,7 @@ export function ChartLoadingState({
   isLoading,
   className,
   hintClassName,
-  spinnerLabel = "Loading chart data",
+  spinnerLabel,
   hintText = SLOW_QUERY_HINT_TEXT,
   hintDelayMs = DEFAULT_HINT_DELAY_MS,
   showSpinner = true,
@@ -37,8 +38,11 @@ export function ChartLoadingState({
   progress,
   layout = "default",
   onRetry,
-  retryLabel = "Retry",
+  retryLabel,
 }: ChartLoadingStateProps) {
+  const t = useTranslations("evaluationAnalytics.chartLoading");
+  const resolvedSpinnerLabel = spinnerLabel ?? t("loadingChartData");
+  const resolvedRetryLabel = retryLabel ?? t("retry");
   const [showHint, setShowHint] = useState(false);
   const [showProgressPhase, setShowProgressPhase] = useState(false);
   const shouldShowProgress = progress !== undefined;
@@ -95,7 +99,7 @@ export function ChartLoadingState({
       <div
         role="status"
         aria-live="polite"
-        aria-label={spinnerLabel}
+        aria-label={resolvedSpinnerLabel}
         className={cn(
           "text-muted-foreground flex h-full w-full items-center justify-center",
           className,
@@ -110,16 +114,16 @@ export function ChartLoadingState({
 
   const statusTitle =
     isPendingProgressState || shouldShowProgress
-      ? "Running query"
+      ? t("runningQuery")
       : showSpinner
-        ? "Loading widget"
-        : "Query needs attention";
+        ? t("loadingWidget")
+        : t("queryNeedsAttention");
 
   return (
     <div
       role="status"
       aria-live="polite"
-      aria-label={spinnerLabel}
+      aria-label={resolvedSpinnerLabel}
       className={cn(
         "text-muted-foreground flex h-full min-h-0 w-full flex-col overflow-hidden",
         className,
@@ -186,7 +190,7 @@ export function ChartLoadingState({
               onClick={onRetry}
               className="w-fit self-center"
             >
-              {retryLabel}
+              {resolvedRetryLabel}
             </Button>
           ) : null}
         </div>

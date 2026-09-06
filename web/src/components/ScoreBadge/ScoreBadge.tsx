@@ -16,6 +16,7 @@ import {
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 const hasMetadata = (
   score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -38,6 +39,7 @@ const ExecutionTraceLink = ({
   executionTraceId: string;
 }) => {
   const projectId = useProjectIdFromURL();
+  const t = useSharedUiTranslations("misc");
   if (!projectId) return null;
 
   return (
@@ -47,7 +49,7 @@ const ExecutionTraceLink = ({
       target="_blank"
     >
       <ExternalLinkIcon className="h-3 w-3" />
-      View execution trace
+      {t("viewExecutionTrace")}
     </Link>
   );
 };
@@ -66,6 +68,7 @@ export const ScoreBadge = <
   /** Render this group's level tags when the selection mixes score levels. */
   showLevels?: boolean;
 }) => {
+  const t = useSharedUiTranslations("misc");
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
     : [];
@@ -94,7 +97,7 @@ export const ScoreBadge = <
                 {score.comment && (
                   <HoverCard>
                     <HoverCardTrigger
-                      aria-label={`View comment for ${name}: ${value}`}
+                      aria-label={t("viewScoreComment", { name, value })}
                       className="inline-block shrink-0"
                     >
                       <MessageCircleMoreIcon className="mb-0.25 size-3!" />
@@ -113,7 +116,7 @@ export const ScoreBadge = <
                 {hasMetadata(score) && (
                   <HoverCard>
                     <HoverCardTrigger
-                      aria-label={`View metadata for ${name}: ${value}`}
+                      aria-label={t("viewScoreMetadata", { name, value })}
                       className="inline-block shrink-0"
                     >
                       <BracesIcon className="mb-0.25 size-3!" />

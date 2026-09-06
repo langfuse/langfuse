@@ -270,6 +270,36 @@ export function withFieldOptions(
   });
 }
 
+/**
+ * Rebuild a registry with localized display copy while preserving every query
+ * identifier, alias, and lowering rule. The localized registry is presentation
+ * only; serialized queries continue to use the canonical field ids.
+ */
+export function withLocalizedFieldCopy(
+  registry: FieldRegistry,
+  localize: (
+    field: FieldDef,
+  ) => Pick<FieldDef, "label" | "description" | "negatedLabel">,
+): FieldRegistry {
+  return createFieldRegistry({
+    id: registry.id,
+    fields: registry.fields.map((field) => ({
+      ...field,
+      ...localize(field),
+    })),
+    columns: registry.columns,
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
   { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },

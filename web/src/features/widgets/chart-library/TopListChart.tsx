@@ -6,6 +6,7 @@ import {
   formatMetric,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
+import { useTranslations } from "next-intl";
 
 // Row rhythm: rows lay out top-aligned at up to MAX_ROW_PX each, shrink evenly
 // down to MIN_ROW_PX when the tile is tight, and scroll below that. Done with
@@ -21,12 +22,13 @@ const ROW_TEXT_STEPS =
   "text-xs [@container(min-height:36px)]:text-sm [@container(min-height:48px)]:text-base";
 
 const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
+  const t = useTranslations("systemUi.miscUi.general");
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
-      aria-label={`Copy "${value}"`}
-      title={`Copy "${value}"`}
+      aria-label={t("copyValue", { value })}
+      title={t("copyValue", { value })}
       className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto shrink-0 rounded p-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
       onClick={async (e) => {
         e.stopPropagation();

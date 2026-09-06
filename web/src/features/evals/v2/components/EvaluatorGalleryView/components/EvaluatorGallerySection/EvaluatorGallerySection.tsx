@@ -11,12 +11,12 @@ import type {
 import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
-  EVALUATOR_GALLERY_SAFETY_CALLOUT,
   EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorGallerySection({
   section,
@@ -29,6 +29,7 @@ export function EvaluatorGallerySection({
   onExpandedChange: (expanded: boolean) => void;
   onSelectTemplate: (template: GalleryTemplate) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
   const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
@@ -61,8 +62,10 @@ export function EvaluatorGallerySection({
                 {section.label}
               </h4>
               {isSafety ? (
-                <InfoTooltip label={`About ${section.label}`}>
-                  {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+                <InfoTooltip
+                  label={t("aboutSection", { title: section.label })}
+                >
+                  {t("gallery.safetyCallout")}
                 </InfoTooltip>
               ) : null}
             </div>
@@ -90,7 +93,9 @@ export function EvaluatorGallerySection({
           ) : (
             <ChevronDown className="h-3.5 w-3.5" />
           )}
-          {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
+          {expanded
+            ? t("gallery.showFewer")
+            : t("gallery.showAll", { count: totalCount })}
         </button>
       ) : null}
     </section>

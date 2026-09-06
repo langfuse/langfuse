@@ -1,0 +1,116 @@
+{
+  "members": {
+    "columns": {
+      "name": "姓名",
+      "email": "邮箱",
+      "ssoProvider": "单点登录提供商",
+      "organizationRole": "组织角色",
+      "projectRole": "项目角色",
+      "featurePreviews": "功能预览",
+      "memberSince": "加入时间",
+      "actions": "操作"
+    },
+    "userAvatar": "用户头像",
+    "organizationRoleDescription": "组织角色是此用户在该组织中的默认角色，适用于组织及其所有项目。",
+    "organizationRoleSettings": "可以在<settings>组织设置</settings>中编辑组织级角色。",
+    "projectRoleDescription": "此用户在当前项目中的角色。该角色会覆盖默认项目角色。",
+    "notAvailableOnPlan": "当前套餐不可用",
+    "enabledCount": "已启用 {enabledCount}/{totalCount}",
+    "leaveOrganizationConfirm": "确定要离开此组织吗？",
+    "removeMemberConfirm": "确定要从组织中移除此成员吗？",
+    "accessDeniedTitle": "无权访问",
+    "accessDeniedDescription": "你没有查看此组织成员的权限。",
+    "addProjectMember": "添加项目成员",
+    "addNewMember": "添加新成员",
+    "saved": "已保存",
+    "organizationRoleUpdated": "组织角色已更新",
+    "changeOwnOrganizationRoleConfirm": "确定要更改自己的组织角色吗？",
+    "projectRoleUpdated": "项目角色已更新",
+    "changeOwnProjectRoleConfirm": "确定要更改自己的项目角色吗？"
+  },
+  "invites": {
+    "title": "成员邀请",
+    "columns": {
+      "email": "邮箱",
+      "organizationRole": "组织角色",
+      "invitedOn": "邀请时间",
+      "projectRole": "项目角色",
+      "invitedBy": "邀请人",
+      "actions": "操作"
+    },
+    "cancelConfirm": "确定要取消此邀请吗？"
+  },
+  "memberForm": {
+    "addFailed": "添加成员失败",
+    "email": "邮箱",
+    "invalidEmail": "请输入有效的邮箱地址",
+    "organizationRole": "组织角色",
+    "selectOrganizationRole": "选择组织角色",
+    "projectRole": "项目角色",
+    "selectProjectRole": "选择项目角色",
+    "projectRoleOverride": "此项目角色会覆盖当前项目（{projectName}）的默认角色。",
+    "grantAccess": "授予访问权限"
+  },
+  "memberDialog": {
+    "title": "向{target}添加新成员",
+    "project": "项目",
+    "organization": "组织"
+  },
+  "roles": {
+    "owner": "所有者",
+    "admin": "管理员",
+    "member": "成员",
+    "viewer": "查看者",
+    "none": "无",
+    "keepDefaultRole": "保留默认角色",
+    "projectNoneDescription": "不覆盖此项目的组织角色。",
+    "organizationNoneDescription": "默认无权访问组织资源，需要通过项目角色授予项目级访问权限。",
+    "role": "角色：{role}",
+    "organizationScopes": "组织权限",
+    "projectScopes": "项目权限",
+    "note": "注意：",
+    "mutedScopes": "灰显的权限",
+    "inheritedScopes": "继承自较低级别的角色。",
+    "noScopes": "无"
+  },
+  "apiKeys": {
+    "title": "API 密钥",
+    "projectTitle": "项目 API 密钥",
+    "organizationTitle": "组织 API 密钥",
+    "scopes": {
+      "project": "项目",
+      "organization": "组织"
+    },
+    "accessDeniedTitle": "无权访问",
+    "accessDeniedDescription": "你没有查看此{scope} API 密钥的权限。",
+    "learnMore": "了解有关{scope} API 密钥的更多信息",
+    "secretsExcluded": "此处不包含密钥。请创建新密钥以进行复制。",
+    "columns": {
+      "created": "创建时间",
+      "createdBy": "创建者",
+      "note": "备注",
+      "publicKey": "公钥",
+      "secretKey": "密钥"
+    },
+    "none": "无",
+    "deleteTitle": "删除 API 密钥",
+    "deleteDescription": "确定要删除此 API 密钥吗？此操作无法撤销。",
+    "permanentlyDelete": "永久删除",
+    "unknownUser": "未知用户",
+    "createdViaApiKey": "由 API 密钥 {publicKey} 通过 API 创建",
+    "clickToAddNote": "点击添加备注",
+    "createNew": "创建新的 API 密钥",
+    "detailTitle": "API 密钥",
+    "createTitle": "创建 API 密钥",
+    "noteOptional": "备注（可选）",
+    "notePlaceholder": "生产环境密钥",
+    "create": "创建 API 密钥",
+    "secretKey": "密钥",
+    "secretKeyOnce": "此密钥仅显示一次。你可以随时在{scope}设置中创建新密钥。",
+    "publicKey": "公钥",
+    "usingWithMcp": "用于 MCP",
+    "mcpGuidePrefix": "有关如何使用此 API 密钥连接 Langfuse MCP 服务器的详细指南，请参阅",
+    "mcpSetupDocs": "MCP 设置文档",
+    "header": "请求头"
+  }
+}

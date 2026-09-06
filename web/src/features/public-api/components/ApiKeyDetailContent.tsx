@@ -4,6 +4,7 @@ import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import { getLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -31,19 +32,21 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
     props;
   const envCode = getLangfuseEnvCode(baseUrl, { secretKey, publicKey });
   const mcpCredential = encodeMcpCredential(publicKey, secretKey);
+  const t = useTranslations("accessSettings.apiKeys");
+  const scopeLabel =
+    scope === "project" ? t("scopes.project") : t("scopes.organization");
 
   return (
     <div className={cn("space-y-6", className)}>
       <div>
-        <SubHeader title="Secret Key" />
+        <SubHeader title={t("secretKey")} />
         <div className="text-muted-foreground text-sm">
-          This key can only be viewed once. You can always create new keys in
-          the {scope} settings.
+          {t("secretKeyOnce", { scope: scopeLabel })}
         </div>
         <CodeView content={secretKey} className="mt-2" />
       </div>
       <div>
-        <SubHeader title="Public Key" />
+        <SubHeader title={t("publicKey")} />
         <CodeView content={publicKey} className="mt-2" />
       </div>
       <div>
@@ -54,22 +57,21 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         <>
           <hr />
           <div>
-            <SubHeader title="Using with MCP" />
+            <SubHeader title={t("usingWithMcp")} />
             <p className="text-muted-foreground text-sm">
-              For a detailed guide on how to use this API key to connect to the
-              Langfuse MCP server, see the{" "}
+              {t("mcpGuidePrefix")}{" "}
               <a
                 href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server"
                 target="_blank"
                 rel="noreferrer"
                 className="text-foreground underline"
               >
-                MCP setup docs
+                {t("mcpSetupDocs")}
               </a>
               .
             </p>
             <div className="mt-4">
-              <Label>Header</Label>
+              <Label>{t("header")}</Label>
               <CodeView
                 content={`Authorization: Basic ${mcpCredential}`}
                 className="mt-2"

@@ -68,6 +68,7 @@ import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { useTranslations } from "next-intl";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -80,8 +81,9 @@ function RelativeDate({ date }: { date: Date }) {
 function RuleEvaluatorsCell({
   assignments,
 }: Pick<RuleTableRow, "assignments">) {
+  const t = useTranslations("productTables.evaluators");
   if (assignments.length === 0) {
-    return <span className="text-muted-foreground">No evaluators</span>;
+    return <span className="text-muted-foreground">{t("noneAssigned")}</span>;
   }
 
   return (
@@ -117,6 +119,7 @@ export function RulesTable({
   projectId: string;
   hasWriteAccess: boolean;
 }) {
+  const t = useTranslations("productTables.evaluators");
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -238,7 +241,7 @@ export function RulesTable({
       {
         accessorKey: "name",
         id: "name",
-        header: "Name",
+        header: t("columns.name"),
         size: 260,
         isFixedPosition: true,
         enableSorting: true,
@@ -277,7 +280,7 @@ export function RulesTable({
       {
         accessorKey: "enabled",
         id: "enabled",
-        header: "Enabled",
+        header: t("columns.enabled"),
         size: 90,
         enableHiding: true,
         enableSorting: true,
@@ -292,7 +295,7 @@ export function RulesTable({
       createNumberTableColumn<RuleTableRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
+        header: t("columns.totalCost"),
         size: 140,
         enableHiding: true,
         emptyValue: "—",
@@ -307,7 +310,7 @@ export function RulesTable({
       {
         accessorKey: "executionTraces",
         id: "executionTraces",
-        header: "Last 5 runs",
+        header: t("columns.lastRuns"),
         size: 140,
         enableHiding: true,
         cell: ({ row }) => {
@@ -318,7 +321,7 @@ export function RulesTable({
             <button
               type="button"
               className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View runs for ${row.original.name}`}
+              aria-label={t("viewRuns", { name: row.original.name })}
               onClick={(event) => {
                 event.stopPropagation();
                 router.push(ruleExecutionsUrl(projectId, row.original.id));
@@ -334,7 +337,7 @@ export function RulesTable({
       {
         accessorKey: "assignments",
         id: "assignments",
-        header: "Evaluators",
+        header: t("columns.evaluators"),
         size: 240,
         enableHiding: true,
         cell: ({ row }) => (
@@ -344,12 +347,12 @@ export function RulesTable({
       {
         accessorKey: "filter",
         id: "filter",
-        header: "Filters",
+        header: t("columns.filters"),
         size: 300,
         enableHiding: true,
         cell: ({ row }) =>
           isLegacyEvalTarget(row.original.targetObject) ? (
-            <span className="text-muted-foreground">Not available</span>
+            <span className="text-muted-foreground">{t("notAvailable")}</span>
           ) : (
             <RuleFilterPills filter={row.original.filter} />
           ),
@@ -357,7 +360,7 @@ export function RulesTable({
       {
         accessorKey: "sampling",
         id: "sampling",
-        header: "Sampling",
+        header: t("columns.sampling"),
         size: 100,
         enableHiding: true,
         enableSorting: true,
@@ -365,7 +368,7 @@ export function RulesTable({
       },
       createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
-        header: "Created by",
+        header: t("columns.createdBy"),
         size: 180,
         enableHiding: true,
         variant: "text",
@@ -374,7 +377,7 @@ export function RulesTable({
       {
         accessorKey: "createdAt",
         id: "createdAt",
-        header: "Created at",
+        header: t("columns.createdAt"),
         size: 180,
         enableHiding: true,
         defaultHidden: true,
@@ -384,7 +387,7 @@ export function RulesTable({
       {
         accessorKey: "updatedAt",
         id: "updatedAt",
-        header: "Updated at",
+        header: t("columns.updatedAt"),
         size: 180,
         enableHiding: true,
         enableSorting: true,
@@ -393,7 +396,7 @@ export function RulesTable({
       {
         accessorKey: "id",
         id: "actions",
-        header: "Actions",
+        header: t("columns.actions"),
         size: 180,
         isFixedPosition: true,
         enableSorting: false,
@@ -415,7 +418,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                {t("viewTraces")} <ExternalLink className="ml-1 h-3.5 w-3.5" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -423,7 +426,7 @@ export function RulesTable({
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    aria-label={`Actions for ${row.original.name}`}
+                    aria-label={t("actionsFor", { name: row.original.name })}
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
@@ -434,7 +437,7 @@ export function RulesTable({
                       onClick={() => setEditRuleId(row.original.id)}
                     >
                       <Pencil className="mr-2 h-4 w-4" />
-                      Edit
+                      {t("edit")}
                     </DropdownMenuItem>
                   ) : null}
                   <DropdownMenuItem
@@ -442,14 +445,14 @@ export function RulesTable({
                     onClick={() => setCloneRule(row.original)}
                   >
                     <Copy className="mr-2 h-4 w-4" />
-                    Clone
+                    {t("clone")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={!hasWriteAccess}
                     onClick={() => setDeleteIds([row.original.id])}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
+                    {t("delete")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -469,6 +472,7 @@ export function RulesTable({
       capture,
       selectActionColumn,
       setEditRuleId,
+      t,
     ],
   );
   const [columnVisibility, setColumnVisibility] =
@@ -599,7 +603,7 @@ export function RulesTable({
                   });
                 },
               }}
-              noResultsMessage="No evaluation rules found."
+              noResultsMessage={t("noRules")}
               onRowClick={(rule) => {
                 const navigationAction = getRuleNavigationAction(rule);
                 if (navigationAction === "remap") {
@@ -643,9 +647,11 @@ export function RulesTable({
           onOpenChange={(open) => {
             if (!open) setDeleteIds([]);
           }}
-          title="Delete evaluation rules?"
-          description={`This permanently deletes ${deleteIds.length} rule${deleteIds.length === 1 ? "" : "s"} and its evaluator assignments.`}
-          confirmLabel="Delete"
+          title={t("deleteRulesTitle")}
+          description={t("deleteRulesDescription", {
+            count: deleteIds.length,
+          })}
+          confirmLabel={t("delete")}
           loading={deleteMany.isPending}
           onConfirm={() => deleteMany.mutate({ projectId, ruleIds: deleteIds })}
         />

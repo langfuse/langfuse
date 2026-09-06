@@ -14,6 +14,7 @@ import {
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
+import { useTranslations } from "next-intl";
 
 // Field-group checkboxes; descriptions and available groups depend on the
 // selected export source and file type.
@@ -22,6 +23,7 @@ export const ExportFieldGroupsField = ({
 }: {
   control: BlobStorageFormControl;
 }) => {
+  const t = useTranslations("integrationsSettings.blobStorage.fieldGroups");
   const [watchedExportSource, watchedFileType] = useWatch({
     control,
     name: ["exportSource", "fileType"],
@@ -48,17 +50,14 @@ export const ExportFieldGroupsField = ({
       name="exportFieldGroups"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Export Field Groups</FormLabel>
+          <FormLabel>{t("label")}</FormLabel>
           <FormDescription>
-            Choose which field groups to include in the observation exports.
-            Deselect large groups (e.g. Input / Output) to reduce export size,
-            or privacy-sensitive groups (e.g. Metadata) to avoid storing user
-            data.
+            {t("description")}
             {includesLegacyExport
               ? isLegacyOnlyExport
-                ? " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
-                : " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
-              : " Scores are always exported in full."}
+                ? t("legacyOnlyDescription")
+                : t("mixedDescription")
+              : t("eventsDescription")}
           </FormDescription>
           <div className="mt-2 space-y-2">
             {EXPORT_FIELD_GROUP_OPTIONS.filter(
@@ -104,7 +103,7 @@ export const ExportFieldGroupsField = ({
                       {option.label}
                       {isCore && (
                         <span className="text-muted-foreground ml-1 font-normal">
-                          (required)
+                          ({t("required")})
                         </span>
                       )}
                     </div>

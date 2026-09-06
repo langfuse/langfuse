@@ -1,5 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { FormDescription } from "@/src/components/ui/form";
+import { useTranslations } from "next-intl";
 
 type TierPrefillButtonsProps = {
   onPrefill: (usageTypes: string[]) => void;
@@ -33,9 +34,10 @@ const TEMPLATES: { label: string; usageTypes: string[] }[] = [
 ];
 
 export function TierPrefillButtons({ onPrefill }: TierPrefillButtonsProps) {
+  const t = useTranslations("settingsEnterprise.models.pricingEditor");
   return (
     <div className="space-y-2">
-      <FormDescription>Prefill usage types from template:</FormDescription>
+      <FormDescription>{t("prefill")}</FormDescription>
       <div className="flex gap-2">
         {TEMPLATES.map((template) => (
           <Button

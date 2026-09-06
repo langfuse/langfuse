@@ -22,6 +22,7 @@ import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -44,6 +45,8 @@ const EMPTY_FILTER_STATE: [] = [];
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
+  const t = useTranslations("evaluationAnalytics.annotationQueues");
+  const locale = useLocale();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const { isBetaEnabled } = useV4Beta();
 
@@ -131,7 +134,7 @@ export const SessionAnnotationProcessor: React.FC<
               {item.objectId}
             </Link>
             <CopyIdsPopover
-              idItems={[{ id: item.objectId, name: "Session ID" }]}
+              idItems={[{ id: item.objectId, name: t("sessionId") }]}
             />
           </div>
           <CommentDrawerController
@@ -153,7 +156,7 @@ export const SessionAnnotationProcessor: React.FC<
                 ) : (
                   <>
                     <MessageSquare className="h-4 w-4" />
-                    <span>Add comment</span>
+                    <span>{t("addComment")}</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,
                       item.objectId,
@@ -177,10 +180,12 @@ export const SessionAnnotationProcessor: React.FC<
           <div className="flex max-w-full min-w-0 shrink flex-col">
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data?.environment && (
-                <Badge variant="tertiary">Env: {data.environment}</Badge>
+                <Badge variant="tertiary">
+                  {t("environment", { value: data.environment })}
+                </Badge>
               )}
               <Badge variant="outline">
-                Total traces: {totalTracesForBadge}
+                {t("totalTraces", { count: totalTracesForBadge })}
               </Badge>
             </div>
           </div>
@@ -210,7 +215,7 @@ export const SessionAnnotationProcessor: React.FC<
           {/* Error state for v4 beta traces */}
           {isBetaEnabled && tracesFromEventsQuery.isError && (
             <div className="text-destructive p-2 text-sm">
-              Failed to load traces for this session.
+              {t("loadSessionTracesFailed")}
             </div>
           )}
           {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
@@ -245,10 +250,11 @@ export const SessionAnnotationProcessor: React.FC<
                     href={`/project/${projectId}/traces/${trace.id}`}
                     className="text-xs hover:underline"
                   >
-                    Trace: {trace.name} ({trace.id})&nbsp;↗
+                    {t("traceLink", { name: trace.name, id: trace.id })}
+                    &nbsp;↗
                   </Link>
                   <div className="text-muted-foreground text-xs">
-                    {trace.timestamp.toLocaleString()}
+                    {trace.timestamp.toLocaleString(locale)}
                   </div>
                 </div>
                 <SessionIO
@@ -267,7 +273,9 @@ export const SessionAnnotationProcessor: React.FC<
                   onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
                   variant="ghost"
                 >
-                  {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                  {t("loadMore", {
+                    count: Math.min(traces.length - visibleTraces, PAGE_SIZE),
+                  })}
                 </Button>
               </div>
             )}

@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { useTranslations } from "next-intl";
 
 const CodeTemplateLanguageIcon = ({
   sourceCodeLanguage,
@@ -69,11 +70,14 @@ const TemplatePreviewTooltipContent = ({
 }: {
   template: EvalTemplate;
 }) => {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   if (template.type === EvalTemplateType.CODE) {
     return (
       <>
         <p className="mb-1 font-bold">
-          {getCodeTemplateLanguageTitle(template.sourceCodeLanguage)} source
+          {t("codeSource", {
+            language: getCodeTemplateLanguageTitle(template.sourceCodeLanguage),
+          })}
         </p>
         <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
           {template.sourceCode}
@@ -84,7 +88,7 @@ const TemplatePreviewTooltipContent = ({
 
   return (
     <>
-      <p className="mb-1 font-bold">Evaluation prompt</p>
+      <p className="mb-1 font-bold">{t("evaluationPrompt")}</p>
       <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
         {template.prompt}
       </pre>
@@ -111,6 +115,7 @@ export function EvaluatorSelector({
   showMissingProviderWarning = true,
   onTemplateSelect,
 }: EvaluatorSelectorProps) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const [search, setSearch] = useState("");
   const codeEvalCapabilities = useIsCodeEvalEnabled();
   const visibleEvalTemplates = evalTemplates.filter((template) =>
@@ -147,7 +152,7 @@ export function EvaluatorSelector({
   return (
     <InputCommand className="flex h-full flex-col border-none">
       <InputCommandInput
-        placeholder="Search evaluators..."
+        placeholder={t("search")}
         className="h-9 px-0"
         value={search}
         onValueChange={setSearch}
@@ -155,12 +160,12 @@ export function EvaluatorSelector({
       />
       <InputCommandList className="max-h-full flex-1 overflow-y-auto">
         {!hasResults && (
-          <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
+          <InputCommandEmpty>{t("noEvaluatorFound")}</InputCommandEmpty>
         )}
 
         {filteredTemplates.custom.length > 0 && (
           <>
-            <InputCommandGroup heading="Custom evaluators">
+            <InputCommandGroup heading={t("customEvaluators")}>
               {filteredTemplates.custom.map((template) => {
                 const isInvalid = isTemplateInvalid(template);
 
@@ -205,14 +210,14 @@ export function EvaluatorSelector({
                           <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
+                          <p>{t("requiresProjectModel")}</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
                             className="mt-2 block text-blue-600 hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            Configure default model
+                            {t("configureDefaultModel")}
                           </Link>
                         </TooltipContent>
                       </Tooltip>
@@ -230,7 +235,7 @@ export function EvaluatorSelector({
 
         {filteredTemplates.langfuse.length > 0 && (
           <>
-            <InputCommandGroup heading="Langfuse managed evaluators">
+            <InputCommandGroup heading={t("managedEvaluators")}>
               {filteredTemplates.langfuse.map((template) => {
                 const isInvalid = isTemplateInvalid(template);
 
@@ -269,21 +274,23 @@ export function EvaluatorSelector({
                         <TemplatePreviewTooltipContent template={template} />
                       </TooltipContent>
                     </Tooltip>
-                    <MaintainerTooltip maintainer={getMaintainer(template)} />
+                    <MaintainerTooltip
+                      maintainer={getMaintainer(template, t)}
+                    />
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
+                          <p>{t("requiresProjectModel")}</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
                             className="mt-2 block text-blue-600 hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            Configure default model
+                            {t("configureDefaultModel")}
                           </Link>
                         </TooltipContent>
                       </Tooltip>

@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 type AIAssistedInputProps = Pick<
   ComponentProps<typeof Input>,
@@ -25,16 +26,18 @@ type AIAssistedInputProps = Pick<
 export function AIAssistedInput({
   aiAssistance,
   disabled,
-  fieldName = "name",
+  fieldName,
   placeholder,
   value,
   ...inputProps
 }: AIAssistedInputProps) {
+  const t = useTranslations("sharedUi.aiAssistedInput");
+  const fieldLabel = fieldName ?? t("name");
   const isAvailable = aiAssistance.state !== "unavailable";
   const isGenerating = aiAssistance.state === "generating";
   const generateLabel = value
-    ? `Regenerate ${fieldName} with AI`
-    : `Generate ${fieldName} with AI`;
+    ? t("regenerate", { field: fieldLabel })
+    : t("generate", { field: fieldLabel });
 
   return (
     <div className="relative">
@@ -55,7 +58,7 @@ export function AIAssistedInput({
           className="pointer-events-none absolute inset-y-0 right-9 left-0 flex items-center overflow-hidden px-2 text-sm whitespace-nowrap"
         >
           <span className={textShimmerStyles.textShimmer}>
-            Generating {fieldName}…
+            {t("generating", { field: fieldLabel })}
           </span>
         </span>
       ) : null}
@@ -67,7 +70,11 @@ export function AIAssistedInput({
               variant="ghost"
               size="icon-xs"
               className="text-muted-foreground hover:text-foreground absolute top-1 right-1"
-              aria-label={isGenerating ? "Generating name" : generateLabel}
+              aria-label={
+                isGenerating
+                  ? t("generating", { field: fieldLabel })
+                  : generateLabel
+              }
               disabled={isGenerating || disabled}
               onClick={
                 aiAssistance.state === "idle"
@@ -83,7 +90,9 @@ export function AIAssistedInput({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {isGenerating ? `Generating ${fieldName}…` : generateLabel}
+            {isGenerating
+              ? t("generating", { field: fieldLabel })
+              : generateLabel}
           </TooltipContent>
         </Tooltip>
       ) : null}

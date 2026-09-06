@@ -10,6 +10,7 @@ import {
 } from "./fns/jsonViewSizeGate";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useTranslations } from "next-intl";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -83,6 +84,7 @@ export function IOPreviewJSONSimple({
   environment = "default",
   showCorrections = true,
 }: IOPreviewJSONSimpleProps) {
+  const t = useTranslations("coreObservability.ioPreview");
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
   // (LFE-10989). Probe the raw prop — it drives both the main-thread parse
@@ -139,7 +141,7 @@ export function IOPreviewJSONSimple({
       {showInput &&
         (inputTooLarge ? (
           <LargeJsonFieldFallback
-            title="Input"
+            title={t("input")}
             serialized={inputProbe.serialized}
             isString={inputProbe.isString}
             charCount={inputProbe.size}
@@ -147,7 +149,7 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
-            title="Input"
+            title={t("input")}
             json={input}
             parsedJson={effectiveInput}
             isLoading={isLoading}
@@ -166,7 +168,7 @@ export function IOPreviewJSONSimple({
       {showOutput &&
         (outputTooLarge ? (
           <LargeJsonFieldFallback
-            title="Output"
+            title={t("output")}
             serialized={outputProbe.serialized}
             isString={outputProbe.isString}
             charCount={outputProbe.size}
@@ -174,7 +176,7 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
-            title="Output"
+            title={t("output")}
             json={output}
             parsedJson={effectiveOutput}
             isLoading={isLoading}
@@ -208,7 +210,7 @@ export function IOPreviewJSONSimple({
       {showMetadata &&
         (metadataTooLarge ? (
           <LargeJsonFieldFallback
-            title="Metadata"
+            title={t("metadata")}
             serialized={metadataProbe.serialized}
             isString={metadataProbe.isString}
             charCount={metadataProbe.size}
@@ -216,7 +218,7 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
-            title="Metadata"
+            title={t("metadata")}
             json={metadata}
             parsedJson={effectiveMetadata}
             isLoading={isLoading}

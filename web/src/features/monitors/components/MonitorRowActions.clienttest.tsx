@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderMonitorWithIntl } from "../test-utils";
 
 import { type Monitor } from "@langfuse/shared/monitors";
 
@@ -23,7 +24,7 @@ const monitorRow = (status: Monitor["status"]): Monitor =>
 describe("MonitorRowActions", () => {
   it("write access: edit links to alerts/<id> and pause click toggles status", () => {
     const onToggleStatus = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorRowActions
         monitor={monitorRow("ACTIVE")}
         projectId={PROJECT_ID}
@@ -44,7 +45,7 @@ describe("MonitorRowActions", () => {
   });
 
   it("paused alert: shows a Resume control", () => {
-    render(
+    renderMonitorWithIntl(
       <MonitorRowActions
         monitor={monitorRow("PAUSED")}
         projectId={PROJECT_ID}
@@ -59,7 +60,7 @@ describe("MonitorRowActions", () => {
   });
 
   it("read-only access: pause and edit controls are disabled", () => {
-    render(
+    renderMonitorWithIntl(
       <MonitorRowActions
         monitor={monitorRow("ACTIVE")}
         projectId={PROJECT_ID}
@@ -75,7 +76,7 @@ describe("MonitorRowActions", () => {
   });
 
   it("collapsed: actions hide behind a kebab menu trigger", () => {
-    render(
+    renderMonitorWithIntl(
       <MonitorRowActions
         monitor={monitorRow("ACTIVE")}
         projectId={PROJECT_ID}

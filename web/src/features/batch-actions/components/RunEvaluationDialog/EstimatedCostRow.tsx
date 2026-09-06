@@ -8,6 +8,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useTranslations } from "next-intl";
 
 type EstimatedCostRowProps = {
   projectId: string;
@@ -21,6 +22,9 @@ function formatCostEstimate(cost: number): string {
 }
 
 export function EstimatedCostRow(props: EstimatedCostRowProps) {
+  const t = useTranslations(
+    "operationsUi.batchActions.runEvaluation.confirmation",
+  );
   const { projectId, evaluators, observationCount } = props;
 
   const evaluatorIds = evaluators.map((e) => e.id);
@@ -34,7 +38,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
     return (
       <div className="flex gap-2">
         <span className="text-muted-foreground shrink-0">
-          Est. LLM API Key Cost:
+          {t("estimatedCost")}
         </span>
         <Skeleton className="h-4 w-16" />
       </div>
@@ -46,9 +50,9 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
     return (
       <div className="flex gap-2">
         <span className="text-muted-foreground shrink-0">
-          Est. LLM API Key Cost:
+          {t("estimatedCost")}
         </span>
-        <span className="text-muted-foreground">No data</span>
+        <span className="text-muted-foreground">{t("noData")}</span>
       </div>
     );
   }
@@ -65,7 +69,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
   return (
     <div className="flex gap-2">
       <span className="text-muted-foreground shrink-0">
-        Est. LLM API Key Cost:
+        {t("estimatedCost")}
       </span>
       <span className="flex items-center gap-1 font-bold">
         {formatCostEstimate(totalEstimate)}
@@ -76,10 +80,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
               <InfoIcon className="text-muted-foreground h-3 w-3" />
             </TooltipTrigger>
             <TooltipContent className="max-w-xs space-y-2 p-3">
-              <p className="text-xs">
-                Expected cost on your linked API key (not Langfuse). Estimated
-                from average evaluator execution cost over the last 7 days.
-              </p>
+              <p className="text-xs">{t("costDescription")}</p>
               <div className="space-y-1">
                 {evaluators.map(({ id, name }) => {
                   const entry = data[id];
@@ -94,7 +95,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
                       <span className="shrink-0 tabular-nums">
                         {entry
                           ? formatCostEstimate(entry.avgCost * observationCount)
-                          : "No data"}
+                          : t("noData")}
                       </span>
                     </div>
                   );
@@ -102,7 +103,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
               </div>
               {isPartial ? (
                 <p className="text-muted-foreground text-xs">
-                  *Partial estimate. Some evaluators have no execution history.
+                  {t("partialEstimate")}
                 </p>
               ) : null}
             </TooltipContent>

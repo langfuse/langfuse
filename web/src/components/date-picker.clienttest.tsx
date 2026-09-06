@@ -1,12 +1,47 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { type DateRange } from "react-day-picker";
 import { Calendar } from "@/src/components/ui/calendar";
 import {
+  DatePicker,
+  TimeRangePicker,
   isRangeWithinMaxDuration,
   nextRangeForDayClick,
 } from "@/src/components/date-picker";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
+import { NextIntlClientProvider } from "next-intl";
+import chineseMessages from "@/src/features/i18n/messages/zh-CN/sharedUi.json";
+
+const renderChinese = (element: ReactNode) =>
+  render(
+    <NextIntlClientProvider
+      locale="zh-CN"
+      messages={{ sharedUi: chineseMessages }}
+    >
+      {element}
+    </NextIntlClientProvider>,
+  );
+
+describe("date picker localization", () => {
+  it("localizes date and time range placeholders", () => {
+    renderChinese(
+      <>
+        <DatePicker onChange={() => undefined} />
+        <TimeRangePicker
+          onTimeRangeChange={() => undefined}
+          timeRangePresets={["last1Hour"]}
+        />
+      </>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /选择日期/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /选择时间范围/ }),
+    ).toBeInTheDocument();
+  });
+});
 
 /**
  * Regression coverage for LFE-8156. The range calendar used to feel "sticky":

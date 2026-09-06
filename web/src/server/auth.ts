@@ -80,6 +80,7 @@ import {
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { DEFAULT_LOCALE, type AppLocale } from "@/src/features/i18n/config";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -159,21 +160,23 @@ const staticProviders: Provider[] = [
   }),
 ];
 
+const createEmailProvider = (locale: AppLocale = DEFAULT_LOCALE) =>
+  EmailProvider({
+    // SMTP vs SES dispatch happens inside sendVerificationRequest via
+    // createMailTransport; NextAuth itself only forwards this string.
+    server: env.SMTP_CONNECTION_URL,
+    from: env.EMAIL_FROM_ADDRESS,
+    maxAge: 3 * 60, // 3 minutes
+    async generateVerificationToken() {
+      return randomInt(100000, 1000000).toString();
+    },
+    sendVerificationRequest: (params) =>
+      sendResetPasswordVerificationRequest(params, locale),
+  });
+
 // Password-reset for password reset of credentials provider
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
-  staticProviders.push(
-    EmailProvider({
-      // SMTP vs SES dispatch happens inside sendVerificationRequest via
-      // createMailTransport; NextAuth itself only forwards this string.
-      server: env.SMTP_CONNECTION_URL,
-      from: env.EMAIL_FROM_ADDRESS,
-      maxAge: 3 * 60, // 3 minutes
-      async generateVerificationToken() {
-        return randomInt(100000, 1000000).toString();
-      },
-      sendVerificationRequest: sendResetPasswordVerificationRequest,
-    }),
-  );
+  staticProviders.push(createEmailProvider());
 }
 
 if (
@@ -760,14 +763,15 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
- * @param signupAttribution - per-request marketing attribution (ad-platform
- * click ids) attached to the signup analytics event if the request results
- * in a new user. Only passed by the NextAuth API route.
+ * @param requestContext - values derived from the current NextAuth request.
+ * Ad-platform click ids are attached to signup analytics; locale controls
+ * authentication email language. Only passed by the NextAuth API route.
  *
  * @see https://next-auth.js.org/configuration/options
  */
-export async function getAuthOptions(signupAttribution?: {
+export async function getAuthOptions(requestContext?: {
   adClickIds?: AdClickIds;
+  locale?: AppLocale;
 }): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
@@ -776,7 +780,14 @@ export async function getAuthOptions(signupAttribution?: {
     logger.error("Error loading dynamic SSO providers", e);
     traceException(e);
   }
-  const providers = [...staticProviders, ...dynamicSsoProviders];
+  const providers = [
+    ...staticProviders.map((provider) =>
+      provider.id === "email"
+        ? createEmailProvider(requestContext?.locale)
+        : provider,
+    ),
+    ...dynamicSsoProviders,
+  ];
 
   const data: NextAuthOptions = {
     logger: nextAuthLogger,
@@ -1135,7 +1146,7 @@ export async function getAuthOptions(signupAttribution?: {
         });
       },
     },
-    adapter: createExtendedPrismaAdapter(signupAttribution),
+    adapter: createExtendedPrismaAdapter(requestContext),
     providers,
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,

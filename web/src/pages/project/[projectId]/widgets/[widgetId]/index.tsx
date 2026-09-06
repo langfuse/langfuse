@@ -8,8 +8,11 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 export default function EditWidget() {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   const router = useRouter();
   const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
@@ -47,8 +50,8 @@ export default function EditWidget() {
         filterCount: variables.filters.length,
       });
       showSuccessToast({
-        title: "Widget updated successfully",
-        description: "Your widget has been updated.",
+        title: t("updatedTitle"),
+        description: t("updatedDescription"),
       });
       // Navigate back to dashboard if provided else widgets list
       if (dashboardId) {
@@ -60,7 +63,7 @@ export default function EditWidget() {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to update widget", error.message);
+      showErrorToast(t("updateFailed"), error.message);
     },
   });
 
@@ -89,9 +92,9 @@ export default function EditWidget() {
     <Page
       withPadding
       headerProps={{
-        title: "Edit Widget",
+        title: t("editTitle"),
         help: {
-          description: "Edit an existing widget",
+          description: t("editDescription"),
         },
       }}
     >
@@ -125,7 +128,7 @@ export default function EditWidget() {
         />
       ) : (
         <div className="flex h-[300px] items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">{extrasT("loading")}</p>
         </div>
       )}
     </Page>

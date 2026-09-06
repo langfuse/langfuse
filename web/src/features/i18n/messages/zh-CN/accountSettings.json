@@ -1,0 +1,40 @@
+{
+  "title": "账户设置",
+  "pages": { "general": "常规", "v4Migration": "v4 迁移" },
+  "selectPage": "选择页面",
+  "email": { "title": "邮箱", "current": "你的邮箱地址：<b>{email}</b>" },
+  "displayName": {
+    "title": "显示名称",
+    "current": "当前显示名称为“<b>{name}</b>”。",
+    "pendingChange": "显示名称将从“{currentName}”更新为“<b>{newName}</b>”。",
+    "save": "保存",
+    "validation": {
+      "required": "显示名称不能为空",
+      "maxLength": "显示名称最多 100 个字符",
+      "noHtml": "显示名称不能包含 HTML 标签"
+    },
+    "updatedTitle": "显示名称已更新",
+    "updatedDescription": "你的显示名称已成功更新。",
+    "updateFailed": "更新显示名称失败，请重试。"
+  },
+  "password": {
+    "title": "密码",
+    "description": "如需修改密码，我们会向你的邮箱发送安全链接。点击下方按钮开始重置密码。",
+    "change": "修改密码"
+  },
+  "dangerZone": {
+    "title": "危险操作",
+    "deleteTitle": "删除账户",
+    "deleteDescription": "如果你不是任何组织的最后一位所有者，即可删除账户。如果你是最后一位所有者，请先添加其他所有者，或删除该组织及其所有项目。",
+    "action": "删除账户",
+    "confirm": "请输入邮箱地址“{email}”以确认删除",
+    "emailMismatch": "请输入你的邮箱地址：{email}",
+    "blockedIntro": "你是以下组织的最后一位所有者，因此无法删除账户：",
+    "blockedResolution": "请先添加其他所有者，或删除这些组织，然后再删除账户。",
+    "successTitle": "账户已删除",
+    "successDescription": "你的账户已成功删除。",
+    "errorTitle": "删除账户失败",
+    "unexpectedError": "发生意外错误"
+  },
+  "commandMenu": { "group": "账户设置", "item": "账户设置 > {page}" }
+}

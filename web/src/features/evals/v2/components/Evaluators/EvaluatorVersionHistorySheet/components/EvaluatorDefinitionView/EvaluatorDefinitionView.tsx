@@ -4,6 +4,7 @@ import {
   type EvalTemplateType,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { Badge } from "@/src/components/ui/badge";
@@ -50,6 +51,7 @@ function CodeEvaluatorDefinitionView({
 }: {
   definition: Extract<EvaluatorDefinition, { type: "CODE" }>;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const { sourceCode, sourceCodeLanguage } = definition;
 
   return (
@@ -66,11 +68,13 @@ function CodeEvaluatorDefinitionView({
             disabled
           />
         ) : (
-          <Badge variant="outline">Language unavailable</Badge>
+          <Badge variant="outline">
+            {t("evaluator.definition.languageUnavailable")}
+          </Badge>
         )}
       </EvaluationTypeConfiguration>
       <section className="flex flex-col gap-2">
-        <Label>Code</Label>
+        <Label>{t("evaluator.definition.code")}</Label>
         {/* The execution row above already names the language. */}
         <CodeBlock
           language={
@@ -92,6 +96,7 @@ function LlmEvaluatorDefinitionView({
 }: {
   definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const { variableMappings } = definition;
   const mappings =
     variableMappings.state === "visible" ? variableMappings.mappings : [];
@@ -139,7 +144,7 @@ function LlmEvaluatorDefinitionView({
         </JudgeModelPicker>
       </EvaluationTypeConfiguration>
       <section className="flex min-w-0 flex-col gap-2">
-        <Label>Prompt</Label>
+        <Label>{t("evaluator.definition.prompt")}</Label>
         <PromptVariableEditor
           value={definition.prompt ?? ""}
           onChange={noop}
@@ -150,7 +155,7 @@ function LlmEvaluatorDefinitionView({
       </section>
       {variableMappings.state === "visible" ? (
         <section className="flex flex-col gap-2">
-          <Label>Prompt variables</Label>
+          <Label>{t("evaluator.definition.promptVariables")}</Label>
           <VariableMapping
             mode="read-only"
             mappings={mappings.map((mapping) => ({

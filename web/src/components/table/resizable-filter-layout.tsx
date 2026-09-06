@@ -5,6 +5,7 @@ import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDataTableControls } from "./data-table-controls";
+import { useTranslations } from "next-intl";
 
 // Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead
 // of hiding, the sidebar collapses to a thin rail carrying a re-open button
@@ -29,6 +30,7 @@ const FILTER_PANEL_MAX_DEFAULT_PCT = 30;
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
+  const t = useTranslations("sharedUi.table.controls");
   const { open, setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   // Single-source the breakpoint from the controls provider (which derives
@@ -85,7 +87,7 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
               // the panel's controls.
               className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
             >
-              <SheetTitle className="sr-only">Filters</SheetTitle>
+              <SheetTitle className="sr-only">{t("filters")}</SheetTitle>
               {filterSidebar}
             </SheetContent>
           </Sheet>

@@ -10,6 +10,7 @@ import {
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 
 type TransferProjectDialogControllerProps = {
   project: {
@@ -31,6 +32,7 @@ export function TransferProjectDialogController({
   organization,
   children,
 }: TransferProjectDialogControllerProps) {
+  const t = useTranslations("workspace.dangerActions");
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const session = useSession();
@@ -51,9 +53,8 @@ export function TransferProjectDialogController({
   const transferProject = api.projects.transfer.useMutation({
     onSuccess: async () => {
       showSuccessToast({
-        title: "Project transferred",
-        description:
-          "The project is successfully transferred to the new organization. Redirecting...",
+        title: t("projectTransferredTitle"),
+        description: t("projectTransferredDescription"),
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
       session.update();
@@ -65,7 +66,7 @@ export function TransferProjectDialogController({
 
   const disabled = hasAccess
     ? undefined
-    : { reason: "You don't have permission to transfer this project." };
+    : { reason: t("transferProjectPermission") };
 
   const openDialog = () => {
     if (!hasAccess) return;

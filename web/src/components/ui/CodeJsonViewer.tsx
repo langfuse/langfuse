@@ -29,6 +29,7 @@ import {
 } from "@/src/components/ui/PromptReferences";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -48,6 +49,7 @@ export function JSONView(props: {
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
+  const t = useSharedUiTranslations("misc");
   // some users ingest stringified json nested in json, parse it. Also decode
   // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
   // non-ASCII content renders as real characters. Already-decoded strings are
@@ -204,7 +206,7 @@ export function JSONView(props: {
                 size="icon-xs"
                 onClick={handleToggleCollapse}
                 className="hover:bg-border -mr-2"
-                title={isCollapsed ? "Expand all" : "Collapse all"}
+                title={isCollapsed ? t("expandAll") : t("collapseAll")}
               >
                 {isCollapsed ? (
                   <UnfoldVertical className="h-3 w-3" />

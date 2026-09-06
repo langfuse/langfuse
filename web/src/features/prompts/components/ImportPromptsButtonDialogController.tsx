@@ -15,30 +15,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CreatePromptSchema } from "@langfuse/shared";
 import { z } from "zod";
+import { useTranslations } from "next-intl";
 
 type ImportItem = z.infer<typeof CreatePromptSchema>;
 
 const IMPORT_MAX = 500;
-
-const importPayloadSchema = z
-  .array(CreatePromptSchema)
-  .min(1, "File contains an empty array.")
-  .max(
-    IMPORT_MAX,
-    `File contains more than ${IMPORT_MAX} prompts — maximum per import is ${IMPORT_MAX}. Split the file and import in batches.`,
-  );
-
-function validateImportPayload(raw: unknown): ImportItem[] {
-  if (!Array.isArray(raw)) {
-    throw new Error("File must contain a JSON array of prompts.");
-  }
-  const result = importPayloadSchema.safeParse(raw);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(firstIssue?.message ?? "Invalid import payload.");
-  }
-  return result.data;
-}
 
 type ImportResult = {
   name: string;
@@ -57,6 +38,7 @@ const ImportPromptsDialogContent: React.FC<{
   onClose: () => void;
   onImport: (items: ImportItem[]) => Promise<{ results: ImportResult[] }>;
 }> = ({ isImportPending, onClose, onImport }) => {
+  const t = useTranslations("coreDetails.prompts.import");
   const capture = usePostHogClientCapture();
   const [state, setState] = useState<ImportState>({ step: "idle" });
 
@@ -70,15 +52,27 @@ const ImportPromptsDialogContent: React.FC<{
     reader.onload = (event) => {
       try {
         const text = event.target?.result;
-        if (typeof text !== "string") throw new Error("Failed to read file.");
+        if (typeof text !== "string") throw new Error(t("readFailed"));
         const raw = JSON.parse(text) as unknown;
-        const items = validateImportPayload(raw);
+        if (!Array.isArray(raw)) throw new Error(t("arrayRequired"));
+        if (raw.length === 0) throw new Error(t("empty"));
+        if (raw.length > IMPORT_MAX) {
+          throw new Error(t("tooMany", { max: IMPORT_MAX }));
+        }
+        const result = z.array(CreatePromptSchema).safeParse(raw);
+        if (!result.success) throw new Error(t("invalid"));
+        const items = result.data;
         setState({ step: "parsed", file, items });
       } catch (err) {
         setState({
           step: "error",
           file,
-          error: err instanceof Error ? err.message : "Failed to parse file.",
+          error:
+            err instanceof SyntaxError
+              ? t("parseFailed")
+              : err instanceof Error
+                ? err.message
+                : t("parseFailed"),
         });
       }
     };
@@ -97,8 +91,7 @@ const ImportPromptsDialogContent: React.FC<{
     } catch (error) {
       setState({
         ...parsedState,
-        importError:
-          error instanceof Error ? error.message : "Failed to import prompts.",
+        importError: error instanceof Error ? error.message : t("importFailed"),
       });
     }
   };
@@ -112,7 +105,7 @@ const ImportPromptsDialogContent: React.FC<{
         <DialogBody className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <p className="text-sm font-bold">
-              Import complete — {successCount} succeeded, {failCount} failed.
+              {t("complete", { success: successCount, failed: failCount })}
             </p>
             <div className="max-h-64 overflow-y-auto rounded-md border p-2 text-sm">
               {state.results.map((r, index) => (
@@ -139,7 +132,7 @@ const ImportPromptsDialogContent: React.FC<{
 
         <DialogFooter>
           <Button onClick={onClose} className="w-full">
-            Done
+            {t("done")}
           </Button>
         </DialogFooter>
       </>
@@ -159,14 +152,8 @@ const ImportPromptsDialogContent: React.FC<{
   return (
     <>
       <DialogBody className="flex flex-col gap-4">
-        <p className="text-muted-foreground text-sm">
-          Upload a JSON file exported from Langfuse. Each prompt will be created
-          as a new version if the name already exists.
-        </p>
-        <p className="text-muted-foreground text-sm">
-          The production label is not imported. The newest imported version is
-          automatically labeled latest.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("description")}</p>
+        <p className="text-muted-foreground text-sm">{t("labels")}</p>
         <Dropzone
           accept={{ "application/json": [".json"] }}
           isDisabled={isImportPending}
@@ -187,8 +174,7 @@ const ImportPromptsDialogContent: React.FC<{
 
         {parsedItems && (
           <p className="text-muted-foreground text-sm">
-            {parsedItems.length} prompt
-            {parsedItems.length !== 1 ? "s" : ""} ready to import.
+            {t("ready", { count: parsedItems.length })}
           </p>
         )}
       </DialogBody>
@@ -202,10 +188,10 @@ const ImportPromptsDialogContent: React.FC<{
           {isImportPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Importing…
+              {t("importing")}
             </>
           ) : (
-            "Import"
+            t("action")
           )}
         </Button>
       </DialogFooter>
@@ -223,6 +209,7 @@ export function ImportPromptsButtonDialogController({
     openDialog: () => void;
   }) => ReactNode;
 }) {
+  const t = useTranslations("coreDetails.prompts.import");
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -233,9 +220,7 @@ export function ImportPromptsButtonDialogController({
     onSuccess: () => utils.prompts.invalidate(),
   });
 
-  const disabled = hasAccess
-    ? undefined
-    : { reason: "You don't have permission to import prompts." };
+  const disabled = hasAccess ? undefined : { reason: t("permission") };
 
   const openDialog = () => {
     if (!hasAccess) return;
@@ -254,7 +239,7 @@ export function ImportPromptsButtonDialogController({
       {children({ disabled, openDialog })}
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Import prompts</DialogTitle>
+          <DialogTitle>{t("title")}</DialogTitle>
         </DialogHeader>
         <ImportPromptsDialogContent
           isImportPending={importMutation.isPending}

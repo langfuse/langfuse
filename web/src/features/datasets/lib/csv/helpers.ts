@@ -75,7 +75,9 @@ const createParser = async (
 
   parser.on("end", () => {
     if (rowCount === 0) {
-      reject(new Error("CSV file is empty"));
+      reject(
+        new Error(options.errorMessages?.emptyFile ?? "CSV file is empty"),
+      );
       return;
     }
 
@@ -96,7 +98,12 @@ const createParser = async (
   });
 
   parser.on("error", (error: Error) => {
-    reject(new Error(`Failed to parse CSV: ${error.message}`));
+    reject(
+      new Error(
+        options.errorMessages?.parseFailed(error.message) ??
+          `Failed to parse CSV: ${error.message}`,
+      ),
+    );
   });
 
   return parser;
@@ -114,7 +121,8 @@ export async function parseCsvClient(
       if (isTruncatedPreview && error.message.includes("Quote Not Closed")) {
         reject(
           new Error(
-            "The file's single dataset items are too large. CSV imports are intended for text and structured JSON dataset items. Use the UI item editor or API/SDKs for multi-modal or very large dataset items: https://langfuse.com/docs/evaluation/experiments/datasets#multi-modal-dataset-items",
+            options.errorMessages?.itemTooLarge ??
+              "The file's single dataset items are too large. CSV imports are intended for text and structured JSON dataset items. Use the UI item editor or API/SDKs for multi-modal or very large dataset items: https://langfuse.com/docs/evaluation/experiments/datasets#multi-modal-dataset-items",
           ),
         );
         return;
@@ -139,7 +147,10 @@ export async function parseCsvClient(
       parser.end();
     };
 
-    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onerror = () =>
+      reject(
+        new Error(options.errorMessages?.readFailed ?? "Failed to read file"),
+      );
     reader.readAsText(fileToRead);
   });
 }

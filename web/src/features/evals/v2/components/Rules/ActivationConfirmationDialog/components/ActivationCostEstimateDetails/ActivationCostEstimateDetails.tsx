@@ -7,6 +7,7 @@ import {
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { ActivationCostEstimateView } from "../ActivationCostEstimateView/ActivationCostEstimateView";
+import { useTranslations } from "next-intl";
 
 export function ActivationCostEstimateDetails({
   estimates: baseEstimates,
@@ -23,6 +24,7 @@ export function ActivationCostEstimateDetails({
   onSamplingChange?: (sampling: number) => void;
   descriptionAsTooltip?: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const hasNoMatchingObservations = matchingObservations === 0;
   const hasOnlyUnavailableEstimates =
     baseEstimates.length === 0 && unavailableEstimateCount > 0;
@@ -34,24 +36,28 @@ export function ActivationCostEstimateDetails({
       estimate.matchingObservations * sampling * estimate.testRunCostUsd,
   }));
   const description = hasNoMatchingObservations
-    ? "No observations matched this rule in the last 7 days, so there is nothing to estimate yet. It will evaluate matching observations as they arrive."
+    ? t("rules.activation.noMatches")
     : hasOnlyUnavailableEstimates
-      ? "Activating this rule may incur costs. Are you sure you want to continue?"
-      : `${compactNumberFormatter(matchingObservations, 1)} observations matched this rule in the last 7 days.`;
+      ? t("rules.activation.costMayApply")
+      : t("rules.activation.matchCount", {
+          count: matchingObservations,
+          formattedCount: compactNumberFormatter(matchingObservations, 1),
+        });
 
   return (
     <div className="flex flex-col gap-4">
       {descriptionAsTooltip ? (
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="text-sm font-bold">Cost estimation</p>
-            <InfoTooltip label="About cost estimation">
+            <p className="text-sm font-bold">
+              {t("rules.activation.costEstimation")}
+            </p>
+            <InfoTooltip label={t("rules.activation.aboutCostEstimation")}>
               {description}
             </InfoTooltip>
           </div>
           <p className="text-muted-foreground text-sm">
-            Review the expected cost before running this evaluator
-            automatically.
+            {t("rules.activation.reviewCost")}
           </p>
         </div>
       ) : (
@@ -62,10 +68,9 @@ export function ActivationCostEstimateDetails({
         <>
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <p className="text-sm font-bold">Sampling rate</p>
-              <InfoTooltip label="About sampling rate">
-                The percentage of matching observations that will be evaluated.
-                Lower sampling rates reduce evaluation volume and cost.
+              <p className="text-sm font-bold">{t("rules.sampling.title")}</p>
+              <InfoTooltip label={t("rules.sampling.about")}>
+                {t("rules.sampling.tooltip")}
               </InfoTooltip>
             </div>
             <Slider
@@ -81,13 +86,11 @@ export function ActivationCostEstimateDetails({
               }
             />
             <p className="text-muted-foreground text-xs">
-              {estimates.length === 1 ? "This evaluator" : "Each evaluator"}{" "}
-              would run on{" "}
-              <span className="text-foreground font-bold tabular-nums">
-                {compactNumberFormatter(sampledObservations, 1)}
-              </span>{" "}
-              of the {compactNumberFormatter(matchingObservations, 1)} matching
-              observations.
+              {t("rules.activation.samplingSummary", {
+                evaluatorCount: estimates.length,
+                sampled: compactNumberFormatter(sampledObservations, 1),
+                matching: compactNumberFormatter(matchingObservations, 1),
+              })}
             </p>
           </div>
 
@@ -97,9 +100,9 @@ export function ActivationCostEstimateDetails({
 
       {unavailableEstimateCount > 0 && !hasOnlyUnavailableEstimates ? (
         <p className="text-muted-foreground text-sm">
-          No cost estimate is available for {unavailableEstimateCount} other LLM
-          evaluator
-          {unavailableEstimateCount === 1 ? "" : "s"}.
+          {t("rules.activation.unavailableEstimateCount", {
+            count: unavailableEstimateCount,
+          })}
         </p>
       ) : null}
     </div>

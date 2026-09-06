@@ -21,6 +21,7 @@
  */
 
 import React, { useMemo, useCallback, useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/src/utils/tailwind";
 import {
   Table,
@@ -98,6 +99,7 @@ const SortableHeader: React.FC<{
   className?: string;
   rightAlign?: boolean;
 }> = ({ column, label, sortState, onSort, className, rightAlign = false }) => {
+  const t = useTranslations("systemUi.pivotTable");
   const isSorted = sortState?.column === column;
   const sortDirection = isSorted ? sortState.order : null;
 
@@ -128,8 +130,8 @@ const SortableHeader: React.FC<{
             className="ml-1"
             title={
               sortDirection === "ASC"
-                ? "Sorted ascending"
-                : "Sort by this column"
+                ? t("sortedAscending")
+                : t("sortedDescending")
             }
           >
             {sortDirection === "ASC" ? "▲" : "▼"}
@@ -152,6 +154,12 @@ const PivotTableRowComponent: React.FC<{
   metrics: string[];
   units?: (string | undefined)[];
 }> = ({ row, metrics, units }) => {
+  const t = useTranslations("systemUi.pivotTable");
+  const label = row.isTotal
+    ? t("total")
+    : row.isSubtotal
+      ? t("subtotal", { value: row.dimensionValues?.subtotal ?? row.label })
+      : row.label;
   return (
     <TableRow
       className={cn(
@@ -176,7 +184,7 @@ const PivotTableRowComponent: React.FC<{
             row.level > 2 ? `${row.level * 1.5 + 0.5}rem` : undefined,
         }}
       >
-        {row.label}
+        {label}
       </TableCell>
 
       {/* Metric columns */}
@@ -223,6 +231,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   onSortChange,
   isLoading = false,
 }) => {
+  const t = useTranslations("evaluationAnalytics.chartLoading");
   const units = config?.units;
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
@@ -348,7 +357,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">No data available</p>
+          <p className="text-muted-foreground text-sm">{t("noData")}</p>
         </div>
       </div>
     );
@@ -363,9 +372,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">
-            Unable to process data for pivot table
-          </p>
+          <p className="text-muted-foreground text-sm">{t("pivotError")}</p>
         </div>
       </div>
     );

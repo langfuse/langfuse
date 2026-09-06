@@ -14,8 +14,10 @@ import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { History, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 function DatasetItemContent() {
+  const t = useTranslations("coreDetails.datasets.page");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -103,19 +105,19 @@ function DatasetItemContent() {
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
               title={
                 isVersionPanelOpen
-                  ? "Hide version history"
-                  : "Show version history"
+                  ? t("hideVersionHistory")
+                  : t("showVersionHistory")
               }
             >
               {isVersionPanelOpen ? (
                 <>
                   <History className="mr-2 h-4 w-4" />
-                  Hide Version History
+                  {t("hideVersionHistoryButton")}
                 </>
               ) : (
                 <>
                   <PanelRightOpen className="mr-2 h-4 w-4" />
-                  Show Version History
+                  {t("showVersionHistoryButton")}
                 </>
               )}
             </Button>
@@ -133,7 +135,7 @@ function DatasetItemContent() {
                     onCheckedChange={setShowDiffMode}
                   />
                   <Label htmlFor="diff-mode" className="cursor-pointer text-sm">
-                    Show diff with latest version
+                    {t("showDiff")}
                   </Label>
                 </div>
               </div>
@@ -144,7 +146,7 @@ function DatasetItemContent() {
               selectedVersion &&
               !itemChangedAtVersion && (
                 <div className="text-muted-foreground mb-4 text-sm">
-                  Item unchanged in this version
+                  {t("unchanged")}
                 </div>
               )}
 

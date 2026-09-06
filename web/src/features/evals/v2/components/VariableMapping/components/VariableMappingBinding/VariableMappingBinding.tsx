@@ -5,6 +5,7 @@ import {
   jsonPathToSegments,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 /** Mapping path rendered in the header of editable and read-only cards. */
 export function VariableMappingBinding({
@@ -14,13 +15,17 @@ export function VariableMappingBinding({
   columnLabel: string;
   jsonSelector: string | null;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations.variableMapping");
   const segments = jsonSelector ? jsonPathToSegments(jsonSelector) : [];
 
   if (segments === null) {
     return (
       <span
         className="min-w-0 truncate font-mono text-sm"
-        title={`${columnLabel}: ${jsonSelector ?? ""} — custom path`}
+        title={t("customPathTitle", {
+          column: columnLabel,
+          path: jsonSelector ?? "",
+        })}
       >
         {columnLabel}: {jsonSelector}
       </span>

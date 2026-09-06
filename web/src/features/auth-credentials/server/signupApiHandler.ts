@@ -3,10 +3,14 @@ import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/cre
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
-import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import {
+  getSignupError,
+  getSignupErrorForMessage,
+  type SignupError,
+} from "@/src/features/auth-credentials/lib/signupErrors";
 
 export function getSSOBlockedDomains() {
   return (
@@ -18,35 +22,35 @@ export function getSSOBlockedDomains() {
 
 /**
  * Validates that a user is eligible to sign up with email/password.
- * Returns an error message string if ineligible, or null if eligible.
+ * Returns a stable error response if ineligible, or null if eligible.
  */
 export async function validateSignupEligibility({
   email,
 }: {
   email: string;
-}): Promise<string | null> {
+}): Promise<SignupError | null> {
   // Block if disabled by env
   if (
     env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
     env.AUTH_DISABLE_SIGNUP === "true"
   ) {
-    return "Sign up is disabled.";
+    return getSignupError("SIGNUP_DISABLED");
   }
   if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
-    return "Sign up with email and password is disabled for this instance. Please use SSO.";
+    return getSignupError("PASSWORD_SIGNUP_DISABLED");
   }
 
   // check if email domain is blocked from email/password sign up via env
   const blockedDomains = getSSOBlockedDomains();
   const domain = email.split("@")[1]?.toLowerCase();
   if (domain && blockedDomains.includes(domain)) {
-    return "Sign up with email and password is disabled for this domain. Please use SSO.";
+    return getSignupError("DOMAIN_SSO_REQUIRED");
   }
 
   // EE: check if custom SSO configuration is enabled for this domain
   const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
   if (multiTenantSsoProvider) {
-    return ENTERPRISE_SSO_REQUIRED_MESSAGE;
+    return getSignupError("ENTERPRISE_SSO_REQUIRED");
   }
 
   return null;
@@ -66,10 +70,7 @@ export async function signupApiHandler(
 
   // Block direct signup when email verification is required
   if (isEmailVerificationRequired()) {
-    res.status(403).json({
-      message:
-        "Direct signup is disabled. Please use the email verification flow.",
-    });
+    res.status(403).json(getSignupError("EMAIL_VERIFICATION_REQUIRED"));
     return;
   }
 
@@ -87,7 +88,7 @@ export async function signupApiHandler(
     email: body.email,
   });
   if (eligibilityError) {
-    res.status(422).json({ message: eligibilityError });
+    res.status(422).json(eligibilityError);
     return;
   }
 
@@ -101,11 +102,15 @@ export async function signupApiHandler(
       { adClickIds: getAdClickIdsFromRequest(req) },
     );
   } catch (error) {
-    const message =
-      "Signup: Error creating user: " +
-      (error instanceof Error ? error.message : JSON.stringify(error));
+    const causeMessage =
+      error instanceof Error ? error.message : JSON.stringify(error);
+    const message = "Signup: Error creating user: " + causeMessage;
+    const knownError = getSignupErrorForMessage(causeMessage);
     logger.warn(message, body.email.toLowerCase(), body.name);
-    res.status(422).json({ message: message });
+    res.status(422).json({
+      message,
+      ...(knownError ? { code: knownError.code } : {}),
+    });
 
     return;
   }

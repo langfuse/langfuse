@@ -24,6 +24,7 @@ import {
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 // ============================================================================
 // Types
@@ -129,6 +130,7 @@ export function WidgetContent({
   entityDimensionLabelMap,
   hideXAxisLabels,
 }: WidgetContentProps) {
+  const t = useTranslations("systemUi.widgetExtras");
   const { isBetaEnabled } = useV4Beta();
   const [retryCount, setRetryCount] = useState(0);
 
@@ -367,7 +369,7 @@ export function WidgetContent({
   if (isExternalLoading) {
     return (
       <div className="bg-background flex items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{t("loading")}</div>
       </div>
     );
   }

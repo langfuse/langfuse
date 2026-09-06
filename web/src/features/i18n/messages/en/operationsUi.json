@@ -1,0 +1,466 @@
+{
+  "batchActions": {
+    "table": {
+      "actionType": "Action Type",
+      "table": "Table",
+      "status": "Status",
+      "progress": "Progress",
+      "failedCount": "{count, plural, one {# failed} other {# failed}}",
+      "created": "Created",
+      "finished": "Finished",
+      "createdBy": "Created By",
+      "unknown": "Unknown",
+      "log": "Log",
+      "actionTypes": {
+        "scoreDelete": "Delete scores",
+        "datasetDelete": "Delete dataset",
+        "traceDelete": "Delete traces",
+        "traceAddToAnnotationQueue": "Add traces to annotation queue",
+        "sessionAddToAnnotationQueue": "Add sessions to annotation queue",
+        "observationAddToAnnotationQueue": "Add observations to annotation queue",
+        "addToDataset": "Add to dataset",
+        "runEvaluation": "Run evaluation",
+        "experimentCompare": "Compare experiments"
+      },
+      "tables": {
+        "scores": "Scores",
+        "sessions": "Sessions",
+        "observations": "Observations",
+        "events": "Events",
+        "traces": "Traces",
+        "datasets": "Datasets",
+        "datasetRunItems": "Dataset run items",
+        "datasetItems": "Dataset items",
+        "auditLogs": "Audit logs"
+      },
+      "statuses": {
+        "queued": "Queued",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed",
+        "partial": "Partial"
+      }
+    },
+    "addToDataset": {
+      "dialogTitle": "Add {count, plural, one {# Observation} other {# Observations}} to dataset",
+      "choice": {
+        "existingTitle": "Existing Dataset",
+        "existingDescription": "Add to a dataset that already exists",
+        "newTitle": "New Dataset",
+        "newDescription": "Create a new dataset for these observations"
+      },
+      "create": {
+        "title": "Create New Dataset",
+        "description": "Fill in the details to create a new dataset"
+      },
+      "select": {
+        "title": "Select Dataset",
+        "description": "Choose an existing dataset to add your observations to",
+        "placeholder": "Select dataset...",
+        "searchPlaceholder": "Search datasets...",
+        "empty": "No dataset found."
+      },
+      "fields": {
+        "input": "Input",
+        "output": "Output",
+        "expectedOutput": "Expected Output",
+        "metadata": "Metadata"
+      },
+      "mapping": {
+        "fullInput": "Full observation input",
+        "fullOutput": "Full observation output",
+        "fullMetadata": "Full observation metadata",
+        "fullField": "Full observation {field}",
+        "title": "Dataset Item {field}",
+        "description": "Configure how observation data maps to the Dataset Item {field}.",
+        "custom": "Custom mapping",
+        "none": "None",
+        "target": "Target",
+        "root": "Root",
+        "keyValueMap": "Key-value map",
+        "source": "Source",
+        "jsonPath": "JSONPath",
+        "jsonPathHint": "Start with $. to use a JSONPath (e.g., $.field)",
+        "keyValueMappings": "Key-value mappings",
+        "keyValueDescription": "Build an object with custom keys. Values starting with $ are treated as JSONPaths.",
+        "addField": "Add field",
+        "key": "Key",
+        "fromSchema": "(from schema)",
+        "requiredFieldCannotBeRemoved": "Required schema field cannot be removed",
+        "removeField": "Remove field",
+        "value": "Value",
+        "literal": "(literal)",
+        "literalPlaceholder": "literal value",
+        "invalidJsonPath": "Invalid JSONPath",
+        "noSourceMatch": "No match found in source data"
+      },
+      "preview": {
+        "title": "Preview",
+        "sampleDescription": "Sample from first observation",
+        "noObservation": "No observation data available",
+        "source": "Source: {source}",
+        "multipleSources": "multiple sources",
+        "result": "Result: Dataset Item {field}",
+        "invalidJsonPathTitle": "Invalid JSONPath:",
+        "invalidJsonPathMessage": "Invalid JSONPath \"{jsonPath}\": {message}",
+        "mappingKey": " (key: \"{key}\")",
+        "schemaErrorsTitle": "Schema validation errors:",
+        "root": "root",
+        "warningsTitle": "JSONPath warnings (preview observation):",
+        "pathDidNotMatch": "{jsonPath} did not match any data in {source}{mappingKey}"
+      },
+      "review": {
+        "title": "Review Configuration",
+        "summary": "Adding {count, plural, one {# observation} other {# observations}} to dataset \"{dataset}\"",
+        "invalidTitle": "Some JSONPaths are invalid",
+        "invalidDescription": "Items using these mappings will be skipped during processing.",
+        "missTitle": "Some JSONPaths did not match the preview observation",
+        "missDescription": "Observations with failed mappings will be skipped during processing.",
+        "sampleDescription": "Sample dataset item preview (from first selected observation):",
+        "noObservation": "No observation data available for preview",
+        "editMapping": "Edit {field} mapping",
+        "edit": "Edit",
+        "invalidPathCount": "{count, plural, one {# path has invalid syntax} other {# paths have invalid syntax}}",
+        "missedPathCount": "{count, plural, one {# path did not match in preview observation} other {# paths did not match in preview observation}}",
+        "issueSeparator": "; ",
+        "issueSummary": "{issues}. These items will be skipped during processing."
+      },
+      "status": {
+        "addingTitle": "Adding Observations to Dataset",
+        "successTitle": "Successfully Added!",
+        "issuesTitle": "Completed with Issues",
+        "addingDescription": "Adding {count} observations to {dataset}",
+        "successDescription": "{count} observations have been added to {dataset}",
+        "issuesDescription": "{processed} observations added, {failed} failed",
+        "safeClose": "You can safely close this dialog. The action is running in the background and you can track its progress in the <link>batch actions table</link>.",
+        "results": "Results",
+        "progress": "Progress",
+        "processedOfTotal": "{processed} of {total} processed",
+        "processed": "Processed",
+        "failed": "Failed",
+        "successfullyProcessed": "Successfully processed",
+        "errorSummary": "Error Summary:",
+        "close": "Close",
+        "goToDataset": "Go to Dataset"
+      },
+      "buttons": {
+        "back": "Back",
+        "continue": "Continue",
+        "creating": "Creating...",
+        "createAndContinue": "Create & Continue",
+        "next": "Next",
+        "adding": "Adding...",
+        "addToDataset": "Add to Dataset"
+      },
+      "descriptions": {
+        "choice": "Choose where to add your observations",
+        "select": "Select an existing dataset",
+        "create": "Create a new dataset",
+        "inputMapping": "Configure dataset item input mapping",
+        "outputMapping": "Configure dataset item expected output mapping",
+        "metadataMapping": "Configure dataset item metadata mapping",
+        "preview": "Review and confirm your configuration",
+        "status": "Your bulk action status"
+      },
+      "failedToSchedule": "Failed to schedule action"
+    },
+    "runEvaluation": {
+      "failedToSchedule": "Failed to schedule evaluation",
+      "queuedTitle": "Evaluation queued",
+      "queuedExperiments": "Scheduled evaluation for items from {experimentCount, plural, one {# selected experiment} other {# selected experiments}} with {evaluatorCount, plural, one {# evaluator} other {# evaluators}}.",
+      "queuedExperimentItems": "Scheduled evaluation for up to {itemCount, plural, one {# experiment item} other {# experiment items}} across {experimentCount, plural, one {# experiment} other {# experiments}} with {evaluatorCount, plural, one {# evaluator} other {# evaluators}}.",
+      "queuedObservations": "Scheduled evaluation for {count, plural, one {# selected observation} other {# selected observations}} with {evaluatorCount, plural, one {# evaluator} other {# evaluators}}.",
+      "viewBatchActions": "View batch actions",
+      "titleExperiments": "Evaluate items from {count, plural, one {# experiment} other {# experiments}}",
+      "titleExperimentItems": "Evaluate up to {itemCount, plural, one {# experiment item} other {# experiment items}} across {experimentCount, plural, one {# experiment} other {# experiments}}",
+      "titleObservations": "Evaluate {count, plural, one {# observation} other {# observations}}",
+      "reviewDescription": "Review your evaluation configuration before running.",
+      "selectDescription": "Select one or more evaluators.",
+      "back": "Back",
+      "continue": "Continue",
+      "continueWith": "Continue with {count, plural, one {# evaluator} other {# evaluators}}",
+      "run": "Run Evaluation",
+      "loadingPreview": "Loading preview...",
+      "previewUnavailable": "Preview unavailable for the current selection.",
+      "invalidMapping": "Evaluator mapping is not valid for observation preview.",
+      "templateHasNoPrompt": "Template has no prompt.",
+      "loadingEvaluators": "Loading evaluators...",
+      "failedToLoad": "Failed to load evaluators: {error}",
+      "noEvaluators": "No evaluators found. Create a new evaluator and it will appear here.",
+      "searchPlaceholder": "Search evaluators...",
+      "clearSearch": "Clear evaluator search",
+      "removeEvaluator": "Remove {name}",
+      "noSelection": "No evaluators selected",
+      "noSearchResults": "No evaluators match your search.",
+      "previewEvaluator": "Preview {name}",
+      "selectEvaluator": "Select {name}",
+      "createEvaluatorAria": "Create new Evaluator (opens in a new tab)",
+      "createEvaluator": "Create new Evaluator",
+      "promptPreview": "Prompt preview with the first selected observation",
+      "confirmation": {
+        "observations": "Observations:",
+        "evaluators": "Evaluators:",
+        "estimatedCost": "Est. LLM API Key Cost:",
+        "costUnavailable": "Cost estimate unavailable for experiment-scoped evaluations",
+        "background": "Evaluations will run in the background.",
+        "noData": "No data",
+        "costDescription": "Expected cost on your linked API key (not Langfuse). Estimated from average evaluator execution cost over the last 7 days.",
+        "partialEstimate": "*Partial estimate. Some evaluators have no execution history."
+      }
+    }
+  },
+  "monitors": {
+    "pages": {
+      "alerts": "Alerts",
+      "help": "Alerts notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
+      "newAlert": "New Alert",
+      "editAlert": "Edit Alert",
+      "editAlertNamed": "Edit Alert - {monitorName}",
+      "notFoundTitle": "Alert not found",
+      "notFoundMessage": "This alert doesn't exist or has been deleted.",
+      "editErrorTitle": "Alert could not be edited",
+      "pageNotFoundTitle": "Not found",
+      "pageNotFoundMessage": "This page does not exist."
+    },
+    "onboarding": {
+      "title": "Catch issues before they impact your users",
+      "description": "Get notified when cost, quality, latency, or other key metrics move outside of expected ranges.",
+      "channelsTitle": "Choose where alerts should go",
+      "channelsDescription": "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.",
+      "connectSlack": "Connect Slack",
+      "connectWebhooks": "Connect Webhooks",
+      "connectGithub": "Connect Github Actions",
+      "monitorTitle": "Decide what to monitor",
+      "monitorDescription": "Create alerts for sudden cost spikes, quality drops, latency changes, or other important changes.",
+      "createAlert": "Create Alert"
+    },
+    "table": {
+      "pausedTitle": "Alert paused",
+      "resumedTitle": "Alert resumed",
+      "pausedDescription": "Evaluations are halted until you resume.",
+      "resumedDescription": "Evaluations have resumed.",
+      "updateStatusError": "Failed to update alert status",
+      "severity": "Severity",
+      "name": "Name",
+      "tags": "Tags",
+      "actions": "Actions",
+      "editAlert": "Edit alert",
+      "edit": "Edit",
+      "resumeAlert": "Resume alert",
+      "pauseAlert": "Pause alert",
+      "resume": "Resume",
+      "pause": "Pause",
+      "delete": "Delete",
+      "alertActions": "Alert actions"
+    },
+    "form": {
+      "createdTitle": "Alert created",
+      "createdDescription": "\"{name}\" is now active.",
+      "createError": "Failed to create alert",
+      "savedTitle": "Alert saved",
+      "savedDescription": "Your changes to \"{name}\" have been applied.",
+      "saveError": "Failed to save alert",
+      "configurationTitle": "Alert Configuration",
+      "configurationDescription": "Receive notifications when a metric crosses a threshold (for example, a sudden cost increase or a drop in accuracy).",
+      "metricDefinition": "Metric Definition",
+      "view": "View",
+      "measure": "Measure",
+      "aggregation": "Aggregation",
+      "filters": "Filters",
+      "conditions": "Alert Conditions",
+      "triggerWhen": "Trigger when the value is",
+      "threshold": "Threshold",
+      "optional": "optional",
+      "overPast": "Over the past",
+      "advancedOptions": "Advanced Options",
+      "notifications": "Notifications",
+      "name": "Name",
+      "tagsLabel": "Alert Tags",
+      "addTag": "Add tag",
+      "automations": "Automations",
+      "automationsDescription": "Send alerts to Slack, Webhooks, and GitHub Actions.",
+      "saveAlert": "Save Alert",
+      "createAlert": "Create Alert",
+      "whenNoData": "When there is no data",
+      "treatMissingAsZero": "Treat missing data as <code>0</code>",
+      "keepPreviousSeverity": "Keep the previous <severity>SEVERITY</severity>",
+      "showSeverity": "Show severity <badge></badge>",
+      "notifyAfterSustained": "Notify after sustained <badge></badge>",
+      "notifyAfter": "Notify after",
+      "minutes": "minutes",
+      "renotify": "Renotify",
+      "renotifyOff": "Off (alert only on transitions)",
+      "renotifyEvery": "Re-alert at a regular interval",
+      "renotifyEveryMinutes": "Re-alert every (minutes)",
+      "viewDescriptions": {
+        "observations": "Individual requests or operations within a trace.",
+        "scoresNumeric": "Numeric scores used for evaluations.",
+        "scoresBoolean": "Boolean scores used for evaluations.",
+        "scoresCategorical": "Categorical scores used for evaluations."
+      },
+      "measureOptions": {
+        "count": {
+          "label": "Count",
+          "description": "Total number of records."
+        },
+        "traceId": {
+          "label": "Trace ID",
+          "description": "Unique trace count."
+        },
+        "uniqueUserIds": {
+          "label": "Unique User IDs",
+          "description": "Number of distinct users."
+        },
+        "uniqueSessionIds": {
+          "label": "Unique Session IDs",
+          "description": "Number of distinct sessions."
+        },
+        "latency": {
+          "label": "Latency",
+          "description": "Time from observation start to end."
+        },
+        "streamingLatency": {
+          "label": "Streaming Latency",
+          "description": "Time from completion start to observation end."
+        },
+        "inputTokens": {
+          "label": "Input Tokens",
+          "description": "Input tokens consumed by the observation."
+        },
+        "outputTokens": {
+          "label": "Output Tokens",
+          "description": "Output tokens produced by the observation."
+        },
+        "totalTokens": {
+          "label": "Total Tokens",
+          "description": "Total tokens consumed by the observation."
+        },
+        "outputTokensPerSecond": {
+          "label": "Output Tokens Per Second",
+          "description": "Average output tokens produced per second."
+        },
+        "tokensPerSecond": {
+          "label": "Tokens Per Second",
+          "description": "Average tokens consumed per second."
+        },
+        "inputCost": {
+          "label": "Input Cost",
+          "description": "Input cost incurred by the observation."
+        },
+        "outputCost": {
+          "label": "Output Cost",
+          "description": "Output cost incurred by the observation."
+        },
+        "totalCost": {
+          "label": "Total Cost",
+          "description": "Total cost incurred by the observation."
+        },
+        "timeToFirstToken": {
+          "label": "Time To First Token",
+          "description": "Time to the first generated token."
+        },
+        "countScores": {
+          "label": "Count Scores",
+          "description": "Unique scores attached to the observation."
+        },
+        "toolDefinitions": {
+          "label": "Tool Definitions",
+          "description": "Available tools per observation."
+        },
+        "toolCalls": {
+          "label": "Tool Calls",
+          "description": "Tool calls per observation."
+        },
+        "toolCallInvocations": {
+          "label": "Tool Call Invocations",
+          "description": "Individual tool-call invocations per observation."
+        },
+        "costByType": {
+          "label": "Cost By Type",
+          "description": "Cost grouped by category."
+        },
+        "usageByType": {
+          "label": "Usage By Type",
+          "description": "Token usage grouped by category."
+        },
+        "value": { "label": "Value", "description": "Score value." }
+      }
+    },
+    "automations": {
+      "empty": "Set up Slack, Webhook, and GitHub Action automations to receive alerts",
+      "automation": "Automation",
+      "newAutomation": "New automation",
+      "webhook": "Webhook",
+      "slack": "Slack",
+      "githubDispatch": "GitHub Dispatch",
+      "secretCreated": "Webhook secret created",
+      "secretDescription": "Copy the webhook secret below. It will only be shown once.",
+      "savedSecret": "I have saved the secret",
+      "dialogDescription": "This automation stays available to every alert in the project."
+    },
+    "chart": {
+      "title": "Live Preview",
+      "warning": "Warning",
+      "alert": "Alert"
+    },
+    "labels": {
+      "views": {
+        "observations": "Observations",
+        "scoresNumeric": "Scores (numeric)",
+        "scoresBoolean": "Scores (boolean)",
+        "scoresCategorical": "Scores (categorical)"
+      },
+      "operators": {
+        "gt": "above",
+        "gte": "above or equal to",
+        "lt": "below",
+        "lte": "below or equal to",
+        "eq": "equal to",
+        "neq": "not equal to"
+      },
+      "windows": {
+        "fiveMinutes": "5 minutes",
+        "tenMinutes": "10 minutes",
+        "fifteenMinutes": "15 minutes",
+        "thirtyMinutes": "30 minutes",
+        "oneHour": "1 hour",
+        "twoHours": "2 hours",
+        "fourHours": "4 hours",
+        "oneDay": "1 day",
+        "twoDays": "2 days",
+        "oneWeek": "1 week"
+      },
+      "proseWindows": {
+        "oneHour": "hour",
+        "oneDay": "day",
+        "oneWeek": "week"
+      },
+      "aggregations": {
+        "sum": "Sum",
+        "avg": "Average",
+        "count": "Count",
+        "max": "Maximum",
+        "min": "Minimum",
+        "p50": "p50",
+        "p75": "p75",
+        "p90": "p90",
+        "p95": "p95",
+        "p99": "p99",
+        "histogram": "Histogram",
+        "uniq": "Unique count"
+      },
+      "metricSubject": "{view} {measure}",
+      "metricDescription": "{aggregation} of {subject}",
+      "namePlaceholder": "{metric} is {operator} {value}",
+      "chartSubtitle": "{metric} every {window}",
+      "severity": {
+        "unknown": "PENDING",
+        "noData": "NO DATA",
+        "paused": "PAUSED",
+        "ok": "OK",
+        "warning": "WARNING",
+        "alert": "ALERT"
+      }
+    }
+  }
+}

@@ -1,4 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+} from "@testing-library/react";
 import {
   cloneElement,
   type KeyboardEventHandler,
@@ -7,9 +11,20 @@ import {
   type ReactNode,
 } from "react";
 import { vi } from "vitest";
+import { NextIntlClientProvider } from "next-intl";
 
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
+import { getMessages } from "@/src/features/i18n/messages";
 import { type RouterOutputs } from "@/src/utils/api";
+
+const render = (ui: ReactElement) =>
+  testingLibraryRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        {children}
+      </NextIntlClientProvider>
+    ),
+  });
 
 const { radixKeyDown, radixPointerDown } = vi.hoisted(() => ({
   radixKeyDown: vi.fn(),

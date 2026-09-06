@@ -20,6 +20,7 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import {
   CheckIcon,
   ChevronDown,
@@ -62,7 +63,7 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
-import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import { getObservationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   decodeAndNormalizeFilters,
@@ -82,7 +83,7 @@ import {
   type ColumnOrderState,
 } from "@tanstack/react-table";
 import {
-  SESSION_DETAIL_SYSTEM_PRESETS,
+  localizeSessionDetailSystemPresets,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
   findSessionDetailViewByFilters,
@@ -129,6 +130,7 @@ function SessionUsers({
   projectId: string;
   users?: string[];
 }) {
+  const t = useTranslations("sessions.detail");
   const [page, setPage] = useState(0);
 
   if (!users) return null;
@@ -139,7 +141,7 @@ function SessionUsers({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {initialUsers.map((userId: string) => {
-        const userBadgeText = `User ID: ${userId}`;
+        const userBadgeText = t("userId", { id: userId });
 
         return (
           <Link
@@ -162,11 +164,11 @@ function SessionUsers({
         <Popover modal>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="mt-0.5">
-              +{remainingUsers.length} more users
+              {t("moreUsers", { count: remainingUsers.length })}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[300px]">
-            <Label className="text-base capitalize">Session Users</Label>
+            <Label className="text-base capitalize">{t("sessionUsers")}</Label>
             <ScrollArea className="h-[300px]">
               <div className="flex flex-col gap-2 p-2">
                 {remainingUsers
@@ -175,7 +177,7 @@ function SessionUsers({
                     (page + 1) * SESSION_USERS_PER_PAGE,
                   )
                   .map((userId: string) => {
-                    const userBadgeText = `User ID: ${userId}`;
+                    const userBadgeText = t("userId", { id: userId });
 
                     return (
                       <Link
@@ -204,11 +206,15 @@ function SessionUsers({
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
                 >
-                  Previous
+                  {t("previous")}
                 </Button>
                 <span className="text-muted-foreground text-sm">
-                  Page {page + 1} of{" "}
-                  {Math.ceil(remainingUsers.length / SESSION_USERS_PER_PAGE)}
+                  {t("pageOf", {
+                    page: page + 1,
+                    total: Math.ceil(
+                      remainingUsers.length / SESSION_USERS_PER_PAGE,
+                    ),
+                  })}
                 </span>
                 <Button
                   variant="outline"
@@ -218,7 +224,7 @@ function SessionUsers({
                     (page + 1) * SESSION_USERS_PER_PAGE >= remainingUsers.length
                   }
                 >
-                  Next
+                  {t("next")}
                 </Button>
               </div>
             )}
@@ -310,6 +316,7 @@ const CopySessionIdButton: React.FC<{
    *  default "toolbar" keeps the inline icon-only button. */
   layout?: "toolbar" | "menu";
 }> = ({ sessionId, layout = "toolbar" }) => {
+  const t = useTranslations("sessions.detail");
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
   const isMenu = layout === "menu";
@@ -323,7 +330,7 @@ const CopySessionIdButton: React.FC<{
       <Button
         variant="ghost"
         size="sm"
-        aria-label="Copy session ID"
+        aria-label={t("copySessionId")}
         className="w-full justify-start gap-2 font-normal"
         onClick={onCopy}
       >
@@ -332,7 +339,7 @@ const CopySessionIdButton: React.FC<{
         ) : (
           <CopyIcon className="h-4 w-4" />
         )}
-        <span className="text-sm">Copy session ID</span>
+        <span className="text-sm">{t("copySessionId")}</span>
       </Button>
     );
   }
@@ -341,8 +348,8 @@ const CopySessionIdButton: React.FC<{
     <Button
       variant="ghost"
       size="icon-xs"
-      title="Copy session ID"
-      aria-label="Copy session ID"
+      title={t("copySessionId")}
+      aria-label={t("copySessionId")}
       onClick={onCopy}
     >
       {isCopied ? (
@@ -358,6 +365,7 @@ export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const t = useTranslations("sessions.detail");
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
@@ -492,15 +500,15 @@ export const SessionPage: React.FC<{
   const virtualItems = virtualizer.getVirtualItems();
 
   if (session.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this session." />;
+    return <ErrorPage message={t("noAccess")} />;
 
   if (session.error?.data?.code === "NOT_FOUND")
     return (
       <ErrorPage
-        title="Session not found"
-        message="The session is either still being processed or has been deleted."
+        title={t("notFoundTitle")}
+        message={t("notFoundMessage")}
         additionalButton={{
-          label: "Retry",
+          label: t("retry"),
           onClick: () => window.location.reload(),
         }}
       />
@@ -514,7 +522,7 @@ export const SessionPage: React.FC<{
           itemType: "SESSION",
           breadcrumb: [
             {
-              name: "Sessions",
+              name: t("sessions"),
               href: `/project/${projectId}/sessions`,
             },
           ],
@@ -542,7 +550,7 @@ export const SessionPage: React.FC<{
                 variant="outline"
                 size="icon"
                 onClick={onDownloadSessionAsJson}
-                title="Download session as JSON"
+                title={t("downloadSessionJson")}
               >
                 <Download className="h-4 w-4" />
               </Button>
@@ -576,7 +584,7 @@ export const SessionPage: React.FC<{
                     ) : (
                       <>
                         <MessageSquare className="h-4 w-4" />
-                        <span>Add comment</span>
+                        <span>{t("addComment")}</span>
                         {getNumberFromMap(
                           sessionCommentCounts.data,
                           sessionId,
@@ -621,7 +629,7 @@ export const SessionPage: React.FC<{
                       ) : (
                         <SquarePen className="mr-1.5 h-4 w-4" />
                       )}
-                      <span>Annotate</span>
+                      <span>{t("annotate")}</span>
                     </Button>
                   )}
                 </AnnotateDrawerController>
@@ -656,7 +664,7 @@ export const SessionPage: React.FC<{
                   />
                 </div>
                 <span className="text-muted-foreground text-xs">
-                  Show corrections
+                  {t("showCorrections")}
                 </span>
               </div>
             </>
@@ -670,7 +678,7 @@ export const SessionPage: React.FC<{
                 projectId={projectId}
                 sessionId={sessionId}
                 isPublic={session.data?.public ?? false}
-                label="Share"
+                label={t("share")}
               />
               <CopySessionIdButton sessionId={sessionId} layout="menu" />
               <CommentDrawerController
@@ -693,7 +701,7 @@ export const SessionPage: React.FC<{
                     ) : (
                       <MessageSquare className="h-4 w-4" />
                     )}
-                    <span className="text-sm">Add comment</span>
+                    <span className="text-sm">{t("addComment")}</span>
                     {!disabled &&
                     getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
@@ -733,7 +741,7 @@ export const SessionPage: React.FC<{
                     ) : (
                       <SquarePen className="h-4 w-4" />
                     )}
-                    <span className="text-sm">Annotate</span>
+                    <span className="text-sm">{t("annotate")}</span>
                   </Button>
                 )}
               </AnnotateDrawerController>
@@ -750,7 +758,7 @@ export const SessionPage: React.FC<{
                     className="w-full justify-start gap-2 font-normal"
                   >
                     <ListPlus className="h-4 w-4" />
-                    <span className="text-sm">Add to queue</span>
+                    <span className="text-sm">{t("addToQueue")}</span>
                     <AnnotationQueueItemCountBadge
                       totalCount={totalCount}
                       layout="menu"
@@ -772,10 +780,10 @@ export const SessionPage: React.FC<{
                 className="w-full justify-start gap-2 font-normal"
               >
                 <Download className="h-4 w-4" />
-                <span className="text-sm">Download JSON</span>
+                <span className="text-sm">{t("downloadJson")}</span>
               </Button>
               <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                <span className="text-sm">Show corrections</span>
+                <span className="text-sm">{t("showCorrections")}</span>
                 <Switch
                   checked={showCorrections}
                   onCheckedChange={setShowCorrectionsForSession}
@@ -792,16 +800,20 @@ export const SessionPage: React.FC<{
             desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
             summary={
               <>
-                <span className="text-sm font-bold">Session controls</span>
+                <span className="text-sm font-bold">
+                  {t("sessionControls")}
+                </span>
                 <span
                   className="text-muted-foreground min-w-0 truncate text-xs"
-                  title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
-                    session.data?.totalCost ?? 0,
-                    2,
-                  )}`}
+                  title={t("traceCostSummary", {
+                    count: session.data?.traces.length ?? 0,
+                    cost: usdFormatter(session.data?.totalCost ?? 0, 2),
+                  })}
                 >
-                  {session.data?.traces.length ?? 0} traces ·{" "}
-                  {usdFormatter(session.data?.totalCost ?? 0, 2)}
+                  {t("traceCostSummary", {
+                    count: session.data?.traces.length ?? 0,
+                    cost: usdFormatter(session.data?.totalCost ?? 0, 2),
+                  })}
                 </span>
               </>
             }
@@ -810,11 +822,15 @@ export const SessionPage: React.FC<{
               <SessionUsers projectId={projectId} users={session.data.users} />
             ) : null}
             <Badge variant="outline">
-              Total traces: {session.data?.traces.length}
+              {t("totalTraces", {
+                count: session.data?.traces.length ?? 0,
+              })}
             </Badge>
             {session.data && (
               <Badge variant="outline">
-                Total cost: {usdFormatter(session.data.totalCost, 2)}
+                {t("totalCost", {
+                  cost: usdFormatter(session.data.totalCost, 2),
+                })}
               </Badge>
             )}
             <SessionScores scores={session.data?.scores ?? []} />
@@ -874,6 +890,7 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const t = useTranslations("sessions.detail");
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -908,15 +925,15 @@ export const SessionEventsPage: React.FC<{
   );
 
   if (session.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this session." />;
+    return <ErrorPage message={t("noAccess")} />;
 
   if (session.error?.data?.code === "NOT_FOUND")
     return (
       <ErrorPage
-        title="Session not found"
-        message="The session is either still being processed or has been deleted."
+        title={t("notFoundTitle")}
+        message={t("notFoundMessage")}
         additionalButton={{
-          label: "Retry",
+          label: t("retry"),
           onClick: () => window.location.reload(),
         }}
       />
@@ -930,7 +947,7 @@ export const SessionEventsPage: React.FC<{
           itemType: "SESSION",
           breadcrumb: [
             {
-              name: "Sessions",
+              name: t("sessions"),
               href: `/project/${projectId}/sessions`,
             },
           ],
@@ -961,6 +978,11 @@ const LoadedSessionEventsPage: React.FC<{
   traces: EventSessionTrace[] | undefined;
   isTracesSuccess: boolean;
 }> = ({ sessionId, projectId, session, traces, isTracesSuccess }) => {
+  const t = useTranslations("sessions.detail");
+  const tViews = useTranslations("sessions.views");
+  const tEventColumns = useTranslations("coreDetails.events.columns");
+  const tEventFilters = useTranslations("coreDetails.events.filters");
+  const localizedSystemPresets = localizeSessionDetailSystemPresets(tViews);
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
@@ -1082,27 +1104,37 @@ const LoadedSessionEventsPage: React.FC<{
   });
   const positionInTraceColumn: ColumnDefinition = React.useMemo(
     () => ({
-      name: "Position in Trace",
+      name: t("positionInTrace"),
       id: "positionInTrace",
       type: "positionInTrace",
       internal: "positionInTrace",
     }),
-    [],
+    [t],
   );
   const sessionEventsFilterConfig = React.useMemo(() => {
+    const eventsFilterConfig = getObservationEventsFilterConfig([], {
+      getColumnName: tEventColumns,
+      rootObservationTooltip: tEventFilters("rootObservationTooltip"),
+      observationTypesDescription: tEventFilters("observationTypesDescription"),
+    });
     return {
-      ...observationEventsFilterConfig,
+      ...eventsFilterConfig,
       tableName: sessionEventsTableName,
       columnDefinitions: [
-        ...observationEventsFilterConfig.columnDefinitions,
+        ...eventsFilterConfig.columnDefinitions,
         positionInTraceColumn,
       ],
-      facets: observationEventsFilterConfig.facets.filter(
+      facets: eventsFilterConfig.facets.filter(
         (facet) =>
           facet.column !== "sessionId" && facet.column !== "environment",
       ),
     };
-  }, [positionInTraceColumn, sessionEventsTableName]);
+  }, [
+    positionInTraceColumn,
+    sessionEventsTableName,
+    tEventColumns,
+    tEventFilters,
+  ]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
   const filtersQuery = React.useMemo(
     () =>
@@ -1527,7 +1559,7 @@ const LoadedSessionEventsPage: React.FC<{
           itemType: "SESSION",
           breadcrumb: [
             {
-              name: "Sessions",
+              name: t("sessions"),
               href: `/project/${projectId}/sessions`,
             },
           ],
@@ -1581,7 +1613,7 @@ const LoadedSessionEventsPage: React.FC<{
                     ) : (
                       <>
                         <MessageSquare className="h-4 w-4" />
-                        <span>Add comment</span>
+                        <span>{t("addComment")}</span>
                         {getNumberFromMap(
                           sessionCommentCounts.data,
                           sessionId,
@@ -1626,7 +1658,7 @@ const LoadedSessionEventsPage: React.FC<{
                       ) : (
                         <SquarePen className="mr-1.5 h-4 w-4" />
                       )}
-                      <span>Annotate</span>
+                      <span>{t("annotate")}</span>
                       {isModernSessionEnabled && annotationCount > 0 ? (
                         <span className="ml-1">
                           <ActionButtonCountBadge count={annotationCount} />
@@ -1665,7 +1697,7 @@ const LoadedSessionEventsPage: React.FC<{
                     size="sm"
                   />
                   <span className="text-muted-foreground text-xs">
-                    Show corrections
+                    {t("showCorrections")}
                   </span>
                 </label>
               ) : (
@@ -1684,7 +1716,7 @@ const LoadedSessionEventsPage: React.FC<{
                     <Button
                       variant="outline"
                       size="icon"
-                      aria-label="Session actions"
+                      aria-label={t("sessionActions")}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
@@ -1702,7 +1734,7 @@ const LoadedSessionEventsPage: React.FC<{
                 projectId={projectId}
                 sessionId={sessionId}
                 isPublic={session.public}
-                label="Share"
+                label={t("share")}
               />
               <CopySessionIdButton sessionId={sessionId} layout="menu" />
               <CommentDrawerController
@@ -1725,7 +1757,7 @@ const LoadedSessionEventsPage: React.FC<{
                     ) : (
                       <MessageSquare className="h-4 w-4" />
                     )}
-                    <span className="text-sm">Add comment</span>
+                    <span className="text-sm">{t("addComment")}</span>
                     {!disabled &&
                     getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
@@ -1765,7 +1797,7 @@ const LoadedSessionEventsPage: React.FC<{
                     ) : (
                       <SquarePen className="h-4 w-4" />
                     )}
-                    <span className="text-sm">Annotate</span>
+                    <span className="text-sm">{t("annotate")}</span>
                     {isModernSessionEnabled && annotationCount > 0 ? (
                       <span className="ml-1">
                         <ActionButtonCountBadge count={annotationCount} />
@@ -1787,7 +1819,7 @@ const LoadedSessionEventsPage: React.FC<{
                     className="w-full justify-start gap-2 font-normal"
                   >
                     <ListPlus className="h-4 w-4" />
-                    <span className="text-sm">Add to queue</span>
+                    <span className="text-sm">{t("addToQueue")}</span>
                     <AnnotationQueueItemCountBadge
                       totalCount={totalCount}
                       layout="menu"
@@ -1804,7 +1836,7 @@ const LoadedSessionEventsPage: React.FC<{
               />
               {!isModernSessionEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                  <span className="text-sm">Show corrections</span>
+                  <span className="text-sm">{t("showCorrections")}</span>
                   <Switch
                     checked={showCorrections}
                     onCheckedChange={setShowCorrectionsForSession}
@@ -1854,16 +1886,20 @@ const LoadedSessionEventsPage: React.FC<{
               desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
               summary={
                 <>
-                  <span className="text-sm font-bold">Session controls</span>
+                  <span className="text-sm font-bold">
+                    {t("sessionControls")}
+                  </span>
                   <span
                     className="text-muted-foreground min-w-0 truncate text-xs"
-                    title={`${session.countTraces} traces · ${usdFormatter(
-                      session.totalCost ?? 0,
-                      2,
-                    )}`}
+                    title={t("traceCostSummary", {
+                      count: session.countTraces,
+                      cost: usdFormatter(session.totalCost ?? 0, 2),
+                    })}
                   >
-                    {session.countTraces} traces ·{" "}
-                    {usdFormatter(session.totalCost ?? 0, 2)}
+                    {t("traceCostSummary", {
+                      count: session.countTraces,
+                      cost: usdFormatter(session.totalCost ?? 0, 2),
+                    })}
                   </span>
                 </>
               }
@@ -1883,7 +1919,7 @@ const LoadedSessionEventsPage: React.FC<{
                     columnVisibility,
                     searchQuery: "",
                   }}
-                  systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+                  systemFilterPresets={localizedSystemPresets}
                   triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
                 />
               ) : null}
@@ -1897,7 +1933,7 @@ const LoadedSessionEventsPage: React.FC<{
                   filterState={visibleFilterState}
                   onChange={queryFilter.setFilterState}
                   columnsWithCustomSelect={filterColumnsWithCustomSelect}
-                  label="Filter observations"
+                  label={t("filterObservations")}
                   // Analytics (LFE-10781): session-detail observation refinement is a
                   // v3/legacy surface (the v4 events table filters via the grammar bar).
                   tableName="session-detail"
@@ -1915,10 +1951,12 @@ const LoadedSessionEventsPage: React.FC<{
               {!isModernSessionEnabled ? (
                 <>
                   <Badge variant="outline">
-                    Total traces: {session.countTraces}
+                    {t("totalTraces", { count: session.countTraces })}
                   </Badge>
                   <Badge variant="outline">
-                    Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
+                    {t("totalCost", {
+                      cost: usdFormatter(session.totalCost ?? 0, 2),
+                    })}
                   </Badge>
                 </>
               ) : null}

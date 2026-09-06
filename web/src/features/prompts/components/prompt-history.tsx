@@ -13,6 +13,7 @@ import { DialogController } from "@/src/components/ui/dialog";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { FileDiffIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -23,6 +24,7 @@ const PromptHistoryTraceNode = (props: {
   router: NextRouter;
   commentCounts?: Map<string, number>;
 }) => {
+  const t = useTranslations("coreDetails.prompts.detail");
   const [isHovered, setIsHovered] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
@@ -148,7 +150,7 @@ const PromptHistoryTraceNode = (props: {
                 </div>
               )}
               <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
-                {prompt.createdAt.toLocaleString()} by{" "}
+                {prompt.createdAt.toLocaleString()} {t("by")}{" "}
                 {prompt.creator || prompt.createdBy}
               </div>
             </div>
@@ -179,7 +181,7 @@ const PromptHistoryTraceNode = (props: {
                           onClick={(event) => {
                             event.stopPropagation();
                           }}
-                          title="Compare with selected prompt"
+                          title={t("compare")}
                         >
                           <FileDiffIcon className="h-4 w-4" />
                         </Button>

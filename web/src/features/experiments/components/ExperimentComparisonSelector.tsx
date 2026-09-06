@@ -9,6 +9,7 @@ import {
   comparisonChangedProps,
   comparisonPickerOpenedProps,
 } from "@/src/features/experiments/lib/analytics";
+import { useTranslations } from "next-intl";
 
 export type ExperimentOption = {
   experimentId: string;
@@ -31,6 +32,7 @@ export function ExperimentComparisonSelector({
   selectedExperimentCount,
   onSelectedIdsChange,
 }: ExperimentComparisonSelectorProps) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const capture = usePostHogClientCapture();
   const {
     searchResults,
@@ -118,7 +120,7 @@ export function ExperimentComparisonSelector({
   return (
     <div className="space-y-2">
       <MultiSelectCombobox<ExperimentOption>
-        labelLeft="Experiment selection"
+        labelLeft={t("selection.experimentSelection")}
         selectedItems={selectedExperiments}
         onItemsChange={handleItemsChange}
         onOpenChange={handlePickerOpenChange}
@@ -128,8 +130,10 @@ export function ExperimentComparisonSelector({
         isLoading={isLoading}
         placeholder={
           isMaxReached
-            ? `Max ${MAX_SELECTED_EXPERIMENTS} experiments`
-            : "Search experiments..."
+            ? t("selection.maxExperiments", {
+                count: MAX_SELECTED_EXPERIMENTS,
+              })
+            : t("selection.searchExperiments")
         }
         disabled={isLoading}
         showSearchIcon={false}
@@ -169,6 +173,9 @@ export function ExperimentComparisonSelector({
             </span>
             <button
               type="button"
+              aria-label={t("selection.removeComparison", {
+                name: item.experimentName,
+              })}
               onClick={(e) => {
                 e.stopPropagation();
                 onRemove();

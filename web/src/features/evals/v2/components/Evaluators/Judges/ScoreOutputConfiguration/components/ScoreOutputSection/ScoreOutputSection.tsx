@@ -33,11 +33,12 @@ import {
   type ScoreOutputDataType,
   type ScoreOutputSelectorState,
 } from "@/src/features/evals/v2/scoreOutputTypes";
+import { useTranslations } from "next-intl";
 
-const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
-  { value: ScoreDataTypeEnum.NUMERIC, label: "number" },
-  { value: ScoreDataTypeEnum.CATEGORICAL, label: "category" },
-  { value: ScoreDataTypeEnum.BOOLEAN, label: "boolean" },
+const DATA_TYPE_OPTIONS: ScoreOutputDataType[] = [
+  ScoreDataTypeEnum.NUMERIC,
+  ScoreDataTypeEnum.CATEGORICAL,
+  ScoreDataTypeEnum.BOOLEAN,
 ];
 
 // Two empty rows — the minimum a categorical score needs, ready for labels.
@@ -58,11 +59,14 @@ function LabelWithTooltip({
   tooltip: ReactNode | null;
   children: ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
       {children}
       {tooltip ? (
-        <InfoTooltip label={`About ${label}`}>{tooltip}</InfoTooltip>
+        <InfoTooltip label={t("aboutSection", { title: label })}>
+          {tooltip}
+        </InfoTooltip>
       ) : null}
     </Label>
   );
@@ -77,13 +81,18 @@ export function ScoreOutputSection({
   onChange: (next: ScoreOutputSelectorState) => void;
   readOnly?: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const boundsId = useId();
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [editingChoiceIndex, setEditingChoiceIndex] = useState<number | null>(
     null,
   );
   const [newChoice, setNewChoice] = useState<ScoreOutputChoice>({ label: "" });
-  const { categoryWarnings } = getScoreOutputValidation(state);
+  const localizedValidation = getScoreOutputValidation(state, {
+    emptyCategoryName: t("scoreOutput.validation.emptyCategoryName"),
+    duplicateCategoryNames: t("scoreOutput.validation.duplicateCategoryNames"),
+    minimumCategories: t("scoreOutput.validation.minimumCategories"),
+  });
 
   const handleDataTypeChange = (dataType: ScoreOutputDataType) => {
     onChange({
@@ -130,27 +139,23 @@ export function ScoreOutputSection({
   const maximum = state.maxValue.trim();
   const numericBoundsLabel =
     minimum && maximum
-      ? `between ${minimum} and ${maximum}`
+      ? t("scoreOutput.bounds.between", { minimum, maximum })
       : minimum
-        ? `of at least ${minimum}`
+        ? t("scoreOutput.bounds.atLeast", { minimum })
         : maximum
-          ? `of at most ${maximum}`
-          : "without limits";
+          ? t("scoreOutput.bounds.atMost", { maximum })
+          : t("scoreOutput.bounds.withoutLimits");
 
   return (
     <div className="flex flex-col gap-2">
       <LabelWithTooltip
-        label="score output"
-        tooltip={
-          readOnly
-            ? null
-            : "Use a number for continuous judgments like helpfulness. Use a category for explicit labels like correct or incorrect. Use a boolean for binary decisions like true or false."
-        }
+        label={t("scoreOutput.labelLowercase")}
+        tooltip={readOnly ? null : t("scoreOutput.tooltip")}
       >
-        Score output
+        {t("scoreOutput.label")}
       </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span>Return</span>
+        <span>{t("scoreOutput.return")}</span>
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL ? (
           <Select
             value={state.shouldAllowMultipleMatches ? "multiple" : "one"}
@@ -164,17 +169,19 @@ export function ScoreOutputSection({
           >
             <SelectTrigger
               className="w-auto min-w-24"
-              aria-label="Number of categories"
+              aria-label={t("scoreOutput.numberOfCategories")}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="one">one</SelectItem>
-              <SelectItem value="multiple">multiple</SelectItem>
+              <SelectItem value="one">{t("scoreOutput.one")}</SelectItem>
+              <SelectItem value="multiple">
+                {t("scoreOutput.multiple")}
+              </SelectItem>
             </SelectContent>
           </Select>
         ) : (
-          <span>a</span>
+          <span>{t("scoreOutput.a")}</span>
         )}
         <Select
           value={state.dataType}
@@ -183,16 +190,23 @@ export function ScoreOutputSection({
             handleDataTypeChange(value as ScoreOutputDataType)
           }
         >
-          <SelectTrigger className="w-auto min-w-24" aria-label="Score type">
+          <SelectTrigger
+            className="w-auto min-w-24"
+            aria-label={t("scoreOutput.scoreType")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {DATA_TYPE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.value === ScoreDataTypeEnum.CATEGORICAL &&
+              <SelectItem key={option} value={option}>
+                {option === ScoreDataTypeEnum.CATEGORICAL &&
                 state.shouldAllowMultipleMatches
-                  ? "categories"
-                  : option.label}
+                  ? t("scoreOutput.types.categories")
+                  : option === ScoreDataTypeEnum.NUMERIC
+                    ? t("scoreOutput.types.number")
+                    : option === ScoreDataTypeEnum.CATEGORICAL
+                      ? t("scoreOutput.types.category")
+                      : t("scoreOutput.types.boolean")}
               </SelectItem>
             ))}
           </SelectContent>
@@ -200,7 +214,9 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.NUMERIC && (
           <>
-            {minimum || maximum ? <span>with values</span> : null}
+            {minimum || maximum ? (
+              <span>{t("scoreOutput.withValues")}</span>
+            ) : null}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -216,14 +232,18 @@ export function ScoreOutputSection({
               <PopoverContent align="start" className="w-72">
                 <div className="flex flex-col gap-4">
                   <div>
-                    <p className="text-sm font-bold">Number limits</p>
+                    <p className="text-sm font-bold">
+                      {t("scoreOutput.bounds.title")}
+                    </p>
                     <p className="text-muted-foreground text-sm">
-                      Set the minimum and maximum values for the score.
+                      {t("scoreOutput.bounds.description")}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`${boundsId}-minimum`}>Minimum</Label>
+                      <Label htmlFor={`${boundsId}-minimum`}>
+                        {t("scoreOutput.bounds.minimum")}
+                      </Label>
                       <Input
                         id={`${boundsId}-minimum`}
                         type="number"
@@ -237,7 +257,9 @@ export function ScoreOutputSection({
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`${boundsId}-maximum`}>Maximum</Label>
+                      <Label htmlFor={`${boundsId}-maximum`}>
+                        {t("scoreOutput.bounds.maximum")}
+                      </Label>
                       <Input
                         id={`${boundsId}-maximum`}
                         type="number"
@@ -259,65 +281,73 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL && (
           <>
-            <span>from</span>
-            {state.choices.map((choice, index) => (
-              <CategoryEditorPopover
-                key={index}
-                title="Edit category"
-                idSuffix={String(index)}
-                choice={choice}
-                open={editingChoiceIndex === index}
-                onOpenChange={(open) =>
-                  setEditingChoiceIndex(open ? index : null)
-                }
-                onChange={(next) => updateChoice(index, next)}
-                onDelete={() => {
-                  onChange({
-                    ...state,
-                    choices: state.choices.filter((_, i) => i !== index),
-                  });
-                  setEditingChoiceIndex(null);
-                }}
-                onDone={() => setEditingChoiceIndex(null)}
-              >
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(selectTriggerClassName, "w-auto")}
-                    disabled={readOnly}
-                  >
-                    <span>
-                      {choice.label.trim() || `Category ${index + 1}`}
-                    </span>
-                    {categoryWarnings[index] ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            className="text-dark-yellow h-4 w-4 shrink-0"
-                            aria-label={`Warning: ${categoryWarnings[index]}`}
-                          >
-                            <TriangleAlert
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {categoryWarnings[index]}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : null}
-                    {!readOnly ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    ) : null}
-                  </Button>
-                </PopoverTrigger>
-              </CategoryEditorPopover>
-            ))}
+            <span>{t("scoreOutput.from")}</span>
+            {state.choices.map((choice, index) => {
+              const categoryWarning =
+                localizedValidation.categoryWarnings[index];
+
+              return (
+                <CategoryEditorPopover
+                  key={index}
+                  title={t("scoreOutput.category.edit")}
+                  idSuffix={String(index)}
+                  choice={choice}
+                  open={editingChoiceIndex === index}
+                  onOpenChange={(open) =>
+                    setEditingChoiceIndex(open ? index : null)
+                  }
+                  onChange={(next) => updateChoice(index, next)}
+                  onDelete={() => {
+                    onChange({
+                      ...state,
+                      choices: state.choices.filter((_, i) => i !== index),
+                    });
+                    setEditingChoiceIndex(null);
+                  }}
+                  onDone={() => setEditingChoiceIndex(null)}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(selectTriggerClassName, "w-auto")}
+                      disabled={readOnly}
+                    >
+                      <span>
+                        {choice.label.trim() ||
+                          t("scoreOutput.category.defaultName", {
+                            number: index + 1,
+                          })}
+                      </span>
+                      {categoryWarning ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="text-dark-yellow h-4 w-4 shrink-0"
+                              aria-label={t("warningWithMessage", {
+                                message: categoryWarning,
+                              })}
+                            >
+                              <TriangleAlert
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{categoryWarning}</TooltipContent>
+                        </Tooltip>
+                      ) : null}
+                      {!readOnly ? (
+                        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                      ) : null}
+                    </Button>
+                  </PopoverTrigger>
+                </CategoryEditorPopover>
+              );
+            })}
             {!readOnly ? (
               <CategoryEditorPopover
-                title="Add category"
+                title={t("scoreOutput.category.add")}
                 idSuffix="new"
                 choice={newChoice}
                 onChange={(next) =>
@@ -336,8 +366,8 @@ export function ScoreOutputSection({
                     type="button"
                     variant="outline"
                     size="icon"
-                    aria-label="Add category"
-                    title="Add category"
+                    aria-label={t("scoreOutput.category.add")}
+                    title={t("scoreOutput.category.add")}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -349,11 +379,11 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
           <>
-            <span>as</span>
+            <span>{t("scoreOutput.as")}</span>
             <span className="bg-background inline-flex h-8 items-center rounded-md border px-2 font-bold">
               true
             </span>
-            <span>or</span>
+            <span>{t("scoreOutput.or")}</span>
             <span className="bg-background inline-flex h-8 items-center rounded-md border px-2 font-bold">
               false
             </span>

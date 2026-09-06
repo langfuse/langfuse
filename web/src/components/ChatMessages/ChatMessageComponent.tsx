@@ -37,6 +37,7 @@ import {
   useOptionalMessageSearchActions,
   useOptionalMessageSearchPageId,
 } from "./MessageSearch";
+import { useTranslations } from "next-intl";
 
 export type MessageRowRefs = {
   rowRef: RefObject<HTMLDivElement | null>;
@@ -66,25 +67,6 @@ const ROLES: ChatMessageRole[] = [
   ChatMessageRole.Tool,
 ] as const;
 
-const getRoleNamePlaceholder = (role: string) => {
-  switch (role) {
-    case ChatMessageRole.System:
-      return "a system message";
-    case ChatMessageRole.Developer:
-      return "a developer message";
-    case ChatMessageRole.Assistant:
-      return "an assistant message";
-    case ChatMessageRole.User:
-      return "a user message";
-    case ChatMessageRole.Tool:
-      return "a tool response message";
-    case "placeholder":
-      return "placeholder name (e.g. chat_history)";
-    default:
-      return `a ${role}`;
-  }
-};
-
 const ToolCalls: React.FC<{ toolCalls: LLMToolCall[] }> = ({ toolCalls }) => {
   if (!toolCalls || toolCalls.length === 0) return null;
 
@@ -107,6 +89,25 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   toolCallIds,
   registerRow,
 }) => {
+  const t = useTranslations("sharedUi.chatMessages");
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case ChatMessageRole.System:
+        return t("roles.system");
+      case ChatMessageRole.Developer:
+        return t("roles.developer");
+      case ChatMessageRole.Assistant:
+        return t("roles.assistant");
+      case ChatMessageRole.User:
+        return t("roles.user");
+      case ChatMessageRole.Tool:
+        return t("roles.tool");
+      case "placeholder":
+        return t("roles.placeholder");
+      default:
+        return capitalize(role);
+    }
+  };
   const [roleIndex, setRoleIndex] = useState(1);
   const playgroundContext = useOptionalPlaygroundContext();
   const searchPageId = useOptionalMessageSearchPageId();
@@ -304,7 +305,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
             {isPlaceholder ? (
               <span className="bg-accent text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">
-                placeholder
+                {t("roles.placeholder")}
               </span>
             ) : (
               <Button
@@ -313,7 +314,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 variant="ghost"
                 className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-bold"
               >
-                {capitalize(message.role)}
+                {getRoleLabel(message.role)}
               </Button>
             )}
           </div>
@@ -332,10 +333,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   }
                 >
                   <SelectTrigger
-                    title="Select Tool Call ID"
+                    title={t("selectToolCallId")}
                     className="bg-muted h-[25px] w-[96px] border-0 text-[9px]"
                   >
-                    <SelectValue placeholder="Select Call ID" />
+                    <SelectValue placeholder={t("selectCallId")} />
                   </SelectTrigger>
                   <SelectContent>
                     {toolCallIds?.map((id) => (
@@ -376,7 +377,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             size="icon"
             onClick={() => deleteMessage(message.id)}
             className="h-5 w-5 shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
-            aria-label="Delete message"
+            aria-label={t("deleteMessage")}
           >
             <MinusCircleIcon size={14} />
           </Button>
@@ -394,6 +395,7 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
   onEditorMount: () => void;
   enableSearchKeymap: boolean;
 }) {
+  const t = useTranslations("sharedUi.chatMessages.editorPlaceholders");
   const {
     value,
     role,
@@ -402,7 +404,24 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
     onEditorMount,
     enableSearchKeymap,
   } = props;
-  const placeholder = `Enter ${getRoleNamePlaceholder(role)} here.`;
+  const placeholder = (() => {
+    switch (role) {
+      case ChatMessageRole.System:
+        return t("system");
+      case ChatMessageRole.Developer:
+        return t("developer");
+      case ChatMessageRole.Assistant:
+        return t("assistant");
+      case ChatMessageRole.User:
+        return t("user");
+      case ChatMessageRole.Tool:
+        return t("tool");
+      case "placeholder":
+        return t("placeholder");
+      default:
+        return t("custom", { role });
+    }
+  })();
 
   return (
     <CodeMirrorEditor

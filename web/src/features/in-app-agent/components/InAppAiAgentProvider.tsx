@@ -14,6 +14,7 @@ import {
 import { EventType, type AgentSubscriber } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
@@ -290,6 +291,7 @@ function InAppAiAgentProviderInner({
   open,
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
+  const t = useSharedUiTranslations("agent");
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
@@ -419,7 +421,11 @@ function InAppAiAgentProviderInner({
   const isRunning = isBackgroundRunning;
   const effectiveError =
     backgroundExecutionView.attachment.status === "error"
-      ? getInAppAgentError(backgroundExecutionView.attachment.error)
+      ? getInAppAgentError(
+          backgroundExecutionView.attachment.error,
+          undefined,
+          t("requestFailed"),
+        )
       : error;
   const liveMessageVersion = backgroundExecutionView.liveMessageRevision;
 
@@ -591,14 +597,15 @@ function InAppAiAgentProviderInner({
     }
 
     fetchNextConversationsPage().catch((error) => {
-      const errorMessage = getAgentErrorMessage(error);
-      showErrorToast("Failed to load conversations", errorMessage);
+      const errorMessage = getAgentErrorMessage(error, t("requestFailed"));
+      showErrorToast(t("loadConversationsError"), errorMessage);
       console.error("Failed to load in-app agent conversations", error);
     });
   }, [
     fetchNextConversationsPage,
     hasMoreConversations,
     isLoadingMoreConversations,
+    t,
   ]);
   const invalidateConversations = useCallback(() => {
     Promise.resolve(
@@ -612,13 +619,16 @@ function InAppAiAgentProviderInner({
       return;
     }
 
-    const errorMessage = getAgentErrorMessage(conversationListQuery.error);
-    showErrorToast("Failed to load conversations", errorMessage);
+    const errorMessage = getAgentErrorMessage(
+      conversationListQuery.error,
+      t("requestFailed"),
+    );
+    showErrorToast(t("loadConversationsError"), errorMessage);
     console.error("Failed to load in-app agent conversations", {
       error: conversationListQuery.error,
       projectId,
     });
-  }, [conversationListQuery.error, projectId]);
+  }, [conversationListQuery.error, projectId, t]);
 
   const isSelectedConversationHydrating =
     Boolean(selectedConversationId) &&
@@ -748,10 +758,10 @@ function InAppAiAgentProviderInner({
           }
         },
         onRunErrorEvent: ({ event }) => {
-          setError(getInAppAgentError(event));
+          setError(getInAppAgentError(event, undefined, t("requestFailed")));
         },
       }) satisfies AgentSubscriber,
-    [clearLoadingEvents, updateLoadingEvent, utils],
+    [clearLoadingEvents, t, updateLoadingEvent, utils],
   );
 
   // Release only the caller's lock; a newer conversation may own it.
@@ -796,6 +806,7 @@ function InAppAiAgentProviderInner({
         threadId: conversationId,
         initialMessages,
         cursor: initialCursor,
+        unavailableMessage: t("unavailable"),
         startRun: async (params) => {
           const started = await startRunMutation.mutateAsync({
             projectId,
@@ -916,6 +927,7 @@ function InAppAiAgentProviderInner({
       resetAgent,
       sharedAgentSubscriber,
       startRunMutation,
+      t,
       utils,
     ],
   );
@@ -999,8 +1011,8 @@ function InAppAiAgentProviderInner({
           }),
         ]);
       } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to delete conversation", errorMessage);
+        const errorMessage = getAgentErrorMessage(error, t("requestFailed"));
+        showErrorToast(t("deleteConversationError"), errorMessage);
         console.error("Failed to delete in-app agent conversation", error);
         throw error;
       }
@@ -1012,6 +1024,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       setFeedbackByConversationId,
       setSelectedConversationId,
+      t,
       utils.inAppAgent.getConversation,
       utils.inAppAgent.listConversations,
     ],
@@ -1095,12 +1108,12 @@ function InAppAiAgentProviderInner({
         clearLoadingEvents();
         execution.catch((error: unknown) => {
           if (backgroundSession.getSnapshot().attachment.status !== "error") {
-            setError(getInAppAgentError(error));
+            setError(getInAppAgentError(error, undefined, t("requestFailed")));
           }
         });
         return true;
       } catch (error) {
-        setError(getInAppAgentError(error));
+        setError(getInAppAgentError(error, undefined, t("requestFailed")));
         return false;
       } finally {
         if (!startedRun) {
@@ -1121,6 +1134,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       selectedConversationId,
       setSelectedConversationId,
+      t,
       unpersistedConversationIds,
     ],
   );
@@ -1167,8 +1181,8 @@ function InAppAiAgentProviderInner({
           return nextFeedback;
         });
       } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to save feedback", errorMessage);
+        const errorMessage = getAgentErrorMessage(error, t("requestFailed"));
+        showErrorToast(t("saveFeedbackError"), errorMessage);
         console.error("Failed to save in-app agent feedback", error);
         throw error;
       }
@@ -1178,6 +1192,7 @@ function InAppAiAgentProviderInner({
       projectId,
       selectedConversationId,
       setFeedbackByConversationId,
+      t,
     ],
   );
 
@@ -1292,13 +1307,17 @@ function InAppAiAgentProviderInner({
     );
 
     backgroundSession.cancel().catch((error: unknown) => {
-      showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
+      showErrorToast(
+        t("stopRunError"),
+        getAgentErrorMessage(error, t("requestFailed")),
+      );
     });
   }, [
     conversationQuery.data,
     currentBackgroundRun,
     getOrCreateBackgroundSession,
     selectedConversationId,
+    t,
   ]);
 
   const decideBackgroundToolApproval = useCallback(
@@ -1331,11 +1350,11 @@ function InAppAiAgentProviderInner({
         });
         return true;
       } catch (error) {
-        setError(getInAppAgentError(error));
+        setError(getInAppAgentError(error, undefined, t("requestFailed")));
         return false;
       }
     },
-    [conversationQuery.data, getOrCreateBackgroundSession],
+    [conversationQuery.data, getOrCreateBackgroundSession, t],
   );
 
   const resumeToolApproval = useCallback(
@@ -1562,7 +1581,7 @@ function attachActiveRunIdToAssistantMessages(
   });
 }
 
-function getAgentErrorMessage(error: unknown): string {
+function getAgentErrorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === "object") {
     const payload = "payload" in error ? error.payload : undefined;
 
@@ -1580,7 +1599,7 @@ function getAgentErrorMessage(error: unknown): string {
     }
   }
 
-  return "Assistant request failed. Please try again.";
+  return fallback;
 }
 
 export function useInAppAiAgent() {

@@ -3,17 +3,20 @@
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
   useState,
   useSyncExternalStore,
   type ReactNode,
   type RefObject,
 } from "react";
-import { type ChatMessageWithId } from "@langfuse/shared";
+import { ChatMessageType, type ChatMessageWithId } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 import {
   createMessageSearchController,
   type MessageSearchController,
+  type MessageSearchMessageLabelResolver,
   type MessageSearchPageLabelResolver,
 } from "./controller";
 
@@ -33,8 +36,36 @@ export function MessageSearchProvider({
   captureRootRef?: RefObject<HTMLElement | null>;
   getPageLabel?: MessageSearchPageLabelResolver;
 }) {
+  const t = useTranslations("sharedUi.chatMessages");
+  const getMessageLabel = useCallback<MessageSearchMessageLabelResolver>(
+    (message, index) => {
+      if (message.type === ChatMessageType.Placeholder) {
+        return t("search.placeholder", { index: index + 1 });
+      }
+
+      if ("role" in message) {
+        const roleLabel =
+          message.role === "system"
+            ? t("roles.system")
+            : message.role === "developer"
+              ? t("roles.developer")
+              : message.role === "assistant"
+                ? t("roles.assistant")
+                : message.role === "user"
+                  ? t("roles.user")
+                  : message.role === "tool"
+                    ? t("roles.tool")
+                    : String(message.role);
+
+        return t("search.roleMessage", { role: roleLabel, index: index + 1 });
+      }
+
+      return t("search.message", { index: index + 1 });
+    },
+    [t],
+  );
   const [controller] = useState(() =>
-    createMessageSearchController(pageIds, getPageLabel),
+    createMessageSearchController(pageIds, getPageLabel, getMessageLabel),
   );
 
   useEffect(() => {
@@ -44,6 +75,10 @@ export function MessageSearchProvider({
   useEffect(() => {
     controller.setPageLabelResolver(getPageLabel);
   }, [controller, getPageLabel]);
+
+  useEffect(() => {
+    controller.setMessageLabelResolver(getMessageLabel);
+  }, [controller, getMessageLabel]);
 
   useEffect(() => {
     return () => {

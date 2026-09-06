@@ -25,6 +25,7 @@ import {
 } from "../layout/elkLayout";
 import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
 import { GraphNode } from "./GraphNode";
+import { useTranslations } from "next-intl";
 
 type ElkGraphRendererProps = {
   graph: GraphCanvasData;
@@ -96,6 +97,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   layoutDirection = "DOWN",
   onShowExpanded = null,
 }) => {
+  const t = useTranslations("systemUi.traceGraph");
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<Transform>({ x: 0, y: 0, k: 1 });
@@ -360,7 +362,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   if (!graph.nodes.length) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-        No graph data available
+        {t("noData")}
       </div>
     );
   }
@@ -369,7 +371,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     <div
       ref={containerRef}
       role="group"
-      aria-label="Trace agent graph"
+      aria-label={t("label")}
       // `touch-none`: d3-zoom owns pan and pinch here. Without it WebKit zooms
       // the page instead, since `preventDefault` cannot cancel its pinch.
       className="bg-background/50 relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
@@ -380,21 +382,13 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     >
       {!layout && !layoutError && (
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
-          <span>Laying out graph…</span>
-          {slowLayout && (
-            <span>
-              This is a large graph — the tree and timeline stay usable while it
-              finishes.
-            </span>
-          )}
+          <span>{t("layingOut")}</span>
+          {slowLayout && <span>{t("largeGraph")}</span>}
         </div>
       )}
       {layoutError && (
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm">
-          <span>
-            Could not lay out the graph. Try the tree or timeline view to
-            explore this trace.
-          </span>
+          <span>{t("layoutFailed")}</span>
           <Button
             variant="outline"
             size="sm"
@@ -403,7 +397,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
               setLayoutAttempt((n) => n + 1);
             }}
           >
-            Retry
+            {t("retry")}
           </Button>
         </div>
       )}
@@ -413,14 +407,17 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         // the tree/timeline instead.
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
           <span>
-            This graph is too large to lay out
+            {t("tooLarge")}
             {layout.nodeCount != null && layout.edgeCount != null
-              ? ` (${layout.nodeCount.toLocaleString()} nodes, ${layout.edgeCount.toLocaleString()} connections)`
+              ? ` ${t("counts", {
+                  nodes: layout.nodeCount.toLocaleString(),
+                  connections: layout.edgeCount.toLocaleString(),
+                })}`
               : ""}
             .
           </span>
           <span>
-            Try the{" "}
+            {t("tryPrefix")}
             {/* The expanded graph is an alternative only from another view. */}
             {onShowExpanded && (
               <>
@@ -432,12 +429,12 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                   }}
                   className="text-primary underline underline-offset-2 hover:opacity-80"
                 >
-                  expanded graph
+                  {t("expandedGraph")}
                 </button>
                 ,{" "}
               </>
             )}
-            tree or timeline view to explore this trace.
+            {t("trySuffix")}
           </span>
         </div>
       )}
@@ -551,7 +548,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           variant="outline"
           size="icon"
           className="bg-background/80 h-7 w-7 backdrop-blur"
-          title="Zoom in"
+          title={t("zoomIn")}
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
@@ -560,7 +557,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           variant="outline"
           size="icon"
           className="bg-background/80 h-7 w-7 backdrop-blur"
-          title="Zoom out"
+          title={t("zoomOut")}
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
@@ -569,7 +566,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           variant="outline"
           size="icon"
           className="bg-background/80 h-7 w-7 backdrop-blur"
-          title="Fit to view"
+          title={t("fit")}
         >
           <Maximize className="h-4 w-4" />
         </Button>

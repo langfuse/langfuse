@@ -91,6 +91,52 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
 ];
 
+type SessionDetailPresetTranslationKey =
+  | "allWithIo"
+  | "allWithIoDescription"
+  | "all"
+  | "allDescription"
+  | "firstGeneration"
+  | "firstGenerationDescription"
+  | "lastGeneration"
+  | "lastGenerationDescription";
+
+const SESSION_DETAIL_PRESET_TRANSLATION_KEYS: Record<
+  string,
+  {
+    name: SessionDetailPresetTranslationKey;
+    description: SessionDetailPresetTranslationKey;
+  }
+> = {
+  __langfuse_with_io__: {
+    name: "allWithIo",
+    description: "allWithIoDescription",
+  },
+  __langfuse_all__: { name: "all", description: "allDescription" },
+  __langfuse_first_generation__: {
+    name: "firstGeneration",
+    description: "firstGenerationDescription",
+  },
+  __langfuse_last_generation__: {
+    name: "lastGeneration",
+    description: "lastGenerationDescription",
+  },
+};
+
+export const localizeSessionDetailSystemPresets = (
+  translate: (key: SessionDetailPresetTranslationKey) => string,
+): SessionDetailSystemPreset[] =>
+  SESSION_DETAIL_SYSTEM_PRESETS.map((preset) => {
+    const keys = SESSION_DETAIL_PRESET_TRANSLATION_KEYS[preset.id];
+    return keys
+      ? {
+          ...preset,
+          name: translate(keys.name),
+          description: translate(keys.description),
+        }
+      : preset;
+  });
+
 /**
  * The default view: "All observations with I/O". Shows the real session out of
  * the box (chat looks like chat, an agent run shows its tool calls) without the

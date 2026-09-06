@@ -14,6 +14,7 @@ import {
   type UpdateConfig,
 } from "@/src/features/score-configs/lib/upsertFormTypes";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type UpsertScoreConfigDialogControllerProps = {
   projectId: string;
@@ -34,6 +35,7 @@ const createDefaultValues: CreateConfig = {
 export function UpsertScoreConfigDialogController(
   props: UpsertScoreConfigDialogControllerProps,
 ) {
+  const t = useTranslations("systemUi.scoreConfigs");
   const { children, projectId, mode } = props;
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -53,7 +55,11 @@ export function UpsertScoreConfigDialogController(
     createScoreConfig.isPending || updateScoreConfig.isPending;
   const disabled = hasAccess
     ? undefined
-    : { reason: `You don't have permission to ${mode} score configs.` };
+    : {
+        reason: t("noChangePermission", {
+          mode: t(mode === "create" ? "createVerb" : "editVerb"),
+        }),
+      };
 
   async function handleSubmit(values: CreateConfig | UpdateConfig) {
     if (mode === "edit") {

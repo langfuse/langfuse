@@ -1,11 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { Home, Settings } from "lucide-react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
+import { TopbarAccount } from "@/src/components/nav/topbar-account";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
+import { DEFAULT_TIME_ZONE } from "@/src/features/i18n/config";
+import { getMessages } from "@/src/features/i18n/messages";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
@@ -87,12 +91,18 @@ const sidebarArgs = {
 };
 
 const Shell = () => (
-  <SidebarPresenceProvider>
-    <SidebarProvider>
-      <AppSidebar {...sidebarArgs} />
-      <PageHeader title="Tracing" />
-    </SidebarProvider>
-  </SidebarPresenceProvider>
+  <NextIntlClientProvider
+    locale="en"
+    messages={getMessages("en")}
+    timeZone={DEFAULT_TIME_ZONE}
+  >
+    <SidebarPresenceProvider>
+      <SidebarProvider>
+        <AppSidebar {...sidebarArgs} />
+        <PageHeader title="Tracing" />
+      </SidebarProvider>
+    </SidebarPresenceProvider>
+  </NextIntlClientProvider>
 );
 
 describe("app shell chrome row", () => {
@@ -124,11 +134,17 @@ describe("app shell chrome row", () => {
 
   it("keeps the page-header chrome divider full-width on container pages", () => {
     render(
-      <SidebarPresenceProvider>
-        <SidebarProvider>
-          <PageHeader title="Settings" container />
-        </SidebarProvider>
-      </SidebarPresenceProvider>,
+      <NextIntlClientProvider
+        locale="en"
+        messages={getMessages("en")}
+        timeZone={DEFAULT_TIME_ZONE}
+      >
+        <SidebarPresenceProvider>
+          <SidebarProvider>
+            <PageHeader title="Settings" container />
+          </SidebarProvider>
+        </SidebarPresenceProvider>
+      </NextIntlClientProvider>,
     );
 
     const row = screen.getByTestId(APP_SHELL_CHROME_ROW_TEST_ID);
@@ -139,5 +155,21 @@ describe("app shell chrome row", () => {
     const inner = row.firstElementChild;
     expect(inner).toBeInstanceOf(HTMLElement);
     expect((inner as HTMLElement).className).toContain("lg:mx-auto");
+  });
+});
+
+describe("mobile account menu", () => {
+  it("renders the translated account menu trigger", () => {
+    render(
+      <NextIntlClientProvider
+        locale="zh-CN"
+        messages={getMessages("zh-CN")}
+        timeZone={DEFAULT_TIME_ZONE}
+      >
+        <TopbarAccount />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "账户菜单" })).toBeVisible();
   });
 });

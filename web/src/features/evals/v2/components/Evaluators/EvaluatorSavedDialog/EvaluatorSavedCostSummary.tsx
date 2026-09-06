@@ -9,6 +9,7 @@ import {
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorSavedCostSummary({
   estimates,
@@ -27,6 +28,7 @@ export function EvaluatorSavedCostSummary({
   onSamplingChange: ((sampling: number) => void) | null;
   evaluatorType: EvalTemplateType;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const estimate = estimates[0];
   const sampledObservations = Math.round(matchingObservations * sampling);
   const estimatedCostUsd =
@@ -40,11 +42,14 @@ export function EvaluatorSavedCostSummary({
     <div className="space-y-5">
       <section className="space-y-2">
         <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-bold">Sampling</h3>
+          <h3 className="text-sm font-bold">
+            {t("evaluator.savedDialog.cost.sampling")}
+          </h3>
           {!onSamplingChange ? (
-            <InfoTooltip label="Sampling is set by the selected rule">
-              The sampling rate is inherited from the selected rule. You can
-              edit it directly in the rule.
+            <InfoTooltip
+              label={t("evaluator.savedDialog.cost.samplingSetByRule")}
+            >
+              {t("evaluator.savedDialog.cost.samplingInherited")}
             </InfoTooltip>
           ) : null}
         </div>
@@ -61,7 +66,9 @@ export function EvaluatorSavedCostSummary({
       </section>
 
       <section>
-        <h3 className="text-sm font-bold">Matches</h3>
+        <h3 className="text-sm font-bold">
+          {t("evaluator.savedDialog.cost.matches")}
+        </h3>
         {isEstimating ? (
           <div className="mt-2 space-y-2">
             <Skeleton className="h-5 w-24" />
@@ -70,10 +77,14 @@ export function EvaluatorSavedCostSummary({
         ) : (
           <>
             <p className="mt-1 font-mono text-base font-bold tabular-nums">
-              {compactNumberFormatter(matchingObservations, 1)} / week
+              {t("evaluator.savedDialog.cost.perWeek", {
+                count: compactNumberFormatter(matchingObservations, 1),
+              })}
             </p>
             <p className="text-muted-foreground text-xs tabular-nums">
-              {compactNumberFormatter(sampledObservations, 1)} sampled
+              {t("evaluator.savedDialog.cost.sampled", {
+                count: compactNumberFormatter(sampledObservations, 1),
+              })}
             </p>
           </>
         )}
@@ -91,26 +102,44 @@ export function EvaluatorSavedCostSummary({
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-lg font-bold tabular-nums">
                   {estimatedCostUsd === null
-                    ? "Unavailable"
+                    ? t("unavailable")
                     : `≈ ${usdFormatter(estimatedCostUsd, 2, 2)}`}
                 </span>
-                <InfoTooltip label="How estimated LLM costs are calculated">
+                <InfoTooltip
+                  label={t("evaluator.savedDialog.cost.howCalculated")}
+                >
                   {formatEvaluatorCostCalculation({
                     matchingObservations,
                     sampling,
                     testRunCostUsd: estimate?.testRunCostUsd ?? null,
                     estimatedCostUsd,
                     evaluatorType,
+                    messages: {
+                      codeEvaluatorNoCost: t(
+                        "rules.cost.calculation.codeNoCost",
+                      ),
+                      formatZeroCost: (values) =>
+                        t("rules.cost.calculation.zeroCost", values),
+                      unavailable: t("rules.cost.calculation.unavailable"),
+                      formatEstimatedCost: (values) =>
+                        t("rules.cost.calculation.estimatedCost", values),
+                      formatMatchingObservations: (count) =>
+                        t("rules.cost.calculation.matchingObservations", {
+                          count,
+                        }),
+                      formatSamplingRate: (rate) =>
+                        t("rules.cost.calculation.samplingRate", { rate }),
+                      scope: t("rules.cost.calculation.scope"),
+                    },
                   })}
                 </InfoTooltip>
               </div>
               <p className="text-muted-foreground text-xs">
-                estimated LLM costs / week
+                {t("rules.cost.estimatedPerWeek")}
               </p>
               {unavailableEstimateCount > 0 ? (
                 <p className="text-muted-foreground mt-2 text-xs">
-                  No recent cost-bearing evaluator trace or successful fallback
-                  test was available.
+                  {t("evaluator.savedDialog.cost.noRecentCost")}
                 </p>
               ) : null}
             </>

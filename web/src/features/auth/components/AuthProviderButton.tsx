@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import React from "react";
+import { useTranslations } from "next-intl";
 
 interface AuthProviderButtonProps {
   icon: React.ReactNode;
@@ -17,6 +18,8 @@ export function AuthProviderButton({
   loading = false,
   showLastUsedBadge = false,
 }: AuthProviderButtonProps) {
+  const t = useTranslations("auth.common");
+
   return (
     <div>
       <Button
@@ -34,7 +37,7 @@ export function AuthProviderButton({
           showLastUsedBadge ? "visible" : "invisible",
         )}
       >
-        Last used
+        {t("lastUsed")}
       </div>
     </div>
   );

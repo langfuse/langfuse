@@ -100,6 +100,7 @@ import {
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { type FilterState } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 interface ControlsContextType {
   open: boolean;
@@ -212,6 +213,19 @@ export function DataTableControls({
   blockedColumnReason,
   layout = "panel",
 }: DataTableControlsProps) {
+  const t = useTranslations("sharedUi.table.controls");
+  const summarizeFacet = (filter: UIFilter) =>
+    getFacetSummary(filter, {
+      empty: t("facetSummary.empty"),
+      selected: (count) => t("facetSummary.selected", { count }),
+      all: t("facetSummary.all"),
+      notValue: (value) => t("facetSummary.notValue", { value }),
+      notValues: (count) => t("facetSummary.notValues", { count }),
+      contains: (value) => t("facetSummary.contains", { value }),
+      textFilters: (count) => t("facetSummary.textFilters", { count }),
+      filtered: t("facetSummary.filtered"),
+      conditions: (count) => t("facetSummary.conditions", { count }),
+    });
   const { setOpen, tableName, isMobile } = useDataTableControls();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
@@ -527,7 +541,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           summaryIcon={
             summaryValue !== null
               ? filter.renderIcon?.(summaryValue)
@@ -565,7 +579,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           min={filter.min}
@@ -589,7 +603,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           value={filter.value}
@@ -610,7 +624,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -620,7 +634,7 @@ export function DataTableControls({
           onChange={filter.onChange}
           isActive={filter.isActive}
           onReset={filter.onReset}
-          keyPlaceholder="Name"
+          keyPlaceholder={t("name")}
           isDisabled={facetDisabled}
           disabledReason={facetDisabledReason}
         />
@@ -635,7 +649,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -644,7 +658,7 @@ export function DataTableControls({
           onChange={filter.onChange}
           isActive={filter.isActive}
           onReset={filter.onReset}
-          keyPlaceholder="Name"
+          keyPlaceholder={t("name")}
           isDisabled={facetDisabled}
           disabledReason={facetDisabledReason}
         />
@@ -659,7 +673,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -668,7 +682,7 @@ export function DataTableControls({
           onChange={filter.onChange}
           isActive={filter.isActive}
           onReset={filter.onReset}
-          keyPlaceholder="Name"
+          keyPlaceholder={t("name")}
           isDisabled={facetDisabled}
           disabledReason={facetDisabledReason}
         />
@@ -683,7 +697,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={summarizeFacet(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -784,7 +798,7 @@ export function DataTableControls({
           query hides like the rest. */}
       {facetSearchQuery !== "" && visibleFilters.length === 0 && (
         <p className="text-muted-foreground px-3 pt-6 text-center text-xs break-words">
-          {`No filters match "${facetSearchQuery}"`}
+          {t("noFiltersMatch", { query: facetSearchQuery })}
         </p>
       )}
 
@@ -801,7 +815,7 @@ export function DataTableControls({
         >
           {visibleFilters.length === 0 && (
             <p className="text-muted-foreground pb-2 text-xs">
-              No active filters.
+              {t("noActiveFilters")}
             </p>
           )}
           {/* Popover + command list, not a DropdownMenu: the catalog runs to
@@ -821,13 +835,13 @@ export function DataTableControls({
                 disabled={addableFilters.length === 0}
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add filter
+                {t("addFilter")}
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-56 p-0">
               <InputCommand shouldFilter={false}>
                 <InputCommandInput
-                  placeholder="Search filters"
+                  placeholder={t("searchFilters")}
                   variant="bottom"
                   value={addFilterSearch}
                   onValueChange={(query) => {
@@ -838,7 +852,9 @@ export function DataTableControls({
                 <InputCommandList className="max-h-72">
                   {rankedAddableFilters.length === 0 ? (
                     <p className="text-muted-foreground px-2 py-6 text-center text-xs">
-                      No filters match &quot;{addFilterSearch.trim()}&quot;
+                      {t("noFiltersMatch", {
+                        query: addFilterSearch.trim(),
+                      })}
                     </p>
                   ) : (
                     <InputCommandGroup>
@@ -894,13 +910,13 @@ export function DataTableControls({
                   setOpen(true);
                   emitSidebarToggled(true, "rail");
                 }}
-                aria-label="Show filters"
+                aria-label={t("showFilters")}
                 className="h-6 w-6"
               >
                 <PanelLeftOpen className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="right">Show filters</TooltipContent>
+            <TooltipContent side="right">{t("showFilters")}</TooltipContent>
           </Tooltip>
         </div>
         {activeFilterCount > 0 && (
@@ -915,9 +931,9 @@ export function DataTableControls({
                   setOpen(true);
                   emitSidebarToggled(true, "rail_badge");
                 }}
-                aria-label={`Show ${activeFilterCount} active ${
-                  activeFilterCount === 1 ? "filter" : "filters"
-                }`}
+                aria-label={t("showActiveFilters", {
+                  count: activeFilterCount,
+                })}
                 className="mt-2 cursor-pointer"
               >
                 <Badge variant="secondary" className="h-5 px-1.5 text-xs">
@@ -927,15 +943,14 @@ export function DataTableControls({
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-64 text-xs">
               <p className="font-bold">
-                {activeFilterCount} active{" "}
-                {activeFilterCount === 1 ? "filter" : "filters"}
+                {t("activeFilters", { count: activeFilterCount })}
               </p>
               {queryFilter.filters
                 .filter((filter) => filter.isActive)
                 .slice(0, 6)
                 .map((filter) => {
                   const line = `${filter.label}: ${
-                    getFacetSummary(filter) ?? "filtered"
+                    summarizeFacet(filter) ?? t("filtered")
                   }`;
                   return (
                     <p key={filter.column} className="truncate" title={line}>
@@ -943,7 +958,9 @@ export function DataTableControls({
                     </p>
                   );
                 })}
-              {activeFilterCount > 6 && <p>+{activeFilterCount - 6} more</p>}
+              {activeFilterCount > 6 && (
+                <p>{t("more", { count: activeFilterCount - 6 })}</p>
+              )}
             </TooltipContent>
           </Tooltip>
         )}
@@ -976,7 +993,7 @@ export function DataTableControls({
                   setOpen(false);
                   emitSidebarToggled(false, "header");
                 }}
-                aria-label="Close filters"
+                aria-label={t("closeFilters")}
                 className="-ml-1 h-6 w-6"
               >
                 <X className="h-4 w-4" />
@@ -991,17 +1008,17 @@ export function DataTableControls({
                       setOpen(false);
                       emitSidebarToggled(false, "header");
                     }}
-                    aria-label="Hide filters"
+                    aria-label={t("hideFilters")}
                     className="-ml-1 h-6 w-6"
                   >
                     <PanelLeftClose className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Hide filters</TooltipContent>
+                <TooltipContent>{t("hideFilters")}</TooltipContent>
               </Tooltip>
             )}
             {layout !== "inline" && (
-              <span className="text-sm font-bold">Filters</span>
+              <span className="text-sm font-bold">{t("filters")}</span>
             )}
             {/* Inline: the count already shows on the sheet's Filters trigger
                 and footer, so a bare number here (title hidden) is just noise. */}
@@ -1022,7 +1039,7 @@ export function DataTableControls({
                       </Button>
                     </PopoverTrigger>
                   </TooltipTrigger>
-                  <TooltipContent>Filter with AI</TooltipContent>
+                  <TooltipContent>{t("filterWithAi")}</TooltipContent>
                 </Tooltip>
                 <PopoverContent align="center" className="w-[400px]">
                   <DataTableAIFilters
@@ -1066,8 +1083,8 @@ export function DataTableControls({
                   }}
                   aria-label={
                     expandedVisibleCount === 0
-                      ? "Expand all filters"
-                      : "Collapse all filters"
+                      ? t("expandAllFilters")
+                      : t("collapseAllFilters")
                   }
                 >
                   {expandedVisibleCount === 0 ? (
@@ -1079,8 +1096,8 @@ export function DataTableControls({
               </TooltipTrigger>
               <TooltipContent>
                 {expandedVisibleCount === 0
-                  ? "Expand all filters"
-                  : "Collapse all filters"}
+                  ? t("expandAllFilters")
+                  : t("collapseAllFilters")}
               </TooltipContent>
             </Tooltip>
             <DropdownMenu>
@@ -1091,13 +1108,13 @@ export function DataTableControls({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      aria-label="Filter options"
+                      aria-label={t("filterOptions")}
                     >
                       <MoreVertical className="h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Filter options</TooltipContent>
+                <TooltipContent>{t("filterOptions")}</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
@@ -1117,7 +1134,7 @@ export function DataTableControls({
                   }}
                   className="cursor-pointer"
                 >
-                  Clear all filters
+                  {t("clearAllFilters")}
                 </DropdownMenuItem>
                 {/* Plain item with a TRAILING check instead of
                     DropdownMenuCheckboxItem: its reserved leading indicator
@@ -1142,7 +1159,7 @@ export function DataTableControls({
                     });
                   }}
                 >
-                  Show only active
+                  {t("showOnlyActive")}
                   {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
                 {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
@@ -1159,7 +1176,7 @@ export function DataTableControls({
                       }}
                       className="cursor-pointer"
                     >
-                      Collapse sidebar
+                      {t("collapseSidebar")}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -1185,8 +1202,8 @@ export function DataTableControls({
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
-                placeholder="Search filters"
-                aria-label="Search filters"
+                placeholder={t("searchFilters")}
+                aria-label={t("searchFilters")}
                 value={facetSearch}
                 onChange={(event) => {
                   setFacetSearch(event.target.value);
@@ -1216,7 +1233,7 @@ export function DataTableControls({
                     setFacetSearch("");
                     noteFacetSearch("facet_list", "");
                   }}
-                  aria-label="Clear filter search"
+                  aria-label={t("clearFilterSearch")}
                   className="absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2"
                 >
                   <IconX className="h-3 w-3" />
@@ -1425,6 +1442,8 @@ function FilterAccordionItem({
   disabledReason,
   onReset,
 }: FilterAccordionItemProps) {
+  const t = useTranslations("sharedUi.table.controls");
+
   return (
     <FilterAccordionItemPrimitive
       value={filterKey}
@@ -1547,14 +1566,14 @@ function FilterAccordionItem({
                   }
                 }}
                 className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
-                aria-label={`Clear ${label} filter`}
+                aria-label={t("clearFilter", { label })}
               >
                 <IconX className="h-3 w-3 shrink-0" />
-                Clear
+                {t("clear")}
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
-              Clear {label.toLowerCase()} filter
+              {t("clearFilter", { label: label.toLowerCase() })}
             </TooltipContent>
           </Tooltip>
         )}
@@ -1730,6 +1749,7 @@ function CategoricalSelectContent({
   | "operator"
   | "onOperatorChange"
 >) {
+  const t = useTranslations("sharedUi.table.controls");
   // "Show more values" reveals the next PORTION (it does what it says — not
   // expand-everything: value lists can run to 1000+ user IDs); "Show fewer
   // values" collapses back to the cap. Resets by unmounting on collapse.
@@ -1865,10 +1885,10 @@ function CategoricalSelectContent({
           >
             <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
               <TabsTrigger value="any of" className="h-5 px-1 text-xs">
-                Any of
+                {t("anyOf")}
               </TabsTrigger>
               <TabsTrigger value="all of" className="h-5 px-1 text-xs">
-                All of
+                {t("allOf")}
               </TabsTrigger>
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
@@ -1884,14 +1904,13 @@ function CategoricalSelectContent({
                       disabled={operator === undefined}
                       className="h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      None of
+                      {t("noneOf")}
                     </TabsTrigger>
                   </span>
                 </TooltipTrigger>
                 {operator === undefined && (
                   <TooltipContent className="max-w-64 text-xs">
-                    Nothing to exclude yet — uncheck a value to exclude it, or
-                    select values first.
+                    {t("nothingToExclude")}
                   </TooltipContent>
                 )}
               </Tooltip>
@@ -1921,36 +1940,34 @@ function CategoricalSelectContent({
         <div className="text-muted-foreground px-2 py-1 text-xs">
           {filterKey === "sessionId" ? (
             <span>
-              Sessions group {tableName} together, which is useful for tracing
-              multi-step workflows.{" "}
+              {t("sessionHelp", { tableName: tableName ?? "" })}{" "}
               <a
                 href="https://langfuse.com/docs/observability/features/sessions"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-foreground underline"
               >
-                See docs
+                {t("seeDocs")}
               </a>{" "}
-              to learn how to add sessions to your {tableName}.
+              {t("sessionHelpSuffix", { tableName: tableName ?? "" })}
             </span>
           ) : filterKey === "name" ? (
-            <span>No {tableName} names found in the given time range.</span>
+            <span>{t("noNamesFound", { tableName: tableName ?? "" })}</span>
           ) : filterKey === "tags" ? (
             <span>
-              Tags let you filter {tableName} according to custom categories
-              (e.g. feature flags).{" "}
+              {t("tagsHelp", { tableName: tableName ?? "" })}{" "}
               <a
                 href="https://langfuse.com/docs/observability/features/tags"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-foreground underline"
               >
-                See docs
+                {t("seeDocs")}
               </a>{" "}
-              to learn how to add tags to your {tableName}.
+              {t("tagsHelpSuffix", { tableName: tableName ?? "" })}
             </span>
           ) : (
-            "No options found"
+            t("noOptionsFound")
           )}
         </div>
       ) : (
@@ -1961,7 +1978,7 @@ function CategoricalSelectContent({
               <div className="relative">
                 <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
-                  placeholder="Filter values"
+                  placeholder={t("filterValues")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-8 pl-7 text-xs"
@@ -1973,7 +1990,7 @@ function CategoricalSelectContent({
           {/* Checkbox list */}
           {filteredOptions.length === 0 ? (
             <div className="text-muted-foreground py-1 text-center text-sm">
-              No matches found
+              {t("noMatchesFound")}
             </div>
           ) : (
             <>
@@ -2002,7 +2019,7 @@ function CategoricalSelectContent({
                       className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
                       <ChevronUp className="mr-1 h-3 w-3" />
-                      Show fewer values
+                      {t("showFewerValues")}
                     </Button>
                   )}
                   {canShowMore && (
@@ -2017,7 +2034,7 @@ function CategoricalSelectContent({
                       className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
                       <ChevronDown className="mr-1 h-3 w-3" />
-                      Show more values
+                      {t("showMoreValues")}
                     </Button>
                   )}
                 </div>
@@ -2034,9 +2051,9 @@ function CategoricalSelectContent({
                 rel="noopener noreferrer"
                 className="hover:text-foreground underline"
               >
-                See docs
+                {t("seeDocs")}
               </a>{" "}
-              on how to add environments to your {tableName}.
+              {t("environmentHelpSuffix", { tableName: tableName ?? "" })}
             </div>
           ) : null}
         </>
@@ -2063,6 +2080,7 @@ function NumericFacet({
   disabledReason,
   onReset,
 }: NumericFacetProps) {
+  const t = useTranslations("sharedUi.table.controls");
   const [localValue, setLocalValue] = useState<[number, number]>(value);
   // Adopt external value changes (reset, URL navigation) during render — the
   // "adjust state when a prop changes" pattern — rather than via a mirror
@@ -2147,7 +2165,7 @@ function NumericFacet({
     >
       <div className="px-4 py-2">
         {loading ? (
-          <div className="text-muted-foreground text-sm">Loading...</div>
+          <div className="text-muted-foreground text-sm">{t("loading")}</div>
         ) : (
           <div className="grid gap-4">
             <div className="flex items-center gap-4">
@@ -2156,7 +2174,7 @@ function NumericFacet({
                   htmlFor={`min-${filterKey}`}
                   className="text-muted-foreground text-xs"
                 >
-                  Min.
+                  {t("min")}
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input
@@ -2181,7 +2199,7 @@ function NumericFacet({
                   htmlFor={`max-${filterKey}`}
                   className="text-muted-foreground text-xs"
                 >
-                  Max.
+                  {t("max")}
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input
@@ -2231,6 +2249,7 @@ function StringFacet({
   disabledReason,
   onReset,
 }: StringFacetProps) {
+  const t = useTranslations("sharedUi.table.controls");
   const [localValue, setLocalValue] = useState<string>(value);
   // Same render-time adoption as NumericFacet above (no mirror effect).
   const [lastValue, setLastValue] = useState<string>(value);
@@ -2281,13 +2300,13 @@ function StringFacet({
     >
       <div className="px-4">
         {loading ? (
-          <div className="text-muted-foreground text-sm">Loading...</div>
+          <div className="text-muted-foreground text-sm">{t("loading")}</div>
         ) : (
           <Input
             type="text"
             id={`string-${filterKey}`}
             value={localValue}
-            placeholder="Search"
+            placeholder={t("search")}
             onChange={handleInputChange}
             className="h-8"
           />
@@ -2316,6 +2335,8 @@ function KeyValueFacet({
   onReset,
   keyPlaceholder,
 }: KeyValueFacetProps) {
+  const t = useTranslations("sharedUi.table.controls");
+
   return (
     <FilterAccordionItem
       label={label}
@@ -2330,7 +2351,7 @@ function KeyValueFacet({
     >
       {loading ? (
         <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
+          {t("loading")}
         </div>
       ) : (
         <KeyValueFilterBuilder
@@ -2365,6 +2386,8 @@ function NumericKeyValueFacet({
   onReset,
   keyPlaceholder,
 }: NumericKeyValueFacetProps) {
+  const t = useTranslations("sharedUi.table.controls");
+
   return (
     <FilterAccordionItem
       label={label}
@@ -2379,7 +2402,7 @@ function NumericKeyValueFacet({
     >
       {loading ? (
         <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
+          {t("loading")}
         </div>
       ) : (
         <KeyValueFilterBuilder
@@ -2413,6 +2436,8 @@ function BooleanKeyValueFacet({
   onReset,
   keyPlaceholder,
 }: BooleanKeyValueFacetProps) {
+  const t = useTranslations("sharedUi.table.controls");
+
   return (
     <FilterAccordionItem
       label={label}
@@ -2427,7 +2452,7 @@ function BooleanKeyValueFacet({
     >
       {loading ? (
         <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
+          {t("loading")}
         </div>
       ) : (
         <KeyValueFilterBuilder
@@ -2462,6 +2487,8 @@ function StringKeyValueFacet({
   onReset,
   keyPlaceholder,
 }: StringKeyValueFacetProps) {
+  const t = useTranslations("sharedUi.table.controls");
+
   return (
     <FilterAccordionItem
       label={label}
@@ -2476,7 +2503,7 @@ function StringKeyValueFacet({
     >
       {loading ? (
         <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
+          {t("loading")}
         </div>
       ) : (
         <KeyValueFilterBuilder
@@ -2500,6 +2527,8 @@ interface FilterModeTabsProps {
 }
 
 function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
+  const t = useTranslations("sharedUi.table.controls");
+
   return (
     // mt-1 evens the rhythm: content opens with pt-1, so the tabs sit 8px
     // from the header band and 8px (mb-2) from the list below.
@@ -2510,10 +2539,10 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
       >
         <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
           <TabsTrigger value="select" className="h-5 px-2 text-xs">
-            Select
+            {t("select")}
           </TabsTrigger>
           <TabsTrigger value="text" className="h-5 px-2 text-xs">
-            Text
+            {t("text")}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -2532,6 +2561,7 @@ function TextFilterSection({
   onAdd?: (op: "contains" | "does not contain", val: string) => void;
   onRemove?: (op: "contains" | "does not contain", val: string) => void;
 }) {
+  const t = useTranslations("sharedUi.table.controls");
   const [inputValue, setInputValue] = useState("");
   const [selectedOperator, setSelectedOperator] = useState<
     "contains" | "does not contain"
@@ -2560,10 +2590,10 @@ function TextFilterSection({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="contains" className="text-xs">
-              contains
+              {t("contains")}
             </SelectItem>
             <SelectItem value="does not contain" className="text-xs">
-              does not contain
+              {t("doesNotContain")}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -2580,7 +2610,7 @@ function TextFilterSection({
               handleAdd();
             }
           }}
-          placeholder="Enter value..."
+          placeholder={t("enterValue")}
           className="h-7 flex-1 text-xs"
         />
         <Button
@@ -2590,7 +2620,7 @@ function TextFilterSection({
           disabled={inputValue.length === 0}
           className="h-7 shrink-0 px-2 text-xs"
         >
-          Add
+          {t("add")}
         </Button>
       </div>
 
@@ -2603,7 +2633,9 @@ function TextFilterSection({
               className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
             >
               <span className="text-muted-foreground shrink-0 text-[11px] font-bold">
-                {f.operator === "contains" ? "contains" : "does not contain"}
+                {f.operator === "contains"
+                  ? t("contains")
+                  : t("doesNotContain")}
               </span>
               <span
                 className="min-w-0 flex-1 truncate font-bold"
@@ -2652,12 +2684,13 @@ function FilterValueCheckbox({
   totalSelected,
   disabled = false,
 }: FilterValueCheckboxProps) {
+  const t = useTranslations("sharedUi.table.controls");
   // Show "All" when clicking would reverse selection (only one item selected)
-  const labelText = checked && totalSelected === 1 ? "All" : "Only";
+  const labelText = checked && totalSelected === 1 ? t("all") : t("only");
 
   // Display placeholder for empty strings to ensure clickable area
-  const displayLabel = label === "" ? "(empty)" : label;
-  const displayTitle = label === "" ? "(empty)" : label;
+  const displayLabel = label === "" ? t("empty") : label;
+  const displayTitle = label === "" ? t("empty") : label;
 
   return (
     <div

@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ROUTES, RouteSection } from "@/src/components/layouts/routes";
 import { V4MigrationNavItem } from "./V4MigrationNavItem";
 import { V4MigrationProjectChip } from "./V4MigrationProjectChip";
 import { type ProjectMigrationStatus } from "./migrationData";
+import { render } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),

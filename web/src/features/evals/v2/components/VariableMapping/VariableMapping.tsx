@@ -8,6 +8,8 @@ import {
 } from "./components/EditableVariableMapping/EditableVariableMapping";
 import { VariableMappingBinding } from "./components/VariableMappingBinding/VariableMappingBinding";
 import { ReadOnlyVariableMappingCardShell } from "./components/VariableMappingCardShell";
+import { useTranslations } from "next-intl";
+import type { CodeEvalTemplateVariable } from "@langfuse/shared";
 
 type VariableMappingProps = {
   mappings: Array<{ variable: string; fieldState: VariableFieldState }>;
@@ -28,7 +30,10 @@ type VariableMappingProps = {
 
 function ReadOnlyVariableMapping({
   mappings,
-}: Pick<VariableMappingProps, "mappings">) {
+  columnLabels,
+}: Pick<VariableMappingProps, "mappings"> & {
+  columnLabels: Record<CodeEvalTemplateVariable, string>;
+}) {
   return (
     <div className="flex flex-col gap-4">
       {mappings.map((mapping) => (
@@ -38,8 +43,10 @@ function ReadOnlyVariableMapping({
           mapping={
             <VariableMappingBinding
               columnLabel={
-                evalVariableColumnLabel(mapping.fieldState.selectedColumnId) ??
-                ""
+                evalVariableColumnLabel(
+                  mapping.fieldState.selectedColumnId,
+                  columnLabels,
+                ) ?? ""
               }
               jsonSelector={mapping.fieldState.jsonSelector}
             />
@@ -51,17 +58,18 @@ function ReadOnlyVariableMapping({
 }
 
 function EmptyVariableMapping({ mode }: Pick<VariableMappingProps, "mode">) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <div className="border-border bg-muted/20 flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-6 py-8 text-center">
       <div className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-full">
         <Braces className="size-4" aria-hidden />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-bold">No variables to map</p>
+        <p className="text-sm font-bold">{t("variableMapping.empty.title")}</p>
         <p className="text-muted-foreground text-xs">
           {mode === "editable"
-            ? "Add a {{variable}} to the prompt to map evaluation data."
-            : "This prompt does not contain any variables."}
+            ? t("variableMapping.empty.editableDescription")
+            : t("variableMapping.empty.readOnlyDescription")}
         </p>
       </div>
     </div>
@@ -70,13 +78,27 @@ function EmptyVariableMapping({ mode }: Pick<VariableMappingProps, "mode">) {
 
 /** Prompt-variable mappings in editable setup or read-only saved state. */
 export function VariableMapping(props: VariableMappingProps) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+  const columnLabels: Record<CodeEvalTemplateVariable, string> = {
+    input: t("variableMapping.columns.input"),
+    output: t("variableMapping.columns.output"),
+    metadata: t("variableMapping.columns.metadata"),
+    toolCalls: t("variableMapping.columns.toolCalls"),
+    experimentItemExpectedOutput: t(
+      "variableMapping.columns.experimentItemExpectedOutput",
+    ),
+    experimentItemMetadata: t("variableMapping.columns.experimentItemMetadata"),
+  };
   if (props.mappings.length === 0) {
     return <EmptyVariableMapping mode={props.mode} />;
   }
 
   return props.mode === "editable" ? (
-    <EditableVariableMapping {...props} />
+    <EditableVariableMapping {...props} columnLabels={columnLabels} />
   ) : (
-    <ReadOnlyVariableMapping mappings={props.mappings} />
+    <ReadOnlyVariableMapping
+      mappings={props.mappings}
+      columnLabels={columnLabels}
+    />
   );
 }

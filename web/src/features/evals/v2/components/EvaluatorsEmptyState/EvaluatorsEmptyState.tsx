@@ -7,6 +7,7 @@ import { DETECT_TOPICS_ASSISTANT_PROMPT } from "@/src/features/evals/v2/constant
 import { EvaluatorsEmptyStateView } from "./components/EvaluatorsEmptyStateView/EvaluatorsEmptyStateView";
 import { prepareEvaluatorEmptyState } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorsEmptyState({
   onSelectTemplate,
@@ -15,13 +16,17 @@ export function EvaluatorsEmptyState({
   onSelectTemplate: (template: GalleryTemplate) => void;
   onBrowseLibrary: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations.emptyState");
   const capture = usePostHogClientCapture();
   // Launcher visibility, not `useCanUseInAppAgent`: with org AI features off
   // the action still shows and `openAssistant` opens the dialog that turns
   // them on, exactly like every other assistant entry point.
   const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
   const { openAssistant, submit } = useInAppAiAgent();
-  const emptyState = prepareEvaluatorEmptyState();
+  const emptyState = prepareEvaluatorEmptyState({
+    detectTopicsTitle: t("detectTopicsTitle"),
+    detectTopicsDescription: t("detectTopicsDescription"),
+  });
 
   const handleSelectTemplate = (template: GalleryTemplate) => {
     if (template.source === "managed") {

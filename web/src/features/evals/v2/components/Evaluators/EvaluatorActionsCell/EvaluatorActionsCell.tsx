@@ -6,6 +6,7 @@ import {
   SquarePercent,
   Trash2,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -31,6 +32,7 @@ export function EvaluatorActionsCell({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const capture = usePostHogClientCapture();
 
   const handlePrimaryAction = () => {
@@ -47,7 +49,7 @@ export function EvaluatorActionsCell({
         className="text-foreground hover:text-foreground h-auto px-0 py-0"
         onClick={handlePrimaryAction}
       >
-        View scores
+        {t("evaluator.actions.viewScores")}
         <SquarePercent className="ml-1 h-3.5 w-3.5" />
       </Button>
       <DropdownMenu>
@@ -56,10 +58,10 @@ export function EvaluatorActionsCell({
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label="Evaluator actions"
+            aria-label={t("evaluator.actions.label")}
             className="shrink-0"
           >
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">{t("evaluator.actions.openMenu")}</span>
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -67,20 +69,20 @@ export function EvaluatorActionsCell({
           {canViewExecutions ? (
             <DropdownMenuItem onClick={onViewExecutions}>
               <ListTree className="mr-2 h-4 w-4" />
-              View executions
+              {t("evaluator.actions.viewExecutions")}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onClick={onEdit}>
             <Pencil className="mr-2 h-4 w-4" />
-            Edit
+            {t("evaluator.actions.edit")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onClone}>
             <Copy className="mr-2 h-4 w-4" />
-            Clone
+            {t("evaluator.actions.clone")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onDelete}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {t("evaluator.actions.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

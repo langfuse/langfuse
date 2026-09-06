@@ -4,6 +4,7 @@ import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/pr
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useTranslations } from "next-intl";
 
 export function useEvaluatorTestAvailability({
   projectId,
@@ -14,6 +15,7 @@ export function useEvaluatorTestAvailability({
   store: EvaluatorSetupStore;
   hasValidModel: boolean;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
   const selectedObservation = useStore(
     store,
@@ -24,12 +26,18 @@ export function useEvaluatorTestAvailability({
   );
   const scoreOutputReason = useStore(store, (state) =>
     state.type === "LLM_AS_JUDGE"
-      ? getScoreOutputValidation(state.scoreOutput).reason
+      ? getScoreOutputValidation(state.scoreOutput, {
+          emptyCategoryName: t("scoreOutput.validation.emptyCategoryName"),
+          duplicateCategoryNames: t(
+            "scoreOutput.validation.duplicateCategoryNames",
+          ),
+          minimumCategories: t("scoreOutput.validation.minimumCategories"),
+        }).reason
       : null,
   );
   const modelReason = useStore(store, (state) =>
     state.type === "LLM_AS_JUDGE" && !hasValidModel
-      ? "Select a model before running a test."
+      ? t("test.availability.selectModel")
       : null,
   );
 
@@ -38,10 +46,10 @@ export function useEvaluatorTestAvailability({
     : modelReason
       ? modelReason
       : !definitionAvailable
-        ? "Complete the evaluator before running a test."
+        ? t("test.availability.completeEvaluator")
         : !selectedObservation
-          ? "Select a sample observation first."
+          ? t("test.availability.selectSample")
           : !sampleObject
-            ? "Loading the selected sample."
+            ? t("test.availability.loadingSample")
             : null;
 }

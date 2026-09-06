@@ -11,6 +11,7 @@ import {
   type Row,
   type RowSelectionState,
 } from "@tanstack/react-table";
+import { useTranslations } from "next-intl";
 
 interface TableSelectionManagerProps {
   projectId: string;
@@ -34,6 +35,7 @@ function SelectionHeaderCheckbox<TData>({
   setSelectAll: (value: boolean) => void;
   table: Table<TData>;
 }) {
+  const t = useTranslations("systemUi.tableActions");
   const pageRows = table.getRowModel().rows;
   const pageRowIds = pageRows.map((row) => row.id);
   const rowSelection = useTableRowSelection(
@@ -81,7 +83,7 @@ function SelectionHeaderCheckbox<TData>({
             setSelectAll(false);
           }
         }}
-        aria-label="Select all"
+        aria-label={t("selectAll")}
       />
     </div>
   );
@@ -100,6 +102,7 @@ function SelectionRowCheckbox<TData>({
   selectionStore?: TableSelectionStoreLike;
   setSelectAll: (value: boolean) => void;
 }) {
+  const t = useTranslations("systemUi.tableActions");
   const shiftKeyRef = useRef(false);
   const rowIsSelected = useTableRowIsSelected(
     selectionStore,
@@ -183,7 +186,7 @@ function SelectionRowCheckbox<TData>({
           row.toggleSelected(!!value);
           if (!value) setSelectAll(false);
         }}
-        aria-label="Select row"
+        aria-label={t("selectRow")}
       />
     </div>
   );

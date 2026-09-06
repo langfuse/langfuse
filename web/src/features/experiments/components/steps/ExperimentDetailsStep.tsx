@@ -10,16 +10,18 @@ import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { type ExperimentDetailsStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { useTranslations } from "next-intl";
 
 export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
   formState,
 }) => {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const { form } = formState;
   return (
     <div className="space-y-6">
       <StepHeader
-        title="Experiment Run Details"
-        description="Provide a name and optional description for your experiment to help identify and track it."
+        title={t("steps.details.title")}
+        description={t("steps.details.description")}
       />
 
       <FormField
@@ -27,11 +29,11 @@ export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
         name="name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Experiment name</FormLabel>
+            <FormLabel>{t("steps.details.experimentName")}</FormLabel>
             <FormControl>
               <Input
                 {...field}
-                placeholder="Enter experiment name"
+                placeholder={t("steps.details.experimentNamePlaceholder")}
                 className="w-full"
               />
             </FormControl>
@@ -45,11 +47,11 @@ export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
         name="description"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Description (optional)</FormLabel>
+            <FormLabel>{t("steps.details.descriptionOptional")}</FormLabel>
             <FormControl>
               <Textarea
                 {...field}
-                placeholder="Describe the purpose or context of this experiment"
+                placeholder={t("steps.details.descriptionPlaceholder")}
                 className="min-h-[100px] w-full"
               />
             </FormControl>

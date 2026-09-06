@@ -9,7 +9,7 @@ describe("NOTIFIED_EVENTS", () => {
     );
   });
 
-  it("gives every entry a non-empty title and description", () => {
+  it("gives every entry non-empty title and description message keys", () => {
     for (const event of NOTIFIED_EVENTS) {
       expect(event.title).not.toBe("");
       expect(event.description).not.toBe("");

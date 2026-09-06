@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 import { type EvalTemplateType } from "@langfuse/shared";
 
@@ -18,26 +19,30 @@ export function EvaluationTypeConfiguration({
   disabled: boolean;
   children: ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
+
   return (
     <div className="flex flex-col gap-2">
       <Label className="flex items-center gap-1.5">
-        Evaluation
+        {t("evaluator.typeConfiguration.label")}
         <span className="inline-flex -translate-y-px">
-          <InfoTooltip label="About evaluation types">
-            Use custom code for deterministic checks like exact matches, regex,
-            or schema validation. Use an LLM when the check needs judgment, such
-            as rating helpfulness, tone, or answer quality.
+          <InfoTooltip label={t("evaluator.typeConfiguration.about")}>
+            {t("evaluator.typeConfiguration.tooltip")}
           </InfoTooltip>
         </span>
       </Label>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span>Run</span>
+        <span>{t("evaluator.typeConfiguration.run")}</span>
         <EvaluationTypeToggle
           value={mode}
           onValueChange={onModeChange}
           disabled={disabled}
         />
-        <span>{mode === "CODE" ? "written in" : "with"}</span>
+        <span>
+          {mode === "CODE"
+            ? t("evaluator.typeConfiguration.writtenIn")
+            : t("evaluator.typeConfiguration.with")}
+        </span>
         {children}
       </div>
     </div>

@@ -52,6 +52,7 @@ import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTrac
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { useTranslations } from "next-intl";
 
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
@@ -89,6 +90,7 @@ function TracePanelNavigationHeaderExpanded({
   onTogglePanel,
   shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
+  const t = useTranslations("coreDetails.traces.navigation");
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
@@ -164,17 +166,17 @@ function TracePanelNavigationHeaderExpanded({
 
         if (observations.length >= TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD) {
           toast.warning(
-            `Trace download excludes IO, metadata, toolDefinitions, and toolCalls for traces with ${TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD}+ observations.`,
+            t("downloadOmitted", {
+              count: TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD,
+            }),
           );
         }
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to download trace JSON",
+          error instanceof Error ? error.message : t("downloadFailed"),
         );
       }
-    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
+    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions, t]);
 
   const isTimelineView = viewMode === "timeline";
 
@@ -214,7 +216,7 @@ function TracePanelNavigationHeaderExpanded({
         >
           <CommandInput
             showBorder={false}
-            placeholder="Search"
+            placeholder={t("search")}
             className="h-7 min-w-20 border-0 pr-0 focus:ring-0 @max-[300px]/navheader:min-w-10"
             value={searchInputValue}
             onValueChange={setSearchInputValue}
@@ -228,7 +230,7 @@ function TracePanelNavigationHeaderExpanded({
               onClick={handleToggleTreeNodes}
               variant="ghost"
               size="icon"
-              title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
+              title={isEverythingCollapsed ? t("expandAll") : t("collapseAll")}
               className="h-7 w-7"
             >
               {isEverythingCollapsed ? (
@@ -247,7 +249,7 @@ function TracePanelNavigationHeaderExpanded({
               size="icon"
               onClick={handleDownload}
               disabled={isDownloading}
-              title="Download trace as JSON"
+              title={t("download")}
               className="h-7 w-7"
             >
               {isDownloading ? (
@@ -264,8 +266,8 @@ function TracePanelNavigationHeaderExpanded({
               <Button
                 variant="ghost"
                 size="icon"
-                title="More"
-                aria-label="More options"
+                title={t("more")}
+                aria-label={t("moreOptions")}
                 className="h-7 w-7 @min-[360px]/navheader:hidden"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
@@ -278,14 +280,14 @@ function TracePanelNavigationHeaderExpanded({
                 ) : (
                   <FoldVertical className="mr-2 h-3.5 w-3.5" />
                 )}
-                {isEverythingCollapsed ? "Expand all" : "Collapse all"}
+                {isEverythingCollapsed ? t("expandAll") : t("collapseAll")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => handleDownload()}
                 disabled={isDownloading}
               >
                 <Download className="mr-2 h-3.5 w-3.5" />
-                Download trace as JSON
+                {t("download")}
               </DropdownMenuItem>
               <PlaybackMenuItems />
               <DropdownMenuSeparator />
@@ -336,13 +338,15 @@ function ViewModeSwitch({
   isTimelineView: boolean;
   onSelect: (timeline: boolean) => void;
 }) {
+  const t = useTranslations("coreDetails.traces.navigation");
+
   return (
     <div className="bg-muted/60 ml-2 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
       <ViewModeSegment
         active={!isTimelineView}
         onClick={() => onSelect(false)}
         icon={ListTree}
-        label="Tree"
+        label={t("tree")}
       />
       {/* One Timeline. What it IS depends on the Compact Timeline feature
           preview — see TracePanelNavigation — rather than on a third segment
@@ -351,7 +355,7 @@ function ViewModeSwitch({
         active={isTimelineView}
         onClick={() => onSelect(true)}
         icon={GanttChartSquare}
-        label="Timeline"
+        label={t("timeline")}
       />
     </div>
   );

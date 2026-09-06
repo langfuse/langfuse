@@ -49,29 +49,32 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, ChevronRight, TrashIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useTranslations } from "next-intl";
 
-const addDomainSchema = z.object({
-  domain: z
-    .string()
-    .trim()
-    .min(3)
-    .max(253)
-    .transform((v) => v.toLowerCase())
-    .refine(
-      (v) =>
-        /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
-          v,
-        ),
-      { message: "Must be a valid domain (e.g. acme.com)" },
-    ),
-});
+const createAddDomainSchema = (invalidDomainMessage: string) =>
+  z.object({
+    domain: z
+      .string()
+      .trim()
+      .min(3)
+      .max(253)
+      .transform((v) => v.toLowerCase())
+      .refine(
+        (v) =>
+          /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
+            v,
+          ),
+        { message: invalidDomainMessage },
+      ),
+  });
 
-type AddDomainInput = z.infer<typeof addDomainSchema>;
+type AddDomainInput = z.infer<ReturnType<typeof createAddDomainSchema>>;
 
 export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
+  const t = useTranslations("settingsEnterprise.verifiedDomains");
   const hasEntitlement = useHasEntitlement("cloud-multi-tenant-sso");
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
@@ -80,11 +83,8 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
 
   const heading = (
     <>
-      <Header title="Verified Domains" />
-      <p className="text-muted-foreground mb-4 text-sm">
-        You can only configure SSO for domains your organization owns. Verify a
-        domain via DNS to enable SSO for it.
-      </p>
+      <Header title={t("title")} />
+      <p className="text-muted-foreground mb-4 text-sm">{t("description")}</p>
     </>
   );
 
@@ -94,11 +94,8 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
         {heading}
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Not available</AlertTitle>
-          <AlertDescription>
-            Verified Domains and Enterprise SSO are not available on your plan.
-            Please upgrade to access this feature.
-          </AlertDescription>
+          <AlertTitle>{t("notAvailable")}</AlertTitle>
+          <AlertDescription>{t("notAvailableDescription")}</AlertDescription>
         </Alert>
       </div>
     );
@@ -109,11 +106,8 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
       <div>
         {heading}
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
-            You do not have permission to manage verified domains for this
-            organization.
-          </AlertDescription>
+          <AlertTitle>{t("accessDenied")}</AlertTitle>
+          <AlertDescription>{t("accessDeniedDescription")}</AlertDescription>
         </Alert>
       </div>
     );
@@ -122,19 +116,17 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   return (
     <div className="space-y-6">
       <Header
-        title="Verified Domains"
+        title={t("title")}
         actionButtons={<AddDomainButton orgId={orgId} />}
       />
-      <p className="text-muted-foreground text-sm">
-        You can only configure SSO for domains your organization owns. Verify a
-        domain via DNS to enable SSO for it.
-      </p>
+      <p className="text-muted-foreground text-sm">{t("description")}</p>
       <DomainsTable orgId={orgId} />
     </div>
   );
 };
 
 function DomainsTable({ orgId }: { orgId: string }) {
+  const t = useTranslations("settingsEnterprise.verifiedDomains");
   const query = api.verifiedDomain.list.useQuery({ orgId });
 
   return (
@@ -142,10 +134,10 @@ function DomainsTable({ orgId }: { orgId: string }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="text-primary pl-2.5">Domain</TableHead>
-            <TableHead className="text-primary">Status</TableHead>
+            <TableHead className="text-primary pl-2.5">{t("domain")}</TableHead>
+            <TableHead className="text-primary">{t("status")}</TableHead>
             <TableHead className="text-primary hidden md:table-cell">
-              Added
+              {t("added")}
             </TableHead>
             <TableHead />
           </TableRow>
@@ -158,7 +150,7 @@ function DomainsTable({ orgId }: { orgId: string }) {
                 colSpan={4}
                 className="py-12 text-center text-sm"
               >
-                No domains added yet
+                {t("empty")}
               </TableCell>
             </TableRow>
           ) : (
@@ -182,6 +174,7 @@ type DomainRowData = {
 };
 
 function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
+  const t = useTranslations("settingsEnterprise.verifiedDomains");
   const [expanded, setExpanded] = useState(!row.verifiedAt);
   const utils = api.useUtils();
 
@@ -190,12 +183,12 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
       utils.verifiedDomain.list.invalidate({ orgId });
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
-        title: "Domain verified",
-        description: `${row.domain} is now verified.`,
+        title: t("verifiedToast"),
+        description: t("verifiedDescription", { domain: row.domain }),
       });
     },
     onError: (err) => {
-      showErrorToast("Verification failed", err.message);
+      showErrorToast(t("verificationFailed"), err.message);
     },
   });
 
@@ -222,9 +215,9 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
         </TableCell>
         <TableCell density="comfortable">
           {row.verifiedAt ? (
-            <Badge variant="default">Verified</Badge>
+            <Badge variant="default">{t("verified")}</Badge>
           ) : (
-            <Badge variant="secondary">Pending verification</Badge>
+            <Badge variant="secondary">{t("pending")}</Badge>
           )}
         </TableCell>
         <TableCell density="comfortable" className="hidden md:table-cell">
@@ -240,7 +233,7 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
               onClick={() => verifyMutation.mutate({ orgId, id: row.id })}
               loading={verifyMutation.isPending}
             >
-              Verify
+              {t("verify")}
             </Button>
           )}
           <DeleteDomainButton
@@ -272,18 +265,17 @@ function DnsInstructions({
   recordHost: string;
   recordValue: string;
 }) {
+  const t = useTranslations("settingsEnterprise.verifiedDomains");
   return (
     <div className="space-y-3">
-      <p className="text-sm font-bold">
-        Add the following TXT record to your DNS provider:
-      </p>
+      <p className="text-sm font-bold">{t("dnsInstruction")}</p>
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">Type</TableHead>
-              <TableHead className="w-54">Host</TableHead>
-              <TableHead>Value</TableHead>
+              <TableHead className="w-16">{t("type")}</TableHead>
+              <TableHead className="w-54">{t("host")}</TableHead>
+              <TableHead>{t("value")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -306,16 +298,22 @@ function DnsInstructions({
         </Table>
       </Card>
       <p className="text-muted-foreground text-xs">
-        DNS changes may take up to 24h to propagate. After adding the record,
-        click <span className="font-bold">Verify</span>.
+        {t.rich("dnsPropagation", {
+          strong: (chunks) => <span className="font-bold">{chunks}</span>,
+        })}
       </p>
     </div>
   );
 }
 
 function AddDomainButton({ orgId }: { orgId: string }) {
+  const t = useTranslations("settingsEnterprise.verifiedDomains");
   const [open, setOpen] = useState(false);
   const utils = api.useUtils();
+  const addDomainSchema = useMemo(
+    () => createAddDomainSchema(t("validDomain")),
+    [t],
+  );
 
   const form = useForm<AddDomainInput>({
     resolver: zodResolver(addDomainSchema),
@@ -326,9 +324,8 @@ function AddDomainButton({ orgId }: { orgId: string }) {
     onSuccess: () => {
       utils.verifiedDomain.list.invalidate({ orgId });
       showSuccessToast({
-        title: "Domain added",
-        description:
-          "Add the DNS TXT record shown in the table, then click Verify.",
+        title: t("addedToast"),
+        description: t("addedDescription"),
       });
       form.reset();
       setOpen(false);
@@ -345,11 +342,11 @@ function AddDomainButton({ orgId }: { orgId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">Add Domain</Button>
+        <Button size="sm">{t("addDomain")}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a domain</DialogTitle>
+          <DialogTitle>{t("addTitle")}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -359,7 +356,7 @@ function AddDomainButton({ orgId }: { orgId: string }) {
                 name="domain"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Domain</FormLabel>
+                    <FormLabel>{t("domain")}</FormLabel>
                     <FormControl>
                       <Input placeholder="acme.com" autoFocus {...field} />
                     </FormControl>
@@ -374,10 +371,10 @@ function AddDomainButton({ orgId }: { orgId: string }) {
                 variant="ghost"
                 onClick={() => setOpen(false)}
               >
-                Cancel
+                {t("cancel")}
               </Button>
               <Button type="submit" loading={createMutation.isPending}>
-                Add
+                {t("add")}
               </Button>
             </DialogFooter>
           </form>
@@ -398,44 +395,49 @@ function DeleteDomainButton({
   domain: string;
   verified: boolean;
 }) {
+  const t = useTranslations("settingsEnterprise.verifiedDomains");
   const utils = api.useUtils();
 
   const deleteMutation = api.verifiedDomain.delete.useMutation({
     onSuccess: () => {
       utils.verifiedDomain.list.invalidate({ orgId });
       showSuccessToast({
-        title: "Domain removed",
-        description: `${domain} has been removed.`,
+        title: t("removedToast"),
+        description: t("removedDescription", { domain }),
       });
     },
     onError: (err) => {
-      showErrorToast("Failed to remove domain", err.message);
+      showErrorToast(t("removeFailed"), err.message);
     },
   });
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={`Delete ${domain}`}>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("deleteAriaLabel", { domain })}
+        >
           <TrashIcon className="h-4 w-4" />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remove {domain}?</AlertDialogTitle>
+          <AlertDialogTitle>{t("removeTitle", { domain })}</AlertDialogTitle>
           <AlertDialogDescription>
             {verified
-              ? "If an SSO configuration exists for this domain, you must remove it first. The domain can be re-verified later."
-              : "This removes the pending claim. The domain can be re-added and verified later."}
+              ? t("verifiedRemoveDescription")
+              : t("pendingRemoveDescription")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => deleteMutation.mutate({ orgId, id })}
             disabled={deleteMutation.isPending}
           >
-            Remove
+            {t("remove")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

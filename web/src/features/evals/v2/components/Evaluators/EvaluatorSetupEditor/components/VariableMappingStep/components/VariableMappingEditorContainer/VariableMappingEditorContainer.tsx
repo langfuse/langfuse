@@ -6,6 +6,7 @@ import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapp
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useTranslations } from "next-intl";
 
 const StableVariableMapping = memo(VariableMapping);
 
@@ -16,6 +17,7 @@ export function VariableMappingEditorContainer({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const resolvedSample = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
     store,
@@ -51,7 +53,7 @@ export function VariableMappingEditorContainer({
       onChangeField={state.actions.setVariableField}
       sourceObject={displayedSample}
       hasMatchingObservations={Boolean(displayedSample)}
-      sourceUnavailableMessage="Select a sample observation in the test panel to preview mapped values."
+      sourceUnavailableMessage={t("variableMapping.selectSampleToPreview")}
     />
   );
 }

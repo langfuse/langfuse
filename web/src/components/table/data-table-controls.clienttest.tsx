@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderTestingLibrary,
+  screen,
+  type RenderOptions,
+} from "@testing-library/react";
+import { type ReactElement } from "react";
 import { Accordion } from "@/src/components/ui/accordion";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
@@ -10,6 +16,35 @@ import type {
   CategoricalUIFilter,
   UIFilter,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { NextIntlClientProvider } from "next-intl";
+import englishMessages from "@/src/features/i18n/messages/en/sharedUi.json";
+import chineseMessages from "@/src/features/i18n/messages/zh-CN/sharedUi.json";
+
+const render = (
+  element: ReactElement,
+  { wrapper: Wrapper, ...options }: RenderOptions = {},
+) =>
+  renderTestingLibrary(element, {
+    ...options,
+    wrapper: ({ children }) => (
+      <NextIntlClientProvider
+        locale="en"
+        messages={{ sharedUi: englishMessages }}
+      >
+        {Wrapper ? <Wrapper>{children}</Wrapper> : children}
+      </NextIntlClientProvider>
+    ),
+  });
+
+const renderChinese = (element: ReactElement) =>
+  renderTestingLibrary(
+    <NextIntlClientProvider
+      locale="zh-CN"
+      messages={{ sharedUi: chineseMessages }}
+    >
+      {element}
+    </NextIntlClientProvider>,
+  );
 
 // Spy on the posthog client so capture calls (event name + payload) can be
 // asserted at the wrapper seam.
@@ -436,6 +471,29 @@ describe("DataTableControls facet ordering", () => {
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };
+
+  it("renders shared filter controls in Chinese", () => {
+    renderChinese(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("筛选条件")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "隐藏筛选条件" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "展开所有筛选条件" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "筛选选项" }),
+    ).toBeInTheDocument();
+  });
 
   it("promotes facets with an active filter above inactive ones", () => {
     render(

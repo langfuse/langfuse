@@ -5,21 +5,45 @@ import {
 
 const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
 
-const getPartnerName = (partner: string) => {
-  return partnerIdentifierToName.get(partner) ?? "Unknown";
+export type MaintainerFormatter = (
+  key:
+    | "maintainers.partner"
+    | "maintainers.langfuse"
+    | "maintainers.user"
+    | "maintainers.unknownPartner",
+  values?: Record<string, string>,
+) => string;
+
+const defaultMaintainerFormatter: MaintainerFormatter = (key, values) => {
+  switch (key) {
+    case "maintainers.partner":
+      return `${values?.partner} maintained`;
+    case "maintainers.langfuse":
+      return "Langfuse maintained";
+    case "maintainers.user":
+      return "User maintained";
+    case "maintainers.unknownPartner":
+      return "Unknown";
+  }
 };
 
-export const getMaintainer = (evalTemplate: {
-  partner?: string | null;
-  projectId: string | null;
-}) => {
+export const getMaintainer = (
+  evalTemplate: {
+    partner?: string | null;
+    projectId: string | null;
+  },
+  format: MaintainerFormatter = defaultMaintainerFormatter,
+) => {
   if (evalTemplate.projectId === null) {
     if (evalTemplate.partner) {
-      return `${getPartnerName(evalTemplate.partner)} maintained`;
+      const partner =
+        partnerIdentifierToName.get(evalTemplate.partner) ??
+        format("maintainers.unknownPartner");
+      return format("maintainers.partner", { partner });
     }
-    return "Langfuse maintained";
+    return format("maintainers.langfuse");
   }
-  return "User maintained";
+  return format("maintainers.user");
 };
 
 /**

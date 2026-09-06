@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderMonitorWithIntl } from "../test-utils";
 
 const automationRow = {
   id: "auto-1",
@@ -28,7 +29,7 @@ describe("MonitorAutomationsPanel stale-id pruning", () => {
   it("does not write back while the query is loading", () => {
     useQueryMock.mockReturnValue({ data: undefined, isPending: true });
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         triggerIds={["trig-stale"]}
@@ -41,7 +42,7 @@ describe("MonitorAutomationsPanel stale-id pruning", () => {
   it("hides a stale ID on load without writing back", () => {
     useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         triggerIds={["trig-1", "trig-stale"]}
@@ -54,7 +55,7 @@ describe("MonitorAutomationsPanel stale-id pruning", () => {
   it("drops the stale ID when the user toggles a row", () => {
     useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();
-    render(
+    renderMonitorWithIntl(
       <MonitorAutomationsPanel
         projectId="p1"
         triggerIds={["trig-1", "trig-stale"]}

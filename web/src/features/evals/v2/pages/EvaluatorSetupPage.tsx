@@ -56,6 +56,7 @@ import {
   getEvaluatorCreationAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { useTranslations } from "next-intl";
 
 type InitialEvaluator = {
   id: string;
@@ -144,6 +145,7 @@ export function EvaluatorSetupPage(
         initialEvaluator: InitialEvaluator;
       },
 ) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const { projectId } = props;
   const isMobile = useIsMobile();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -281,9 +283,8 @@ export function EvaluatorSetupPage(
   const reactivate = api.evalsV2.reactivate.useMutation({
     onSuccess: async () => {
       showSuccessToast({
-        title: "Evaluator reactivated",
-        description:
-          "The model test succeeded and the evaluator is active again.",
+        title: t("setup.notifications.reactivatedTitle"),
+        description: t("setup.notifications.reactivatedDescription"),
       });
       if (initialEvaluator) {
         await utils.evalsV2.get.invalidate({
@@ -293,7 +294,10 @@ export function EvaluatorSetupPage(
       }
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        t("setup.notifications.reactivationFailed"),
+        error.message,
+      );
     },
   });
   const deleteEvaluator = api.evalsV2.delete.useMutation({
@@ -305,8 +309,8 @@ export function EvaluatorSetupPage(
         isAllMatching: false,
       });
       showSuccessToast({
-        title: "Evaluator deleted",
-        description: "The evaluator and all of its versions were deleted.",
+        title: t("setup.notifications.deletedTitle"),
+        description: t("setup.notifications.deletedDescription"),
       });
       await router.push(`/project/${projectId}/evals`);
     },
@@ -363,15 +367,15 @@ export function EvaluatorSetupPage(
       );
       if (!applied && showFailureToast) {
         showErrorToast(
-          "Couldn't generate an evaluator name",
-          "Please enter a name manually.",
+          t("setup.notifications.nameGenerationFailed"),
+          t("setup.notifications.enterNameManually"),
         );
       }
     } catch (error) {
       if (!showFailureToast) throw error;
       showErrorToast(
-        "Couldn't generate an evaluator name",
-        "Please enter a name manually.",
+        t("setup.notifications.nameGenerationFailed"),
+        t("setup.notifications.enterNameManually"),
       );
     }
   };
@@ -388,8 +392,8 @@ export function EvaluatorSetupPage(
       // The field-specific message below is more actionable than the request error.
     }
     showErrorToast(
-      "Couldn't generate an evaluator description",
-      "Please enter a description manually.",
+      t("setup.notifications.descriptionGenerationFailed"),
+      t("setup.notifications.enterDescriptionManually"),
     );
   };
 
@@ -440,8 +444,8 @@ export function EvaluatorSetupPage(
       });
       if (!metadata) {
         showErrorToast(
-          "Evaluator name required",
-          "We couldn't generate a name. Please enter one manually and try again.",
+          t("setup.notifications.nameRequired"),
+          t("setup.notifications.nameRequiredDescription"),
         );
         return;
       }
@@ -477,8 +481,8 @@ export function EvaluatorSetupPage(
         });
         capture("evaluators:update", { evaluatorType: state.type });
         showSuccessToast({
-          title: "Evaluator saved",
-          description: "Your evaluator changes are saved.",
+          title: t("setup.notifications.savedTitle"),
+          description: t("setup.notifications.savedDescription"),
         });
         initialSnapshot.current = getCurrentSnapshot(state);
         await utils.evalsV2.filterOptions.invalidate({ projectId });
@@ -651,9 +655,11 @@ export function EvaluatorSetupPage(
   return (
     <Page
       headerProps={{
-        title: initialEvaluator ? "Configure evaluator" : "New evaluator",
+        title: initialEvaluator
+          ? t("setup.configureTitle")
+          : t("setup.newTitle"),
         breadcrumb: [
-          { name: "Evaluators", href: `/project/${projectId}/evals` },
+          { name: t("setup.breadcrumb"), href: `/project/${projectId}/evals` },
         ],
         actionButtonsRight: initialEvaluator ? (
           <div className="flex gap-2">
@@ -669,7 +675,7 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
-              title="View version history"
+              title={t("setup.viewVersionHistory")}
               onClick={() => {
                 capture("evaluators:version_history_interaction", {
                   action: "open",
@@ -678,12 +684,12 @@ export function EvaluatorSetupPage(
               }}
             >
               <History className="mr-2 h-4 w-4" />
-              Version history
+              {t("setup.versionHistory")}
             </Button>
             <Button
               type="button"
               variant="outline"
-              title="Delete evaluator"
+              title={t("setup.deleteEvaluator")}
               onClick={() => setDeleteOpen(true)}
             >
               <Trash2 className="text-destructive h-4 w-4" />
@@ -805,9 +811,9 @@ export function EvaluatorSetupPage(
         <ConfirmDialog
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
-          title="Delete evaluator?"
-          description="This deletes the evaluator and its complete version history. This action cannot be undone."
-          confirmLabel="Delete evaluator"
+          title={t("setup.deleteDialog.title")}
+          description={t("setup.deleteDialog.description")}
+          confirmLabel={t("setup.deleteDialog.confirm")}
           onConfirm={() =>
             deleteEvaluator.mutate({
               projectId,
@@ -823,9 +829,9 @@ export function EvaluatorSetupPage(
       <ConfirmDialog
         open={discardOpen}
         onOpenChange={setDiscardOpen}
-        title="Discard unsaved changes?"
-        description="Your evaluator changes will be lost."
-        confirmLabel="Discard changes"
+        title={t("setup.discardDialog.title")}
+        description={t("setup.discardDialog.description")}
+        confirmLabel={t("setup.discardDialog.confirm")}
         onConfirm={close}
       />
       <EvaluatorVersionConflictDialog

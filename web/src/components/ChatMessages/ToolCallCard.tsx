@@ -1,15 +1,17 @@
 import { type LLMToolCall } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { useTranslations } from "next-intl";
 
 export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
   toolCall,
 }) => {
+  const t = useTranslations("sharedUi.chatMessages");
   return (
     <div className="my-1 rounded border border-gray-200 p-2 text-sm dark:border-gray-700">
       <div className="flex flex-row gap-4">
         <div className="flex w-[15%] flex-col overflow-hidden">
           <div className="text-xs text-gray-500 dark:text-gray-400">
-            Tool called
+            {t("toolCalled")}
           </div>
           <div className="mt-1 overflow-hidden text-xs font-bold text-ellipsis whitespace-nowrap">
             {toolCall.name}
@@ -17,7 +19,7 @@ export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
         </div>
         <div className="w-[50%] flex-1 overflow-hidden">
           <div className="text-xs text-gray-500 dark:text-gray-400">
-            Arguments
+            {t("arguments")}
           </div>
           <PrettyJsonView
             json={toolCall.args}

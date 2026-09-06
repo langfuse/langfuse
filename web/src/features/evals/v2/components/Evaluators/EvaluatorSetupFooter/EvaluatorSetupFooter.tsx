@@ -4,6 +4,7 @@ import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/pr
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorSetupFooterView } from "./EvaluatorSetupFooterView";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorSetupFooter({
   store,
@@ -24,6 +25,7 @@ export function EvaluatorSetupFooter({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const { currentSnapshot, canSubmit, scoreOutputReason, nameMissing } =
     useStore(
       store,
@@ -44,7 +46,17 @@ export function EvaluatorSetupFooter({
           canSubmit: Boolean(definition) && hasCompleteMappings,
           scoreOutputReason:
             state.type === "LLM_AS_JUDGE"
-              ? getScoreOutputValidation(state.scoreOutput).reason
+              ? getScoreOutputValidation(state.scoreOutput, {
+                  emptyCategoryName: t(
+                    "scoreOutput.validation.emptyCategoryName",
+                  ),
+                  duplicateCategoryNames: t(
+                    "scoreOutput.validation.duplicateCategoryNames",
+                  ),
+                  minimumCategories: t(
+                    "scoreOutput.validation.minimumCategories",
+                  ),
+                }).reason
               : null,
           nameMissing: !state.name.trim(),
         };
@@ -53,11 +65,11 @@ export function EvaluatorSetupFooter({
   const hasUnsavedChanges = currentSnapshot !== initialSnapshot;
   const disabledReason =
     nameMissing && !nameAIAssistanceAvailable
-      ? "Add an evaluator name before saving."
+      ? t("setup.footer.nameRequired")
       : scoreOutputReason
         ? scoreOutputReason
         : codeValidation && !codeValidation.isPending && !codeValidation.isValid
-          ? "Fix the code validation errors before saving."
+          ? t("setup.footer.fixCodeErrors")
           : null;
   const saveDisabled =
     !canSubmit ||
@@ -69,8 +81,10 @@ export function EvaluatorSetupFooter({
     isSaving;
 
   const sharedProps = {
-    closeLabel: hasUnsavedChanges ? "Cancel" : "Close",
-    saveLabel: isEditing ? "Save changes" : "Create evaluator",
+    closeLabel: hasUnsavedChanges ? t("cancel") : t("close"),
+    saveLabel: isEditing
+      ? t("setup.footer.saveChanges")
+      : t("setup.footer.createEvaluator"),
     isSaving,
     saveDisabled,
     disabledReason,
@@ -84,7 +98,7 @@ export function EvaluatorSetupFooter({
 
   return (
     <EvaluatorSetupFooterView mode="create" {...sharedProps}>
-      Next: attach a rule to run this evaluator on incoming observations.
+      {t("setup.footer.nextAttachRule")}
     </EvaluatorSetupFooterView>
   );
 }

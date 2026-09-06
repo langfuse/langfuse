@@ -17,6 +17,7 @@ import {
   TableBody,
   TableCell,
 } from "@/src/components/ui/table";
+import { useLocale, useTranslations } from "next-intl";
 
 export interface SelectDashboardDialogProps {
   open: boolean;
@@ -33,6 +34,9 @@ export function SelectDashboardDialog({
   onSelectDashboard,
   onSkip,
 }: SelectDashboardDialogProps) {
+  const t = useTranslations("evaluationAnalytics.dashboard");
+  const extrasT = useTranslations("systemUi.dashboardExtras");
+  const locale = useLocale();
   const [selectedDashboardId, setSelectedDashboardId] = useState<string | null>(
     null,
   );
@@ -68,27 +72,27 @@ export function SelectDashboardDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle>Select dashboard to add widget to</DialogTitle>
+          <DialogTitle>{t("selectTitle")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <div className="mt-4 max-h-[400px] overflow-y-auto">
             {dashboards.isLoading ? (
-              <div className="py-8 text-center">Loading dashboards...</div>
+              <div className="py-8 text-center">{t("loading")}</div>
             ) : dashboards.isError ? (
               <div className="text-destructive py-8 text-center">
-                Error: {dashboards.error.message}
+                {extrasT("error", { message: dashboards.error.message })}
               </div>
             ) : dashboards.data?.dashboards.length === 0 ? (
               <div className="text-muted-foreground py-8 text-center">
-                No dashboards found.
+                {extrasT("noneFound")}
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Updated</TableHead>
+                    <TableHead>{t("name")}</TableHead>
+                    <TableHead>{extrasT("description")}</TableHead>
+                    <TableHead>{t("updated")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -113,7 +117,7 @@ export function SelectDashboardDialog({
                           {d.description}
                         </TableCell>
                         <TableCell density="comfortable">
-                          {new Date(d.updatedAt).toLocaleString()}
+                          {new Date(d.updatedAt).toLocaleString(locale)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -124,10 +128,10 @@ export function SelectDashboardDialog({
         </DialogBody>
         <DialogFooter className="mt-4 flex justify-between">
           <Button variant="outline" onClick={handleSkip}>
-            Skip
+            {extrasT("skip")}
           </Button>
           <Button onClick={handleAdd} disabled={!selectedDashboardId}>
-            Add to Dashboard
+            {extrasT("add")}
           </Button>
         </DialogFooter>
       </DialogContent>

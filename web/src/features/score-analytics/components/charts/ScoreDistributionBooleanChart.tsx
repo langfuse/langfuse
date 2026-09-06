@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/chart";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import { ScoreChartTooltip } from "../../lib/ScoreChartTooltip";
+import { useTranslations } from "next-intl";
 
 interface BooleanChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -32,6 +33,7 @@ export function ScoreDistributionBooleanChart({
   score2Name,
   colors,
 }: BooleanChartProps) {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   const isComparisonMode = Boolean(distribution2 && score2Name);
 
   // Detect if we have namespaced category keys (e.g., "Color (annotation): True")
@@ -63,7 +65,9 @@ export function ScoreDistributionBooleanChart({
     return [...distribution1]
       .sort((a, b) => a.binIndex - b.binIndex)
       .map((item) => {
-        const label = categories[item.binIndex] ?? `Value ${item.binIndex}`;
+        const label =
+          categories[item.binIndex] ??
+          t("fallbackValue", { index: item.binIndex });
 
         if (isComparisonMode && dist2Map) {
           // Use namespaced keys if available, otherwise fall back to pv/uv
@@ -96,6 +100,7 @@ export function ScoreDistributionBooleanChart({
     categories,
     isComparisonMode,
     namespacedKeys,
+    t,
   ]);
 
   // Extract actual dataKeys being used in the chart

@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogHeader,
 } from "@/src/components/ui/dialog";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 
 const commandDialogSurfaceClass = "bg-popover";
 
@@ -42,6 +43,8 @@ const CommandDialog = ({
 }: DialogProps & {
   filter?: React.ComponentProps<typeof CommandPrimitive>["filter"];
 }) => {
+  const t = useSharedUiTranslations("primitives");
+
   return (
     <Dialog {...props}>
       <DialogContent
@@ -56,7 +59,7 @@ const CommandDialog = ({
         overlayMode="invisible"
       >
         <DialogHeader className="sr-only p-0">
-          <DialogTitle>Search</DialogTitle>
+          <DialogTitle>{t("search")}</DialogTitle>
         </DialogHeader>
         <DialogBody className="p-0">
           <Command

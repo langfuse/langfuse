@@ -7,6 +7,7 @@ import {
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { PlusIcon, Settings } from "lucide-react";
 import { type Session } from "next-auth";
+import { useTranslations } from "next-intl";
 
 type Project = NonNullable<
   Session["user"]
@@ -26,9 +27,10 @@ type ProjectDropdownMenuProps = {
 
 export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
   const { organizationId, canCreateProjects, getProjectPath } = props;
+  const t = useTranslations("workspace.switcher");
 
   return (
-    <DropdownMenuContent align="start" header="Projects" maxHeight="15rem">
+    <DropdownMenuContent align="start" header={t("projects")} maxHeight="15rem">
       {props.state === "loaded" ? (
         props.projects.map((dropdownProject) => (
           <DropdownMenuItemWithSecondaryAction
@@ -37,7 +39,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
             href={getProjectPath(dropdownProject.id)}
             secondaryAction={{
               href: `/project/${dropdownProject.id}/settings`,
-              ariaLabel: `Go to settings for ${dropdownProject.name}`,
+              ariaLabel: t("goToSettings", { name: dropdownProject.name }),
               icon: Settings,
             }}
           />
@@ -54,7 +56,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItemWithSecondaryAction
-            title="New Project"
+            title={t("newProject")}
             href={createProjectRoute(organizationId)}
             icon={PlusIcon}
           />

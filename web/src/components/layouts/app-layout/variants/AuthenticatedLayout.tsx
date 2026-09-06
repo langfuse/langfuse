@@ -50,6 +50,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { Check } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { LOCALE_LABELS, SUPPORTED_LOCALES } from "@/src/features/i18n/config";
+import { useLanguageSwitcher } from "@/src/features/i18n/useLanguageSwitcher";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -122,6 +126,8 @@ export function AuthenticatedLayout({
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
+  const t = useTranslations();
+  const { locale, selectLocale } = useLanguageSwitcher();
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const router = useRouter();
@@ -183,29 +189,46 @@ export function AuthenticatedLayout({
   const userMenuItems = [
     {
       type: "link" as const,
-      name: "Account Settings",
+      name: t("accountMenu.accountSettings"),
       href: "/account/settings",
     },
     ...(showV4Migration
       ? [
           {
             type: "link" as const,
-            name: "v4 Migration",
+            name: t("accountMenu.v4Migration"),
             href: "/v4-migration",
           },
         ]
       : []),
     {
       type: "action" as const,
-      name: "Theme",
+      name: t("accountMenu.theme"),
       onClick: () => {},
       content: <ThemeToggle />,
+    },
+    {
+      type: "submenu" as const,
+      name: t("accountMenu.language"),
+      subItems: SUPPORTED_LOCALES.map((supportedLocale) => ({
+        type: "action" as const,
+        name: supportedLocale,
+        onClick: () => selectLocale(supportedLocale),
+        content: (
+          <span className="flex w-full items-center gap-4">
+            {LOCALE_LABELS[supportedLocale]}
+            {supportedLocale === locale ? (
+              <Check className="ml-auto size-4" />
+            ) : null}
+          </span>
+        ),
+      })),
     },
     ...(hasFeaturePreviews
       ? [
           {
             type: "action" as const,
-            name: "Feature Preview",
+            name: t("accountMenu.featurePreview"),
             onClick: () => setFeaturePreviewOpen(true),
           },
         ]
@@ -214,13 +237,13 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "submenu" as const,
-            name: "Regions",
+            name: t("accountMenu.regions"),
             subItems: regionMenuItems,
             content: (
               <>
-                Regions
+                {t("accountMenu.regions")}
                 <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
-                  Current: {currentRegion}
+                  {t("common.current", { value: currentRegion })}
                 </div>
               </>
             ),
@@ -231,20 +254,24 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "submenu" as const,
-            name: "Instances",
+            name: t("accountMenu.instances"),
             subItems: instanceMenuItems,
             content: currentInstance ? (
               <>
-                Instances
+                {t("accountMenu.instances")}
                 <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
-                  Current: {currentInstance.name}
+                  {t("common.current", { value: currentInstance.name })}
                 </div>
               </>
             ) : undefined,
           },
         ]
       : []),
-    { type: "action" as const, name: "Sign out", onClick: onSignOut },
+    {
+      type: "action" as const,
+      name: t("accountMenu.signOut"),
+      onClick: onSignOut,
+    },
   ];
 
   return (

@@ -11,6 +11,7 @@ import {
   type ScoreChartDataset,
   type ScoreMetricKey,
 } from "@/src/features/scores-chart-view/types";
+import { useTranslations } from "next-intl";
 
 const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
 
@@ -28,16 +29,18 @@ export const MetricSelect = React.memo(function MetricSelect({
   value: ScoreMetricKey;
   onChange: (value: ScoreMetricKey) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   const options = getScoreMetricsForDataset(dataset);
   return (
     <Select value={value} onValueChange={(v) => onChange(v as ScoreMetricKey)}>
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Metric">
+      <SelectTrigger className={TRIGGER_CLASS} aria-label={t("metric")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {options.map((m) => (
           <SelectItem key={m.key} value={m.key}>
-            {m.label}
+            {labelsT(`metrics.${m.key}`)}
           </SelectItem>
         ))}
       </SelectContent>

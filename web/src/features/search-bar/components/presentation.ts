@@ -4,12 +4,18 @@
 
 import type { ComposerSegment } from "@/src/features/search-bar/lib/composer-segments";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { SearchBarTranslator } from "@/src/features/search-bar/lib/localization";
 
 /** Per-view: the examples have to name fields the view actually has. */
-export function composerPlaceholder(registry: FieldRegistry): string {
+export function composerPlaceholder(
+  registry: FieldRegistry,
+  t?: SearchBarTranslator,
+): string {
   return registry.searchExamples.length > 0
-    ? `Search — e.g. ${registry.searchExamples.join(", ")}`
-    : "Search";
+    ? (t?.("placeholderWithExamples", {
+        examples: registry.searchExamples.join(", "),
+      }) ?? `Search — e.g. ${registry.searchExamples.join(", ")}`)
+    : (t?.("search") ?? "Search");
 }
 
 /** DOM id for an option row — referenced by aria-activedescendant. Option ids

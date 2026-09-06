@@ -1,0 +1,78 @@
+{
+  "common": {
+    "current": "当前：{value}",
+    "emptyState": {
+      "noData": "暂无数据"
+    },
+    "table": {
+      "noResults": "没有结果。"
+    }
+  },
+  "commandMenu": {
+    "inputPlaceholder": "输入命令或搜索...",
+    "noResults": "未找到结果。",
+    "mainNavigation": "主导航",
+    "projects": "项目",
+    "dashboards": "仪表盘",
+    "projectSettings": "项目设置",
+    "projectSettingsItem": "项目设置 > {page}",
+    "organizationSettings": "组织设置",
+    "organizationSettingsItem": "组织设置 > {page}",
+    "tracing": "追踪",
+    "findTraceById": "按 ID 查找追踪",
+    "findObservationById": "按 ID 查找观测"
+  },
+  "navigation": {
+    "groups": {
+      "observability": "可观测性",
+      "promptManagement": "提示词管理",
+      "evaluation": "评估"
+    },
+    "items": {
+      "goTo": "快速跳转...",
+      "organizations": "组织",
+      "projects": "项目",
+      "home": "首页",
+      "dashboards": "仪表盘",
+      "tracing": "追踪",
+      "sessions": "会话",
+      "users": "用户",
+      "alerts": "告警",
+      "prompts": "提示词",
+      "playground": "调试台",
+      "scores": "评分",
+      "evaluators": "评估器",
+      "humanAnnotation": "人工标注",
+      "datasets": "数据集",
+      "experiments": "实验",
+      "update": "更新",
+      "cloudStatus": "云服务状态",
+      "v4Preview": "V4 预览",
+      "upgradePlan": "升级套餐",
+      "settings": "设置",
+      "bookACall": "预约沟通",
+      "support": "支持"
+    }
+  },
+  "agentToolsBanner": {
+    "title": "Langfuse 可与你的 AI 编程智能体高效协作。",
+    "description": "通过 Langfuse Agent Skill、MCP 服务器和 CLI，将 Claude Code、Codex 及其他智能体连接到你的数据。",
+    "learnMore": "了解更多"
+  },
+  "accountMenu": {
+    "label": "账户菜单",
+    "accountSettings": "账户设置",
+    "v4Migration": "v4 迁移",
+    "theme": "主题",
+    "lightMode": "浅色模式",
+    "darkMode": "深色模式",
+    "systemMode": "跟随系统",
+    "language": "语言",
+    "english": "English",
+    "simplifiedChinese": "简体中文",
+    "featurePreview": "功能预览",
+    "regions": "区域",
+    "instances": "实例",
+    "signOut": "退出登录"
+  }
+}

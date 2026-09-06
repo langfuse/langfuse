@@ -29,6 +29,7 @@ import {
   TimeSeriesLegend,
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { useLocale } from "next-intl";
 
 export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   data,
@@ -52,6 +53,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   connectNulls = false,
   hideXAxisLabels = false,
 }) => {
+  const locale = useLocale();
   const [selfHovered, setSelfHovered] = useState(false);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   // Make every (bucket, series) cell explicit — 0 for additive metrics, null
@@ -85,9 +87,9 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
-        { hideCategoryTickLabels: hideXAxisLabels },
+        { hideCategoryTickLabels: hideXAxisLabels, locale },
       ),
-    [groupedData, maxTicks, hideXAxisLabels],
+    [groupedData, maxTicks, hideXAxisLabels, locale],
   );
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({

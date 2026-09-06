@@ -33,6 +33,7 @@ import {
   ScoreOutlierBarStrip,
   type ScoreOutlierStripDrillTrigger,
 } from "@/src/features/scores-chart-view/components/ScoreOutlierBarStrip/ScoreOutlierBarStrip";
+import { useTranslations } from "next-intl";
 
 /**
  * The outlier strip ("Pulse") above the scores table — the scores-table
@@ -63,6 +64,7 @@ export function ScoresOutlierStrip({
   /** Must match the caller's own `isBetaEnabled` check — see `ScoresChartView`'s doc comment. */
   viewVersion: ViewVersion;
 }) {
+  const t = useTranslations("systemUi.scoreChartView");
   const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
   // Transient drag selection, window-keyed: a range/granularity change
@@ -307,14 +309,14 @@ export function ScoresOutlierStrip({
                 stepMs={stepMs}
                 metric={mode}
                 widthPx={chartWidth}
-                disabledReason="Chart unavailable for the current filters"
+                disabledReason={t("filtersUnavailable")}
               />
             </div>
           ) : isLoading || width === 0 ? (
             <div className="bg-muted h-[76px] animate-pulse rounded" />
           ) : countQueryResult.isError || valueQueryResult.isError ? (
             <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
-              No Data
+              {t("noData")}
             </div>
           ) : (
             <div

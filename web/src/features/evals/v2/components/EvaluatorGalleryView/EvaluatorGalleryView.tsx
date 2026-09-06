@@ -17,6 +17,7 @@ import {
   gallerySidebarItems,
   visibleGallerySections,
 } from "../../fns/templateGallery/visibleGallerySections";
+import { useTranslations } from "next-intl";
 
 function GallerySkeleton() {
   return (
@@ -62,7 +63,12 @@ export function EvaluatorGalleryView({
   isLoading: boolean;
   errorMessage?: string;
 }) {
-  const sidebarItems = gallerySidebarItems(navigationItems, sections);
+  const t = useTranslations("evaluationAnalytics.evaluations");
+  const sidebarItems = gallerySidebarItems(
+    navigationItems,
+    sections,
+    t("gallery.all"),
+  );
   const resolvedSection =
     activeSection === EVALUATOR_GALLERY_ALL_SECTION_KEY ||
     sections.some((section) => section.key === activeSection)
@@ -99,7 +105,7 @@ export function EvaluatorGalleryView({
                   ref={searchInputRef}
                   value={search}
                   onChange={(event) => onSearchChange(event.target.value)}
-                  placeholder="Search what you want to measure."
+                  placeholder={t("gallery.searchPlaceholder")}
                   className="pl-8"
                 />
               </div>
@@ -113,7 +119,7 @@ export function EvaluatorGalleryView({
                   }
                 >
                   <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                  New LLM-as-a-judge
+                  {t("gallery.newLlmJudge")}
                 </Button>
                 <Button
                   type="button"
@@ -122,7 +128,7 @@ export function EvaluatorGalleryView({
                   onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
                 >
                   <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  New code evaluator
+                  {t("gallery.newCodeEvaluator")}
                 </Button>
               </div>
             </div>
@@ -131,7 +137,7 @@ export function EvaluatorGalleryView({
               {isLoading ? <GallerySkeleton /> : null}
               {errorMessage ? (
                 <div className="text-destructive py-8 text-center text-sm">
-                  Error: {errorMessage}
+                  {t("gallery.error", { error: errorMessage })}
                 </div>
               ) : null}
               {!isLoading && !errorMessage ? (
@@ -149,7 +155,7 @@ export function EvaluatorGalleryView({
                   ))
                 ) : (
                   <div className="text-muted-foreground py-8 text-center text-sm">
-                    No templates match your search.
+                    {t("gallery.noMatches")}
                   </div>
                 )
               ) : null}

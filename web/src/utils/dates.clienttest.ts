@@ -29,6 +29,17 @@ describe("formatCompactRelativeTime", () => {
   it("clamps future timestamps to just now", () => {
     expect(formatCompactRelativeTime(ago(-120))).toBe("just now");
   });
+
+  it.each([
+    [30, "刚刚"],
+    [5 * 60, "5 分钟前"],
+    [3 * 60 * 60, "3 小时前"],
+    [15 * DAY, "15 天前"],
+    [45 * DAY, "1 个月前"],
+    [400 * DAY, "1 年前"],
+  ])("formats %ds ago in Simplified Chinese as %s", (seconds, expected) => {
+    expect(formatCompactRelativeTime(ago(seconds), "zh-CN")).toBe(expected);
+  });
 });
 
 describe("formatIntervalSeconds", () => {

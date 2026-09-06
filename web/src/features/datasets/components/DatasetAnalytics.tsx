@@ -2,18 +2,25 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { useTranslations } from "next-intl";
 
 export function DatasetAnalytics(props: {
   scoreOptions: { key: string; value: string }[];
   selectedMetrics: string[];
   setSelectedMetrics: (metrics: string[]) => void;
 }) {
+  const t = useTranslations("coreDetails.datasets.analytics");
+  const tm = useTranslations("systemUi.resourceMetrics");
   const capture = usePostHogClientCapture();
+  const resourceMetrics = RESOURCE_METRICS.map((metric) => ({
+    ...metric,
+    label: metric.key === "latency" ? tm("latency") : tm("averageTotalCost"),
+  }));
   return (
     <MultiSelectKeyValues
       className="max-w-fit focus:ring-0! focus:ring-offset-0!"
-      placeholder="Search..."
-      title="Charts"
+      placeholder={t("search")}
+      title={t("charts")}
       variant="outline"
       hideClearButton
       showSelectedValueStrings={false}
@@ -33,15 +40,15 @@ export function DatasetAnalytics(props: {
         }
       }}
       values={props.selectedMetrics}
-      options={RESOURCE_METRICS}
-      groupedOptions={[{ label: "Scores", options: props.scoreOptions }]}
+      options={resourceMetrics}
+      groupedOptions={[{ label: t("scores"), options: props.scoreOptions }]}
       controlButtons={
         <DropdownMenuItem
           onSelect={() => {
             props.setSelectedMetrics([]);
           }}
         >
-          Hide all charts
+          {t("hideAll")}
         </DropdownMenuItem>
       }
     />

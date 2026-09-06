@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render as testingLibraryRender, screen } from "@testing-library/react";
+import { type ReactElement, type ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 import { vi } from "vitest";
 
 // The dedup under test lives in ChatMessageList; stub the per-message renderer
@@ -24,6 +26,16 @@ vi.mock(
 import { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
 import { type ChatMlMessage } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { getMessages } from "@/src/features/i18n/messages";
+
+const render = (ui: ReactElement) =>
+  testingLibraryRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        {children}
+      </NextIntlClientProvider>
+    ),
+  });
 
 // Pin the limit so the test does not depend on the ambient .env value.
 const { TEST_LIMIT } = vi.hoisted(() => ({ TEST_LIMIT: 1_000 }));

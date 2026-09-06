@@ -1,11 +1,27 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+} from "@testing-library/react";
+import { type ReactElement, type ReactNode } from "react";
+import { NextIntlClientProvider } from "next-intl";
 import { vi } from "vitest";
 
+import { getMessages } from "@/src/features/i18n/messages";
 import {
   ToolCallDefinitionCard,
   type ToolDefinition,
 } from "./ToolCallDefinitionCard";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
+
+const render = (ui: ReactElement) =>
+  testingLibraryRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <NextIntlClientProvider locale="en" messages={getMessages("en")}>
+        {children}
+      </NextIntlClientProvider>
+    ),
+  });
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();

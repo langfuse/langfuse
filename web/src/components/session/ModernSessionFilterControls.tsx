@@ -16,7 +16,10 @@ import {
   type ModernSessionFilterDialogViewActions,
 } from "@/src/components/session/ModernSessionFilterDialogContent";
 import { ModernSessionSaveViewDialogContent } from "@/src/components/session/ModernSessionSaveViewDialogContent";
-import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
+import {
+  type SESSION_DETAIL_SYSTEM_PRESETS,
+  localizeSessionDetailSystemPresets,
+} from "@/src/components/session/session-detail-presets";
 import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
 import {
   TableViewPresetsDrawerContent,
@@ -27,6 +30,7 @@ import { useViewMutations } from "@/src/components/table/table-view-presets/hook
 import { Dialog } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 type ViewControllers = {
   selectedViewId: string | null;
@@ -75,6 +79,8 @@ export function ModernSessionFilterControls({
   currentViewState,
   children,
 }: ModernSessionFilterControlsProps) {
+  const t = useTranslations("sessions.views");
+  const systemPresets = localizeSessionDetailSystemPresets(t);
   const capture = usePostHogClientCapture();
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [saveViewDialogOpen, setSaveViewDialogOpen] = useState(false);
@@ -94,7 +100,7 @@ export function ModernSessionFilterControls({
     applyViewState: viewControllers.applyViewState,
   });
 
-  const matchingSystemPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+  const matchingSystemPreset = systemPresets.find(
     (preset) =>
       preset.id === viewControllers.selectedViewId &&
       isEqual(normalizeFilters(preset.filters), normalizeFilters(filterState)),
@@ -335,7 +341,7 @@ export function ModernSessionFilterControls({
             controllers: viewControllers,
           }}
           currentState={currentViewState}
-          systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+          systemFilterPresets={systemPresets}
         />
       </TableViewPresetsDrawerRoot>
     </>

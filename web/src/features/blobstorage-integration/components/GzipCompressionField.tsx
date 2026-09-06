@@ -10,12 +10,14 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { BlobStorageIntegrationFileType } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
+import { useTranslations } from "next-intl";
 
 export const GzipCompressionField = ({
   control,
 }: {
   control: BlobStorageFormControl;
 }) => {
+  const t = useTranslations("integrationsSettings.blobStorage.gzip");
   const watchedFileType = useWatch({ control, name: "fileType" });
   // Parquet compresses internally — gzip does not apply.
   if (watchedFileType === BlobStorageIntegrationFileType.PARQUET) return null;
@@ -26,15 +28,13 @@ export const GzipCompressionField = ({
       name="compressed"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Gzip Compression</FormLabel>
+          <FormLabel>{t("label")}</FormLabel>
           <FormControl>
             <div className="mt-1 ml-4">
               <Switch checked={field.value} onCheckedChange={field.onChange} />
             </div>
           </FormControl>
-          <FormDescription>
-            Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
-          </FormDescription>
+          <FormDescription>{t("description")}</FormDescription>
           <FormMessage />
         </FormItem>
       )}

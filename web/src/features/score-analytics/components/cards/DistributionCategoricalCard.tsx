@@ -12,6 +12,7 @@ import { ScoreDistributionCategoricalChart } from "../charts/ScoreDistributionCa
 import { getScoreCategoryColors } from "../../lib/color-scales";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useTranslations } from "next-intl";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
@@ -108,6 +109,7 @@ function calculateUnmatchedScore2Distribution(
  * - all tab shows both distributions side by side
  */
 export function DistributionCategoricalCard() {
+  const t = useTranslations("evaluationAnalytics.scoreAnalytics");
   const { data, isLoading, params, colorMappings } = useScoreAnalytics();
 
   const [activeTab, setActiveTab] = useState<DistributionTab>("all");
@@ -126,9 +128,9 @@ export function DistributionCategoricalCard() {
         categories: distribution.categories ?? [],
         stackedDistribution: undefined,
         score2Categories: undefined,
-        description: `${statistics.score1.total.toLocaleString()} observations${
+        description: `${t("observations", { count: statistics.score1.total })}${
           statistics.score1.mode
-            ? ` | Most frequent: ${statistics.score1.mode.category} (${statistics.score1.mode.count.toLocaleString()})`
+            ? ` | ${t("mostFrequent", { category: statistics.score1.mode.category, count: statistics.score1.mode.count })}`
             : ""
         }`,
       };
@@ -142,7 +144,10 @@ export function DistributionCategoricalCard() {
           categories: distribution.categories ?? [],
           stackedDistribution: undefined,
           score2Categories: undefined,
-          description: `${score1.name} - ${statistics.score1.total.toLocaleString()} observations`,
+          description: t("scoreObservations", {
+            scoreName: score1.name,
+            count: statistics.score1.total,
+          }),
         };
       case "score2":
         return {
@@ -150,7 +155,10 @@ export function DistributionCategoricalCard() {
           categories: distribution.score2Categories ?? [],
           stackedDistribution: undefined,
           score2Categories: undefined,
-          description: `${score2?.name ?? "Score 2"} - ${statistics.score2?.total.toLocaleString()} observations`,
+          description: t("scoreObservations", {
+            scoreName: score2?.name ?? t("score2Label"),
+            count: statistics.score2?.total ?? 0,
+          }),
         };
       case "all": {
         // Calculate unmatched score2 items and augment stackedDistribution
@@ -171,7 +179,12 @@ export function DistributionCategoricalCard() {
           categories: distribution.categories ?? [],
           stackedDistribution: augmentedStackedDistribution,
           score2Categories: distribution.score2Categories ?? [],
-          description: `${score1.name} (${statistics.score1.total.toLocaleString()}) vs ${score2?.name} (${statistics.score2?.total.toLocaleString()})`,
+          description: t("scoreCountsComparison", {
+            score1Name: score1.name,
+            score1Count: statistics.score1.total,
+            score2Name: score2?.name ?? t("score2Label"),
+            score2Count: statistics.score2?.total ?? 0,
+          }),
         };
       }
       case "matched":
@@ -180,10 +193,14 @@ export function DistributionCategoricalCard() {
           categories: distribution.categories ?? [],
           stackedDistribution: distribution.stackedDistributionMatched,
           score2Categories: distribution.score2Categories ?? [],
-          description: `${score1.name} vs ${score2?.name} - ${statistics.comparison?.matchedCount.toLocaleString()} matched`,
+          description: t("matchedScores", {
+            score1Name: score1.name,
+            score2Name: score2?.name ?? t("score2Label"),
+            count: statistics.comparison?.matchedCount ?? 0,
+          }),
         };
     }
-  }, [data, activeTab, params]);
+  }, [data, activeTab, params, t]);
 
   // Build color mapping for categorical charts
   const chartColors = useMemo(() => {
@@ -213,8 +230,8 @@ export function DistributionCategoricalCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Distribution</CardTitle>
-          <CardDescription>Loading chart...</CardDescription>
+          <CardTitle>{t("distribution")}</CardTitle>
+          <CardDescription>{t("loadingChart")}</CardDescription>
         </CardHeader>
         <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
           <Spinner size="xl" variant="muted" />
@@ -228,11 +245,11 @@ export function DistributionCategoricalCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Distribution</CardTitle>
-          <CardDescription>No data available</CardDescription>
+          <CardTitle>{t("distribution")}</CardTitle>
+          <CardDescription>{t("noDataAvailable")}</CardDescription>
         </CardHeader>
         <CardContent className="text-muted-foreground flex h-[340px] flex-col items-center justify-center pl-0 text-sm">
-          Select a score to view distribution
+          {t("selectScoreForDistribution")}
         </CardContent>
       </Card>
     );
@@ -263,7 +280,7 @@ export function DistributionCategoricalCard() {
     ? score2.name === score1.name
       ? `${score2.source} · ${score2.name}`
       : score2.name
-    : "Score 2";
+    : t("score2Label");
 
   return (
     <Card>
@@ -272,7 +289,7 @@ export function DistributionCategoricalCard() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2">
-                Distribution
+                {t("distribution")}
                 {data.samplingMetadata.isSampled && (
                   <SamplingDetailsHoverCard
                     samplingMetadata={data.samplingMetadata}
@@ -304,10 +321,10 @@ export function DistributionCategoricalCard() {
                   {truncateLabel(score2FullLabel)}
                 </TabsTrigger>
                 <TabsTrigger value="all" className="h-5 px-2 text-xs">
-                  all
+                  {t("all")}
                 </TabsTrigger>
                 <TabsTrigger value="matched" className="h-5 px-2 text-xs">
-                  matched
+                  {t("matchedTab")}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -344,7 +361,7 @@ export function DistributionCategoricalCard() {
           />
         ) : (
           <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-            No distribution data available for the selected time range
+            {t("noDistributionData")}
           </div>
         )}
       </CardContent>

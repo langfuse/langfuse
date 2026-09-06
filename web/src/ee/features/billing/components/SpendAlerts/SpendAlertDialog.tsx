@@ -22,20 +22,27 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
+import { useTranslations } from "next-intl";
 
-const spendAlertSchema = z.object({
-  title: z
-    .string()
-    .min(1, "Title is required")
-    .max(100, "Title must be less than 100 characters"),
-  limit: z.coerce
-    .number()
-    .positive("Limit must be positive")
-    .max(1000000, "Limit must be less than $1,000,000"),
-});
+const createSpendAlertSchema = (messages: {
+  titleRequired: string;
+  titleTooLong: string;
+  limitPositive: string;
+  limitTooHigh: string;
+}) =>
+  z.object({
+    title: z
+      .string()
+      .min(1, messages.titleRequired)
+      .max(100, messages.titleTooLong),
+    limit: z.coerce
+      .number()
+      .positive(messages.limitPositive)
+      .max(1000000, messages.limitTooHigh),
+  });
 
-type SpendAlertFormInput = z.input<typeof spendAlertSchema>;
-type SpendAlertFormOutput = z.output<typeof spendAlertSchema>;
+type SpendAlertFormInput = z.input<ReturnType<typeof createSpendAlertSchema>>;
+type SpendAlertFormOutput = z.output<ReturnType<typeof createSpendAlertSchema>>;
 
 interface SpendAlertDialogProps {
   orgId: string;
@@ -56,8 +63,15 @@ export function SpendAlertDialog({
   onOpenChange,
   onSuccess,
 }: SpendAlertDialogProps) {
+  const t = useTranslations("settingsEnterprise.billing");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const capture = usePostHogClientCapture();
+  const spendAlertSchema = createSpendAlertSchema({
+    titleRequired: t("spendAlerts.titleRequired"),
+    titleTooLong: t("spendAlerts.titleTooLong"),
+    limitPositive: t("spendAlerts.limitPositive"),
+    limitTooHigh: t("spendAlerts.limitTooHigh"),
+  });
 
   const form = useForm<SpendAlertFormInput, undefined, SpendAlertFormOutput>({
     resolver: zodResolver(spendAlertSchema),
@@ -86,7 +100,7 @@ export function SpendAlertDialog({
           alertId: alert.id,
           limit: data.limit,
         });
-        toast.success("Spend alert updated successfully");
+        toast.success(t("spendAlerts.updated"));
       } else {
         // Create new alert
         await createMutation.mutateAsync({
@@ -98,13 +112,17 @@ export function SpendAlertDialog({
           orgId,
           limit: data.limit,
         });
-        toast.success("Spend alert created successfully");
+        toast.success(t("spendAlerts.created"));
       }
       onSuccess();
     } catch (error) {
       reportNonTrpcError(error, "billing");
       toast.error(
-        `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
+        t("spendAlerts.saveFailed", {
+          action: alert
+            ? t("spendAlerts.updateAction")
+            : t("spendAlerts.createAction"),
+        }),
       );
     } finally {
       setIsSubmitting(false);
@@ -115,10 +133,10 @@ export function SpendAlertDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-4 sm:max-w-[425px]">
         <DialogTitle>
-          {alert ? "Edit Spend Alert" : "Create Spend Alert"}
+          {alert ? t("spendAlerts.editTitle") : t("spendAlerts.createTitle")}
         </DialogTitle>
         <DialogDescription className="text-muted-foreground pt-1 pb-2 text-sm">
-          Get notified when your organization&apos;s spending exceeds a limit.
+          {t("spendAlerts.dialogDescription")}
         </DialogDescription>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -127,9 +145,12 @@ export function SpendAlertDialog({
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Alert Title</FormLabel>
+                  <FormLabel>{t("spendAlerts.alertTitle")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Production Alert" {...field} />
+                    <Input
+                      placeholder={t("spendAlerts.titlePlaceholder")}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -140,7 +161,7 @@ export function SpendAlertDialog({
               name="limit"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Limit (USD)</FormLabel>
+                  <FormLabel>{t("spendAlerts.limitUsd")}</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -167,16 +188,13 @@ export function SpendAlertDialog({
             <div className="text-muted-foreground text-xs">
               <div className="flex flex-row items-center">
                 <Info className="mr-2 h-3 w-3" />
-                <span className="font-bold">How it works</span>
+                <span className="font-bold">{t("spendAlerts.howItWorks")}</span>
               </div>
               <ul className="list-disc pl-5">
-                <li>
-                  The limit is evaluated against your upcoming invoice total,
-                  including base fee, running usage fees, discounts, and taxes.
-                </li>
-                <li>Alerts trigger once per billing cycle.</li>
-                <li>You will receive an email when the alert is triggered.</li>
-                <li>Alerts are evaluated with a 90 minute delay.</li>
+                <li>{t("spendAlerts.calculation")}</li>
+                <li>{t("spendAlerts.oncePerCycle")}</li>
+                <li>{t("spendAlerts.emailNotification")}</li>
+                <li>{t("spendAlerts.evaluationDelay")}</li>
               </ul>
             </div>
             <div className="flex flex-row items-center justify-end gap-2">
@@ -186,16 +204,16 @@ export function SpendAlertDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting
                   ? alert
-                    ? "Updating..."
-                    : "Creating..."
+                    ? t("spendAlerts.updating")
+                    : t("spendAlerts.creating")
                   : alert
-                    ? "Update Alert"
-                    : "Create Alert"}
+                    ? t("spendAlerts.update")
+                    : t("spendAlerts.create")}
               </Button>
             </div>
           </form>

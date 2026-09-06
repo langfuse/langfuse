@@ -84,6 +84,8 @@ import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/ui/layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
+import { useTranslations } from "next-intl";
+import { getManagedDashboardMessageKey } from "@/src/features/dashboard/lib/managed-dashboard-localization";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -99,6 +101,11 @@ function placementNextTo(anchor: DashboardPlacement) {
 }
 
 export default function DashboardDetail() {
+  const t = useTranslations("systemUi.dashboardExtras");
+  const widgetT = useTranslations("systemUi.widgetExtras");
+  const managedDashboardT = useTranslations(
+    "systemUi.dashboardExtras.managedDashboards",
+  );
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -117,6 +124,15 @@ export default function DashboardDetail() {
     projectId,
     dashboardId,
   });
+  const managedDashboardMessageKey = dashboard.data
+    ? getManagedDashboardMessageKey(dashboard.data)
+    : undefined;
+  const dashboardDisplayName = managedDashboardMessageKey
+    ? managedDashboardT(`${managedDashboardMessageKey}.name`)
+    : dashboard.data?.name;
+  const dashboardDisplayDescription = managedDashboardMessageKey
+    ? managedDashboardT(`${managedDashboardMessageKey}.description`)
+    : dashboard.data?.description;
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
@@ -223,7 +239,7 @@ export default function DashboardDetail() {
         );
       },
       onError: (error) => {
-        showErrorToast("Error updating dashboard", error.message);
+        showErrorToast(t("updateFailed"), error.message);
       },
     });
 
@@ -241,7 +257,7 @@ export default function DashboardDetail() {
       utils.dashboard.getHomeDashboard.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to update home dashboard", error.message);
+      showErrorToast(t("homeUpdateFailed"), error.message);
     },
   });
 
@@ -255,7 +271,7 @@ export default function DashboardDetail() {
         utils.dashboard.invalidate();
       },
       onError: (error) => {
-        showErrorToast("Error renaming dashboard", error.message);
+        showErrorToast(t("renameFailed"), error.message);
       },
     });
 
@@ -267,7 +283,7 @@ export default function DashboardDetail() {
         setSavedFilters(currentFilters);
       },
       onError: (error) => {
-        showErrorToast("Error saving filters", error.message);
+        showErrorToast(t("filtersSaveFailed"), error.message);
       },
     });
 
@@ -464,7 +480,7 @@ export default function DashboardDetail() {
         const result = await createWidgetAsync({
           projectId,
           ...toWidgetCreateFields(widget),
-          name: `${widget.name} (Copy)`,
+          name: t("widgetCopyName", { name: widget.name }),
         });
         capture("dashboard:widget_duplicated", {
           surface: "grid_menu",
@@ -476,12 +492,20 @@ export default function DashboardDetail() {
         insertWidgetPlacement(result.widget.id, placementNextTo(anchor));
       } catch (e) {
         showErrorToast(
-          "Failed to duplicate widget",
-          e instanceof Error ? e.message : "Unknown error",
+          t("duplicateWidgetFailed"),
+          e instanceof Error ? e.message : widgetT("unknownError"),
         );
       }
     },
-    [createWidgetAsync, projectId, dashboardId, capture, insertWidgetPlacement],
+    [
+      createWidgetAsync,
+      projectId,
+      dashboardId,
+      capture,
+      insertWidgetPlacement,
+      t,
+      widgetT,
+    ],
   );
 
   // Recreate a parsed clipboard widget as a project widget and place it on
@@ -498,7 +522,7 @@ export default function DashboardDetail() {
           reason: "invalid",
           dashboard_id: dashboardId,
         });
-        showErrorToast("Cannot paste widget", parsed.reason, "WARNING");
+        showErrorToast(t("cannotPasteWidget"), parsed.reason, "WARNING");
         return;
       }
       // Don't create a widget row the placement step couldn't attach — a
@@ -523,15 +547,15 @@ export default function DashboardDetail() {
         );
         if (parsed.removedFilters) {
           showErrorToast(
-            "Widget filters were adjusted",
-            "Some pasted filters were removed because they are not available in this view.",
+            t("filtersAdjusted"),
+            t("pastedFiltersRemoved"),
             "WARNING",
           );
         }
       } catch (e) {
         showErrorToast(
-          "Failed to paste widget",
-          e instanceof Error ? e.message : "Unknown error",
+          t("pasteWidgetFailed"),
+          e instanceof Error ? e.message : widgetT("unknownError"),
         );
       }
     },
@@ -542,6 +566,8 @@ export default function DashboardDetail() {
       dashboardId,
       insertWidgetPlacement,
       projectId,
+      t,
+      widgetT,
     ],
   );
 
@@ -552,8 +578,8 @@ export default function DashboardDetail() {
       const text = await readTextFromClipboard();
       if (text === null) {
         showErrorToast(
-          "Clipboard unavailable",
-          "Your browser did not allow reading the clipboard. Paste with Cmd/Ctrl+V on the dashboard instead.",
+          t("clipboardUnavailable"),
+          t("clipboardUnavailableDescription"),
           "WARNING",
         );
         return;
@@ -571,7 +597,7 @@ export default function DashboardDetail() {
             reason: "invalid",
             dashboard_id: dashboardId,
           });
-          showErrorToast("Cannot paste card", preset.reason, "WARNING");
+          showErrorToast(t("cannotPasteCard"), preset.reason, "WARNING");
           return;
         }
         capture("dashboard:widget_paste_rejected", {
@@ -580,8 +606,8 @@ export default function DashboardDetail() {
           dashboard_id: dashboardId,
         });
         showErrorToast(
-          "No widget in clipboard",
-          "The clipboard does not contain a Langfuse widget JSON. Copy one via a widget's ⋯ menu first.",
+          t("noWidgetClipboard"),
+          t("noWidgetClipboardDescription"),
           "WARNING",
         );
         return;
@@ -594,6 +620,7 @@ export default function DashboardDetail() {
       handleParsedWidgetPaste,
       handlePastedPreset,
       isBetaEnabled,
+      t,
     ],
   );
 
@@ -627,7 +654,7 @@ export default function DashboardDetail() {
             reason: "invalid",
             dashboard_id: dashboardId,
           });
-          showErrorToast("Cannot paste card", preset.reason, "WARNING");
+          showErrorToast(t("cannotPasteCard"), preset.reason, "WARNING");
           return;
         }
         handlePastedPreset(preset.presetId, "cmd_v");
@@ -646,6 +673,7 @@ export default function DashboardDetail() {
     handlePastedPreset,
     capture,
     dashboardId,
+    t,
   ]);
 
   // Gate the dashboard-menu "Paste widget" item on the clipboard actually
@@ -693,10 +721,10 @@ export default function DashboardDetail() {
             (s): s is PromiseRejectedResult => s.status === "rejected",
           )?.reason;
           showErrorToast(
-            "Failed to import dashboard",
+            t("importFailed"),
             firstError instanceof Error
               ? firstError.message
-              : "Could not create the dashboard's widgets.",
+              : t("widgetCreateFailed"),
           );
           return;
         }
@@ -750,29 +778,32 @@ export default function DashboardDetail() {
         }, 150);
 
         showSuccessToast({
-          title: "Dashboard imported",
-          description: `Added ${newPlacements.length} widget${
-            newPlacements.length === 1 ? "" : "s"
-          } from "${imported.name}".`,
+          title: t("imported"),
+          description: t("importedDescription", {
+            count: newPlacements.length,
+            name: imported.name,
+          }),
         });
         if (imported.removedFilters) {
           showErrorToast(
-            "Widget filters were adjusted",
-            "Some imported filters were removed because they are not available in this view.",
+            t("filtersAdjusted"),
+            t("importedFiltersRemoved"),
             "WARNING",
           );
         }
         if (imported.skippedPresetCount > 0) {
           showErrorToast(
-            "Some cards were skipped",
-            `${imported.skippedPresetCount} preset card(s) in the file are not available in this Langfuse version.`,
+            t("cardsSkipped"),
+            t("cardsSkippedDescription", {
+              count: imported.skippedPresetCount,
+            }),
             "WARNING",
           );
         }
       } catch (e) {
         showErrorToast(
-          "Failed to import dashboard",
-          e instanceof Error ? e.message : "Unknown error",
+          t("importFailed"),
+          e instanceof Error ? e.message : widgetT("unknownError"),
         );
       }
     },
@@ -784,6 +815,8 @@ export default function DashboardDetail() {
       applyDashboardDefinition,
       capture,
       dashboardId,
+      t,
+      widgetT,
     ],
   );
 
@@ -803,11 +836,7 @@ export default function DashboardDetail() {
           reason: "invalid",
           dashboard_id: dashboardId,
         });
-        showErrorToast(
-          "Cannot import dashboard",
-          dashboardResult.reason,
-          "WARNING",
-        );
+        showErrorToast(t("cannotImport"), dashboardResult.reason, "WARNING");
         return;
       }
 
@@ -824,7 +853,7 @@ export default function DashboardDetail() {
             reason: "invalid",
             dashboard_id: dashboardId,
           });
-          showErrorToast("Cannot import card", preset.reason, "WARNING");
+          showErrorToast(t("cannotImportCard"), preset.reason, "WARNING");
           return;
         }
         capture("dashboard:widget_paste_rejected", {
@@ -833,8 +862,8 @@ export default function DashboardDetail() {
           dashboard_id: dashboardId,
         });
         showErrorToast(
-          "Unsupported file",
-          "Only Langfuse dashboard or widget JSON files can be dropped here.",
+          t("unsupportedFile"),
+          t("unsupportedFileDescription"),
           "WARNING",
         );
         return;
@@ -848,6 +877,7 @@ export default function DashboardDetail() {
       handlePastedPreset,
       capture,
       dashboardId,
+      t,
     ],
   );
 
@@ -934,64 +964,64 @@ export default function DashboardDetail() {
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
     {
-      name: "Environment",
+      name: t("environment"),
       id: "environment",
       type: "stringOptions",
       options: environmentOptions,
       internal: "internalValue",
     },
     {
-      name: "Trace Name",
+      name: t("filterColumns.traceName"),
       id: "traceName",
       type: "stringOptions",
       options: nameOptions,
       internal: "internalValue",
     },
     {
-      name: "Observation Name",
+      name: t("filterColumns.observationName"),
       id: "observationName",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Score Name",
+      name: t("filterColumns.scoreName"),
       id: "scoreName",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Tags",
+      name: t("filterColumns.tags"),
       id: "tags",
       type: "arrayOptions",
       options: tagsOptions,
       internal: "internalValue",
     },
     {
-      name: "User",
+      name: t("filterColumns.user"),
       id: "user",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Session",
+      name: t("filterColumns.session"),
       id: "session",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Metadata",
+      name: t("filterColumns.metadata"),
       id: "metadata",
       type: "stringObject",
       internal: "internalValue",
     },
     {
-      name: "Release",
+      name: t("filterColumns.release"),
       id: "release",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Version",
+      name: t("filterColumns.version"),
       id: "version",
       type: "string",
       internal: "internalValue",
@@ -1087,7 +1117,7 @@ export default function DashboardDetail() {
       }
     },
     onError: (e) => {
-      showErrorToast("Failed to clone dashboard", e.message);
+      showErrorToast(t("cloneFailed"), e.message);
     },
   });
 
@@ -1145,16 +1175,16 @@ export default function DashboardDetail() {
         scrollable
         headerProps={{
           title:
-            (dashboard.data?.name || "Dashboard") +
+            (dashboardDisplayName || t("dashboard")) +
             (dashboard.data?.owner === "LANGFUSE"
-              ? " (Langfuse Maintained)"
+              ? ` (${t("maintained")})`
               : ""),
           titleContent:
             hasCUDAccess && dashboard.data ? (
               <InlineEditText
                 value={dashboard.data.name}
                 required
-                aria-label="Rename dashboard"
+                aria-label={t("rename")}
                 onSave={(name) => {
                   capture("dashboard:dashboard_renamed_inline", {
                     dashboard_id: dashboardId,
@@ -1170,19 +1200,18 @@ export default function DashboardDetail() {
             ) : undefined,
           breadcrumb: [
             {
-              name: "Dashboards",
+              name: t("dashboards"),
               href: `/project/${projectId}/dashboards`,
             },
           ],
           help: {
-            description:
-              dashboard.data?.description || "No description available",
+            description: dashboardDisplayDescription || t("noDescription"),
           },
           actionButtonsLeft: (
             <>
               <MultiSelect
-                title="Environment"
-                label="Env"
+                title={t("environment")}
+                label={t("environmentShort")}
                 values={selectedEnvironments}
                 onValueChange={useDebounce(setSelectedEnvironments)}
                 options={environmentOptions}
@@ -1207,9 +1236,9 @@ export default function DashboardDetail() {
                 setHomeDashboard.isPending) && (
                 <span
                   className="flex items-center"
-                  title="Saving..."
+                  title={t("saving")}
                   role="status"
-                  aria-label="Saving"
+                  aria-label={t("saving")}
                 >
                   <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
                 </span>
@@ -1221,14 +1250,14 @@ export default function DashboardDetail() {
                   variant="outline"
                 >
                   {updateDashboardFilters.isPending
-                    ? "Saving..."
-                    : "Save Filters"}
+                    ? t("saving")
+                    : t("saveFilters")}
                 </Button>
               )}
               {hasRbacCUDAccess && (
                 <Button onClick={handleAddWidget}>
                   <PlusIcon size={16} className="mr-1 h-4 w-4" />
-                  Add Widget
+                  {t("addWidget")}
                 </Button>
               )}
               {hasCloneAccess && (
@@ -1238,7 +1267,7 @@ export default function DashboardDetail() {
                   disabled={mutateCloneDashboard.isPending}
                 >
                   <Copy size={16} className="mr-1 h-4 w-4" />
-                  Clone
+                  {t("clone")}
                 </Button>
               )}
               {hasRbacCUDAccess && (
@@ -1247,7 +1276,7 @@ export default function DashboardDetail() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="More actions"
+                      aria-label={t("moreActions")}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
@@ -1261,7 +1290,7 @@ export default function DashboardDetail() {
                         }
                       >
                         <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                        Paste widget
+                        {t("pasteWidget")}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
@@ -1281,14 +1310,14 @@ export default function DashboardDetail() {
                       }}
                     >
                       <HomeIcon className="mr-2 h-4 w-4" />
-                      {isCurrentHome ? "Shown on Home" : "Use as Home"}
+                      {isCurrentHome ? t("shownOnHome") : t("useAsHome")}
                     </DropdownMenuItem>
                     {hasCUDAccess && (
                       <DropdownMenuItem
                         onClick={() => setIsEditDialogOpen(true)}
                       >
                         <PencilIcon className="mr-2 h-4 w-4" />
-                        Edit name & description
+                        {t("editMetadata")}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -1321,10 +1350,8 @@ export default function DashboardDetail() {
           <Layer name="modal">
             <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
               <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
-                <p className="font-bold">Drop to import</p>
-                <p className="text-muted-foreground text-sm">
-                  Langfuse dashboard or widget JSON
-                </p>
+                <p className="font-bold">{t("dropToImport")}</p>
+                <p className="text-muted-foreground text-sm">{t("dropHint")}</p>
               </div>
             </div>
           </Layer>
@@ -1354,7 +1381,8 @@ export default function DashboardDetail() {
           }
           projectId={projectId}
           dashboardId={dashboardId}
-          dashboardName={dashboard.data?.name ?? "Dashboard"}
+          dashboardName={dashboard.data?.name ?? t("dashboard")}
+          dashboardDisplayName={dashboardDisplayName ?? t("dashboard")}
           pendingDefinition={cloneFirstState.pendingDefinition}
           onCancel={() => {
             // Revert the attempted drag/resize by remounting the grid with
@@ -1368,7 +1396,7 @@ export default function DashboardDetail() {
         ) : dashboard.isError ? (
           <div className="flex h-64 items-center justify-center">
             <div className="text-destructive">
-              Error: {dashboard.error.message}
+              {t("error", { message: dashboard.error.message })}
             </div>
           </div>
         ) : (

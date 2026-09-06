@@ -36,6 +36,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useTranslations } from "next-intl";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =
@@ -44,6 +45,7 @@ const EVAL_MIGRATION_DOCS_URL =
 type LegacyEvalAction = "mark-inactive" | "delete";
 
 export default function RemapEvaluatorPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evalConfigId = router.query.evaluator as string;
@@ -163,10 +165,10 @@ export default function RemapEvaluatorPage() {
       withPadding
       scrollable
       headerProps={{
-        title: "Upgrade Evaluator",
+        title: t("upgradeEvaluator"),
         breadcrumb: [
           {
-            name: "Running Evaluators",
+            name: t("runningEvaluators"),
             href: `/project/${projectId}/evals`,
           },
         ],
@@ -192,7 +194,7 @@ export default function RemapEvaluatorPage() {
                         onClick={handleUseAssistant}
                       >
                         <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                        Use Assistant to help with upgrade
+                        {t("useAssistantForUpgrade")}
                       </Button>
                     ) : null}
                     <Button asChild size="sm" variant="secondary">
@@ -201,7 +203,7 @@ export default function RemapEvaluatorPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        Docs
+                        {t("docs")}
                       </a>
                     </Button>
                   </>
@@ -211,19 +213,15 @@ export default function RemapEvaluatorPage() {
                 <div className="flex items-start gap-2">
                   <Zap className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    <span className="font-bold">
-                      This evaluator needs an upgrade for Langfuse v4.
-                    </span>{" "}
-                    Evaluators are moving to observation-level. Upgrade this
-                    configuration to keep its scores aligned with the v4 data
-                    model.{" "}
+                    <span className="font-bold">{t("v4UpgradeRequired")}</span>{" "}
+                    {t("v4UpgradeDescription")}{" "}
                     <a
                       href={EVAL_MIGRATION_DOCS_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline"
                     >
-                      Learn more about evaluator upgrades
+                      {t("learnAboutEvaluatorUpgrades")}
                     </a>
                     .
                   </span>
@@ -234,17 +232,16 @@ export default function RemapEvaluatorPage() {
         ) : null}
         <div className="min-w-0">
           <p className="text-muted-foreground text-sm">
-            Review your legacy evaluator on the left and configure the new eval
-            settings on the right.{" "}
+            {t("upgradeReviewDescription")}{" "}
             <a
               href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
               target="_blank"
               rel="noopener noreferrer"
               className="text-dark-blue font-bold hover:opacity-80"
             >
-              Follow our step-by-step guide
+              {t("followUpgradeGuide")}
             </a>{" "}
-            to upgrade successfully.
+            {t("upgradeSuccessfully")}
           </p>
         </div>
 
@@ -257,7 +254,7 @@ export default function RemapEvaluatorPage() {
           ) : !oldConfig || !evalTemplate ? (
             <Alert variant="destructive">
               <AlertDescription>
-                Failed to load eval configuration or template.
+                {t("loadConfigurationFailed")}
               </AlertDescription>
             </Alert>
           ) : (
@@ -266,13 +263,13 @@ export default function RemapEvaluatorPage() {
               <div className="min-w-0 space-y-4 p-3">
                 <div className="flex items-center gap-2 pb-2">
                   <h3 className="text-lg font-bold">
-                    Legacy Configuration{" "}
+                    {t("legacyConfiguration")}{" "}
                     {isTraceTarget(oldConfig.targetObject)
-                      ? "(runs on traces)"
+                      ? t("runsOnTraces")
                       : ""}
                   </h3>
                   <span className="text-muted-foreground text-xs">
-                    Read-only
+                    {t("readOnly")}
                   </span>
                 </div>
                 <InnerEvaluatorForm
@@ -297,9 +294,9 @@ export default function RemapEvaluatorPage() {
               {/* RIGHT: Editable new config form */}
               <div className="min-w-0 space-y-4 p-3">
                 <h3 className="pb-2 text-lg font-bold">
-                  New Configuration{" "}
+                  {t("newConfiguration")}{" "}
                   {isTraceTarget(oldConfig.targetObject)
-                    ? "(runs on observations)"
+                    ? t("runsOnObservations")
                     : ""}
                 </h3>
                 <InnerEvaluatorForm
@@ -328,8 +325,8 @@ export default function RemapEvaluatorPage() {
                           className="mt-3 rounded-l-md rounded-r-none"
                         >
                           {legacyAction === "mark-inactive"
-                            ? "Save & mark legacy inactive"
-                            : "Save & delete legacy"}
+                            ? t("saveMarkLegacyInactive")
+                            : t("saveDeleteLegacy")}
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -346,13 +343,13 @@ export default function RemapEvaluatorPage() {
                               onClick={() => setLegacyAction("mark-inactive")}
                             >
                               {legacyAction === "mark-inactive" && "✓ "}
-                              Save & mark legacy inactive
+                              {t("saveMarkLegacyInactive")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => setLegacyAction("delete")}
                             >
                               {legacyAction === "delete" && "✓ "}
-                              Save & delete legacy
+                              {t("saveDeleteLegacy")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

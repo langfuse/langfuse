@@ -23,6 +23,7 @@ import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { useTranslations } from "next-intl";
 
 const jobExecutionStatusToStatus = {
   [JobExecutionStatus.COMPLETED]: "completed",
@@ -60,6 +61,7 @@ export default function EvalLogTable({
   projectId: string;
   jobConfigurationId?: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("evalLogs", "s");
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -89,27 +91,27 @@ export default function EvalLogTable({
   const columns = [
     createStatusTableColumn<JobExecutionRow, JobExecutionStatus>({
       accessorKey: "status",
-      header: "Status",
+      header: t("columns.status"),
       getStatus: (status) =>
         status ? jobExecutionStatusToStatus[status] : undefined,
     }),
     columnHelper.accessor("startTime", {
       id: "startTime",
-      header: "Start Time",
+      header: t("columns.startTime"),
       enableHiding: true,
     }),
     columnHelper.accessor("endTime", {
       id: "endTime",
-      header: "End Time",
+      header: t("columns.endTime"),
       enableHiding: true,
     }),
     columnHelper.accessor("scoreName", {
-      header: "Score Name",
+      header: t("columns.scoreName"),
       id: "scoreName",
       enableHiding: true,
     }),
     columnHelper.accessor("scoreValue", {
-      header: "Score Value",
+      header: t("columns.scoreValue"),
       id: "scoreValue",
       enableHiding: true,
       cell: (row) => {
@@ -125,7 +127,7 @@ export default function EvalLogTable({
     }),
     createIOTableColumn<JobExecutionRow>({
       accessorKey: "scoreComment",
-      header: "Score Comment",
+      header: t("columns.scoreComment"),
       enableHiding: true,
       cellPadding: "none",
       compact: true,
@@ -133,7 +135,7 @@ export default function EvalLogTable({
     }),
     createIOTableColumn<JobExecutionRow>({
       accessorKey: "error",
-      header: "Error",
+      header: t("columns.error"),
       enableHiding: true,
       cellPadding: "none",
       compact: true,
@@ -141,7 +143,7 @@ export default function EvalLogTable({
     }),
     createLinkTableColumn<JobExecutionRow>({
       accessorKey: "traceId",
-      header: "Target Trace",
+      header: t("columns.targetTrace"),
       getCell: (traceId) => {
         if (traceId) {
           return {
@@ -158,7 +160,7 @@ export default function EvalLogTable({
     }),
     createLinkTableColumn<JobExecutionRow>({
       accessorKey: "executionTraceId",
-      header: "Execution Trace",
+      header: t("columns.executionTrace"),
       enableHiding: true,
       getCell: (traceId) => {
         if (traceId) {
@@ -176,7 +178,7 @@ export default function EvalLogTable({
     }),
     createLinkTableColumn<JobExecutionRow>({
       accessorKey: "templateId",
-      header: "Template",
+      header: t("columns.template"),
       getCell: (templateId) => {
         if (templateId) {
           return {
@@ -197,7 +199,7 @@ export default function EvalLogTable({
     columns.push(
       createLinkTableColumn<JobExecutionRow>({
         accessorKey: "evaluatorId",
-        header: "Evaluator",
+        header: t("columns.evaluator"),
         getCell: (evaluatorId) => {
           if (evaluatorId) {
             return {

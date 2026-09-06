@@ -58,6 +58,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   private readonly projectId: string;
   private readonly conversationId: string;
   private readonly startRun: StartRunFn;
+  private readonly unavailableMessage: string;
   private onStatus?: (status: InAppAgentRunStatusUpdate) => void;
   private onCursor?: (cursor: number) => void;
   private cursor: number;
@@ -72,6 +73,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     onStatus?: (status: InAppAgentRunStatusUpdate) => void;
     threadId?: string;
     initialMessages?: AgUiMessage[];
+    unavailableMessage?: string;
   }) {
     super({
       threadId: config.threadId,
@@ -82,6 +84,8 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     this.conversationId = config.conversationId;
     this.cursor = config.cursor;
     this.startRun = config.startRun;
+    this.unavailableMessage =
+      config.unavailableMessage ?? "The assistant is unavailable right now";
     this.onStatus = config.onStatus;
   }
 
@@ -206,10 +210,13 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
         // Give up only once retrying has stopped looking like a blip;
         // the run itself keeps executing regardless of the browser.
         if (consecutiveFailures > WATCH_RECONNECT_ATTEMPTS) {
-          throw new BackgroundExecutionConnectionError(getErrorMessage(error), {
-            retryable: true,
-            cause: error,
-          });
+          throw new BackgroundExecutionConnectionError(
+            getErrorMessage(error, this.unavailableMessage),
+            {
+              retryable: true,
+              cause: error,
+            },
+          );
         }
 
         await sleep(
@@ -267,7 +274,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     });
 
     if (!response.ok) {
-      const message = await readErrorMessage(response);
+      const message = await readErrorMessage(response, this.unavailableMessage);
       if (
         response.status >= 400 &&
         response.status < 500 &&
@@ -284,7 +291,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     const reader = response.body?.getReader();
 
     if (!reader) {
-      throw new Error("The assistant stream is unavailable");
+      throw new Error(this.unavailableMessage);
     }
 
     const decoder = new TextDecoder();
@@ -356,10 +363,8 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   }
 }
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "Assistant watch connection failed";
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  return error instanceof Error ? error.message : fallbackMessage;
 }
 
 function getLastUserMessageContent(
@@ -376,7 +381,10 @@ function getLastUserMessageContent(
   return undefined;
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readErrorMessage(
+  response: Response,
+  fallbackMessage: string,
+): Promise<string> {
   try {
     const body: unknown = await response.json();
 
@@ -392,5 +400,5 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Fall through to the generic message below.
   }
 
-  return "The assistant is unavailable right now";
+  return fallbackMessage;
 }

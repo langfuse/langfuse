@@ -11,8 +11,10 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { useTranslations } from "next-intl";
 
 export default function Traces() {
+  const t = useTranslations("coreDetails.tables.traces");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
@@ -42,10 +44,9 @@ export default function Traces() {
     return (
       <Page
         headerProps={{
-          title: "Tracing",
+          title: t("tracing"),
           help: {
-            description:
-              "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
+            description: t("helpDescription"),
             href: "https://langfuse.com/docs/observability/data-model",
           },
         }}
@@ -59,25 +60,10 @@ export default function Traces() {
   return (
     <Page
       headerProps={{
-        title: "Tracing",
+        title: t("tracing"),
         titleBadges: <V4MigrationDelayBadge page="traces" />,
         help: {
-          description: (
-            <>
-              A trace represents a single function/api invocation. Traces
-              contain observations. See{" "}
-              <a
-                href="https://langfuse.com/docs/observability/data-model"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="decoration-primary/30 hover:decoration-primary underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                docs
-              </a>{" "}
-              to learn more.
-            </>
-          ),
+          description: t("helpDescription"),
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps:

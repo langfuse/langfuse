@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import { Info } from "lucide-react";
-import { format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
+import { useFormatter, useTranslations } from "next-intl";
 
 type DatasetVersionWarningBannerProps = {
   selectedVersion: Date;
@@ -19,6 +19,8 @@ export function DatasetVersionWarningBanner({
   className = "",
   changeCounts,
 }: DatasetVersionWarningBannerProps) {
+  const t = useTranslations("coreDetails.datasets.versionBanner");
+  const format = useFormatter();
   const totalChanges = changeCounts
     ? changeCounts.upserts + changeCounts.deletes
     : 0;
@@ -32,27 +34,37 @@ export function DatasetVersionWarningBanner({
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm wrap-break-word">
-            Viewing version from{" "}
-            <span className="text-foreground font-bold">
-              {format(selectedVersion, "MMM d, yyyy 'at' h:mm a")}
-            </span>
+            {t("viewing", {
+              date: format.dateTime(selectedVersion, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "numeric",
+              }),
+            })}
           </p>
           <Button
             onClick={resetToLatest}
             variant="link"
             className="h-auto shrink-0 p-0 text-sm underline-offset-4"
           >
-            Return to latest
+            {t("latest")}
           </Button>
         </div>
         {changeCounts && hasChanges && (
           <p className="text-muted-foreground text-xs">
-            {totalChanges} change{totalChanges !== 1 ? "s" : ""} since this
-            version,
-            {changeCounts.upserts > 0 &&
-              ` ${changeCounts.upserts} upsert${changeCounts.upserts !== 1 ? "s" : ""}`}
-            {changeCounts.deletes > 0 &&
-              ` ${changeCounts.deletes} delete${changeCounts.deletes !== 1 ? "s" : ""}`}
+            {t("changes", { count: totalChanges })}:{" "}
+            {[
+              changeCounts.upserts > 0
+                ? t("upserts", { count: changeCounts.upserts })
+                : null,
+              changeCounts.deletes > 0
+                ? t("deletes", { count: changeCounts.deletes })
+                : null,
+            ]
+              .filter(Boolean)
+              .join(", ")}
           </p>
         )}
       </div>

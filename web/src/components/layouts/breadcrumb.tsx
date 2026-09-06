@@ -24,6 +24,7 @@ import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
+import { useTranslations } from "next-intl";
 
 const BreadcrumbComponent = ({
   items,
@@ -33,6 +34,7 @@ const BreadcrumbComponent = ({
   className?: string;
 }) => {
   const session = useSession();
+  const t = useTranslations("workspace.switcher");
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
@@ -50,7 +52,7 @@ const BreadcrumbComponent = ({
         {organization && (
           <DropdownMenu>
             <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none">
-              {organization?.name ?? "Organization"}
+              {organization?.name ?? t("organizationFallback")}
               {isCloudPlan(organization?.plan) &&
                 organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                   <Badge
@@ -78,7 +80,7 @@ const BreadcrumbComponent = ({
             </BreadcrumbSeparator>
             <DropdownMenu>
               <DropdownMenuTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
-                {project?.name ?? "Project"}
+                {project?.name ?? t("projectFallback")}
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>
               <ProjectDropdownMenu

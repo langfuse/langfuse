@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 type CsvImportValidationErrorProps = {
   errors: BulkDatasetItemValidationError[];
@@ -11,6 +12,7 @@ type CsvImportValidationErrorProps = {
 export const CsvImportValidationError: React.FC<
   CsvImportValidationErrorProps
 > = ({ errors }) => {
+  const t = useTranslations("coreDetails.datasets.validation");
   const [isExpanded, setIsExpanded] = useState(false);
 
   const errorCount = errors.length;
@@ -18,19 +20,14 @@ export const CsvImportValidationError: React.FC<
 
   return (
     <Alert variant="destructive" className="mt-4">
-      <AlertTitle className="text-base font-bold">
-        Schema Validation Failed
-      </AlertTitle>
+      <AlertTitle className="text-base font-bold">{t("failed")}</AlertTitle>
       <AlertDescription className="mt-2 space-y-3">
         <p className="text-sm">
           {hasMoreThan10
-            ? `${errorCount}+ items failed validation. Showing first ${errorCount} errors.`
-            : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
+            ? t("manyCsvFailures", { count: errorCount })
+            : t("failureCount", { count: errorCount })}
         </p>
-        <p className="text-muted-foreground text-sm">
-          The CSV data does not match the required schema for this dataset. Fix
-          the errors in your CSV file and try importing again.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("csvDescription")}</p>
 
         <Button
           type="button"
@@ -44,7 +41,7 @@ export const CsvImportValidationError: React.FC<
           ) : (
             <ChevronRight className="mr-1 h-4 w-4" />
           )}
-          {isExpanded ? "Hide" : "Show"} error details
+          {isExpanded ? t("hideDetails") : t("showDetails")}
         </Button>
 
         {isExpanded && (
@@ -59,12 +56,12 @@ export const CsvImportValidationError: React.FC<
                     #{idx + 1}
                   </span>
                   <span className="text-sm font-bold">
-                    CSV Row {error.itemIndex + 2}:{" "}
+                    {t("csvRow", { row: error.itemIndex + 2 })}:{" "}
                     {error.field === "input"
-                      ? "Input"
+                      ? t("input")
                       : error.field === "metadata"
-                        ? "Metadata"
-                        : "Expected Output"}
+                        ? t("metadata")
+                        : t("expectedOutput")}
                   </span>
                 </div>
 
@@ -85,8 +82,7 @@ export const CsvImportValidationError: React.FC<
 
             {hasMoreThan10 && (
               <p className="text-muted-foreground pt-2 text-xs">
-                Fix these errors to see if there are additional validation
-                issues.
+                {t("fixMore")}
               </p>
             )}
           </div>

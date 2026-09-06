@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { useTranslations } from "next-intl";
 
 type DefinitionStepProps = {
   open: boolean;
@@ -24,11 +25,12 @@ type DefinitionStepProps = {
 );
 
 export function DefinitionStep(props: DefinitionStepProps) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <Stepper
       number={1}
-      title="Define evaluation"
-      description="Choose whether an LLM or your own code evaluates the data, then define the instructions it follows and the score it reports."
+      title={t("setup.definition.title")}
+      description={t("setup.definition.description")}
       open={props.open}
       onOpenChange={props.onOpenChange}
     >

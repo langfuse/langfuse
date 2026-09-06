@@ -56,16 +56,19 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { useTranslations } from "next-intl";
 
 function DeprecatedChip() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   return (
     <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
-      Deprecated
+      {t("deprecated")}
     </span>
   );
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
@@ -177,7 +180,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const columns = [
     columnHelper.accessor("scoreName", {
       id: "scoreName",
-      header: "Generated Score Name",
+      header: t("columns.generatedScoreName"),
       enableSorting: true,
       size: 320,
       cell: (row) => {
@@ -192,7 +195,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 {v4UpgradeUiEnabled ? (
                   <V4MigrationBadgeContent
                     onClick={() => openEvaluatorUpgrade(row.row.original.id)}
-                    title="Upgrade now"
+                    title={t("upgradeNow")}
                     showChevron={false}
                     compact
                   />
@@ -206,7 +209,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("status", {
-      header: "Status",
+      header: t("columns.status"),
       id: "status",
       enableSorting: true,
       size: 80,
@@ -222,7 +225,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     }),
     createNumberTableColumn<EvaluatorDataRow>({
       accessorKey: "totalCost",
-      header: "Total Cost (7d)",
+      header: t("columns.totalCost7d"),
       enableSorting: false,
       size: 120,
       emptyValue: "–",
@@ -235,7 +238,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("result", {
-      header: "Result",
+      header: t("columns.result"),
       id: "result",
       enableSorting: false,
       size: 150,
@@ -250,7 +253,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("logs", {
-      header: "Logs",
+      header: t("columns.logs"),
       id: "logs",
       enableSorting: false,
       size: 150,
@@ -260,7 +263,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         return (
           <Button
             variant="outline"
-            aria-label="view-logs"
+            aria-label={`${t("view")} ${t("columns.logs")}`}
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
@@ -270,14 +273,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             }}
           >
             <ExternalLinkIcon className="mr-1 h-3 w-3" />
-            View
+            {t("view")}
           </Button>
         );
       },
     }),
     columnHelper.accessor("template", {
       id: "template",
-      header: "Referenced Evaluator",
+      header: t("columns.referencedEvaluator"),
       enableSorting: false,
       size: 200,
       loadingCell: (
@@ -288,7 +291,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       ),
       cell: ({ row }) => {
         const template = row.original.template;
-        if (!template) return "template not found";
+        if (!template) return t("templateNotFound");
         return (
           <div className="flex items-center gap-2">
             <TableIdOrName value={template.name} />
@@ -301,33 +304,33 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     }),
     columnHelper.accessor("createdAt", {
       id: "createdAt",
-      header: "Created At",
+      header: t("columns.createdAt"),
       enableSorting: true,
       size: 150,
     }),
     columnHelper.accessor("updatedAt", {
       id: "updatedAt",
-      header: "Updated At",
+      header: t("columns.updatedAt"),
       enableSorting: true,
       size: 150,
     }),
     columnHelper.accessor("target", {
       id: "target",
-      header: "Runs on",
+      header: t("columns.runsOn"),
       size: 150,
       enableSorting: true,
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.getValue();
         const renderText = isEventTarget(targetObject)
-          ? "observations"
+          ? t("observations")
           : targetObject;
         return <span className="text-muted-foreground">{renderText}</span>;
       },
     }),
     columnHelper.accessor("filter", {
       id: "filter",
-      header: "Filter",
+      header: t("columns.filter"),
       size: 200,
       enableSorting: false,
       enableHiding: true,
@@ -353,7 +356,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("id", {
-      header: "Id",
+      header: t("columns.id"),
       id: "id",
       size: 100,
       enableSorting: false,
@@ -364,7 +367,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("actions", {
-      header: "Actions",
+      header: t("columns.actions"),
       id: "actions",
       enableSorting: false,
       size: 100,
@@ -376,13 +379,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <IconOnlyButton
               key={id}
               icon={<Pen className="h-4 w-4" />}
-              label="Edit"
-              aria-label="edit"
+              label={t("edit")}
+              aria-label={t("edit")}
               disabledReason={
                 !hasAccess
-                  ? "You don't have permission to edit this evaluator."
+                  ? t("noEditPermission")
                   : row.original.isLegacy && !allowLegacy
-                    ? "Deprecated evaluators are only available in read-only mode."
+                    ? t("deprecatedReadOnly")
                     : undefined
               }
               onClick={(e) => {
@@ -391,7 +394,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               }}
             />
             <DeleteEvalConfigButton
-              aria-label="delete"
+              aria-label={t("delete")}
               itemId={id}
               projectId={projectId}
               isTableAction
@@ -399,7 +402,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               icon
               variant="ghost"
               size="icon-xs"
-              title="Delete"
+              title={t("delete")}
             />
           </div>
         );
@@ -505,7 +508,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       >
         <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit configuration</DialogTitle>
+            <DialogTitle>{t("editConfiguration")}</DialogTitle>
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
@@ -532,9 +535,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 utils.evals.allConfigs.invalidate();
                 showSuccessToast({
-                  title: "Evaluator updated successfully",
-                  description:
-                    "Changes will automatically be reflected future evaluator runs",
+                  title: t("evaluatorUpdated"),
+                  description: t("evaluatorUpdatedDescription"),
                 });
               }}
             />

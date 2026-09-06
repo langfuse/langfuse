@@ -13,8 +13,12 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
-import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import {
+  createProjectNameSchema,
+  type projectNameSchema,
+} from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslations } from "next-intl";
 
 export const NewProjectForm = ({
   orgId,
@@ -23,11 +27,17 @@ export const NewProjectForm = ({
   orgId: string;
   onSuccess: (projectId: string) => void;
 }) => {
+  const t = useTranslations("workspace");
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
 
+  const localizedProjectNameSchema = createProjectNameSchema({
+    noHtml: t("validation.noHtml"),
+    minLength: t("validation.minLength"),
+    maxLength: t("validation.maxLength"),
+  });
   const form = useForm({
-    resolver: zodResolver(projectNameSchema),
+    resolver: zodResolver(localizedProjectNameSchema),
     defaultValues: {
       name: "",
     },
@@ -36,7 +46,8 @@ export const NewProjectForm = ({
     onSuccess: () => {
       updateSession();
     },
-    onError: (error) => form.setError("name", { message: error.message }),
+    onError: () =>
+      form.setError("name", { message: t("projectForm.createFailed") }),
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
@@ -70,7 +81,7 @@ export const NewProjectForm = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Project name</FormLabel>
+              <FormLabel>{t("projectForm.name")}</FormLabel>
               <FormControl>
                 <Input
                   placeholder="my-llm-project"
@@ -83,7 +94,7 @@ export const NewProjectForm = ({
           )}
         />
         <Button type="submit" loading={createProjectMutation.isPending}>
-          Create
+          {t("projectForm.create")}
         </Button>
       </form>
     </Form>

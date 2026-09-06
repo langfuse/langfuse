@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
+import { useTranslations } from "next-intl";
 
 /**
  * Preview of the rows that currently hold a valid price. Rows that are
@@ -12,6 +13,7 @@ export function PricePreview({
   // `key` is the usage type's row identity: names can collide while editing.
   prices: { key: string; usageType: string; price: number }[];
 }) {
+  const t = useTranslations("settingsEnterprise.models");
   // One scale per column, shared by every row so the decimal points line up.
   const decimalsFor = (multiplier: number) =>
     prices.length === 0
@@ -30,16 +32,16 @@ export function PricePreview({
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <h4 className="text-muted-foreground text-sm font-bold">
-            Price Preview
+            {t("pricingEditor.preview")}
           </h4>
         </div>
 
         <div className="space-y-2">
           <div className="border-border text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b pb-2 text-xs font-bold">
-            <span>Usage Type</span>
-            <span className="text-right">per unit</span>
-            <span className="text-right">per 1K</span>
-            <span className="text-right">per 1M</span>
+            <span>{t("common.usageType")}</span>
+            <span className="text-right">{t("pricingEditor.perUnit")}</span>
+            <span className="text-right">{t("pricingEditor.per1K")}</span>
+            <span className="text-right">{t("pricingEditor.per1M")}</span>
           </div>
 
           {prices.map(({ key, usageType, price }) => (

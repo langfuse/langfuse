@@ -10,6 +10,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Settings2, Check } from "lucide-react";
 import { type IoRenderMode } from "@/src/components/table/data-table-io-render-mode-switch";
+import { useTranslations } from "next-intl";
 
 type ExperimentDisplaySettingsProps = {
   layout: "grid" | "list";
@@ -32,6 +33,7 @@ export function ExperimentDisplaySettings({
   ioRenderMode,
   onIoRenderModeChange,
 }: ExperimentDisplaySettingsProps) {
+  const t = useTranslations("evaluationAnalytics.experiments");
   const isItemVisibilityDisabled = !hasComparisons || !hasBaseline;
 
   return (
@@ -39,25 +41,25 @@ export function ExperimentDisplaySettings({
       <DropdownMenuTrigger asChild>
         <Button variant="outline">
           <Settings2 className="h-4 w-4" />
-          <span className="ml-2 hidden md:inline">Display</span>
+          <span className="ml-2 hidden md:inline">{t("display.label")}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Layout</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("display.layout")}</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => onLayoutChange("grid")}>
           {layout === "grid" && <Check className="mr-2 h-4 w-4" />}
           {layout !== "grid" && <span className="mr-2 h-4 w-4" />}
-          Grid
+          {t("display.grid")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onLayoutChange("list")}>
           {layout === "list" && <Check className="mr-2 h-4 w-4" />}
           {layout !== "list" && <span className="mr-2 h-4 w-4" />}
-          List
+          {t("display.list")}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel>Item Visibility</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("display.itemVisibility")}</DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => onItemVisibilityChange("baseline-only")}
           disabled={isItemVisibilityDisabled}
@@ -68,7 +70,7 @@ export function ExperimentDisplaySettings({
           {itemVisibility !== "baseline-only" && (
             <span className="mr-2 h-4 w-4" />
           )}
-          Show only items in baseline
+          {t("display.baselineItemsOnly")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onItemVisibilityChange("all")}
@@ -76,12 +78,12 @@ export function ExperimentDisplaySettings({
         >
           {itemVisibility === "all" && <Check className="mr-2 h-4 w-4" />}
           {itemVisibility !== "all" && <span className="mr-2 h-4 w-4" />}
-          Show all items
+          {t("display.allItems")}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel>Format</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("display.format")}</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => onIoRenderModeChange("json")}>
           {ioRenderMode === "json" && <Check className="mr-2 h-4 w-4" />}
           {ioRenderMode !== "json" && <span className="mr-2 h-4 w-4" />}
@@ -90,7 +92,7 @@ export function ExperimentDisplaySettings({
         <DropdownMenuItem onClick={() => onIoRenderModeChange("text")}>
           {ioRenderMode === "text" && <Check className="mr-2 h-4 w-4" />}
           {ioRenderMode !== "text" && <span className="mr-2 h-4 w-4" />}
-          Formatted
+          {t("display.formatted")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

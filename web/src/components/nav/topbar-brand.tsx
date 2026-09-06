@@ -6,6 +6,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { PlusIcon } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
+import { useTranslations } from "next-intl";
 
 /**
  * Compact Langfuse brand mark for the top bar.
@@ -28,6 +29,7 @@ export const TopbarBrand = ({
   className?: string;
   variant?: "icon" | "wordmark";
 }) => {
+  const t = useTranslations("sharedUi.misc");
   const hasAppSidebar = useHasAppSidebar();
   const uiCustomization = useUiCustomization();
   const logoLight = uiCustomization?.logoLightModeHref;
@@ -42,7 +44,7 @@ export const TopbarBrand = ({
   return (
     <Link
       href="/"
-      aria-label="Langfuse home"
+      aria-label={t("langfuseHome")}
       className={cn("flex shrink-0 items-center gap-1", className)}
     >
       {logoLight && logoDark ? (

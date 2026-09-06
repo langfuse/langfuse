@@ -4,9 +4,26 @@ import {
   ScoreDataTypeEnum,
 } from "@langfuse/shared";
 
-export const getTemplateResultType = (outputDefinition: unknown) => {
+type TemplateResultTypeLabels = {
+  unknown: string;
+  categorical: string;
+  boolean: string;
+  numeric: string;
+};
+
+const defaultTemplateResultTypeLabels: TemplateResultTypeLabels = {
+  unknown: "Unknown",
+  categorical: "Categorical",
+  boolean: "Boolean",
+  numeric: "Numeric",
+};
+
+export const getTemplateResultType = (
+  outputDefinition: unknown,
+  labels: TemplateResultTypeLabels = defaultTemplateResultTypeLabels,
+) => {
   if (typeof outputDefinition !== "object" || outputDefinition === null) {
-    return "Unknown";
+    return labels.unknown;
   }
 
   const hasStructuredOutputMarkers =
@@ -15,24 +32,24 @@ export const getTemplateResultType = (outputDefinition: unknown) => {
     "reasoning" in outputDefinition || "score" in outputDefinition;
 
   if (!hasStructuredOutputMarkers && !hasLegacyOutputMarkers) {
-    return "Unknown";
+    return labels.unknown;
   }
 
   const parsedOutputDefinition =
     PersistedEvalOutputDefinitionSchema.safeParse(outputDefinition);
 
   if (!parsedOutputDefinition.success) {
-    return "Unknown";
+    return labels.unknown;
   }
 
   switch (
     resolvePersistedEvalOutputDefinition(parsedOutputDefinition.data).dataType
   ) {
     case ScoreDataTypeEnum.CATEGORICAL:
-      return "Categorical";
+      return labels.categorical;
     case ScoreDataTypeEnum.BOOLEAN:
-      return "Boolean";
+      return labels.boolean;
     default:
-      return "Numeric";
+      return labels.numeric;
   }
 };

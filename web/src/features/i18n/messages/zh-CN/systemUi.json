@@ -1,0 +1,774 @@
+{
+  "versionUpdate": {
+    "message": "Langfuse 已更新",
+    "reload": "重新加载",
+    "dismiss": "关闭"
+  },
+  "backgroundMigration": {
+    "retryScheduled": "已安排重新执行迁移",
+    "retryFailed": "重新执行迁移失败",
+    "apiKeyRequired": "必须填写管理员 API Key",
+    "title": "重新执行后台迁移",
+    "description": "此操作会安排重新执行迁移。请重启 Worker 容器以重新启动迁移。",
+    "apiKey": "管理员 API Key",
+    "apiKeyPlaceholder": "输入管理员 API Key",
+    "apiKeyHelp": "出于安全考虑，此 Key 必须与 ADMIN_API_KEY 环境变量一致",
+    "docs": "文档",
+    "cancel": "取消",
+    "retry": "重新执行迁移"
+  },
+  "detailNavigation": {
+    "up": "转到上一项",
+    "down": "转到下一项"
+  },
+  "traceGraph": {
+    "noData": "暂无图数据",
+    "label": "Trace 智能体图",
+    "layingOut": "正在布局图...",
+    "largeGraph": "图规模较大，布局期间仍可使用树视图和时间线。",
+    "layoutFailed": "无法完成图布局。请使用树视图或时间线查看此 Trace。",
+    "retry": "重试",
+    "tooLarge": "此图规模过大，无法完成布局",
+    "counts": "（{nodes} 个节点，{connections} 条连接）",
+    "tryPrefix": "请使用",
+    "trySuffix": "树视图或时间线查看此 Trace。",
+    "expandedGraph": "展开图、",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "fit": "适应视图"
+  },
+  "tableActions": {
+    "allMatching": "已选择所有匹配项",
+    "selected": "已选择 {count} 项",
+    "select": "请选择...",
+    "inProgress": "批量操作正在进行，请稍候。",
+    "confirm": "确认",
+    "selectAll": "全选",
+    "selectRow": "选择此行"
+  },
+  "setupTracing": {
+    "copyFailed": "复制到剪贴板失败",
+    "copied": "已复制",
+    "copyPrompt": "复制提示词",
+    "createKeyFailed": "创建 API Key 失败",
+    "waiting": "正在等待第一个 Trace",
+    "title": "只需一分钟，开始记录第一个 Trace",
+    "description": "先获取 API Key，再让代码智能体为你的应用添加 Langfuse 可观测性。",
+    "createKeys": "创建 API Key",
+    "createKeysDescription": "你的应用需要 API Key 才能向 Langfuse 发送 Trace。",
+    "createNewKey": "新建 API Key",
+    "manageKeys": "管理 API Key",
+    "agentTitle": "使用代码智能体添加 Trace",
+    "recommended": "推荐",
+    "agentDescription": "将此提示词粘贴到 Claude、Cursor、Copilot 或其他代码智能体中。",
+    "manualDocs": "或按照文档手动设置 Trace",
+    "runApp": "运行应用，Trace 将显示在这里",
+    "runAppDescription": "应用发起 LLM 调用后，Trace 会在数秒内显示。",
+    "configure": "配置追踪"
+  },
+  "onboardingSurvey": {
+    "settingUp": "正在设置项目",
+    "takingToTracing": "即将进入 Trace 页面...",
+    "loadFailed": "加载引导流程失败",
+    "refresh": "请刷新页面后重试。",
+    "referralQuestion": "你是从哪里了解到我们的？",
+    "referralPlaceholder": "同事、口碑推荐、X、Reddit、活动",
+    "organizationSettings": "组织设置",
+    "organizationSettingsDescription": "此设置适用于组织内的所有用户，之后可在组织设置中更改。",
+    "enableAi": "启用 AI 功能",
+    "aiDescription": "相关项目数据可能会发送到 Langfuse 数据区域内的 AWS Bedrock。你的数据不会用于训练模型。",
+    "learnMore": "了解更多",
+    "next": "下一步"
+  },
+  "scoreConfigs": {
+    "noArchivePermission": "你没有归档此评分配置的权限。",
+    "noChangePermission": "你没有{mode}评分配置的权限。",
+    "createVerb": "创建",
+    "editVerb": "编辑",
+    "restoreTitle": "恢复配置",
+    "archiveTitle": "归档配置",
+    "archivedDescription": "此配置当前已归档。如需再次在标注中使用“{name}”，请恢复该配置。",
+    "activeDescription": "此配置当前已启用。如果不再希望在标注中使用“{name}”，可将其归档。历史“{name}”评分仍会显示且可删除，你也可以随时恢复此配置。",
+    "confirm": "确认",
+    "descriptionLabel": "描述：{description}",
+    "range": "范围：[{min}, {max}]",
+    "fullName": "完整名称：{name}",
+    "updateTitle": "更新评分配置",
+    "addTitle": "新建评分配置",
+    "name": "名称",
+    "dataType": "数据类型",
+    "selectDataType": "选择数据类型",
+    "types": {
+      "NUMERIC": "数值",
+      "CATEGORICAL": "分类",
+      "BOOLEAN": "布尔值",
+      "TEXT": "文本"
+    },
+    "minimum": "最小值（可选）",
+    "maximum": "最大值（可选）",
+    "value": "值",
+    "label": "标签",
+    "mappingHelp": "这是在内部将{type}标签映射为整数值的方式。",
+    "category": "分类",
+    "boolean": "布尔值",
+    "addCategory": "添加分类",
+    "removeCategory": "删除分类",
+    "description": "描述（可选）",
+    "descriptionPlaceholder": "填写评分配置的可选描述...",
+    "error": "错误：",
+    "submit": "提交",
+    "submitFailed": "提交配置时发生错误。"
+  },
+  "scores": {
+    "cannotDeselectPopulated": "无法取消选择已填写的评分",
+    "emptyScores": "空评分",
+    "comment": "评分评论",
+    "discardChanges": "放弃更改",
+    "saveChanges": "保存更改",
+    "annotate": "标注",
+    "saving": "正在保存评分数据",
+    "saved": "评分数据已保存",
+    "description": "通过评分标注{entity}，从不同维度记录人工评估。",
+    "entities": {
+      "session": "会话",
+      "trace": "Trace",
+      "observation": "Observation"
+    },
+    "deleteFailed": "删除评分失败",
+    "updateFailed": "更新评分失败",
+    "createFailed": "创建评分失败",
+    "commentUpdateFailed": "更新评论失败",
+    "value": "值",
+    "manageConfigs": "管理评分配置",
+    "commentAction": "添加或查看评分评论",
+    "textPlaceholder": "输入自由文本...",
+    "deleteArchived": "删除已归档评分",
+    "archivedTitle": "此评分已归档",
+    "archivedDescription": "此操作将永久删除该评分。",
+    "delete": "删除",
+    "deleteFromTarget": "从 Trace/Observation 中删除评分",
+    "moveFields": "在字段间移动",
+    "selectOption": "选择选项",
+    "editField": "编辑字段",
+    "selectCategory": "选择分类",
+    "searchCategories": "搜索分类...",
+    "noCategory": "未找到分类。",
+    "addCategory": "添加新分类",
+    "addNamedCategory": "添加“{name}”",
+    "categoryRequired": "必须填写分类名称",
+    "categoryExists": "已存在同名分类",
+    "addCategoryFailed": "添加分类失败",
+    "addCategoryTitle": "添加分类",
+    "addCategoryDescription": "这会为项目中的所有用户向 <strong>{name}</strong> 添加一个分类。",
+    "categoryName": "分类名称",
+    "categoryPlaceholder": "输入分类名称",
+    "cancel": "取消",
+    "notInRange": "超出范围：[{min},{max}]",
+    "source": "来源",
+    "metadata": "元数据",
+    "loading": "正在加载...",
+    "invalidJson": "无效的 JSON"
+  },
+  "miscUi": {
+    "pages": {
+      "widgets": "组件",
+      "widgetsDescription": "管理和创建仪表盘组件。",
+      "newWidget": "新建组件",
+      "dashboards": "仪表盘",
+      "dashboardsDescription": "管理和创建项目仪表盘。",
+      "newDashboard": "新建仪表盘",
+      "scores": "评分",
+      "scoresDescription": "评分是对 Trace 或 Observation 的评价，可来自用户反馈、模型评估或人工审核。请参阅文档了解详情。"
+    },
+    "users": {
+      "title": "用户",
+      "descriptionBefore": "在 Trace 中添加 userId，即可将 Langfuse 数据关联到用户。请参阅",
+      "docs": "文档",
+      "descriptionAfter": "了解详情。",
+      "userId": "用户 ID",
+      "userIdDescription": "记录在 Langfuse 中的用户唯一标识符。请参阅文档了解设置方法。",
+      "environment": "环境",
+      "firstEvent": "首次事件",
+      "firstEventDescription": "为此用户记录的最早 Trace。",
+      "lastEvent": "最近事件",
+      "lastEventDescription": "为此用户记录的最新 Trace。",
+      "totalEvents": "事件总数",
+      "totalEventsDescription": "此用户的事件总数，包括 Trace 和 Observation。请参阅数据模型了解详情。",
+      "totalTokens": "Token 总数",
+      "totalTokensDescription": "此用户在所有生成中使用的 Token 总数。",
+      "totalCost": "总成本",
+      "totalCostDescription": "此用户在所有生成中的总成本。"
+    },
+    "widgetImport": {
+      "import": "导入",
+      "uploaded": "组件上传成功",
+      "loaded": "组件配置已加载。",
+      "filtersAdjusted": "已调整组件筛选条件",
+      "filtersRemoved": "部分导入的筛选条件或筛选值在此项目中不可用，已被移除。",
+      "malformed": "输入格式错误",
+      "malformedDescription": "输入格式错误，无法执行此操作。"
+    },
+    "backgroundMigrations": {
+      "title": "后台迁移",
+      "name": "名称",
+      "script": "脚本",
+      "arguments": "参数",
+      "status": "状态",
+      "failedReason": "失败原因",
+      "state": "状态数据",
+      "actions": "操作"
+    },
+    "graphModes": {
+      "aggregated": "聚合",
+      "aggregatedDescription": "将重复步骤合并为一个节点，呈现整体结构",
+      "expanded": "展开",
+      "expandedDescription": "按执行顺序显示每一次调用"
+    },
+    "scoreConfigTable": {
+      "minimum": "最小值",
+      "maximum": "最大值",
+      "name": "名称",
+      "dataType": "数据类型",
+      "range": "范围",
+      "description": "描述",
+      "configId": "配置 ID",
+      "createdAt": "创建时间",
+      "status": "状态",
+      "archived": "已归档",
+      "active": "启用中",
+      "action": "操作",
+      "edit": "编辑",
+      "archive": "归档",
+      "add": "添加评分配置"
+    },
+    "general": {
+      "activeIncident": "当前存在服务事件",
+      "addModelDefinition": "为“{name}”添加模型定义",
+      "copyValue": "复制“{value}”",
+      "showMoreScores": "再显示 {count} 个评分",
+      "viewScoreComment": "查看 {name}（{value}）的评论",
+      "viewScoreMetadata": "查看 {name}（{value}）的元数据",
+      "viewExecutionTrace": "查看执行链路",
+      "openPrompt": "打开 Prompt：{name}",
+      "openFile": "在新标签页中打开 {name}",
+      "invalidMediaTag": "无效的 Langfuse 媒体标签",
+      "path": "路径",
+      "value": "值",
+      "expandAll": "全部展开",
+      "collapseAll": "全部折叠",
+      "expandAllRows": "展开所有行",
+      "collapseAllRows": "折叠所有行"
+    }
+  },
+  "histogram": {
+    "count": "数量",
+    "bin": "区间 {number}",
+    "binLabel": "区间：{label}",
+    "noData": "暂无数据"
+  },
+  "resourceMetrics": {
+    "latency": "延迟",
+    "averageTotalCost": "平均总成本（$）"
+  },
+  "pivotTable": {
+    "sortedAscending": "已按升序排列",
+    "sortedDescending": "已按降序排列",
+    "subtotal": "{value}（小计）",
+    "total": "总计"
+  },
+  "chartControls": {
+    "metrics": {
+      "count": "数量",
+      "value": "数值",
+      "latency": "延迟",
+      "totalCost": "成本",
+      "totalTokens": "Token",
+      "inputCost": "输入成本",
+      "outputCost": "输出成本",
+      "timeToFirstToken": "首 Token 时间",
+      "outputTokensPerSecond": "每秒输出 Token 数"
+    },
+    "dimensions": {
+      "none": "总计（不拆分）",
+      "model": "模型",
+      "name": "名称",
+      "level": "状态",
+      "type": "类型",
+      "environment": "环境",
+      "id": "ID",
+      "source": "来源",
+      "dataType": "数据类型",
+      "traceId": "Trace ID",
+      "traceName": "Trace 名称",
+      "configId": "配置 ID",
+      "timestampMonth": "时间戳月份",
+      "timestampDay": "时间戳日期",
+      "observationId": "Observation ID",
+      "observationName": "Observation 名称",
+      "observationModelName": "Observation 模型名称",
+      "observationPromptName": "Observation Prompt 名称",
+      "observationPromptVersion": "Observation Prompt 版本",
+      "userId": "用户 ID",
+      "sessionId": "会话 ID",
+      "tags": "标签",
+      "traceRelease": "Trace 发布版本",
+      "traceVersion": "Trace 版本",
+      "datasetRunId": "数据集运行 ID",
+      "stringValue": "文本值",
+      "booleanValue": "布尔值"
+    },
+    "aggregations": {
+      "count": "计数",
+      "sum": "总和",
+      "avg": "平均值",
+      "min": "最小值",
+      "max": "最大值",
+      "p50": "中位数（p50）",
+      "p95": "p95",
+      "p99": "p99"
+    },
+    "chartTypes": {
+      "LINE_TIME_SERIES": "折线图",
+      "AREA_TIME_SERIES": "面积图",
+      "BAR_TIME_SERIES": "条形图",
+      "HORIZONTAL_BAR": "排名图",
+      "VERTICAL_BAR": "垂直条形图",
+      "HISTOGRAM": "直方图",
+      "PIE": "饼图",
+      "NUMBER": "数字",
+      "PIVOT_TABLE": "数据透视表"
+    },
+    "granularities": {
+      "minute": "分钟",
+      "hour": "小时",
+      "day": "天",
+      "week": "周",
+      "month": "月"
+    },
+    "descriptions": {
+      "eventCount": "事件数量",
+      "scoreCount": "评分数量",
+      "metric": "{aggregation}{metric}",
+      "by": "按{dimension}拆分的{base}",
+      "overTime": "{base}趋势"
+    },
+    "showSeries": "显示{label}",
+    "hideSeries": "隐藏{label}",
+    "showAllSeries": "显示所有系列",
+    "showOnlySeries": "仅显示{label}",
+    "seriesOverflow": "还有 {count} 个"
+  },
+  "scoreChartView": {
+    "numericScores": "评分（数值型）",
+    "booleanScores": "评分（布尔型）",
+    "categoricalScores": "评分（分类）",
+    "widerRange": "请选择更大的时间范围来绘制图表。",
+    "buildFailed": "无法为当前视图生成图表。",
+    "categoricalValueNotice": "分类和文本评分没有数值，因此不会计入数值指标。",
+    "chartMode": "图表模式：{mode}",
+    "aggregationLabel": "{metric}聚合方式：{aggregation}",
+    "filtersUnavailable": "当前筛选条件不支持图表",
+    "noData": "无数据"
+  },
+  "scoreOutlierStrip": {
+    "perBucket": "每个时间桶的{metric}",
+    "noMetricData": "当前范围内没有{metric}数据",
+    "noScores": "当前范围内没有评分",
+    "noData": "无数据",
+    "dismissPreview": "关闭预览",
+    "exploreWindow": "查看此时间范围"
+  },
+  "dashboardExtras": {
+    "newDefaultName": "新仪表盘",
+    "managedDashboards": {
+      "home": {
+        "name": "Langfuse 首页",
+        "description": "概览此项目中的链路、成本、评分、用量和延迟，并显示在项目首页。"
+      },
+      "cost": {
+        "name": "Langfuse 成本仪表盘",
+        "description": "查看你的 LLM 成本。"
+      },
+      "latency": {
+        "name": "Langfuse 延迟仪表盘",
+        "description": "监控链路和生成的延迟指标，以优化性能。"
+      },
+      "usage": {
+        "name": "Langfuse 用量管理",
+        "description": "跟踪链路、观测和评分的用量指标，以管理资源分配。"
+      }
+    },
+    "description": "描述",
+    "cancel": "取消",
+    "create": "创建",
+    "afterCreate": "创建仪表盘后，你可以添加组件来可视化数据。",
+    "error": "错误：{message}",
+    "noneFound": "未找到仪表盘。",
+    "skip": "跳过",
+    "add": "添加到仪表盘",
+    "allModels": "所有模型",
+    "updateFailed": "更新仪表盘失败",
+    "homeUpdateFailed": "更新首页仪表盘失败",
+    "renameFailed": "重命名仪表盘失败",
+    "filtersSaveFailed": "保存筛选条件失败",
+    "duplicateWidgetFailed": "复制组件失败",
+    "widgetCopyName": "{name}（副本）",
+    "cannotPasteWidget": "无法粘贴组件",
+    "filtersAdjusted": "已调整组件筛选条件",
+    "pastedFiltersRemoved": "部分粘贴的筛选条件在此视图中不可用，已被移除。",
+    "pasteWidgetFailed": "粘贴组件失败",
+    "clipboardUnavailable": "剪贴板不可用",
+    "clipboardUnavailableDescription": "浏览器不允许读取剪贴板。请在仪表盘中使用 Cmd/Ctrl+V 粘贴。",
+    "cannotPasteCard": "无法粘贴卡片",
+    "noWidgetClipboard": "剪贴板中没有组件",
+    "noWidgetClipboardDescription": "剪贴板中不包含 Langfuse 组件 JSON。请先通过组件的操作菜单复制。",
+    "importFailed": "导入仪表盘失败",
+    "widgetCreateFailed": "无法创建仪表盘组件。",
+    "imported": "仪表盘已导入",
+    "importedDescription": "已从“{name}”添加 {count} 个组件。",
+    "importedFiltersRemoved": "部分导入的筛选条件在此视图中不可用，已被移除。",
+    "cardsSkipped": "部分卡片已跳过",
+    "cardsSkippedDescription": "文件中有 {count} 个预设卡片在当前 Langfuse 版本中不可用。",
+    "cannotImport": "无法导入仪表盘",
+    "cannotImportCard": "无法导入卡片",
+    "unsupportedFile": "不支持的文件",
+    "unsupportedFileDescription": "这里只能拖入 Langfuse 仪表盘或组件 JSON 文件。",
+    "cloneFailed": "克隆仪表盘失败",
+    "dashboard": "仪表盘",
+    "maintained": "Langfuse 维护",
+    "rename": "重命名仪表盘",
+    "dashboards": "仪表盘",
+    "noDescription": "暂无描述",
+    "environment": "环境",
+    "environmentShort": "环境",
+    "saving": "正在保存...",
+    "saveFilters": "保存筛选条件",
+    "addWidget": "添加组件",
+    "clone": "克隆",
+    "moreActions": "更多操作",
+    "pasteWidget": "粘贴组件",
+    "shownOnHome": "已显示在首页",
+    "useAsHome": "设为首页",
+    "editMetadata": "编辑名称和描述",
+    "dropToImport": "拖放以导入",
+    "dropHint": "Langfuse 仪表盘或组件 JSON",
+    "modelUsage": "模型用量",
+    "costByModel": "按模型查看成本",
+    "costByType": "按类型查看成本",
+    "usageByModel": "按模型查看用量",
+    "usageByType": "按类型查看用量",
+    "cost": "成本",
+    "units": "用量",
+    "tokens": "Token",
+    "percentile50": "第 50 百分位",
+    "percentile75": "第 75 百分位",
+    "percentile90": "第 90 百分位",
+    "percentile95": "第 95 百分位",
+    "percentile99": "第 99 百分位",
+    "modelLatencies": "模型延迟",
+    "modelLatenciesDescription": "每次 LLM 生成的延迟（秒）",
+    "latency": "延迟",
+    "scores": "评分",
+    "name": "名称",
+    "average": "平均值",
+    "scoresEmptyDescription": "评分用于评估 LLM 质量，可手动创建或通过 SDK 创建。",
+    "totalScoresTracked": "已记录的评分总数",
+    "unknown": "未知",
+    "traces": "追踪",
+    "totalTracesTracked": "已记录的追踪总数",
+    "tracesEmptyDescription": "追踪包含 LLM 应用的详细信息，可使用 SDK 创建。",
+    "showTop": "显示前 {count} 项",
+    "showAll": "显示全部",
+    "traceLatencyPercentiles": "追踪延迟百分位数",
+    "generationLatencyPercentiles": "生成延迟百分位数",
+    "observationLatencyPercentiles": "观测延迟百分位数",
+    "traceName": "追踪名称",
+    "generationName": "生成名称",
+    "observation": "观测",
+    "scoresAnalytics": "评分分析",
+    "scoresAnalyticsDescription": "查看评分汇总和平均值趋势",
+    "searchScore": "搜索评分...",
+    "totalAggregateScores": "评分汇总",
+    "aggregateLimit": "最多汇总 10,000 条评分",
+    "movingAverageOverTime": "移动平均值趋势",
+    "scoresOverTime": "评分趋势",
+    "selectScoreForAnalytics": "请选择要分析的评分",
+    "dashboardCloned": "仪表盘已克隆",
+    "dashboardClonedDescription": "仪表盘已成功克隆",
+    "edit": "编辑",
+    "owner": "所有者",
+    "project": "项目",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "actions": "操作",
+    "editableCopyCreated": "可编辑副本已创建",
+    "copyIsHome": "此副本现已设为项目首页仪表盘",
+    "workingOnCopy": "你正在使用自己的副本",
+    "createCopyFailed": "创建副本失败",
+    "createEditableCopy": "创建可编辑副本",
+    "maintainedCopyDescription": "由 Langfuse 维护，无法直接编辑。我们将在此项目中为你创建一个可编辑副本",
+    "withChangeApplied": "并应用你的更改",
+    "showOnHome": "且今后在首页显示此副本",
+    "maintainedTilesDescription": "副本中由 Langfuse 维护的卡片可以重新排列或移除；后续版本将支持编辑其内容。",
+    "existingCopy": "你已有一个副本：",
+    "openingDiscardsChange": "打开该副本将放弃刚才尝试的更改",
+    "openInstead": "改为打开该副本",
+    "createMyCopy": "创建我的副本",
+    "selectTab": "选择标签页",
+    "tabs": "标签页",
+    "filterColumns": {
+      "traceName": "Trace 名称",
+      "observationName": "Observation 名称",
+      "scoreName": "评分名称",
+      "tags": "标签",
+      "user": "用户",
+      "session": "会话",
+      "metadata": "元数据",
+      "release": "发布版本",
+      "version": "版本"
+    }
+  },
+  "previewDeployment": {
+    "deploymentOf": "部署来源",
+    "pullRequest": "PR #{number}",
+    "genericPullRequest": "一个拉取请求",
+    "by": "由",
+    "updated": "更新于 {time}"
+  },
+  "widgetExtras": {
+    "error": "错误",
+    "loading": "正在加载...",
+    "customChartDescription": "从头选择数据视图、指标和图表类型",
+    "yourWidgets": "你的组件（{count}）",
+    "homeCards": "首页卡片（{count}）",
+    "hiddenTraceWidgets": "已隐藏 {count} 个基于 Trace 的组件，因为新图表不支持 Traces 视图。可前往“组件”进行管理。",
+    "noSavedWidgets": "此项目尚无已保存的组件，请使用“自定义图表”创建。",
+    "cancel": "取消",
+    "confirmDeletion": "请确认删除",
+    "inUseTitle": "组件正在使用中",
+    "inUseDescription": "此组件仍在使用中。请先将其从所有仪表盘中移除，再执行删除。",
+    "projectMissing": "缺少项目 ID",
+    "downloadFailed": "下载组件失败",
+    "unknownError": "未知错误",
+    "copiedTitle": "组件已复制",
+    "pasteDescription": "可在任意仪表盘中使用 Cmd/Ctrl+V 粘贴。",
+    "copyFailed": "复制组件失败",
+    "clonedTitle": "组件已克隆",
+    "clonedDescription": "已创建“{name}（副本）”。",
+    "duplicateFailed": "复制组件失败",
+    "copyWidget": "复制组件",
+    "clone": "克隆",
+    "downloadJson": "下载为 JSON",
+    "downloadCsv": "下载数据为 CSV",
+    "delete": "删除",
+    "deleteConfirmLabel": "删除组件",
+    "viewType": "视图类型",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "actions": "操作",
+    "copyDialogDescription": "“{name}”由 Langfuse 维护，无法直接编辑。我们会将此卡片替换为你的可编辑副本并在组件编辑器中打开，仪表盘其余部分保持不变。",
+    "createMyCopy": "创建我的副本",
+    "cardCopied": "卡片已复制",
+    "unknownPreset": "未知预设：{id}",
+    "managedWidgets": {
+      "cmawk617300iiad07zaes6h3l": {
+        "name": "按用例划分的 P95 延迟",
+        "description": "按链路名称划分的 P95 延迟指标"
+      },
+      "cmawk6isp00kbad07t66dohjn": {
+        "name": "按层级划分的 P95 延迟（观测）",
+        "description": "按层级划分的观测 P95 延迟指标"
+      },
+      "cma2f2ioc001had07f7810kg1": {
+        "name": "总成本",
+        "description": "所有用例的总成本"
+      },
+      "cmawk9xbu00lfad07s9j1bxnx": {
+        "name": "成本最高的 20 位用户",
+        "description": "按 trace.userId 聚合的模型成本（observation.totalCost）"
+      },
+      "cmawkfg0m00kzad07jyofrnq2": {
+        "name": "成本最高的 20 个用例（观测）",
+        "description": "按 observation.name 聚合的模型成本（observation.totalCost）"
+      },
+      "cmawk6nqs00jwad07hwpsj3z2": {
+        "name": "成本最高的 20 个用例（链路）",
+        "description": "按 trace.name 聚合的模型成本（observation.totalCost）"
+      },
+      "cmawk7btd00khad07g625cqmp": {
+        "name": "按环境划分的成本",
+        "description": "按 trace.environment 拆分的总成本"
+      },
+      "cmawk94z800ldad07jjox8ugd": {
+        "name": "按用户 ID 划分的最大延迟（链路）",
+        "description": "延迟最高的 50 位用户的最大链路延迟"
+      },
+      "cmawka1fk00kdad07vdipgz04": {
+        "name": "按提示词名称划分的平均首 Token 延迟（观测）",
+        "description": "按提示词名称划分的平均首 Token 延迟"
+      },
+      "cmawksk8h00phad07s9c7v6d7": {
+        "name": "按模型划分的 P95 首 Token 延迟",
+        "description": "按模型划分的 P95 首 Token 延迟指标"
+      },
+      "cmawktot400pkad07m8gy30vq": {
+        "name": "按模型划分的 P95 延迟",
+        "description": "按模型划分的观测 P95 延迟指标"
+      },
+      "cmawl83ks001ead076pk2wcex": {
+        "name": "按模型划分的平均每秒输出 Token 数",
+        "description": "按模型划分的平均每秒输出 Token 数"
+      },
+      "cmawle4zj0096ad0650rzeh0z": {
+        "name": "每条链路的 P95 成本",
+        "description": "每条链路成本的第 95 百分位数"
+      },
+      "cmawljmu100v7ad07pd3apnwe": {
+        "name": "每次观测的 P95 输出成本",
+        "description": "每次观测（LLM 调用）输出成本的第 95 百分位数"
+      },
+      "cmawlkgt300vsad06g69vqqej": {
+        "name": "每次观测的 P95 输入成本",
+        "description": "每次观测（LLM 调用）输入成本的第 95 百分位数"
+      },
+      "cmawloc0k010uad06e4git5kz": {
+        "name": "链路总数",
+        "description": "所有环境中的链路总数"
+      },
+      "cmawlaqoa004kad07e2q0za6k": {
+        "name": "链路总数",
+        "description": "显示链路数量"
+      },
+      "cmawlbdu2004nad07lks0j8lw": {
+        "name": "观测总数",
+        "description": "显示观测数量"
+      },
+      "cmawk5sik00igad07kjetg17j": {
+        "name": "按模型名称划分的成本",
+        "description": "按模型名称拆分的总成本"
+      },
+      "cmawlotp500zcad076b8u704s": {
+        "name": "观测总数",
+        "description": "所有环境中的观测总数"
+      },
+      "cmawlpv4600y0ad0770qyrix9": {
+        "name": "数值评分总数",
+        "description": "所有环境中的数值评分总数"
+      },
+      "cmawlqkxk00xfad07r8zoc4ag": {
+        "name": "分类评分总数",
+        "description": "所有环境中的分类评分总数"
+      },
+      "cmawlrhom00xhad07phtqc81k": {
+        "name": "链路总数趋势",
+        "description": "链路数量随时间变化的趋势"
+      },
+      "cmawlt6wi00zmad07cvxeeepq": {
+        "name": "观测总数趋势",
+        "description": "观测数量随时间变化的趋势"
+      },
+      "cmawltpsx00yaad07f51yvkwg": {
+        "name": "数值评分总数趋势",
+        "description": "数值评分数量随时间变化的趋势"
+      },
+      "cmawlu5bs00zsad07maibk7ef": {
+        "name": "分类评分总数趋势",
+        "description": "分类评分数量随时间变化的趋势"
+      },
+      "cmawlw4s700zvad07qq4qi0gp": {
+        "name": "按环境划分的链路总数",
+        "description": "不同环境中的链路数量分布"
+      },
+      "cmawlxdo00106ad07crpey1if": {
+        "name": "按环境划分的观测总数",
+        "description": "不同环境中的观测数量分布"
+      }
+    },
+    "copyCard": "复制卡片",
+    "filtersNotShown": "表格中未显示 {count} 个筛选条件",
+    "configurationDescription": "通过选择数据和可视化选项配置组件",
+    "tracesUnavailableTitle": "v4 不支持 Traces 视图",
+    "tracesUnavailableDescription": "此组件使用 v4 不支持的 Traces 视图，因此会继续使用 v3 定义。若要使用 v4，请将视图更改为 Observations 或 Scores。",
+    "presets": "预设",
+    "experimentDataPreset": "实验数据",
+    "metric": "指标",
+    "metrics": "指标",
+    "save": "保存组件",
+    "waitingForInput": "正在等待输入或加载...",
+    "aggregationAuto": "直方图会自动使用“histogram”聚合方式",
+    "metricLabel": "指标 {number} {requirement}",
+    "required": "（必填）",
+    "optional": "（可选）",
+    "selectPreviousMetric": "请先选择前一个指标",
+    "noMoreMeasures": "没有更多可用度量",
+    "selectMeasure": "选择度量",
+    "addMetric": "添加指标 {number}",
+    "rowDimensionsDescription": "最多可为数据透视表配置 {count} 个行维度。每个维度都会创建带小计的分组。",
+    "dimensionLabel": "维度 {number}（可选）",
+    "selectPreviousDimension": "请先选择前一个维度",
+    "defaultSortDescription": "配置数据透视表的默认排序方式，该设置会在组件首次加载时应用。",
+    "unsupportedFilters": "不支持以下旧版筛选列：{columns}。请移除这些列或切换到兼容的视图后再保存组件。",
+    "unsupportedFiltersTitle": "部分筛选条件不受支持",
+    "unsupportedFiltersDescription": "当前视图不支持以下筛选列：{columns}。",
+    "views": {
+      "traces": "链路",
+      "observations": "观测",
+      "scoresNumeric": "评分（数值）",
+      "scoresCategorical": "评分（分类）",
+      "scoresBoolean": "评分（布尔）"
+    },
+    "widgetSuggestions": {
+      "noMetrics": "无指标",
+      "moreMetrics": "{metrics} 等 {count} 个指标",
+      "name": {
+        "metric": "{aggregation}{metric}",
+        "by": "按{dimension}拆分的{base}",
+        "withView": "{base}（{view}）"
+      },
+      "description": {
+        "multiMetric": "显示{view}的{metrics}",
+        "count": "显示{view}的数量",
+        "metric": "显示{view}的{aggregation}{metric}",
+        "by": "{base}，按{dimension}拆分",
+        "filteredByColumn": "{base}，按{column}筛选",
+        "filteredByColumns": "{base}，按{firstColumn}和{secondColumn}筛选",
+        "filteredByConditions": "{base}，使用 {count} 个条件筛选"
+      }
+    },
+    "validation": {
+      "metricRequired": "至少需要一个指标。",
+      "unsupportedBreakdown": "此图表类型不支持拆分维度。",
+      "pivotMetricRequired": "数据透视表至少需要一个指标。",
+      "pivotMetricLimit": "数据透视表最多支持 {count} 个指标。",
+      "pivotDimensionLimit": "数据透视表最多支持 {count} 个维度。",
+      "singleMetricRequired": "此图表类型只能使用一个指标。",
+      "selectMeasure": "请选择度量。",
+      "breakdownLimit": "此图表类型最多支持一个拆分维度。",
+      "histogramSingleMetric": "直方图只能使用一个指标。",
+      "histogramAggregationRequired": "直方图必须使用 histogram 聚合方式。",
+      "measureNotHistogramCapable": "此度量无法显示为直方图。",
+      "histogramAggregationOnly": "histogram 聚合方式只能用于直方图。"
+    },
+    "chartNames": {
+      "NUMBER": "大数字",
+      "LINE_TIME_SERIES": "折线图",
+      "BAR_TIME_SERIES": "垂直条形图",
+      "HORIZONTAL_BAR": "水平条形图",
+      "VERTICAL_BAR": "垂直条形图",
+      "HISTOGRAM": "直方图",
+      "PIE": "饼图",
+      "PIVOT_TABLE": "数据透视表"
+    },
+    "chartTypeDisplayNames": {
+      "LINE_TIME_SERIES": "折线图（时间序列）",
+      "AREA_TIME_SERIES": "面积图（时间序列）",
+      "BAR_TIME_SERIES": "条形图（时间序列）",
+      "HORIZONTAL_BAR": "水平条形图（总值）",
+      "VERTICAL_BAR": "垂直条形图（总值）",
+      "PIE": "饼图（总值）",
+      "NUMBER": "大数字（总值）",
+      "HISTOGRAM": "直方图（总值）",
+      "PIVOT_TABLE": "数据透视表（总值）"
+    }
+  }
+}

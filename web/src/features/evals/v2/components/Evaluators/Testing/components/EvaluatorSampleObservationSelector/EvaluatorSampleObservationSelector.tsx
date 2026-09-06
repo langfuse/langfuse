@@ -11,6 +11,7 @@ import {
   type SampleObservation,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { useTranslations } from "next-intl";
 
 const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
@@ -45,6 +46,7 @@ export function EvaluatorSampleObservationSelector({
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
       {
@@ -53,7 +55,7 @@ export function EvaluatorSampleObservationSelector({
         header: () => (
           <>
             <Star aria-hidden="true" className="h-4 w-4" />
-            <span className="sr-only">Sample</span>
+            <span className="sr-only">{t("sampleSelector.sample")}</span>
           </>
         ),
         size: 72,
@@ -68,14 +70,16 @@ export function EvaluatorSampleObservationSelector({
           >
             <Checkbox
               checked={selectedObservationId === row.original.id}
-              aria-label={`Use ${row.original.name ?? row.original.id} as sample`}
+              aria-label={t("sampleSelector.useAsSample", {
+                name: row.original.name ?? row.original.id,
+              })}
               onCheckedChange={() => onSelect(row.original)}
             />
           </label>
         ),
       },
     ],
-    [onSelect, selectedObservationId],
+    [onSelect, selectedObservationId, t],
   );
 
   return (
@@ -95,12 +99,15 @@ export function EvaluatorSampleObservationSelector({
       getRowClassName={(observation) =>
         observation.id === selectedObservationId ? "bg-muted/50" : ""
       }
-      filterDescription="Filter the observations to a representative sample for testing this evaluator."
-      filterTooltip="These filters control which observations you can pick to test with."
-      matchingDescription="Select an observation to test the evaluator and verify the variable mapping."
-      matchingTooltip="Observations matching the current filters and global time range."
+      filterDescription={t("sampleSelector.evaluator.filterDescription")}
+      filterTooltip={t("sampleSelector.evaluator.filterTooltip")}
+      matchingDescription={t("sampleSelector.evaluator.matchingDescription")}
+      matchingTooltip={t("sampleSelector.evaluator.matchingTooltip")}
       formatCount={(count) =>
-        `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
+        t("sampleSelector.matchCount", {
+          count,
+          formattedCount: compactNumberFormatter(count),
+        })
       }
       mapObservedOptions={preserveObservedOptions}
     />

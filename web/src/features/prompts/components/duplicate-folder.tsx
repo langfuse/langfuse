@@ -31,6 +31,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Copy } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useTranslations } from "next-intl";
 
 enum CopySettings {
   LATEST_ONLY = "latest_only",
@@ -44,6 +45,7 @@ const formSchema = z.object({
 });
 
 export function DuplicateFolder({ folderPath }: { folderPath: string }) {
+  const t = useTranslations("coreDetails.prompts.duplicate");
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
@@ -53,7 +55,11 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
   const capture = usePostHogClientCapture();
 
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(
+      formSchema.extend({
+        targetPath: z.string().min(1, t("targetRequired")),
+      }),
+    ),
     defaultValues: {
       targetPath: `${folderPath}-copy`,
       copySettings: CopySettings.LATEST_ONLY,
@@ -112,7 +118,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
           variant="ghost"
           size="xs"
           disabled={!hasAccess}
-          title="Duplicate folder including prompts"
+          title={t("folderWithPrompts")}
           onClick={() => capture("prompt_detail:duplicate_button_click")}
         >
           <Copy className="h-4 w-4" />
@@ -121,7 +127,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="break-all">
-            Duplicate Folder &quot;
+            {t("folder")} &quot;
             <i className="font-normal">
               {folderPath.split("/").pop() ?? folderPath}
             </i>
@@ -135,18 +141,18 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
           >
             <DialogBody>
               <p className="text-muted-foreground text-sm">
-                Copy all prompts from{" "}
+                {t("copyFrom")}{" "}
                 <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-bold break-all">
                   {folderPath}/
                 </code>{" "}
-                to a new folder path.
+                {t("copyTo")}
               </p>
               <FormField
                 control={form.control}
                 name="targetPath"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel>Target folder path</FormLabel>
+                    <FormLabel>{t("targetPath")}</FormLabel>
                     <FormControl>
                       <Input {...field} type="text" />
                     </FormControl>
@@ -159,7 +165,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                 name="copySettings"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Version settings</FormLabel>
+                    <FormLabel>{t("versionSettings")}</FormLabel>
                     <FormControl>
                       <RadioGroup
                         {...field}
@@ -172,7 +178,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                             <RadioGroupItem value={CopySettings.LATEST_ONLY} />
                           </FormControl>
                           <FormLabel className="font-normal">
-                            Copy only the latest version of each prompt
+                            {t("latestOnly")}
                           </FormLabel>
                         </FormItem>
                         <FormItem className="flex items-center space-y-0 space-x-3">
@@ -180,7 +186,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                             <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
                           </FormControl>
                           <FormLabel className="font-normal">
-                            Copy all versions and labels
+                            {t("allVersionsAndLabels")}
                           </FormLabel>
                         </FormItem>
                       </RadioGroup>
@@ -201,19 +207,17 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        Rewrite prompt references in this folder
-                      </FormLabel>
+                      <FormLabel>{t("rewriteReferences")}</FormLabel>
                       <FormDescription>
-                        Update references like{" "}
+                        {t("rewriteBefore")}{" "}
                         <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
                           {folderPath}/...
                         </code>{" "}
-                        to point at{" "}
+                        {t("rewriteMiddle")}{" "}
                         <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
                           {form.watch("targetPath") || `${folderPath}-copy`}/...
                         </code>{" "}
-                        when the referenced prompt is also copied.
+                        {t("rewriteAfter")}
                       </FormDescription>
                     </div>
                   </FormItem>
@@ -222,14 +226,12 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
               {form.watch("copySettings") === CopySettings.LATEST_ONLY &&
                 form.watch("rewritePromptReferences") && (
                   <p className="text-muted-foreground text-sm">
-                    When copying latest only, labels referenced within the
-                    folder may be added to copied prompts so rewritten
-                    references continue to work.
+                    {t("latestOnlyNote")}
                   </p>
                 )}
               {error && (
                 <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <p className="font-bold">Error:</p>
+                  <p className="font-bold">{t("error")}</p>
                   <p className="whitespace-pre-wrap">{error}</p>
                 </div>
               )}
@@ -247,7 +249,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                 }
                 className="mt-auto w-full"
               >
-                Duplicate
+                {t("duplicate")}
               </Button>
             </DialogFooter>
           </form>

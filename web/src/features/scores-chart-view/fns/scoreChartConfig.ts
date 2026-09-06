@@ -1,6 +1,7 @@
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   AGGREGATION_LABELS,
+  type ChartDescriptionFormatter,
   CHART_TYPES,
   GRANULARITIES,
   isTimeSeriesChartType,
@@ -126,8 +127,29 @@ export const coerceScoreChartConfig = (
 /** Human sentence describing a config — the chart subtitle. */
 export const describeScoreChartConfig = (
   config: ScoreChartViewConfig,
+  format?: ChartDescriptionFormatter,
 ): string => {
   const metric = getScoreMetric(config.metric, config.dataset);
+  if (format) {
+    let description =
+      config.metric === "count"
+        ? format("descriptions.scoreCount")
+        : format("descriptions.metric", {
+            aggregation: format(`aggregations.${config.aggregation}`),
+            metric: format(`metrics.${config.metric}`),
+          });
+
+    if (config.breakdown !== "none" && config.chartType !== "NUMBER") {
+      description = format("descriptions.by", {
+        base: description,
+        dimension: format(`dimensions.${config.breakdown}`),
+      });
+    }
+    return isTimeSeriesChartType(config.chartType)
+      ? format("descriptions.overTime", { base: description })
+      : description;
+  }
+
   const metricPart =
     config.metric === "count"
       ? "Count of scores"
@@ -297,9 +319,11 @@ export function scoreRowsToDataPoints(
 export function scoreChartConfigToWidgetInput({
   config,
   filters,
+  formatDescription,
 }: {
   config: ScoreChartViewConfig;
   filters: FilterState;
+  formatDescription?: ChartDescriptionFormatter;
 }): ChartWidgetInput {
   const isTimeSeries = isTimeSeriesChartType(config.chartType);
   const metric = getScoreMetric(config.metric, config.dataset);
@@ -324,7 +348,7 @@ export function scoreChartConfigToWidgetInput({
   ) as ChartWidgetInput["chartConfig"];
 
   return {
-    name: describeScoreChartConfig(config),
+    name: describeScoreChartConfig(config, formatDescription),
     description: "",
     view: VIEW_BY_DATASET[config.dataset],
     dimensions,

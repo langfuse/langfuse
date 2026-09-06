@@ -7,8 +7,10 @@ import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
+import { useTranslations } from "next-intl";
 
 export default function ScoresPage() {
+  const t = useTranslations("systemUi.miscUi.pages");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -31,10 +33,9 @@ export default function ScoresPage() {
   return (
     <Page
       headerProps={{
-        title: "Scores",
+        title: t("scores"),
         help: {
-          description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+          description: t("scoresDescription"),
           href: "https://langfuse.com/docs/evaluation/overview",
         },
         tabsProps: {

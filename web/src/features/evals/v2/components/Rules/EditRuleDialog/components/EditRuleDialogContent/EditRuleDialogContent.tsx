@@ -14,6 +14,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { useTranslations } from "next-intl";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -34,6 +35,7 @@ export function EditRuleDialogContent({
   hasWriteAccess: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [ruleSetupStore] = useState(() =>
@@ -110,8 +112,8 @@ export function EditRuleDialogContent({
       });
     }
     showSuccessToast({
-      title: "Rule saved",
-      description: "Your changes have been saved.",
+      title: t("rules.notifications.savedTitle"),
+      description: t("rules.notifications.savedDescription"),
     });
     await Promise.all([
       utils.evalsV2.rules.list.invalidate({ projectId }),

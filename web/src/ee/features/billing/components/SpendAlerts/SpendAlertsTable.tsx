@@ -10,7 +10,6 @@ import {
 import { MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { formatDistanceToNow } from "date-fns";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
 import { DataTable } from "@/src/components/table/data-table";
@@ -19,6 +18,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { costFormatter } from "@/src/utils/numbers";
+import { useFormatter, useTranslations } from "next-intl";
 
 interface SpendAlertsTableProps {
   orgId: string;
@@ -33,6 +33,8 @@ type AlertRow = {
 };
 
 export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
+  const t = useTranslations("settingsEnterprise.billing");
+  const format = useFormatter();
   const [editingAlert, setEditingAlert] = useState<string | null>(null);
   const [deletingAlert, setDeletingAlert] = useState<string | null>(null);
 
@@ -75,62 +77,68 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   const columns: LangfuseColumnDef<AlertRow>[] = [
     createTextTableColumn<AlertRow>({
       accessorKey: "title",
-      header: "Title",
+      header: t("spendAlerts.tableTitle"),
       size: 160,
     }),
     createNumberTableColumn<AlertRow>({
       accessorFn: (row) => row.threshold,
       id: "limit",
-      header: "Limit (USD)",
+      header: t("spendAlerts.limitUsd"),
       size: 140,
       formatter: costFormatter,
     }),
     {
       accessorKey: "status",
       id: "status",
-      header: "Status",
+      header: t("common.status"),
       size: 110,
       cell: ({ row }) => (
         <Badge variant={row.original.triggeredAt ? "destructive" : "secondary"}>
-          {row.original.triggeredAt ? "Triggered" : "Active"}
+          {row.original.triggeredAt
+            ? t("spendAlerts.triggered")
+            : t("spendAlerts.active")}
         </Badge>
       ),
     },
     {
       accessorKey: "lastTriggered",
       id: "lastTriggered",
-      header: "Last Triggered",
+      header: t("spendAlerts.lastTriggered"),
       size: 160,
       cell: ({ row }) =>
         row.original.triggeredAt
-          ? formatDistanceToNow(new Date(row.original.triggeredAt), {
-              addSuffix: true,
-            })
-          : "Never",
+          ? format.relativeTime(new Date(row.original.triggeredAt))
+          : t("spendAlerts.never"),
     },
     {
       accessorKey: "actions",
       id: "actions",
-      header: "Actions",
+      header: t("common.actions"),
       size: 120,
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
+            <Button
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              aria-label={t("spendAlerts.actionsAriaLabel", {
+                title: row.original.title,
+              })}
+            >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => setEditingAlert(row.original.id)}>
               <Edit className="mr-2 h-4 w-4" />
-              Edit
+              {t("spendAlerts.edit")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setDeletingAlert(row.original.id)}
               className="text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              Delete
+              {t("spendAlerts.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

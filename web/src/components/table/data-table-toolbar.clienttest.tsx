@@ -1,9 +1,32 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderTestingLibrary,
+  screen,
+} from "@testing-library/react";
+import { type ReactElement } from "react";
 import { vi } from "vitest";
 import {
   DataTableToolbar,
   type MultiSelect,
 } from "@/src/components/table/data-table-toolbar";
+import { NextIntlClientProvider } from "next-intl";
+import englishMessages from "@/src/features/i18n/messages/en/sharedUi.json";
+import chineseMessages from "@/src/features/i18n/messages/zh-CN/sharedUi.json";
+
+const renderWithMessages = (
+  element: ReactElement,
+  locale: "en" | "zh-CN" = "en",
+) =>
+  renderTestingLibrary(
+    <NextIntlClientProvider
+      locale={locale}
+      messages={{
+        sharedUi: locale === "en" ? englishMessages : chineseMessages,
+      }}
+    >
+      {element}
+    </NextIntlClientProvider>,
+  );
 
 const baseMultiSelect = (overrides: Partial<MultiSelect>): MultiSelect => ({
   selectAll: false,
@@ -22,7 +45,7 @@ const selectedIds = (count: number) =>
 describe("DataTableToolbar select-all banner gate", () => {
   describe("exact-count tables (v3)", () => {
     it("shows the exact-count banner when the full first page is selected", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -40,7 +63,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("shows no banner while the count is unknown and no more-pages signal is provided", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -56,7 +79,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("shows no banner when all rows fit on one page", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -75,7 +98,7 @@ describe("DataTableToolbar select-all banner gate", () => {
   describe("count-unknown tables with a more-pages signal (v4 events)", () => {
     it("shows the banner and flips select-all when the full first page is selected", () => {
       const setSelectAll = vi.fn();
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -95,7 +118,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("keeps the banner visible while the lazy count is loading after select-all", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -111,7 +134,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("shows the exact count once the lazy count resolves after select-all", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -128,7 +151,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("shows no banner on the last page (no more matching rows)", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -145,7 +168,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("shows no banner when the page is only partially selected", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -162,7 +185,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     });
 
     it("shows no banner beyond the first page", () => {
-      render(
+      renderWithMessages(
         <DataTableToolbar
           columns={[]}
           multiSelect={baseMultiSelect({
@@ -178,5 +201,23 @@ describe("DataTableToolbar select-all banner gate", () => {
         screen.queryByText(/items on this page are selected/),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("DataTableToolbar localization", () => {
+  it("renders its generic search controls in Chinese", () => {
+    renderWithMessages(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          currentQuery: "",
+          metadataSearchFields: ["ID", "Name"],
+          updateQuery: vi.fn(),
+        }}
+      />,
+      "zh-CN",
+    );
+
+    expect(screen.getByPlaceholderText("搜索（ID, Name）")).toBeInTheDocument();
   });
 });

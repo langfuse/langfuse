@@ -8,6 +8,7 @@ import { Label } from "@/src/components/ui/label";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { useTranslations } from "next-intl";
 
 type ReferencingEvaluator = {
   id: string;
@@ -59,19 +60,20 @@ export function DeleteEvalTemplateDialog({
   // instantly while the usage query is in flight.
   initialUsageCount?: number;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const utils = api.useUtils();
   const [confirmationInput, setConfirmationInput] = useState("");
 
   const templateMutation = api.evals.deleteEvalTemplate.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Evaluator deleted",
-        description: `Evaluator "${templateName}" was deleted.`,
+        title: t("evaluatorDeleted"),
+        description: t("evaluatorDeletedDescription", { name: templateName }),
       });
       utils.evals.invalidate();
     },
     onError: (error) =>
-      showErrorToast("Failed to delete evaluator", error.message),
+      showErrorToast(t("deleteEvaluatorFailed"), error.message),
   });
 
   // Once deletion starts, the usage query must go inactive so post-delete
@@ -113,13 +115,13 @@ export function DeleteEvalTemplateDialog({
       open={open}
       onOpenChange={handleOpenChange}
       size="lg"
-      title={isBlocked ? "Cannot delete" : "Please confirm"}
+      title={isBlocked ? t("cannotDelete") : t("pleaseConfirm")}
       description={
         isBlocked
-          ? `This evaluator is used by ${usageCount} running evaluator${usageCount === 1 ? "" : "s"}. Delete those running evaluators first.`
-          : "This action cannot be undone. It permanently deletes all versions of this evaluator. Scores already produced by it will not be deleted."
+          ? t("evaluatorInUse", { count: usageCount })
+          : t("deleteEvaluatorDescription")
       }
-      confirmLabel="Delete evaluator"
+      confirmLabel={t("deleteEvaluator")}
       loading={templateMutation.isPending}
       confirmDisabled={isBlocked || confirmationInput !== templateName}
       onConfirm={handleConfirm}
@@ -146,7 +148,7 @@ export function DeleteEvalTemplateDialog({
       ) : (
         <div className="grid w-full gap-1.5">
           <Label htmlFor="delete-evaluator-confirmation">
-            Type &quot;{templateName}&quot; to confirm
+            {t("typeToConfirm", { value: templateName })}
           </Label>
           <Input
             id="delete-evaluator-confirmation"

@@ -60,8 +60,10 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
 import { Info, ExternalLink } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export default function MixpanelIntegrationSettings() {
+  const t = useTranslations("integrationsSettings");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -88,40 +90,36 @@ export default function MixpanelIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Mixpanel Integration",
+        title: t("mixpanel.title"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("common.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/integrations/analytics/mixpanel">
-              Integration Docs ↗
+              {t("common.integrationDocs")}
             </Link>
           </Button>
         ),
       }}
     >
       <p className="text-primary mb-4 text-sm">
-        Integrate with{" "}
-        <Link href="https://mixpanel.com" className="underline">
-          Mixpanel
-        </Link>{" "}
-        to sync your Langfuse traces, generations, and scores for advanced
-        product analytics. Upon activation, all historical data from your
-        project will be synced. After the initial sync, new data is
-        automatically synced every hour to keep your Mixpanel dashboards up to
-        date.
+        {t.rich("mixpanel.description", {
+          link: (chunks) => (
+            <Link href="https://mixpanel.com" className="underline">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
-      {!hasAccess && (
-        <p className="text-sm">
-          Your current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
-      )}
+      {!hasAccess && <p className="text-sm">{t("common.accessDenied")}</p>}
       {hasAccess && (
         <>
-          <Header title="Configuration" />
+          <Header title={t("common.configuration")} />
           <Card className="p-3">
             <MixpanelLogo className="text-foreground mb-4 w-20" />
             {!state.data || !project ? (
@@ -142,12 +140,13 @@ export default function MixpanelIntegrationSettings() {
       )}
       {state.data?.config?.enabled && (
         <>
-          <Header title="Status" className="mt-8" />
+          <Header title={t("common.status")} className="mt-8" />
           <p className="text-primary text-sm">
-            Data synced until:{" "}
-            {state.data?.config?.lastSyncAt
-              ? new Date(state.data.config.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
+            {t("mixpanel.syncedUntil", {
+              value: state.data?.config?.lastSyncAt
+                ? new Date(state.data.config.lastSyncAt).toLocaleString()
+                : t("common.neverPending"),
+            })}
           </p>
         </>
       )}
@@ -168,6 +167,7 @@ const MixpanelIntegrationSettingsForm = ({
   // reference on every render and would defeat the memo below.
   projectCreatedAt: string;
 }) => {
+  const t = useTranslations("integrationsSettings");
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const integrationCreatedAt = state?.createdAt;
@@ -200,19 +200,18 @@ const MixpanelIntegrationSettingsForm = ({
           ctx.addIssue({
             code: "custom",
             path: ["mixpanelProjectToken"],
-            message: "Mixpanel Project Token is required",
+            message: t("mixpanel.tokenRequired"),
           });
         }
         if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
             path: ["exportSource"],
-            message:
-              "This export source is not available on this deployment. Select an available export source to save.",
+            message: t("blobStorage.validationUnavailable"),
           });
         }
       }),
-    [exportSourceCtx, state],
+    [exportSourceCtx, state, t],
   );
 
   const mixpanelForm = useForm({
@@ -266,23 +265,27 @@ const MixpanelIntegrationSettingsForm = ({
           name="mixpanelRegion"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Mixpanel Region</FormLabel>
+              <FormLabel>{t("mixpanel.region")}</FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a region" />
+                    <SelectValue placeholder={t("mixpanel.selectRegion")} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   {MIXPANEL_REGIONS.map((region) => (
                     <SelectItem key={region.subdomain} value={region.subdomain}>
-                      {region.description}
+                      {region.subdomain === "api"
+                        ? t("mixpanel.regions.us")
+                        : region.subdomain === "api-eu"
+                          ? t("mixpanel.regions.eu")
+                          : t("mixpanel.regions.india")}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <FormDescription>
-                Select the Mixpanel region where your project is hosted
+                {t("mixpanel.regionDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -293,7 +296,7 @@ const MixpanelIntegrationSettingsForm = ({
           name="mixpanelProjectToken"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Mixpanel Project Token</FormLabel>
+              <FormLabel>{t("mixpanel.projectToken")}</FormLabel>
               <FormControl>
                 <PasswordInput
                   {...field}
@@ -301,9 +304,7 @@ const MixpanelIntegrationSettingsForm = ({
                 />
               </FormControl>
               <FormDescription>
-                {state
-                  ? "Leave blank to keep the current token."
-                  : "You can find your Project Token in your Mixpanel project settings"}
+                {state ? t("mixpanel.keepToken") : t("mixpanel.tokenHelp")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -316,7 +317,7 @@ const MixpanelIntegrationSettingsForm = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5 pt-2">
-                  Export Source
+                  {t("common.exportSource")}
                   <Tooltip>
                     <TooltipTrigger>
                       <Info className="text-muted-foreground h-3.5 w-3.5" />
@@ -340,7 +341,7 @@ const MixpanelIntegrationSettingsForm = ({
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
-                          For further information see
+                          {t("common.furtherInformation")}
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
@@ -350,7 +351,9 @@ const MixpanelIntegrationSettingsForm = ({
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
+                      <SelectValue
+                        placeholder={t("common.selectExportSource")}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -361,15 +364,16 @@ const MixpanelIntegrationSettingsForm = ({
                         disabled={option.unavailable}
                       >
                         {option.unavailable
-                          ? `${option.label} (not available on this deployment)`
+                          ? t("common.unavailableOption", {
+                              label: option.label,
+                            })
                           : option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Choose which data sources to export to Mixpanel. Scores are
-                  always included.
+                  {t("mixpanel.sourceDescription")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -378,7 +382,7 @@ const MixpanelIntegrationSettingsForm = ({
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
-            <AlertTitle>Saved export source is no longer available</AlertTitle>
+            <AlertTitle>{t("common.unavailableTitle")}</AlertTitle>
             <AlertDescription>
               {getExportSourceUnavailableMessage(watchedValidation.reason)}
             </AlertDescription>
@@ -389,7 +393,7 @@ const MixpanelIntegrationSettingsForm = ({
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enabled</FormLabel>
+              <FormLabel>{t("common.enabled")}</FormLabel>
               <FormControl>
                 <div className="mt-1 ml-4">
                   <Switch
@@ -411,22 +415,18 @@ const MixpanelIntegrationSettingsForm = ({
           loading={mut.isPending}
           onClick={mixpanelForm.handleSubmit(onSubmit)}
         >
-          Save
+          {t("common.save")}
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
           disabled={!state}
           onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the Mixpanel integration for this project?",
-              )
-            )
+            if (confirm(t("mixpanel.resetConfirm")))
               mutDelete.mutate({ projectId });
           }}
         >
-          Reset
+          {t("common.reset")}
         </Button>
       </div>
     </Form>

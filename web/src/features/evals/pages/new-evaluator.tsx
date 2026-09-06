@@ -25,12 +25,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTranslations } from "next-intl";
 
 // Multi-step setup process
 // 1. Select Evaluator: /project/:projectId/evals/legacy/new
 // 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
 // 3. Configure Evaluator: /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
 export default function NewEvaluatorPage() {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluator as string | undefined;
@@ -157,7 +159,7 @@ export default function NewEvaluatorPage() {
   const isProviderStepComplete = step === "run" && selectedTemplateIsLlm;
 
   if (!hasAccess) {
-    return <div>You do not have access to this page.</div>;
+    return <div>{t("noPageAccess")}</div>;
   }
 
   return (
@@ -165,10 +167,10 @@ export default function NewEvaluatorPage() {
       withPadding
       scrollable
       headerProps={{
-        title: "Set up evaluator",
+        title: t("setupEvaluator"),
         breadcrumb: [
           {
-            name: "Running Evaluators",
+            name: t("runningEvaluators"),
             href: `/project/${projectId}/evals/legacy`,
           },
         ],
@@ -189,7 +191,7 @@ export default function NewEvaluatorPage() {
                   : "text-foreground font-bold",
               )}
             >
-              1. Select Evaluator
+              {t("stepSelectEvaluator")}
               {step !== "select" && (
                 <Check className="ml-1 inline-block h-3 w-3" />
               )}
@@ -204,7 +206,7 @@ export default function NewEvaluatorPage() {
                   : "text-muted-foreground",
               )}
             >
-              2. Set up LLM connection
+              {t("stepSetupLlmConnection")}
               {isProviderStepComplete && (
                 <Check className="ml-1 inline-block h-3 w-3" />
               )}
@@ -220,14 +222,14 @@ export default function NewEvaluatorPage() {
               )}
             >
               <div className="flex flex-row">
-                3. Run Evaluator
+                {t("stepRunEvaluator")}
                 {currentTemplate && (
                   <div className="flex flex-row gap-2">
                     <span>
                       {currentTemplate.name ? `: ${currentTemplate.name}` : ""}
                     </span>
                     <MaintainerTooltip
-                      maintainer={getMaintainer(currentTemplate)}
+                      maintainer={getMaintainer(currentTemplate, t)}
                     />
                   </div>
                 )}
@@ -263,11 +265,12 @@ export default function NewEvaluatorPage() {
             {hasNewerTemplate && latestTemplate && currentTemplate ? (
               <Alert variant="info">
                 <Info className="h-4 w-4" />
-                <AlertTitle>Selected Evaluator has been updated</AlertTitle>
+                <AlertTitle>{t("selectedEvaluatorUpdated")}</AlertTitle>
                 <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <span>
-                    Click to use the latest version of your evaluator{" "}
-                    {latestTemplate.name}.
+                    {t("useLatestEvaluatorVersion", {
+                      name: latestTemplate.name,
+                    })}
                   </span>
                   <Button
                     type="button"
@@ -276,7 +279,7 @@ export default function NewEvaluatorPage() {
                     className="w-fit"
                     onClick={handleUseUpdatedEvaluator}
                   >
-                    Use updated evaluator
+                    {t("useUpdatedEvaluator")}
                   </Button>
                 </AlertDescription>
               </Alert>

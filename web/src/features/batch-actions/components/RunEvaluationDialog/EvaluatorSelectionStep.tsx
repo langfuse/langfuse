@@ -13,6 +13,7 @@ import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
 import { ExternalLink, Eye, Plus, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export type BatchEvaluator = {
   id: string;
@@ -38,6 +39,7 @@ type EvaluatorSelectionStepProps = {
 };
 
 export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
+  const t = useTranslations("operationsUi.batchActions.runEvaluation");
   const {
     eligibleEvaluators,
     selectedEvaluators,
@@ -70,11 +72,11 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
 
   const getPromptPreview = (evaluator: BatchEvaluator) => {
     if (isPreviewLoading) {
-      return "Loading preview...";
+      return t("loadingPreview");
     }
 
     if (!previewObservation) {
-      return "Preview unavailable for the current selection.";
+      return t("previewUnavailable");
     }
 
     const mappingResult = observationVariableMappingList.safeParse(
@@ -82,13 +84,14 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     );
 
     if (!mappingResult.success) {
-      return "Evaluator mapping is not valid for observation preview.";
+      return t("invalidMapping");
     }
 
     return renderPromptPreviewFromObservation({
       prompt: evaluator.prompt,
       variableMapping: mappingResult.data,
       observation: previewObservation,
+      emptyPromptMessage: t("templateHasNoPrompt"),
     });
   };
 
@@ -96,18 +99,19 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex min-h-0 flex-1 flex-col">
         {isQueryLoading ? (
-          <p className="text-muted-foreground text-sm">Loading evaluators...</p>
+          <p className="text-muted-foreground text-sm">
+            {t("loadingEvaluators")}
+          </p>
         ) : isQueryError ? (
           <Card>
             <CardContent className="text-destructive p-4 text-sm">
-              Failed to load evaluators: {queryErrorMessage}
+              {t("failedToLoad", { error: queryErrorMessage ?? "" })}
             </CardContent>
           </Card>
         ) : eligibleEvaluators.length === 0 ? (
           <Card>
             <CardContent className="text-muted-foreground p-4 text-sm">
-              No evaluators found. Create a new evaluator and it will appear
-              here.
+              {t("noEvaluators")}
             </CardContent>
           </Card>
         ) : (
@@ -116,7 +120,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
               <Input
                 autoFocus
                 className="pr-10"
-                placeholder="Search evaluators..."
+                placeholder={t("searchPlaceholder")}
                 value={evaluatorSearchQuery}
                 onChange={(event) =>
                   onSearchQueryChange(event.currentTarget.value)
@@ -129,7 +133,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   size="icon-sm"
                   className="absolute top-1/2 right-1.5 h-7 w-7 -translate-y-1/2"
                   onClick={() => onSearchQueryChange("")}
-                  aria-label="Clear evaluator search"
+                  aria-label={t("clearSearch")}
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -152,7 +156,9 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             <span>{evaluator.scoreName}</span>
                             <button
                               type="button"
-                              aria-label={`Remove ${evaluator.scoreName}`}
+                              aria-label={t("removeEvaluator", {
+                                name: evaluator.scoreName,
+                              })}
                               className="hover:bg-muted rounded p-0.5"
                               onClick={() => onToggleEvaluator(evaluator.id)}
                             >
@@ -165,7 +171,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   ))
                 ) : (
                   <p className="text-muted-foreground text-xs">
-                    No evaluators selected
+                    {t("noSelection")}
                   </p>
                 )}
               </div>
@@ -174,7 +180,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
             {filteredEvaluators.length === 0 ? (
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-md border">
                 <p className="text-muted-foreground p-4 text-sm">
-                  No evaluators match your search.
+                  {t("noSearchResults")}
                 </p>
               </div>
             ) : (
@@ -203,7 +209,9 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                               event.stopPropagation();
                             }}
                             onClick={(event) => event.stopPropagation()}
-                            aria-label={`Preview ${item.scoreName}`}
+                            aria-label={t("previewEvaluator", {
+                              name: item.scoreName,
+                            })}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -212,7 +220,9 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       <span className="mr-1">
                         <Checkbox
                           checked={selectedEvaluatorIds.includes(item.id)}
-                          aria-label={`Select ${item.scoreName}`}
+                          aria-label={t("selectEvaluator", {
+                            name: item.scoreName,
+                          })}
                           onClick={(event) => event.stopPropagation()}
                           onCheckedChange={() => onToggleEvaluator(item.id)}
                         />
@@ -234,10 +244,10 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
           href={createEvaluatorHref}
           target="_blank"
           rel="noreferrer"
-          aria-label="Create new Evaluator (opens in a new tab)"
+          aria-label={t("createEvaluatorAria")}
         >
           <Plus className="mr-1 h-4 w-4" />
-          Create new Evaluator
+          {t("createEvaluator")}
           <ExternalLink className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </Button>

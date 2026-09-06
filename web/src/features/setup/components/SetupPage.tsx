@@ -15,6 +15,7 @@ import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
 import { useRouter } from "next/router";
+import { useTranslations } from "next-intl";
 
 // Manual setup process
 // 1. Create Organization: /setup
@@ -22,6 +23,7 @@ import { useRouter } from "next/router";
 export function SetupPage() {
   const { organization } = useQueryProjectOrOrganization();
   const router = useRouter();
+  const t = useTranslations("workspace.setup");
 
   // starts at 1 to align with breadcrumb
   const stepInt = organization ? 2 : 1;
@@ -29,15 +31,14 @@ export function SetupPage() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Setup",
+        title: t("title"),
         help: {
-          description:
-            "Create a new organization. This will be used to manage your projects and teams.",
+          description: t("help"),
         },
         ...(stepInt === 1 && {
           breadcrumb: [
             {
-              name: "Organizations",
+              name: t("organizationsBreadcrumb"),
               href: "/",
             },
           ],
@@ -54,7 +55,7 @@ export function SetupPage() {
                   : "text-foreground font-bold",
               )}
             >
-              1. Create Organization
+              {t("createOrganizationStep")}
               {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -67,7 +68,7 @@ export function SetupPage() {
                   : "text-foreground font-bold",
               )}
             >
-              2. Create Project
+              {t("createProjectStep")}
             </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
@@ -77,9 +78,9 @@ export function SetupPage() {
           // 1. Create Org
           stepInt === 1 && (
             <div>
-              <Header title="New Organization" />
+              <Header title={t("newOrganization")} />
               <p className="text-muted-foreground mb-4 text-sm">
-                Organizations are used to manage your projects and teams.
+                {t("organizationDescription")}
               </p>
               <ConnectedNewOrganizationForm
                 onSuccess={async (orgId, sessionRefreshed) => {
@@ -99,11 +100,9 @@ export function SetupPage() {
           // 2. Create Project
           stepInt === 2 && organization && (
             <div>
-              <Header title="New Project" />
+              <Header title={t("newProject")} />
               <p className="text-muted-foreground mb-4 text-sm">
-                Projects are used to group traces, datasets, evals and prompts.
-                Environments can be separated using the built-in environment
-                feature.
+                {t("projectDescription")}
               </p>
               <NewProjectForm
                 orgId={organization.id}

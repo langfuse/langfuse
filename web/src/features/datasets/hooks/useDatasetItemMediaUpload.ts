@@ -6,6 +6,7 @@ import { MediaContentType } from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { type DatasetItemMediaField } from "@langfuse/shared";
+import { useTranslations } from "next-intl";
 
 const SUPPORTED_CONTENT_TYPES = new Set<string>(
   Object.values(MediaContentType),
@@ -53,6 +54,7 @@ export function useDatasetItemMediaUpload({
   // generates the id up front); the association is claimed when it is written.
   datasetItemId: string;
 }) {
+  const t = useTranslations("coreDetails.datasets.misc");
   const [pendingUploads, setPendingUploads] = useState<PendingMediaUpload[]>(
     [],
   );
@@ -72,16 +74,18 @@ export function useDatasetItemMediaUpload({
     ): Promise<string | null> => {
       if (!SUPPORTED_CONTENT_TYPES.has(file.type)) {
         showErrorToast(
-          "Unsupported file type",
-          `${file.type || "Unknown type"} is not supported for media uploads.`,
+          t("unsupportedType"),
+          t("unsupportedTypeDescription", {
+            type: file.type || t("unknownType"),
+          }),
         );
         return null;
       }
 
       if (file.size > MAX_BROWSER_MEDIA_UPLOAD_SIZE_BYTES) {
         showErrorToast(
-          "File too large",
-          `Maximum file size is ${MAX_BROWSER_MEDIA_UPLOAD_SIZE_MB}MB`,
+          t("fileTooLarge"),
+          t("maxMediaSize", { size: MAX_BROWSER_MEDIA_UPLOAD_SIZE_MB }),
         );
         return null;
       }
@@ -131,22 +135,22 @@ export function useDatasetItemMediaUpload({
           });
 
           if (!response.ok) {
-            throw new Error(`Upload failed with status ${response.status}`);
+            throw new Error(t("uploadStatus", { status: response.status }));
           }
         }
 
         return `@@@langfuseMedia:type=${file.type}|id=${mediaId}|source=bytes@@@`;
       } catch (error) {
         showErrorToast(
-          "Media upload failed",
-          error instanceof Error ? error.message : "Please try again.",
+          t("uploadFailed"),
+          error instanceof Error ? error.message : t("tryAgain"),
         );
         return null;
       } finally {
         setPendingUploads((prev) => prev.filter((u) => u.id !== pendingId));
       }
     },
-    [projectId, datasetId, datasetItemId, getUploadUrl, markUploadComplete],
+    [projectId, datasetId, datasetItemId, getUploadUrl, markUploadComplete, t],
   );
 
   return { uploadFile, pendingUploads, resetPendingUploads };

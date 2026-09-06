@@ -9,6 +9,7 @@ import {
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 /** Launcher only — the assistant window itself is rendered by
  * InAppAgentWindowHost from the persistent authenticated layout, so it
@@ -23,6 +24,7 @@ export const InAppAiAgentButton = ({
 }: {
   prominent?: boolean;
 } = {}) => {
+  const t = useTranslations("sharedUi.misc");
   const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
 
@@ -122,7 +124,7 @@ export const InAppAiAgentButton = ({
           reveal in the 640–767px band and overflow the box. */}
       {!prominent && (
         <>
-          <span className="hidden sm:inline">Assistant</span>
+          <span className="hidden sm:inline">{t("assistant")}</span>
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>

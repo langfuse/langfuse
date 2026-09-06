@@ -32,6 +32,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useTranslations } from "next-intl";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
 const RING_SIZE = 22;
@@ -116,6 +117,7 @@ function usePlaybackClickHandlers() {
 }
 
 export function PlaybackControls() {
+  const t = useTranslations("coreDetails.traces.playback");
   const { traceDuration } = useTraceData();
   const { getPlayheadSec, subscribePosition } = usePlayhead();
   const hasPlayback = useHasPlayback();
@@ -145,8 +147,8 @@ export function PlaybackControls() {
         variant="ghost"
         size="icon"
         onClick={handlePlayPause}
-        title={isPlaying ? "Pause playback" : "Play trace over time"}
-        aria-label={isPlaying ? "Pause playback" : "Play trace over time"}
+        title={isPlaying ? t("pause") : t("play")}
+        aria-label={isPlaying ? t("pause") : t("play")}
         className="relative h-7 w-7"
       >
         <svg
@@ -190,8 +192,8 @@ export function PlaybackControls() {
         size="icon"
         onClick={handleStop}
         disabled={!showPlayhead}
-        title="Stop playback"
-        aria-label="Stop playback"
+        title={t("stop")}
+        aria-label={t("stop")}
         className="h-7 w-7"
       >
         <Square className="h-2.5 w-2.5" />
@@ -208,6 +210,7 @@ export function PlaybackControls() {
  * stays reachable while a playhead is placed.
  */
 export function PlaybackMenuItems() {
+  const t = useTranslations("coreDetails.traces.playback");
   const hasPlayback = useHasPlayback();
   const { isPlaying, showPlayhead, handlePlayPause, handleStop } =
     usePlaybackClickHandlers();
@@ -222,11 +225,11 @@ export function PlaybackMenuItems() {
         ) : (
           <Play className="mr-2 h-3.5 w-3.5" />
         )}
-        {isPlaying ? "Pause playback" : "Play trace over time"}
+        {isPlaying ? t("pause") : t("play")}
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={handleStop} disabled={!showPlayhead}>
         <Square className="mr-2 h-3 w-3" />
-        Stop playback
+        {t("stop")}
       </DropdownMenuItem>
     </>
   );

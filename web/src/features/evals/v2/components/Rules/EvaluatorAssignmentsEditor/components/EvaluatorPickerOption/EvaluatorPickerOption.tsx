@@ -2,16 +2,18 @@ import { formatDistanceToNowStrict } from "date-fns";
 
 import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import { useTranslations } from "next-intl";
 
 export function EvaluatorPickerOption({
   evaluator,
 }: {
   evaluator: RuleEvaluatorOption;
 }) {
+  const t = useTranslations("evaluationAnalytics.evaluations");
   const creator =
     evaluator.createdByUser?.name ??
     evaluator.createdByUser?.email ??
-    "Unknown";
+    t("unknown");
   const updated = evaluator.updatedAt
     ? formatDistanceToNowStrict(evaluator.updatedAt, { addSuffix: true })
     : null;
@@ -25,13 +27,13 @@ export function EvaluatorPickerOption({
         <EvaluatorTypeBadge type={evaluator.type} />
       </div>
       <div className="text-muted-foreground flex max-w-[45%] min-w-0 shrink-0 items-center justify-end gap-1 text-xs">
-        <span className="min-w-0 truncate" title={`Created by ${creator}`}>
+        <span className="min-w-0 truncate" title={t("createdBy", { creator })}>
           {creator}
         </span>
         {updated ? (
           <>
             <span aria-hidden>·</span>
-            <span className="shrink-0" title={`Updated ${updated}`}>
+            <span className="shrink-0" title={t("updated", { updated })}>
               {updated}
             </span>
           </>

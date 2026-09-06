@@ -18,6 +18,7 @@ import {
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { useTranslations } from "next-intl";
 
 const COLLAPSE_THRESHOLD = 3;
 
@@ -56,6 +57,8 @@ export function ChatMessageList({
   contentMode = "all",
   showSystemPrompt,
 }: ChatMessageListProps) {
+  const t = useTranslations("coreDetails.traces.chatMessages");
+
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
     () =>
@@ -139,8 +142,10 @@ export function ChatMessageList({
                     className="underline"
                   >
                     {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
-                      : "Hide history"}
+                      ? t("showMore", {
+                          count: messagesToRender.length - COLLAPSE_THRESHOLD,
+                        })
+                      : t("hideHistory")}
                   </Button>
                 )}
             </Fragment>
@@ -150,7 +155,7 @@ export function ChatMessageList({
         {/* Additional input section */}
         {contentMode !== "conversation" && additionalInput && (
           <PrettyJsonView
-            title="Additional Input"
+            title={t("additionalInput")}
             json={additionalInput}
             currentView={shouldRenderMarkdown ? "pretty" : "json"}
           />

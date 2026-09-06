@@ -14,6 +14,7 @@ import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatase
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslations } from "next-intl";
 
 interface DatasetItemEntryPointRowProps {
   icon: React.ReactNode;
@@ -30,6 +31,7 @@ const DatasetItemEntryPointRow = ({
   onClick,
   hasAccess = true,
 }: DatasetItemEntryPointRowProps) => {
+  const t = useTranslations("sharedUi.onboarding.datasetItems");
   const disabled = !hasAccess;
   return (
     <div
@@ -53,11 +55,7 @@ const DatasetItemEntryPointRow = ({
             }
           : undefined
       }
-      title={
-        !hasAccess
-          ? "You don't have access to this feature, please contact your administrator"
-          : undefined
-      }
+      title={!hasAccess ? t("noAccess") : undefined}
     >
       <div className="flex items-center">{icon}</div>
       <div className="flex flex-1 flex-col gap-1">
@@ -75,6 +73,7 @@ export const DatasetItemsOnboarding = ({
   projectId: string;
   datasetId: string;
 }) => {
+  const t = useTranslations("sharedUi.onboarding.datasetItems");
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
@@ -85,10 +84,7 @@ export const DatasetItemsOnboarding = ({
   });
 
   return (
-    <SplashScreen
-      title="Add items to your dataset"
-      description="Datasets are collections of specific edge cases and underrepresented patterns used to evaluate your application."
-    >
+    <SplashScreen title={t("title")} description={t("description")}>
       <div className="flex flex-col gap-4">
         <CsvUploadDialog
           open={hasProjectAccess && isUploadDialogOpen}
@@ -99,8 +95,8 @@ export const DatasetItemsOnboarding = ({
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
               icon={<Upload className="h-5 w-5" />}
-              title="Upload CSV"
-              description="Import dataset items from a CSV file"
+              title={t("uploadTitle")}
+              description={t("uploadDescription")}
               onClick={() => {
                 if (hasProjectAccess) {
                   capture("dataset_item:upload_csv_button_click");
@@ -118,8 +114,8 @@ export const DatasetItemsOnboarding = ({
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
               icon={<Braces className="h-5 w-5" />}
-              title="Add Manually"
-              description="Manually input a single item"
+              title={t("manualTitle")}
+              description={t("manualDescription")}
               onClick={() => {
                 if (hasProjectAccess) {
                   capture("dataset_item:new_form_open");
@@ -130,7 +126,7 @@ export const DatasetItemsOnboarding = ({
           </DialogTrigger>
           <DialogContent size="lg">
             <DialogHeader>
-              <DialogTitle>Create dataset item</DialogTitle>
+              <DialogTitle>{t("create")}</DialogTitle>
             </DialogHeader>
             <NewDatasetItemForm
               projectId={projectId}
@@ -147,16 +143,16 @@ export const DatasetItemsOnboarding = ({
         >
           <DatasetItemEntryPointRow
             icon={<Code className="h-5 w-5" />}
-            title="Add via Code"
-            description="Use our Python/TS/JS SDKs or custom API"
+            title={t("codeTitle")}
+            description={t("codeDescription")}
           />
         </Link>
 
         <Link href={`/project/${projectId}/observations`}>
           <DatasetItemEntryPointRow
             icon={<ListTree className="h-5 w-5" />}
-            title="Select Observations"
-            description="Select observations in the observations table and use a batch action to add them to your dataset"
+            title={t("observationsTitle")}
+            description={t("observationsDescription")}
             onClick={() => {
               capture("dataset_item:select_observations_button_click");
             }}

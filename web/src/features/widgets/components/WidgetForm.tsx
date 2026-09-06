@@ -90,6 +90,8 @@ import {
   formatMetricName,
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
+  type WidgetSuggestionLabelFormatter,
+  type WidgetSuggestionTextFormatter,
 } from "@/src/features/widgets/utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
@@ -101,6 +103,7 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFilterPresets";
+import { useTranslations } from "next-intl";
 import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
 import {
   applyChartTypeChange,
@@ -222,7 +225,44 @@ export function WidgetForm({
   onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
+  const chartLabelsT = useTranslations("systemUi.chartControls");
   const { isBetaEnabled } = useV4Beta();
+
+  const suggestionFormatters = useMemo(
+    () => ({
+      formatText: ((key, values) =>
+        extrasT(
+          `widgetSuggestions.${key}`,
+          values,
+        )) satisfies WidgetSuggestionTextFormatter,
+      formatLabel: ((kind, value) => {
+        const viewKey =
+          value === "scores-numeric"
+            ? "scoresNumeric"
+            : value === "scores-categorical"
+              ? "scoresCategorical"
+              : value === "scores-boolean"
+                ? "scoresBoolean"
+                : value;
+        const key =
+          kind === "view"
+            ? (`views.${viewKey}` as Parameters<typeof extrasT>[0])
+            : (`${kind === "aggregation" ? "aggregations" : kind === "measure" ? "metrics" : "dimensions"}.${value}` as Parameters<
+                typeof chartLabelsT
+              >[0]);
+        const translator = kind === "view" ? extrasT : chartLabelsT;
+
+        return translator.has(key as never)
+          ? translator(key as never)
+          : kind === "measure"
+            ? formatMetricName(value)
+            : startCase(value);
+      }) satisfies WidgetSuggestionLabelFormatter,
+    }),
+    [chartLabelsT, extrasT],
+  );
 
   // The initial widget's persisted version is a local hint frozen at mount.
   // The resolver and live viewVersion additionally derive v2 from the current
@@ -241,13 +281,32 @@ export function WidgetForm({
   // Precompute both version schemas/resolvers once. A blank name/description is
   // filled with the live suggestion and the filters are mapped into view space
   // before zod (mirrors MonitorForm).
-  const resolversByVersion = useMemo(
-    () => ({
-      v1: zodResolver(makeWidgetFormSchema("v1") as any),
-      v2: zodResolver(makeWidgetFormSchema("v2") as any),
-    }),
-    [],
-  );
+  const resolversByVersion = useMemo(() => {
+    const validationMessages = {
+      metricRequired: extrasT("validation.metricRequired"),
+      unsupportedBreakdown: extrasT("validation.unsupportedBreakdown"),
+      pivotMetricRequired: extrasT("validation.pivotMetricRequired"),
+      pivotMetricLimit: (count: number) =>
+        extrasT("validation.pivotMetricLimit", { count }),
+      pivotDimensionLimit: (count: number) =>
+        extrasT("validation.pivotDimensionLimit", { count }),
+      singleMetricRequired: extrasT("validation.singleMetricRequired"),
+      selectMeasure: extrasT("validation.selectMeasure"),
+      breakdownLimit: extrasT("validation.breakdownLimit"),
+      histogramSingleMetric: extrasT("validation.histogramSingleMetric"),
+      histogramAggregationRequired: extrasT(
+        "validation.histogramAggregationRequired",
+      ),
+      measureNotHistogramCapable: extrasT(
+        "validation.measureNotHistogramCapable",
+      ),
+      histogramAggregationOnly: extrasT("validation.histogramAggregationOnly"),
+    };
+    return {
+      v1: zodResolver(makeWidgetFormSchema("v1", validationMessages) as any),
+      v2: zodResolver(makeWidgetFormSchema("v2", validationMessages) as any),
+    };
+  }, [extrasT]);
   // The schema version is derived INSIDE the resolver from the (mapped) view
   // being validated — not from a render-written ref — so it is never render
   // stale after a version-flipping view or import. baseMinVersion and
@@ -305,7 +364,7 @@ export function WidgetForm({
     activeVersion,
     shape: values,
   });
-  const suggestions = deriveWidgetSuggestions(values);
+  const suggestions = deriveWidgetSuggestions(values, suggestionFormatters);
   const effectiveSort = deriveEffectiveSort(values);
 
   suggestionsRef.current = suggestions;
@@ -558,13 +617,19 @@ export function WidgetForm({
     if (unsupportedFilters.length > 0) {
       return {
         valid: false as const,
-        reason:
-          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
-          "Remove them or switch to a compatible view before saving this widget.",
+        reason: extrasT("unsupportedFilters", {
+          columns: unsupportedFilterColumns,
+        }),
       };
     }
     return validateQuery(query, viewVersion);
-  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+  }, [
+    extrasT,
+    query,
+    unsupportedFilterColumns,
+    unsupportedFilters.length,
+    viewVersion,
+  ]);
 
   useCaptureWidgetHighCardinalityError({
     validation: queryValidation,
@@ -831,10 +896,10 @@ export function WidgetForm({
 
   const onSubmit = form.handleSubmit((submitted) => {
     if (!queryValidation.valid) {
-      showErrorToast("Invalid query", queryValidation.reason);
+      showErrorToast(t("invalidQuery"), queryValidation.reason);
       return;
     }
-    const s = deriveWidgetSuggestions(submitted);
+    const s = deriveWidgetSuggestions(submitted, suggestionFormatters);
     onSave(
       toSavePayload(submitted, {
         suggestedName: s.name,
@@ -870,7 +935,7 @@ export function WidgetForm({
         <Card className="flex h-full flex-col">
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
-              <CardTitle>Widget Configuration</CardTitle>
+              <CardTitle>{t("configuration")}</CardTitle>
               {!widgetId && isBetaEnabled && (
                 <WidgetImporter
                   projectId={projectId}
@@ -882,7 +947,7 @@ export function WidgetForm({
               )}
             </div>
             <CardDescription>
-              Configure your widget by selecting data and visualization options
+              {extrasT("configurationDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
@@ -893,25 +958,23 @@ export function WidgetForm({
               >
                 <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
                 <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-                  Traces view is not available in v4
+                  {extrasT("tracesUnavailableTitle")}
                 </AlertTitle>
                 <AlertDescription className="text-yellow-700 dark:text-yellow-500">
-                  This widget uses the traces view which is not supported in v4.
-                  It will continue to use v3 definitions. To use v4, change the
-                  view to observations or scores.
+                  {extrasT("tracesUnavailableDescription")}
                 </AlertDescription>
               </Alert>
             )}
             {/* Data Selection Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold">Data Selection</h3>
+                <h3 className="text-lg font-bold">{t("dataSelection")}</h3>
                 {viewVersion === "v2" && (
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm">
                         <Sparkles className="mr-2 h-4 w-4" />
-                        Presets
+                        {extrasT("presets")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-1" align="end">
@@ -924,7 +987,9 @@ export function WidgetForm({
                               onClick={() => applyPreset(preset)}
                             >
                               <preset.icon className="mr-2 h-4 w-4" />
-                              {preset.label}
+                              {key === "allExperimentData"
+                                ? extrasT("experimentDataPreset")
+                                : preset.label}
                             </Button>
                           </PopoverClose>
                         ),
@@ -944,7 +1009,9 @@ export function WidgetForm({
               {/* Metrics Selection */}
               <div className="space-y-2">
                 <Label htmlFor="metrics-select">
-                  {chartType === "PIVOT_TABLE" ? "Metrics" : "Metric"}
+                  {chartType === "PIVOT_TABLE"
+                    ? extrasT("metrics")
+                    : extrasT("metric")}
                 </Label>
                 {chartType === "PIVOT_TABLE" ? (
                   <PivotMetricsField
@@ -1010,7 +1077,7 @@ export function WidgetForm({
 
             {/* Visualization Section */}
             <div className="mt-6 space-y-4">
-              <h3 className="text-lg font-bold">Visualization</h3>
+              <h3 className="text-lg font-bold">{t("visualization")}</h3>
 
               <NameField control={form.control} suggestion={suggestions.name} />
               <DescriptionField
@@ -1026,7 +1093,7 @@ export function WidgetForm({
               />
 
               <div className="space-y-2">
-                <Label htmlFor="date-select">Date Range</Label>
+                <Label htmlFor="date-select">{t("dateRange")}</Label>
                 <DatePickerWithRange
                   dateRange={dateRange}
                   setDateRangeAndOption={(option, range) => {
@@ -1065,7 +1132,7 @@ export function WidgetForm({
               onClick={onSubmit}
               disabled={saveDisabled}
             >
-              Save Widget
+              {extrasT("save")}
             </Button>
           </CardFooter>
         </Card>
@@ -1086,7 +1153,7 @@ export function WidgetForm({
               <div className="flex h-[300px] items-center justify-center">
                 <Alert variant="destructive" className="max-w-sm">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Invalid query</AlertTitle>
+                  <AlertTitle>{t("invalidQuery")}</AlertTitle>
                   <AlertDescription>{queryValidation.reason}</AlertDescription>
                 </Alert>
               </div>
@@ -1178,7 +1245,7 @@ export function WidgetForm({
                   />
                 ) : (
                   <p className="text-muted-foreground">
-                    Waiting for Input / Loading...
+                    {extrasT("waitingForInput")}
                   </p>
                 )}
               </div>
@@ -1208,16 +1275,17 @@ function ViewSelect({
   availableViewOptions: typeof views | typeof viewsV2;
   onViewChange: (view: z.infer<typeof views>) => void;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   const { field } = useController({ control, name: "view" });
   return (
     <div className="space-y-2">
-      <Label htmlFor="view-select">View</Label>
+      <Label htmlFor="view-select">{t("selectView")}</Label>
       <Select
         value={field.value}
         onValueChange={(value) => onViewChange(value as z.infer<typeof views>)}
       >
         <SelectTrigger id="view-select">
-          <SelectValue placeholder="Select a view" />
+          <SelectValue placeholder={t("selectView")} />
         </SelectTrigger>
         <SelectContent>
           {availableViewOptions.options.map((view) => (
@@ -1251,6 +1319,8 @@ function SingleMetricField({
   availableMetrics: { value: string; label: string }[];
   validAggregationsForMeasure: z.infer<typeof metricAggregations>[];
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   // Owns metrics.0.aggregation; the measure is a cross-slice trigger handled by
   // the parent (onMeasureChange also resolves the chart type).
   const { field: aggField } = useController({
@@ -1273,7 +1343,7 @@ function SingleMetricField({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "single-metric-error" : undefined}
         >
-          <SelectValue placeholder="Select metrics" />
+          <SelectValue placeholder={t("selectMetrics")} />
         </SelectTrigger>
         <SelectContent>
           {availableMetrics.map((metric) => {
@@ -1304,7 +1374,7 @@ function SingleMetricField({
             }
           >
             <SelectTrigger id="aggregation-select">
-              <SelectValue placeholder="Select Aggregation" />
+              <SelectValue placeholder={t("selectAggregation")} />
             </SelectTrigger>
             <SelectContent>
               {aggregationOptions.map((aggregation) => (
@@ -1316,8 +1386,7 @@ function SingleMetricField({
           </Select>
           {ctx.chartType === "HISTOGRAM" && (
             <p className="text-muted-foreground text-xs">
-              Aggregation is automatically set to &quot;histogram&quot; for
-              histogram charts
+              {extrasT("aggregationAuto")}
             </p>
           )}
         </div>
@@ -1349,6 +1418,8 @@ function PivotMetricsField({
     measure: string,
   ) => z.infer<typeof metricAggregations>[];
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   // Owns the entire `metrics` slice — one value in (field.value), one onChange
   // out (field.onChange with a fresh array).
   const { field } = useController({ control, name: "metrics" });
@@ -1412,7 +1483,10 @@ function PivotMetricsField({
           <div key={index} className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor={`pivot-metric-${index}`}>
-                Metric {index + 1} {index === 0 ? "(Required)" : "(Optional)"}
+                {extrasT("metricLabel", {
+                  number: index + 1,
+                  requirement: extrasT(index === 0 ? "required" : "optional"),
+                })}
               </Label>
               {index > 0 && (
                 <Button
@@ -1445,10 +1519,10 @@ function PivotMetricsField({
                     <SelectValue
                       placeholder={
                         !isEnabled
-                          ? "Select previous metric first"
+                          ? extrasT("selectPreviousMetric")
                           : !canEdit
-                            ? "No more measures available"
-                            : "Select measure"
+                            ? extrasT("noMoreMeasures")
+                            : extrasT("selectMeasure")
                       }
                     />
                   </SelectTrigger>
@@ -1486,7 +1560,7 @@ function PivotMetricsField({
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select aggregation" />
+                      <SelectValue placeholder={t("selectAggregation")} />
                     </SelectTrigger>
                     <SelectContent>
                       {aggregationsForIndex.map((aggregation) => (
@@ -1513,7 +1587,7 @@ function PivotMetricsField({
             className="w-full"
           >
             <Plus className="mr-1 h-3 w-3" />
-            Add Metric {metrics.length + 1}
+            {extrasT("addMetric", { number: metrics.length + 1 })}
           </Button>
         )}
       {error && (
@@ -1538,12 +1612,13 @@ function FiltersField({
   dateRange: { from: Date; to: Date } | undefined;
   selectedView: z.infer<typeof views>;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   // MetricsFilterBuilder owns the column schema, the UI-table translation, and
   // the unsupported-column banner.
   const { field } = useController({ control, name: "filters" });
   return (
     <div className="space-y-2">
-      <Label>Filters</Label>
+      <Label>{t("filters")}</Label>
       <MetricsFilterBuilder
         version={viewVersion}
         view={selectedView}
@@ -1567,12 +1642,13 @@ function BreakdownSelect({
   error?: string;
   availableDimensions: { value: string; label: string }[];
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   // Owns the entire `dimensions` slice; a non-pivot chart carries at most one.
   const { field } = useController({ control, name: "dimensions" });
   const value = field.value[0]?.field ?? "none";
   return (
     <div className="space-y-2">
-      <Label htmlFor="dimension-select">Breakdown Dimension (Optional)</Label>
+      <Label htmlFor="dimension-select">{t("breakdownDimension")}</Label>
       <Select
         value={value}
         onValueChange={(next) =>
@@ -1584,10 +1660,10 @@ function BreakdownSelect({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "breakdown-error" : undefined}
         >
-          <SelectValue placeholder="Select a dimension" />
+          <SelectValue placeholder={t("selectDimension")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">None</SelectItem>
+          <SelectItem value="none">{t("none")}</SelectItem>
           {availableDimensions.map((dimension) => {
             const meta =
               viewDeclarations[ctx.viewVersion][ctx.view]?.dimensions?.[
@@ -1626,6 +1702,8 @@ function PivotDimensionsField({
   error?: string;
   availableDimensions: { value: string; label: string }[];
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   const { field } = useController({ control, name: "dimensions" });
   const pivotDimensions = field.value.map((d) => d.field);
 
@@ -1642,10 +1720,11 @@ function PivotDimensionsField({
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="mb-2 text-sm font-bold">Row Dimensions</h4>
+        <h4 className="mb-2 text-sm font-bold">{t("rowDimensions")}</h4>
         <p className="text-muted-foreground mb-3 text-xs">
-          Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions for pivot
-          table rows. Each dimension creates groupings with subtotals.
+          {extrasT("rowDimensionsDescription", {
+            count: MAX_PIVOT_TABLE_DIMENSIONS,
+          })}
         </p>
       </div>
 
@@ -1657,7 +1736,7 @@ function PivotDimensionsField({
         return (
           <div key={index} className="space-y-2">
             <Label htmlFor={`pivot-dimension-${index}`}>
-              Dimension {index + 1} (Optional)
+              {extrasT("dimensionLabel", { number: index + 1 })}
             </Label>
             <Select
               value={currentValue}
@@ -1674,13 +1753,13 @@ function PivotDimensionsField({
                 <SelectValue
                   placeholder={
                     isEnabled
-                      ? "Select a dimension"
-                      : "Select previous dimension first"
+                      ? t("selectDimension")
+                      : extrasT("selectPreviousDimension")
                   }
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="none">{t("none")}</SelectItem>
                 {availableDimensions
                   .filter((d) => !selectedDimensions.includes(d.value))
                   .map((dimension) => {
@@ -1722,6 +1801,8 @@ function PivotSortField({
   effectiveSort: SortField | undefined;
   metricsForSort: { id: string }[];
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   // Owns chart.sort; the DISPLAY value is always the sanitized effectiveSort so
   // a stale sort column shows as "no default sort" without any write-back.
   const { field } = useController({ control, name: "chart.sort" });
@@ -1731,16 +1812,15 @@ function PivotSortField({
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="mb-2 text-sm font-bold">Default Sort Configuration</h4>
+        <h4 className="mb-2 text-sm font-bold">{t("defaultSort")}</h4>
         <p className="text-muted-foreground mb-3 text-xs">
-          Configure the default sort order for the pivot table. This will be
-          applied when the widget is first loaded.
+          {extrasT("defaultSortDescription")}
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="default-sort-column">Sort Column</Label>
+          <Label htmlFor="default-sort-column">{t("sortColumn")}</Label>
           <Select
             value={column}
             onValueChange={(next) =>
@@ -1748,10 +1828,10 @@ function PivotSortField({
             }
           >
             <SelectTrigger id="default-sort-column">
-              <SelectValue placeholder="Select a column to sort by" />
+              <SelectValue placeholder={t("selectSortColumn")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No default sort</SelectItem>
+              <SelectItem value="none">{t("noDefaultSort")}</SelectItem>
               {metricsForSort.map((metric) => (
                 <SelectItem key={metric.id} value={metric.id}>
                   {formatMetricName(metric.id)}
@@ -1762,7 +1842,7 @@ function PivotSortField({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="default-sort-order">Sort Order</Label>
+          <Label htmlFor="default-sort-order">{t("sortOrder")}</Label>
           <Select
             value={order}
             onValueChange={(value: "ASC" | "DESC") =>
@@ -1774,8 +1854,8 @@ function PivotSortField({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ASC">Ascending (A-Z)</SelectItem>
-              <SelectItem value="DESC">Descending (Z-A)</SelectItem>
+              <SelectItem value="ASC">{t("ascending")}</SelectItem>
+              <SelectItem value="DESC">{t("descending")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1799,10 +1879,11 @@ function NameField({
   control: Control<WidgetFormValues>;
   suggestion: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   const { field } = useController({ control, name: "name" });
   return (
     <div className="space-y-2">
-      <Label htmlFor="widget-name">Name</Label>
+      <Label htmlFor="widget-name">{t("name")}</Label>
       <Input
         id="widget-name"
         // A blank/whitespace-only override shows the live suggestion; typing
@@ -1811,7 +1892,7 @@ function NameField({
         // title and toSavePayload, so input, preview, and saved value agree.
         value={effectiveWidgetName(field.value, suggestion)}
         onChange={(e) => field.onChange(e.target.value)}
-        placeholder="Enter widget name"
+        placeholder={t("namePlaceholder")}
       />
     </div>
   );
@@ -1824,15 +1905,16 @@ function DescriptionField({
   control: Control<WidgetFormValues>;
   suggestion: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   const { field } = useController({ control, name: "description" });
   return (
     <div className="space-y-2">
-      <Label htmlFor="widget-description">Description</Label>
+      <Label htmlFor="widget-description">{t("description")}</Label>
       <Input
         id="widget-description"
         value={effectiveWidgetName(field.value, suggestion)}
         onChange={(e) => field.onChange(e.target.value)}
-        placeholder="Enter widget description"
+        placeholder={t("descriptionPlaceholder")}
       />
     </div>
   );
@@ -1849,9 +1931,11 @@ function ChartTypeSelect({
   measureSupportsHistogram: boolean;
   error?: string;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
+  const extrasT = useTranslations("systemUi.widgetExtras");
   return (
     <div className="space-y-2">
-      <Label htmlFor="chart-type-select">Chart Type</Label>
+      <Label htmlFor="chart-type-select">{t("chartType")}</Label>
       <Select
         value={value}
         onValueChange={(next) =>
@@ -1863,24 +1947,30 @@ function ChartTypeSelect({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "chart-type-error" : undefined}
         >
-          <SelectValue placeholder="Select a chart type" />
+          <SelectValue placeholder={t("selectChartType")} />
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            <SelectLabel>Time Series</SelectLabel>
+            <SelectLabel>{t("timeSeries")}</SelectLabel>
             {chartTypes
               .filter((item) => item.group === "time-series")
               .map((chart) => (
                 <SelectItem key={chart.value} value={chart.value}>
                   <div className="flex items-center">
                     {React.createElement(chart.icon, { className: "mr-2 w-4" })}
-                    <span>{chart.name}</span>
+                    <span>
+                      {extrasT(
+                        `chartNames.${chart.value}` as Parameters<
+                          typeof extrasT
+                        >[0],
+                      )}
+                    </span>
                   </div>
                 </SelectItem>
               ))}
           </SelectGroup>
           <SelectGroup>
-            <SelectLabel>Total Value</SelectLabel>
+            <SelectLabel>{t("totalValue")}</SelectLabel>
             {chartTypes
               .filter((item) => item.group === "total-value")
               .map((chart) => (
@@ -1893,7 +1983,13 @@ function ChartTypeSelect({
                 >
                   <div className="flex items-center">
                     {React.createElement(chart.icon, { className: "mr-2 w-4" })}
-                    <span>{chart.name}</span>
+                    <span>
+                      {extrasT(
+                        `chartNames.${chart.value}` as Parameters<
+                          typeof extrasT
+                        >[0],
+                      )}
+                    </span>
                   </div>
                 </SelectItem>
               ))}
@@ -1914,10 +2010,11 @@ function HistogramBinsField({
 }: {
   control: Control<WidgetFormValues>;
 }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   const { field } = useController({ control, name: "chart.bins" });
   return (
     <div className="space-y-2">
-      <Label htmlFor="histogram-bins">Number of Bins (1-100)</Label>
+      <Label htmlFor="histogram-bins">{t("histogramBins")}</Label>
       <Input
         id="histogram-bins"
         type="number"
@@ -1930,17 +2027,18 @@ function HistogramBinsField({
             field.onChange(value);
           }
         }}
-        placeholder="Enter number of bins (1-100)"
+        placeholder={t("histogramBinsPlaceholder")}
       />
     </div>
   );
 }
 
 function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
+  const t = useTranslations("evaluationAnalytics.widgets");
   const { field } = useController({ control, name: "chart.rowLimit" });
   return (
     <div className="space-y-2">
-      <Label htmlFor="row-limit">Breakdown Row Limit (0-1000)</Label>
+      <Label htmlFor="row-limit">{t("rowLimit")}</Label>
       <Input
         id="row-limit"
         type="number"
@@ -1953,7 +2051,7 @@ function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
             field.onChange(value);
           }
         }}
-        placeholder="Enter breakdown row limit (0-1000)"
+        placeholder={t("rowLimitPlaceholder")}
       />
     </div>
   );

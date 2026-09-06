@@ -19,6 +19,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
+import { useTranslations } from "next-intl";
 
 export type { SlackChannel };
 
@@ -134,11 +135,12 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   selectedChannel: selectedChannelProp,
   onChannelSelect,
   disabled = false,
-  placeholder = "Select a channel",
+  placeholder,
   memberOnly = false,
   filterChannels,
   showRefreshButton = true,
 }) => {
+  const t = useTranslations("settingsEnterprise.slack.channels");
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -277,7 +279,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               {selectedChannel ? (
                 renderChannelItem(selectedChannel)
               ) : (
-                <span className="text-muted-foreground">{placeholder}</span>
+                <span className="text-muted-foreground">
+                  {placeholder ?? t("select")}
+                </span>
               )}
               <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
@@ -285,7 +289,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
           <PopoverContent className="w-full p-0" align="start">
             <Command shouldFilter={false}>
               <CommandInput
-                placeholder="Search channels..."
+                placeholder={t("search")}
                 value={searchValue}
                 onValueChange={setSearchValue}
               />
@@ -300,9 +304,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       <Hash className="text-muted-foreground h-4 w-4" />
                       <span
                         className="flex-1 truncate"
-                        title={`Use &quot; ${effectiveName} &quot;`}
+                        title={t("use", { name: effectiveName })}
                       >
-                        Use &quot;{effectiveName}&quot;
+                        {t("use", { name: effectiveName })}
                       </span>
                     </CommandItem>
                   </CommandGroup>
@@ -310,7 +314,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                 {!isLoadingChannels &&
                   !canUseTypedName &&
                   filteredChannels.length === 0 && (
-                    <CommandEmpty>No channels available.</CommandEmpty>
+                    <CommandEmpty>{t("empty")}</CommandEmpty>
                   )}
                 <CommandGroup
                   className="p-0"
@@ -348,12 +352,8 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       className="text-muted-foreground"
                     >
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span
-                        className="flex-1 truncate"
-                        title="Loading Slack channels. This can take a while for large workspaces."
-                      >
-                        Loading Slack channels. This can take a while for large
-                        workspaces.
+                      <span className="flex-1 truncate" title={t("loading")}>
+                        {t("loading")}
                       </span>
                     </CommandItem>
                   </CommandGroup>
@@ -369,6 +369,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             size="sm"
             onClick={handleRefresh}
             disabled={disabled || isRefreshing || isLoadingChannels}
+            aria-label={t("refreshAriaLabel")}
           >
             <RefreshCw
               className={`h-4 w-4 ${isRefreshing || isLoadingChannels ? "animate-spin" : ""}`}
@@ -380,17 +381,17 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       {/* Channel stats */}
       {channelsData?.channels && !isLoadingChannels ? (
         <div className="text-muted-foreground text-xs">
-          {filteredChannels.length} of {channelsData.channels.length} channels
-          {memberOnly && " (member only)"}
+          {t("stats", {
+            filtered: filteredChannels.length,
+            total: channelsData.channels.length,
+          })}
+          {memberOnly && <> {t("memberOnly")}</>}
         </div>
       ) : null}
 
       {error && (
         <Alert>
-          <AlertDescription>
-            Failed to load channels. You can still enter a channel name
-            manually, or check your Slack connection and try again.
-          </AlertDescription>
+          <AlertDescription>{t("loadFailed")}</AlertDescription>
         </Alert>
       )}
 
@@ -399,21 +400,23 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Private channels are not visible. To access private channels,{" "}
-            <button
-              type="button"
-              className="font-bold underline"
-              onClick={() =>
-                window.open(
-                  `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
-                  "slack-reauth",
-                  "width=600,height=700",
-                )
-              }
-            >
-              re-authenticate your Slack integration
-            </button>{" "}
-            to grant the required permissions.
+            {t.rich("privateUnavailable", {
+              reauthenticate: (chunks) => (
+                <button
+                  type="button"
+                  className="font-bold underline"
+                  onClick={() =>
+                    window.open(
+                      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
+                      "slack-reauth",
+                      "width=600,height=700",
+                    )
+                  }
+                >
+                  {chunks}
+                </button>
+              ),
+            })}
           </AlertDescription>
         </Alert>
       )}

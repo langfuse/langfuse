@@ -217,72 +217,71 @@ const HOME_PRESETS: Record<
 export const HOME_PRESET_METADATA: Record<
   HomeDashboardPresetId,
   {
-    name: string;
-    description: string;
+    messageKey:
+      | "traces"
+      | "modelCosts"
+      | "scores"
+      | "traffic"
+      | "modelUsage"
+      | "userConsumption"
+      | "scoresOverTime"
+      | "traceLatency"
+      | "generationLatency"
+      | "observationLatency"
+      | "modelLatencies"
+      | "scoreAnalytics";
     illustration: string;
     queriesTracesView?: true;
   }
 > = {
   "home-traces": {
-    name: "Traces",
-    description: "Total traces with the top trace names",
+    messageKey: "traces",
     illustration: "HORIZONTAL_BAR",
   },
   "home-model-costs": {
-    name: "Model Costs",
-    description: "Cost and token usage per model",
+    messageKey: "modelCosts",
     illustration: "PIVOT_TABLE",
   },
   "home-scores-table": {
-    name: "Scores",
-    description: "Score counts and averages by name",
+    messageKey: "scores",
     illustration: "PIVOT_TABLE",
   },
   "home-traces-obs-time-series": {
-    name: "Traces & Observations over time",
-    description: "Traffic volume with tabbed trace/observation views",
+    messageKey: "traffic",
     illustration: "BAR_TIME_SERIES",
   },
   "home-model-usage": {
-    name: "Model Usage",
-    description: "Cost and usage over time, by model or by type",
+    messageKey: "modelUsage",
     illustration: "AREA_TIME_SERIES",
   },
   "home-users": {
-    name: "User Consumption",
-    description: "Token cost and trace counts per user",
+    messageKey: "userConsumption",
     illustration: "HORIZONTAL_BAR",
   },
   "home-chart-scores": {
-    name: "Scores over time",
-    description: "Moving average per score",
+    messageKey: "scoresOverTime",
     illustration: "LINE_TIME_SERIES",
   },
   "home-latency-table-traces": {
-    name: "Trace Latency Percentiles",
-    description: "p50–p99 latencies per trace name",
+    messageKey: "traceLatency",
     illustration: "PIVOT_TABLE",
     // LatencyTable kind="traces" has no v2 branch: always `view: "traces"`.
     queriesTracesView: true,
   },
   "home-latency-table-generations": {
-    name: "Generation Latency Percentiles",
-    description: "p50–p99 latencies per generation name",
+    messageKey: "generationLatency",
     illustration: "PIVOT_TABLE",
   },
   "home-latency-table-observations": {
-    name: "Observation Latency Percentiles",
-    description: "p50–p99 latencies per observation type and name",
+    messageKey: "observationLatency",
     illustration: "PIVOT_TABLE",
   },
   "home-generation-latency": {
-    name: "Model Latencies",
-    description: "Latency percentiles per LLM, tabbed by percentile",
+    messageKey: "modelLatencies",
     illustration: "LINE_TIME_SERIES",
   },
   "home-score-analytics": {
-    name: "Score Analytics",
-    description: "Per-score charts and distributions for selected scores",
+    messageKey: "scoreAnalytics",
     illustration: "HISTOGRAM",
   },
 };

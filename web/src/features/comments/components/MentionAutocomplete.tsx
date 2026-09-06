@@ -8,6 +8,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
+import { useTranslations } from "next-intl";
 
 interface User {
   id: string;
@@ -32,6 +33,7 @@ export function MentionAutocomplete({
   onClose: _onClose,
   onSelectedIndexChange,
 }: MentionAutocompleteProps) {
+  const t = useTranslations("remainderUi.comments");
   const selectedItemRef = useRef<HTMLDivElement>(null);
 
   // Scroll selected item into view
@@ -51,12 +53,12 @@ export function MentionAutocomplete({
     <div
       className="absolute right-0 bottom-full left-0 z-50 mb-1"
       role="region"
-      aria-label="User mention suggestions"
+      aria-label={t("mentionSuggestions")}
     >
       <Command
         className="max-h-60 rounded-md border shadow-md"
         value={selectedUserId}
-        aria-label="Mention user autocomplete"
+        aria-label={t("mentionAutocomplete")}
       >
         <CommandList
           role="listbox"
@@ -69,19 +71,19 @@ export function MentionAutocomplete({
               aria-live="polite"
             >
               <Spinner size="sm" />
-              <span className="sr-only">Loading users...</span>
+              <span className="sr-only">{t("loadingUsers")}</span>
             </div>
           )}
           {!isLoading && users.length === 0 && (
-            <CommandEmpty role="status">No users found</CommandEmpty>
+            <CommandEmpty role="status">{t("noUsers")}</CommandEmpty>
           )}
           {!isLoading && users.length > 0 && (
             <>
               <CommandGroup>
                 {displayedUsers.map((user, index) => {
-                  const displayName = user.name || user.email || "User";
+                  const displayName = user.name || user.email || t("user");
                   const isSelected = index === selectedIndex;
-                  const userLabel = user.name || "Unknown";
+                  const userLabel = user.name || t("unknown");
                   return (
                     <CommandItem
                       key={user.id}
@@ -121,7 +123,7 @@ export function MentionAutocomplete({
                   role="status"
                   aria-live="polite"
                 >
-                  and {remainingCount} more...
+                  {t("moreUsers", { count: remainingCount })}
                 </div>
               )}
             </>

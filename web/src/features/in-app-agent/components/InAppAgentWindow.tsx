@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSharedUiTranslations } from "@/src/utils/shared-ui-translations";
 import {
   ArrowRight,
   ArrowDown,
@@ -53,7 +54,6 @@ import type {
   InAppAgentMessageFeedbackValue,
   InAppAgentMessageSource,
 } from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -73,7 +73,6 @@ import { assertUnreachable } from "@/src/utils/types";
 import {
   IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
   IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS,
-  IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS,
   getInAppAgentQuickActions,
   isInAppAgentQuickActionContext,
   type InAppAgentQuickAction,
@@ -121,6 +120,7 @@ function InAppAgentQuickActionPicker({
     position: number,
   ) => void;
 }) {
+  const t = useSharedUiTranslations("agent");
   const [selectedContext, setSelectedContext] = useState(initialContext);
   const selectedActions =
     selectedContext === initialContext && focusedActions?.length
@@ -131,11 +131,9 @@ function InAppAgentQuickActionPicker({
 
   return (
     <>
-      <p className="text-foreground mt-3 text-sm font-bold">
-        Welcome to the Langfuse Assistant
-      </p>
+      <p className="text-foreground mt-3 text-sm font-bold">{t("welcome")}</p>
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
-        What do you want to do?
+        {t("whatToDo")}
       </p>
       <Tabs
         value={selectedContext}
@@ -147,7 +145,7 @@ function InAppAgentQuickActionPicker({
         }}
       >
         <TabsList
-          aria-label="Quick action category"
+          aria-label={t("quickActionCategory")}
           className="flex h-auto w-full rounded-none border-b bg-transparent p-0"
         >
           {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
@@ -157,7 +155,14 @@ function InAppAgentQuickActionPicker({
               disabled={isDisabled}
               className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+              {
+                {
+                  observability: t("contextObservability"),
+                  prompts: t("contextPrompts"),
+                  evaluation: t("contextEvaluation"),
+                  dashboards: t("contextDashboards"),
+                }[context]
+              }
             </TabsTrigger>
           ))}
         </TabsList>
@@ -182,13 +187,25 @@ function InAppAgentQuickActionPicker({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="text-foreground block text-xs leading-snug font-bold">
-                  {action.label}
+                  {t(
+                    `quickActions.${action.id}.label` as Parameters<
+                      typeof t
+                    >[0],
+                  )}
                 </span>
                 <span
                   className="text-muted-foreground mt-0.5 block truncate text-xs leading-snug font-normal"
-                  title={action.description}
+                  title={t(
+                    `quickActions.${action.id}.description` as Parameters<
+                      typeof t
+                    >[0],
+                  )}
                 >
-                  {action.description}
+                  {t(
+                    `quickActions.${action.id}.description` as Parameters<
+                      typeof t
+                    >[0],
+                  )}
                 </span>
               </span>
               <ArrowRight
@@ -203,39 +220,41 @@ function InAppAgentQuickActionPicker({
   );
 }
 
-function formatScreenContextNotice(
+function useScreenContextNotice(
   description: InAppAgentScreenContextDescription,
 ) {
+  const t = useSharedUiTranslations("agent");
+
   if (description.type === "page") {
-    return "Current page in context";
+    return t("currentPage");
   }
 
   if (description.type === "observation") {
-    return "Current observation in context";
+    return t("currentObservation");
   }
 
   if (description.type === "trace") {
-    return "Current trace in context";
+    return t("currentTrace");
   }
 
   if (description.type === "prompt") {
-    return "Current prompt in context";
+    return t("currentPrompt");
   }
 
   if (description.type === "session") {
-    return "Current session in context";
+    return t("currentSession");
   }
 
   if (description.type === "dataset") {
-    return "Current dataset in context";
+    return t("currentDataset");
   }
 
   if (description.type === "datasetItem") {
-    return "Current dataset item in context";
+    return t("currentDatasetItem");
   }
 
   if (description.type === "experimentRun") {
-    return "Current experiment run in context";
+    return t("currentExperimentRun");
   }
 
   if (
@@ -246,14 +265,14 @@ function formatScreenContextNotice(
     description.type === "datasets-list"
   ) {
     const listLabel = {
-      "trace-list": "trace",
-      "observations-list": "observation",
-      "sessions-list": "session",
-      "prompts-list": "prompt",
-      "datasets-list": "dataset",
+      "trace-list": t("listTrace"),
+      "observations-list": t("listObservation"),
+      "sessions-list": t("listSession"),
+      "prompts-list": t("listPrompt"),
+      "datasets-list": t("listDataset"),
     }[description.type];
 
-    return `Current ${listLabel} view in context`;
+    return t("currentListView", { item: listLabel });
   }
 
   return assertUnreachable(description);
@@ -527,57 +546,6 @@ function formatWorkedDuration(totalSeconds: number) {
   return `${totalSeconds}s`;
 }
 
-function getSettledActivityGroupLabel({
-  durationSeconds,
-  outcome,
-}: {
-  durationSeconds: number | null;
-  outcome: SettledActivityOutcome;
-}) {
-  const duration =
-    durationSeconds === null ? null : formatWorkedDuration(durationSeconds);
-
-  if (outcome === "stopped") {
-    return duration ? `Stopped after ${duration}` : "Stopped";
-  }
-
-  if (outcome === "failed") {
-    return duration ? `Failed after ${duration}` : "Failed";
-  }
-
-  return duration ? `Worked for ${duration}` : "Activity";
-}
-
-function getActivityGroupLabel({
-  durationSeconds,
-  hasDetails,
-  isAwaitingApproval,
-  isInProgress,
-  outcome,
-  toolNames,
-}: {
-  durationSeconds: number | null;
-  hasDetails: boolean;
-  isAwaitingApproval: boolean;
-  isInProgress: boolean;
-  outcome: SettledActivityOutcome;
-  toolNames: string[];
-}) {
-  if (!isInProgress) {
-    return getSettledActivityGroupLabel({ durationSeconds, outcome });
-  }
-
-  // The run has stopped and owes the user a decision, so it must not keep
-  // narrating the last thing it did.
-  if (isAwaitingApproval) {
-    return "Waiting for your approval…";
-  }
-
-  return hasDetails
-    ? getInAppAgentActivityProgressLabel(toolNames)
-    : "There for you in a second…";
-}
-
 function AssistantActivityGroup({
   endTimestamp,
   isAwaitingApproval,
@@ -595,6 +563,7 @@ function AssistantActivityGroup({
   outcome: SettledActivityOutcome;
   startTimestamp?: number;
 }) {
+  const t = useSharedUiTranslations("agent");
   const hasDetails = messages.length > 0;
   const [isOpen, setIsOpen] = useState(false);
   const durationSeconds =
@@ -606,14 +575,50 @@ function AssistantActivityGroup({
       ? message.content.tools.map((tool) => tool.name)
       : [],
   );
-  const label = getActivityGroupLabel({
-    durationSeconds,
-    hasDetails,
-    isAwaitingApproval,
-    isInProgress,
-    outcome,
-    toolNames,
-  });
+  const duration =
+    durationSeconds === null ? null : formatWorkedDuration(durationSeconds);
+  const label = !isInProgress
+    ? outcome === "stopped"
+      ? duration
+        ? t("stoppedAfter", { duration })
+        : t("stopped")
+      : outcome === "failed"
+        ? duration
+          ? t("failedAfter", { duration })
+          : t("failed")
+        : duration
+          ? t("workedFor", { duration })
+          : t("activity")
+    : isAwaitingApproval
+      ? t("waitingApproval")
+      : hasDetails
+        ? getInAppAgentActivityProgressLabel(toolNames, {
+            workingLabel: t("toolProgress.working"),
+            formatLabel: (resolution) => {
+              if (resolution.source === "docs") {
+                return t("toolProgress.readingDocs");
+              }
+              if (resolution.source === "skill") {
+                return t("toolProgress.learningSkill");
+              }
+              if (resolution.source === "override" && resolution.key) {
+                return t(
+                  `toolProgress.overrides.${resolution.key}` as Parameters<
+                    typeof t
+                  >[0],
+                );
+              }
+              if (resolution.source === "auto" && resolution.key) {
+                return t("toolProgress.runningTool", {
+                  label: resolution.label,
+                  name: resolution.key,
+                });
+              }
+              return resolution.label;
+            },
+            formatLookingAt: (noun) => t("toolProgress.lookingAt", { noun }),
+          })
+        : t("readySoon");
 
   return (
     <div className="w-full">
@@ -677,6 +682,7 @@ function ConversationScroller({
    * reveals its answer. */
   displayItems: ConversationDisplayItem[];
 }) {
+  const t = useSharedUiTranslations("agent");
   const viewportRef = useRef<HTMLDivElement>(null);
   // Sticky intent to follow, which survives scrolling down through the middle
   // of the transcript; `isAtLatest` only says whether the pill is needed.
@@ -800,7 +806,7 @@ function ConversationScroller({
           type="button"
           variant="outline"
           size="sm"
-          aria-label="Scroll to latest message"
+          aria-label={t("scrollLatest")}
           className="bg-background absolute bottom-3 left-1/2 z-10 h-8 -translate-x-1/2 rounded-full px-3 shadow-sm"
           onClick={() => {
             isAutoScrollAttachedRef.current = true;
@@ -816,7 +822,7 @@ function ConversationScroller({
           }}
         >
           <ArrowDown className="size-3.5" />
-          Latest
+          {t("latest")}
         </Button>
       ) : null}
     </div>
@@ -911,6 +917,7 @@ function InAppAgentRateLimitError({
   error: Extract<InAppAgentError, { type: "rate_limit" }>;
   isExpanded: boolean;
 }) {
+  const t = useSharedUiTranslations("agent");
   const [secondsRemaining, setSecondsRemaining] = useState(() =>
     Math.ceil((error.retryAt - Date.now()) / 1_000),
   );
@@ -938,11 +945,11 @@ function InAppAgentRateLimitError({
       tone="neutral"
     >
       <span className="space-y-0.5">
-        <span className="block font-bold">
-          You&apos;ve reached the assistant request limit
-        </span>
+        <span className="block font-bold">{t("requestLimitTitle")}</span>
         <span className="block">
-          Try again in about {formatApproximateDuration(secondsRemaining)}.
+          {t("requestLimitRetry", {
+            duration: formatApproximateDuration(secondsRemaining),
+          })}
         </span>
       </span>
     </InAppAgentNotice>
@@ -950,6 +957,7 @@ function InAppAgentRateLimitError({
 }
 
 function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
+  const t = useSharedUiTranslations("agent");
   return (
     <InAppAgentNotice
       icon={<Info aria-hidden="true" className="size-3 shrink-0" />}
@@ -957,12 +965,13 @@ function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
       role="alert"
       tone="danger"
     >
-      {IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+      {t("requestFailed")}
     </InAppAgentNotice>
   );
 }
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
+  const t = useSharedUiTranslations("agent");
   const {
     activityByConversationId,
     conversations,
@@ -995,9 +1004,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     selectedConversationId,
     selectedConversationTitle,
   } = props;
-  const screenContextNotice = formatScreenContextNotice(
-    screenContextDescription,
-  );
+  const screenContextNotice = useScreenContextNotice(screenContextDescription);
   const capture = usePostHogClientCapture();
   // A phone renders the assistant full-screen (see InAppAgentWindowShell), so
   // it drops the window chrome and never auto-focuses — that springs the
@@ -1028,10 +1035,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const historyAttentionCount = [...activityByConversationId.values()].filter(
     (entry) => entry.needsAttention,
   ).length;
-  const historyAttentionSuffix =
+  const historyLabel =
     historyAttentionCount > 0
-      ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
-      : "";
+      ? t("historyNeedsAttention", { count: historyAttentionCount })
+      : t("history");
   const hasUserMessage = messages.some((message) => message.role === "user");
   const conversationTitle = selectedConversationTitle?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
@@ -1127,7 +1134,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   return (
     <section
-      aria-label="Assistant"
+      aria-label={t("assistant")}
       className={cn(
         "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
         // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
@@ -1171,9 +1178,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           ) : (
             <p
               className="shrink-0 truncate text-sm font-bold"
-              title="Assistant"
+              title={t("assistant")}
             >
-              Assistant
+              {t("assistant")}
             </p>
           )}
         </div>
@@ -1189,12 +1196,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                aria-label="Start new conversation"
+                aria-label={t("startConversation")}
               >
                 <Plus className="size-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Start new conversation</TooltipContent>
+            <TooltipContent>{t("startConversation")}</TooltipContent>
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
@@ -1216,7 +1223,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     className="relative size-6 shrink-0"
                     // Count lives on the button name, as on the launcher — a
                     // nested badge aria-label is ignored once the parent has one.
-                    aria-label={`Conversation history${historyAttentionSuffix}`}
+                    aria-label={historyLabel}
                   >
                     <History className="size-3" />
                     {/* Launcher badge, scaled to the 24px trigger. Visual only —
@@ -1234,22 +1241,22 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
-              <TooltipContent>Conversation history</TooltipContent>
+              <TooltipContent>{t("history")}</TooltipContent>
             </Tooltip>
             <DropdownMenuContent
               align="end"
               className="max-h-80 w-64 overflow-y-auto"
             >
-              <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("recentConversations")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {conversations.length === 0 ? (
                 <DropdownMenuItem disabled>
-                  No conversations yet
+                  {t("noConversations")}
                 </DropdownMenuItem>
               ) : (
                 conversations.map((conversation) => {
                   const conversationTitle =
-                    conversation.title?.trim() || "Untitled conversation";
+                    conversation.title?.trim() || t("untitledConversation");
                   const activityState = activityByConversationId.get(
                     conversation.id,
                   )?.state;
@@ -1283,7 +1290,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         // Deleting is always allowed; it cancels whatever the
                         // conversation was doing rather than refusing.
                         disabled={isConversationInteractionDisabled}
-                        aria-label="Delete conversation"
+                        aria-label={t("deleteConversation")}
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
@@ -1304,7 +1311,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     disabled={isLoadingMoreConversations}
                     onSelect={onLoadMoreConversations}
                   >
-                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
+                    {isLoadingMoreConversations ? t("loading") : t("loadMore")}
                   </DropdownMenuItem>
                 </>
               ) : null}
@@ -1319,7 +1326,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                  aria-label={
+                    isExpanded ? t("collapseWindow") : t("expandWindow")
+                  }
                   onClick={() => {
                     onExpandedChange(!isExpanded);
                   }}
@@ -1332,7 +1341,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isExpanded ? "Collapse window" : "Expand window"}
+                {isExpanded ? t("collapseWindow") : t("expandWindow")}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -1346,9 +1355,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   className="size-6"
                   // Full-screen has nothing to minimize into, and with no
                   // drag-to-dismiss this is the only way out.
-                  aria-label={
-                    isHandheld ? "Close assistant" : "Minimize assistant"
-                  }
+                  aria-label={isHandheld ? t("closeAssistant") : t("minimize")}
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
@@ -1359,7 +1366,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isHandheld ? "Close assistant" : "Minimize assistant"}
+                {isHandheld ? t("closeAssistant") : t("minimize")}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -1604,12 +1611,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isComposerDisabled}
-              aria-label="Message the assistant"
-              placeholder={
-                hasSettledAssistantReply
-                  ? "Reply..."
-                  : "Let me know what I can do for you..."
-              }
+              aria-label={t("messageAssistant")}
+              placeholder={hasSettledAssistantReply ? t("reply") : t("prompt")}
               rows={1}
               className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
@@ -1625,7 +1628,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   type="button"
                   size="icon-sm"
                   className="w-8 shrink-0 rounded-full"
-                  aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
+                  aria-label={isCancellingRun ? t("stoppingRun") : t("stopRun")}
                   variant="outline"
                   disabled={isCancellingRun}
                   onClick={() => {
@@ -1639,7 +1642,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   type="submit"
                   size="icon-sm"
                   className="w-8 shrink-0 rounded-full"
-                  aria-label="Send message"
+                  aria-label={t("sendMessage")}
                   disabled={isSubmitDisabled || !input.trim()}
                 >
                   <SendHorizontal className="size-3" />

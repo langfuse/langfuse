@@ -1,0 +1,116 @@
+{
+  "members": {
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "ssoProvider": "SSO Provider",
+      "organizationRole": "Organization Role",
+      "projectRole": "Project Role",
+      "featurePreviews": "Feature Previews",
+      "memberSince": "Member Since",
+      "actions": "Actions"
+    },
+    "userAvatar": "User Avatar",
+    "organizationRoleDescription": "The organization role is the default role for this user in this organization and applies to the organization and all its projects.",
+    "organizationRoleSettings": "The organization-level role can be edited in the <settings>organization settings</settings>.",
+    "projectRoleDescription": "The role for this user in this specific project. This role overrides the default project role.",
+    "notAvailableOnPlan": "N/A on plan",
+    "enabledCount": "{enabledCount}/{totalCount} enabled",
+    "leaveOrganizationConfirm": "Are you sure you want to leave the organization?",
+    "removeMemberConfirm": "Are you sure you want to remove this member from the organization?",
+    "accessDeniedTitle": "Access Denied",
+    "accessDeniedDescription": "You do not have permission to view members of this organization.",
+    "addProjectMember": "Add project member",
+    "addNewMember": "Add new member",
+    "saved": "Saved",
+    "organizationRoleUpdated": "Organization role updated successfully",
+    "changeOwnOrganizationRoleConfirm": "Are you sure that you want to change your own organization role?",
+    "projectRoleUpdated": "Project role updated successfully",
+    "changeOwnProjectRoleConfirm": "Are you sure that you want to change your own project role?"
+  },
+  "invites": {
+    "title": "Membership Invites",
+    "columns": {
+      "email": "Email",
+      "organizationRole": "Organization Role",
+      "invitedOn": "Invited On",
+      "projectRole": "Project Role",
+      "invitedBy": "Invited By",
+      "actions": "Actions"
+    },
+    "cancelConfirm": "Are you sure you want to cancel this invitation?"
+  },
+  "memberForm": {
+    "addFailed": "Failed to add member",
+    "email": "Email",
+    "invalidEmail": "Enter a valid email address",
+    "organizationRole": "Organization Role",
+    "selectOrganizationRole": "Select an organization role",
+    "projectRole": "Project Role",
+    "selectProjectRole": "Select a project role",
+    "projectRoleOverride": "This project role will override the default role for this current project ({projectName}).",
+    "grantAccess": "Grant access"
+  },
+  "memberDialog": {
+    "title": "Add new member to the {target}",
+    "project": "project",
+    "organization": "organization"
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "member": "Member",
+    "viewer": "Viewer",
+    "none": "None",
+    "keepDefaultRole": "keep default role",
+    "projectNoneDescription": "Do not override the organization role for this project.",
+    "organizationNoneDescription": "No access to organization resources by default. User needs to be granted project-level access via project roles.",
+    "role": "Role: {role}",
+    "organizationScopes": "Organization Scopes",
+    "projectScopes": "Project Scopes",
+    "note": "Note:",
+    "mutedScopes": "Muted scopes",
+    "inheritedScopes": "are inherited from the lower role.",
+    "noScopes": "None"
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "projectTitle": "Project API Keys",
+    "organizationTitle": "Organization API Keys",
+    "scopes": {
+      "project": "project",
+      "organization": "organization"
+    },
+    "accessDeniedTitle": "Access Denied",
+    "accessDeniedDescription": "You do not have permission to view API keys for this {scope}.",
+    "learnMore": "Learn more about {scope} API keys",
+    "secretsExcluded": "Secrets are not included. Create a new key to copy them.",
+    "columns": {
+      "created": "Created",
+      "createdBy": "Created By",
+      "note": "Note",
+      "publicKey": "Public Key",
+      "secretKey": "Secret Key"
+    },
+    "none": "None",
+    "deleteTitle": "Delete API key",
+    "deleteDescription": "Are you sure you want to delete this API key? This action cannot be undone.",
+    "permanentlyDelete": "Permanently delete",
+    "unknownUser": "Unknown user",
+    "createdViaApiKey": "Created via API by key {publicKey}",
+    "clickToAddNote": "Click to add note",
+    "createNew": "Create new API keys",
+    "detailTitle": "API Keys",
+    "createTitle": "Create API Keys",
+    "noteOptional": "Note (optional)",
+    "notePlaceholder": "Production key",
+    "create": "Create API keys",
+    "secretKey": "Secret Key",
+    "secretKeyOnce": "This key can only be viewed once. You can always create new keys in the {scope} settings.",
+    "publicKey": "Public Key",
+    "usingWithMcp": "Using with MCP",
+    "mcpGuidePrefix": "For a detailed guide on how to use this API key to connect to the Langfuse MCP server, see the",
+    "mcpSetupDocs": "MCP setup docs",
+    "header": "Header"
+  }
+}

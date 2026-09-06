@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PageTabs } from "./page-tabs";
+import { NextIntlClientProvider } from "next-intl";
+import { SharedUiProvider } from "@/src/utils/shared-ui-translations";
+import { getMessages } from "@/src/features/i18n/messages";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -60,5 +63,28 @@ describe("PageTabs", () => {
     );
     fireEvent.click(analytics);
     expect(onAnalyticsClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("localizes known page tab labels", () => {
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={getMessages("zh-CN")}>
+        <SharedUiProvider>
+          <PageTabs
+            activeTab="scores"
+            tabs={[
+              { value: "scores", label: "Scores", href: "/scores" },
+              {
+                value: "analytics",
+                label: "Analytics",
+                href: "/scores/analytics",
+              },
+            ]}
+          />
+        </SharedUiProvider>
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "评分" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "分析" })).toBeInTheDocument();
   });
 });

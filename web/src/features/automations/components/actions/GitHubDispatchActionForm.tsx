@@ -12,6 +12,7 @@ import { type ActionDomain } from "@langfuse/shared";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { areGitHubDispatchUrlsEquivalent } from "../../githubDispatchUrl";
+import { useTranslations } from "next-intl";
 
 interface GitHubDispatchActionFormProps {
   form: UseFormReturn<any>;
@@ -23,6 +24,7 @@ interface GitHubDispatchActionFormProps {
 export const GitHubDispatchActionForm: React.FC<
   GitHubDispatchActionFormProps
 > = ({ form, disabled }) => {
+  const t = useTranslations("remainderUi.automations.github");
   const displayGitHubToken = form.watch("githubDispatch.displayGitHubToken");
   const currentUrl = form.watch("githubDispatch.url");
   const originalUrl = form.watch("githubDispatch.originalUrl");
@@ -35,12 +37,10 @@ export const GitHubDispatchActionForm: React.FC<
       <FormField
         control={form.control}
         name="githubDispatch.url"
-        rules={{ required: "Repository Dispatch URL is required" }}
         render={({ field }) => (
           <FormItem>
             <FormLabel className="flex items-center">
-              Repository Dispatch URL{" "}
-              <span className="text-destructive ml-1">*</span>
+              {t("url")} <span className="text-destructive ml-1">*</span>
             </FormLabel>
             <FormControl>
               <Input
@@ -50,14 +50,14 @@ export const GitHubDispatchActionForm: React.FC<
               />
             </FormControl>
             <FormDescription>
-              GitHub API endpoint for repository dispatch.{" "}
+              {t("urlDescription")}{" "}
               <Link
                 href="https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Learn more <ExternalLink className="ml-1 h-3 w-3" />
+                {t("learnMore")} <ExternalLink className="ml-1 h-3 w-3" />
               </Link>
             </FormDescription>
             <FormMessage />
@@ -68,11 +68,10 @@ export const GitHubDispatchActionForm: React.FC<
       <FormField
         control={form.control}
         name="githubDispatch.eventType"
-        rules={{ required: "Event type is required" }}
         render={({ field }) => (
           <FormItem>
             <FormLabel className="flex items-center">
-              Event Type <span className="text-destructive ml-1">*</span>
+              {t("eventType")} <span className="text-destructive ml-1">*</span>
             </FormLabel>
             <FormControl>
               <Input
@@ -82,10 +81,9 @@ export const GitHubDispatchActionForm: React.FC<
               />
             </FormControl>
             <FormDescription>
-              Event type for GitHub Actions workflow triggers. This will be used
-              in the{" "}
+              {t("eventTypeDescriptionPrefix")}{" "}
               <code className="text-xs">on.repository_dispatch.types</code>{" "}
-              filter in your workflow file.
+              {t("eventTypeDescriptionSuffix")}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -98,7 +96,7 @@ export const GitHubDispatchActionForm: React.FC<
         render={({ field }) => (
           <FormItem>
             <FormLabel className="flex items-center">
-              GitHub Personal Access Token
+              {t("token")}
               {(!displayGitHubToken || isUrlChanged) && (
                 <span className="text-destructive ml-1">*</span>
               )}
@@ -112,12 +110,13 @@ export const GitHubDispatchActionForm: React.FC<
               />
             </FormControl>
             <FormDescription>
-              GitHub PAT with <code className="text-xs">repo</code> scope for
-              repository dispatch.
+              {t("tokenDescriptionPrefix")}{" "}
+              <code className="text-xs">repo</code>{" "}
+              {t("tokenDescriptionSuffix")}
               {isUrlChanged
-                ? " Enter a new token when changing the dispatch URL."
+                ? ` ${t("newTokenForChangedUrl")}`
                 : displayGitHubToken
-                  ? " Leave empty to keep existing token."
+                  ? ` ${t("keepExistingToken")}`
                   : ""}{" "}
               <Link
                 href="https://github.com/settings/tokens/new?scopes=repo&description=Langfuse%20Automation"
@@ -125,7 +124,7 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Create token <ExternalLink className="ml-1 h-3 w-3" />
+                {t("createToken")} <ExternalLink className="ml-1 h-3 w-3" />
               </Link>
             </FormDescription>
             <FormMessage />

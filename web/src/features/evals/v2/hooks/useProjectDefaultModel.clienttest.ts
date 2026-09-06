@@ -1,8 +1,29 @@
+import {
+  createElement,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { act, renderHook } from "@testing-library/react";
 import { LLMAdapter } from "@langfuse/shared";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getMessages } from "@/src/features/i18n/messages";
 import { useProjectDefaultModel } from "./useProjectDefaultModel";
+
+const IntlProvider = NextIntlClientProvider as ComponentType<
+  Omit<ComponentProps<typeof NextIntlClientProvider>, "children"> & {
+    children?: ReactNode;
+  }
+>;
+
+const wrapper = ({ children }: { children: ReactNode }) =>
+  createElement(
+    IntlProvider,
+    { locale: "en", messages: getMessages("en") },
+    children,
+  );
 
 const mocks = vi.hoisted(() => ({
   refetchConnections: vi.fn(),
@@ -75,8 +96,10 @@ describe("useProjectDefaultModel", () => {
   });
 
   it("refreshes model filter options after updating the project default", async () => {
-    const { result } = renderHook(() =>
-      useProjectDefaultModel({ projectId: "project-1", source: "overview" }),
+    const { result } = renderHook(
+      () =>
+        useProjectDefaultModel({ projectId: "project-1", source: "overview" }),
+      { wrapper },
     );
 
     act(() =>
@@ -96,8 +119,10 @@ describe("useProjectDefaultModel", () => {
   });
 
   it("refreshes model connections after returning from provider settings", () => {
-    const { result } = renderHook(() =>
-      useProjectDefaultModel({ projectId: "project-1", source: "editor" }),
+    const { result } = renderHook(
+      () =>
+        useProjectDefaultModel({ projectId: "project-1", source: "editor" }),
+      { wrapper },
     );
 
     act(() => result.current.openProviderSettings());

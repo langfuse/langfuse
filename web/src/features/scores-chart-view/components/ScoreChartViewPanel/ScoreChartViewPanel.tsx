@@ -8,10 +8,7 @@ import { Button } from "@/src/components/ui/button";
 import { ChartTypePicker } from "@/src/features/chart-view/components/ConfigControls";
 import { type AggregationFn } from "@/src/features/chart-view/types";
 import { isTimeSeriesChartType } from "@/src/features/chart-view/vocab";
-import {
-  describeScoreChartConfig,
-  getScoreMetric,
-} from "@/src/features/scores-chart-view/fns/scoreChartConfig";
+import { getScoreMetric } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import {
   type ScoreChartDataset,
   type ScoreChartViewConfig,
@@ -26,6 +23,11 @@ import { DatasetSelect } from "@/src/features/scores-chart-view/components/Datas
 import { MetricSelect } from "@/src/features/scores-chart-view/components/MetricSelect";
 import { AggregationSelect } from "@/src/features/scores-chart-view/components/AggregationSelect";
 import { BreakdownSelect } from "@/src/features/scores-chart-view/components/BreakdownSelect";
+import { useTranslations } from "next-intl";
+import { type AppMessages } from "@/src/features/i18n/messages";
+
+type ChartDimensionMessageKey =
+  keyof AppMessages["systemUi"]["chartControls"]["dimensions"];
 
 /**
  * The scores-table chart layout — same "maximized canvas + collapsible config
@@ -52,8 +54,29 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
   /** Right-aligned actions next to the chart subtitle (e.g. "Add to dashboard"). */
   chartActions?: React.ReactNode;
 }) {
+  const t = useTranslations("evaluationAnalytics.chartView");
+  const labelsT = useTranslations("systemUi.chartControls");
   const [open, setOpen] = useState(true);
   const metric = getScoreMetric(config.metric, config.dataset);
+  const metricLabel = labelsT(`metrics.${config.metric}`);
+  let description =
+    config.metric === "count"
+      ? labelsT("descriptions.scoreCount")
+      : labelsT("descriptions.metric", {
+          aggregation: labelsT(`aggregations.${config.aggregation}`),
+          metric: metricLabel.toLocaleLowerCase(),
+        });
+  if (config.breakdown !== "none" && config.chartType !== "NUMBER") {
+    description = labelsT("descriptions.by", {
+      base: description,
+      dimension: labelsT(
+        `dimensions.${config.breakdown as ChartDimensionMessageKey}`,
+      ).toLocaleLowerCase(),
+    });
+  }
+  if (isTimeSeriesChartType(config.chartType)) {
+    description = labelsT("descriptions.overTime", { base: description });
+  }
 
   const onDataset = useCallback(
     (dataset: ScoreChartDataset) => onConfigChange({ dataset }),
@@ -82,9 +105,9 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
         <div className="flex items-center justify-between gap-2">
           <div
             className="text-foreground min-w-0 truncate text-sm font-bold"
-            title={describeScoreChartConfig(config)}
+            title={description}
           >
-            {describeScoreChartConfig(config)}
+            {description}
           </div>
           {chartActions}
         </div>
@@ -104,11 +127,9 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
               chartType={config.chartType}
               breakdown={config.breakdown}
               aggregation={config.aggregation}
-              metricLabel={metric.label}
+              metricLabel={metricLabel}
               metricUnit={metric.unit}
-              emptyMessage={
-                emptyMessage ?? "No scores match the current filters."
-              }
+              emptyMessage={emptyMessage ?? t("noMatchingScores")}
             />
           )}
         </div>
@@ -117,24 +138,24 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
       {open ? (
         <div className="flex w-full flex-col gap-3 overflow-y-auto border-t p-3 md:w-72 md:shrink-0 md:border-t-0 md:border-l">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold">Visualize</span>
+            <span className="text-sm font-bold">{t("visualize")}</span>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Collapse panel"
+              aria-label={t("collapsePanel")}
               onClick={() => setOpen(false)}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <PanelField label="Chart type">
+          <PanelField label={t("chartType")}>
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
               showLabels
             />
           </PanelField>
-          <PanelField label="View">
+          <PanelField label={t("view")}>
             <DatasetSelect value={config.dataset} onChange={onDataset} />
           </PanelField>
           {/* One "Metric" section holding both selects — matches the real
@@ -142,7 +163,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
               aggregation select directly under the measure select with no
               separate "Aggregation" label, and hides it entirely once the
               measure ("Count") has no other aggregation to offer. */}
-          <PanelField label="Metric">
+          <PanelField label={t("metric")}>
             <div className="flex flex-col gap-1.5">
               <MetricSelect
                 dataset={config.dataset}
@@ -159,7 +180,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
               ) : null}
             </div>
           </PanelField>
-          <PanelField label="Breakdown">
+          <PanelField label={t("breakdown")}>
             <BreakdownSelect
               dataset={config.dataset}
               isTimeSeries={isTimeSeriesChartType(config.chartType)}
@@ -173,7 +194,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label="Expand panel"
+            aria-label={t("expandPanel")}
             onClick={() => setOpen(true)}
           >
             <ChevronLeft className="h-4 w-4" />

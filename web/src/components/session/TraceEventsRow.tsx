@@ -20,6 +20,7 @@ import {
   isOnlyJsonMessage,
   useChatMLParser,
 } from "@/src/features/traces";
+import { useTranslations } from "next-intl";
 
 export type TraceEventsSurface = "card" | "modern";
 
@@ -116,28 +117,32 @@ const ObservationHeader = ({
   observation,
 }: {
   observation: SessionObservation;
-}) => (
-  <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-    <span className="min-w-0 wrap-break-word">
-      {observation.name ?? "Observation"}
-    </span>
-    <span className="-mr-1">•</span>
-    <span className="inline-flex items-center gap-1">
-      <ItemBadge
-        type={observation.type ?? "EVENT"}
-        isSmall
-        className="h-3 w-3"
-      />
-      <span>
-        {String(observation.type ?? "EVENT")
-          .toLowerCase()
-          .replace(/_/g, " ")}
+}) => {
+  const t = useTranslations("coreDetails.sessions.traceCard");
+
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+      <span className="min-w-0 wrap-break-word">
+        {observation.name ?? t("observation")}
       </span>
-    </span>
-    <span>•</span>
-    <span>{observation.startTime.toLocaleString()}</span>
-  </div>
-);
+      <span className="-mr-1">•</span>
+      <span className="inline-flex items-center gap-1">
+        <ItemBadge
+          type={observation.type ?? "EVENT"}
+          isSmall
+          className="h-3 w-3"
+        />
+        <span>
+          {String(observation.type ?? "EVENT")
+            .toLowerCase()
+            .replace(/_/g, " ")}
+        </span>
+      </span>
+      <span>•</span>
+      <span>{observation.startTime.toLocaleString()}</span>
+    </div>
+  );
+};
 
 // Opens the session-detail "View" drawer by activating its trigger — the empty
 // notice's action routes through the one shared View control (no per-card state).
@@ -154,27 +159,31 @@ const openSessionViewMenu = () => {
  * card. It is purely informational: to see the trace's content the user
  * switches the view above — there is no per-card state.
  */
-const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
-  <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
-    <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
-      <FilterX className="h-3.5 w-3.5 shrink-0" />
-      {viewLabel
-        ? `No observation matches the "${viewLabel}" view in this trace`
-        : "No observation matches the current filter in this trace"}
+const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => {
+  const t = useTranslations("coreDetails.sessions.traceCard");
+
+  return (
+    <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
+      <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
+        <FilterX className="h-3.5 w-3.5 shrink-0" />
+        {viewLabel
+          ? t("viewMismatch", { view: viewLabel })
+          : t("filterMismatch")}
+      </div>
+      <p className="text-muted-foreground text-xs">
+        {t("hiddenBefore")}{" "}
+        <button
+          type="button"
+          onClick={openSessionViewMenu}
+          className="text-primary underline underline-offset-2 hover:no-underline"
+        >
+          {t("switchView")}
+        </button>{" "}
+        {t("hiddenAfter")}
+      </p>
     </div>
-    <p className="text-muted-foreground text-xs">
-      Its content is hidden by the current view, not missing.{" "}
-      <button
-        type="button"
-        onClick={openSessionViewMenu}
-        className="text-primary underline underline-offset-2 hover:no-underline"
-      >
-        Switch the view
-      </button>{" "}
-      to see it.
-    </p>
-  </div>
-);
+  );
+};
 
 export const TraceEventsSkeleton = () => {
   return (
@@ -249,6 +258,7 @@ export const TraceEventsRow = React.memo(
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
   }) => {
+    const t = useTranslations("coreDetails.sessions.traceCard");
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
         {
@@ -333,16 +343,19 @@ export const TraceEventsRow = React.memo(
               <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
                 <button
                   type="button"
-                  aria-label={`Open trace ${trace.name ?? "Trace"} (${trace.id})`}
+                  aria-label={t("openTrace", {
+                    name: trace.name ?? t("trace"),
+                    id: trace.id,
+                  })}
                   className="group focus-visible:ring-ring flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                   onClick={() => openPeek(trace.id, trace)}
                 >
                   <ItemBadge type="TRACE" isSmall />
                   <span
                     className="truncate text-sm font-bold"
-                    title={trace.name ?? "Trace"}
+                    title={trace.name ?? t("trace")}
                   >
-                    {trace.name ?? "Trace"}
+                    {trace.name ?? t("trace")}
                   </span>
                   <span
                     className="text-muted-foreground min-w-0 truncate font-mono text-xs group-hover:underline"
@@ -360,7 +373,7 @@ export const TraceEventsRow = React.memo(
               <JsonSkeleton className="h-full w-full" numRows={8} />
             ) : observationsQuery.isError ? (
               <div className="text-destructive p-2 text-xs">
-                Failed to load observations.
+                {t("loadObservationsFailed")}
               </div>
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
@@ -409,16 +422,17 @@ export const TraceEventsRow = React.memo(
                 })}
                 {hasMoreObservations && (
                   <p className="text-muted-foreground text-xs">
-                    Only the first {SESSION_CARD_OBSERVATIONS_NOTICE_COUNT}{" "}
-                    observations are shown here.{" "}
+                    {t("firstObservationsBefore", {
+                      count: SESSION_CARD_OBSERVATIONS_NOTICE_COUNT,
+                    })}{" "}
                     <button
                       type="button"
                       onClick={() => openPeek(trace.id, trace)}
                       className="text-primary underline underline-offset-2 hover:no-underline"
                     >
-                      Open the trace
+                      {t("openTheTrace")}
                     </button>{" "}
-                    to see all of them.
+                    {t("firstObservationsAfter")}
                   </p>
                 )}
               </div>
@@ -426,7 +440,7 @@ export const TraceEventsRow = React.memo(
               filterState.length === 0 ? (
               // No filter and the trace genuinely has no observations.
               <div className="text-muted-foreground p-2 text-xs">
-                This trace has no observations.
+                {t("traceHasNoObservations")}
               </div>
             ) : (
               // The selected view/filter matched nothing (or hid the only
@@ -454,7 +468,7 @@ export const TraceEventsRow = React.memo(
                         name must wrap inside the panel, not escape the card */}
                     <div className="flex min-w-0 flex-col">
                       <span className="text-xs font-bold wrap-break-word">
-                        {trace.name ?? "Trace"} ({trace.id})&nbsp;↗
+                        {trace.name ?? t("trace")} ({trace.id})&nbsp;↗
                       </span>
                       <span className="text-muted-foreground text-xs">
                         {trace.timestamp.toLocaleString()}
@@ -471,7 +485,7 @@ export const TraceEventsRow = React.memo(
                   />
                 </div>
                 <div className="flex-1">
-                  <p className="mb-1 font-bold">Scores</p>
+                  <p className="mb-1 font-bold">{t("scores")}</p>
                   <div className="flex flex-wrap content-start items-start gap-1">
                     <GroupedScoreBadges scores={trace.scores} />
                   </div>

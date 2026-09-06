@@ -51,6 +51,8 @@ import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { Spinner } from "@/src/components/layouts/spinner";
+import { useTranslations } from "next-intl";
+import { AuthLanguageSwitcher } from "@/src/features/i18n/AuthLanguageSwitcher";
 
 // The shared, intentionally-public demo identity created by the seed script
 // (packages/shared/scripts/seeder/seed-postgres.ts) and posted in every
@@ -59,12 +61,11 @@ import { Spinner } from "@/src/components/layouts/spinner";
 const PREVIEW_DEMO_USER_EMAIL = "demo@langfuse.com";
 const PREVIEW_DEMO_USER_PASSWORD = "password";
 
-const credentialAuthForm = z.object({
-  email: z.email(),
-  password: z.string().min(8, {
-    message: "Password must be at least 8 characters long",
-  }),
-});
+const createCredentialAuthForm = (invalidEmail: string, passwordMin: string) =>
+  z.object({
+    email: z.email({ error: invalidEmail }),
+    password: z.string().min(8, { message: passwordMin }),
+  });
 
 // Also used in src/pages/auth/sign-up.tsx
 export type PageProps = {
@@ -235,6 +236,7 @@ export function SSOButtons({
   lastUsedMethod?: NextAuthProvider | null;
   onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
+  const t = useTranslations("auth.signIn");
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
@@ -276,7 +278,7 @@ export function SSOButtons({
             <div className="border-border my-6 border-t"></div>
           ) : (
             <div className="text-muted-foreground my-6 text-center text-xs">
-              or {action} with
+              {t("providerSeparator", { action })}
             </div>
           )
         ) : null}
@@ -465,10 +467,10 @@ export function SSOButtons({
             <>
               <AuthProviderButton
                 icon={<Code className="mr-3" size={18} />}
-                label="WorkOS (organization)"
+                label={t("providerOrganization", { provider: "WorkOS" })}
                 onClick={() => {
                   const organization = window.prompt(
-                    "Please enter your organization ID",
+                    t("workosOrganizationPrompt"),
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
@@ -485,11 +487,9 @@ export function SSOButtons({
               />
               <AuthProviderButton
                 icon={<Code className="mr-3" size={18} />}
-                label="WorkOS (connection)"
+                label={t("providerConnection", { provider: "WorkOS" })}
                 onClick={() => {
-                  const connection = window.prompt(
-                    "Please enter your connection ID",
-                  );
+                  const connection = window.prompt(t("workosConnectionPrompt"));
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
@@ -560,19 +560,22 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
   }, [router, runningOnHuggingFaceSpaces]);
 }
 
-const signInErrors = [
-  {
-    code: "OAuthAccountNotLinked",
-    description:
-      "Please sign in with the same provider (e.g. Google, GitHub, Azure AD, etc.) that you used to create this account.",
-  },
-];
+const signInErrorCodes = ["OAuthAccountNotLinked"];
+
+const credentialsFormErrorMessageKeys = {
+  generic: "signIn.genericError",
+  previewFailed: "signIn.previewFailed",
+  ssoCheckFailed: "signIn.ssoCheckFailed",
+} as const;
+
+type CredentialsFormError = keyof typeof credentialsFormErrorMessageKeys;
 
 export default function SignIn({
   authProviders = FALLBACK_AUTH_PROVIDERS,
   signUpDisabled,
   runningOnHuggingFaceSpaces,
 }: PageProps) {
+  const t = useTranslations("auth");
   const router = useRouter();
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
@@ -586,11 +589,11 @@ export default function SignIn({
       ? decodeURIComponent(router.query.error_description)
       : null;
 
-  // Use error_description from IdP if available, otherwise use mapped error or error code
-  const errorMessage = nextAuthErrorDescription
-    ? nextAuthErrorDescription
-    : (signInErrors.find((e) => e.code === nextAuthError)?.description ??
-      nextAuthError);
+  const errorMessage = nextAuthError
+    ? nextAuthError === "OAuthAccountNotLinked"
+      ? t("signIn.accountNotLinked")
+      : t("signIn.genericError")
+    : null;
 
   useEffect(() => {
     if (!nextAuthError) return;
@@ -600,7 +603,7 @@ export default function SignIn({
     // else (unknown codes, misconfig codes) is a real Sentry error.
     const expected =
       Boolean(nextAuthErrorDescription) ||
-      signInErrors.some((e) => e.code === nextAuthError) ||
+      signInErrorCodes.includes(nextAuthError) ||
       isExpectedSignInError(nextAuthError);
     reportError(new Error(`Sign in error: ${nextAuthError}`), {
       area: "auth.signIn",
@@ -609,9 +612,11 @@ export default function SignIn({
     });
   }, [nextAuthError, nextAuthErrorDescription]);
 
-  const [credentialsFormError, setCredentialsFormError] = useState<
-    string | null
-  >(errorMessage);
+  const [credentialsFormErrorCode, setCredentialsFormErrorCode] =
+    useState<CredentialsFormError | null>(null);
+  const credentialsFormError = credentialsFormErrorCode
+    ? t(credentialsFormErrorMessageKeys[credentialsFormErrorCode])
+    : errorMessage;
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
   // Skip this flow when no SSO is configured - show password field immediately
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
@@ -643,6 +648,10 @@ export default function SignIn({
     : undefined;
 
   // Credentials
+  const credentialAuthForm = createCredentialAuthForm(
+    t("common.invalidEmail"),
+    t("common.passwordMin"),
+  );
   const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
@@ -653,7 +662,7 @@ export default function SignIn({
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
   ) {
-    setCredentialsFormError(null);
+    setCredentialsFormErrorCode(null);
     try {
       capture("sign_in:button_click", { provider: "email/password" });
 
@@ -672,7 +681,7 @@ export default function SignIn({
         // or server state the server owns, not an app failure here). It then
         // navigates to the error page itself; when the server is up, that
         // lands on /auth/error?error=undefined, which still captures.
-        setCredentialsFormError("An unexpected error occurred.");
+        setCredentialsFormErrorCode("generic");
         reportError(new Error("Sign in result is undefined"), {
           area: "auth.signIn.credentials",
           expected: true,
@@ -686,9 +695,7 @@ export default function SignIn({
             { area: "auth.signIn.credentials" },
           );
         }
-        setCredentialsFormError(
-          result?.error ?? "An unexpected error occurred.",
-        );
+        setCredentialsFormErrorCode("generic");
       }
     } catch (error) {
       if (isNextAuthMissingSignInUrlError(error)) {
@@ -702,7 +709,7 @@ export default function SignIn({
       } else {
         captureUnknownError("auth.signIn.credentials", error);
       }
-      setCredentialsFormError("An unexpected error occurred.");
+      setCredentialsFormErrorCode("generic");
     }
   }
 
@@ -749,9 +756,7 @@ export default function SignIn({
       .then((result) => {
         if (result?.ok) return; // session updates and useAuthGuard navigates
         setPreviewAutoSignInPending(false);
-        setCredentialsFormError(
-          result?.error ?? "Automatic preview sign-in failed.",
-        );
+        setCredentialsFormErrorCode("previewFailed");
       })
       .catch((error) => {
         if (isNextAuthMissingSignInUrlError(error)) {
@@ -763,7 +768,7 @@ export default function SignIn({
           captureUnknownError("auth.signIn.previewAutoSignIn", error);
         }
         setPreviewAutoSignInPending(false);
-        setCredentialsFormError("Automatic preview sign-in failed.");
+        setCredentialsFormErrorCode("previewFailed");
       });
   }, [previewAutoSignInEnabled, sessionStatus, targetPath]);
 
@@ -777,7 +782,7 @@ export default function SignIn({
    */
   async function handleContinue() {
     setContinueLoading(true);
-    setCredentialsFormError(null);
+    setCredentialsFormErrorCode(null);
     credentialsForm.clearErrors();
 
     // Ensure email is valid before hitting the API
@@ -785,7 +790,7 @@ export default function SignIn({
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
-        message: "Invalid email address",
+        message: t("common.invalidEmail"),
       });
       setContinueLoading(false);
       return;
@@ -832,9 +837,7 @@ export default function SignIn({
       }, 100);
     } catch (error) {
       captureUnknownError("auth.signIn.checkSso", error);
-      setCredentialsFormError(
-        "Unable to check SSO configuration. Please try again.",
-      );
+      setCredentialsFormErrorCode("ssoCheckFailed");
     } finally {
       setContinueLoading(false);
     }
@@ -844,9 +847,14 @@ export default function SignIn({
     return (
       <>
         <Head>
-          <title>Sign in | Langfuse</title>
+          <title>{t("signIn.pageTitle")} | Langfuse</title>
         </Head>
-        <Spinner message={`Signing in as ${PREVIEW_DEMO_USER_EMAIL}`} />
+        <AuthLanguageSwitcher />
+        <Spinner
+          message={t("signIn.previewSigningIn", {
+            email: PREVIEW_DEMO_USER_EMAIL,
+          })}
+        />
       </>
     );
   }
@@ -854,27 +862,27 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>Sign in | Langfuse</title>
+        <title>{t("signIn.pageTitle")} | Langfuse</title>
       </Head>
+      <AuthLanguageSwitcher />
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
             <LangfuseIcon />
           </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-            Sign in to your account
+            {t("signIn.title")}
           </h2>
         </div>
 
         {isLangfuseCloud && (
           <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
-            If you are experiencing issues signing in, please force refresh this
-            page (CMD + SHIFT + R) or clear your browser cache.{" "}
+            {t("signIn.cloudHelp")}{" "}
             <a
               href="mailto:support@langfuse.com"
               className="text-link hover:text-link-hover cursor-pointer text-xs font-bold whitespace-nowrap"
             >
-              (contact us)
+              ({t("signIn.contactUs")})
             </a>
           </div>
         )}
@@ -904,7 +912,7 @@ export default function SignIn({
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>{t("common.email")}</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="jsdoe@example.com"
@@ -926,14 +934,14 @@ export default function SignIn({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>
-                              Password{" "}
+                              {t("common.password")}{" "}
                               <Link
                                 href="/auth/reset-password"
                                 className="text-link hover:text-link-hover ml-1 text-xs"
                                 tabIndex={-1}
-                                title="What is this?"
+                                title={t("signIn.forgotPassword")}
                               >
-                                (forgot password?)
+                                ({t("signIn.forgotPassword")})
                               </Link>
                             </FormLabel>
                             <FormControl>
@@ -961,7 +969,9 @@ export default function SignIn({
                       }
                       data-testid="submit-email-password-sign-in-form"
                     >
-                      {showPasswordStep ? "Sign in" : "Continue"}
+                      {showPasswordStep
+                        ? t("signIn.submit")
+                        : t("common.continue")}
                     </Button>
                   </form>
                 </Form>
@@ -974,7 +984,7 @@ export default function SignIn({
                       : "hidden",
                   )}
                 >
-                  Last used
+                  {t("common.lastUsed")}
                 </div>
               </div>
             )}
@@ -982,13 +992,13 @@ export default function SignIn({
               <div className="text-destructive text-center text-sm font-bold">
                 {credentialsFormError}
                 <br />
-                Contact support if this error is unexpected.{" "}
-                {isLangfuseCloud &&
-                  "Make sure you are using the correct cloud data region."}
+                {t("signIn.support")}{" "}
+                {isLangfuseCloud && t("signIn.regionHint")}
               </div>
             ) : null}
             <SSOButtons
               authProviders={authProviders}
+              action={t("signIn.providerAction")}
               lastUsedMethod={lastUsedAuthMethod}
               onProviderSelect={setLastUsedAuthMethod}
             />
@@ -998,17 +1008,17 @@ export default function SignIn({
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
             <p className="text-muted-foreground mt-10 text-center text-sm">
-              No account yet?{" "}
+              {t("signIn.noAccount")}{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="text-link hover:text-link-hover leading-6 font-bold"
               >
-                Sign up
+                {t("signIn.signUp")}
               </Link>
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        <CloudPrivacyNotice action={t("cloud.signingIn")} />
       </div>
     </>
   );
