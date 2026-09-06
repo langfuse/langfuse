@@ -135,15 +135,34 @@ vi.mock("../env", () => ({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy",
     LANGFUSE_POSTHOG_FLUSH_DELAY_MS: 0,
     LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: 0,
-    // Must stay non-zero, else the Mixpanel abort timer fires at ~0ms and masks
-    // the SSRF block with a spurious timeout error.
-    LANGFUSE_MIXPANEL_TIMEOUT_MS: 30_000,
+    // Keep this non-zero so connect-time validation wins the race with the
+    // abort while still bounding the test when the protected request stalls.
+    LANGFUSE_MIXPANEL_TIMEOUT_MS: 1_000,
   },
   v4WritesToLegacyTables: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
     e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only",
   v4WritesToEventsTable: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
     e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy",
 }));
+
+vi.mock("posthog-node", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("posthog-node")>();
+  return {
+    ...actual,
+    PostHog: class extends actual.PostHog {
+      constructor(
+        apiKey: string,
+        options: ConstructorParameters<typeof actual.PostHog>[1],
+      ) {
+        super(apiKey, {
+          ...options,
+          requestTimeout: 1_000,
+          fetchRetryCount: 0,
+        });
+      }
+    },
+  };
+});
 
 // Imported after mocks are registered.
 import {
@@ -362,7 +381,7 @@ describe("Mixpanel sender — SSRF connect-time pinning", () => {
     expect(causeChainIncludes(thrown, "Blocked IP address detected")).toBe(
       true,
     );
-  }, 40_000);
+  }, 5_000);
 });
 
 describe("outbound validation classification", () => {

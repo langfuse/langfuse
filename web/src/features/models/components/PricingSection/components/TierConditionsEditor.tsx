@@ -1,5 +1,5 @@
 import { PlusCircle, Trash2 } from "lucide-react";
-import { useFieldArray } from "react-hook-form";
+import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import type { UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
 import type { PricingTierCondition } from "@langfuse/shared";
 

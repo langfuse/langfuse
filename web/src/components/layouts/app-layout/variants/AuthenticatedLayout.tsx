@@ -22,7 +22,10 @@ import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
-import { VersionUpdateBanner } from "@/src/features/version-update";
+import {
+  VersionUpdateBanner,
+  useVersionUpdatePrompt,
+} from "@/src/features/version-update";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
@@ -91,7 +94,7 @@ type GroupedNavigation = {
 };
 
 type AuthenticatedLayoutProps = PropsWithChildren<{
-  session: Session;
+  user: NonNullable<Session["user"]>;
   navigation: {
     mainNavigation: GroupedNavigation;
     secondaryNavigation: GroupedNavigation;
@@ -117,7 +120,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  */
 export function AuthenticatedLayout({
   children,
-  session,
+  user,
   navigation,
   metadata,
   onSignOut,
@@ -127,17 +130,10 @@ export function AuthenticatedLayout({
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
+  const versionUpdatePrompt = useVersionUpdatePrompt();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
-
-  // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
-  // in AppLayout, which guarantees session.user exists at this point
-  const user = session.user;
-  if (!user) {
-    // This should never happen due to guards in AppLayout, but TypeScript needs this
-    return null;
-  }
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
@@ -267,7 +263,12 @@ export function AuthenticatedLayout({
             <div className="flex h-dvh w-full flex-col">
               <PaymentBanner />
               <PreviewDeploymentBanner />
-              <VersionUpdateBanner />
+              {versionUpdatePrompt.isVisible && (
+                <VersionUpdateBanner
+                  onReload={versionUpdatePrompt.reload}
+                  onDismiss={versionUpdatePrompt.dismiss}
+                />
+              )}
               <div className="pt-banner-offset flex min-h-0 flex-1">
                 <ConnectedAppSidebar
                   navItems={navigation.mainNavigation}

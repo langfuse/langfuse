@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -6,7 +7,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
@@ -20,8 +21,8 @@ import {
   getOtelSectionState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass
@@ -38,12 +39,12 @@ export function V4MigrationDelayBadge({
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project } = useQueryProject();
   const forceV3 = useForceV3Experience(project?.id);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
 
   // Forced-v3 projects still see the data-delay badge, but it points at the
   // partner FAQ instead of the migration panel
-  const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isBetaEnabled);
+  const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isV4);
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
     enabled: enabled && Boolean(project),
@@ -214,7 +215,7 @@ export function V4MigrationUpdateRequiredBadge() {
   const handleManualUpgrade = () => {
     if (!project) return;
     setDialogOpen(false);
-    router.push(buildDeprecatedEvaluatorsUrl(project.id));
+    router.push(buildDeprecatedRulesUrl(project.id));
   };
 
   return (

@@ -258,9 +258,8 @@ describe("InAppAgentWindow header", () => {
     );
 
     expect(screen.getByText("Latency outliers")).toBeInTheDocument();
-    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
 
-    // An unnamed conversation is where the product name and Beta tag belong.
+    // An unnamed conversation falls back to the product name.
     rerender(
       windowElement({
         selectedConversationId: "conversation-1",
@@ -269,7 +268,6 @@ describe("InAppAgentWindow header", () => {
     );
 
     expect(screen.getByText("Assistant")).toBeInTheDocument();
-    expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
   it("toggles expanded on a header double-click, but not from its actions", () => {

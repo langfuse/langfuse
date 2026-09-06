@@ -95,6 +95,7 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
 
 type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
   jobConfigurationId: string | null;
+  evaluatorId: string | null;
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
@@ -254,17 +255,56 @@ export const scoresRouter = createTRPCRouter({
           },
         }),
       ]);
+      const jobExecutionByScoreId = new Map(
+        jobExecutions.map((execution) => [
+          execution.jobOutputScoreId,
+          execution,
+        ]),
+      );
+      // Legacy evals referenced job configurations which would be the equivalent of `rules`.
+      // In evals v2, the better reference for a score is however the evaluator that created the
+      // score and not the `rule` that triggered the evaluation.
+      const fallbackRuleIds = [
+        ...new Set(
+          jobExecutions.map((execution) => execution.jobConfigurationId),
+        ),
+      ];
+      const fallbackAssignments =
+        fallbackRuleIds.length > 0
+          ? await ctx.prisma.evaluationRuleEvaluatorAssignment.findMany({
+              where: {
+                projectId: input.projectId,
+                evaluationRuleId: { in: fallbackRuleIds },
+              },
+              select: {
+                evaluationRuleId: true,
+                evaluatorId: true,
+                evaluator: { select: { name: true } },
+              },
+            })
+          : [];
+      const fallbackEvaluatorIdByRuleAndScoreName = new Map(
+        fallbackAssignments.map((assignment) => [
+          `${assignment.evaluationRuleId}\0${assignment.evaluator.name}`,
+          assignment.evaluatorId,
+        ]),
+      );
 
       return {
         scores: clickhouseScoreData.map<AllScoresFromEventsReturnType>(
           (score) => {
-            const jobExecution = jobExecutions.find(
-              (je) => je.jobOutputScoreId === score.id,
-            );
+            const jobExecution = jobExecutionByScoreId.get(score.id);
             const user = users.find((u) => u.id === score.authorUserId);
             return {
               ...score,
               jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
+              evaluatorId:
+                score.evaluatorId ??
+                (jobExecution
+                  ? (fallbackEvaluatorIdByRuleAndScoreName.get(
+                      `${jobExecution.jobConfigurationId}\0${score.name}`,
+                    ) ?? null)
+                  : null),
               authorUserImage: user?.image ?? null,
               authorUserName: user?.name ?? null,
             };

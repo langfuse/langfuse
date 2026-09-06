@@ -60,11 +60,13 @@ import { Job } from "bullmq";
 import {
   handleBlobStorageIntegrationProjectJob,
   BLOB_STORAGE_LAG_BUFFER_MS,
+  BLOB_STORAGE_REMAINDER_COALESCE_MS,
 } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCustomerFaultError";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -238,8 +240,53 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
-  // After BullMQ exhausts its retries, a customer-fault error disables the
-  // integration; everything else keeps retrying as before.
+  describe("invalid persisted region", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("persists the error before any S3 upload starts", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: "us west-2",
+          endpoint: endpoint ?? null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toBe(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+      expect(row.lastErrorAt).not.toBeNull();
+      expect(row.enabled).toBe(true);
+    });
+  });
+
+  // A classified customer fault disables the integration on its first
+  // occurrence and resolves the job; everything else keeps retrying as before.
   describe("customer-fault disable", () => {
     const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
@@ -292,37 +339,19 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     const settleBackgroundTasks = () =>
       new Promise((resolve) => setTimeout(resolve, 200));
 
-    it("keeps the integration enabled and does not notify on a non-final customer-fault attempt", async () => {
+    // Resolving is the point: the queue's failure counter is incremented per
+    // failed attempt, so a throw here would light the processing-failures
+    // monitor for a fault that no retry can clear.
+    it("disables the integration and resolves on the first customer-fault attempt", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
       mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
         accessDeniedError(),
       );
 
-      await expect(runAttempt(projectId, 0)).rejects.toThrow(/access denied/i);
-      await settleBackgroundTasks();
-
-      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId },
-      });
-      // BullMQ still has retries left, so we let it retry — no disable yet,
-      // and no email either: a later retry may still succeed.
-      expect(row.enabled).toBe(true);
-      expect(row.lastError).toMatch(/access denied/i);
-      expect(row.lastFailureNotificationSentAt).toBeNull();
-    });
-
-    it("disables the integration on the final exhausted customer-fault attempt", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      s3Prefix = projectId;
-      await createIntegration(projectId);
-      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
-        accessDeniedError(),
-      );
-
-      await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
-      await settleBackgroundTasks();
+      await expect(runAttempt(projectId, 0)).resolves.toBeUndefined();
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId },
@@ -331,6 +360,30 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.lastError).toMatch(/access denied/i);
       expect(row.lastErrorAt).not.toBeNull();
       // The "disabled" email bypasses the cooldown, so it must not claim it.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+      // Tagged by reason so an SSRF/abuse disable stays separable from a
+      // misconfiguration one.
+      expect(mockRecordIncrement).toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        1,
+        { reason: "credentials" },
+      );
+    });
+
+    it("still disables and resolves when the fault first appears on the final attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 4)).resolves.toBeUndefined();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
       expect(row.lastFailureNotificationSentAt).toBeNull();
     });
 
@@ -425,7 +478,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         throw accessDeniedError();
       });
 
-      await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
+      await expect(runAttempt(projectId, 4)).resolves.toBeUndefined();
       await settleBackgroundTasks();
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
@@ -445,11 +498,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
 
     // When the failure can't even be written down (Postgres unavailable), the
-    // run knows nothing about the row's state. It must not claim a disable it
-    // failed to persist, but it must still say something rather than dropping
-    // the failure silently. `update` is only called on this terminal path, so
-    // spying on it isolates the persistence failure from the export itself.
-    it("falls back to the informational email when persisting the failure fails", async () => {
+    // run knows nothing about the row's state, so it must not claim the fault is
+    // handled: it stays on the retry path and sends no email. `update` is only
+    // called on this terminal path, so spying on it isolates the persistence
+    // failure from the export itself.
+    it("keeps retrying without notifying when persisting the failure fails", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       await createIntegration(projectId);
@@ -474,8 +527,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         where: { projectId },
       });
       // Nothing was written, so the fault is invisible to the row and the
-      // integration keeps running — even though this was a classified fault on
-      // the final attempt, which would otherwise have disabled it.
+      // integration keeps running — even though this was a classified fault
+      // that would otherwise have disabled it.
       expect(row.enabled).toBe(true);
       expect(row.lastError).toBeNull();
       expect(mockRecordIncrement).not.toHaveBeenCalledWith(
@@ -483,9 +536,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect.anything(),
         expect.anything(),
       );
-      // The informational email still goes out, observable via its cooldown
-      // claim, so an unwritable failure is not a silent one.
-      expect(row.lastFailureNotificationSentAt).not.toBeNull();
+      // No email either: its "will retry at the next scheduled export" text is
+      // the only thing we can still vouch for, and the rethrow delivers that.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
     });
   });
 
@@ -1783,6 +1836,86 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         updatedIntegration.nextSyncAt.getTime() - now.getTime(),
       );
       expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
+    });
+
+    it("should coalesce a sub-second remainder instead of emitting a colliding chunk", async () => {
+      // Regression for the silent object-key collision: a caught-up run whose
+      // full-interval chunk ends only a sub-second before the frontier used to
+      // re-enqueue a tiny remainder chunk. Both keys truncate to the same
+      // wall-clock second, so the remainder overwrote the full window. Position
+      // lastSyncAt so the interval-capped maxTimestamp lands just below the
+      // frontier (remainder < BLOB_STORAGE_REMAINDER_COALESCE_MS): the run must
+      // be treated as caught up (schedule one interval out), not re-enqueued.
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const frequencyIntervalMs = 60 * 60 * 1000; // hourly
+      // gap = frontier - (minTimestamp + interval). Kept tiny (well under the
+      // coalesce threshold) so it stays below threshold even after the handler's
+      // own `now` advances a few ms past the test's.
+      const gapMs = 50;
+      const lastSyncAt = new Date(
+        now.getTime() -
+          BLOB_STORAGE_LAG_BUFFER_MS -
+          frequencyIntervalMs -
+          gapMs,
+      );
+
+      // A trace inside the full window so a real chunk is exported.
+      const trace = createTrace({
+        project_id: projectId,
+        timestamp: lastSyncAt.getTime() + frequencyIntervalMs / 2,
+        name: "Windowed Trace",
+      });
+      await createTracesCh([trace]);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          lastSyncAt,
+          compressed: false,
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.nextSyncAt || !updatedIntegration?.lastSyncAt) {
+        expect.fail("nextSyncAt and lastSyncAt should be set");
+      }
+
+      // Caught up: nextSyncAt is one interval past the exported boundary, far in
+      // the future — not the near-`now` value a catch-up re-enqueue would set.
+      expect(
+        updatedIntegration.nextSyncAt.getTime() - now.getTime(),
+      ).toBeGreaterThan(frequencyIntervalMs / 2);
+
+      // lastSyncAt advances only to the interval-capped boundary; the sub-second
+      // tail up to the frontier is deferred to the next scheduled run.
+      const frontier = now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS;
+      expect(updatedIntegration.lastSyncAt.getTime()).toBeLessThan(frontier);
+      expect(frontier - updatedIntegration.lastSyncAt.getTime()).toBeLessThan(
+        BLOB_STORAGE_REMAINDER_COALESCE_MS + 2000, // + handler-clock drift tolerance
+      );
     });
 
     it("should schedule normally when caught up", async () => {

@@ -219,7 +219,39 @@ describe("prepareOutlierSeries", () => {
       expect(tick.index).toBeGreaterThan(0);
       expect(tick.index).toBeLessThan(dense.length);
       expect(tick.label).toMatch(/^[A-Z][a-z]{2} \d{1,2}$/); // "MMM d"
+      expect(tick.x).toBeGreaterThanOrEqual(0);
+      expect(tick.x).toBeLessThanOrEqual(600);
     }
+  });
+
+  it("end-anchors a last-bin date so the label stays on-canvas", () => {
+    // 45 daily buckets in 450px → 10px slots, ticks every 11 bins. Epoch-aligned
+    // so a tick lands on the last bin: a start-anchored "MMM d" (~36px) would
+    // start at x=443 and clip off the svg ("Aug 11" → "Aug 1" / "Au").
+    const step = 86400;
+    const t0 = 0;
+    const n = 45;
+    const widthPx = 450;
+    const bins = Array.from({ length: n }, (_, i) =>
+      bin(t0 + i * 86400_000, 1),
+    );
+    const { dense, ticks } = prepareOutlierSeries({
+      bins,
+      metric: "cost",
+      fromMs: t0,
+      toMs: t0 + n * 86400_000,
+      stepSeconds: step,
+      widthPx,
+    });
+
+    expect(dense).toHaveLength(n);
+    const last = ticks[ticks.length - 1];
+    expect(last.index).toBe(n - 1);
+    const startX = last.index * (widthPx / n) + 3;
+    expect(startX + last.label.length * 6).toBeGreaterThan(widthPx);
+    expect(last.textAnchor).toBe("end");
+    expect(last.x).toBeLessThanOrEqual(widthPx);
+    expect(last.x).toBeGreaterThan(widthPx - 8);
   });
 
   it("aligns the grid to the epoch, not to `from`", () => {

@@ -5,7 +5,7 @@ import { type TableSelectionStoreState } from "@/src/components/table/table-sele
 type RowSelectionUpdater = Updater<RowSelectionState>;
 type BooleanUpdater = Updater<boolean>;
 
-export interface ExperimentsTableStoreState extends TableSelectionStoreState {
+interface ExperimentsTableStoreState extends TableSelectionStoreState {
   actions: TableSelectionStoreState["actions"] & {
     syncPageRows: (payload: {
       pageRowIds: string[];

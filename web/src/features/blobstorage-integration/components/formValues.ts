@@ -7,13 +7,13 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type BlobStorageIntegration,
   type ObservationFieldGroupFull,
+  type ExportSourceContext,
 } from "@langfuse/shared";
 import type {
   blobStorageIntegrationFormSchema,
   BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
 import { getExportSourceFormValue } from "@/src/features/analytics-integrations/exportSource";
-import { type ExportSourceContext } from "@langfuse/shared";
 
 // Pre-parse (input) shape of the form; zod defaults make some fields optional.
 export type BlobStorageFormValues = z.input<

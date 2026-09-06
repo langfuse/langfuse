@@ -37,6 +37,19 @@ _Before making any significant changes, please [open an issue](https://github.co
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 
+Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
+
+```bash
+pnpm run lint        # eslint; every package runs with --max-warnings 0, so a warning fails
+pnpm tc              # typecheck all packages
+pnpm exec knip       # unused files, exports and dependencies
+pnpm run test        # see "Running Unit Tests" below for the setup this needs
+```
+
+`lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
+
+If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one. `.agents/skills/pr-stack-workflow/SKILL.md` describes where to cut the slices and how to land them.
+
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Project Overview
@@ -117,7 +130,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.22.0
+- pnpm 12.3.1 as specified in `package.json`
 - Docker to run the database locally
 - Clickhouse client
 
@@ -185,9 +198,11 @@ PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
 Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
-`http://localhost:3000`), proof of the fix for user-visible changes
-(screenshot, video, or before/after), and one PR comment on what a reviewer
-should doubt.
+`http://localhost:3000`), and proof of the fix for user-visible changes
+posted on the GitHub PR (screenshot, video, or before/after — not only in
+chat). Cursor agents that comment as Cursor may also leave one PR comment
+with that proof plus what a reviewer should doubt; Claude Code and other
+tools that comment as the human author must not.
 Prefer one or two human actions at a time; if you need more, keep each
 point simple and super readable. Preview data and any attached artifacts
 must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
@@ -548,6 +563,8 @@ To export the respective `openapi.yml` files which power the online API referenc
 ```sh
 pnpm run openapi:export
 ```
+
+Commit the updated files under `web/public/generated/`. CI re-runs this export on PRs that touch `fern/**` or the served specs and fails if they drift (`pnpm run openapi:check`).
 
 This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 

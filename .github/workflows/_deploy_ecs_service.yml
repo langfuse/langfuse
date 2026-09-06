@@ -65,6 +65,7 @@ jobs:
           VARS_SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           VARS_SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }}
+          VARS_NEXT_PUBLIC_ASSET_PREFIX: ${{ vars.NEXT_PUBLIC_ASSET_PREFIX }}
           SECRETS_SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           docker build \
@@ -84,6 +85,7 @@ jobs:
             --build-arg SENTRY_ORG=${VARS_SENTRY_ORG} \
             --build-arg SENTRY_PROJECT=${VARS_SENTRY_PROJECT} \
             --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE} \
+            --build-arg NEXT_PUBLIC_ASSET_PREFIX=${VARS_NEXT_PUBLIC_ASSET_PREFIX} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition

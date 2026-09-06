@@ -16,7 +16,7 @@ import { usePlan } from "@/src/features/entitlements/hooks";
 import { isCloudPlan } from "@langfuse/shared";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type SupportType = "in-app-support" | "custom" | "community";
 

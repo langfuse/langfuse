@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItemWithSecondaryAction,
   DropdownMenuTrigger,
+  DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
@@ -25,7 +26,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -93,6 +93,9 @@ export default function Dataset() {
     if (isExperimentsBetaActive) {
       utils.experiments.all.invalidate();
       utils.experiments.countAll.invalidate();
+      // The empty-window fallback is its own query, and a new run belongs in
+      // it: without this it keeps serving its cached list.
+      utils.experiments.mostRecent.invalidate();
     } else {
       utils.datasets.runsByDatasetId.invalidate();
       utils.datasets.baseRunDataByDatasetId.invalidate();
@@ -110,24 +113,31 @@ export default function Dataset() {
     });
   };
 
-  const hasEvalReadAccess = useHasProjectAccess({
+  const hasEvaluationRuleReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
 
-  const hasEvalWriteAccess = useHasProjectAccess({
+  const hasEvaluationRuleWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
-  const evalTemplates = api.evals.latestTemplates.useQuery({
+  const hasEvaluatorReadAccess = useHasProjectAccess({
     projectId,
+    scope: "evaluator:read",
   });
+
+  const evalTemplates = api.evals.latestTemplates.useQuery(
+    { projectId },
+    { enabled: !isExperimentsBetaActive && hasEvaluatorReadAccess },
+  );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: hasEvalReadAccess && !!datasetId,
+      enabled:
+        !isExperimentsBetaActive && hasEvaluationRuleReadAccess && !!datasetId,
     },
   );
 
@@ -147,7 +157,6 @@ export default function Dataset() {
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
   });
-
   // Callback for preprocessing evaluator form values
   // For experiment evaluators, we only run on new data (not historic)
   const preprocessFormValues = useCallback((values: any) => values, []);
@@ -201,19 +210,6 @@ export default function Dataset() {
                   />
                 </DialogContent>
               </Dialog>
-
-              {hasEvalReadAccess && (
-                <div className="w-fit">
-                  <TemplateSelector
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    evalTemplates={evalTemplates.data?.templates ?? []}
-                    onConfigureTemplate={handleConfigureEvaluator}
-                    onSelectEvaluator={handleSelectEvaluator}
-                    disabled={!hasEvalWriteAccess}
-                  />
-                </div>
-              )}
             </>
           ),
         }}
@@ -279,7 +275,7 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
-            {hasEvalReadAccess && (
+            {hasEvaluationRuleReadAccess && hasEvaluatorReadAccess ? (
               <div className="w-fit">
                 <TemplateSelector
                   projectId={projectId}
@@ -287,10 +283,10 @@ export default function Dataset() {
                   evalTemplates={evalTemplates.data?.templates ?? []}
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
-                  disabled={!hasEvalWriteAccess}
+                  disabled={!hasEvaluationRuleWriteAccess}
                 />
               </div>
-            )}
+            ) : null}
 
             <DatasetAnalytics
               key="dataset-analytics"

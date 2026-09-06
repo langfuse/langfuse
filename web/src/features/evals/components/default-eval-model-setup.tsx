@@ -1,20 +1,22 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-style-props */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { CardContent } from "@/src/components/ui/card";
-import { Card } from "@/src/components/ui/card";
+import { CardContent, Card } from "@/src/components/ui/card";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
-import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
+import {
+  DialogContent,
+  DialogTrigger,
+  Dialog,
+} from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
 import {
   Popover,

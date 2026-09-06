@@ -477,6 +477,128 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("F. drops browser-extension dynamic import() failures (no stack, so denyUrls misses them)", () => {
+    // Real shape (LANGFUSE-5ZS): Chrome TypeError logged via console.error when
+    // an extension's own import() fails. No stack frames, so denyUrls (which
+    // matches frame filenames) never fires. captureConsoleIntegration then
+    // mints a new fingerprint per extension-id + hashed asset.
+    const consoleCapturedExtensionImportFailure = (
+      moduleUrl: string,
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: `Failed to fetch dynamically imported module: ${moduleUrl}`,
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops a Chrome extension module-load TypeError (LANGFUSE-5ZS)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/assets/content-end.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same failure as a message event (TypeError prefix, no exception)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "TypeError: Failed to fetch dynamically imported module: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/assets/content-end.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the Firefox / Safari / Edge extension-protocol siblings", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "moz-extension://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/content.js",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "safari-extension://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/content.js",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "ms-browser-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/content.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("G. drops Android WebView Java-bridge listener failures", () => {
+    // Real shape (LANGFUSE-60G): Chrome Mobile WebView throws Chromium's
+    // `Error invoking <method>: Java bridge method invocation error` from a
+    // host-app `@JavascriptInterface` during `unload`. Sentry's
+    // addEventListener wrap captures it — stack is SDK wrap + anonymous
+    // `batch` frames, no Langfuse frames.
+    const webViewJavaBridgeEvent = (
+      value: string,
+      mechanismType = "auto.browser.browserapierrors.addEventListener",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-60G addEventListener batch-bridge error", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking batch: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same Chromium wording for another Java method name", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking onPause: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global browser handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking batch: Java bridge method invocation error",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -561,6 +683,47 @@ describe("isDenylistedNoiseEvent", () => {
           exceptionEvent(
             "Cannot read properties of undefined (reading 'map')",
             "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party chunk dynamic-import failure (stale deploy / CDN)", () => {
+      // Same Chrome message as LANGFUSE-5ZS, but the URL is ours. This is a
+      // real client failure (stale tab after deploy, truncated download) and
+      // must still reach Sentry.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: http://localhost:3000/_next/static/chunks/app.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party chunk failure even if an extension URL appears later in the text", () => {
+      // The protocol must be on the FAILED module URL, not anywhere in the
+      // event text (query/fragment/trailing console noise).
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js?ref=chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x.js",
           ),
         ),
       ).toBe(false);
@@ -714,6 +877,71 @@ describe("isDenylistedNoiseEvent", () => {
           ),
         ),
       ).toBe(false);
+    });
+
+    it("keeps an app-captured Java-bridge phrase (not a Sentry browser wrap)", () => {
+      // Mechanism guard: captureException / capture_console must still surface
+      // if our code ever throws or logs this wording.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Error invoking batch: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Error invoking batch: Java bridge method invocation error",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a listener TypeError that is not the Chromium Java-bridge wording", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes the Java-bridge suffix", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Failed to persist playground batch: Java bridge method invocation error",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {

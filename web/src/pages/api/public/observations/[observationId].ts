@@ -22,6 +22,7 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observation",
+      action: "traces:read",
       allowInAppAgentKey: true,
       rateLimitResource: "public-api-legacy",
       querySchema: GetObservationV1Query,
@@ -70,7 +71,9 @@ export default withMiddlewares(
                 ],
               },
               include: {
-                Price: true,
+                Price: {
+                  where: { pricingTier: { isDefault: true } },
+                },
               },
               orderBy: {
                 projectId: {

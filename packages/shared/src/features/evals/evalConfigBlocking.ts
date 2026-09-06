@@ -23,32 +23,36 @@ export type EvaluatorExecutionCountsByEvaluatorId = Record<
   EvaluatorExecutionStatusCount[]
 >;
 
-type BlockStateLike = {
+/**
+ * Run state of anything that decides whether an evaluation happens: an
+ * evaluation rule, or the legacy job configuration it replaced.
+ */
+type EvalRuleRunState = {
   status: JobConfigState;
   blockedAt?: Date | null;
 };
 
-export const JobConfigExecutionMode = z.enum(["LIVE", "MANUAL"]);
-export type JobConfigExecutionMode = z.infer<typeof JobConfigExecutionMode>;
+export const EvalExecutionMode = z.enum(["LIVE", "MANUAL"]);
+export type EvalExecutionMode = z.infer<typeof EvalExecutionMode>;
 
-export function isJobConfigBlocked(config: Pick<BlockStateLike, "blockedAt">) {
-  return config.blockedAt != null;
+export function isEvalRuleBlocked(rule: Pick<EvalRuleRunState, "blockedAt">) {
+  return rule.blockedAt != null;
 }
 
-export function isJobConfigExecutable(config: BlockStateLike) {
-  return config.status === JobConfigState.ACTIVE && !isJobConfigBlocked(config);
+export function isEvalRuleExecutable(rule: EvalRuleRunState) {
+  return rule.status === JobConfigState.ACTIVE && !isEvalRuleBlocked(rule);
 }
 
-export function isJobConfigExecutableForExecutionMode(
-  config: BlockStateLike,
-  executionMode?: JobConfigExecutionMode,
+export function canRunEvalRule(
+  rule: EvalRuleRunState,
+  executionMode?: EvalExecutionMode,
 ) {
   if (executionMode === "MANUAL") {
-    // Manual batch runs bypass only the live-traffic toggle, not blocked configs.
-    return !isJobConfigBlocked(config);
+    // Manual batch runs bypass only the live-traffic toggle, not blocked rules.
+    return !isEvalRuleBlocked(rule);
   }
 
-  return isJobConfigExecutable(config);
+  return isEvalRuleExecutable(rule);
 }
 
 type EvaluatorBlockMetadata = {
@@ -108,12 +112,30 @@ export function getEvaluatorBlockMetadata(
   return EVALUATOR_BLOCK_METADATA[reason];
 }
 
+const DEFINITION_UPDATE_RECOVERABLE_BLOCK_REASONS: ReadonlySet<EvaluatorBlockReason> =
+  new Set([
+    EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+    EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+    EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID,
+    EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE,
+  ]);
+
+export function isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+  reason: EvaluatorBlockReason | null | undefined,
+) {
+  return reason
+    ? DEFINITION_UPDATE_RECOVERABLE_BLOCK_REASONS.has(reason)
+    : false;
+}
+
 export function getEvaluatorBlockResolutionPath(params: {
   projectId: string;
   blockReason: EvaluatorBlockReason;
   templateId?: string | null;
+  /** Evaluator v2 identity; takes precedence over the legacy template link. */
+  evaluatorId?: string | null;
 }): string {
-  const { projectId, blockReason, templateId } = params;
+  const { projectId, blockReason, templateId, evaluatorId } = params;
 
   if (
     blockReason === EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID ||
@@ -122,6 +144,10 @@ export function getEvaluatorBlockResolutionPath(params: {
     blockReason === EvaluatorBlockReason.LLM_CONNECTION_MISSING
   ) {
     return `/project/${projectId}/settings/llm-connections`;
+  }
+
+  if (evaluatorId) {
+    return `/project/${projectId}/evals/v2/${evaluatorId}`;
   }
 
   if (templateId) {

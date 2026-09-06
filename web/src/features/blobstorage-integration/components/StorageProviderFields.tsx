@@ -8,7 +8,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Select,
@@ -126,7 +126,7 @@ export const StorageProviderFields = ({
               <FormDescription>
                 {integrationType === "S3"
                   ? "AWS region (e.g., us-east-1)"
-                  : "S3 compatible storage region"}
+                  : "S3 compatible storage region (e.g. europe-west1, auto)"}
               </FormDescription>
               <FormMessage />
             </FormItem>

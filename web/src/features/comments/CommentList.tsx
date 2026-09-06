@@ -1,11 +1,7 @@
-/* eslint-disable @repo/no-style-props */
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Form,
   FormControl,
@@ -26,7 +22,7 @@ import {
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -538,15 +534,9 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <KeyboardShortcut
-                    className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50"
-                    keys={
-                      typeof navigator !== "undefined" &&
-                      navigator.userAgent.includes("Macintosh")
-                        ? ["⌘", "F"]
-                        : ["Ctrl", "F"]
-                    }
-                  />
+                  <span className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 md:inline-flex">
+                    <KeyboardShortcut keys={["Mod", "F"]} />
+                  </span>
                 )}
               </div>
             </div>
@@ -575,18 +565,13 @@ export function CommentList({
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src={comment.authorUserImage ?? undefined} />
-                  <AvatarFallback className="text-xs">
-                    {comment.authorUserName
-                      ? comment.authorUserName
-                          .split(" ")
-                          .map((word) => word[0])
-                          .slice(0, 2)
-                          .concat("")
-                      : (comment.authorUserId ?? "U")}
-                  </AvatarFallback>
-                </Avatar>
+                <Avatar
+                  size="sm"
+                  src={comment.authorUserImage ?? undefined}
+                  displayName={
+                    comment.authorUserName ?? comment.authorUserId ?? "User"
+                  }
+                />
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
@@ -804,7 +789,9 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <KeyboardShortcut keys={["⌘", "Enter"]} />
+                          <span className="hidden md:inline-flex">
+                            <KeyboardShortcut keys={["Mod", "Enter"]} />
+                          </span>
                         </div>
                       </HoverCardContent>
                     </HoverCard>

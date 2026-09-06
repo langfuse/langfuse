@@ -7,14 +7,7 @@ import {
   getCategoricalCategoryRuleViolations,
   getMinimumCategoricalCategoriesMessage,
   ScoreDataTypeEnum,
-  ZodModelConfig,
 } from "@langfuse/shared";
-
-const selectedModelSchema = z.object({
-  provider: z.string().min(1, "Select a provider"),
-  model: z.string().min(1, "Select a model"),
-  modelParams: ZodModelConfig,
-});
 
 const categoricalOptionSchema = z.object({
   value: z.string().trim().min(1, "Enter a category value"),
@@ -125,7 +118,3 @@ export const templateFormSchema = z
       }
     }
   });
-
-export type TemplateFormSchema = z.infer<typeof templateFormSchema>;
-
-export { selectedModelSchema, categoricalOptionSchema };

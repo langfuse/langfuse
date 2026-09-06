@@ -1,4 +1,5 @@
 import { JobExecutionStatus } from "@prisma/client";
+import type { EvalExecutionContext } from "@langfuse/shared";
 import {
   logger,
   traceException,
@@ -16,6 +17,7 @@ export type EvalExecutionResult = {
   scores: CodeEvalScoreWithName[];
   executionTraceId: string;
   metadata: Record<string, string>;
+  evaluationContext: EvalExecutionContext;
 };
 
 export async function completeEvalExecution({
@@ -43,6 +45,7 @@ export async function completeEvalExecution({
     environment,
     executionTraceId: result.executionTraceId,
     executionMetadata: result.metadata,
+    evaluationContext: result.evaluationContext,
   });
   const [firstScorePayload] = scoreWritePayloads;
 

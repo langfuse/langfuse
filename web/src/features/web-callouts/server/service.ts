@@ -28,7 +28,7 @@ import {
   type WebCalloutEndpoint,
 } from "@langfuse/shared/src/db";
 
-export const WEB_CALLOUT_TIMEOUT_MS = 5_000;
+const WEB_CALLOUT_TIMEOUT_MS = 5_000;
 const WEB_CALLOUT_MAX_REDIRECTS = 10;
 
 type StoredEndpoint = WebCalloutEndpoint;

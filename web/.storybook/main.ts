@@ -1,26 +1,44 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 
-import { basename, dirname, resolve } from "path";
+import { dirname, resolve } from "path";
 
 import { fileURLToPath } from "url";
 import {
   flatStoryTitlesPlugin,
   flattenStoryIndexTitles,
+  type StoryTitleGroup,
 } from "./storybook-flat-story-titles";
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
-const DESIGN_COMPONENT_STORIES = [
-  "Checkbox/Checkbox",
-  "Codeblock/Codeblock",
-  "Dropzone/Dropzone",
-  "LangfuseIcon/LangfuseIcon",
-  "LangfuseLogo/LangfuseLogo",
-  "Progress/Progress",
-  "Spinner/Spinner",
-  "Switch/Switch",
-] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
+// Directories that get their own sidebar section instead of the flat
+// Playground default. This is not a `stories` entry with a `titlePrefix`
+// because story titles are injected into each meta — see StoryTitleGroup.
+// Only stories inside a configured directory can appear under its feature;
+// explicit story titles are rejected by the title plugin.
+const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
+  {
+    directory: "src/components/design-system/table/columns",
+    titlePrefix: "Design/Components/Table/Columns",
+  },
+  {
+    directory: "src/components/design-system/table/components",
+    titlePrefix: "Design/Components/Table/Cells",
+  },
+  {
+    directory: "src/features/evals/v2/components",
+    titlePrefix: "Features/Evaluations",
+  },
+  {
+    directory: "src/features/in-app-agent/components",
+    titlePrefix: "Features/In-App Agent",
+  },
+  {
+    directory: "src/features/traces/components",
+    titlePrefix: "Features/Traces",
+  },
+];
 const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Color",
   "ThemeTokens/Typography",
@@ -40,7 +58,7 @@ const config: StorybookConfig = {
   stories: [
     // Curated design-system documentation shown under Design.
     {
-      directory: "../storybook/docs",
+      directory: "./docs",
       files: "**/*.mdx",
       titlePrefix: "Design",
     },
@@ -50,30 +68,27 @@ const config: StorybookConfig = {
       files: "**/*.mdx",
       titlePrefix: "Playground/Docs",
     },
-    // Reviewed components that are part of the design-system reference.
-    ...DESIGN_COMPONENT_STORIES.map((storyPath) => ({
+    // Components in the design-system are automatically shown under Design.
+    {
       directory: "../src/components/design-system",
-      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      files: `**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
-    })),
+    },
     // Design-system reference pages shown directly under Design.
     ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
-      directory: "../src/components/design-system",
+      directory: "./docs",
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design",
     })),
     // All other component stories belong to the flat Playground by default.
     // Outside components/design-system the exclusion is by path, so a generic
     // basename like Charts.stories.tsx elsewhere still reaches the Playground;
-    // inside design-system the curated names are negated by basename, which is
-    // safe there because those files are exactly the curated ones. Disjoint
-    // globs because !(...) matches a single path segment — which also means
+    // the design-system directory is excluded in full. Disjoint globs because
+    // !(...)
+    // matches a single path segment — which also means
     // `!(dir)/**` requires at least one leading segment, so files sitting
     // directly in the entry's directory need their own `*.stories` entry
-    // (hence the depth-one entries below). Caveat: picomatch
-    // treats !(Name) as a prefix negation here, so a design-system story whose
-    // basename merely starts with a curated name (e.g. ColorPicker) would be
-    // skipped too; give such a story a non-colliding basename or its own entry.
+    // (hence the depth-one entries below).
     {
       directory: "../src",
       files: `*.stories.${STORY_EXTENSIONS}`,
@@ -94,15 +109,11 @@ const config: StorybookConfig = {
       files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
-    {
-      directory: "../src/components/design-system",
-      files: `**/!(${[...DESIGN_COMPONENT_STORIES, ...DESIGN_REFERENCE_STORIES]
-        .map((storyPath) => basename(storyPath))
-        .join("|")}).stories.${STORY_EXTENSIONS}`,
-      titlePrefix: "Playground",
-    },
   ],
-  experimental_indexers: flattenStoryIndexTitles,
+  experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
+  features: {
+    changeDetection: true,
+  },
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),
@@ -122,7 +133,10 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
-    viteConfig.plugins = [flatStoryTitlesPlugin, ...(viteConfig.plugins ?? [])];
+    viteConfig.plugins = [
+      flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
+      ...(viteConfig.plugins ?? []),
+    ];
 
     const sharedSrc = resolve(
       dirname(fileURLToPath(import.meta.url)),

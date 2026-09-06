@@ -48,6 +48,13 @@ describe("shouldKeepPeekOpenOnOutsideInteraction", () => {
     expect(shouldKeepPeekOpenOnOutsideInteraction(target, IGNORED)).toBe(true);
   });
 
+  it("keeps open when interacting with a toast overlay", () => {
+    // Version-update banner and Sonner toasts portal into the `toast` layer.
+    // Dismissing one must not count as a peek click-outside.
+    const target = targetWith({}, { "data-layer": "toast" });
+    expect(shouldKeepPeekOpenOnOutsideInteraction(target, IGNORED)).toBe(true);
+  });
+
   it("keeps open for a selection checkbox even outside any row", () => {
     expect(
       shouldKeepPeekOpenOnOutsideInteraction(

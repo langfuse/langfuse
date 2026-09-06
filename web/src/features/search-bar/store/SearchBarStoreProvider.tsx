@@ -5,7 +5,7 @@ import {
   type SearchBarStore,
   type SearchBarStoreState,
 } from "@/src/features/search-bar/store/searchBarStore";
-import { type SearchCommitTrigger } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { type SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 
 type SearchBarContextValue = {
   store: SearchBarStore;
@@ -13,7 +13,7 @@ type SearchBarContextValue = {
    * truth). Returns the canonical committed text on success, or null (and
    * reveals diagnostics) when the draft is invalid. `trigger` records how the
    * commit was initiated for analytics. */
-  commit: (trigger?: SearchCommitTrigger) => string | null;
+  commit: SearchCommit;
 };
 
 const SearchBarContext = createContext<SearchBarContextValue | null>(null);
@@ -25,7 +25,7 @@ export function SearchBarStoreProvider({
 }: {
   children: ReactNode;
   store: SearchBarStore;
-  commit: (trigger?: SearchCommitTrigger) => string | null;
+  commit: SearchCommit;
 }) {
   const value = useMemo(() => ({ store, commit }), [store, commit]);
   return (
@@ -53,8 +53,6 @@ export function useSearchBarStore<TValue>(
   return useStore(useSearchBarContext().store, selector);
 }
 
-export function useSearchBarCommit(): (
-  trigger?: SearchCommitTrigger,
-) => string | null {
+export function useSearchBarCommit(): SearchCommit {
   return useSearchBarContext().commit;
 }

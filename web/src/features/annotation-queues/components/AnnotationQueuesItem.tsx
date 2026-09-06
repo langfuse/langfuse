@@ -1,5 +1,5 @@
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { AnnotationQueueItemPage } from "@/src/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
 import Page from "@/src/components/layouts/page";
@@ -24,6 +24,7 @@ export const AnnotationQueuesItem = ({
       projectId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(annotationQueueId),
       trpc: {
         context: {
           skipBatch: true,

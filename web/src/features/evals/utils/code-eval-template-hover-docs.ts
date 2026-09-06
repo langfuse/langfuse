@@ -65,7 +65,7 @@ class ToolCall:
 A tool call recorded on the observation. arguments is the parsed
 argument object when the recorded value was valid JSON.`;
 
-export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
+const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext): EvaluationResult
 
 The TypeScript function Langfuse executes for each matched target observation.`,
@@ -161,7 +161,7 @@ The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs &
   Record<TypeScriptCodeEvalCompletionName, string>;
 
-export const PYTHON_CODE_EVAL_HOVER_DOCS = {
+const PYTHON_CODE_EVAL_HOVER_DOCS = {
   evaluate: `def evaluate(ctx: EvaluationContext) -> EvaluationResult
 
 The Python function Langfuse executes for each matched target observation.`,

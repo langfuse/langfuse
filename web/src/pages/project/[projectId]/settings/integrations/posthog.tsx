@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Select,
@@ -36,7 +36,7 @@ import {
   type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
@@ -357,10 +357,12 @@ const PostHogIntegrationSettings = ({
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
-            <AlertTitle>Saved export source is no longer available</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>
+              Saved export source is no longer available
+            </Alert.Title>
+            <Alert.Description>
               {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
         <FormField

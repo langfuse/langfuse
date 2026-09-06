@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MediaTag } from "./MediaTag";
+import { MediaTag } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
@@ -35,11 +35,16 @@ function LangfuseRefMediaTag({
   descriptor: LangfuseRefDescriptor;
 }) {
   const [armed, setArmed] = useState(false);
+  const [open, setOpen] = useState(false);
   const { status, url, contentLength } = useResolvedMedia(descriptor, {
     enabled: armed,
   });
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) setArmed(true);
+  };
 
   return (
     <MediaTag
@@ -55,9 +60,8 @@ function LangfuseRefMediaTag({
       }
       openActionLabel={isOversizedField ? "Open original" : undefined}
       intent={isOversizedField ? "attachment" : undefined}
-      onOpenChange={(open) => {
-        if (open) setArmed(true);
-      }}
+      open={open}
+      onOpenChange={handleOpenChange}
     />
   );
 }

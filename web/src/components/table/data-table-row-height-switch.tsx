@@ -13,7 +13,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 
-const heightOptions = [
+/** Exported so the merged "Table settings" popover offers the same options. */
+export const ROW_HEIGHT_OPTIONS = [
   { id: "s", label: "Small", icon: <Rows4 /> },
   { id: "m", label: "Medium", icon: <Rows3 /> },
   { id: "l", label: "Large", icon: <Rows2 /> },
@@ -25,7 +26,7 @@ const defaultHeights: Record<RowHeight, string> = {
   l: "h-64",
 };
 
-export type RowHeight = (typeof heightOptions)[number]["id"];
+export type RowHeight = (typeof ROW_HEIGHT_OPTIONS)[number]["id"];
 export type CustomHeights = Record<RowHeight, string>;
 
 /**
@@ -34,7 +35,7 @@ export type CustomHeights = Record<RowHeight, string>;
  * and Large have room for far more text than that (LFE-14586). Sized to fill a
  * Large row even at a generously widened column.
  */
-export const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
+const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
 
 /** Undefined for Small, which keeps the default truncated read. */
 export const getRowHeightIOCharLimit = (rowHeight: RowHeight) =>
@@ -63,9 +64,13 @@ export function useRowHeightLocalStorage(
 export const DataTableRowHeightSwitch = ({
   rowHeight,
   setRowHeight,
+  tableName = "unknown",
+  isV4 = false,
 }: {
   rowHeight: RowHeight;
   setRowHeight: (e: RowHeight) => void;
+  tableName?: string;
+  isV4?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   return (
@@ -79,7 +84,7 @@ export const DataTableRowHeightSwitch = ({
         <DropdownMenuContent>
           <DropdownMenuLabel>Row height</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {heightOptions.map(({ id, label }) => (
+          {ROW_HEIGHT_OPTIONS.map(({ id, label }) => (
             <DropdownMenuCheckboxItem
               key={id}
               checked={rowHeight === id}
@@ -88,6 +93,8 @@ export const DataTableRowHeightSwitch = ({
                 e.preventDefault();
                 capture("table:row_height_switch_select", {
                   rowHeight: id,
+                  tableName,
+                  isV4,
                 });
                 setRowHeight(id);
               }}

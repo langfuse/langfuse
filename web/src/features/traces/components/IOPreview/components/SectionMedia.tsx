@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 

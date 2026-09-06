@@ -3,6 +3,19 @@
 import { getScoreFilterConfig, observationScopeFilter } from "./scores-config";
 
 describe("getScoreFilterConfig", () => {
+  it("offers score metadata in the filter sidebar", () => {
+    const config = getScoreFilterConfig();
+
+    expect(config.columnDefinitions).toContainEqual(
+      expect.objectContaining({ id: "metadata", type: "stringObject" }),
+    );
+    expect(config.facets).toContainEqual({
+      type: "stringKeyValue",
+      column: "metadata",
+      label: "Metadata",
+    });
+  });
+
   it("omits sidebar facets for hidden score columns", () => {
     const config = getScoreFilterConfig([
       "traceId",

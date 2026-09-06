@@ -58,6 +58,7 @@ export default [
       ...reactHooksPlugin.configs.recommended.rules,
       ...nextPlugin.configs["core-web-vitals"].rules,
       "import/no-anonymous-default-export": "warn",
+      "import/no-duplicates": ["error", { "prefer-inline": true }],
       "react/no-unknown-property": "off",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
@@ -166,6 +167,17 @@ export default [
       ],
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
+    },
+  },
+  {
+    name: "langfuse/next/tests-and-stories",
+    files: [
+      "**/*.test.{ts,tsx}",
+      "**/*.story.{ts,tsx}",
+      "**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": "off",
     },
   },
 ];

@@ -17,7 +17,12 @@
 // `../lib/filter-state-to-query.ts` (the reverse direction), so the two cannot
 // diverge.
 
-import { FIELDS, SCORE_COLUMNS, type FieldDef } from "../lib/fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  SCORE_COLUMNS,
+  type FieldDef,
+  type FieldRegistry,
+} from "../lib/fields";
 
 /** The flat-FilterState `type`, operators, and value shape a field lowers to. */
 type FilterSpec = {
@@ -88,8 +93,13 @@ function fieldCatalogLine(field: FieldDef): string {
  * managed-prompt compile path (`{{catalog}}` in the Langfuse-hosted prompt)
  * — both must see the identical catalog text.
  */
-export function buildFieldCatalog(): string {
-  return FIELDS.map(fieldCatalogLine).join("\n");
+export function buildFieldCatalog(
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
+  return registry.fields
+    .filter((field) => field.directFilter !== false)
+    .map(fieldCatalogLine)
+    .join("\n");
 }
 
 /**
@@ -98,8 +108,11 @@ export function buildFieldCatalog(): string {
  * — shared verbatim by the code-built prompt and the `{{nullable_ids}}`
  * managed-prompt variable.
  */
-export function nullableFieldIds(): string {
-  return FIELDS.filter((f) => f.nullable)
+export function nullableFieldIds(
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
+  return registry.fields
+    .filter((f) => f.nullable)
     .map((f) => f.id)
     .join(", ");
 }
@@ -134,9 +147,31 @@ export function nullableFieldIds(): string {
  * Langfuse); only the registry-derived catalog/nullable-ids stay identical
  * across both, via `buildFieldCatalog` / `nullableFieldIds`.
  */
-export function buildFilterSystemPrompt(currentDatetime: string): string {
-  const catalog = buildFieldCatalog();
-  const nullableIds = nullableFieldIds();
+export function buildFilterSystemPrompt(
+  currentDatetime: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
+  const catalog = buildFieldCatalog(registry);
+  const nullableIds = nullableFieldIds(registry);
+
+  if (registry.id === "evaluationRules" || registry.id === "ruleSamples") {
+    return `You generate observation filters for a Langfuse evaluation rule.
+Respond with ONLY a JSON array of flat FilterState objects. Use only canonical
+columns from this catalog and only the documented type/operator/value shape:
+
+${catalog}
+
+Metadata uses {"type":"stringObject","column":"metadata","key":"<key>","operator":"="|"contains"|"does not contain"|"starts with"|"ends with","value":"<string>"}.
+Nullable columns (${nullableIds}) use type "null", operator "is null" or "is not null", and value "".
+Tags use the canonical "tags" column. Never emit full-text search, score filters,
+time-range filters, or a column not present in the catalog. Prefer observed values
+and metadata keys when supplied. Return [] when the request has no concrete match.
+
+When current filters are supplied, return the complete updated filter set: keep
+existing filters unless the request explicitly removes or contradicts them.
+
+Current datetime: ${currentDatetime}`;
+  }
 
   return `## Role
 

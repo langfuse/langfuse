@@ -14,8 +14,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ZodError } from "zod";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import {
   formatErrorForUser,
   wrapErrorHandling,

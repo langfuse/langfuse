@@ -10,19 +10,20 @@ import { ObservationType } from "@langfuse/shared";
 
 import { ElkGraphRenderer } from "./ElkGraphRenderer";
 import { GraphViewModeSwitch } from "./GraphViewModeSwitch";
-import { type AgentGraphDataResponse, type GraphViewMode } from "../types";
+import {
+  type AgentGraphDataResponse,
+  type GraphViewMode,
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
+  LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
+} from "../types";
 import { buildStepData } from "../buildStepData";
 import {
   buildGraphFromStepData,
   transformLanggraphToGeneralized,
 } from "../buildGraphCanvasData";
 import { buildExpandedGraph } from "../buildExpandedGraph";
-import {
-  LANGFUSE_START_NODE_NAME,
-  LANGFUSE_END_NODE_NAME,
-  LANGGRAPH_START_NODE_NAME,
-  LANGGRAPH_END_NODE_NAME,
-} from "../types";
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];

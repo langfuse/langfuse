@@ -282,7 +282,6 @@ class BillingService {
           idempotencyKey,
           opId,
           userId: this.ctx.session.user?.id,
-          userEmail: this.ctx.session.user?.email,
         });
         await client.subscriptionSchedules.release(
           schedule.id,
@@ -408,7 +407,6 @@ class BillingService {
                   "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.notExpanded",
                   {
                     userId: this.ctx.session.user?.id,
-                    userEmail: this.ctx.session.user?.email,
                     customerId: parsedOrg.cloudConfig?.stripe?.customerId,
                     subscriptionId:
                       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
@@ -425,7 +423,6 @@ class BillingService {
                   "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.deleted",
                   {
                     userId: this.ctx.session.user?.id,
-                    userEmail: this.ctx.session.user?.email,
                     customerId: parsedOrg.cloudConfig?.stripe?.customerId,
                     subscriptionId:
                       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
@@ -523,7 +520,6 @@ class BillingService {
               "StripeBillingService.getSubscriptionInfo:failed to check payment method",
               {
                 userId: this.ctx.session.user?.id,
-                userEmail: this.ctx.session.user?.email,
                 customerId:
                   typeof subscription.customer === "string"
                     ? subscription.customer
@@ -620,9 +616,18 @@ class BillingService {
    *
    * @param orgId Organization id
    * @param stripeProductId Stripe Product id for the subscription plan
+   * @param _opId Unused here, and deliberately so: Stripe checkout session
+   * creation sends no idempotency key today and this keeps that unchanged. The
+   * parameter exists only so `cloudBillingRouter` can forward `opId` across the
+   * provider union, where the ClickHouse Billing path does key its request on
+   * it.
    * @returns Redirect URL to Stripe Checkout
    */
-  async createCheckoutSession(orgId: string, stripeProductId: string) {
+  async createCheckoutSession(
+    orgId: string,
+    stripeProductId: string,
+    _opId?: string,
+  ) {
     return await instrumentAsync(
       { name: "stripe.checkout.create", spanKind: SpanKind.CLIENT },
       async (span) => {
@@ -726,7 +731,6 @@ class BillingService {
           customerId: stripeCustomerId,
           productId: stripeProductId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
 
         try {
@@ -891,7 +895,6 @@ class BillingService {
             idempotencyKey: legacyUpdateKey,
             opId,
             userId: this.ctx.session.user?.id,
-            userEmail: this.ctx.session.user.email,
           });
           await client.subscriptions.update(
             stripeSubscriptionId,
@@ -937,7 +940,6 @@ class BillingService {
             orgId: parsedOrg.id,
             opId,
             userId: this.ctx.session.user.id,
-            userEmail: this.ctx.session.user.email,
           });
           await client.subscriptions.migrate(
             stripeSubscriptionId,
@@ -1003,7 +1005,6 @@ class BillingService {
             idempotencyKey: upgradeKey,
             opId,
             userId: this.ctx.session.user.id,
-            userEmail: this.ctx.session.user.email,
           });
           await client.subscriptions.update(
             stripeSubscriptionId,
@@ -1068,7 +1069,6 @@ class BillingService {
             idempotencyKey: createScheduleKey,
             opId,
             userId: this.ctx.session.user.id,
-            userEmail: this.ctx.session.user.email,
           },
         );
         const initialSchedule = await client.subscriptionSchedules.create(
@@ -1121,7 +1121,6 @@ class BillingService {
           idempotencyKey: updateScheduleKey,
           opId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
         await client.subscriptionSchedules.update(
           initialSchedule.id,
@@ -1219,7 +1218,6 @@ class BillingService {
           idempotencyKey: cancelKey,
           opId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
 
         try {
@@ -1238,7 +1236,6 @@ class BillingService {
               subscriptionId,
               orgId: parsedOrg.id,
               userId: this.ctx.session.user.id,
-              userEmail: this.ctx.session.user.email,
               idempotencyKey: cancelKey,
               error,
               stripeRequestId: error?.requestId,
@@ -1323,7 +1320,6 @@ class BillingService {
           idempotencyKey: reactivateKey,
           opId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
 
         try {
@@ -1437,7 +1433,6 @@ class BillingService {
           idempotencyKey: cancelNowKey,
           opId,
           userId: this.ctx.session.user?.id,
-          userEmail: this.ctx.session.user?.email,
         });
 
         try {
@@ -2019,7 +2014,6 @@ class BillingService {
           idempotencyKey,
           opId,
           userId: this.ctx.session.user?.id,
-          userEmail: this.ctx.session.user?.email,
         });
 
         try {
@@ -2036,7 +2030,6 @@ class BillingService {
             "StripeBillingService.applyPromotionCode:stripe.subscription.update.failed",
             {
               userId: this.ctx.session.user?.id,
-              userEmail: this.ctx.session.user?.email,
               customerId: subscription.customer,
               subscriptionId,
               orgId: parsedOrg.id,

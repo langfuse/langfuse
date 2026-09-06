@@ -3,8 +3,8 @@ import {
   SlackService,
   SLACK_BOT_SCOPES,
   parseSlackInstallationMetadata,
+  logger,
 } from "@langfuse/shared/src/server";
-import { logger } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";

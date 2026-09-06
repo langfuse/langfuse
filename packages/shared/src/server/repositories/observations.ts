@@ -333,6 +333,7 @@ export const getObservationByIdFromObservationsTable = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -342,6 +343,7 @@ export const getObservationByIdFromObservationsTable = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -352,6 +354,7 @@ export const getObservationByIdFromObservationsTable = async ({
     projectId,
     fetchWithInputOutput,
     startTime,
+    startTimeLowerBound,
     type,
     traceId,
     renderingProps,
@@ -442,6 +445,7 @@ const getObservationByIdInternal = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -451,6 +455,7 @@ const getObservationByIdInternal = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -496,6 +501,7 @@ const getObservationByIdInternal = async ({
   WHERE id = {id: String}
   AND project_id = {projectId: String}
   ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ${startTimeLowerBound ? `AND start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
   ${type ? `AND type = {type: String}` : ""}
   ${traceId ? `AND trace_id = {traceId: String}` : ""}
   ORDER BY event_ts desc
@@ -507,6 +513,12 @@ const getObservationByIdInternal = async ({
       projectId,
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
+      ...(startTimeLowerBound
+        ? {
+            startTimeLowerBound:
+              convertDateToClickhouseDateTime(startTimeLowerBound),
+          }
         : {}),
       ...(traceId ? { traceId } : {}),
     },
@@ -523,6 +535,16 @@ export type ObservationTableQuery = {
   searchType?: TracingSearchType[];
   limit?: number;
   offset?: number;
+  /**
+   * Uses the stable observation tuple instead of OFFSET pagination. The flag
+   * is required because the first cursor page does not carry a cursor yet.
+   */
+  cursorPagination?: boolean;
+  cursor?: {
+    lastStartTimeTo: Date;
+    lastTraceId: string;
+    lastId: string;
+  };
   selectIOAndMetadata?: boolean;
   renderingProps?: RenderingProps;
   /**
@@ -597,7 +619,9 @@ export const getObservationsTableWithModelData = async (
             OR: [{ projectId: opts.projectId }, { projectId: null }],
           },
           include: {
-            Price: true,
+            Price: {
+              where: { pricingTier: { isDefault: true } },
+            },
           },
         })
       : [],
@@ -1743,7 +1767,7 @@ const buildObservationsForBlobStorageExportQuery = (
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
-    AND start_time <= {maxTimestamp: DateTime64(3)}
+    AND start_time < {maxTimestamp: DateTime64(3)}
     ${
       skipDedup
         ? ""
@@ -2037,7 +2061,7 @@ const getEvaluatorCostMetricsByIds = async <
       WHERE project_id = {projectId: String}
         AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
         AND type = 'GENERATION'
-        AND start_time > today() - 7
+        AND start_time > now() - INTERVAL 7 DAY
       GROUP BY metadata['job_configuration_id']
     `,
     params: {

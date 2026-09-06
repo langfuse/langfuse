@@ -48,7 +48,11 @@ export default function ScoresPage() {
       {showOnboarding ? (
         <ScoresOnboarding />
       ) : (
-        <ScoresTable projectId={projectId} showControlsInPageHeader />
+        <ScoresTable
+          projectId={projectId}
+          showControlsInPageHeader
+          showAllEnvironments={router.query.showAllEnvironments === "true"}
+        />
       )}
     </Page>
   );

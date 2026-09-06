@@ -24,7 +24,7 @@ import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/co
 // construction = provider misconfig), OAuthCreateAccount / EmailCreateAccount
 // (DB failures), EmailSignin (verification email failed to send), Signin,
 // Configuration, and any unknown/custom string.
-export const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
+const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
   "OAuthCallback",
   "Callback",
 ];
@@ -40,10 +40,36 @@ export const isExpectedSignInError = (code: string): boolean =>
 // - SSO domain mismatch: deliberate rejection thrown by our signIn callback
 //   (logged server-side before the throw).
 // Configuration / AccessDenied / unknown values still capture.
-export const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
+const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
   "Verification",
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
 ];
 
 export const isExpectedAuthErrorPageMessage = (message: string): boolean =>
   EXPECTED_AUTH_ERROR_PAGE_MESSAGES.includes(message);
+
+/**
+ * next-auth v4 `signIn(..., { redirect: false })` always does
+ * `new URL(data.url).searchParams.get("error")` with no null check
+ * (`next-auth/react/index.js`). A JSON body without `url` — our 400
+ * `{ message: "Invalid callback URL" }`, next-auth's 500
+ * `{ message: "There is a problem with the server configuration." }`
+ * after assertConfig, or any other non-`{ url }` JSON — throws TypeError
+ * instead of returning `{ ok: false }`. Same user-facing outcome as
+ * `signIn()` returning undefined (already expected).
+ *
+ * TypeError is required so a non-Error with the same text still captures.
+ * Message signatures are engine-specific for `new URL(undefined)`:
+ * Firefox `URL constructor: …`, Chrome `Failed to construct 'URL'`,
+ * Safari `undefined is not a valid URL`. `Failed to fetch` and other
+ * TypeErrors from the same `signIn()` catch stay captured.
+ */
+export const isNextAuthMissingSignInUrlError = (error: unknown): boolean => {
+  if (!(error instanceof TypeError)) return false;
+  const { message } = error;
+  return (
+    message.includes("Failed to construct 'URL'") ||
+    message.includes("URL constructor:") ||
+    message.includes("undefined is not a valid URL")
+  );
+};

@@ -17,6 +17,8 @@ import {
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   BackgroundExecutionSessionController,
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -1361,6 +1363,83 @@ describe("InAppAgentBackgroundClient reconnect", () => {
       message: "Assistant watch returned an invalid frame",
       retryable: false,
     });
+  });
+});
+
+describe("getBackgroundRunNotice", () => {
+  const failedRun = (errorCode: string | null) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.FAILED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  const assistantFailedContinue =
+    "The assistant failed. Send another message to continue.";
+  const assistantFailedTryAgain =
+    "The assistant failed. Send another message to try again.";
+
+  it.each([
+    [InAppAgentRunErrorCode.WORKER_LOST, assistantFailedContinue],
+    [InAppAgentRunErrorCode.STALE, assistantFailedContinue],
+    [InAppAgentRunErrorCode.QUEUE_TIMEOUT, assistantFailedContinue],
+    [InAppAgentRunErrorCode.WORKER_SHUTDOWN, assistantFailedContinue],
+    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, assistantFailedContinue],
+    [InAppAgentRunErrorCode.INIT_FAILED, assistantFailedTryAgain],
+    [InAppAgentRunErrorCode.ENQUEUE_FAILED, assistantFailedTryAgain],
+    [
+      InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      "The approval request expired. The action was not run. Send another message if you still want it.",
+    ],
+    [
+      InAppAgentRunErrorCode.RUN_TIMEOUT,
+      "The run hit the time limit. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.AGENT_ERROR,
+      "The assistant hit an error before finishing. Send another message to continue.",
+    ],
+    ["mystery_code", "The run failed. Try again."],
+  ] as const)("maps FAILED %s to the user-facing notice", (errorCode, text) => {
+    expect(getBackgroundRunNotice(failedRun(errorCode))).toEqual({
+      text,
+      tone: "info",
+    });
+  });
+
+  const truncatedRun = (errorCode: InAppAgentRunErrorCode) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.SUCCEEDED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  it.each([
+    [
+      InAppAgentRunErrorCode.STEP_LIMIT,
+      "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.",
+    ],
+  ] as const)("warns and marks SUCCEEDED %s as stopped", (errorCode, text) => {
+    const run = truncatedRun(errorCode);
+
+    expect(getBackgroundRunNotice(run)).toEqual({ text, tone: "warning" });
+    expect(getSettledActivityOutcome(run)).toBe("stopped");
+  });
+
+  it("shows no notice and marks a plain SUCCEEDED run as worked", () => {
+    const run = {
+      id: "run-1",
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: null,
+      cancelRequested: false,
+    };
+
+    expect(getBackgroundRunNotice(run)).toBeNull();
+    expect(getSettledActivityOutcome(run)).toBe("worked");
   });
 });
 

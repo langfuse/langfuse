@@ -16,7 +16,7 @@ import {
   type StoredKeyInfo,
 } from "../../../fns/observedMetadata/metadataPaths";
 
-export type ObservedValue = {
+type ObservedValue = {
   value: string;
   count?: number;
   /** Display-only type hint (observed metadata paths: "number", "string", …). */

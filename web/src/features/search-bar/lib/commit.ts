@@ -10,6 +10,7 @@
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode } from "./ast";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import {
   astToFilterState,
   OR_NOT_SUPPORTED_MESSAGE,
@@ -46,14 +47,16 @@ export type CommitResult =
 export function planCommit(
   draftText: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CommitResult {
-  const res = validateQuery(draftText.trim(), scoreTypes);
+  const res = validateQuery(draftText.trim(), scoreTypes, registry);
   if (!res.valid) {
     return { status: "invalid", diagnostics: res.diagnostics, ast: res.ast };
   }
   const { filters, searchQuery, searchType, errors } = astToFilterState(
     res.ast,
     scoreTypes,
+    registry,
   );
   // Parity belt-and-suspenders: validateQuery lowers with the same scoreTypes,
   // so a valid draft should never produce lowering errors. If it ever does
@@ -76,7 +79,7 @@ export function planCommit(
     filters,
     searchQuery,
     searchType: searchType ?? DEFAULT_SEARCH_TYPE,
-    canonical: serialize(res.ast),
+    canonical: serialize(res.ast, registry),
   };
 }
 
@@ -101,7 +104,7 @@ export type SearchErrorReason =
  * between-conditions OR, so we recurse through those; a `filter`'s within-field
  * OR lives in `valueOp`, so we never descend into it.
  */
-export function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
+function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
   if (ast === null) return false;
   switch (ast.kind) {
     case "or":

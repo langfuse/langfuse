@@ -1,14 +1,23 @@
 import { env } from "@/src/env.mjs";
 
 /**
+ * Dummy https origin used only so the WHATWG URL parser can resolve the
+ * input the same way a browser would. Never returned to callers.
+ */
+const REDIRECT_ORIGIN = "https://langfuse.invalid";
+
+/**
  * Validates and sanitizes a redirect path to prevent open redirect attacks.
  *
  * Security Requirements:
- * - Only allows relative paths starting with "/" (e.g., "/dashboard", "/project/123")
- * - Blocks protocol-relative URLs (e.g., "//evil.com")
- * - Blocks absolute URLs (e.g., "http://evil.com", "https://evil.com")
- * - Blocks javascript: and data: URIs
+ * - Only allows path-absolute relative paths that start with "/"
+ * - Parses with the WHATWG URL constructor and rejects off-origin results
+ *   (protocol-relative, backslash-normalized, absolute http(s), other schemes)
+ * - Rejects serialized output that starts with "//" after dot-segment resolution
  * - Automatically prepends NEXT_PUBLIC_BASE_PATH if configured
+ *
+ * Returned paths are URL-serialized: spaces and control characters are
+ * percent-encoded, and dot segments are resolved.
  *
  * @param targetPath - The path to validate (typically from query params or user input)
  * @returns A safe redirect path with basePath prepended, or "/" (with basePath) if invalid
@@ -30,48 +39,36 @@ export function getSafeRedirectPath(
   const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
   const safeDefault = basePath ? `${basePath}/` : "/";
 
-  // Handle empty/null/undefined
-  if (!targetPath || typeof targetPath !== "string") {
+  if (typeof targetPath !== "string") {
     return safeDefault;
   }
 
-  // Trim whitespace
-  const trimmed = targetPath.trim();
+  const input = targetPath.trim();
 
-  if (!trimmed) {
+  if (!input.startsWith("/")) {
     return safeDefault;
   }
 
-  // Strip ASCII control characters (0x00-0x1F, 0x7F) to defend against
-  // newline injection (HTTP header / log forging) and null-byte injection
-  // (path-extension confusion). These characters are not valid in URL
-  // paths per RFC 3986. Unicode bidi-formatting characters (e.g.
-  // U+202E RTL-override) are intentionally out of scope for this fix.
-  const sanitized = trimmed.replace(/[\x00-\x1F\x7F]/g, "");
-
-  if (!sanitized) {
+  let url: URL;
+  try {
+    url = new URL(input, REDIRECT_ORIGIN);
+  } catch {
     return safeDefault;
   }
 
-  // Only allow paths starting with "/" but not "//" (protocol-relative URLs)
-  // This blocks:
-  // - Protocol-relative: "//evil.com"
-  // - Absolute URLs: "http://evil.com", "https://evil.com"
-  // - JavaScript URIs: "javascript:alert(1)"
-  // - Data URIs: "data:text/html,..."
-  // - Other schemes: "file://", "ftp://", etc.
-  if (!sanitized.startsWith("/") || sanitized.startsWith("//")) {
+  const path = `${url.pathname}${url.search}${url.hash}`;
+
+  // Origin rejects `/\evil.com` (HTTPS parser resolves it off-site).
+  // Leading `//` after serialization rejects `/x/..//evil.com`.
+  if (url.origin !== REDIRECT_ORIGIN || path.startsWith("//")) {
     return safeDefault;
   }
 
-  // If basePath is configured, check if the path already starts with it
-  // This prevents double-prepending when the path already includes the base path
-  if (basePath && sanitized.startsWith(basePath)) {
-    return sanitized;
-  }
+  const includesBasePath =
+    basePath &&
+    (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`));
 
-  // Prepend basePath if configured
-  return basePath + sanitized;
+  return includesBasePath ? path : basePath + path;
 }
 
 /**
@@ -92,8 +89,8 @@ export function stripBasePath(path: string): string {
     return path;
   }
 
-  // Strip ASCII control characters (0x00-0x1F, 0x7F) before further
-  // processing. See getSafeRedirectPath for the rationale.
+  // Strip ASCII control characters (0x00-0x1F, 0x7F) so a newline or
+  // null byte cannot split the basePath prefix from the remainder.
   const cleaned = path.replace(/[\x00-\x1F\x7F]/g, "");
 
   const stripped = cleaned.slice(basePath.length) || "/";

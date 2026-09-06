@@ -114,9 +114,7 @@ export interface GenerateOptions {
   errorSpike?: boolean;
 }
 
-export function generateEvents(
-  options: GenerateOptions = {},
-): PrototypeEvent[] {
+function generateEvents(options: GenerateOptions = {}): PrototypeEvent[] {
   const {
     seed = 42,
     count = 640,
@@ -184,5 +182,3 @@ export const SCENARIOS = {
   sparse: generateEvents({ seed: 3, count: 28, windowHours: 6 }),
   empty: [] as PrototypeEvent[],
 } satisfies Record<string, PrototypeEvent[]>;
-
-export type ScenarioKey = keyof typeof SCENARIOS;

@@ -15,9 +15,6 @@ export const detailPageListKeys = {
   evalTemplates: "eval-templates",
 } as const;
 
-export type DetailPageListKey =
-  (typeof detailPageListKeys)[keyof typeof detailPageListKeys];
-
 export type ListEntry<
   TParams extends Partial<Record<string, string>> = Record<string, string>,
 > = {

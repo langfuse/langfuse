@@ -17,7 +17,11 @@ import {
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  getUserProjectRoles,
+  getUserProjectRolesCount,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -29,10 +33,8 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import {
-  getUserProjectRoles,
-  getUserProjectRolesCount,
-} from "@langfuse/shared/src/server";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -628,6 +630,73 @@ export const membersRouter = createTRPCRouter({
       });
 
       return updatedMembership;
+    }),
+  setUserFeaturePreviewEnabled: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        userId: z.string(),
+        flag: z.enum(featurePreviewFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature previews cannot be managed in the demo organization",
+        });
+      }
+
+      const result = await setUserFeaturePreviewWithAuthorization({
+        prisma: ctx.prisma,
+        actorUserId: ctx.session.user.id,
+        actorIsPlatformAdmin: ctx.session.user.admin === true,
+        currentOrgId: input.orgId,
+        targetUserId: input.userId,
+        flag: input.flag,
+        enabled: input.enabled,
+        demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      });
+      if (!result) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "You can only change this user's feature flags if you are an administrator in every organization they belong to.",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: result.membershipId,
+        action: "updateUserFeatureFlag",
+        before: {
+          flag: input.flag,
+          override: result.before,
+          scope: "global",
+        },
+        after: {
+          flag: input.flag,
+          override: result.after,
+          scope: "global",
+        },
+      });
+
+      return {
+        userId: input.userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
     }),
   updateProjectRole: protectedOrganizationProcedure
     .input(

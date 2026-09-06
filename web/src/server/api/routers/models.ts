@@ -440,16 +440,16 @@ export const modelRouter = createTRPCRouter({
         return { matched: false as const };
       }
 
-      // Step 2: Mirror ingestion: without usage there is no priced observation
-      // and therefore no pricing tier match, even for attribute-only tiers.
-      if (!hasPricingTierUsageDetails(usageDetails)) {
-        return { matched: false as const };
-      }
-
-      const matchResult = matchPricingTier(pricingTiers, usageDetails ?? {}, {
-        modelParameters,
-        metadata,
-      });
+      // Without usage details, fall back to the model's default pricing tier.
+      const defaultTier = pricingTiers.find((tier) => tier.isDefault);
+      const matchResult = hasPricingTierUsageDetails(usageDetails)
+        ? matchPricingTier(pricingTiers, usageDetails ?? {}, {
+            modelParameters,
+            metadata,
+          })
+        : defaultTier
+          ? { pricingTierId: defaultTier.id }
+          : null;
 
       if (!matchResult) {
         return { matched: false as const };

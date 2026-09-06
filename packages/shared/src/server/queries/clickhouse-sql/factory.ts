@@ -25,7 +25,7 @@ import {
 } from "./clickhouse-filter";
 import { assertValidFtsMatchFilter } from "./fts";
 
-export class QueryBuilderError extends Error {
+class QueryBuilderError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "QueryBuilderError";

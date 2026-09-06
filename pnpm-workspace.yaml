@@ -6,6 +6,7 @@ packages:
   - "ee"
 catalog:
   "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-lambda": 3.1074.0
   "@aws-sdk/client-lambda-microvms": 3.1074.0
   "@aws-sdk/client-s3": 3.1074.0
@@ -21,6 +22,12 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+# Reject recent releases whose publishing trust is weaker than earlier versions.
+# Older releases have already passed the five-day quarantine above.
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 7200
+# Keep pnpm itself out of the workspace lockfile's dependency graph.
+pmOnFail: ignore
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 # minimumReleaseAgeExclude:
@@ -28,6 +35,12 @@ packageExtensions:
   # TypeScript 7 has no JavaScript compiler API yet. Keep Storybook's toolchain
   # on the TypeScript 6 compatibility package while Next builds with 7.
   "@storybook/nextjs-vite@10.3.6":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+  # dependency-cruiser reads the JS compiler API to follow TypeScript imports.
+  # Resolved against web's `typescript` (7.x) it finds no API, silently stops
+  # parsing .ts/.tsx, and reports an empty import graph instead of an error.
+  "dependency-cruiser@18.1.0":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
   "eslint-plugin-storybook@10.3.6":
@@ -59,10 +72,12 @@ allowBuilds:
   "@scarf/scarf": false
   cpu-features: true
   ssh2: true
+  vue-demi: true
 overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
   "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0
@@ -75,7 +90,7 @@ overrides:
   "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.15.2
+  qs: 6.16.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
@@ -86,6 +101,11 @@ overrides:
   "@ai-sdk/provider-utils@<=4.0.32": 4.0.33
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.33"
   "@ai-sdk/provider-utils-v6": "npm:@ai-sdk/provider-utils@4.0.33"
+  # Scalar's agent package pins an SSRF-vulnerable AI SDK through two paths.
+  "@scalar/agent-chat@0.12.28>ai": 6.0.230
+  "@ai-sdk/vue@3.0.33>ai": 6.0.230
+  # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
+  fflate@0.8.1: 0.8.3
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
@@ -110,3 +130,28 @@ patchedDependencies:
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
+minimumReleaseAgeExclude:
+  # Temporary exact exceptions for the pnpm 12 migration.
+  - '@pnpm/exe.darwin-arm64@12.3.1'
+  - '@pnpm/exe.darwin-x64@12.3.1'
+  - '@pnpm/exe.linux-arm64@12.3.1'
+  - '@pnpm/exe.linux-arm64-musl@12.3.1'
+  - '@pnpm/exe.linux-x64@12.3.1'
+  - '@pnpm/exe.linux-x64-musl@12.3.1'
+  - '@pnpm/exe.win32-arm64@12.3.1'
+  - '@pnpm/exe.win32-x64@12.3.1'
+  - '@next/env@16.3.3'
+  - '@next/eslint-plugin-next@16.3.3'
+  - '@next/swc-darwin-arm64@16.3.3'
+  - '@next/swc-darwin-x64@16.3.3'
+  - '@next/swc-linux-arm64-gnu@16.3.3'
+  - '@next/swc-linux-arm64-musl@16.3.3'
+  - '@next/swc-linux-x64-gnu@16.3.3'
+  - '@next/swc-linux-x64-musl@16.3.3'
+  - '@next/swc-win32-arm64-msvc@16.3.3'
+  - '@next/swc-win32-x64-msvc@16.3.3'
+  - next@16.3.3
+  - pnpm@12.3.1
+  - qs@6.16.0
+  # Host confusion + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
+  - fast-uri@3.1.7

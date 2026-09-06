@@ -143,6 +143,8 @@ export class InMemoryFilterService {
         return strValue.startsWith(filterValue);
       case "ends with":
         return strValue.endsWith(filterValue);
+      case "is not empty":
+        return strValue.length > 0;
       default:
         logger.error("Unsupported string filter operator", {
           operator,

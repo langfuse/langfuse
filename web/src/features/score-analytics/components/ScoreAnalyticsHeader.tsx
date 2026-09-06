@@ -1,12 +1,13 @@
 import { useCallback } from "react";
 import { ExternalLink } from "lucide-react";
-import { ScoreCombobox } from "./charts/ScoreCombobox";
+import { ScoreCombobox, type ScoreOption } from "./charts/ScoreCombobox";
 import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  type TimeRange,
+} from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
-import { type TimeRange } from "@/src/utils/date-range-utils";
-import { type ScoreOption } from "./charts/ScoreCombobox";
 import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,

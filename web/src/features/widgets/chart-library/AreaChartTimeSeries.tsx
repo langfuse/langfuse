@@ -21,6 +21,7 @@ import {
   prepareIsolatedPoints,
 } from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
@@ -119,10 +120,12 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      <SeriesOverflowNote
-        visibleCount={dimensions.length}
-        totalCount={series.total}
-      />
+      {series.total > dimensions.length && (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={series.total}
+        />
+      )}
       <ChartContainer
         ref={chartBoxRef}
         config={config}
@@ -151,6 +154,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
             {...timeAxis.tickProps}
+            {...temporalAxisTickProp(
+              timeAxis,
+              groupedData.at(-1)?.time_dimension,
+            )}
           />
           <YAxis
             type="number"
@@ -213,15 +220,16 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           />
         </AreaChart>
       </ChartContainer>
-      {(legendPosition === "below" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
-        />
-      )}
+      {legendItems.length > 0 &&
+        (legendPosition === "below" ||
+          (legendPosition === "auto" && legendItems.length > 1)) && (
+          <TimeSeriesLegend
+            items={legendItems}
+            interaction={legendInteraction}
+            onItemClick={onLegendClick}
+            formatSummary={tooltipFormatter}
+          />
+        )}
     </div>
   );
 };

@@ -1,10 +1,14 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  logger,
+  type ApiAccessScope,
+  invalidateCachedOrgApiKeys,
+} from "@langfuse/shared/src/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export async function handleCreateProject(
   req: NextApiRequest,
@@ -93,6 +97,16 @@ export async function handleCreateProject(
         retentionDays: retention,
         metadata: parsedMetadata,
       },
+    });
+
+    // Refresh org-scoped keys' baked projectIds now that a project exists.
+    await invalidateCachedOrgApiKeys(scope.orgId);
+
+    // Best-effort CHB metering signal; no-op unless the org is CHB-billed
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_CREATED",
+      orgId: scope.orgId,
+      projectId: project.id,
     });
 
     return res.status(201).json({

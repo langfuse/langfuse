@@ -42,7 +42,7 @@ import {
   convertEventRecordToObservationForEval,
 } from "@langfuse/shared";
 import {
-  fetchObservationEvalConfigs,
+  fetchObservationEvalRules,
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
@@ -247,7 +247,7 @@ function isOtelDirectWriteOrgCutoffConfigured(): boolean {
  * enqueued before that field existed resolve too. Returns false when the
  * project cannot be found, which keeps the batch on its existing path.
  */
-export async function isProjectOrgPastOtelDirectWriteCutoff(
+async function isProjectOrgPastOtelDirectWriteCutoff(
   projectId: string,
 ): Promise<boolean> {
   if (!isOtelDirectWriteOrgCutoffConfigured()) {
@@ -775,7 +775,7 @@ export const otelIngestionQueueProcessorBuilder = (
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
 
-      const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
+      const evalConfigs = await fetchObservationEvalRules(projectId).catch(
         (error) => {
           traceException(error);
           logger.warn(

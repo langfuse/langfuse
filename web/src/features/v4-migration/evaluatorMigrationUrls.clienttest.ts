@@ -3,7 +3,11 @@
 import { decodeFiltersGeneric } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
-import { buildDeprecatedEvaluatorsUrl } from "./evaluatorMigrationUrls";
+import {
+  buildDeprecatedEvaluatorsUrl,
+  buildDeprecatedRulesUrl,
+  buildModernEvaluatorsUrl,
+} from "./evaluatorMigrationUrls";
 
 describe("buildDeprecatedEvaluatorsUrl", () => {
   it("shows actionable active and paused legacy evaluators", () => {
@@ -12,7 +16,7 @@ describe("buildDeprecatedEvaluatorsUrl", () => {
       "https://langfuse.local",
     );
 
-    expect(url.pathname).toBe("/project/project-1/evals");
+    expect(url.pathname).toBe("/project/project-1/evals/legacy");
     expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
       {
         column: "status",
@@ -33,5 +37,32 @@ describe("buildDeprecatedEvaluatorsUrl", () => {
         value: ["NEW"],
       },
     ]);
+  });
+});
+
+describe("buildDeprecatedRulesUrl", () => {
+  it("shows only rules that require an upgrade", () => {
+    const url = new URL(
+      buildDeprecatedRulesUrl("project-1"),
+      "https://langfuse.local",
+    );
+
+    expect(url.pathname).toBe("/project/project-1/evals/rules");
+    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
+      {
+        column: "upgradeRequired",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+  });
+});
+
+describe("buildModernEvaluatorsUrl", () => {
+  it("uses the default evaluator route", () => {
+    expect(buildModernEvaluatorsUrl("project-1")).toBe(
+      "/project/project-1/evals",
+    );
   });
 });

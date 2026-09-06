@@ -9,7 +9,7 @@ import {
   QueueJobs,
   redis,
 } from "@langfuse/shared/src/server";
-import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -65,11 +65,10 @@ export async function getBackgroundConversationSnapshot(params: {
     projectId: params.projectId,
     conversationId: params.conversationId,
     deleteApiKey: async (apiKeyId) => {
-      await deleteApiKeyFromDb({
+      await deleteInAppAgentMcpApiKeyFromDb({
         prisma: params.prisma,
         id: apiKeyId,
-        entityId: params.projectId,
-        scope: "PROJECT",
+        projectId: params.projectId,
         redis,
       });
     },
