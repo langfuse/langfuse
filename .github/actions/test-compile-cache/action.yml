@@ -28,16 +28,16 @@ runs:
           echo "CI_VITEST_FS_CACHE=1" >> "$GITHUB_ENV"
         fi
         if [[ "$CACHE_MODE" == node || "$CACHE_MODE" == both ]]; then
-          cache_path="$GITHUB_WORKSPACE/node_modules/.cache/node-compile"
-          echo "NODE_COMPILE_CACHE=$cache_path" >> "$GITHUB_ENV"
-          echo "CI_NODE_COMPILE_CACHE=$cache_path" >> "$GITHUB_ENV"
+          # A literal absolute path works from every package's working directory.
+          echo "NODE_COMPILE_CACHE=/tmp/langfuse-node-compile-cache" >> "$GITHUB_ENV"
+          echo "CI_NODE_COMPILE_CACHE=/tmp/langfuse-node-compile-cache" >> "$GITHUB_ENV"
         fi
     - name: Restore test compilation cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] opt-in test compilation only; caller retains same-repository cache boundary and release jobs do not restore it
       with:
         path: |
           node_modules/.cache/vitest
-          node_modules/.cache/node-compile
-        key: ${{ runner.os }}-${{ runner.arch }}-test-compile-v1-${{ inputs.scope }}-${{ inputs.mode }}-node${{ steps.runtime.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-${{ github.sha }}
+          /tmp/langfuse-node-compile-cache
+        key: ${{ runner.os }}-${{ runner.arch }}-test-compile-v2-${{ inputs.scope }}-${{ inputs.mode }}-node${{ steps.runtime.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-test-compile-v1-${{ inputs.scope }}-${{ inputs.mode }}-node${{ steps.runtime.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-
+          ${{ runner.os }}-${{ runner.arch }}-test-compile-v2-${{ inputs.scope }}-${{ inputs.mode }}-node${{ steps.runtime.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-

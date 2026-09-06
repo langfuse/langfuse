@@ -102,6 +102,9 @@ test("executes with current source, Markdown, React and config", () => {
       ...process.env,
       CI: "true",
       CI_VITEST_FS_CACHE: "1",
+      // The fixture links the installed dependency graph. Its minimal workspace
+      // manifests are not an install target, including their catalog references.
+      pnpm_config_verify_deps_before_run: "false",
       DEBUG: "vitest:cache:fs",
       EXPECT_SOURCE: "1",
       EXPECT_ADDED: "1",
