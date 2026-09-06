@@ -349,43 +349,14 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
-    it("drops a [kitesurf] injected listener console error (message event)", () => {
+    it("keeps a [kitesurf] listener wrap (not this prefix; 60W/60X own that)", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent(
             "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler",
           ),
         ),
-      ).toBe(true);
-    });
-
-    it("drops a prefix-less TypeError whose stack is only Kitesurf injected scripts", () => {
-      const event = {
-        exception: {
-          values: [
-            {
-              type: "TypeError",
-              value:
-                "Cannot create proxy with a non-object as target or handler",
-              mechanism: {
-                type: "auto.browser.global_handlers.onerror",
-                handled: false,
-              },
-              stacktrace: {
-                frames: [
-                  { filename: "page.js", function: "?" },
-                  { filename: "dom-shim.js", function: "ksSpan" },
-                  {
-                    filename: "/__ks_user_classic_regular.js",
-                    function: "e.recordDOM.c.win",
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      } as ErrorEvent;
-      expect(isDenylistedNoiseEvent(event)).toBe(true);
+      ).toBe(false);
     });
 
     it("drops the @sentry/nextjs '_error.js called with falsy error (…)' artifact", () => {
@@ -757,56 +728,15 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(false);
     });
 
-    it("keeps a Proxy TypeError with a first-party chunk frame", () => {
-      const event = {
-        exception: {
-          values: [
-            {
-              type: "TypeError",
-              value:
-                "Cannot create proxy with a non-object as target or handler",
-              mechanism: {
-                type: "auto.browser.global_handlers.onerror",
-                handled: false,
-              },
-              stacktrace: {
-                frames: [
-                  {
-                    filename: "https://example.com/_next/static/chunks/app.js",
-                    function: "createView",
-                  },
-                  {
-                    filename: "/__ks_user_classic_regular.js",
-                    function: "wrap",
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      } as ErrorEvent;
-      expect(isDenylistedNoiseEvent(event)).toBe(false);
-    });
-
-    it("keeps a Proxy TypeError with no Kitesurf injected script frame", () => {
-      const event = {
-        exception: {
-          values: [
-            {
-              type: "TypeError",
-              value:
-                "Cannot create proxy with a non-object as target or handler",
-              stacktrace: {
-                frames: [
-                  { filename: "page.js", function: "?" },
-                  { filename: "dom-shim.js", function: "dispatch" },
-                ],
-              },
-            },
-          ],
-        },
-      } as ErrorEvent;
-      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    it("keeps a Proxy TypeError that is not kitesurf:-prefixed", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot create proxy with a non-object as target or handler",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
     });
 
     it("keeps a first-party chunk dynamic-import failure (stale deploy / CDN)", () => {
