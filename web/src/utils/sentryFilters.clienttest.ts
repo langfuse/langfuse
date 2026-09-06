@@ -337,6 +337,57 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    // Cloudflare Kitesurf prefixes console.error; captureConsoleIntegration
+    // delivers those as MESSAGE events (LANGFUSE-610 / LANGFUSE-60W).
+    it("drops a kitesurf: localhost CORS console error (message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "kitesurf: Access to fetch at 'http://127.0.0.1:8765/' from origin 'https://example.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check (preflight response status 403 is not ok)",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a [kitesurf] injected listener console error (message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a prefix-less TypeError whose stack is only Kitesurf injected scripts", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "page.js", function: "?" },
+                  { filename: "dom-shim.js", function: "ksSpan" },
+                  {
+                    filename: "/__ks_user_classic_regular.js",
+                    function: "e.recordDOM.c.win",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(true);
+    });
+
     it("drops the @sentry/nextjs '_error.js called with falsy error (…)' artifact", () => {
       // Real shape: captureException(`_error.js called with falsy error (${err})`)
       // → exception event whose value STARTS with the prefix.
@@ -686,6 +737,76 @@ describe("isDenylistedNoiseEvent", () => {
           ),
         ),
       ).toBe(false);
+    });
+
+    it("keeps a CORS console error that is not namespaced by kitesurf", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Access to fetch at 'https://example.com/api' from origin 'https://example.com' has been blocked by CORS policy",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app error that merely mentions kitesurf mid-message", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to load kitesurf: connection timed out"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a Proxy TypeError with a first-party chunk frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "https://example.com/_next/static/chunks/app.js",
+                    function: "createView",
+                  },
+                  {
+                    filename: "/__ks_user_classic_regular.js",
+                    function: "wrap",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a Proxy TypeError with no Kitesurf injected script frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot create proxy with a non-object as target or handler",
+              stacktrace: {
+                frames: [
+                  { filename: "page.js", function: "?" },
+                  { filename: "dom-shim.js", function: "dispatch" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps a first-party chunk dynamic-import failure (stale deploy / CDN)", () => {

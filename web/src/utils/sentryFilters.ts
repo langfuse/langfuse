@@ -136,6 +136,12 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
+  // Cloudflare Kitesurf (agent-first browser) prefixes every console.error it
+  // emits. Observed: LANGFUSE-610 (`kitesurf: Access to fetch at 'http://…'`)
+  // and LANGFUSE-60W (`[kitesurf] event listener for load threw: …`). The
+  // namespace cannot come from app code (zero repo matches).
+  "kitesurf:",
+  "[kitesurf]",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -146,6 +152,41 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   // `(null)`, ...). It is a framework artifact with no real error attached.
   "_error.js called with falsy error",
 ];
+
+/**
+ * Kitesurf injects page scripts as `/__ks_<name>.js` (observed:
+ * `/__ks_user_classic_regular.js`). The `__ks_` prefix is the vendor's
+ * convention and does not appear in Langfuse bundles.
+ */
+const KITESURF_INJECTED_SCRIPT_RE = /\/__ks_[\w.-]+\.js(?:$|[?#])/;
+
+/**
+ * True when the exception stack is wholly Kitesurf's injected runner: at least
+ * one `__ks_*.js` frame, and no first-party `/_next/` or `/src/` frame.
+ *
+ * Covers LANGFUSE-60X (`TypeError: Cannot create proxy with a non-object as
+ * target or handler` via `auto.browser.global_handlers.onerror`). That event
+ * has no `kitesurf:` / `[kitesurf]` prefix — only vendor frames
+ * (`__ks_user_classic_regular.js`, `dom-shim.js`, `page.js`). A real app
+ * Proxy/TypeError carries a first-party chunk frame and is KEPT.
+ */
+function isKitesurfInjectedStackEvent(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawKitesurfScript = false;
+  for (const frame of frames) {
+    const filename = frame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    if (filename.includes("/_next/") || filename.includes("/src/")) {
+      return false;
+    }
+    if (KITESURF_INJECTED_SCRIPT_RE.test(filename)) {
+      sawKitesurfScript = true;
+    }
+  }
+  return sawKitesurfScript;
+}
 
 /**
  * The Sentry SDK synthesizes this exact prefix (global `onunhandledrejection`
@@ -343,7 +384,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     }
   }
 
-  // --- C. `type`-guarded rules — exception events only (message events carry
+  // --- A. Kitesurf agent-browser injected stack (LANGFUSE-60X). ---
+  // Prefix-less TypeError from `/__ks_*.js` + vendor shims. A first-party
+  // frame fails this check (see isKitesurfInjectedStackEvent).
+  if (isKitesurfInjectedStackEvent(event)) {
+    return true;
+  }
+
+  // --- C. `type`-guarded rules — exception events only (message events carry)
   // no exception `type`; these artifacts always arrive as thrown exceptions). ---
   if (typeof exceptionValue === "string") {
     // Expected clipboard permission denial (we already fall back). The generic
