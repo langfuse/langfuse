@@ -2,7 +2,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 
 import {
   isDenylistedNoiseEvent,
-  isKitesurfInternalEvent,
+  isKitesurfVendorStackEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -334,18 +334,6 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("[PostHog.js] was already loaded elsewhere."),
-        ),
-      ).toBe(true);
-    });
-
-    it("drops a third-party [kitesurf] console line (message event)", () => {
-      // Real shape (LANGFUSE-60W): captureConsoleIntegration delivers a
-      // MESSAGE event with no exception. The vendor prefixes every line.
-      expect(
-        isDenylistedNoiseEvent(
-          messageEvent(
-            "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler",
-          ),
         ),
       ).toBe(true);
     });
@@ -773,14 +761,6 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("[next-auth][error][SIGNIN_OAUTH_ERROR] boom"),
-        ),
-      ).toBe(false);
-    });
-
-    it("keeps an app message that merely quotes [kitesurf] mid-string", () => {
-      expect(
-        isDenylistedNoiseEvent(
-          messageEvent("Failed to persist [kitesurf] listener result"),
         ),
       ).toBe(false);
     });
@@ -1447,7 +1427,7 @@ describe("isPosthogRecorderInternalEvent", () => {
   });
 });
 
-describe("isKitesurfInternalEvent", () => {
+describe("isKitesurfVendorStackEvent", () => {
   const KS_USER = "/__ks_user_classic_regular.js";
   const KS_SHIM = "dom-shim.js";
   const KS_PAGE = "page.js";
@@ -1476,7 +1456,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(true);
+      expect(isKitesurfVendorStackEvent(event)).toBe(true);
     });
 
     it("drops the proxy TypeError spanning page.js / dom-shim.js / user script (LANGFUSE-60X)", () => {
@@ -1503,7 +1483,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(true);
+      expect(isKitesurfVendorStackEvent(event)).toBe(true);
     });
 
     it("drops a user-script stack with a query string on the filename", () => {
@@ -1520,7 +1500,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(true);
+      expect(isKitesurfVendorStackEvent(event)).toBe(true);
     });
 
     it("drops a user-script stack that also has opaque native frames", () => {
@@ -1541,7 +1521,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(true);
+      expect(isKitesurfVendorStackEvent(event)).toBe(true);
     });
   });
 
@@ -1566,7 +1546,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(false);
+      expect(isKitesurfVendorStackEvent(event)).toBe(false);
     });
 
     it("keeps a Next.js page.js module (path-qualified, not the bare controller)", () => {
@@ -1586,7 +1566,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(false);
+      expect(isKitesurfVendorStackEvent(event)).toBe(false);
     });
 
     it("keeps a bare page.js stack with no KiteSurf vendor script", () => {
@@ -1603,7 +1583,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(false);
+      expect(isKitesurfVendorStackEvent(event)).toBe(false);
     });
 
     it("keeps an app-only stack (no KiteSurf frame at all)", () => {
@@ -1622,7 +1602,7 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(false);
+      expect(isKitesurfVendorStackEvent(event)).toBe(false);
     });
 
     it("keeps an all-opaque stack", () => {
@@ -1642,16 +1622,16 @@ describe("isKitesurfInternalEvent", () => {
           ],
         },
       } as ErrorEvent;
-      expect(isKitesurfInternalEvent(event)).toBe(false);
+      expect(isKitesurfVendorStackEvent(event)).toBe(false);
     });
 
     it("keeps events with no stacktrace", () => {
       expect(
-        isKitesurfInternalEvent(
+        isKitesurfVendorStackEvent(
           exceptionEvent("DOMRect is not defined", "ReferenceError"),
         ),
       ).toBe(false);
-      expect(isKitesurfInternalEvent(messageEvent("[kitesurf] boom"))).toBe(
+      expect(isKitesurfVendorStackEvent(messageEvent("[kitesurf] boom"))).toBe(
         false,
       );
     });

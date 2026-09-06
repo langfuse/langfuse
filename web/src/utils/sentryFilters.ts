@@ -136,12 +136,6 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
-  // KiteSurf (third-party browser-automation shim) prefixes its own
-  // console.error lines with this namespace. Observed as a MESSAGE event
-  // with no exception (`captureConsoleIntegration`): "[kitesurf] event
-  // listener for load threw: …" (LANGFUSE-60W). App code never logs this
-  // prefix.
-  "[kitesurf]",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -598,11 +592,11 @@ function isKitesurfVendorFilename(path: string): boolean {
  *
  * Safe to drop: an error thrown by OUR code always carries at least one
  * app-chunk frame (the throwing frame), which fails this check. Message-only
- * `[kitesurf] …` console lines (no stack) are dropped separately via
- * {@link NOISE_MESSAGE_PREFIXES}. Same posture as
+ * `[kitesurf] …` console lines (no stack) are out of scope here — they
+ * need a prefix/message rule, not this stack check. Same posture as
  * {@link isPosthogRecorderInternalEvent}.
  */
-export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
+export function isKitesurfVendorStackEvent(event: ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
   if (!frames || frames.length === 0) return false;
 
