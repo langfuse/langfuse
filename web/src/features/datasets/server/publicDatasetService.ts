@@ -325,12 +325,30 @@ const getDatasetRunRecordByIdOrThrow = async ({
 export const listDatasetsForApi = async ({
   projectId,
   name,
+  fromTimestamp,
+  toTimestamp,
   page,
   limit,
 }: ListDatasetsInput) => {
+  // Build the time-window filter on `createdAt`. Both params are
+  // independently optional; together they form a half-open
+  // `[fromTimestamp, toTimestamp)` range. The window composes with the
+  // existing project scope and the existing `name` substring filter —
+  // it can only narrow the result set, never widen it.
+  const createdAtFilter =
+    fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: new Date(fromTimestamp) } : {}),
+            ...(toTimestamp ? { lt: new Date(toTimestamp) } : {}),
+          },
+        }
+      : {};
+
   const where: Prisma.DatasetWhereInput = {
     projectId,
     ...(name ? { name: { contains: name, mode: "insensitive" } } : {}),
+    ...createdAtFilter,
   };
 
   const [datasets, totalItems] = await Promise.all([

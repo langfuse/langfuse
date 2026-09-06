@@ -2200,4 +2200,54 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
+
+  describe("GET /v2/datasets timestamp window", () => {
+    // The v1 timestamp-window describe above covers the semantic in depth.
+    // This v2 block confirms the new query parameters also reach the v2
+    // route handler, which uses inline Prisma queries rather than the
+    // shared service function.
+    const MID = new Date("2021-06-01T00:00:00.000Z");
+    const NEW = new Date("2022-01-01T00:00:00.000Z");
+
+    let oldName: string;
+    let newName: string;
+
+    beforeEach(async () => {
+      oldName = `v2-ts-old-${v4()}`;
+      newName = `v2-ts-new-${v4()}`;
+
+      await prisma.dataset.create({
+        data: { name: oldName, projectId, createdAt: MID },
+      });
+      await prisma.dataset.create({
+        data: { name: newName, projectId, createdAt: NEW },
+      });
+    });
+
+    it("filters GET /v2/datasets by fromTimestamp only (v2 path)", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV2Response,
+        "GET",
+        `/api/public/v2/datasets?fromTimestamp=${NEW.toISOString()}&limit=50`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual(expect.arrayContaining([newName]));
+      expect(names).not.toContain(oldName);
+    });
+
+    it("returns 400 on an invalid fromTimestamp format (v2 path)", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/v2/datasets?fromTimestamp=not-a-date",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+  });
 });

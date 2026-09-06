@@ -163,6 +163,15 @@ export const PostDatasetsV2Response = APIDataset.strict();
 
 // GET /v2/datasets
 export const GetDatasetsV2Query = z.object({
+  // Optional ISO-8601 time window on the dataset row's `createdAt`. Both
+  // params are independently optional and compose into a half-open
+  // `[fromTimestamp, toTimestamp)` range. Omitting both preserves the
+  // historical "all datasets" behavior. Pattern matches
+  // `GET /api/public/datasets` (PR #17002) and the other v1 endpoints
+  // (comments PR #15692, models PR #16952, llm-connections PR #17070,
+  // annotation-queues PR #17090, score-configs PR #17100).
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   ...publicApiPaginationZod,
 });
 export const GetDatasetsV2Response = z
