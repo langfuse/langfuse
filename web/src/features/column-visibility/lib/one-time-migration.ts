@@ -15,11 +15,13 @@ export type OneTimeMigration<T> = {
    */
   versionKey: string;
   /**
-   * Pure transform applied to the reconciled state. Must not mutate its input.
-   * Return the input unchanged to skip (the flag is still set so it does not
-   * retry on every mount), or `null` to defer — for state that depends on
-   * asynchronously loaded columns, so the migration is retried instead of
-   * being consumed against incomplete state.
+   * Pure transform applied to the reconciled state. Must not mutate its input,
+   * and must be **idempotent**: it can be applied more than once before the
+   * migration is marked as run (`useColumnOrder` only sets the flag on a pass
+   * where the transform changes nothing, so its result cannot be lost to a
+   * repeated effect run). Return the input unchanged to skip, or `null` to
+   * defer — for state that depends on asynchronously loaded columns, so the
+   * migration is retried instead of being consumed against incomplete state.
    */
   apply: (state: T) => T | null;
 };

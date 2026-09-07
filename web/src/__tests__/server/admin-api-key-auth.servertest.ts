@@ -1,5 +1,5 @@
 import { type NextApiRequest } from "next";
-import { verifyAuth } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { verifyAuth } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import {

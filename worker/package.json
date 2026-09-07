@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.28.1",
+  "version": "4.30.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -75,7 +75,7 @@
     "posthog-node": "^5.49.1",
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
-    "uuid": "^14.0.0",
+    "uuid": "^14.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {

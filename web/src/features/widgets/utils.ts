@@ -19,6 +19,9 @@ export type WidgetChartConfig = {
   type: DashboardWidgetChartType;
   row_limit?: number;
   bins?: number;
+  /** Draw a dot per sample (line/area). Off by default — chart junk on a dense
+   *  series, but the only thing that shows where a sparse one has data. */
+  show_data_point_dots?: boolean;
   defaultSort?: {
     column: string;
     order: "ASC" | "DESC";

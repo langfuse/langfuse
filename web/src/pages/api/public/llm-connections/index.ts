@@ -22,6 +22,7 @@ import { env } from "@/src/env.mjs";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get LLM Connections",
+    action: "llmApiKeys:read",
     querySchema: GetLlmConnectionsV1Query,
     responseSchema: GetLlmConnectionsV1Response,
     isAdminApiKeyAuthAllowed: true,
@@ -79,6 +80,7 @@ export default withMiddlewares({
 
   PUT: createAuthedProjectAPIRoute({
     name: "Upsert LLM Connection",
+    action: "llmApiKeys:create",
     bodySchema: PutLlmConnectionV1Body,
     responseSchema: PutLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,

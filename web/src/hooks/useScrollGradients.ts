@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const SCROLL_EDGE_THRESHOLD_PX = 10;
 
@@ -10,16 +10,15 @@ const SCROLL_EDGE_THRESHOLD_PX = 10;
 export function useScrollGradients<TElement extends HTMLElement>(
   enabled: boolean,
 ) {
-  const contentRef = useRef<TElement>(null);
+  const [element, setElement] = useState<TElement | null>(null);
   const [{ top, bottom }, setScrollGradients] = useState({
     top: false,
     bottom: false,
   });
   const register = useCallback((element: TElement | null) => {
-    contentRef.current = element;
+    setElement(element);
   }, []);
   const recompute = useCallback(() => {
-    const element = contentRef.current;
     if (!element || !enabled) return;
 
     const maxScrollTop = element.scrollHeight - element.clientHeight;
@@ -36,10 +35,9 @@ export function useScrollGradients<TElement extends HTMLElement>(
       }
       return { top: nextTop, bottom: nextBottom };
     });
-  }, [enabled]);
+  }, [element, enabled]);
 
   useEffect(() => {
-    const element = contentRef.current;
     if (!element || !enabled) return;
 
     const update = () => recompute();
@@ -58,7 +56,7 @@ export function useScrollGradients<TElement extends HTMLElement>(
       resizeObserver.disconnect();
       mutationObserver.disconnect();
     };
-  }, [enabled, recompute]);
+  }, [element, enabled, recompute]);
 
   return { register, recompute, top, bottom };
 }

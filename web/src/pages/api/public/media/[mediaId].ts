@@ -16,6 +16,7 @@ import { ForbiddenError } from "@langfuse/shared";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Media data",
+    action: "media:create",
     querySchema: GetMediaQuerySchema,
     responseSchema: GetMediaResponseSchema,
     fn: async ({ query, auth }) => {
@@ -30,6 +31,7 @@ export default withMiddlewares({
 
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Media Uploaded At",
+    action: "media:create",
     querySchema: z.object({
       mediaId: z.string(),
     }),

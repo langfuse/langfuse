@@ -7,8 +7,6 @@
   "workspaces": {
     "packages/shared": {
       "ignoreFiles": [
-        // Standalone renderer invoked by ClickHouse migration shell scripts and Docker builds.
-        "clickhouse/scripts/prepare-migrations.mjs",
         // Standalone helper invoked manually as documented in the adjacent framework-traces README.
         "scripts/seeder/utils/framework-traces/merge-observations.ts",
       ],

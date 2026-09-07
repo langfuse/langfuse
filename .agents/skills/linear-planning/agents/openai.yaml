@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Planning"
+  short_description: "Plan a feature as subtickets mapped to a PR stack"
+  default_prompt: "Use $linear-planning to turn a feature into Linear subtickets that map one-to-one onto a chained PR stack, each carrying enough context to be implemented from the ticket alone."

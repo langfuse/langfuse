@@ -20,12 +20,16 @@ export interface PriceSource {
   pricingTierName: string;
 }
 
+export type CostSource = "calculated" | "provided";
+
 interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
   isCost?: boolean;
   pricingTierName?: string;
   priceSource?: PriceSource;
+  /** Whether cost was calculated by Langfuse or provided at ingestion. */
+  costSource?: CostSource;
 }
 
 export const BreakdownTooltip = ({
@@ -34,6 +38,7 @@ export const BreakdownTooltip = ({
   isCost = false,
   pricingTierName,
   priceSource,
+  costSource,
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -63,6 +68,9 @@ export const BreakdownTooltip = ({
     return acc + value;
   }, 0);
 
+  const resolvedCostSource =
+    costSource ?? (isCost && priceSource ? "calculated" : undefined);
+
   return (
     <TooltipProvider>
       <Tooltip open={isOpen} onOpenChange={setIsOpen}>
@@ -79,7 +87,13 @@ export const BreakdownTooltip = ({
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
 
-              {isCost && priceSource && (
+              {isCost && resolvedCostSource === "provided" ? (
+                <span className="text-muted-foreground text-xs italic">
+                  Provided at ingestion
+                </span>
+              ) : null}
+
+              {isCost && resolvedCostSource === "calculated" && priceSource ? (
                 <Link
                   href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
                   className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
@@ -88,13 +102,20 @@ export const BreakdownTooltip = ({
                 >
                   <span
                     className="min-w-0 truncate"
-                    title={`${priceSource.pricingTierName} Tier Pricing`}
+                    title={`Calculated · ${priceSource.pricingTierName} Tier Pricing`}
                   >
-                    {priceSource.pricingTierName} Tier Pricing
+                    Calculated · {priceSource.pricingTierName} Tier Pricing
                   </span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
-              )}
+              ) : null}
+
+              {isCost && resolvedCostSource === "calculated" && !priceSource ? (
+                <span className="text-muted-foreground text-xs italic">
+                  Calculated from model pricing
+                </span>
+              ) : null}
+
               {Array.isArray(details) && details.length > 0 && (
                 <span className="text-muted-foreground text-xs italic">
                   Aggregate across {details.length}{" "}

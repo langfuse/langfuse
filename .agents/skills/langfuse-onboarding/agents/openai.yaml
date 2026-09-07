@@ -1,0 +1,4 @@
+interface:
+  display_name: "Langfuse Onboarding"
+  short_description: "Establish who you are, then walk the onboarding path"
+  default_prompt: "Use $langfuse-onboarding to work out whether I am a contributor or a maintainer, record it, and walk me through setup."

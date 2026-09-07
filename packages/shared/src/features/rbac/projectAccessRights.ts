@@ -71,7 +71,7 @@ export const projectScopes = [
   "promptExperiments:CUD",
   "promptExperiments:read",
 
-  "auditLogs:read",
+  "projectAuditLogs:read",
 
   "TableViewPresets:CUD",
   "TableViewPresets:read",
@@ -81,6 +81,19 @@ export const projectScopes = [
 
   "alerts:read",
   "alerts:CUD",
+
+  // Public-API action tokens; not granted to any UI role.
+  "traces:read",
+  "traces:create",
+  "scores:read",
+  "scores:create",
+  "media:create",
+  "sessions:read",
+  "metrics:read",
+  "models:read",
+  "experiments:read",
+  "mcp:access",
+  "feedback:create",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -135,7 +148,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
-    "auditLogs:read",
+    "projectAuditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -192,7 +205,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
-    "auditLogs:read",
+    "projectAuditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",

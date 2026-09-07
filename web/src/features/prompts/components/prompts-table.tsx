@@ -419,6 +419,7 @@ export function PromptTable() {
           />
         )}
         <DataTableToolbar
+          tableName="prompts"
           columns={promptColumns}
           filterState={queryFilter.filterState}
           columnsWithCustomSelect={["labels", "tags"]}

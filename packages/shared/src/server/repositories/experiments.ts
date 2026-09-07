@@ -1,3 +1,4 @@
+import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
@@ -1367,8 +1368,6 @@ export const getExperimentItemsFromEvents = async (
 // Batch IO Queries
 // ============================================================================
 
-const IO_TRUNCATE_LENGTH = 1000;
-
 /**
  * Output data for a single experiment.
  */
@@ -1390,7 +1389,7 @@ export type ExperimentItemBatchIO = {
 /**
  * Get batch IO data for experiment items.
  * Returns input/expectedOutput from base experiment, and output from all experiments.
- * All text fields are truncated to IO_TRUNCATE_LENGTH characters.
+ * All text fields are truncated to EXPERIMENT_IO_TRUNCATE_LENGTH characters.
  */
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
@@ -1436,7 +1435,7 @@ export const getExperimentItemsBatchIO = async (props: {
     query,
     params: {
       ...params,
-      truncateLength: IO_TRUNCATE_LENGTH,
+      truncateLength: EXPERIMENT_IO_TRUNCATE_LENGTH,
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
@@ -1497,16 +1496,27 @@ export const getExperimentItemsBatchIO = async (props: {
   });
 };
 
+/**
+ * Experiment options for the baseline / comparison pickers: one row per run,
+ * with the dataset it ran on and when it started so the UI can group by dataset
+ * and order by recency.
+ */
 export const getExperimentNamesFromEvents = async (props: {
   projectId: string;
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
+    // Grouped by experiment id: two runs sharing a name are two runs, not one
+    // option pointing at an arbitrary id.
     groupByColumn: "e.experiment_id",
-    selectExpression:
-      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
+    selectExpression: `any(e.experiment_name) as experimentName,
+    e.experiment_id as experimentId,
+    nullIf(any(e.experiment_dataset_id), '') as datasetId,
+    min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    // Keeps the bound meaningful: the newest 1000 runs, not an arbitrary 1000.
+    .orderBy("ORDER BY min(e.start_time) DESC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1515,6 +1525,7 @@ export const getExperimentNamesFromEvents = async (props: {
     experimentName: string;
     experimentId: string;
     datasetId: string | null;
+    startTime: string;
   }>({
     query,
     params,
@@ -1522,5 +1533,10 @@ export const getExperimentNamesFromEvents = async (props: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return res;
+  return res.map((row) => ({
+    experimentId: row.experimentId,
+    experimentName: row.experimentName,
+    datasetId: row.datasetId,
+    startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
+  }));
 };

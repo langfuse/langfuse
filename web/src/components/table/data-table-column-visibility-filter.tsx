@@ -49,9 +49,18 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
+/**
+ * A whole column GROUP was shown or hidden at once (its "Select All" /
+ * "Deselect All"). Surfaces that care which family a group is — the experiments
+ * tables and their score levels — hook in here rather than having this generic
+ * picker know about them.
+ */
 export type ColumnGroupTogglePayload = {
+  /** The group column's accessorKey. */
   groupId: string;
+  /** Columns visible in the group after the toggle: all of them, or none. */
   enabledCount: number;
+  /** Columns in the group. */
   totalCount: number;
 };
 
@@ -62,6 +71,9 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  /** Defaults to "Columns"; overridden where the surrounding surface already
+   *  says "Columns" (the merged table-settings popover). */
+  triggerLabel?: string;
   tableName?: string;
   isV4?: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
@@ -315,6 +327,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  triggerLabel = "Columns",
   tableName = "unknown",
   isV4 = false,
   onColumnGroupToggle,
@@ -424,7 +437,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             size={triggerSize}
             title="Show/hide columns"
           >
-            <span>Columns</span>
+            <span>{triggerLabel}</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>

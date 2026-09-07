@@ -292,14 +292,23 @@ const events = {
   // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
   // never experiment or dataset names, score values, or item content.
   // `isV4` + `tableName` on every event. `source` on comparison/baseline
-  // distinguishes picker vs table-selection vs url (deep link / redirect).
+  // distinguishes picker vs table-selection vs url (deep link / redirect) vs
+  // auto — so the auto-selected comparison stays out of "users who compare".
+  //
+  // Two events from the original plan went away with the surfaces they
+  // measured: `analytics_tab_opened` (the Analytics route is
+  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
+  // an always-on metric strip). `chart_metric_changed` now belongs to that
+  // strip and `item_regression_filter_applied` to the score-comparison filter:
+  // same question, same name, so the event history stays continuous.
   experiment: [
     "comparison_changed",
     "comparison_picker_opened",
     "baseline_changed",
+    "auto_comparison_preference_changed",
     "chart_metric_changed",
-    "charts_section_toggled",
-    "analytics_tab_opened",
+    "layout_changed",
+    "diff_mode_changed",
     "score_column_scope_toggled",
     "item_regression_filter_applied",
   ],

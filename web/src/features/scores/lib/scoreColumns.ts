@@ -266,6 +266,28 @@ export const getScoreDataTypeExplanation = (
   }
 };
 
+const SCORE_DATA_TYPE_ICONS = new Set(["#", "Ⓒ", "Ⓑ", "Aa"]);
+
+/**
+ * Splits a header built by `createScoreColumns` into its data-type icon and the
+ * rest of the label, so a surface that explains the type itself does not render
+ * the bare glyph twice. A CORRECTION carries no glyph, so the label is trimmed
+ * rather than left with the gap the missing icon would have filled.
+ */
+export const splitScoreDataTypeIcon = (
+  header: string,
+): { icon?: string; label: string } => {
+  const parts = header.split(" ");
+  const iconIndex = parts.findIndex((part) => SCORE_DATA_TYPE_ICONS.has(part));
+  if (iconIndex === -1) return { label: header.trim() };
+  return {
+    icon: parts[iconIndex],
+    label: [...parts.slice(0, iconIndex), ...parts.slice(iconIndex + 1)]
+      .join(" ")
+      .trim(),
+  };
+};
+
 export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
   switch (dataType) {
     case "NUMERIC":

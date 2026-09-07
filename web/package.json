@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.28.1",
+  "version": "4.30.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -128,7 +128,6 @@
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.10.1",
     "json-schema-faker": "0.6.1",
-    "jsonpath-plus": "10.3.0",
     "langfuse": "3.38.4",
     "lodash": "^4.18.1",
     "lucide-react": "^0.552.0",
@@ -166,7 +165,7 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
     "use-query-params": "^2.2.2",
-    "uuid": "^14.0.0",
+    "uuid": "^14.0.2",
     "vaul": "^1.1.2",
     "yaml": "^2.9.0",
     "zod": "^4.3.6",
