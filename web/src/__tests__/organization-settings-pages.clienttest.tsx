@@ -1,8 +1,7 @@
 import { renderHook } from "@testing-library/react";
-import type { Session } from "next-auth";
-import { useSession, type SessionContextValue } from "next-auth/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
@@ -11,10 +10,6 @@ import { useOrganizationSettingsPages } from "@/src/pages/organization/[organiza
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
-}));
-
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
 }));
 
 vi.mock("@/src/components/layouts/header", () => ({
@@ -97,6 +92,10 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiFlag: vi.fn(),
 }));
 
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: vi.fn(),
+}));
+
 vi.mock("@/src/features/llm-gateway", () => ({
   GatewayApiKeysPage: () => null,
   GatewayConfigurationPage: () => null,
@@ -111,15 +110,6 @@ const organization = {
   projects: [],
 };
 
-const authenticatedSession = (email: string): SessionContextValue => ({
-  data: {
-    user: { email },
-    expires: "2999-01-01",
-  } as unknown as Session,
-  status: "authenticated",
-  update: vi.fn(),
-});
-
 describe("useOrganizationSettingsPages", () => {
   beforeEach(() => {
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
@@ -133,9 +123,7 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(usePlan).mockReturnValue("oss");
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
-    vi.mocked(useSession).mockReturnValue(
-      authenticatedSession("user@example.com"),
-    );
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
   });
 
   it("hides organization API key settings without organization api key access", () => {
@@ -203,7 +191,7 @@ describe("useOrganizationSettingsPages", () => {
     ).toBe(true);
   });
 
-  it("hides all LLM Gateway settings from non-Langfuse users", () => {
+  it("hides all LLM Gateway settings when the internal flag is disabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organization:update",
     );
@@ -216,13 +204,11 @@ describe("useOrganizationSettingsPages", () => {
     expect(gatewayPages.every((page) => page.show === false)).toBe(true);
   });
 
-  it("shows all LLM Gateway settings to Langfuse users with organization update access", () => {
+  it("shows all LLM Gateway settings when the internal flag and organization access are enabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organization:update",
     );
-    vi.mocked(useSession).mockReturnValue(
-      authenticatedSession("USER@LANGFUSE.COM"),
-    );
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
     const gatewayPages = result.current.filter((page) =>

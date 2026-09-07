@@ -124,6 +124,13 @@ export type AuthedProjectAPIRouteConfig<
 export async function verifyAuth(
   params: VerifyAuthParams,
 ): Promise<VerifyAuthResult> {
+  if (params.allowGatewayIngestionToken) {
+    const gatewayAuth = await verifyGatewayIngestionAuthorization(
+      params.req.headers.authorization,
+    );
+    if (gatewayAuth) return gatewayAuth;
+  }
+
   // enforce mode runs only the new pipeline, which is the sole authority.
   if (env.API_AUTH_MIGRATION === "enforce") {
     const authz = await runNewAuth(params);
@@ -274,6 +281,7 @@ export type VerifyAuthParams = {
   isAdminApiKeyAuthAllowed?: boolean;
   allowedAccessLevels?: RouteAccessLevel[];
   allowInAppAgentKey?: boolean;
+  allowGatewayIngestionToken?: boolean;
 };
 
 /** VerifyAuthResult is the verified project scope the route handler receives. */
@@ -328,20 +336,16 @@ export const createAuthedProjectAPIRoute = <
 
     // Verify authentication (API key or admin API key)
     try {
-      const gatewayAuth = routeConfig.allowGatewayIngestionToken
-        ? await verifyGatewayIngestionAuthorization(req.headers.authorization)
-        : null;
-      auth =
-        gatewayAuth ??
-        (await verifyAuth({
-          req,
-          name: routeConfig.name,
-          action: routeConfig.action,
-          isAdminApiKeyAuthAllowed:
-            routeConfig.isAdminApiKeyAuthAllowed || false,
-          allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
-          allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
-        }));
+      auth = await verifyAuth({
+        req,
+        name: routeConfig.name,
+        action: routeConfig.action,
+        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+        allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+        allowGatewayIngestionToken:
+          routeConfig.allowGatewayIngestionToken === true,
+      });
     } catch (error: any) {
       if (isPrismaException(error)) {
         traceException(error);

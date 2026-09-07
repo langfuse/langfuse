@@ -4,6 +4,13 @@ export const featurePreviewFlags = ["modernSession"] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
+export const internalOnlyFlags = ["llmGateway"] as const;
+
+export type InternalOnlyFlag = (typeof internalOnlyFlags)[number];
+
+export const isInternalOnlyFlag = (flag: string): flag is InternalOnlyFlag =>
+  internalOnlyFlags.some((internalFlag) => internalFlag === flag);
+
 export const isFeaturePreviewFlag = (
   flag: string,
 ): flag is FeaturePreviewFlag =>
@@ -34,6 +41,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...internalOnlyFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",

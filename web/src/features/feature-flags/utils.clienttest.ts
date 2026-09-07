@@ -37,6 +37,27 @@ describe("parseFlags", () => {
     expect(flags.modernSession).toBe(false);
   });
 
+  it("enables the internal gateway flag only for Langfuse users", () => {
+    expect(
+      parseFlags([], {
+        email: "TEAM.MEMBER@LANGFUSE.COM",
+        v4BetaEnabled: true,
+      }).llmGateway,
+    ).toBe(true);
+    expect(
+      parseFlags(["llmGateway"], {
+        email: "user@example.com",
+        v4BetaEnabled: true,
+      }).llmGateway,
+    ).toBe(false);
+    expect(
+      parseFlags(["llmGateway"], {
+        email: "team.member@clickhouse.com",
+        v4BetaEnabled: true,
+      }).llmGateway,
+    ).toBe(false);
+  });
+
   it("honors a Langfuse team member's explicit opt-out", () => {
     const flags = parseFlags(
       [getFeaturePreviewOptOutFlag("modernSession"), "templateFlag"],

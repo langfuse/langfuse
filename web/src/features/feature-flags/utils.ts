@@ -1,6 +1,7 @@
 import {
   availableFlags,
   filterFeaturePreviewFlags,
+  isInternalOnlyFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
@@ -19,6 +20,10 @@ const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   );
 };
 
+export const isLangfuseEmployeeEmail = (
+  email: string | null | undefined,
+): boolean => email?.toLowerCase().endsWith("@langfuse.com") === true;
+
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
@@ -31,6 +36,11 @@ export const parseFlags = (
   );
 
   availableFlags.forEach((flag) => {
+    if (isInternalOnlyFlag(flag)) {
+      parsedFlags[flag] = isLangfuseEmployeeEmail(context.email);
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
