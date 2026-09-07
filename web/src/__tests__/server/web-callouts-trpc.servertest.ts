@@ -60,10 +60,12 @@ const buildSession = ({
   orgId,
   projectId,
   projectRole = "ADMIN",
+  v4BetaEnabled = false,
 }: {
   orgId: string;
   projectId: string;
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
+  v4BetaEnabled?: boolean;
 }): Session => ({
   expires: "1",
   user: {
@@ -103,7 +105,7 @@ const buildSession = ({
       experimentsV4Enabled: false,
     },
     admin: false,
-    v4BetaEnabled: false,
+    v4BetaEnabled,
   },
   environment: {} as any,
 });
@@ -268,15 +270,17 @@ const createPrismaStub = () => {
 
 const prepare = async ({
   projectRole = "ADMIN",
+  v4BetaEnabled = false,
 }: {
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
+  v4BetaEnabled?: boolean;
 } = {}) => {
   const orgId = "org-1";
   const projectId = "project-1";
   const prismaStub = createPrismaStub();
 
   const ctx = createInnerTRPCContext({
-    session: buildSession({ orgId, projectId, projectRole }),
+    session: buildSession({ orgId, projectId, projectRole, v4BetaEnabled }),
     headers: {},
   });
 
@@ -677,6 +681,149 @@ describe("webCallouts router", () => {
       },
       expect.any(Function),
     );
+  });
+
+  it("widens the observation lookup bound when the trace timestamp misses it", async () => {
+    const { caller, projectId } = await prepare();
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceById as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // A trace whose timestamp sits far after the observation's start_time: the
+    // first lookup, bounded by that timestamp, misses; the widened retry finds
+    // it, so validation must succeed rather than 404.
+    (getObservationById as Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({
+        id: "observation-1",
+        traceId: "trace-1",
+        sessionId: null,
+      });
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).resolves.toEqual({ success: true, status: 204 });
+
+    expect(getObservationById).toHaveBeenCalledTimes(2);
+    const calls = (getObservationById as Mock).mock.calls;
+    expect(calls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
+    // No safe lower bound exists on a miss (legitimate backfills predate any
+    // project-derived floor), so the retry is unbounded.
+    expect(calls[1][0].startTimeLowerBound).toBeUndefined();
+  });
+
+  it("does not widen the observation lookup bound when the bounded lookup errors", async () => {
+    const { caller, projectId } = await prepare();
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceById as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // A transient failure (e.g. a ClickHouse timeout) must not be mistaken for a
+    // genuine miss: retrying unbounded would issue a second expensive scan while
+    // the backend is already struggling. Validation fails fast to a 404 instead.
+    (getObservationById as Mock).mockRejectedValue(
+      new Error("ClickHouse timeout"),
+    );
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(getObservationById).toHaveBeenCalledTimes(1);
+    expect(
+      (getObservationById as Mock).mock.calls[0][0].startTimeLowerBound,
+    ).toEqual(traceTimestamp);
+  });
+
+  it("still widens the bound when an earlier source in the chain transient-errors but a later one cleanly misses", async () => {
+    const { caller, projectId } = await prepare({ v4BetaEnabled: true });
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceByIdFromEventsTable as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // Bounded pass: the events-table lookup transient-errors, then the legacy
+    // lookup cleanly misses. The transient error on the earlier source must not
+    // suppress the unbounded retry, which finds the backfilled observation.
+    (getObservationByIdFromEventsTable as Mock)
+      .mockRejectedValueOnce(new Error("ClickHouse timeout"))
+      .mockResolvedValue({
+        id: "observation-1",
+        traceId: "trace-1",
+        sessionId: null,
+      });
+    (getObservationById as Mock).mockResolvedValue(undefined);
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).resolves.toEqual({ success: true, status: 204 });
+
+    expect(getObservationByIdFromEventsTable).toHaveBeenCalledTimes(2);
+    const eventsCalls = (getObservationByIdFromEventsTable as Mock).mock.calls;
+    expect(eventsCalls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
+    expect(eventsCalls[1][0].startTimeLowerBound).toBeUndefined();
+  });
+
+  it("still widens the bound when an earlier source cleanly misses but a later one transient-errors", async () => {
+    const { caller, projectId } = await prepare({ v4BetaEnabled: true });
+    const traceTimestamp = new Date("2099-01-01T00:00:00.000Z");
+    (getTraceByIdFromEventsTable as Mock).mockResolvedValue({
+      id: "trace-1",
+      sessionId: null,
+      timestamp: traceTimestamp,
+    });
+    // Bounded pass: the events-table lookup cleanly misses, then the legacy
+    // lookup transient-errors. The later transient error must not discard the
+    // earlier clean-miss signal — the unbounded retry still runs and finds the
+    // backfilled observation via the events table.
+    (getObservationByIdFromEventsTable as Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({
+        id: "observation-1",
+        traceId: "trace-1",
+        sessionId: null,
+      });
+    (getObservationById as Mock).mockRejectedValue(
+      new Error("ClickHouse timeout"),
+    );
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: "observation-1",
+        sessionId: null,
+      }),
+    ).resolves.toEqual({ success: true, status: 204 });
+
+    expect(getObservationByIdFromEventsTable).toHaveBeenCalledTimes(2);
+    const eventsCalls = (getObservationByIdFromEventsTable as Mock).mock.calls;
+    expect(eventsCalls[0][0].startTimeLowerBound).toEqual(traceTimestamp);
+    expect(eventsCalls[1][0].startTimeLowerBound).toBeUndefined();
   });
 
   it("rate limits before target validation and outbound delivery", async () => {

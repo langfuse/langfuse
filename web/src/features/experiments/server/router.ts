@@ -900,6 +900,34 @@ export const experimentsRouter = createTRPCRouter({
         projectId: input.projectId,
       });
 
-      return { experimentNames: experiments };
+      // Dataset names live in Postgres only — ClickHouse carries the id — so the
+      // display name is resolved here rather than in the projection, and the
+      // pickers never have to render a raw dataset id.
+      const datasetIds = [
+        ...new Set(
+          experiments
+            .map((experiment) => experiment.datasetId)
+            .filter((datasetId): datasetId is string => Boolean(datasetId)),
+        ),
+      ];
+      const datasets = datasetIds.length
+        ? await ctx.prisma.dataset.findMany({
+            where: { projectId: input.projectId, id: { in: datasetIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+      const datasetNameById = new Map(datasets.map((d) => [d.id, d.name]));
+
+      return {
+        experimentNames: experiments.map((experiment) => ({
+          experimentId: experiment.experimentId,
+          experimentName: experiment.experimentName,
+          startTime: experiment.startTime,
+          datasetId: experiment.datasetId,
+          datasetName: experiment.datasetId
+            ? (datasetNameById.get(experiment.datasetId) ?? null)
+            : null,
+        })),
+      };
     }),
 });
