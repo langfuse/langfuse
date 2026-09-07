@@ -225,6 +225,66 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
   });
 
+  it("excludes observations whose latest version moved to another session", async () => {
+    const previousSessionId = randomUUID();
+    const currentSessionId = randomUUID();
+    const traceId = randomUUID();
+    const spanId = randomUUID();
+    const startTime = Date.now() * 1000;
+
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: spanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: previousSessionId,
+        start_time: startTime,
+        event_ts: startTime,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const observations =
+        await caller.sessions.observationsForSessionFromEvents({
+          projectId,
+          sessionId: previousSessionId,
+        });
+      expect(observations.observations).toHaveLength(1);
+    });
+
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: spanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: currentSessionId,
+        start_time: startTime + 1,
+        event_ts: startTime + 1,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const observations =
+        await caller.sessions.observationsForSessionFromEvents({
+          projectId,
+          sessionId: previousSessionId,
+        });
+      const graph = await caller.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId: previousSessionId,
+        minStartTime: new Date(startTime / 1000 - 1000).toISOString(),
+        maxStartTime: new Date(startTime / 1000 + 1000).toISOString(),
+      });
+
+      expect(observations.observations).toEqual([]);
+      expect(graph).toEqual([]);
+    });
+  });
+
   it("returns only the latest non-deleted observation version", async () => {
     const sessionId = randomUUID();
     const traceId = randomUUID();

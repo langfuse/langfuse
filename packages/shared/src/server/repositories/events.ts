@@ -484,25 +484,33 @@ export const getObservationsForSessionFromEventsTable = async (params: {
   projectId: string;
   sessionId: string;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
-  const records =
-    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
-      projectId: params.projectId,
-      filter: [
-        {
-          column: "sessionId",
-          operator: "=" as const,
-          value: params.sessionId,
-          type: "string" as const,
-        },
-      ],
-      orderBy: { column: "startTime", order: "ASC" },
-      limit: MAX_OBSERVATIONS_PER_SESSION + 1,
-      offset: 0,
-      select: "rows",
-      selectIOAndMetadata: false,
-      selectToolData: false,
-      dedupeBySpanId: true,
-    });
+  const latestEventsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectFieldSet("baseWithoutTools", "calculated")
+    .qualifyRaw(
+      "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+    );
+  const latestEvents = latestEventsBuilder.buildWithParams();
+  const { query, params: queryParams } = new CTEQueryBuilder()
+    .withCTE("latest_events", {
+      ...latestEvents,
+      schema: latestEventsBuilder.getSelectedAliases(),
+    })
+    .from("latest_events", "e")
+    .select("e.*")
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    })
+    .orderByColumns([{ column: "e.start_time", direction: "ASC" }])
+    .limit(MAX_OBSERVATIONS_PER_SESSION + 1)
+    .buildWithParams();
+  const records = await queryClickhouse<EventsObservationQueryResult>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
 
   const totalCount = records.length;
   const withModelData = await enrichObservationsWithModelData(
@@ -2495,7 +2503,7 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
   chMinStartTime: string;
   chMaxStartTime: string;
 }) {
-  const { query, params: queryParams } = new EventsQueryBuilder({
+  const latestEventsBuilder = new EventsQueryBuilder({
     projectId: params.projectId,
   })
     .selectRaw(
@@ -2506,8 +2514,30 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
       "e.name as name",
       "e.start_time as start_time",
       "e.end_time as end_time",
+      "e.session_id as session_id",
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node",
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step",
+    )
+    .qualifyRaw(
+      "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+    );
+  const latestEvents = latestEventsBuilder.buildWithParams();
+  const { query, params: queryParams } = new CTEQueryBuilder()
+    .withCTE("latest_events", {
+      ...latestEvents,
+      schema: latestEventsBuilder.getSelectedAliases(),
+    })
+    .from("latest_events", "e")
+    .select(
+      "e.trace_id as trace_id",
+      "e.id as id",
+      "e.parent_observation_id as parent_observation_id",
+      "e.type as type",
+      "e.name as name",
+      "e.start_time as start_time",
+      "e.end_time as end_time",
+      "e.node as node",
+      "e.step as step",
     )
     .whereRaw("e.session_id = {sessionId: String}", {
       sessionId: params.sessionId,
@@ -2518,13 +2548,10 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
     .whereRaw("e.start_time <= {chMaxStartTime: DateTime64(3)}", {
       chMaxStartTime: params.chMaxStartTime,
     })
-    .qualifyRaw(
-      "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
-    )
     .orderByColumns([
       { column: "e.start_time", direction: "ASC" },
       { column: "e.trace_id", direction: "ASC" },
-      { column: "e.span_id", direction: "ASC" },
+      { column: "e.id", direction: "ASC" },
     ])
     .limit(MAX_OBSERVATIONS_PER_SESSION)
     .buildWithParams();
