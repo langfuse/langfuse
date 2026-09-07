@@ -86,7 +86,13 @@ export function TracePage({
       />
     );
 
-  if (!trace.data) return <div className="p-3">Loading...</div>;
+  if (
+    !trace.data ||
+    (requestedAggregationLevel === "session" &&
+      trace.isLoading &&
+      !("sessionTraceEntries" in trace.data))
+  )
+    return <div className="p-3">Loading...</div>;
 
   const isSessionScope =
     "sessionTraceEntries" in trace.data && !!trace.data.sessionTraceEntries;
