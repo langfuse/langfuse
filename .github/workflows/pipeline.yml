@@ -320,6 +320,19 @@ jobs:
       - name: run eslint-plugin tests
         run: pnpm --filter @repo/eslint-plugin run test
 
+  test-wizos-cloud-base-guardrails:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run WizOS Cloud base guardrail tests
+        run: bash "scripts/ci/wizos-base-image.test.sh"
+
   tests-in-app-agent-sandbox-runtime:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
@@ -1241,6 +1254,7 @@ jobs:
         knip,
         prettier-check,
         tests-eslint-plugin,
+        test-wizos-cloud-base-guardrails,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,
         tests-shared,

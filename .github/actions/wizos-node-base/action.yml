@@ -1,0 +1,43 @@
+name: Resolve WizOS Node base
+description: >
+  Fail closed unless Cloud/preview builds FROM a digest-pinned WizOS Node image
+  pulled through this account's ECR cache. OSS releases must not use this action.
+
+inputs:
+  ecr-registry:
+    description: ECR registry host from amazon-ecr-login (account.dkr.ecr.region.amazonaws.com)
+    required: true
+  wizos-ecr-repository:
+    description: Pull-through repository path starting with wizos/
+    required: true
+  wizos-node-tag:
+    description: Upstream WizOS Node tag
+    required: true
+  wizos-node-digest:
+    description: sha256 digest of the WizOS Node image
+    required: true
+  wizos-os-release-id:
+    description: Expected /etc/os-release ID (must not be alpine)
+    required: true
+
+outputs:
+  node-base-image:
+    description: Digest-pinned ECR pull-through ref to pass as NODE_BASE_IMAGE
+    value: ${{ steps.resolve.outputs.node-base-image }}
+
+runs:
+  using: composite
+  steps:
+    - name: Pull and verify WizOS Node base
+      id: resolve
+      shell: bash
+      env:
+        ECR_REGISTRY: ${{ inputs.ecr-registry }}
+        WIZOS_ECR_REPOSITORY: ${{ inputs.wizos-ecr-repository }}
+        WIZOS_NODE_TAG: ${{ inputs.wizos-node-tag }}
+        WIZOS_NODE_DIGEST: ${{ inputs.wizos-node-digest }}
+        WIZOS_OS_RELEASE_ID: ${{ inputs.wizos-os-release-id }}
+      run: |
+        set -euo pipefail
+        image="$(bash "${GITHUB_WORKSPACE}/scripts/ci/wizos-base-image.sh" pull-base)"
+        echo "node-base-image=${image}" >> "${GITHUB_OUTPUT}"

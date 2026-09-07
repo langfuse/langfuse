@@ -92,5 +92,11 @@ operations.
   or the GitHub "Latest release" badge. At the next major GA (v5), repeat
   the flip: move the gate to `refs/tags/v5` on `main`, then disable it and
   set `makeLatest: false` on the new `v4` maintenance branch.
+- Langfuse Cloud and PR-preview images must be built from a digest-pinned
+  WizOS Node base via the account's ECR pull-through cache
+  (`scripts/ci/wizos-base-image.sh`, `.github/actions/wizos-node-base`).
+  OSS tag releases keep the Dockerfile default `node:24-alpine`. Do not pass
+  `NODE_BASE_IMAGE` to the Docker Hub/GHCR release job, and do not add an
+  Alpine fallback in `_deploy_ecs_service.yml` or `preview-build.yml`.
 - Do not change release/versioning flow without updating this skill and the
   impacted package guides.
