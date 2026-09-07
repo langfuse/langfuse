@@ -6,6 +6,7 @@ import {
 } from "@/src/__tests__/test-utils";
 import {
   PostDatasetsV2Response,
+  PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
 import {
@@ -388,6 +389,63 @@ describe("Unit Tests - DatasetItemValidator", () => {
       expect(result.input).toBe(Prisma.DbNull);
       expect(result.expectedOutput).toBe(Prisma.DbNull);
       expect(result.metadata).toBe(Prisma.DbNull);
+    }
+  });
+});
+
+describe("Python SDK create_dataset_item payload with string IO and object metadata", () => {
+  const pythonSdkPayload = {
+    datasetName: "sample-dataset",
+    input: "input",
+    expectedOutput: "output",
+    metadata: { test: 1 },
+    id: "ee850c3c-0000-4000-8000-000000000001",
+  };
+  const validator = new DatasetItemValidator({
+    inputSchema: null,
+    expectedOutputSchema: null,
+  });
+
+  it("PostDatasetItemsV1Body keeps object metadata for string scalar IO", () => {
+    const parsed = PostDatasetItemsV1Body.parse(pythonSdkPayload);
+    expect(parsed.metadata).toEqual({ test: 1 });
+    expect(parsed.input).toBe("input");
+    expect(parsed.expectedOutput).toBe("output");
+  });
+
+  it("preserves metadata through public-API mapping when the client sends id", () => {
+    const parsed = PostDatasetItemsV1Body.parse(pythonSdkPayload);
+    const mappedMetadata = parsed.metadata ?? undefined;
+    expect(mappedMetadata).toEqual({ test: 1 });
+
+    const result = validator.validateAndNormalize({
+      input: parsed.input,
+      expectedOutput: parsed.expectedOutput,
+      metadata: mappedMetadata,
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: !parsed.id },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.metadata).toEqual({ test: 1 });
+      expect(result.input).toBe("input");
+      expect(result.expectedOutput).toBe("output");
+    }
+  });
+
+  it("leaves omitted metadata as undefined so Prisma INSERT writes SQL NULL", () => {
+    const result = validator.validateAndNormalize({
+      input: "input",
+      expectedOutput: "output",
+      metadata: undefined,
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: false },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.metadata).toBeUndefined();
     }
   });
 });

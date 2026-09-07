@@ -900,6 +900,43 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbDatasetItem?.status).toBe("ARCHIVED");
   });
 
+  it("should persist string IO and object metadata when the client sends an id", async () => {
+    const datasetName = `dataset-${v4()}`;
+    const itemId = v4();
+
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: datasetName },
+      auth,
+    );
+
+    const created = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        id: itemId,
+        datasetName,
+        input: "input",
+        expectedOutput: "output",
+        metadata: { test: 1 },
+      },
+      auth,
+    );
+
+    expect(created.status).toBe(200);
+    expect(created.body.input).toBe("input");
+    expect(created.body.expectedOutput).toBe("output");
+    expect(created.body.metadata).toEqual({ test: 1 });
+
+    const stored = await prisma.datasetItem.findFirst({
+      where: { id: itemId, projectId },
+    });
+    expect(stored?.metadata).toEqual({ test: 1 });
+  });
+
   it("should create and get a dataset run, include special characters", async () => {
     const dataset = await makeZodVerifiedAPICall(
       PostDatasetsV1Response,

@@ -18,6 +18,7 @@ import {
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
   getDatasetItems,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -832,6 +833,35 @@ describe("Dataset Items Repository - Versioning Tests", () => {
   });
 
   describe("upsertDatasetItem()", () => {
+    it("should persist string IO plus object metadata with public-API sanitize opts", async () => {
+      const { projectId: createdProjectId } = await createOrgProjectAndApiKey();
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId: createdProjectId },
+      });
+
+      const item = await upsertDatasetItem({
+        projectId: createdProjectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: "input",
+        expectedOutput: "output",
+        metadata: { test: 1 },
+        normalizeOpts: { sanitizeControlChars: true },
+        validateOpts: { normalizeUndefinedToNull: false },
+      });
+
+      expect(item.input).toBe("input");
+      expect(item.expectedOutput).toBe("output");
+      expect(item.metadata).toEqual({ test: 1 });
+
+      const stored = await prisma.datasetItem.findFirst({
+        where: { id: itemId, projectId: createdProjectId },
+      });
+      expect(stored?.metadata).toEqual({ test: 1 });
+    });
+
     it("should create new item with version when ID doesn't exist", async () => {
       const datasetId = v4();
       const itemId = v4();
