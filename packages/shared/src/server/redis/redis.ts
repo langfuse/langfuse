@@ -254,10 +254,9 @@ const trackRedisInstance = <T extends Redis | Cluster | null>(
 };
 
 /**
- * Disconnect every client created by createNewRedisInstance.
- *
- * `redis.disconnect()` on the shared client only covers that one connection.
- * Returns how many were closed, for shutdown logging.
+ * Disconnect every client created by createNewRedisInstance, including the
+ * shared `redis` client, which is created through the same path. Returns how
+ * many were closed, for shutdown logging.
  */
 export const disconnectAllRedisInstances = (): number => {
   let closed = 0;
