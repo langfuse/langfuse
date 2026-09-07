@@ -330,6 +330,9 @@ export function buildExpandedGraph(
     );
     if (graph.edges.length > MAX_EXPANDED_EDGES) return EDGE_LIMIT_RESULT;
     Object.assign(nodeToObservationsMap, result.nodeToObservationsMap);
+    nodeToObservationsMap[startId] = result.graph.edges
+      .filter((edge) => edge.from === LANGFUSE_START_NODE_NAME)
+      .flatMap((edge) => result.nodeToObservationsMap[edge.to] ?? []);
   }
 
   if (sessionIds.length === 1) {

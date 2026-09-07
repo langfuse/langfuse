@@ -109,6 +109,10 @@ describe("buildExpandedGraph", () => {
         { id: "trace-1:__start__", label: "Trace trace-1" },
         { id: "trace-2:__start__", label: "Trace trace-2" },
       ]);
+      expect(result.nodeToObservationsMap).toMatchObject({
+        "trace-1:__start__": ["a"],
+        "trace-2:__start__": ["b"],
+      });
       expect(result.graph.nodes).toContainEqual({
         id: "session-session-1",
         label: "Session session-1",
