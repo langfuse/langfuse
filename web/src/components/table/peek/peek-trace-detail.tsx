@@ -2,17 +2,12 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
-  TraceAggregationToggle,
-  TraceDetailActions,
-  TraceDetailBody,
-} from "@/src/features/traces";
-import { useTraceDetailMode } from "@/src/features/traces/hooks/useTraceDetailMode";
-import {
-  TablePeekView,
   shouldClosePeekAfterDelete,
+  type TablePeekView,
 } from "@/src/components/table/peek";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
+import { PeekTraceDetailContent } from "@/src/components/table/peek/PeekTraceDetailContent";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -52,18 +47,6 @@ export const TablePeekViewTraceDetail = (
         }
       : {}),
   });
-  const {
-    mode: aggregationLevel,
-    selectedObservation,
-    setMode: setAggregationLevel,
-    title,
-    widthMode,
-  } = useTraceDetailMode({ trace: trace.data });
-  const isSessionScope =
-    !!trace.data &&
-    "sessionTraceEntries" in trace.data &&
-    !!trace.data.sessionTraceEntries;
-
   const actionProps = trace.data
     ? {
         traceId: trace.data.id,
@@ -83,51 +66,14 @@ export const TablePeekViewTraceDetail = (
         },
       }
     : null;
-  const aggregationToggle = props.isV4 ? (
-    <TraceAggregationToggle
-      aggregationLevel={aggregationLevel}
-      canSelectSession={trace.canAggregateBySession}
-      observationType={selectedObservation?.type ?? null}
-      onAggregationLevelChange={setAggregationLevel}
-    />
-  ) : undefined;
-
   return (
-    <TablePeekView
+    <PeekTraceDetailContent
       {...props}
-      itemType={isSessionScope ? "SESSION" : props.itemType}
-      title={title}
-      {...(props.isV4
-        ? {
-            widthMode,
-          }
-        : {})}
-      leadingContent={aggregationToggle}
-      hideItemBadge={!!aggregationToggle}
-      actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
-      }
-      actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
-      }
-    >
-      {trace.isSessionScopeUnavailable ? (
-        <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-sm">
-          This trace is not part of a session and cannot be opened in the v4
-          detail view.
-        </div>
-      ) : (
-        <TraceDetailBody
-          trace={trace.data}
-          context="peek"
-          truncatedAtObservations={trace.truncatedAtObservations}
-          showObservationOnly={aggregationLevel === "observation"}
-          sessionScopeRequested={aggregationLevel === "session"}
-          isError={trace.isError}
-        />
-      )}
-    </TablePeekView>
+      trace={trace}
+      actionProps={actionProps}
+      keySuffix={undefined}
+      fallbackFromUnavailableSession={false}
+      showUnavailableSessionMessage
+    />
   );
 };

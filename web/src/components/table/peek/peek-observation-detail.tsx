@@ -1,18 +1,13 @@
 import {
-  TablePeekView,
   shouldClosePeekAfterDelete,
+  type TablePeekView,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import {
-  TraceAggregationToggle,
-  TraceDetailActions,
-  TraceDetailBody,
-} from "@/src/features/traces";
-import { useTraceDetailMode } from "@/src/features/traces/hooks/useTraceDetailMode";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useRef } from "react";
+import { PeekTraceDetailContent } from "@/src/components/table/peek/PeekTraceDetailContent";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -46,22 +41,6 @@ export const TablePeekViewObservationDetail = (
       router.query.aggregation === "session" ? "session" : "trace",
     readPath: props.isV4 ? "v4" : "v3",
   });
-  const {
-    mode: aggregationLevel,
-    selectedObservation,
-    setMode: setAggregationLevel,
-    title,
-    widthMode,
-  } = useTraceDetailMode({
-    trace: trace.data,
-    fallbackFromUnavailableSession: trace.isSessionScopeUnavailable,
-  });
-
-  const isSessionScope =
-    !!trace.data &&
-    "sessionTraceEntries" in trace.data &&
-    !!trace.data.sessionTraceEntries;
-
   const actionProps = trace.data
     ? {
         traceId: trace.data.id,
@@ -86,45 +65,14 @@ export const TablePeekViewObservationDetail = (
         },
       }
     : null;
-  const aggregationToggle = props.isV4 ? (
-    <TraceAggregationToggle
-      aggregationLevel={aggregationLevel}
-      canSelectSession={trace.canAggregateBySession}
-      observationType={selectedObservation?.type ?? null}
-      onAggregationLevelChange={setAggregationLevel}
-    />
-  ) : undefined;
-
   return (
-    <TablePeekView
+    <PeekTraceDetailContent
       {...props}
-      itemType={isSessionScope ? "SESSION" : props.itemType}
-      title={title}
-      {...(props.isV4
-        ? {
-            widthMode,
-          }
-        : {})}
-      leadingContent={aggregationToggle}
-      hideItemBadge={!!aggregationToggle}
-      actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
-      }
-      actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
-      }
-    >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        keySuffix={peekObservationId}
-        truncatedAtObservations={trace.truncatedAtObservations}
-        showObservationOnly={aggregationLevel === "observation"}
-        sessionScopeRequested={aggregationLevel === "session"}
-        isError={trace.isError}
-      />
-    </TablePeekView>
+      trace={trace}
+      actionProps={actionProps}
+      keySuffix={peekObservationId}
+      fallbackFromUnavailableSession={trace.isSessionScopeUnavailable}
+      showUnavailableSessionMessage={false}
+    />
   );
 };
