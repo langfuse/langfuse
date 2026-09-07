@@ -544,8 +544,8 @@ export type ObservationTableQuery = {
   ioSizeCap?: { inlineChars: number; previewChars: number };
   /**
    * Events table only: collapse un-merged ReplacingMergeTree row versions to
-   * the latest non-deleted row per span, so row counts equal distinct active
-   * observations.
+   * the latest non-deleted row per trace and span, so row counts equal distinct
+   * active observations.
    * Required by callers whose limits/paging count observations.
    */
   dedupeBySpanId?: boolean;

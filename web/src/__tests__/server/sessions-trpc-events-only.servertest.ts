@@ -181,6 +181,50 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
   });
 
+  it("keeps observations with the same span id from different traces", async () => {
+    const sessionId = randomUUID();
+    const spanId = randomUUID();
+    const traceIds = [randomUUID(), randomUUID()];
+    const startTime = Date.now() * 1000;
+
+    await createEventsCh(
+      traceIds.map((traceId, index) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: spanId,
+          trace_id: traceId,
+          project_id: projectId,
+          type: "SPAN",
+          session_id: sessionId,
+          name: `trace-${index}`,
+          start_time: startTime + index,
+          event_ts: startTime + index,
+        }),
+      ),
+    );
+
+    await waitForExpect(async () => {
+      const observations =
+        await caller.sessions.observationsForSessionFromEvents({
+          projectId,
+          sessionId,
+        });
+      const graph = await caller.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId,
+        minStartTime: new Date(startTime / 1000 - 1000).toISOString(),
+        maxStartTime: new Date(startTime / 1000 + 1000).toISOString(),
+      });
+
+      expect(
+        observations.observations.map(({ traceId }) => traceId).sort(),
+      ).toEqual([...traceIds].sort());
+      expect(graph.map(({ traceId }) => traceId).sort()).toEqual(
+        [...traceIds].sort(),
+      );
+    });
+  });
+
   it("returns only the latest non-deleted observation version", async () => {
     const sessionId = randomUUID();
     const traceId = randomUUID();

@@ -921,7 +921,7 @@ async function getObservationsFromEventsTableInternal<T>(
       }
       if (opts.dedupeBySpanId) {
         return cursorOrderedBuilder.qualifyRaw(
-          "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+          "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
         );
       }
       return cursorOrderedBuilder;
@@ -943,7 +943,7 @@ async function getObservationsFromEventsTableInternal<T>(
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
       b.qualifyRaw(
-        "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+        "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
       ),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
@@ -2519,7 +2519,7 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
       chMaxStartTime: params.chMaxStartTime,
     })
     .qualifyRaw(
-      "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+      "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
     )
     .orderByColumns([
       { column: "e.start_time", direction: "ASC" },
