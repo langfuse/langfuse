@@ -198,6 +198,7 @@ const backfillCostSummary = (
       enabled: true,
       matchingObservations: 4_400,
       maxItems: 5_000,
+      testRunCostUsd: 0.0017,
       isEstimating: false,
     }}
     onSamplingChange={fn()}

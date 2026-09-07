@@ -101,6 +101,7 @@ export function EvaluatorSavedDialogContainer({
   const backfill = useEvaluatorSavedBackfill({
     projectId,
     evaluatorId: evaluator.id,
+    knownTestRunCostUsd: evaluator.testRunCostUsd ?? undefined,
     historicEvaluationLimit: historicEvaluationLimit.data,
   });
   const availableRules = useMemo(
@@ -532,6 +533,7 @@ export function EvaluatorSavedDialogContainer({
               enabled: true,
               matchingObservations: backfill.matchingObservations,
               maxItems: backfill.effectiveMaxItems,
+              testRunCostUsd: backfill.testRunCostUsd,
               isEstimating: backfill.isEstimating,
             }
           : { enabled: false }

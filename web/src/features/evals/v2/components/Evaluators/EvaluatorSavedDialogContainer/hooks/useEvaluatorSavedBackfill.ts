@@ -36,10 +36,12 @@ function getBackfillRange(
 export function useEvaluatorSavedBackfill({
   projectId,
   evaluatorId,
+  knownTestRunCostUsd,
   historicEvaluationLimit,
 }: {
   projectId: string;
   evaluatorId: string;
+  knownTestRunCostUsd?: number;
   historicEvaluationLimit?: number;
 }) {
   const utils = api.useUtils();
@@ -53,6 +55,7 @@ export function useEvaluatorSavedBackfill({
   );
   const [maxItems, setMaxItems] = useState(DEFAULT_EVALUATOR_BACKFILL_ITEMS);
   const [matchingObservations, setMatchingObservations] = useState(0);
+  const [testRunCostUsd, setTestRunCostUsd] = useState<number | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
   const estimateRequestId = useRef(0);
   const hasScheduled = useRef(false);
@@ -68,19 +71,23 @@ export function useEvaluatorSavedBackfill({
             evaluatorIds: [evaluatorId],
             filter: scope.filter,
             sampling: scope.sampling,
-            shouldRunMissingTest: false,
+            shouldRunMissingTest: true,
             timeRange: estimateRange,
+            ...(knownTestRunCostUsd !== undefined
+              ? { knownTestRunCostUsd }
+              : {}),
           });
         if (estimateRequestId.current !== requestId) return;
-        setMatchingObservations(
-          Math.max(
-            0,
-            ...result.map(({ matchingObservations }) => matchingObservations),
-          ),
+        const estimate = result.find(
+          ({ evaluatorId: resultEvaluatorId }) =>
+            resultEvaluatorId === evaluatorId,
         );
+        setMatchingObservations(estimate?.matchingObservations ?? 0);
+        setTestRunCostUsd(estimate?.testRunCostUsd ?? null);
       } catch (error) {
         if (estimateRequestId.current === requestId) {
           setMatchingObservations(0);
+          setTestRunCostUsd(null);
           trpcErrorToast(error);
         }
       } finally {
@@ -89,7 +96,7 @@ export function useEvaluatorSavedBackfill({
         }
       }
     },
-    [evaluatorId, projectId, range, utils.client],
+    [evaluatorId, knownTestRunCostUsd, projectId, range, utils.client],
   );
 
   const clearScope = useCallback(() => {
@@ -97,6 +104,7 @@ export function useEvaluatorSavedBackfill({
     setIsEstimating(false);
     setEnabledState(false);
     setMatchingObservations(0);
+    setTestRunCostUsd(null);
   }, []);
 
   const setEnabled = useCallback(
@@ -210,6 +218,7 @@ export function useEvaluatorSavedBackfill({
     effectiveMaxItems,
     allowedItems,
     matchingObservations,
+    testRunCostUsd,
     isEstimating,
     isScheduling: runEvaluation.isPending,
     executionRange,

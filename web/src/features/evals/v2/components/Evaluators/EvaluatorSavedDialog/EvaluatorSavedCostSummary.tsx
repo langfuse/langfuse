@@ -34,6 +34,7 @@ export function EvaluatorSavedCostSummary({
         enabled: true;
         matchingObservations: number;
         maxItems: number;
+        testRunCostUsd: number | null;
         isEstimating: boolean;
       };
 }) {
@@ -47,9 +48,13 @@ export function EvaluatorSavedCostSummary({
   const backfillObservationCount = backfill.enabled
     ? Math.min(backfill.matchingObservations, backfill.maxItems)
     : 0;
-  const backfillEstimatedCostUsd = estimate
-    ? backfillObservationCount * sampling * estimate.testRunCostUsd
+  const backfillTestRunCostUsd = backfill.enabled
+    ? backfill.testRunCostUsd
     : null;
+  const backfillEstimatedCostUsd =
+    backfillTestRunCostUsd === null
+      ? null
+      : backfillObservationCount * sampling * backfillTestRunCostUsd;
 
   return (
     <div className="space-y-5">
@@ -142,7 +147,7 @@ export function EvaluatorSavedCostSummary({
                     {...formatEvaluatorCostCalculation({
                       matchingObservations: backfillObservationCount,
                       sampling,
-                      testRunCostUsd: estimate?.testRunCostUsd ?? null,
+                      testRunCostUsd: backfillTestRunCostUsd,
                       estimatedCostUsd: backfillEstimatedCostUsd,
                       evaluatorType,
                       period: "selection",
