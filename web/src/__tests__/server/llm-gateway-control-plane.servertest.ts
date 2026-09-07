@@ -231,6 +231,35 @@ describe("LLM gateway control plane", () => {
     expect(decrypt(stored.encryptedCredential)).toBe(credential);
   });
 
+  it("validates new and updated Anthropic credentials with an active compatible model", async () => {
+    const { caller, org } = await prepare();
+
+    const connection = await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "Anthropic primary",
+      provider: "ANTHROPIC",
+      credential: "sk-ant-test-gateway",
+    });
+    await caller.llmGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      credential: "sk-ant-test-gateway-updated",
+    });
+
+    expect(SharedServer.testModelCall).toHaveBeenCalledTimes(2);
+    expect(SharedServer.testModelCall).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        provider: "anthropic",
+        model: "claude-haiku-4-5-20251001",
+        apiKey: expect.objectContaining({
+          adapter: "anthropic",
+          baseURL: "https://api.anthropic.com/v1",
+        }),
+      }),
+    );
+  });
+
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
     const created = await caller.llmGateway.createApiKey({

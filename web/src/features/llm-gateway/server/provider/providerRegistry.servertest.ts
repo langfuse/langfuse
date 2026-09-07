@@ -23,6 +23,7 @@ describe("LLM gateway provider registry", () => {
     expect(getGatewayProviderDefinition("ANTHROPIC")).toMatchObject({
       baseUrl: "https://api.anthropic.com/v1",
       authType: "x-api-key",
+      validationModel: "claude-haiku-4-5-20251001",
     });
     expect(getGatewayProviderDefinition("OPENROUTER")).toMatchObject({
       baseUrl: "https://openrouter.ai/api/v1",

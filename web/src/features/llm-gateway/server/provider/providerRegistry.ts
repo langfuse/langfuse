@@ -49,6 +49,7 @@ type ProviderDefinition = {
   baseUrl: string;
   modelsPath: string;
   authType: "bearer" | "x-api-key";
+  validationModel: string;
   apiFormats: readonly GatewayApiFormat[];
 };
 
@@ -57,18 +58,21 @@ const PROVIDER_REGISTRY: Record<GatewayProviderName, ProviderDefinition> = {
     baseUrl: "https://api.openai.com/v1",
     modelsPath: "/models",
     authType: "bearer",
+    validationModel: "gpt-4o-mini",
     apiFormats: ["openai.responses", "openai.chat-completions"],
   },
   ANTHROPIC: {
     baseUrl: "https://api.anthropic.com/v1",
     modelsPath: "/models",
     authType: "x-api-key",
+    validationModel: "claude-haiku-4-5-20251001",
     apiFormats: ["anthropic.messages"],
   },
   OPENROUTER: {
     baseUrl: "https://openrouter.ai/api/v1",
     modelsPath: "/models",
     authType: "bearer",
+    validationModel: "openai/gpt-4o-mini",
     apiFormats: ["openai.responses", "openai.chat-completions"],
   },
 };

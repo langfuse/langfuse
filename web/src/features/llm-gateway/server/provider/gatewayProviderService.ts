@@ -341,11 +341,7 @@ async function validateGatewayCredential(params: {
   const definition = getGatewayProviderDefinition(params.provider);
   const adapter =
     params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
-  const model = {
-    OPENAI: "gpt-4o-mini",
-    ANTHROPIC: "claude-3-5-haiku-latest",
-    OPENROUTER: "openai/gpt-4o-mini",
-  }[params.provider];
+  const model = definition.validationModel;
 
   try {
     await testModelCall({
