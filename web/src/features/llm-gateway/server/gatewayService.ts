@@ -1,5 +1,6 @@
 import type {
   GatewayInstrumentationMode,
+  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { InvalidRequestError } from "@langfuse/shared";
@@ -30,22 +31,12 @@ export class GatewayService {
     const before = await this.getConfig(params.organizationId);
     let result;
     if (params.createProjectName) {
-      try {
-        result = await this.repository.createIngestionProjectAndUpsertConfig({
-          organizationId: params.organizationId,
-          projectName: params.createProjectName,
-          createdByUserId: params.session.user.id,
-          instrumentationMode: params.instrumentationMode,
-        });
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message === "A project with this name already exists"
-        ) {
-          throw new InvalidRequestError(error.message);
-        }
-        throw error;
-      }
+      result = await this.createIngestionProjectAndUpsertConfig({
+        organizationId: params.organizationId,
+        projectName: params.createProjectName,
+        createdByUserId: params.session.user.id,
+        instrumentationMode: params.instrumentationMode,
+      });
     } else {
       if (params.defaultIngestionProjectId) {
         const project = await this.repository.getActiveOrganizationProject({
@@ -93,5 +84,84 @@ export class GatewayService {
       await invalidateCachedOrgApiKeys(params.organizationId);
     }
     return result;
+  }
+
+  private createIngestionProjectAndUpsertConfig(params: {
+    organizationId: string;
+    projectName: string;
+    createdByUserId: string;
+    instrumentationMode: GatewayInstrumentationMode;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.project.findFirst({
+        where: {
+          orgId: params.organizationId,
+          name: params.projectName,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new InvalidRequestError(
+          "A project with this name already exists",
+        );
+      }
+
+      const project = await tx.project.create({
+        data: {
+          orgId: params.organizationId,
+          name: params.projectName,
+        },
+      });
+      await this.createPrivateProjectMemberships({
+        tx,
+        organizationId: params.organizationId,
+        projectId: project.id,
+        createdByUserId: params.createdByUserId,
+      });
+      const config = await tx.gatewayConfig.upsert({
+        where: { organizationId: params.organizationId },
+        create: {
+          organizationId: params.organizationId,
+          defaultIngestionProjectId: project.id,
+          instrumentationMode: params.instrumentationMode,
+        },
+        update: {
+          defaultIngestionProjectId: project.id,
+          instrumentationMode: params.instrumentationMode,
+        },
+      });
+      return { config, project };
+    });
+  }
+
+  private async createPrivateProjectMemberships(params: {
+    tx: Prisma.TransactionClient;
+    organizationId: string;
+    projectId: string;
+    createdByUserId: string;
+  }) {
+    let membershipCursor: string | undefined;
+    do {
+      const memberships = await params.tx.organizationMembership.findMany({
+        where: { orgId: params.organizationId },
+        select: { id: true, userId: true },
+        orderBy: { id: "asc" },
+        take: 100,
+        ...(membershipCursor
+          ? { cursor: { id: membershipCursor }, skip: 1 }
+          : undefined),
+      });
+      await params.tx.projectMembership.createMany({
+        data: memberships.map((membership) => ({
+          projectId: params.projectId,
+          userId: membership.userId,
+          orgMembershipId: membership.id,
+          role: membership.userId === params.createdByUserId ? "OWNER" : "NONE",
+        })),
+      });
+      membershipCursor =
+        memberships.length === 100 ? memberships.at(-1)?.id : undefined;
+    } while (membershipCursor);
   }
 }
