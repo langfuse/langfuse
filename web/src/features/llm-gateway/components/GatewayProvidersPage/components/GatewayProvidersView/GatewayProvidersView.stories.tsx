@@ -8,10 +8,9 @@ import { GatewayProvidersView } from "./GatewayProvidersView";
 const meta = preview.meta({ component: GatewayProvidersView });
 
 const onCreate = fn();
-const onPriorityAction = fn();
 const onCredentialAction = fn();
 const onLoadMore = fn();
-const onReorder = fn();
+const onReorder = fn(async () => true);
 
 const connections = [
   {
@@ -20,6 +19,11 @@ const connections = [
     provider: "OPENAI",
     displaySecret: "sk-proj-...7d3a",
     status: "ENABLED",
+    organizationId: "org-1",
+    createdById: "user-1",
+    routingPriority: 0,
+    createdAt: new Date("2026-09-07T12:00:00.000Z"),
+    updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
   {
     id: "connection-anthropic",
@@ -27,6 +31,11 @@ const connections = [
     provider: "ANTHROPIC",
     displaySecret: "sk-ant-...91bc",
     status: "ERROR",
+    organizationId: "org-1",
+    createdById: "user-1",
+    routingPriority: 1,
+    createdAt: new Date("2026-09-07T12:00:00.000Z"),
+    updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
   {
     id: "connection-openrouter",
@@ -34,20 +43,16 @@ const connections = [
     provider: "OPENROUTER",
     displaySecret: "sk-or-...42ef",
     status: "DISABLED",
+    organizationId: "org-1",
+    createdById: "user-1",
+    routingPriority: 2,
+    createdAt: new Date("2026-09-07T12:00:00.000Z"),
+    updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
 ] satisfies ComponentProps<typeof GatewayProvidersView>["connections"];
 
 const actions = {
   createAction: <Button onClick={onCreate}>Add credential</Button>,
-  renderPriorityActions: (connection, index) => (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={() => onPriorityAction(connection.id, index)}
-    >
-      Move
-    </Button>
-  ),
   renderCredentialActions: (connection) => (
     <Button
       size="sm"
@@ -66,7 +71,6 @@ const actions = {
   ComponentProps<typeof GatewayProvidersView>,
   | "createAction"
   | "renderCredentialActions"
-  | "renderPriorityActions"
   | "hasMore"
   | "isLoadingMore"
   | "onLoadMore"
@@ -110,6 +114,29 @@ export const LoadingMore = meta.story({
     ...actions,
     hasMore: true,
     isLoadingMore: true,
+  },
+});
+
+export const MovesImmediately = meta.story({
+  name: "(Test) Moves Immediately",
+  args: {
+    connections,
+    modelCounts: {},
+    ...actions,
+  },
+  play: async ({ canvas }) => {
+    onReorder.mockClear();
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Move credential down" })[0]!,
+    );
+
+    const rows = canvas.getAllByRole("row").slice(1);
+    await expect(rows[0]).toHaveTextContent("Fallback");
+    await expect(rows[1]).toHaveTextContent("Primary");
+    await expect(onReorder).toHaveBeenCalledWith(
+      "connection-openai",
+      "connection-anthropic",
+    );
   },
 });
 

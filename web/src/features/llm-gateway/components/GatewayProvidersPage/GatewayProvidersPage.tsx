@@ -8,7 +8,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { DeleteProviderDialog } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/DeleteProviderDialog";
 import { ProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 import { GatewayProvidersView } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/GatewayProvidersView/GatewayProvidersView";
-import { ReorderProviderButton } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ReorderProviderButton";
 import { RetryProviderButton } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
@@ -86,18 +85,20 @@ export function GatewayProvidersPage({
         const targetIndex = connections.findIndex(
           (connection) => connection.id === targetId,
         );
-        if (sourceIndex < 0 || targetIndex < 0) return;
+        if (sourceIndex < 0 || targetIndex < 0) return false;
         const connectionIds = connections.map((connection) => connection.id);
         const [movedId] = connectionIds.splice(sourceIndex, 1);
-        if (!movedId) return;
+        if (!movedId) return false;
         connectionIds.splice(targetIndex, 0, movedId);
         try {
           await reorder.mutateAsync({ orgId: organizationId, connectionIds });
           await utils.llmGateway.listConnections.invalidate({
             orgId: organizationId,
           });
+          return true;
         } catch (error) {
           reportNonTrpcError(error, "llm-gateway-providers");
+          return false;
         }
       }}
       createAction={
@@ -112,27 +113,7 @@ export function GatewayProvidersPage({
           )}
         </ProviderDialogController>
       }
-      renderPriorityActions={(_connection, index) => (
-        <>
-          <ReorderProviderButton
-            organizationId={organizationId}
-            connections={connections}
-            index={index}
-            direction="up"
-            canReorder={!connectionsQuery.hasNextPage}
-          />
-          <ReorderProviderButton
-            organizationId={organizationId}
-            connections={connections}
-            index={index}
-            direction="down"
-            canReorder={!connectionsQuery.hasNextPage}
-          />
-        </>
-      )}
-      renderCredentialActions={(_connection, index) => {
-        const connection = connections[index];
-        if (!connection) return null;
+      renderCredentialActions={(connection) => {
         return (
           <>
             <RetryProviderButton

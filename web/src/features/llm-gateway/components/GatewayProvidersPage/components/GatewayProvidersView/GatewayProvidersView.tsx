@@ -1,7 +1,10 @@
 import {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -15,7 +18,10 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
 import {
   defaultAnimateLayoutChanges,
   SortableContext,
@@ -23,7 +29,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Route } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Route } from "lucide-react";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import Header from "@/src/components/layouts/header";
@@ -33,7 +39,10 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { TableRow } from "@/src/components/ui/table";
 import { providerLabels } from "@/src/features/llm-gateway/constants/providerLabels";
-import type { GatewayProvider } from "@/src/features/llm-gateway/types/gatewayProvider";
+import type {
+  GatewayConnection,
+  GatewayProvider,
+} from "@/src/features/llm-gateway/types/gatewayProvider";
 import { cn } from "@/src/utils/tailwind";
 
 const TABLE_NAME = "gateway-provider-credentials";
@@ -61,19 +70,12 @@ const SortableHandleContext = createContext<SortableHandleContextValue | null>(
   null,
 );
 
-export type GatewayConnectionRow = {
-  id: string;
-  name: string;
-  provider: GatewayProvider;
-  displaySecret: string;
-  status: "ENABLED" | "DISABLED" | "ERROR";
-};
+export type GatewayConnectionRow = GatewayConnection;
 
 export function GatewayProvidersView({
   connections,
   modelCounts,
   createAction,
-  renderPriorityActions,
   renderCredentialActions,
   hasMore,
   isLoadingMore,
@@ -84,10 +86,6 @@ export function GatewayProvidersView({
   connections: GatewayConnectionRow[];
   modelCounts: Record<string, number | "loading">;
   createAction: ReactNode;
-  renderPriorityActions: (
-    connection: GatewayConnectionRow,
-    index: number,
-  ) => ReactNode;
   renderCredentialActions: (
     connection: GatewayConnectionRow,
     index: number,
@@ -96,12 +94,56 @@ export function GatewayProvidersView({
   isLoadingMore: boolean;
   onLoadMore: () => unknown;
   canReorder: boolean;
-  onReorder: (sourceId: string, targetId: string) => unknown;
+  onReorder: (sourceId: string, targetId: string) => Promise<boolean>;
 }) {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor),
+  );
+  const serverOrderKey = JSON.stringify(
+    connections.map((connection) => connection.id),
+  );
+  const serverIds = useMemo<string[]>(
+    () => JSON.parse(serverOrderKey),
+    [serverOrderKey],
+  );
+  const [orderedIds, setOrderedIds] = useState(serverIds);
+
+  useEffect(() => {
+    setOrderedIds(serverIds);
+  }, [serverIds]);
+
+  const orderedConnections = useMemo(() => {
+    const orderById = new Map(
+      orderedIds.map((connectionId, index) => [connectionId, index]),
+    );
+    return connections.toSorted(
+      (left, right) =>
+        (orderById.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+        (orderById.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [connections, orderedIds]);
+
+  const moveConnection = useCallback(
+    async (sourceId: string, targetId: string) => {
+      const previousIds = orderedIds;
+      const sourceIndex = previousIds.indexOf(sourceId);
+      const targetIndex = previousIds.indexOf(targetId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
+        return;
+
+      const nextIds = [...previousIds];
+      const [movedId] = nextIds.splice(sourceIndex, 1);
+      if (!movedId) return;
+      nextIds.splice(targetIndex, 0, movedId);
+      setOrderedIds(nextIds);
+
+      if (!(await onReorder(sourceId, targetId))) {
+        setOrderedIds(previousIds);
+      }
+    },
+    [onReorder, orderedIds],
   );
   const columns = useMemo<LangfuseColumnDef<GatewayConnectionRow, unknown>[]>(
     () => [
@@ -114,7 +156,12 @@ export function GatewayProvidersView({
           <ProviderPriorityCell
             connection={row.original}
             index={row.index}
-            priorityActions={renderPriorityActions(row.original, row.index)}
+            connectionCount={orderedConnections.length}
+            canReorder={canReorder}
+            onMove={async (targetIndex) => {
+              const target = orderedConnections[targetIndex];
+              if (target) await moveConnection(row.original.id, target.id);
+            }}
           />
         ),
       },
@@ -169,12 +216,18 @@ export function GatewayProvidersView({
         ),
       },
     ],
-    [modelCounts, renderCredentialActions, renderPriorityActions],
+    [
+      canReorder,
+      modelCounts,
+      moveConnection,
+      orderedConnections,
+      renderCredentialActions,
+    ],
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const reorder = getProviderReorder(event, canReorder);
-    if (reorder) onReorder(reorder.sourceId, reorder.targetId);
+    if (reorder) await moveConnection(reorder.sourceId, reorder.targetId);
   };
 
   return (
@@ -187,20 +240,25 @@ export function GatewayProvidersView({
       </p>
 
       <DndContext
+        autoScroll={false}
         collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis]}
+        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
         sensors={sensors}
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={connections.map((connection) => connection.id)}
+          items={orderedConnections.map((connection) => connection.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="overflow-hidden rounded-md border">
             <DataTable
               tableName={TABLE_NAME}
               columns={columns}
-              data={{ isLoading: false, isError: false, data: connections }}
+              data={{
+                isLoading: false,
+                isError: false,
+                data: orderedConnections,
+              }}
               hidePagination
               cellPadding="comfortable"
               noResultsMessage="No provider credentials configured."
@@ -299,11 +357,15 @@ function SortableProviderRow({
 function ProviderPriorityCell({
   connection,
   index,
-  priorityActions,
+  connectionCount,
+  canReorder,
+  onMove,
 }: {
   connection: GatewayConnectionRow;
   index: number;
-  priorityActions: ReactNode;
+  connectionCount: number;
+  canReorder: boolean;
+  onMove: (targetIndex: number) => Promise<void>;
 }) {
   const sortableHandle = useContext(SortableHandleContext);
 
@@ -323,7 +385,26 @@ function ProviderPriorityCell({
         {index + 1}
       </span>
       <div className="flex h-6 items-center opacity-40 transition-opacity group-hover:opacity-100">
-        {priorityActions}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          className="text-muted-foreground size-6 opacity-60 hover:opacity-100"
+          disabled={!canReorder || index === 0}
+          aria-label="Move credential up"
+          onClick={() => onMove(index - 1)}
+        >
+          <ArrowUp className="size-3" />
+        </Button>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          className="text-muted-foreground size-6 opacity-60 hover:opacity-100"
+          disabled={!canReorder || index === connectionCount - 1}
+          aria-label="Move credential down"
+          onClick={() => onMove(index + 1)}
+        >
+          <ArrowDown className="size-3" />
+        </Button>
       </div>
     </div>
   );
