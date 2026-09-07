@@ -809,4 +809,153 @@ describe("/api/public/score-configs API Endpoint", () => {
       });
     });
   });
+
+  describe("GET /api/public/score-configs dataType filter", () => {
+    // One score config per data type so the filter can be exercised across
+    // the full enum (CATEGORICAL, NUMERIC, BOOLEAN, TEXT).
+    let booleanId: string;
+    let numericId: string;
+    let categoricalId: string;
+    let textId: string;
+
+    const createConfig = async (
+      dataType: ScoreConfigDataType,
+      name: string,
+    ) => {
+      return prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name,
+          dataType,
+          ...(dataType === ScoreConfigDataType.NUMERIC
+            ? { minValue: 0, maxValue: 1 }
+            : {}),
+          ...(dataType === ScoreConfigDataType.BOOLEAN
+            ? { minValue: 0, maxValue: 1 }
+            : {}),
+          ...(dataType === ScoreConfigDataType.CATEGORICAL
+            ? {
+                categories: [
+                  { label: "A", value: 1 },
+                  { label: "B", value: 2 },
+                ],
+              }
+            : {}),
+        },
+      });
+    };
+
+    beforeEach(async () => {
+      const boolean = await createConfig(
+        ScoreConfigDataType.BOOLEAN,
+        `dt-bool-${v4()}`,
+      );
+      const numeric = await createConfig(
+        ScoreConfigDataType.NUMERIC,
+        `dt-num-${v4()}`,
+      );
+      const categorical = await createConfig(
+        ScoreConfigDataType.CATEGORICAL,
+        `dt-cat-${v4()}`,
+      );
+      const text = await createConfig(
+        ScoreConfigDataType.TEXT,
+        `dt-txt-${v4()}`,
+      );
+      booleanId = boolean.id;
+      numericId = numeric.id;
+      categoricalId = categorical.id;
+      textId = text.id;
+    });
+
+    it("omits the filter when no dataType is provided (existing behavior)", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        "/api/public/score-configs?limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((c) => c.id);
+      expect(ids).toEqual(
+        expect.arrayContaining([booleanId, numericId, categoricalId, textId]),
+      );
+    });
+
+    it.each([
+      ["BOOLEAN", "booleanId"],
+      ["NUMERIC", "numericId"],
+      ["CATEGORICAL", "categoricalId"],
+      ["TEXT", "textId"],
+    ] as const)(
+      "filters by dataType=%s and returns only that type",
+      async (dataType, expectedIdKey) => {
+        const expectedId = {
+          booleanId,
+          numericId,
+          categoricalId,
+          textId,
+        }[expectedIdKey];
+
+        const response = await makeZodVerifiedAPICall(
+          GetScoreConfigsResponse,
+          "GET",
+          `/api/public/score-configs?dataType=${dataType}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const ids = response.body.data.map((c) => c.id);
+        expect(ids).toEqual([expectedId]);
+        expect(response.body.meta.totalItems).toBe(1);
+        // Every returned config must have the requested dataType.
+        for (const config of response.body.data) {
+          expect(config.dataType).toBe(dataType);
+        }
+      },
+    );
+
+    it("returns 400 on an invalid dataType value", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/score-configs?dataType=NOT_A_TYPE",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("composes the dataType filter with the existing project scope", async () => {
+      // Create a separate project + api key so we can prove the filter
+      // does not leak configs across the project boundary.
+      const other = await createOrgProjectAndApiKey();
+
+      await prisma.scoreConfig.create({
+        data: {
+          projectId: other.projectId,
+          name: `dt-other-project-${v4()}`,
+          dataType: ScoreConfigDataType.BOOLEAN,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        "/api/public/score-configs?dataType=BOOLEAN&limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      // Only `booleanId` belongs to `projectId` with dataType=BOOLEAN.
+      expect(response.body.meta.totalItems).toBe(1);
+      expect(response.body.data.map((c) => c.id)).toEqual([booleanId]);
+    });
+  });
 });

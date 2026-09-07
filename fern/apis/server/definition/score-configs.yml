@@ -19,6 +19,13 @@ service:
       request:
         name: GetScoreConfigsRequest
         query-parameters:
+          dataType:
+            type: optional<commons.ScoreConfigDataType>
+            docs: |
+              Optional categorical filter on the score config row's
+              `dataType` (one of `CATEGORICAL`, `NUMERIC`, `BOOLEAN`,
+              `TEXT`). The `dataType` column is indexed in the Prisma
+              schema so the filter is cheap. Omit for all data types.
           page:
             type: optional<integer>
             docs: Page number, starts at 1.
