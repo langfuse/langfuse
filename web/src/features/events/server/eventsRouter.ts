@@ -37,10 +37,8 @@ import {
   getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
-import {
-  AgentGraphDataSchema,
-  type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/server/mapAgentGraphRecord";
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
@@ -427,46 +425,8 @@ export const eventsRouter = createTRPCRouter({
             chMaxStartTime,
           });
 
-          // Transform to AgentGraphDataResponse format
-          // TODO: Extract this transformation logic into a shared utility
-          // (duplicated from traces.getAgentGraphData in traces.ts)
           const result = records
-            .map((r) => {
-              const parsed = AgentGraphDataSchema.safeParse(r);
-              if (!parsed.success) {
-                return null;
-              }
-
-              const data = parsed.data;
-              const hasLangGraphData = data.step != null && data.node != null;
-              const hasAgentData = data.type !== "EVENT";
-
-              if (hasLangGraphData) {
-                return {
-                  id: data.id,
-                  node: data.node,
-                  step: data.step,
-                  parentObservationId: data.parent_observation_id || null,
-                  name: data.name,
-                  startTime: data.start_time,
-                  endTime: data.end_time || undefined,
-                  observationType: data.type,
-                };
-              } else if (hasAgentData) {
-                return {
-                  id: data.id,
-                  node: data.name,
-                  step: 0,
-                  parentObservationId: data.parent_observation_id || null,
-                  name: data.name,
-                  startTime: data.start_time,
-                  endTime: data.end_time || undefined,
-                  observationType: data.type,
-                };
-              }
-
-              return null;
-            })
+            .map((record) => mapAgentGraphRecord(record, "trace"))
             .filter((r): r is Required<AgentGraphDataResponse> => Boolean(r));
 
           return result;

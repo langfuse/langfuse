@@ -61,10 +61,8 @@ import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
-import {
-  AgentGraphDataSchema,
-  type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/server/mapAgentGraphRecord";
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -862,32 +860,9 @@ export const sessionRouter = createTRPCRouter({
         ),
       });
 
-      return records.flatMap((record) => {
-        const parsed = AgentGraphDataSchema.safeParse(record);
-        if (!parsed.success) return [];
-        const data = parsed.data;
-        if (!data.trace_id) return [];
-        const hasLangGraphData = data.step != null && data.node != null;
-        if (!hasLangGraphData && data.type === "EVENT") return [];
-
-        const id = `${data.trace_id}:${data.id}`;
-        return [
-          {
-            id,
-            selectionId: data.id,
-            traceId: data.trace_id,
-            node: hasLangGraphData ? (data.node ?? null) : data.name,
-            step: hasLangGraphData ? (data.step ?? null) : 0,
-            parentObservationId: data.parent_observation_id
-              ? `${data.trace_id}:${data.parent_observation_id}`
-              : null,
-            name: data.name,
-            startTime: data.start_time,
-            endTime: data.end_time ?? undefined,
-            observationType: data.type,
-          },
-        ];
-      });
+      return records
+        .map((record) => mapAgentGraphRecord(record, "session"))
+        .filter((record): record is AgentGraphDataResponse => record !== null);
     }),
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)
