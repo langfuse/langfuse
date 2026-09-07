@@ -236,6 +236,10 @@ describe("LLM gateway control plane", () => {
         where: { apiKeyId: created.id },
       }),
     ).toBeNull();
+
+    await expect(
+      caller.llmGateway.revokeApiKey({ orgId: org.id, id: created.id }),
+    ).rejects.toThrow("Gateway API key not found");
   });
 
   it("cursor-paginates provider connections", async () => {

@@ -1,3 +1,4 @@
+import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -50,15 +51,20 @@ export class GatewayApiKeyService {
   async revoke(params: {
     organizationId: string;
     apiKeyId: string;
-  }): Promise<boolean> {
+  }): Promise<void> {
     const association = await this.repository.getGatewayApiKey(params);
-    if (!association) return false;
-    return deleteApiKeyFromDb({
+    if (!association) {
+      throw new LangfuseNotFoundError("Gateway API key not found");
+    }
+    const deleted = await deleteApiKeyFromDb({
       prisma: this.prisma,
       id: params.apiKeyId,
       entityId: params.organizationId,
       scope: "ORGANIZATION",
       redis: this.redis,
     });
+    if (!deleted) {
+      throw new InternalServerError("Failed to revoke gateway API key");
+    }
   }
 }

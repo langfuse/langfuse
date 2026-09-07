@@ -286,7 +286,7 @@ export const llmGatewayRouter = createTRPCRouter({
     .input(organizationInput.extend({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const success = await new GatewayApiKeyService(ctx.prisma, redis).revoke({
+      await new GatewayApiKeyService(ctx.prisma, redis).revoke({
         organizationId: input.orgId,
         apiKeyId: input.id,
       });
@@ -296,6 +296,6 @@ export const llmGatewayRouter = createTRPCRouter({
         resourceId: input.id,
         action: "delete",
       });
-      return { success };
+      return { success: true };
     }),
 });
