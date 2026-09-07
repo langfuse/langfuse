@@ -1,16 +1,14 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, MessageSquareOff } from "lucide-react";
-import {
-  normalizeSpanIO,
-  type NormalizedMessage,
-  type ToolCallPart,
-} from "@langfuse/shared/src/utils/normalized-io";
+import { type ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import {
-  getStandaloneToolCallIds,
-  processTimelineMessages,
-} from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
+  prepareSessionTimelineObservations,
+  type ParsedSessionTimelineObservation,
+  type PreparedSessionTimelineObservation,
+  type ProcessedSessionTimelineMessages,
+} from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import {
@@ -26,7 +24,7 @@ import { cn } from "@/src/utils/tailwind";
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
-type SessionObservation = Omit<
+export type SessionObservation = Omit<
   EventObservation,
   "input" | "output" | "metadata"
 > &
@@ -36,7 +34,7 @@ type SessionObservation = Omit<
     metadataTruncated?: boolean;
   };
 
-type SessionConversationTimelineState =
+export type SessionConversationTimelineState =
   | { type: "loading" }
   | { type: "error" }
   | { type: "empty"; message: string }
@@ -45,13 +43,12 @@ type SessionConversationTimelineState =
       observations: readonly SessionObservation[];
     };
 
-type ParsedTimelineMessages =
-  | { type: "loaded"; messages: NormalizedMessage[] }
-  | { type: "error" };
-
-type ProcessedTimelineMessages = ReturnType<
-  typeof processTimelineMessages
->[number];
+export type PreparedSessionConversationTimelineState =
+  | Exclude<SessionConversationTimelineState, { type: "loaded" }>
+  | {
+      type: "loaded";
+      observations: readonly PreparedSessionTimelineObservation<SessionObservation>[];
+    };
 
 const toPreviewText = (value: unknown) =>
   typeof value === "string"
@@ -200,8 +197,8 @@ function SessionTimelineConversationObservation({
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
-  parsed: ParsedTimelineMessages | null;
-  processedMessages: ProcessedTimelineMessages;
+  parsed: ParsedSessionTimelineObservation | null;
+  processedMessages: ProcessedSessionTimelineMessages;
   onOpenInTraceView: () => void;
 }) {
   const isTruncated = observation.inputTruncated || observation.outputTruncated;
@@ -338,8 +335,8 @@ function SessionTimelineObservation({
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
-  parsed: ParsedTimelineMessages | null;
-  processedMessages: ProcessedTimelineMessages;
+  parsed: ParsedSessionTimelineObservation | null;
+  processedMessages: ProcessedSessionTimelineMessages;
   onOpenInTraceView: () => void;
 }) {
   if (observation.type === "TOOL") {
@@ -385,60 +382,55 @@ export function SessionConversationTimeline({
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
 }) {
-  const showIdleGap =
-    idleGapSeconds !== null && idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
-  const preparedObservations = useMemo(() => {
-    if (state.type !== "loaded") return [];
-
-    const parsedObservations = state.observations.map((observation) => {
-      if (
-        observation.type === "TOOL" ||
-        observation.inputTruncated ||
-        observation.outputTruncated
-      ) {
-        return { parsed: null, messages: null };
-      }
-
-      try {
-        const messages = normalizeSpanIO({
-          input: observation.input,
-          output: observation.output,
-          metadata: observation.metadataTruncated
-            ? undefined
-            : observation.metadata,
-        }).messages;
-        return {
-          parsed: { type: "loaded", messages } as const,
-          messages,
-        };
-      } catch {
-        return {
-          parsed: { type: "error" } as const,
-          messages: null,
-        };
-      }
-    });
-    const processedMessageGroups = processTimelineMessages({
-      messageGroups: parsedObservations.map(({ messages }) => messages),
-      reconcileHistory: state.observations.map(
-        (observation) => observation.type === "GENERATION",
-      ),
-      showSystemPrompt,
-      standaloneToolCallIds: getStandaloneToolCallIds(state.observations),
-    });
-
-    return state.observations.map((observation, index) => ({
-      observation,
-      parsed: parsedObservations[index]?.parsed ?? null,
-      processedMessages: processedMessageGroups[index] ?? {
-        messages: [],
-        rolledUpToolCalls: [],
-      },
-    }));
-  }, [showSystemPrompt, state]);
+  const preparedState = useMemo<PreparedSessionConversationTimelineState>(
+    () =>
+      state.type === "loaded"
+        ? {
+            type: "loaded",
+            observations: prepareSessionTimelineObservations(
+              state.observations,
+              showSystemPrompt,
+            ),
+          }
+        : state,
+    [showSystemPrompt, state],
+  );
 
   return (
-    <div className="px-4 pb-14 sm:px-6 lg:px-10">
+    <PreparedSessionConversationTimeline
+      trace={trace}
+      turnNumber={turnNumber}
+      idleGapSeconds={idleGapSeconds}
+      state={preparedState}
+      onOpenTrace={onOpenTrace}
+      onOpenObservation={onOpenObservation}
+    />
+  );
+}
+
+export function PreparedSessionConversationTimeline({
+  trace,
+  turnNumber,
+  idleGapSeconds,
+  state,
+  onOpenTrace,
+  onOpenObservation,
+}: {
+  trace: EventSessionTrace;
+  turnNumber: number;
+  idleGapSeconds: number | null;
+  state: PreparedSessionConversationTimelineState;
+  onOpenTrace: () => void;
+  onOpenObservation: (observationId: string) => void;
+}) {
+  const showIdleGap =
+    idleGapSeconds !== null && idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
+
+  return (
+    <div
+      className="px-4 pb-14 sm:px-6 lg:px-10"
+      data-session-trace-id={trace.id}
+    >
       <div className="mb-6 flex items-center gap-4 pt-5">
         <button
           type="button"
@@ -533,7 +525,7 @@ export function SessionConversationTimeline({
         </div>
       ) : (
         <div className="flex flex-col gap-1">
-          {preparedObservations.map(
+          {state.observations.map(
             ({ observation, parsed, processedMessages }) => (
               <SessionTimelineObservation
                 key={observation.id}

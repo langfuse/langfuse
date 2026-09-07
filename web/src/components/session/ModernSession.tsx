@@ -1,14 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
-import { ConnectedSessionConversationTimeline } from "@/src/components/session/ConnectedSessionConversationTimeline";
-import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
+import {
+  ConnectedSessionConversationTimeline,
+  type SessionConversationTimelineTrace,
+} from "@/src/components/session/ConnectedSessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
-import { useElementSize } from "@/src/hooks/useElementSize";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 import {
   ModernSessionSidebar,
   type ModernSessionSidebarFilterControls,
@@ -16,7 +15,6 @@ import {
 } from "@/src/components/session/ModernSessionSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
-const MODERN_SESSION_OVERSCAN = 5;
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
 const EMPTY_TRACES: EventSessionTrace[] = [];
@@ -67,6 +65,14 @@ export function ModernSession({
     new Set(),
   );
   const [visibleTraceIds, setVisibleTraceIds] = useState<string[]>([]);
+  const [loadedTracePrefix, setLoadedTracePrefix] = useState({
+    sessionId,
+    chunkIndex: -1,
+  });
+  const loadedThroughChunkIndex =
+    loadedTracePrefix.sessionId === sessionId
+      ? loadedTracePrefix.chunkIndex
+      : -1;
   const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
   const expandedTraceIds = new Set(
     traces
@@ -108,11 +114,20 @@ export function ModernSession({
   );
   const activeChunkIndices = new Set<number>();
   if (!searchQuery) {
+    let highestChunkIndex = Math.min(
+      loadedThroughChunkIndex,
+      Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
+    );
     for (const traceId of visibleTraceIds) {
-      if (!expandedTraceIds.has(traceId)) continue;
       const traceIndex = traceIndexById.get(traceId);
       if (traceIndex === undefined) continue;
-      activeChunkIndices.add(Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE));
+      highestChunkIndex = Math.max(
+        highestChunkIndex,
+        Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
+      );
+    }
+    for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
+      activeChunkIndices.add(chunkIndex);
     }
   }
 
@@ -306,6 +321,20 @@ export function ModernSession({
   };
 
   const handleVisibleTraceIdsChange = (nextTraceIds: string[]) => {
+    const highestVisibleTraceIndex = nextTraceIds.reduce(
+      (highestIndex, traceId) =>
+        Math.max(highestIndex, traceIndexById.get(traceId) ?? -1),
+      -1,
+    );
+    if (!searchQuery && highestVisibleTraceIndex >= 0) {
+      setLoadedTracePrefix((current) => ({
+        sessionId,
+        chunkIndex: Math.max(
+          current.sessionId === sessionId ? current.chunkIndex : -1,
+          Math.floor(highestVisibleTraceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
+        ),
+      }));
+    }
     setVisibleTraceIds((current) => {
       if (
         current.length === nextTraceIds.length &&
@@ -333,158 +362,63 @@ export function ModernSession({
       return next;
     });
   };
-  const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
-  const virtualizer = useVirtualizer({
-    count: traces.length,
-    getScrollElement: () => feedRef.current,
-    estimateSize: () => 520,
-    overscan: MODERN_SESSION_OVERSCAN,
-    getItemKey: (index) => traces[index]?.id ?? index,
-  });
-  const {
-    activeItemId: activeTraceId,
-    virtualItems,
-    selectItem: selectTrace,
-  } = useVirtualizedScrollSpy({
-    items: traces,
-    virtualizer,
-    scrollElementRef: feedRef,
-    viewportHeight: feedSize?.height ?? 0,
-    endTransitionRatio: 0.2,
-  });
-  const observationScrollCleanupRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => observationScrollCleanupRef.current?.(), []);
-  const handleSelect = (index: number, observationId?: string) => {
-    observationScrollCleanupRef.current?.();
-    observationScrollCleanupRef.current = null;
-    selectTrace(index);
-    if (!observationId) return;
+  const timelineTraces: SessionConversationTimelineTrace[] = traces.map(
+    (trace, index) => {
+      const sidebarTrace = sidebarTraceById.get(trace.id);
+      const observations =
+        sidebarTrace?.observations === null
+          ? null
+          : sidebarTrace?.observations === undefined
+            ? undefined
+            : (timelineObservationsByTraceId.get(trace.id) ?? []);
 
-    const feed = feedRef.current;
-    if (!feed) return;
-
-    const scrollToObservation = () => {
-      const observation = Array.from(
-        feed.querySelectorAll<HTMLElement>("[data-session-observation-id]"),
-      ).find(
-        (element) => element.dataset.sessionObservationId === observationId,
-      );
-      if (!observation) return false;
-
-      const top =
-        feed.scrollTop +
-        observation.getBoundingClientRect().top -
-        feed.getBoundingClientRect().top -
-        Math.max(0, (feed.clientHeight - observation.clientHeight) / 2);
-      feed.scrollTo({ top, behavior: "smooth" });
-      return true;
-    };
-
-    if (scrollToObservation()) return;
-
-    let timeout: number;
-    const cleanup = () => {
-      observer.disconnect();
-      window.clearTimeout(timeout);
-    };
-    const observer = new MutationObserver(() => {
-      if (!scrollToObservation()) return;
-      cleanup();
-      if (observationScrollCleanupRef.current === cleanup) {
-        observationScrollCleanupRef.current = null;
-      }
-    });
-    observer.observe(feed, { childList: true, subtree: true });
-    timeout = window.setTimeout(() => {
-      cleanup();
-      if (observationScrollCleanupRef.current === cleanup) {
-        observationScrollCleanupRef.current = null;
-      }
-    }, 5_000);
-    observationScrollCleanupRef.current = cleanup;
-  };
+      return {
+        trace,
+        turnNumber: index + 1,
+        idleGapSeconds: sidebarTrace?.idleGapSeconds ?? null,
+        observations,
+      };
+    },
+  );
 
   return (
-    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
-      {tracesState.type === "loading" ? (
-        <ModernSessionSidebar state="loading" />
-      ) : (
-        <ModernSessionSidebar
-          state="loaded"
-          traces={isSearchPending ? [] : sidebarTraces}
-          activeTraceId={activeTraceId}
-          filterControls={sidebarFilterControls}
-          search={search}
-          onSearchChange={handleSearchChange}
-          expandedTraceIds={expandedTraceIds}
-          onToggleTraceExpanded={toggleTraceExpanded}
-          onFilterObservationByName={onFilterObservationByName}
-          onSelect={handleSelect}
-          onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
-          hasMoreObservations={hasMoreObservations}
-          isLoadingMoreObservations={
-            isSearchPending || isLoadingMoreObservations
-          }
-          observationLoadError={observationLoadError}
-          onLoadMoreObservations={loadMoreObservations}
-          onViewportUnderfilled={
-            searchQuery && !isSearchPending ? loadMoreObservations : undefined
-          }
-        />
-      )}
-      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
-        <div
-          ref={feedRef}
-          className="h-full min-h-0 overflow-y-auto scroll-smooth"
-        >
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {virtualItems.map((virtualItem) => {
-              const trace = traces[virtualItem.index];
-              if (!trace) return null;
-              const sidebarTrace = sidebarTraceById.get(trace.id);
-              const timelineObservations =
-                sidebarTrace?.observations === null
-                  ? null
-                  : sidebarTrace?.observations === undefined
-                    ? undefined
-                    : (timelineObservationsByTraceId.get(trace.id) ?? []);
-
-              const content = (
-                <ConnectedSessionConversationTimeline
-                  trace={trace}
-                  turnNumber={virtualItem.index + 1}
-                  idleGapSeconds={sidebarTrace?.idleGapSeconds ?? null}
-                  projectId={projectId}
-                  observations={timelineObservations}
-                  openPeek={openPeek}
-                  filterState={filterState}
-                  viewLabel={viewLabel}
-                  showSystemPrompt={showSystemPrompt}
-                />
-              );
-
-              return (
-                <SessionVirtualizedRow
-                  key={virtualItem.key}
-                  itemKey={String(virtualItem.key)}
-                  measurementKey={`${String(virtualItem.key)}:${showSystemPrompt}:${filterMeasurementKey}`}
-                  source="modern"
-                  virtualItem={virtualItem}
-                  virtualizer={virtualizer}
-                >
-                  {content}
-                </SessionVirtualizedRow>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
+    <ConnectedSessionConversationTimeline
+      traces={timelineTraces}
+      projectId={projectId}
+      sessionId={sessionId}
+      filterState={filterState}
+      filterMeasurementKey={filterMeasurementKey}
+      viewLabel={viewLabel}
+      showSystemPrompt={showSystemPrompt}
+      openPeek={openPeek}
+      renderSidebar={({ activeTraceId, onSelect }) =>
+        tracesState.type === "loading" ? (
+          <ModernSessionSidebar state="loading" />
+        ) : (
+          <ModernSessionSidebar
+            state="loaded"
+            traces={isSearchPending ? [] : sidebarTraces}
+            activeTraceId={activeTraceId ?? undefined}
+            filterControls={sidebarFilterControls}
+            search={search}
+            onSearchChange={handleSearchChange}
+            expandedTraceIds={expandedTraceIds}
+            onToggleTraceExpanded={toggleTraceExpanded}
+            onFilterObservationByName={onFilterObservationByName}
+            onSelect={onSelect}
+            onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
+            hasMoreObservations={hasMoreObservations}
+            isLoadingMoreObservations={
+              isSearchPending || isLoadingMoreObservations
+            }
+            observationLoadError={observationLoadError}
+            onLoadMoreObservations={loadMoreObservations}
+            onViewportUnderfilled={
+              searchQuery && !isSearchPending ? loadMoreObservations : undefined
+            }
+          />
+        )
+      }
+    />
   );
 }

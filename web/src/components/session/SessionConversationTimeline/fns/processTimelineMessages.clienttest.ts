@@ -70,7 +70,7 @@ describe("processTimelineMessages", () => {
       messageGroups: [messages],
       reconcileHistory: [true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(["standalone-call"]),
+      standaloneToolCallIdsByGroup: [new Set(["standalone-call"])],
     });
 
     expect(result?.messages).toEqual([
@@ -103,7 +103,7 @@ describe("processTimelineMessages", () => {
       messageGroups: [messages],
       reconcileHistory: [true],
       showSystemPrompt: false,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set()],
     });
 
     expect(result?.messages.every((message) => message.role !== "system")).toBe(
@@ -116,13 +116,37 @@ describe("processTimelineMessages", () => {
       messageGroups: [messages],
       reconcileHistory: [true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set()],
     });
 
     expect(result?.rolledUpToolCalls.map((part) => part.toolName)).toEqual([
       "existing_tool",
       "rolled_up_tool",
     ]);
+  });
+
+  it("deduplicates standalone tool calls only within their trace", () => {
+    const toolCallMessage = {
+      role: "assistant",
+      source: "output",
+      parts: [
+        {
+          type: "tool-call",
+          toolCallId: "reused-call-id",
+          toolName: "lookup",
+          input: {},
+        },
+      ],
+    } satisfies NormalizedMessage;
+    const result = processTimelineMessages({
+      messageGroups: [[toolCallMessage], [toolCallMessage]],
+      reconcileHistory: [true, true],
+      showSystemPrompt: true,
+      standaloneToolCallIdsByGroup: [new Set(["reused-call-id"]), new Set()],
+    });
+
+    expect(result[0]?.rolledUpToolCalls).toEqual([]);
+    expect(result[1]?.rolledUpToolCalls).toHaveLength(1);
   });
 
   it("shows only the suffix added to cumulative conversation history", () => {
@@ -177,7 +201,7 @@ describe("processTimelineMessages", () => {
       ] satisfies NormalizedMessage[][],
       reconcileHistory: [true, true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
     expect(result[1]?.messages).toEqual([
@@ -240,7 +264,7 @@ describe("processTimelineMessages", () => {
       ] satisfies NormalizedMessage[][],
       reconcileHistory: [true, true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
     expect(result[1]?.messages.map((message) => message.id)).toEqual([
@@ -284,7 +308,7 @@ describe("processTimelineMessages", () => {
       ] satisfies NormalizedMessage[][],
       reconcileHistory: [true, true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
     expect(result[1]?.messages).toEqual([
@@ -314,7 +338,7 @@ describe("processTimelineMessages", () => {
       ],
       reconcileHistory: [true, true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
     expect(result[1]?.messages).toEqual([message("New", "input")]);
@@ -330,7 +354,7 @@ describe("processTimelineMessages", () => {
       messageGroups: [[repeatedMessage], null, [repeatedMessage]],
       reconcileHistory: [true, false, true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set(), new Set(), new Set()],
     });
 
     expect(result[2]?.messages).toEqual([]);
@@ -351,7 +375,7 @@ describe("processTimelineMessages", () => {
       messageGroups: [[repeatedMessage], [eventMessage], [repeatedMessage]],
       reconcileHistory: [true, false, true],
       showSystemPrompt: true,
-      standaloneToolCallIds: new Set(),
+      standaloneToolCallIdsByGroup: [new Set(), new Set(), new Set()],
     });
 
     expect(result[1]?.messages).toEqual([eventMessage]);

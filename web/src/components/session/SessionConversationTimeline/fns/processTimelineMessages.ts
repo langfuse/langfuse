@@ -171,12 +171,12 @@ export function processTimelineMessages({
   messageGroups,
   reconcileHistory,
   showSystemPrompt,
-  standaloneToolCallIds,
+  standaloneToolCallIdsByGroup,
 }: {
   messageGroups: readonly (NormalizedMessage[] | null)[];
   reconcileHistory: readonly boolean[];
   showSystemPrompt: boolean;
-  standaloneToolCallIds: ReadonlySet<string>;
+  standaloneToolCallIdsByGroup: readonly ReadonlySet<string>[];
 }) {
   const processedGroups: Array<{
     messages: NormalizedMessage[];
@@ -201,7 +201,10 @@ export function processTimelineMessages({
         ? message.parts.filter(
             (part): part is ToolCallPart =>
               part.type === "tool-call" &&
-              (!part.toolCallId || !standaloneToolCallIds.has(part.toolCallId)),
+              (!part.toolCallId ||
+                !standaloneToolCallIdsByGroup[groupIndex]?.has(
+                  part.toolCallId,
+                )),
           )
         : [],
     );

@@ -4112,6 +4112,78 @@ describe("Clickhouse Events Repository Test", () => {
       expect(io3?.metadata?.key3).toBe("value3");
     });
 
+    it("matches trace and observation ids within the authorized session", async () => {
+      const observationId = randomUUID();
+      const outsideObservationId = randomUUID();
+      const firstTraceId = randomUUID();
+      const secondTraceId = randomUUID();
+      const outsideTraceId = randomUUID();
+      const sessionId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: firstTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "first trace",
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: secondTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "second trace",
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: outsideObservationId,
+          project_id: projectId,
+          trace_id: outsideTraceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside session",
+          start_time: nowMicro + 2000,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId,
+        observations: [
+          { id: observationId, traceId: firstTraceId },
+          { id: observationId, traceId: secondTraceId },
+          { id: outsideObservationId, traceId: outsideTraceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: observationId,
+            traceId: firstTraceId,
+            input: "first trace",
+          }),
+          expect.objectContaining({
+            id: observationId,
+            traceId: secondTraceId,
+            input: "second trace",
+          }),
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
     it("should handle empty observation array", async () => {
       // minStartTime/maxStartTime are intentionally omitted: the function
       // early-returns on an empty observations array before touching them.
