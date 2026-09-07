@@ -5,13 +5,12 @@ import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import type { AuthHeaderValidVerificationResult } from "@langfuse/shared/src/server";
 
 import {
+  createGatewayIngestionTokenVerifier,
   type GatewayIngestionClaims,
   verifyGatewayIngestionToken,
 } from "./auth";
 
-function verifyConfiguredGatewayIngestionToken(
-  token: string,
-): GatewayIngestionClaims {
+const gatewayIngestionTokenVerifier = (() => {
   const publicKeys = [
     ...(env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY
       ? [
@@ -31,14 +30,25 @@ function verifyConfiguredGatewayIngestionToken(
         ]
       : []),
   ];
-  if (publicKeys.length === 0) {
+
+  return publicKeys.length > 0
+    ? createGatewayIngestionTokenVerifier({
+        issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
+        audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
+        publicKeys,
+      })
+    : undefined;
+})();
+
+function verifyConfiguredGatewayIngestionToken(
+  token: string,
+): GatewayIngestionClaims {
+  if (!gatewayIngestionTokenVerifier) {
     throw new Error("Gateway ingestion verification is not configured");
   }
   return verifyGatewayIngestionToken({
     token,
-    issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
-    audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
-    publicKeys,
+    verifier: gatewayIngestionTokenVerifier,
   });
 }
 

@@ -5,6 +5,8 @@ import type {
 } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 
+import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
+
 import { issueGatewayIngestionToken } from "./auth";
 import {
   type GatewayApiFormat,
@@ -24,12 +26,7 @@ export class GatewayResolveError extends Error {
 }
 
 type ResolveConfig = {
-  jwt?: {
-    privateKey: string;
-    keyId: string;
-    issuer: string;
-    audience: string;
-  };
+  jwtSigner?: Ed25519JwtSigner;
 };
 
 export class GatewayResolveService {
@@ -109,7 +106,7 @@ export class GatewayResolveService {
     apiKeyId: string;
   }) {
     if (params.mode === "NONE") return undefined;
-    if (!this.config.jwt) {
+    if (!this.config.jwtSigner) {
       throw new GatewayResolveError(
         "Gateway ingestion signing is not configured",
         503,
@@ -117,7 +114,7 @@ export class GatewayResolveService {
     }
     return {
       access_token: issueGatewayIngestionToken({
-        ...this.config.jwt,
+        signer: this.config.jwtSigner,
         claims: {
           organizationId: params.organizationId,
           projectId: params.projectId,

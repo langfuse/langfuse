@@ -2,7 +2,12 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod/v4";
 
-import { signEd25519Jwt, verifyEd25519Jwt } from "@/src/server/utils/jwt";
+import {
+  createEd25519JwtSigner,
+  createEd25519JwtVerifier,
+  type Ed25519JwtSigner,
+  type Ed25519JwtVerifier,
+} from "@/src/server/utils/jwt";
 
 const RESOLVE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
@@ -100,22 +105,35 @@ function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-export function issueGatewayIngestionToken(input: {
+export function createGatewayIngestionTokenSigner(input: {
   privateKey: string;
   keyId: string;
   issuer: string;
   audience: string;
+}): Ed25519JwtSigner {
+  return createEd25519JwtSigner(input);
+}
+
+export function createGatewayIngestionTokenVerifier(input: {
+  publicKeys: Array<{ id: string; publicKey: string }>;
+  issuer: string;
+  audience: string;
+}): Ed25519JwtVerifier<GatewayIngestionClaims> {
+  return createEd25519JwtVerifier({
+    ...input,
+    claimsSchema: GatewayIngestionClaimsSchema,
+  });
+}
+
+export function issueGatewayIngestionToken(input: {
+  signer: Ed25519JwtSigner;
   now?: Date;
   claims: Pick<
     GatewayIngestionClaims,
     "organizationId" | "projectId" | "keyId" | "instrumentation_mode"
   >;
 }): string {
-  return signEd25519Jwt({
-    privateKey: input.privateKey,
-    keyId: input.keyId,
-    issuer: input.issuer,
-    audience: input.audience,
+  return input.signer.sign({
     expiresInSeconds: INGESTION_TOKEN_TTL_SECONDS,
     now: input.now,
     claims: {
@@ -127,14 +145,9 @@ export function issueGatewayIngestionToken(input: {
 }
 
 export function verifyGatewayIngestionToken(input: {
+  verifier: Ed25519JwtVerifier<GatewayIngestionClaims>;
   token: string;
-  issuer: string;
-  audience: string;
-  publicKeys: Array<{ id: string; publicKey: string }>;
   now?: Date;
 }): GatewayIngestionClaims {
-  return verifyEd25519Jwt({
-    ...input,
-    claimsSchema: GatewayIngestionClaimsSchema,
-  });
+  return input.verifier.verify({ token: input.token, now: input.now });
 }

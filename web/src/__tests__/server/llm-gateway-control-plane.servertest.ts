@@ -25,7 +25,11 @@ import {
   GatewayResolveService,
   withGatewayResolveAuth,
 } from "@/src/features/llm-gateway/server";
-import { verifyGatewayIngestionToken } from "@/src/features/llm-gateway/server/auth";
+import {
+  createGatewayIngestionTokenSigner,
+  createGatewayIngestionTokenVerifier,
+  verifyGatewayIngestionToken,
+} from "@/src/features/llm-gateway/server/auth";
 import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -415,15 +419,28 @@ describe("LLM gateway control plane", () => {
       organizationId: org.id,
       apiKeyId: gatewayKey.id,
     });
+    const jwtSigner = createGatewayIngestionTokenSigner({
+      privateKey: signingKeys.privateKey
+        .export({ format: "pem", type: "pkcs8" })
+        .toString(),
+      keyId: "current",
+      issuer: "test-issuer",
+      audience: "test-audience",
+    });
+    const jwtVerifier = createGatewayIngestionTokenVerifier({
+      publicKeys: [
+        {
+          id: "current",
+          publicKey: signingKeys.publicKey
+            .export({ format: "pem", type: "spki" })
+            .toString(),
+        },
+      ],
+      issuer: "test-issuer",
+      audience: "test-audience",
+    });
     const result = await new GatewayResolveService(prisma, {
-      jwt: {
-        privateKey: signingKeys.privateKey
-          .export({ format: "pem", type: "pkcs8" })
-          .toString(),
-        keyId: "current",
-        issuer: "test-issuer",
-        audience: "test-audience",
-      },
+      jwtSigner,
     }).resolve({
       ...auth,
       apiFormat,
@@ -438,16 +455,7 @@ describe("LLM gateway control plane", () => {
     expect(
       verifyGatewayIngestionToken({
         token: result.ingestion!.access_token,
-        issuer: "test-issuer",
-        audience: "test-audience",
-        publicKeys: [
-          {
-            id: "current",
-            publicKey: signingKeys.publicKey
-              .export({ format: "pem", type: "spki" })
-              .toString(),
-          },
-        ],
+        verifier: jwtVerifier,
       }),
     ).toMatchObject({
       organizationId: org.id,

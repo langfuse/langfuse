@@ -1,6 +1,7 @@
 import {
   createPrivateKey,
   createPublicKey,
+  type KeyObject,
   randomUUID,
   sign,
   verify,
@@ -18,7 +19,19 @@ export type JwtRegisteredClaims = {
 
 export type Ed25519JwtPublicKey = {
   id: string;
-  publicKey: string;
+  publicKey: KeyObject;
+};
+
+export type Ed25519JwtSigner = {
+  sign<TClaims extends Record<string, unknown>>(input: {
+    expiresInSeconds: number;
+    claims: TClaims;
+    now?: Date;
+  }): string;
+};
+
+export type Ed25519JwtVerifier<TClaims extends JwtRegisteredClaims> = {
+  verify(input: { token: string; now?: Date }): TClaims;
 };
 
 const Ed25519JwtHeaderSchema = z.object({
@@ -43,12 +56,61 @@ function decodeJson(value: string): unknown {
   return JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
 }
 
-function normalizePem(value: string): string {
-  return value.replaceAll("\\n", "\n");
+function parsePrivateKey(value: string): KeyObject {
+  return createPrivateKey(value.replaceAll("\\n", "\n"));
+}
+
+function parsePublicKey(value: string): KeyObject {
+  return createPublicKey(value.replaceAll("\\n", "\n"));
+}
+
+export function createEd25519JwtSigner(input: {
+  privateKey: string;
+  keyId: string;
+  issuer: string;
+  audience: string;
+}): Ed25519JwtSigner {
+  const privateKey = parsePrivateKey(input.privateKey);
+
+  return {
+    sign: (request) =>
+      signEd25519Jwt({
+        ...request,
+        privateKey,
+        keyId: input.keyId,
+        issuer: input.issuer,
+        audience: input.audience,
+      }),
+  };
+}
+
+export function createEd25519JwtVerifier<
+  TClaims extends JwtRegisteredClaims,
+>(input: {
+  publicKeys: Array<{ id: string; publicKey: string }>;
+  issuer: string;
+  audience: string;
+  claimsSchema: z.ZodType<TClaims>;
+}): Ed25519JwtVerifier<TClaims> {
+  const publicKeys = input.publicKeys.map((key) => ({
+    id: key.id,
+    publicKey: parsePublicKey(key.publicKey),
+  }));
+
+  return {
+    verify: (request) =>
+      verifyEd25519Jwt({
+        ...request,
+        publicKeys,
+        issuer: input.issuer,
+        audience: input.audience,
+        claimsSchema: input.claimsSchema,
+      }),
+  };
 }
 
 export function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
-  privateKey: string;
+  privateKey: KeyObject;
   keyId: string;
   issuer: string;
   audience: string;
@@ -74,7 +136,7 @@ export function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
   const signature = sign(
     null,
     Buffer.from(signingInput, "utf8"),
-    createPrivateKey(normalizePem(input.privateKey)),
+    input.privateKey,
   ).toString("base64url");
 
   return `${signingInput}.${signature}`;
@@ -99,7 +161,7 @@ export function verifyEd25519Jwt<TClaims extends JwtRegisteredClaims>(input: {
   const validSignature = verify(
     null,
     Buffer.from(`${encodedHeader}.${encodedPayload}`, "utf8"),
-    createPublicKey(normalizePem(key.publicKey)),
+    key.publicKey,
     Buffer.from(encodedSignature, "base64url"),
   );
   if (!validSignature) throw new Error("Invalid JWT signature");

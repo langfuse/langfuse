@@ -2,9 +2,11 @@ import { createHash, createHmac, generateKeyPairSync } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { signEd25519Jwt } from "@/src/server/utils/jwt";
+import { createEd25519JwtSigner } from "@/src/server/utils/jwt";
 
 import {
+  createGatewayIngestionTokenSigner,
+  createGatewayIngestionTokenVerifier,
   issueGatewayIngestionToken,
   verifyGatewayHmacAuthorization,
   verifyGatewayIngestionToken,
@@ -75,12 +77,20 @@ describe("LLM gateway authentication", () => {
     const publicKeyPem = publicKey
       .export({ format: "pem", type: "spki" })
       .toString();
-
-    const token = issueGatewayIngestionToken({
+    const signer = createGatewayIngestionTokenSigner({
       privateKey: privateKeyPem,
       keyId: "current",
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
+    });
+    const verifier = createGatewayIngestionTokenVerifier({
+      publicKeys: [{ id: "current", publicKey: publicKeyPem }],
+      issuer: "langfuse-control-plane",
+      audience: "langfuse-ingestion",
+    });
+
+    const token = issueGatewayIngestionToken({
+      signer,
       now,
       claims: {
         organizationId: "org-1",
@@ -92,10 +102,8 @@ describe("LLM gateway authentication", () => {
 
     const verified = verifyGatewayIngestionToken({
       token,
-      issuer: "langfuse-control-plane",
-      audience: "langfuse-ingestion",
+      verifier,
       now,
-      publicKeys: [{ id: "current", publicKey: publicKeyPem }],
     });
 
     expect(verified).toMatchObject({
@@ -111,11 +119,12 @@ describe("LLM gateway authentication", () => {
     expect(verified.exp - verified.iat).toBe(15 * 60);
     expect(verified.jti).toEqual(expect.any(String));
 
-    const wrongScopeToken = signEd25519Jwt({
+    const wrongScopeToken = createEd25519JwtSigner({
       privateKey: privateKeyPem,
       keyId: "current",
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
+    }).sign({
       expiresInSeconds: 15 * 60,
       now,
       claims: {
@@ -130,10 +139,8 @@ describe("LLM gateway authentication", () => {
     expect(() =>
       verifyGatewayIngestionToken({
         token: wrongScopeToken,
-        issuer: "langfuse-control-plane",
-        audience: "langfuse-ingestion",
+        verifier,
         now,
-        publicKeys: [{ id: "current", publicKey: publicKeyPem }],
       }),
     ).toThrow();
   });

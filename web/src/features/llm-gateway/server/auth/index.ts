@@ -1,4 +1,6 @@
 export {
+  createGatewayIngestionTokenSigner,
+  createGatewayIngestionTokenVerifier,
   issueGatewayIngestionToken,
   verifyGatewayHmacAuthorization,
   verifyGatewayIngestionToken,

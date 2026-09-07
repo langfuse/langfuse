@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 
 import {
+  createEd25519JwtSigner,
+  createEd25519JwtVerifier,
   type JwtRegisteredClaims,
-  signEd25519Jwt,
-  verifyEd25519Jwt,
 } from "@/src/server/utils/jwt";
 
 const TestClaimsSchema = z.object({
@@ -38,11 +38,12 @@ function signToken(input: {
   issuer?: string;
   audience?: string;
 }) {
-  return signEd25519Jwt({
+  return createEd25519JwtSigner({
     privateKey: input.privateKey,
     keyId: input.keyId,
     issuer: input.issuer ?? "test-issuer",
     audience: input.audience ?? "test-audience",
+  }).sign({
     expiresInSeconds: 60,
     now,
     claims: input.claims ?? { subjectId: "subject-1", role: "reader" },
@@ -58,17 +59,52 @@ function verifyToken(
     now: Date;
   }> = {},
 ): TestClaims {
-  return verifyEd25519Jwt({
-    token,
+  return createEd25519JwtVerifier({
     publicKeys,
     claimsSchema: TestClaimsSchema,
     issuer: overrides.issuer ?? "test-issuer",
     audience: overrides.audience ?? "test-audience",
+  }).verify({
+    token,
     now: overrides.now ?? now,
   });
 }
 
 describe("Ed25519 JWT utilities", () => {
+  it("reuses constructed signer and verifier keys across operations", () => {
+    const key = generatePemKeyPair();
+    const signer = createEd25519JwtSigner({
+      privateKey: key.privateKey.replaceAll("\n", "\\n"),
+      keyId: "current",
+      issuer: "test-issuer",
+      audience: "test-audience",
+    });
+    const verifier = createEd25519JwtVerifier({
+      publicKeys: [
+        {
+          id: "current",
+          publicKey: key.publicKey.replaceAll("\n", "\\n"),
+        },
+      ],
+      issuer: "test-issuer",
+      audience: "test-audience",
+      claimsSchema: TestClaimsSchema,
+    });
+
+    for (const subjectId of ["subject-1", "subject-2"]) {
+      const claims = verifier.verify({
+        token: signer.sign({
+          expiresInSeconds: 60,
+          now,
+          claims: { subjectId, role: "reader" },
+        }),
+        now,
+      });
+
+      expect(claims.subjectId).toBe(subjectId);
+    }
+  });
+
   it("selects current and previous verification keys by kid", () => {
     const current = generatePemKeyPair();
     const previous = generatePemKeyPair();
