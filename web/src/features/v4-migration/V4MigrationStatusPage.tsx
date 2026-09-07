@@ -423,6 +423,7 @@ function OrgStatusSection({
             presentation="wide"
             rowVariant="review"
             onRowClick={(row) => handleRowClick(row, row.readiness)}
+            getRowLabel={(row) => `Review ${row.name}`}
           />
         </div>
       </Card>

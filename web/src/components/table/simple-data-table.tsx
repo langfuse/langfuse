@@ -10,12 +10,11 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 
-const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+const ROW_CLICK_IGNORE_SELECTOR = "[data-row-click-ignore]";
 
 const shouldIgnoreRowClickTarget = (target: EventTarget | null) =>
   target instanceof Element &&
-  Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
+  Boolean(target.closest(ROW_CLICK_IGNORE_SELECTOR));
 
 export function SimpleDataTable<TData extends object>({
   columns,
@@ -27,6 +26,7 @@ export function SimpleDataTable<TData extends object>({
   rowVariant = "default",
   selectedRowId,
   onRowClick,
+  getRowLabel,
   renderDetailRow,
 }: {
   columns: LangfuseColumnDef<TData>[];
@@ -42,9 +42,17 @@ export function SimpleDataTable<TData extends object>({
     | "primary-hover-static"
     | "review";
   selectedRowId?: string | null;
-  onRowClick?: (row: TData) => void;
   renderDetailRow?: (row: Row<TData>) => ReactNode;
-}) {
+} & (
+  | {
+      onRowClick?: undefined;
+      getRowLabel?: undefined;
+    }
+  | {
+      onRowClick: (row: TData) => void;
+      getRowLabel: (row: TData) => string;
+    }
+)) {
   const table = useReactTable({
     data,
     columns,
@@ -153,7 +161,8 @@ export function SimpleDataTable<TData extends object>({
               <tr
                 className={cn(
                   "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
-                  onRowClick && "cursor-pointer",
+                  onRowClick &&
+                    "focus-visible:outline-primary cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
                   presentation === "dense" && "text-xs",
                   rowVariant === "muted-hover" && "hover:bg-muted",
                   (rowVariant === "primary-hover" ||
@@ -175,6 +184,13 @@ export function SimpleDataTable<TData extends object>({
                   onRowClick?.(row.original);
                 }}
                 tabIndex={onRowClick ? 0 : undefined}
+                aria-keyshortcuts={onRowClick ? "Enter Space" : undefined}
+                aria-label={getRowLabel?.(row.original)}
+                aria-selected={
+                  selectedRowId === undefined
+                    ? undefined
+                    : selectedRowId === row.id
+                }
               >
                 {row.getVisibleCells().map((cell) => (
                   <td

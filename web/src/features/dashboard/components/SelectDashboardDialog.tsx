@@ -109,6 +109,9 @@ export function SelectDashboardDialog({
                 rowVariant="muted-hover"
                 selectedRowId={selectedDashboardId}
                 onRowClick={(dashboard) => setSelectedDashboardId(dashboard.id)}
+                getRowLabel={(dashboard) =>
+                  `Select dashboard ${dashboard.name}`
+                }
               />
             )}
           </div>

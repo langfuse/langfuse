@@ -8,7 +8,11 @@ const columns: LangfuseColumnDef<{ id: string; name: string }>[] = [
   {
     accessorKey: "name",
     header: "Name",
-    cell: ({ row }) => <button type="button">{row.original.name}</button>,
+    cell: ({ row }) => (
+      <div data-row-click-ignore>
+        <button type="button">{row.original.name}</button>
+      </div>
+    ),
   },
 ];
 
@@ -23,6 +27,7 @@ describe("SimpleDataTable", () => {
         isLoading={false}
         noResults={null}
         onRowClick={onRowClick}
+        getRowLabel={(row) => `Open ${row.name}`}
       />,
     );
 
@@ -31,6 +36,8 @@ describe("SimpleDataTable", () => {
 
     expect(row).not.toBeNull();
     expect(row).not.toHaveAttribute("role", "button");
+    expect(row).toHaveAccessibleName("Open Nested action");
+    expect(row).toHaveAttribute("aria-keyshortcuts", "Enter Space");
 
     fireEvent.click(button);
     fireEvent.keyDown(button, { key: "Enter" });
@@ -39,6 +46,24 @@ describe("SimpleDataTable", () => {
     fireEvent.keyDown(row!, { key: "Enter" });
     fireEvent.keyDown(row!, { key: " " });
     expect(onRowClick).toHaveBeenCalledTimes(2);
+  });
+
+  it("exposes selected rows to assistive technology", () => {
+    render(
+      <SimpleDataTable
+        columns={columns}
+        data={[{ id: "row-1", name: "Selected row" }]}
+        isLoading={false}
+        noResults={null}
+        selectedRowId="row-1"
+        onRowClick={vi.fn()}
+        getRowLabel={(row) => `Select ${row.name}`}
+      />,
+    );
+
+    expect(
+      screen.getByRole("row", { name: "Select Selected row" }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 
   it("hides responsive columns consistently", () => {

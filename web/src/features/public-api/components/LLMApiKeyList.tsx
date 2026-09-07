@@ -152,6 +152,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
           bodyTone="muted"
           rowVariant="primary-hover-static"
           onRowClick={(apiKey) => setEditingKeyId(apiKey.id)}
+          getRowLabel={(apiKey) => `Edit ${apiKey.provider} connection`}
         />
       </Card>
       <CreateLLMApiKeyDialog open={open} setOpen={setOpen} />
