@@ -37,7 +37,7 @@ export function mapAgentGraphRecord(
     id: data.id,
     node: hasLangGraphData ? (data.node ?? null) : data.name,
     step: hasLangGraphData ? (data.step ?? null) : 0,
-    parentObservationId: data.parent_observation_id ?? null,
+    parentObservationId: data.parent_observation_id || null,
     name: data.name,
     startTime: data.start_time,
     endTime: data.end_time ?? undefined,
