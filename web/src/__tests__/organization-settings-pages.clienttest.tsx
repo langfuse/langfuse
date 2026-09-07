@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
-import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
+import { useSession, type SessionContextValue } from "next-auth/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -110,6 +111,15 @@ const organization = {
   projects: [],
 };
 
+const authenticatedSession = (email: string): SessionContextValue => ({
+  data: {
+    user: { email },
+    expires: "2999-01-01",
+  } as unknown as Session,
+  status: "authenticated",
+  update: vi.fn(),
+});
+
 describe("useOrganizationSettingsPages", () => {
   beforeEach(() => {
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
@@ -123,15 +133,9 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(usePlan).mockReturnValue("oss");
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          email: "user@example.com",
-        },
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    } as ReturnType<typeof useSession>);
+    vi.mocked(useSession).mockReturnValue(
+      authenticatedSession("user@example.com"),
+    );
   });
 
   it("hides organization API key settings without organization api key access", () => {
@@ -216,15 +220,9 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organization:update",
     );
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          email: "USER@LANGFUSE.COM",
-        },
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    } as ReturnType<typeof useSession>);
+    vi.mocked(useSession).mockReturnValue(
+      authenticatedSession("USER@LANGFUSE.COM"),
+    );
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
     const gatewayPages = result.current.filter((page) =>
