@@ -22,7 +22,7 @@ const gatewayIngestionTokenSigner =
       })
     : undefined;
 
-export async function handleGatewayResolveRequest({
+export async function gatewayResolveApiHandler({
   res,
   auth,
   apiFormat,

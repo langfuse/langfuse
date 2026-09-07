@@ -1,9 +1,9 @@
 import {
-  handleGatewayResolveRequest,
+  gatewayResolveApiHandler,
   withGatewayResolveAuth,
 } from "@/src/features/llm-gateway/server";
 
-export default withGatewayResolveAuth(handleGatewayResolveRequest);
+export default withGatewayResolveAuth(gatewayResolveApiHandler);
 
 export const config = {
   api: {
