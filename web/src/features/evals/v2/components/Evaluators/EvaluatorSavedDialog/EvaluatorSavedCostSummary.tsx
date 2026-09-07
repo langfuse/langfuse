@@ -6,6 +6,7 @@ import {
   SAMPLING_SLIDER_MIN,
   SAMPLING_SLIDER_STEP,
 } from "@/src/features/evals/v2/constants/ruleSampling";
+import { EvaluatorCostCalculationTooltipContent } from "@/src/features/evals/v2/components/EvaluatorCostCalculationTooltipContent/EvaluatorCostCalculationTooltipContent";
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -75,7 +76,7 @@ export function EvaluatorSavedCostSummary({
       </section>
 
       {evaluatorType !== EvalTemplateTypeEnum.CODE ? (
-        <section className="border-t border-dashed pt-4">
+        <section className="border-t pt-4">
           {isEstimating ? (
             <div className="space-y-2">
               <Skeleton className="h-6 w-24" />
@@ -93,13 +94,15 @@ export function EvaluatorSavedCostSummary({
                     : `≈ ${usdFormatter(estimatedCostUsd, 2, 2)}`}
                 </span>
                 <InfoTooltip label="How estimated LLM costs are calculated">
-                  {formatEvaluatorCostCalculation({
-                    matchingObservations,
-                    sampling,
-                    testRunCostUsd: estimate?.testRunCostUsd ?? null,
-                    estimatedCostUsd,
-                    evaluatorType,
-                  })}
+                  <EvaluatorCostCalculationTooltipContent
+                    {...formatEvaluatorCostCalculation({
+                      matchingObservations,
+                      sampling,
+                      testRunCostUsd: estimate?.testRunCostUsd ?? null,
+                      estimatedCostUsd,
+                      evaluatorType,
+                    })}
+                  />
                 </InfoTooltip>
               </div>
               <p className="text-muted-foreground text-xs">
@@ -117,7 +120,7 @@ export function EvaluatorSavedCostSummary({
       ) : null}
 
       {evaluatorType !== EvalTemplateTypeEnum.CODE && backfill.enabled ? (
-        <section className="border-t border-dashed pt-4">
+        <section className="border-t pt-4">
           {backfill.isEstimating ? (
             <div className="space-y-2">
               <Skeleton className="h-6 w-24" />
@@ -135,14 +138,16 @@ export function EvaluatorSavedCostSummary({
                     : "Unavailable"}
                 </span>
                 <InfoTooltip label="How estimated backfill costs are calculated">
-                  {formatEvaluatorCostCalculation({
-                    matchingObservations: backfillObservationCount,
-                    sampling,
-                    testRunCostUsd: estimate?.testRunCostUsd ?? null,
-                    estimatedCostUsd: backfillEstimatedCostUsd,
-                    evaluatorType,
-                    period: "selection",
-                  })}
+                  <EvaluatorCostCalculationTooltipContent
+                    {...formatEvaluatorCostCalculation({
+                      matchingObservations: backfillObservationCount,
+                      sampling,
+                      testRunCostUsd: estimate?.testRunCostUsd ?? null,
+                      estimatedCostUsd: backfillEstimatedCostUsd,
+                      evaluatorType,
+                      period: "selection",
+                    })}
+                  />
                 </InfoTooltip>
               </div>
               <p className="text-muted-foreground text-xs">

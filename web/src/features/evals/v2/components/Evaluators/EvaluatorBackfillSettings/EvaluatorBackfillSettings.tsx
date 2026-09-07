@@ -1,8 +1,15 @@
 import { format, subMonths } from "date-fns";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Button } from "@/src/components/ui/button";
+import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
 import { Input } from "@/src/components/ui/input";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 export type EvaluatorBackfillWindow =
@@ -20,12 +27,33 @@ export type EvaluatorBackfillRange = {
 const windowOptions: Array<{
   value: EvaluatorBackfillWindow;
   label: string;
+  summaryLabel: string;
 }> = [
-  { value: "24-hours", label: "24 hours" },
-  { value: "7-days", label: "7 days" },
-  { value: "30-days", label: "30 days" },
-  { value: "90-days", label: "90 days" },
-  { value: "custom", label: "Custom..." },
+  {
+    value: "24-hours",
+    label: "Last 24 hours",
+    summaryLabel: "the last 24 hours",
+  },
+  {
+    value: "7-days",
+    label: "Last 7 days",
+    summaryLabel: "the last 7 days",
+  },
+  {
+    value: "30-days",
+    label: "Last 30 days",
+    summaryLabel: "the last 30 days",
+  },
+  {
+    value: "90-days",
+    label: "Last 90 days",
+    summaryLabel: "the last 90 days",
+  },
+  {
+    value: "custom",
+    label: "Custom range",
+    summaryLabel: "the selected range",
+  },
 ];
 
 export function EvaluatorBackfillSettings({
@@ -62,10 +90,17 @@ export function EvaluatorBackfillSettings({
       (range.to.getTime() - range.from.getTime()) / (24 * 60 * 60 * 1_000),
     ),
   );
+  const selectedWindowOption = windowOptions.find(
+    (option) => option.value === selectedWindow,
+  );
+  const rangeDescription =
+    selectedWindow === "custom"
+      ? `the selected range (${rangeDays} days)`
+      : (selectedWindowOption?.summaryLabel ?? "the selected range");
 
   return (
-    <section className="mt-3 ml-6 border-t pt-3">
-      <div className="flex items-start gap-2">
+    <section className="ml-6 max-w-full min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
         <Switch
           id="evaluator-backfill-enabled"
           size="sm"
@@ -73,98 +108,28 @@ export function EvaluatorBackfillSettings({
           disabled={!canEnable}
           onCheckedChange={onEnabledChange}
         />
-        <div>
-          <label
-            htmlFor="evaluator-backfill-enabled"
-            className={cn(
-              "block text-sm leading-none font-bold",
-              canEnable ? "cursor-pointer" : "text-muted-foreground",
-            )}
-          >
-            Also apply these filters to past observations
-          </label>
-          <p className="text-muted-foreground mt-1.5 text-xs">
-            A one-time backfill over observations you already have.
-          </p>
-        </div>
+        <label
+          htmlFor="evaluator-backfill-enabled"
+          className={cn(
+            "min-w-0 text-sm leading-none",
+            canEnable ? "cursor-pointer" : "text-muted-foreground",
+          )}
+        >
+          Run evaluator on past observations matching these filters
+        </label>
       </div>
 
       {enabled ? (
-        <div className="mt-3 space-y-3 rounded-md border p-3">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground w-24 shrink-0 text-xs">
-              Time window
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {windowOptions.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  size="sm"
-                  variant={
-                    selectedWindow === option.value ? "default" : "outline"
-                  }
-                  className="h-7 rounded-full px-3 text-xs"
-                  onClick={() => onWindowChange(option.value)}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {selectedWindow === "custom" ? (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground w-24 shrink-0 text-xs">
-                From → to
-              </span>
-              <Input
-                aria-label="Backfill start date"
-                type="date"
-                className="w-36"
-                value={format(range.from, "yyyy-MM-dd")}
-                min={format(subMonths(new Date(), 6), "yyyy-MM-dd")}
-                max={format(range.to, "yyyy-MM-dd")}
-                onChange={(event) => {
-                  if (!event.target.value) return;
-                  onRangeChange({
-                    ...range,
-                    from: new Date(`${event.target.value}T00:00:00`),
-                  });
-                }}
-              />
-              <span className="text-muted-foreground">→</span>
-              <Input
-                aria-label="Backfill end date"
-                type="date"
-                className="w-36"
-                value={format(range.to, "yyyy-MM-dd")}
-                min={format(range.from, "yyyy-MM-dd")}
-                max={format(new Date(), "yyyy-MM-dd")}
-                onChange={(event) => {
-                  if (!event.target.value) return;
-                  onRangeChange({
-                    ...range,
-                    to: new Date(`${event.target.value}T23:59:59.999`),
-                  });
-                }}
-              />
-            </div>
-          ) : null}
-
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="evaluator-backfill-max-items"
-              className="text-muted-foreground w-24 shrink-0 text-xs"
-            >
-              Max items
-            </label>
+        <div className="mt-3 ml-9 max-w-full min-w-0 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+            <span>Score the newest</span>
             <Input
               id="evaluator-backfill-max-items"
+              aria-label="Max items"
               type="number"
               min={1}
               max={maxAllowedItems}
-              className="w-28 text-right font-mono"
+              className="w-20 text-right font-mono text-sm"
               value={maxItems}
               onChange={(event) => {
                 const value = Number(event.target.value);
@@ -174,17 +139,55 @@ export function EvaluatorBackfillSettings({
                 );
               }}
             />
-            <span className="text-muted-foreground text-xs">
-              {compactNumberFormatter(maxAllowedItems, 0)} max per backfill
-            </span>
+            <span>matches from the</span>
+            <Select
+              value={selectedWindow}
+              onValueChange={(value) =>
+                onWindowChange(value as EvaluatorBackfillWindow)
+              }
+            >
+              <SelectTrigger
+                aria-label="Backfill time window"
+                className="w-fit max-w-full whitespace-nowrap"
+                disableValueLineClamp
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {windowOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <p className="bg-muted/40 rounded px-3 py-2 text-xs">
+          {selectedWindow === "custom" ? (
+            <DateRangeInput
+              value={{
+                from: format(range.from, "yyyy-MM-dd"),
+                to: format(range.to, "yyyy-MM-dd"),
+              }}
+              min={format(subMonths(new Date(), 6), "yyyy-MM-dd")}
+              max={format(new Date(), "yyyy-MM-dd")}
+              fromAriaLabel="Backfill start date"
+              toAriaLabel="Backfill end date"
+              onValueChange={(value) =>
+                onRangeChange({
+                  from: new Date(`${value.from}T00:00:00`),
+                  to: new Date(`${value.to}T23:59:59.999`),
+                })
+              }
+            />
+          ) : null}
+
+          <p className="text-muted-foreground text-xs break-words">
             {isEstimating
               ? "Counting matching observations..."
               : matchingObservations > maxItems
-                ? `${compactNumberFormatter(matchingObservations, 1)} observations in the selected range (${rangeDays} days) — capping at ${compactNumberFormatter(cappedCount, 1)}, newest first.`
-                : `${compactNumberFormatter(matchingObservations, 1)} observations in the selected range (${rangeDays} days), all within your limit.`}
+                ? `${numberFormatter(matchingObservations, 0)} observations in ${rangeDescription} — capping at ${numberFormatter(cappedCount, 0)}, newest first.`
+                : `${numberFormatter(matchingObservations, 0)} observations in ${rangeDescription}, all within your limit.`}
           </p>
         </div>
       ) : null}
