@@ -4,6 +4,7 @@ import {
   formatMetric,
   getDimensionSummaries,
   getEvenTickInterval,
+  getUniqueDimensions,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -280,5 +281,34 @@ describe("getEvenTickInterval", () => {
   it("honors a custom max tick target", () => {
     expect(getEvenTickInterval(12, 6)).toBe(1);
     expect(getEvenTickInterval(6, 6)).toBe(0);
+  });
+});
+
+describe("getUniqueDimensions", () => {
+  it("returns unique dimensions in deterministic alphabetical order regardless of input order", () => {
+    const dataSet1: DataPoint[] = [
+      { time_dimension: "t1", dimension: "zebra", metric: 10 },
+      { time_dimension: "t1", dimension: "alpha", metric: 20 },
+      { time_dimension: "t2", dimension: "beta", metric: 30 },
+      { time_dimension: "t2", dimension: "alpha", metric: 15 },
+    ];
+
+    const dataSet2: DataPoint[] = [
+      { time_dimension: "t1", dimension: "beta", metric: 5 },
+      { time_dimension: "t1", dimension: "zebra", metric: 25 },
+      { time_dimension: "t2", dimension: "alpha", metric: 40 },
+    ];
+
+    expect(getUniqueDimensions(dataSet1)).toEqual(["alpha", "beta", "zebra"]);
+    expect(getUniqueDimensions(dataSet2)).toEqual(["alpha", "beta", "zebra"]);
+  });
+
+  it("ignores data points without a dimension", () => {
+    const data: DataPoint[] = [
+      { time_dimension: "t1", dimension: undefined, metric: 10 },
+      { time_dimension: "t2", dimension: "alpha", metric: 20 },
+    ];
+
+    expect(getUniqueDimensions(data)).toEqual(["alpha"]);
   });
 });
