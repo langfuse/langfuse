@@ -46,6 +46,7 @@ import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/li
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
+import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 
 import {
   CreateMonitorSchema,
@@ -161,6 +162,67 @@ const monitorCreateAnalyticsProperties = (
   aggregation: monitor.metric.aggregation,
   window: monitor.window,
 });
+
+/** getMonitorThresholdUnitPresentation resolves the measure unit and UI unit label for a monitor's metric. */
+const getMonitorThresholdUnitPresentation = (params: {
+  view?: string;
+  metric?: { measure?: string; aggregation?: string };
+}): {
+  unit?: string;
+  unitLabel?: string;
+} => {
+  const isCount =
+    params.metric?.aggregation === "count" ||
+    params.metric?.aggregation === "uniq";
+  if (isCount) return {};
+
+  const view = (params.view ??
+    "observations") as keyof (typeof viewDeclarations)["v2"];
+  const measureName = params.metric?.measure ?? "count";
+  const measureDef = viewDeclarations.v2[view]?.measures[measureName];
+  const unit = measureDef?.unit;
+
+  if (!unit) return {};
+
+  if (unit === "millisecond") {
+    return { unit, unitLabel: "ms" };
+  }
+
+  return { unit, unitLabel: unit };
+};
+
+/** formatThresholdDescription provides clarifying helper text explaining the unit and equivalent human representation. */
+const formatThresholdDescription = (params: {
+  value?: number | null;
+  unit?: string;
+}): string | undefined => {
+  const { value, unit } = params;
+
+  if (unit === "millisecond") {
+    if (value != null && Number.isFinite(value)) {
+      const formatted = valueFormatter(value, "millisecond");
+      return `Measured in milliseconds (ms) — equivalent to ${formatted}`;
+    }
+    return "Threshold is measured in milliseconds (ms).";
+  }
+
+  if (unit === "USD") {
+    if (value != null && Number.isFinite(value)) {
+      const formatted = valueFormatter(value, "USD");
+      return `Measured in USD ($) — equivalent to ${formatted}`;
+    }
+    return "Threshold is measured in USD ($).";
+  }
+
+  if (unit) {
+    if (value != null && Number.isFinite(value)) {
+      return `Threshold: ${value.toLocaleString("en-US")} ${unit}`;
+    }
+    return `Threshold is measured in ${unit}.`;
+  }
+
+  return undefined;
+};
 
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
@@ -387,6 +449,34 @@ export const MonitorForm = ({
   );
 
   namePlaceholderRef.current = namePlaceholder;
+
+  /** thresholdUnit resolves the measure unit (e.g. "millisecond", "USD") and input badge label (e.g. "ms", "USD"). */
+  const thresholdUnit = useMemo(
+    () =>
+      getMonitorThresholdUnitPresentation({
+        view: watched.view,
+        metric: watched.metric,
+      }),
+    [watched.view, watched.metric],
+  );
+
+  const alertThresholdDescription = useMemo(
+    () =>
+      formatThresholdDescription({
+        value: watched.alertThreshold,
+        unit: thresholdUnit.unit,
+      }),
+    [watched.alertThreshold, thresholdUnit.unit],
+  );
+
+  const warningThresholdDescription = useMemo(
+    () =>
+      formatThresholdDescription({
+        value: watched.warningThreshold,
+        unit: thresholdUnit.unit,
+      }),
+    [watched.warningThreshold, thresholdUnit.unit],
+  );
 
   /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
   const previewFilters = useMemo<FilterState>(
@@ -664,7 +754,17 @@ export const MonitorForm = ({
                             disabled={!hasAccess}
                           />
                         </FormControl>
+                        {thresholdUnit.unitLabel && (
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {thresholdUnit.unitLabel}
+                          </span>
+                        )}
                       </div>
+                      {alertThresholdDescription && (
+                        <FormDescription className="text-muted-foreground text-xs">
+                          {alertThresholdDescription}
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -708,7 +808,17 @@ export const MonitorForm = ({
                             disabled={!hasAccess}
                           />
                         </FormControl>
+                        {thresholdUnit.unitLabel && (
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {thresholdUnit.unitLabel}
+                          </span>
+                        )}
                       </div>
+                      {warningThresholdDescription && (
+                        <FormDescription className="text-muted-foreground text-xs">
+                          {warningThresholdDescription}
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1121,4 +1231,6 @@ export const __test = {
   nameOrPlaceholder,
   resolveViewChangePatch,
   monitorCreateAnalyticsProperties,
+  getMonitorThresholdUnitPresentation,
+  formatThresholdDescription,
 };
