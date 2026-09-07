@@ -942,9 +942,16 @@ async function getObservationsFromEventsTableInternal<T>(
       if (isTraceDeleteCursorSelect) {
         return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
       }
-      if (opts.dedupeBySpanId) {
+      if (opts.dedupeBySpanId === "latest-event") {
         return cursorOrderedBuilder.qualifyRaw(
           "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+        );
+      }
+      if (opts.dedupeBySpanId === "limit-by") {
+        return cursorOrderedBuilder.limitBy(
+          "e.span_id",
+          "e.trace_id",
+          "e.project_id",
         );
       }
       return cursorOrderedBuilder;
@@ -964,10 +971,13 @@ async function getObservationsFromEventsTableInternal<T>(
             : orderByEntries,
         ),
     )
-    .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
+    .when(!isCursorPagination && opts.dedupeBySpanId === "latest-event", (b) =>
       b.qualifyRaw(
         "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
       ),
+    )
+    .when(!isCursorPagination && opts.dedupeBySpanId === "limit-by", (b) =>
+      b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 

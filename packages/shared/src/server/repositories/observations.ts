@@ -542,13 +542,8 @@ export type ObservationTableQuery = {
    * precedence over `renderingProps.truncated` for the I/O select.
    */
   ioSizeCap?: { inlineChars: number; previewChars: number };
-  /**
-   * Events table only: collapse un-merged ReplacingMergeTree row versions to
-   * the latest non-deleted row per trace and span, so row counts equal distinct
-   * active observations.
-   * Required by callers whose limits/paging count observations.
-   */
-  dedupeBySpanId?: boolean;
+  /** Events table only: collapse unmerged row versions before limiting. */
+  dedupeBySpanId?: "limit-by" | "latest-event";
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 

@@ -932,7 +932,7 @@ export const sessionRouter = createTRPCRouter({
         // Un-merged ReplacingMergeTree row versions of one span must not
         // count as separate observations: the 50-row page, the hasMore
         // detection, and the budget below all count rows.
-        dedupeBySpanId: true,
+        dedupeBySpanId: "latest-event",
       });
 
       // The synthetic trace-level row is metadata about the trace, not one of
