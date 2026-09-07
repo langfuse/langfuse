@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Price } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  logger,
+  OtelIngestionProcessor,
+  type ResourceSpan,
+} from "@langfuse/shared/src/server";
 
 import { IngestionService } from "../../IngestionService";
 import * as clickhouseWriteExports from "../../ClickhouseWriter";
@@ -78,6 +83,68 @@ const mockIngestionService = new IngestionService(
   clickhouseWriteExports.ClickhouseWriter.getInstance() as any,
   mockClickhouseClient as any,
 );
+
+describe("OTel cache-write pricing", () => {
+  it("prices official cache-write tokens after event normalization", () => {
+    const resourceSpan: ResourceSpan = {
+      resource: { attributes: [] },
+      scopeSpans: [
+        {
+          scope: { name: "test-genai" },
+          spans: [
+            {
+              traceId: Buffer.from("abcdef1234567890abcdef1234567890", "hex"),
+              spanId: Buffer.from("1234567890abcdef", "hex"),
+              name: "cache-write-pricing",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+              },
+              endTimeUnixNano: {
+                low: 2000000,
+                high: 406528574,
+              },
+              attributes: Object.entries({
+                input_tokens: 300,
+                "cache_read.input_tokens": 40,
+                "cache_write.input_tokens": 25,
+              }).map(([key, count]) => ({
+                key: `gen_ai.usage.${key}`,
+                value: { intValue: { low: count, high: 0, unsigned: false } },
+              })),
+              status: {},
+            },
+          ],
+        },
+      ],
+    };
+    const processor = new OtelIngestionProcessor({
+      projectId: "test-project",
+      publicKey: "",
+      sdkName: "",
+      sdkVersion: "",
+    });
+    const events = processor.processToEvent([resourceSpan]);
+    expect(events).toHaveLength(1);
+
+    const costs = IngestionService.calculateUsageCosts(
+      [
+        { usageType: "input", price: new Decimal("0.01") },
+        { usageType: "input_cached_tokens", price: new Decimal("0.002") },
+        { usageType: "input_cache_creation", price: new Decimal("0.02") },
+      ],
+      { provided_cost_details: {} },
+      events[0].providedUsageDetails,
+    );
+
+    expect(costs.cost_details.input).toBe(2.35);
+    expect(costs.cost_details.input_cached_tokens).toBe(0.08);
+    expect(costs.cost_details.input_cache_creation).toBe(0.5);
+    expect(costs.cost_details.total).toBeCloseTo(2.93);
+    expect(costs.total_cost).toBeCloseTo(2.93);
+  });
+});
 
 describe("Token Cost Calculation", () => {
   let modelName: string;
