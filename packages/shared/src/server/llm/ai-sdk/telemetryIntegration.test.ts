@@ -259,6 +259,10 @@ describe("AI SDK telemetry integration", () => {
       id: VALID_TRACE_ID,
       name: "Execute evaluator: helpfulness",
       environment: "langfuse-llm-judge",
+      metadata: expect.objectContaining({
+        job_execution_id: "job-1",
+        evaluator_id: "evaluator-1",
+      }),
     });
 
     // The model call span materializes as a generation with usage — and it is
@@ -310,6 +314,10 @@ describe("AI SDK telemetry integration", () => {
     expect(eventInputs).toHaveLength(1);
     for (const eventInput of eventInputs) {
       expect(eventInput).toMatchObject({
+        type: "GENERATION",
+        traceName: "Execute evaluator: helpfulness",
+        input: expect.anything(),
+        output: expect.anything(),
         evaluationContext: {
           evaluatorId: "evaluator-1",
           evaluationRuleId: "legacy-rule-1",
