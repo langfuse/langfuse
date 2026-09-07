@@ -1,3 +1,4 @@
+// Gateway authentication and request handling
 export {
   buildGatewayHmacCanonicalMessage,
   createGatewayHmacSignature,
@@ -5,17 +6,16 @@ export {
   verifyGatewayHmacAuthorization,
   verifyGatewayIngestionToken,
 } from "./auth";
-export { GatewayProviderService } from "./gatewayProviderService";
-export {
-  authenticateGatewayResolveRequest,
-  withGatewayResolveAuth,
-} from "./gatewayResolveAuth";
+export { withGatewayResolveAuth } from "./gatewayResolveAuth";
 export { handleGatewayResolveRequest } from "./handleGatewayResolveRequest";
 export { verifyGatewayIngestionAuthorization } from "./ingestionTokenVerification";
+
+// Provider handling and resolution
+export { GatewayProviderService } from "./gatewayProviderService";
 export {
-  assertFlatGatewayMetadata,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
 } from "./providerRegistry";
 export { GatewayResolveError, GatewayResolveService } from "./resolveService";
+
 export { llmGatewayRouter } from "./router";

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  assertFlatGatewayMetadata,
   GatewayProviderService,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
@@ -32,30 +31,6 @@ describe("LLM gateway provider registry", () => {
     );
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
       true,
-    );
-  });
-
-  it("accepts only flat scalar metadata", () => {
-    expect(
-      assertFlatGatewayMetadata({
-        environment: "production",
-        costCenter: 42,
-        active: true,
-      }),
-    ).toEqual({
-      environment: "production",
-      costCenter: 42,
-      active: true,
-    });
-
-    expect(() => assertFlatGatewayMetadata({ nested: { no: true } })).toThrow(
-      "flat scalar",
-    );
-    expect(() => assertFlatGatewayMetadata({ array: ["no"] })).toThrow(
-      "flat scalar",
-    );
-    expect(() => assertFlatGatewayMetadata({ nullable: null })).toThrow(
-      "flat scalar",
     );
   });
 

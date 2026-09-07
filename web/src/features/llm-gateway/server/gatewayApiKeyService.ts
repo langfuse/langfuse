@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import type { Cluster, Redis } from "ioredis";
 
-import { assertFlatGatewayMetadata } from "./providerRegistry";
+import type { GatewayMetadata } from "./providerRegistry";
 import { GatewayRepository } from "./repository";
 
 export class GatewayApiKeyService {
@@ -26,10 +26,9 @@ export class GatewayApiKeyService {
   async create(params: {
     organizationId: string;
     note?: string;
-    metadata: unknown;
+    metadata: GatewayMetadata;
     createdByUserId: string;
   }) {
-    const metadata = assertFlatGatewayMetadata(params.metadata);
     return this.prisma.$transaction(async (tx) => {
       const key = await createAndAddApiKeysToDb({
         prisma: tx,
@@ -41,7 +40,7 @@ export class GatewayApiKeyService {
       await tx.gatewayApiKeyAssociation.create({
         data: {
           apiKeyId: key.id,
-          metadata,
+          metadata: params.metadata,
         },
       });
       return key;

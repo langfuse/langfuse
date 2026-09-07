@@ -10,7 +10,6 @@ export const gatewayProviders = ["OPENAI", "ANTHROPIC", "OPENROUTER"] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
-export type GatewayMetadata = Record<string, string | number | boolean>;
 
 export const GatewayApiFormatSchema = z.enum(gatewayApiFormats);
 export const GatewayResolveResponseSchema = z
@@ -44,6 +43,7 @@ export const GatewayResolveResponseSchema = z
 
 const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
+export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
 type ProviderDefinition = {
   baseUrl: string;
@@ -84,12 +84,4 @@ export function providerSupportsApiFormat(
   apiFormat: GatewayApiFormat,
 ): boolean {
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
-}
-
-export function assertFlatGatewayMetadata(value: unknown): GatewayMetadata {
-  const result = GatewayMetadataSchema.safeParse(value);
-  if (!result.success) {
-    throw new Error("Gateway key metadata must contain flat scalar values");
-  }
-  return result.data;
 }

@@ -15,7 +15,7 @@ import { GatewayResolveError } from "./resolveService";
 
 const bodySchema = z.object({ api_format: GatewayApiFormatSchema }).strict();
 
-export type GatewayResolveAuthContext = {
+type GatewayResolveAuthContext = {
   organizationId: string;
   apiKeyId: string;
 };
@@ -38,7 +38,7 @@ type GatewayResolveAuthenticator = (params: {
   gatewayAuthorization: string | undefined;
 }) => Promise<GatewayResolveAuthContext>;
 
-export async function authenticateGatewayResolveRequest(
+async function authenticateGatewayResolveRequest(
   params: {
     virtualSecretKey: string;
     requestBody: string;
@@ -87,8 +87,12 @@ export function withGatewayResolveAuth(
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
-    if (!bearer) {
+    const [scheme, token, ...additionalParts] = (
+      req.headers.authorization ?? ""
+    )
+      .trim()
+      .split(/\s+/);
+    if (scheme !== "Bearer" || !token || additionalParts.length > 0) {
       return res.status(401).json({ error: "Invalid gateway key" });
     }
 
@@ -106,7 +110,7 @@ export function withGatewayResolveAuth(
 
     try {
       const auth = await authenticate({
-        virtualSecretKey: bearer,
+        virtualSecretKey: token,
         requestBody,
         gatewayAuthorization: singleHeader(
           req.headers["langfuse-gateway-authorization"],

@@ -17,6 +17,27 @@ function response() {
 }
 
 describe("withGatewayResolveAuth", () => {
+  it.each([
+    undefined,
+    "Basic sk-gateway",
+    "Bearer",
+    "Bearer   ",
+    "bearer sk-gateway",
+  ])("rejects an invalid Bearer header: %s", async (authorization) => {
+    const req = {
+      method: "POST",
+      headers: { authorization },
+      body: { api_format: "openai.responses" },
+    } as unknown as NextApiRequest;
+    const res = response();
+    const authenticate = vi.fn();
+
+    await withGatewayResolveAuth(vi.fn(), authenticate)(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(authenticate).not.toHaveBeenCalled();
+  });
+
   it("authenticates the request and injects the trusted gateway context", async () => {
     const req = {
       method: "POST",

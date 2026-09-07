@@ -1,5 +1,7 @@
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 
+import { createMocks } from "node-mocks-http";
+import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
@@ -16,12 +18,12 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import {
-  authenticateGatewayResolveRequest,
   createGatewayHmacSignature,
   GatewayProviderService,
   type GatewayResolveError,
   GatewayResolveService,
   verifyGatewayIngestionToken,
+  withGatewayResolveAuth,
 } from "@/src/features/llm-gateway/server";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -86,6 +88,38 @@ async function prepare(role: Role = Role.OWNER) {
     user,
     caller: appRouter.createCaller({ ...ctx, prisma }),
   };
+}
+
+async function authenticateResolveRequest(params: {
+  virtualSecretKey: string;
+  requestBody: string;
+  gatewayAuthorization: string;
+  serviceKey: string;
+}) {
+  const previousServiceKey = env.LANGFUSE_GATEWAY_SERVICE_KEY;
+  env.LANGFUSE_GATEWAY_SERVICE_KEY = params.serviceKey;
+  try {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${params.virtualSecretKey}`,
+        "langfuse-gateway-authorization": params.gatewayAuthorization,
+      },
+      body: params.requestBody,
+    });
+    let context: { organizationId: string; apiKeyId: string } | undefined;
+
+    await withGatewayResolveAuth(async ({ auth }) => {
+      context = auth;
+    })(req, res);
+
+    expect(res.statusCode).toBe(200);
+    if (!context)
+      throw new Error("Gateway resolve request was not authenticated");
+    return context;
+  } finally {
+    env.LANGFUSE_GATEWAY_SERVICE_KEY = previousServiceKey;
+  }
 }
 
 describe("LLM gateway control plane", () => {
@@ -348,18 +382,12 @@ describe("LLM gateway control plane", () => {
         serviceKey,
       },
     )}`;
-    const auth = await authenticateGatewayResolveRequest(
-      {
-        virtualSecretKey: gatewayKey.secretKey,
-        requestBody,
-        gatewayAuthorization,
-      },
-      prisma,
-      {
-        salt: env.SALT,
-        serviceKeys: [{ secret: serviceKey }],
-      },
-    );
+    const auth = await authenticateResolveRequest({
+      virtualSecretKey: gatewayKey.secretKey,
+      requestBody,
+      gatewayAuthorization,
+      serviceKey,
+    });
     const result = await new GatewayResolveService(prisma, {
       jwt: {
         privateKey: signingKeys.privateKey
@@ -502,18 +530,12 @@ describe("LLM gateway control plane", () => {
         serviceKey,
       },
     )}`;
-    const auth = await authenticateGatewayResolveRequest(
-      {
-        virtualSecretKey: key.secretKey,
-        requestBody,
-        gatewayAuthorization,
-      },
-      prisma,
-      {
-        salt: env.SALT,
-        serviceKeys: [{ secret: serviceKey }],
-      },
-    );
+    const auth = await authenticateResolveRequest({
+      virtualSecretKey: key.secretKey,
+      requestBody,
+      gatewayAuthorization,
+      serviceKey,
+    });
     await expect(
       new GatewayResolveService(prisma, {}).resolve({
         ...auth,
