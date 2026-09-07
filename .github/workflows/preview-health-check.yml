@@ -1,0 +1,147 @@
+name: AWS preview health check
+
+# Poll every labeled preview's public health endpoint and shout in Slack when
+# one answers but is not serving. Argo CD notifications already cover a preview
+# whose *sync* failed; they cannot see this case, because a Deployment scaled to
+# zero is Healthy to Argo (`/spec/replicas` sits in the ApplicationSet's
+# ignoreDifferences for the downscaler), so a preview that exists, resolves, and
+# returns 503 looks fine from the cluster's point of view. Until this, the only
+# detector was someone opening the URL.
+#
+# Schedule is UTC; we want 08:00-20:00 Europe/Berlin, inside the window where
+# previews are up at all ("Mon-Fri 08:00-24:00 Europe/Berlin", downscaler/uptime
+# in the infrastructure repo's ApplicationSet). Berlin is UTC+1 or UTC+2
+# depending on DST, so a UTC hour H lands at H+1 or H+2 local: only 07:00-18:00
+# UTC is inside 08:00-20:00 Berlin whichever side of DST we are on. On a
+# 2-hourly grid that is 07:00-17:00, i.e. first probe at 08:00 or 09:00 local
+# and last at 18:00 or 19:00 — never on a deliberately sleeping preview.
+#
+# Safe triggers only: `schedule` + `workflow_dispatch`. No checkout, no PR-code
+# execution, no cloud credentials.
+on:
+  schedule:
+    - cron: "0 7,9,11,13,15,17 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: preview-health-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check labeled previews are serving
+    runs-on: ubuntu-latest
+    # Same preview-system feature gate as preview-build / preview-stale-cleanup:
+    # unset => system off, nothing to poll.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      # Listing labeled open PRs is all this needs; it mutates nothing.
+      pull-requests: read
+    steps:
+      - name: Probe every labeled preview
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # A preview is only expected to serve if the PR is open AND labeled.
+          numbers="$(gh api "repos/$REPOSITORY/pulls?state=open&per_page=100" --paginate \
+            --jq '.[] | select(any(.labels[]; .name == "preview")) | .number')"
+
+          if [ -z "$numbers" ]; then
+            echo "No labeled previews open; nothing to probe."
+            echo "unhealthy=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          probe() {
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+              "https://pr-$1.preview.langfuse.com/api/public/health" 2>/dev/null || echo 000
+          }
+
+          unhealthy=""
+          undeployed=0
+          healthy=0
+
+          for n in $numbers; do
+            code="$(probe "$n")"
+
+            # 404 is the shared ALB's wildcard catch-all: the PR is labeled but
+            # nothing is deployed for it — an author off the deploy allowlist, or
+            # a teardown still in flight. Not a failure, so don't page on it.
+            if [ "$code" = "404" ]; then
+              undeployed=$((undeployed + 1))
+              echo "pr-$n: not deployed (404)"
+              continue
+            fi
+
+            # A rebuild rolls the web Deployment, and a brief ImagePullBackOff is
+            # documented as normal and self-healing. Re-probe once before calling
+            # it broken so a rollout in progress doesn't cry wolf.
+            if [ "$code" != "200" ]; then
+              sleep 30
+              code="$(probe "$n")"
+            fi
+
+            if [ "$code" = "200" ]; then
+              healthy=$((healthy + 1))
+              echo "pr-$n: ok"
+            else
+              unhealthy="${unhealthy:+$unhealthy }pr-$n(HTTP $code)"
+              echo "::error::pr-$n.preview.langfuse.com is labeled but not serving (HTTP $code)"
+            fi
+          done
+
+          echo "unhealthy=$unhealthy" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Preview health"
+            echo ""
+            echo "- serving: $healthy"
+            echo "- not deployed (404, ignored): $undeployed"
+            echo "- not serving: ${unhealthy:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Slack
+        if: steps.probe.outputs.unhealthy != ''
+        env:
+          # Same bot and channel as the Argo CD preview sync-failure alerts, so
+          # every preview signal lands in one place.
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: langfuse-engineering-notifications
+          UNHEALTHY: ${{ steps.probe.outputs.unhealthy }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_BOT_TOKEN:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN is unset; skipping the Slack post."
+            exit 0
+          fi
+
+          text="Preview environments labeled but not serving: ${UNHEALTHY}. Run: ${RUN_URL}"
+
+          response="$(curl -sS -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -nc --arg channel "$SLACK_CHANNEL" --arg text "$text" \
+              '{channel: $channel, text: $text}')")"
+
+          # chat.postMessage answers 200 with {"ok":false} on a bad token or an
+          # uninvited bot, so the HTTP status alone proves nothing.
+          if [ "$(printf '%s' "$response" | jq -r '.ok')" != "true" ]; then
+            echo "::error::Slack post failed: $(printf '%s' "$response" | jq -r '.error // "unknown"')"
+            exit 1
+          fi
+          echo "Posted to #${SLACK_CHANNEL}."
+
+      - name: Fail if any preview is not serving
+        if: steps.probe.outputs.unhealthy != ''
+        env:
+          UNHEALTHY: ${{ steps.probe.outputs.unhealthy }}
+        run: |
+          echo "Not serving: $UNHEALTHY"
+          exit 1
