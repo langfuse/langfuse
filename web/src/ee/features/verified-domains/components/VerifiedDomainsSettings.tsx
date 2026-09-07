@@ -217,7 +217,11 @@ function DomainsTable({ orgId }: { orgId: string }) {
         data={query.data ?? []}
         isLoading={query.isLoading}
         noResults={
-          query.isError ? null : (
+          query.isError ? (
+            <div className="text-destructive py-10 text-sm">
+              Failed to load verified domains. Please try again.
+            </div>
+          ) : (
             <div className="py-10 text-sm">No domains added yet</div>
           )
         }

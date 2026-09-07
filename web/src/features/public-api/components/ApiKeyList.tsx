@@ -165,7 +165,15 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           columns={columns}
           data={apiKeysQuery.data ?? []}
           isLoading={apiKeysQuery.isLoading}
-          noResults={apiKeysQuery.isError ? null : "None"}
+          noResults={
+            apiKeysQuery.isError ? (
+              <span className="text-destructive">
+                Failed to load API keys. Please try again.
+              </span>
+            ) : (
+              "None"
+            )
+          }
           bodyTone="muted"
           rowVariant="primary-hover"
         />

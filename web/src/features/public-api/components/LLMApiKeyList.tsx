@@ -140,7 +140,15 @@ export function LlmApiKeyList(props: { projectId: string }) {
           columns={columns}
           data={apiKeys.data?.data ?? []}
           isLoading={apiKeys.isLoading}
-          noResults={apiKeys.isError ? null : "None"}
+          noResults={
+            apiKeys.isError ? (
+              <span className="text-destructive">
+                Failed to load LLM connections. Please try again.
+              </span>
+            ) : (
+              "None"
+            )
+          }
           bodyTone="muted"
           rowVariant="primary-hover-static"
           onRowClick={(apiKey) => setEditingKeyId(apiKey.id)}
