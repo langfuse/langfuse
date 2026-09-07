@@ -3,7 +3,7 @@ import { Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayConnection";
+import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function DeleteProviderDialog({

@@ -5,7 +5,7 @@ import {
   type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { EditProviderForm } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/EditProviderDialogController/components/EditProviderForm";
-import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayConnection";
+import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayProvider";
 
 export function EditProviderDialogController({
   organizationId,

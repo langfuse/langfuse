@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayConnection";
+import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function ReorderProviderButton({

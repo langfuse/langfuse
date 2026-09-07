@@ -12,7 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { CredentialFields } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/CredentialFields";
 import { providerLabels } from "@/src/features/llm-gateway/constants/providerLabels";
-import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayConnection";
+import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function EditProviderForm({
