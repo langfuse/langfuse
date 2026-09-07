@@ -1918,7 +1918,21 @@ export const RenderLoadedConversation = meta.story({
     await expect(
       canvas.getByText("I'll check whether the order can still be updated."),
     ).toBeInTheDocument();
-    await expect(canvas.getByText("get_order")).toBeInTheDocument();
+    const generation = canvasElement.querySelector(
+      '[data-session-observation-id="generation-1"]',
+    );
+    await expect(generation).not.toBeNull();
+    await expect(
+      within(generation as HTMLElement).queryByRole("button", {
+        name: "get_order",
+      }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "get_order" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Expand get_order" }),
+    ).toBeInTheDocument();
   },
 });
 
@@ -2068,5 +2082,47 @@ export const HideOnlySystemMessage = meta.story({
     await expect(
       canvas.getByLabelText("No conversational content"),
     ).toBeVisible();
+  },
+});
+
+export const MergeSystemPrompts = meta.story({
+  name: "(Test) Merges System Prompts",
+  args: InAppAgentErrorAnalysis.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const firstGeneration = canvasElement.querySelector(
+      '[data-session-observation-id="error-analysis-generation-1"]',
+    );
+    await expect(firstGeneration).not.toBeNull();
+
+    const observation = within(firstGeneration as HTMLElement);
+    await expect(
+      observation.getAllByRole("button", { name: "System prompt" }),
+    ).toHaveLength(1);
+
+    await userEvent.click(
+      observation.getByRole("button", { name: "System prompt" }),
+    );
+    await expect(
+      observation.getByText(
+        "You are a demo observability analyst. Use only fictional project data.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      observation.getByText(
+        "Inspect representative failures before proposing a taxonomy or remediation.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      observation.getByText(
+        "Never expose identifiers or payloads from real users.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      observation.queryByRole("button", { name: "skill" }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getAllByRole("button", { name: "skill" })).toHaveLength(
+      1,
+    );
   },
 });

@@ -3,9 +3,14 @@ import { ChevronDown, MessageSquareOff } from "lucide-react";
 import {
   normalizeSpanIO,
   type NormalizedMessage,
+  type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import {
+  getStandaloneToolCallIds,
+  processTimelineMessages,
+} from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import {
@@ -79,17 +84,118 @@ function TruncatedObservation({
   );
 }
 
-function SessionTimelineObservation({
+function SessionTimelineToolRow({
+  id,
+  name,
+  startTime,
+  latency,
+  input,
+  output,
+  inputTruncated,
+  outputTruncated,
+  onOpenInTraceView,
+}: {
+  id: string;
+  name: string;
+  startTime: Date;
+  latency: number | null;
+  input: unknown;
+  output: unknown;
+  inputTruncated?: boolean;
+  outputTruncated?: boolean;
+  onOpenInTraceView: () => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <section
+      data-session-observation-id={id}
+      className={cn("flex scroll-mt-16 flex-col py-1", isExpanded && "gap-4")}
+    >
+      <div className="flex w-full min-w-0 items-center gap-0.5">
+        <button
+          type="button"
+          onClick={onOpenInTraceView}
+          className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        >
+          {renderFilterIcon("TOOL")}
+          <span
+            className="min-w-0 truncate text-xs font-normal group-hover:underline"
+            title={name}
+          >
+            {name}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${name}`}
+          onClick={() => setIsExpanded((current) => !current)}
+        >
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 transition-transform",
+              !isExpanded && "-rotate-90",
+            )}
+            aria-hidden="true"
+          />
+        </button>
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {latency !== null ? (
+            <span className="text-muted-foreground font-mono text-[11px]">
+              {formatIntervalSeconds(latency)}
+            </span>
+          ) : null}
+          <time className="text-muted-foreground font-mono text-[10px]">
+            {startTime.toLocaleTimeString()}
+          </time>
+        </span>
+      </div>
+      {isExpanded ? (
+        <div className="border-border ml-3 flex min-w-0 flex-col gap-3 border-l py-1 pl-5">
+          {hasPreviewValue(input) ? (
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
+                Input{inputTruncated ? " (truncated)" : ""}
+              </span>
+              <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
+                {toPreviewText(input)}
+              </pre>
+            </div>
+          ) : null}
+          {hasPreviewValue(output) ? (
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
+                Output{outputTruncated ? " (truncated)" : ""}
+              </span>
+              <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
+                {toPreviewText(output)}
+              </pre>
+            </div>
+          ) : null}
+          {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
+            <span className="text-muted-foreground text-xs">
+              No input or output
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SessionTimelineConversationObservation({
   observation,
   showSystemPrompt,
+  standaloneToolCallIds,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
   showSystemPrompt: boolean;
+  standaloneToolCallIds: ReadonlySet<string>;
   onOpenInTraceView: () => void;
 }) {
-  const [isToolExpanded, setIsToolExpanded] = useState(false);
-  const isTool = observation.type === "TOOL";
   const isTruncated = observation.inputTruncated || observation.outputTruncated;
 
   const parsed = useMemo<
@@ -116,127 +222,75 @@ function SessionTimelineObservation({
     observation.metadataTruncated,
   ]);
 
-  const visibleMessages =
+  const processedMessages =
     parsed.type === "loaded"
-      ? parsed.messages.filter(
-          (message) =>
-            (showSystemPrompt || message.role !== "system") &&
-            message.parts.some((part) => part.type !== "tool-result"),
-        )
-      : [];
+      ? processTimelineMessages({
+          messages: parsed.messages,
+          showSystemPrompt,
+          standaloneToolCallIds,
+        })
+      : { messages: [], rolledUpToolCalls: [] };
+  const visibleMessages = processedMessages.messages;
   const hasTimelineContent =
     parsed.type === "loaded" &&
     parsed.messages.some((message) =>
       message.parts.some((part) => part.type !== "tool-result"),
     );
   const hasNoConversationalContent =
-    !isTool &&
     !isTruncated &&
     parsed.type === "loaded" &&
     visibleMessages.length === 0 &&
     (parsed.messages.length === 0 || hasTimelineContent);
   const hasObservationBody =
-    (isTool && isToolExpanded) ||
-    (!isTool &&
-      (isTruncated ||
-        parsed.type === "error" ||
-        visibleMessages.length > 0 ||
-        observation.metadataTruncated));
+    isTruncated ||
+    parsed.type === "error" ||
+    visibleMessages.length > 0 ||
+    observation.metadataTruncated;
 
   return (
-    <section
-      data-session-observation-id={observation.id}
-      className={cn(
-        "flex scroll-mt-16 flex-col",
-        isTool
-          ? cn("py-1", isToolExpanded && "gap-4")
-          : hasObservationBody
-            ? "gap-4 py-2"
-            : "py-1",
-      )}
-    >
-      <div className="flex w-full min-w-0 items-center gap-0.5">
-        <button
-          type="button"
-          onClick={onOpenInTraceView}
-          className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        >
-          {renderFilterIcon(observation.type ?? "EVENT")}
-          <span
-            className="min-w-0 truncate text-xs font-normal group-hover:underline"
-            title={observation.name ?? observation.id}
-          >
-            {observation.name ?? observation.id}
-          </span>
-        </button>
-        {isTool ? (
+    <>
+      <section
+        data-session-observation-id={observation.id}
+        className={cn(
+          "flex scroll-mt-16 flex-col",
+          hasObservationBody ? "gap-4 py-2" : "py-1",
+        )}
+      >
+        <div className="flex w-full min-w-0 items-center gap-0.5">
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-            aria-expanded={isToolExpanded}
-            aria-label={`${isToolExpanded ? "Collapse" : "Expand"} ${observation.name ?? observation.id}`}
-            onClick={() => setIsToolExpanded((current) => !current)}
+            onClick={onOpenInTraceView}
+            className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform",
-                !isToolExpanded && "-rotate-90",
-              )}
-              aria-hidden="true"
-            />
-          </button>
-        ) : null}
-        <span className="ml-auto flex shrink-0 items-center gap-2">
-          {hasNoConversationalContent ? (
+            {renderFilterIcon(observation.type ?? "EVENT")}
             <span
-              className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-              role="img"
-              aria-label="No conversational content"
-              title="No conversational content"
+              className="min-w-0 truncate text-xs font-normal group-hover:underline"
+              title={observation.name ?? observation.id}
             >
-              <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
+              {observation.name ?? observation.id}
             </span>
-          ) : null}
-          {observation.latency !== null && observation.type !== "EVENT" ? (
-            <span className="text-muted-foreground font-mono text-[11px]">
-              {formatIntervalSeconds(observation.latency)}
-            </span>
-          ) : null}
-          <time className="text-muted-foreground font-mono text-[10px]">
-            {observation.startTime.toLocaleTimeString()}
-          </time>
-        </span>
-      </div>
-      {isTool && isToolExpanded ? (
-        <div className="border-border ml-3 flex min-w-0 flex-col gap-3 border-l py-1 pl-5">
-          {hasPreviewValue(observation.input) ? (
-            <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
-                Input{observation.inputTruncated ? " (truncated)" : ""}
+          </button>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            {hasNoConversationalContent ? (
+              <span
+                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+                role="img"
+                aria-label="No conversational content"
+                title="No conversational content"
+              >
+                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
               </span>
-              <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
-                {toPreviewText(observation.input)}
-              </pre>
-            </div>
-          ) : null}
-          {hasPreviewValue(observation.output) ? (
-            <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
-                Output{observation.outputTruncated ? " (truncated)" : ""}
+            ) : null}
+            {observation.latency !== null && observation.type !== "EVENT" ? (
+              <span className="text-muted-foreground font-mono text-[11px]">
+                {formatIntervalSeconds(observation.latency)}
               </span>
-              <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
-                {toPreviewText(observation.output)}
-              </pre>
-            </div>
-          ) : null}
-          {!hasPreviewValue(observation.input) &&
-          !hasPreviewValue(observation.output) ? (
-            <span className="text-muted-foreground text-xs">
-              No input or output
-            </span>
-          ) : null}
+            ) : null}
+            <time className="text-muted-foreground font-mono text-[10px]">
+              {observation.startTime.toLocaleTimeString()}
+            </time>
+          </span>
         </div>
-      ) : !isTool ? (
         <div className="flex min-w-0 flex-col gap-5">
           {observation.metadataTruncated && !isTruncated ? (
             <p className="text-muted-foreground text-xs">
@@ -264,8 +318,78 @@ function SessionTimelineObservation({
             ))
           ) : null}
         </div>
-      ) : null}
-    </section>
+      </section>
+      {processedMessages.rolledUpToolCalls.map((toolCall, index) => (
+        <RolledUpToolRow
+          key={toolCall.toolCallId ?? `${toolCall.toolName}-${index}`}
+          observation={observation}
+          toolCall={toolCall}
+          index={index}
+          onOpenInTraceView={onOpenInTraceView}
+        />
+      ))}
+    </>
+  );
+}
+
+function RolledUpToolRow({
+  observation,
+  toolCall,
+  index,
+  onOpenInTraceView,
+}: {
+  observation: SessionObservation;
+  toolCall: ToolCallPart;
+  index: number;
+  onOpenInTraceView: () => void;
+}) {
+  return (
+    <SessionTimelineToolRow
+      id={`${observation.id}-tool-call-${toolCall.toolCallId ?? index}`}
+      name={toolCall.toolName}
+      startTime={observation.startTime}
+      latency={null}
+      input={toolCall.input}
+      output={undefined}
+      onOpenInTraceView={onOpenInTraceView}
+    />
+  );
+}
+
+function SessionTimelineObservation({
+  observation,
+  showSystemPrompt,
+  standaloneToolCallIds,
+  onOpenInTraceView,
+}: {
+  observation: SessionObservation;
+  showSystemPrompt: boolean;
+  standaloneToolCallIds: ReadonlySet<string>;
+  onOpenInTraceView: () => void;
+}) {
+  if (observation.type === "TOOL") {
+    return (
+      <SessionTimelineToolRow
+        id={observation.id}
+        name={observation.name ?? observation.id}
+        startTime={observation.startTime}
+        latency={observation.latency}
+        input={observation.input}
+        output={observation.output}
+        inputTruncated={observation.inputTruncated}
+        outputTruncated={observation.outputTruncated}
+        onOpenInTraceView={onOpenInTraceView}
+      />
+    );
+  }
+
+  return (
+    <SessionTimelineConversationObservation
+      observation={observation}
+      showSystemPrompt={showSystemPrompt}
+      standaloneToolCallIds={standaloneToolCallIds}
+      onOpenInTraceView={onOpenInTraceView}
+    />
   );
 }
 
@@ -288,6 +412,10 @@ export function SessionConversationTimeline({
 }) {
   const showIdleGap =
     idleGapSeconds !== null && idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
+  const standaloneToolCallIds =
+    state.type === "loaded"
+      ? getStandaloneToolCallIds(state.observations)
+      : new Set<string>();
 
   return (
     <div className="px-4 pb-14 sm:px-6 lg:px-10">
@@ -390,6 +518,7 @@ export function SessionConversationTimeline({
               key={observation.id}
               observation={observation}
               showSystemPrompt={showSystemPrompt}
+              standaloneToolCallIds={standaloneToolCallIds}
               onOpenInTraceView={() => onOpenObservation(observation.id)}
             />
           ))}
