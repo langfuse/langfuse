@@ -8,5 +8,4 @@ export {
   providerSupportsApiFormat,
   type GatewayApiFormat,
   type GatewayMetadata,
-  type GatewayProviderName,
 } from "./providerRegistry";

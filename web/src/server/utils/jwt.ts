@@ -17,7 +17,7 @@ export type JwtRegisteredClaims = {
   jti: string;
 };
 
-export type Ed25519JwtPublicKey = {
+type Ed25519JwtPublicKey = {
   id: string;
   publicKey: KeyObject;
 };
@@ -109,7 +109,7 @@ export function createEd25519JwtVerifier<
   };
 }
 
-export function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
+function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
   privateKey: KeyObject;
   keyId: string;
   issuer: string;
@@ -142,7 +142,7 @@ export function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
   return `${signingInput}.${signature}`;
 }
 
-export function verifyEd25519Jwt<TClaims extends JwtRegisteredClaims>(input: {
+function verifyEd25519Jwt<TClaims extends JwtRegisteredClaims>(input: {
   token: string;
   issuer: string;
   audience: string;

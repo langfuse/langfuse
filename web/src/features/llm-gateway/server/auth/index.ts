@@ -1,10 +1,7 @@
 export {
   createGatewayIngestionTokenSigner,
   createGatewayIngestionTokenVerifier,
-  issueGatewayIngestionToken,
-  verifyGatewayHmacAuthorization,
   verifyGatewayIngestionToken,
-  type GatewayIngestionClaims,
 } from "./auth";
 export {
   withGatewayResolveAuth,
