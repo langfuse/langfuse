@@ -30,6 +30,7 @@ import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 
 import { useMemo } from "react";
 
@@ -47,6 +48,7 @@ export type TraceProps = {
     scores: WithStringifiedMetadata<ScoreDomain>[];
     corrections: ScoreDomain[];
   }>;
+  sessionGraphData?: AgentGraphDataResponse[];
   projectId: string;
   context?: "fullscreen" | "peek" | "annotation";
   /** Observation cap this trace was loaded under, when it hit it. */
@@ -183,6 +185,7 @@ function TraceWithSelection({
   scores,
   corrections,
   sessionTraceEntries,
+  sessionGraphData,
   projectId,
   truncatedAtObservations,
   showObservationOnly,
@@ -313,6 +316,7 @@ function TraceWithSelection({
         traceId={activeTrace.id}
         sessionId={sessionTraceEntries ? trace.sessionId : undefined}
         observations={observations}
+        sessionGraphData={sessionGraphData}
       >
         <SearchProvider>
           <JsonExpansionProvider>

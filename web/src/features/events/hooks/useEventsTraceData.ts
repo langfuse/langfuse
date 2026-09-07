@@ -37,6 +37,7 @@ interface UseEventsTraceDataResult {
           scores: WithStringifiedMetadata<ScoreDomain>[];
           corrections: ScoreDomain[];
         }>;
+        sessionGraphData?: RouterOutputs["sessions"]["observationsForSessionFromEvents"]["agentGraphData"];
       })
     | undefined;
   isLoading: boolean;
@@ -56,12 +57,14 @@ function adaptSessionEventsToTraceFormat({
   transformed,
   traceSummaries,
   observations,
+  agentGraphData,
 }: {
   projectId: string;
   sessionId: string;
   transformed: NonNullable<UseEventsTraceDataResult["data"]>;
   traceSummaries: RouterOutputs["sessions"]["tracesFromEvents"];
   observations: EventsTraceObservation[];
+  agentGraphData: RouterOutputs["sessions"]["observationsForSessionFromEvents"]["agentGraphData"];
 }) {
   const observationsByTraceId = new Map<string, EventsTraceObservation[]>();
   for (const observation of observations) {
@@ -136,6 +139,7 @@ function adaptSessionEventsToTraceFormat({
     ...transformed,
     observations: sessionTraceEntries.flatMap((entry) => entry.observations),
     sessionTraceEntries,
+    sessionGraphData: agentGraphData,
   };
 }
 
@@ -304,6 +308,7 @@ export function useEventsTraceData(
       traceSummaries: sessionTraceSummariesQuery.data,
       observations: sessionObservationsQuery.data
         .observations as EventsTraceObservation[],
+      agentGraphData: sessionObservationsQuery.data.agentGraphData,
     });
   }, [
     projectId,

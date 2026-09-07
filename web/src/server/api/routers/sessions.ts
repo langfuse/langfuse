@@ -830,11 +830,16 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const { observations, totalCount } =
+      const { observations, totalCount, graphRecords } =
         await getObservationsForSessionFromEventsTable(input);
 
       return {
         observations: toDomainArrayWithStringifiedMetadata(observations),
+        agentGraphData: graphRecords
+          .map((record) => mapAgentGraphRecord(record, "session"))
+          .filter(
+            (record): record is AgentGraphDataResponse => record !== null,
+          ),
         cutoffObservationsAfterMaxCount:
           totalCount > MAX_OBSERVATIONS_PER_SESSION,
         maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,

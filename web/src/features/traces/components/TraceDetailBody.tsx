@@ -45,6 +45,8 @@ export function TraceDetailBody({
   }
   const sessionTraceEntries =
     "sessionTraceEntries" in trace ? trace.sessionTraceEntries : undefined;
+  const sessionGraphData =
+    "sessionGraphData" in trace ? trace.sessionGraphData : undefined;
   const traceKey =
     sessionScopeRequested || sessionTraceEntries
       ? `session-${trace.sessionId ?? trace.id}`
@@ -58,6 +60,7 @@ export function TraceDetailBody({
       projectId={trace.projectId}
       observations={trace.observations}
       sessionTraceEntries={sessionTraceEntries}
+      sessionGraphData={sessionGraphData}
       context={context}
       truncatedAtObservations={truncatedAtObservations}
       showObservationOnly={showObservationOnly}

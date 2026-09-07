@@ -179,6 +179,18 @@ type EventsObservationQueryResult = EventsObservationRecordReadType & {
   time_to_first_token?: string;
 };
 
+type SessionObservationQueryResult = EventsObservationQueryResult & {
+  graph_trace_id: string;
+  graph_id: string;
+  graph_parent_observation_id: string | null;
+  graph_type: string;
+  graph_name: string;
+  graph_start_time: string;
+  graph_end_time: string | null;
+  graph_node: string | null;
+  graph_step: string | null;
+};
+
 /**
  * Extra row fields present when the query ran with an `ioSizeCap`
  * (EventsQueryBuilder.selectIOWithSizeCap). ClickHouse returns UInt64 as
@@ -483,7 +495,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
 export const getObservationsForSessionFromEventsTable = async (params: {
   projectId: string;
   sessionId: string;
-}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+}) => {
   const sessionEventIdsBuilder = new EventsQueryBuilder({
     projectId: params.projectId,
   })
@@ -496,6 +508,17 @@ export const getObservationsForSessionFromEventsTable = async (params: {
     projectId: params.projectId,
   })
     .selectFieldSet("baseWithoutTools", "calculated")
+    .selectRaw(
+      "e.trace_id as graph_trace_id",
+      "e.span_id as graph_id",
+      "e.parent_span_id as graph_parent_observation_id",
+      "e.type as graph_type",
+      "e.name as graph_name",
+      "e.start_time as graph_start_time",
+      "e.end_time as graph_end_time",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS graph_node",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS graph_step",
+    )
     .whereRaw(
       "(e.trace_id, e.span_id) IN (SELECT trace_id, span_id FROM session_event_ids)",
     )
@@ -520,7 +543,7 @@ export const getObservationsForSessionFromEventsTable = async (params: {
     .orderByColumns([{ column: "e.start_time", direction: "ASC" }])
     .limit(MAX_OBSERVATIONS_PER_SESSION + 1)
     .buildWithParams();
-  const records = await queryClickhouse<EventsObservationQueryResult>({
+  const records = await queryClickhouse<SessionObservationQueryResult>({
     query,
     params: queryParams,
     tags: { projectId: params.projectId },
@@ -528,15 +551,30 @@ export const getObservationsForSessionFromEventsTable = async (params: {
   });
 
   const totalCount = records.length;
+  const limitedRecords = records.slice(0, MAX_OBSERVATIONS_PER_SESSION);
   const withModelData = await enrichObservationsWithModelData(
-    records.slice(0, MAX_OBSERVATIONS_PER_SESSION),
+    limitedRecords,
     params.projectId,
     false,
     null,
   );
   const observations = await enrichObservationsWithTraceFields(withModelData);
 
-  return { observations, totalCount };
+  return {
+    observations,
+    totalCount,
+    graphRecords: limitedRecords.map((record) => ({
+      trace_id: record.graph_trace_id,
+      id: record.graph_id,
+      parent_observation_id: record.graph_parent_observation_id,
+      type: record.graph_type,
+      name: record.graph_name,
+      start_time: record.graph_start_time,
+      end_time: record.graph_end_time,
+      node: record.graph_node,
+      step: record.graph_step,
+    })),
+  };
 };
 
 export const getObservationsCountFromEventsTable = async (

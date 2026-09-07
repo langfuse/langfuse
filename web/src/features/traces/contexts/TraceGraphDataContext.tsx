@@ -49,6 +49,7 @@ interface TraceGraphDataProviderProps {
     traceId?: string | null;
     startTime: Date;
   }>;
+  sessionGraphData?: AgentGraphDataResponse[];
 }
 
 export function TraceGraphDataProvider({
@@ -57,6 +58,7 @@ export function TraceGraphDataProvider({
   traceId,
   sessionId,
   observations,
+  sessionGraphData,
 }: TraceGraphDataProviderProps) {
   const { isV4 } = useReadPath();
 
@@ -116,24 +118,11 @@ export function TraceGraphDataProvider({
     enabled: queryEnabled && isV4 && !sessionId,
   });
 
-  const sessionQuery = api.sessions.agentGraphDataForSessionFromEvents.useQuery(
-    {
-      projectId,
-      sessionId: sessionId ?? "",
-      minStartTime: minStartTime ?? "",
-      maxStartTime: maxStartTime ?? "",
-    },
-    {
-      ...queryOptions,
-      enabled: queryEnabled && isV4 && !!sessionId,
-    },
-  );
-
   // Use appropriate query based on beta toggle
-  const query = isV4 ? (sessionId ? sessionQuery : eventsQuery) : tracesQuery;
+  const query = isV4 ? eventsQuery : tracesQuery;
 
   const agentGraphData = useMemo(() => {
-    const data = query.data ?? [];
+    const data = sessionId ? (sessionGraphData ?? []) : (query.data ?? []);
     if (!sessionId) return data;
 
     const observationIdCounts = new Map<string, number>();
@@ -153,7 +142,7 @@ export function TraceGraphDataProvider({
           ? `${observation.traceId}:${observation.selectionId}`
           : observation.selectionId,
     }));
-  }, [query.data, sessionId, observations]);
+  }, [query.data, sessionGraphData, sessionId, observations]);
 
   const { isGraphViewAvailable, shouldExpandGraphByDefault } = useMemo(() => {
     if (
