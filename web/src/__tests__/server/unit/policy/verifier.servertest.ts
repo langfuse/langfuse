@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type ApiKey } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
 import { hashSecretKey } from "@langfuse/shared/src/server";
 
 import { Verifier } from "@/src/features/apiKey/verifier";
 import {
   type FindApiKeyResult,
+  type ApiKeyWithGatewayAssociation,
   type ApiKeyRepository,
 } from "@/src/features/apiKey/apiKeyRepository";
 import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
@@ -14,7 +14,9 @@ import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAut
 const SALT = "salt";
 const ADMIN = "admin-secret";
 
-const apiKey = (over: Partial<ApiKey> = {}): ApiKey =>
+const apiKey = (
+  over: Partial<ApiKeyWithGatewayAssociation> = {},
+): ApiKeyWithGatewayAssociation =>
   ({
     id: "key_1",
     createdAt: new Date(0),
@@ -26,18 +28,21 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey =>
     lastUsedAt: null,
     expiresAt: null,
     isInAppAgentKey: false,
+    gatewayAssociation: null,
     projectId: "prj_1",
     orgId: "org_1",
     scope: "PROJECT",
     createdByUserId: null,
     createdByApiKeyId: null,
     ...over,
-  }) as ApiKey;
+  }) as ApiKeyWithGatewayAssociation;
 
 const basicHeader = (pub: string, secret: string) =>
   `Basic ${btoa(`${pub}:${secret}`)}`;
 
-const lookup = (apiKey: ApiKey | null): FindApiKeyResult => ({
+const lookup = (
+  apiKey: ApiKeyWithGatewayAssociation | null,
+): FindApiKeyResult => ({
   success: true,
   apiKey,
 });
@@ -150,6 +155,20 @@ describe("Bearer chains admin then private then public", () => {
     });
     const result = await verifier(store).verify(
       parseAuthorizationHeader("Bearer pk-lf-1"),
+    );
+    expect(result.success).toBe(false);
+  });
+  it("rejects a private key linked to a gateway association", async () => {
+    const key = apiKey({
+      scope: "ORGANIZATION",
+      projectId: null,
+      gatewayAssociation: { apiKeyId: "key_1" },
+    });
+    const store = stubStore({
+      findByFastHash: vi.fn(async () => lookup(key)),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer sk-secret"),
     );
     expect(result.success).toBe(false);
   });

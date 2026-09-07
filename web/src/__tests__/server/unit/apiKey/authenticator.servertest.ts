@@ -228,23 +228,6 @@ describe("Authenticator consolidated context cache", () => {
     }
   });
 
-  it("rejects gateway-associated keys from regular API authentication", async () => {
-    const gatewayKey = apiKey({
-      scope: "ORGANIZATION",
-      projectId: null,
-      gatewayAssociation: { apiKeyId: "key_p" },
-    });
-    const result = await new Verifier(store(gatewayKey), SALT).verify({
-      kind: "bearer",
-      token: KNOWN_SECRET,
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toBeInstanceOf(UnauthorizedError);
-    }
-  });
-
   it("admin key, route disallows: gated off a cache hit", async () => {
     const redis = fakeRedis();
     const adminVerifier = new Verifier(store(apiKey()), SALT, KNOWN_SECRET);
