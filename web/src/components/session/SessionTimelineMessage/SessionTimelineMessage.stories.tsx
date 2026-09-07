@@ -147,9 +147,73 @@ export const ExpandSystemPrompt = meta.story({
     const trigger = canvas.getByRole("button", { name: "System prompt" });
     const initialLeft = trigger.getBoundingClientRect().left;
 
+    await expect(trigger.closest(".ph-no-capture")).toHaveClass(
+      "justify-center",
+    );
+    await expect(trigger).toHaveClass("font-normal");
+    await expect(trigger).not.toHaveClass("font-bold");
     await expect(canvas.queryByText(content)).not.toBeInTheDocument();
     await userEvent.click(trigger);
-    await expect(canvas.getByText(content)).toBeVisible();
+    const systemPrompt = canvas.getByText(content);
+    await expect(systemPrompt).toBeVisible();
+    await expect(systemPrompt.closest(".border-l")).toBeNull();
     await expect(trigger.getBoundingClientRect().left).toBe(initialLeft);
+  },
+});
+
+export const RenderSupportedParts = meta.story({
+  name: "(Test) Renders Supported Parts",
+  parameters: { a11y: { test: "off" } },
+  args: {
+    message: {
+      role: "tool",
+      source: "output",
+      parts: [
+        { type: "reasoning", content: { kind: "text", text: "Think" } },
+        {
+          type: "tool-result",
+          toolCallId: "call-hidden-result",
+          toolName: "hidden_search_result",
+          output: { result: "found" },
+        },
+        { type: "data", value: { confidence: 0.9 } },
+        { type: "custom", kind: "citation", value: { id: "doc-1" } },
+      ],
+    } satisfies NormalizedMessage,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Reasoning")).toBeInTheDocument();
+    await expect(canvas.queryByText("Think")).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "Reasoning" }));
+    await expect(canvas.getByText("Think")).toBeVisible();
+    await expect(
+      canvas.queryByText("hidden_search_result"),
+    ).not.toBeInTheDocument();
+    await expect(canvasElement).toHaveTextContent("confidence");
+    await expect(canvasElement).toHaveTextContent("citation");
+  },
+});
+
+export const RejectUnsafeFileUrl = meta.story({
+  name: "(Test) Rejects Unsafe File URL",
+  parameters: { a11y: { test: "off" } },
+  args: {
+    message: {
+      role: "assistant",
+      source: "output",
+      parts: [
+        {
+          type: "file",
+          content: { kind: "url", url: "javascript:alert(1)" },
+        },
+      ],
+    } satisfies NormalizedMessage,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
+    await expect(canvasElement).toHaveTextContent("javascript:alert(1)");
   },
 });

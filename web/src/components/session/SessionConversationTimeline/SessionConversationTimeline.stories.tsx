@@ -1775,7 +1775,9 @@ const meta = preview.meta({
 
 export default meta;
 
-export const Loaded = meta.story({ args: loadedArgs });
+export const Loaded = meta.story({
+  args: loadedArgs,
+});
 
 export const CodingAgentWorkflow = meta.story({
   args: {
@@ -1865,6 +1867,141 @@ export const TruncatedObservation = meta.story({
   },
 });
 
+export const MetadataOmitted = meta.story({
+  args: {
+    ...loadedArgs,
+    state: {
+      type: "loaded",
+      observations: [{ ...observations[0]!, metadataTruncated: true }],
+    },
+  },
+});
+
+export const FalsyTruncatedValues = meta.story({
+  args: {
+    ...loadedArgs,
+    state: {
+      type: "loaded",
+      observations: [
+        {
+          ...observations[0]!,
+          input: "0",
+          output: "false",
+          outputTruncated: true,
+        },
+      ],
+    },
+  },
+});
+
+export const RenderLoadedConversation = meta.story({
+  name: "(Test) Renders Loaded Conversation",
+  args: Loaded.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", {
+        name: /trace 1.*trace-order-support-8f3a2/i,
+      }),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("+10 min idle")).toBeInTheDocument();
+
+    const observationButton = canvas.getByRole("button", {
+      name: "Plan support response",
+    });
+    await expect(observationButton.querySelector("span")).toHaveClass(
+      "font-normal",
+    );
+    await expect(
+      canvas.getByText(/Hi, I just noticed order #LF-20481/),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText("I'll check whether the order can still be updated."),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("get_order")).toBeInTheDocument();
+  },
+});
+
+export const HideSystemPrompt = meta.story({
+  name: "(Test) Hides System Prompt",
+  args: SystemPromptHidden.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByText(/You are Acme's customer support agent/),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const RenderTimelineLoadingState = meta.story({
+  name: "(Test) Renders Timeline Loading State",
+  args: Loading.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const loadingState = canvas.getByRole("status", {
+      name: "Loading conversation",
+    });
+
+    await expect(
+      loadingState.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThan(8);
+    await expect(loadingState.querySelector(".justify-end")).not.toBeNull();
+    await expect(loadingState.querySelector(".justify-start")).not.toBeNull();
+  },
+});
+
+export const RenderTruncatedObservation = meta.story({
+  name: "(Test) Renders Truncated Observation",
+  args: TruncatedObservation.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas
+        .getByText("First 4,000 characters of the input…")
+        .closest("article")?.parentElement,
+    ).toHaveClass("justify-end");
+    await expect(
+      canvas
+        .getByText("First 4,000 characters of the output…")
+        .closest("article")?.parentElement,
+    ).toHaveClass("justify-start");
+    await expect(canvas.getAllByText("Content truncated")).toHaveLength(2);
+    await expect(
+      canvas.queryByText(
+        "This observation is too large to parse in the session timeline.",
+      ),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Open in trace view" }),
+    ).not.toBeInTheDocument();
+    await expect(canvasElement.querySelector("pre")).toBeNull();
+  },
+});
+
+export const RenderOmittedMetadata = meta.story({
+  name: "(Test) Renders Omitted Metadata",
+  args: MetadataOmitted.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/Metadata was omitted because it is too large/i),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(/Hi, I just noticed order #LF-20481/),
+    ).toBeInTheDocument();
+  },
+});
+
+export const RenderFalsyTruncatedValues = meta.story({
+  name: "(Test) Renders Falsy Truncated Values",
+  args: FalsyTruncatedValues.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("0")).toBeInTheDocument();
+    await expect(canvas.getByText("false")).toBeInTheDocument();
+  },
+});
+
 export const OpenObservation = meta.story({
   name: "(Test) Opens Observation",
   args: { ...loadedArgs, onOpenObservation: fn() },
@@ -1887,13 +2024,49 @@ export const ExpandToolObservation = meta.story({
     const expandButton = canvas.getByRole("button", {
       name: "Expand Get order",
     });
+    await expect(expandButton.previousElementSibling).toBe(header);
+    await expect(canvasElement.querySelectorAll("pre")).toHaveLength(0);
 
     await userEvent.click(expandButton);
     await expect(header.getBoundingClientRect().top).toBe(initialTop);
+    const toolPreviews = canvasElement.querySelectorAll("pre");
+    await expect(toolPreviews).toHaveLength(2);
+    await expect(toolPreviews[0]).toHaveTextContent('{"orderId":"LF-20481"}');
+    await expect(toolPreviews[1]).toHaveTextContent('"status":"processing"');
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse Get order" }),
     );
     await expect(header.getBoundingClientRect().top).toBe(initialTop);
+    await expect(canvasElement.querySelectorAll("pre")).toHaveLength(0);
+  },
+});
+
+export const HideOnlySystemMessage = meta.story({
+  name: "(Test) Hides Only System Message",
+  args: {
+    ...loadedArgs,
+    showSystemPrompt: false,
+    state: {
+      type: "loaded",
+      observations: [
+        {
+          ...observations[0]!,
+          input: JSON.stringify([
+            { role: "system", content: "Hidden system prompt" },
+          ]),
+          output: null,
+        },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByText("Hidden system prompt"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByLabelText("No conversational content"),
+    ).toBeVisible();
   },
 });

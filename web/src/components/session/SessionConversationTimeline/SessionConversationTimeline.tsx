@@ -190,6 +190,7 @@ function SessionTimelineObservation({
           {hasNoConversationalContent ? (
             <span
               className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+              role="img"
               aria-label="No conversational content"
               title="No conversational content"
             >
