@@ -64,10 +64,7 @@ export const llmGatewayRouter = createTRPCRouter({
           ? { createProjectName: input.createProjectName }
           : {}),
         instrumentationMode: input.instrumentationMode,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
       return result.config;
     }),
@@ -98,10 +95,7 @@ export const llmGatewayRouter = createTRPCRouter({
         name: input.name,
         provider: input.provider,
         credential: input.credential,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
       return connection;
     }),
@@ -128,10 +122,7 @@ export const llmGatewayRouter = createTRPCRouter({
         name: input.name,
         credential: input.credential,
         status: input.status,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
     }),
 
@@ -142,10 +133,7 @@ export const llmGatewayRouter = createTRPCRouter({
       await new GatewayProviderService(ctx.prisma).delete({
         organizationId: input.orgId,
         id: input.id,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
       return { success: true };
     }),
@@ -161,10 +149,7 @@ export const llmGatewayRouter = createTRPCRouter({
       return new GatewayProviderService(ctx.prisma).reorder({
         organizationId: input.orgId,
         connectionIds: input.connectionIds,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
     }),
 
@@ -184,10 +169,7 @@ export const llmGatewayRouter = createTRPCRouter({
       return new GatewayProviderService(ctx.prisma).retryConnection({
         organizationId: input.orgId,
         connectionId: input.id,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
     }),
 
@@ -215,10 +197,7 @@ export const llmGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         note: input.note,
         metadata: input.metadata,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
       return key;
     }),
@@ -230,10 +209,7 @@ export const llmGatewayRouter = createTRPCRouter({
       await new GatewayApiKeyService(ctx.prisma, redis).revoke({
         organizationId: input.orgId,
         apiKeyId: input.id,
-        actor: {
-          userId: ctx.session.user.id,
-          orgRole: ctx.session.orgRole,
-        },
+        session: ctx.session,
       });
       return { success: true };
     }),

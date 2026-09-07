@@ -9,7 +9,7 @@ import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayAuditActor } from "../audit";
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
@@ -65,7 +65,7 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }) {
     await this.validateCredential({
       provider: params.provider,
@@ -77,14 +77,12 @@ export class GatewayProviderService {
       provider: params.provider,
       encryptedCredential: encrypt(params.credential),
       displaySecret: getDisplaySecretKey(params.credential),
-      createdById: params.actor.userId,
+      createdById: params.session.user.id,
       status: "ENABLED",
     });
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayAiConnection",
         resourceId: connection.id,
         action: "create",
@@ -101,7 +99,7 @@ export class GatewayProviderService {
     name?: string;
     credential?: string;
     status?: GatewayConnectionStatus;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }) {
     const existing = await this.repository.getSafeConnection({
       organizationId: params.organizationId,
@@ -138,9 +136,7 @@ export class GatewayProviderService {
     });
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayAiConnection",
         resourceId: params.id,
         action: "update",
@@ -155,7 +151,7 @@ export class GatewayProviderService {
   async delete(params: {
     organizationId: string;
     id: string;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }) {
     const deleted = await this.repository.deleteConnection(params);
     const remaining = await this.listAll(params.organizationId);
@@ -165,9 +161,7 @@ export class GatewayProviderService {
     });
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayAiConnection",
         resourceId: params.id,
         action: "delete",
@@ -181,7 +175,7 @@ export class GatewayProviderService {
   async reorder(params: {
     organizationId: string;
     connectionIds: string[];
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }) {
     const existing = await this.listAll(params.organizationId);
     const existingIds = new Set(existing.map((connection) => connection.id));
@@ -199,9 +193,7 @@ export class GatewayProviderService {
     const reordered = await this.listAll(params.organizationId);
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayAiConnection",
         resourceId: params.organizationId,
         action: "reorder",
@@ -241,7 +233,7 @@ export class GatewayProviderService {
   async retryConnection(params: {
     organizationId: string;
     connectionId: string;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }): Promise<ModelRefreshResult> {
     const result = await this.refreshConnectionModels({
       organizationId: params.organizationId,
@@ -251,9 +243,7 @@ export class GatewayProviderService {
     if (result.success) {
       await auditLog(
         {
-          userId: params.actor.userId,
-          orgId: params.organizationId,
-          orgRole: params.actor.orgRole,
+          session: params.session,
           resourceType: "gatewayAiConnection",
           resourceId: params.connectionId,
           action: "retry",

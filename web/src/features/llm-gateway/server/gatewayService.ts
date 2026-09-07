@@ -6,7 +6,7 @@ import { InvalidRequestError } from "@langfuse/shared";
 import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayAuditActor } from "./audit";
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { GatewayRepository } from "./repository";
 
 export class GatewayService {
@@ -25,7 +25,7 @@ export class GatewayService {
     defaultIngestionProjectId: string | null;
     createProjectName?: string;
     instrumentationMode: GatewayInstrumentationMode;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }) {
     const before = await this.getConfig(params.organizationId);
     let result;
@@ -34,7 +34,7 @@ export class GatewayService {
         result = await this.repository.createIngestionProjectAndUpsertConfig({
           organizationId: params.organizationId,
           projectName: params.createProjectName,
-          createdByUserId: params.actor.userId,
+          createdByUserId: params.session.user.id,
           instrumentationMode: params.instrumentationMode,
         });
       } catch (error) {
@@ -70,9 +70,7 @@ export class GatewayService {
 
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayConfig",
         resourceId: params.organizationId,
         action: before ? "update" : "create",
@@ -84,9 +82,7 @@ export class GatewayService {
     if (result.project) {
       await auditLog(
         {
-          userId: params.actor.userId,
-          orgId: params.organizationId,
-          orgRole: params.actor.orgRole,
+          session: params.session,
           resourceType: "project",
           resourceId: result.project.id,
           action: "create",

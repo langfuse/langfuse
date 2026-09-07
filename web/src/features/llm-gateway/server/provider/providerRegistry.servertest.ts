@@ -6,6 +6,13 @@ import {
   providerSupportsApiFormat,
 } from ".";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
+
+const session = {
+  user: { id: "user-1" },
+  orgId: "org-1",
+  orgRole: "OWNER",
+} as OrgAuthedContext["session"];
 
 describe("LLM gateway provider registry", () => {
   it("exposes only controlled provider URLs and explicit capabilities", () => {
@@ -50,7 +57,7 @@ describe("LLM gateway provider registry", () => {
         name: "Primary",
         provider: "OPENAI",
         credential: "invalid",
-        actor: { userId: "user-1", orgRole: "OWNER" },
+        session,
       }),
     ).rejects.toThrow("invalid provider credential");
     expect(validator).toHaveBeenCalledWith({

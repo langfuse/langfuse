@@ -7,7 +7,7 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayAuditActor } from "./audit";
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import type { GatewayMetadata } from "./provider";
 import { GatewayRepository } from "./repository";
 
@@ -29,7 +29,7 @@ export class GatewayApiKeyService {
     organizationId: string;
     note?: string;
     metadata: GatewayMetadata;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }) {
     const key = await this.prisma.$transaction(async (tx) => {
       // TODO: Narrow this virtual key to the `gateway:invoke` permission once granular API-key scopes are available.
@@ -38,7 +38,7 @@ export class GatewayApiKeyService {
         entityId: params.organizationId,
         scope: "ORGANIZATION",
         note: params.note,
-        createdByUserId: params.actor.userId,
+        createdByUserId: params.session.user.id,
       });
       await tx.gatewayApiKeyAssociation.create({
         data: {
@@ -50,9 +50,7 @@ export class GatewayApiKeyService {
     });
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayApiKey",
         resourceId: key.id,
         action: "create",
@@ -71,7 +69,7 @@ export class GatewayApiKeyService {
   async revoke(params: {
     organizationId: string;
     apiKeyId: string;
-    actor: GatewayAuditActor;
+    session: OrgAuthedContext["session"];
   }): Promise<void> {
     const association = await this.repository.getGatewayApiKey(params);
     if (!association) {
@@ -89,9 +87,7 @@ export class GatewayApiKeyService {
     }
     await auditLog(
       {
-        userId: params.actor.userId,
-        orgId: params.organizationId,
-        orgRole: params.actor.orgRole,
+        session: params.session,
         resourceType: "gatewayApiKey",
         resourceId: params.apiKeyId,
         action: "delete",

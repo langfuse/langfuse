@@ -14,7 +14,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import { appRouter } from "@/src/server/api/root";
-import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import {
+  createInnerTRPCContext,
+  type OrgAuthedContext,
+} from "@/src/server/api/trpc";
 import {
   type GatewayResolveError,
   GatewayResolveService,
@@ -97,10 +100,16 @@ async function prepare(role: Role = Role.OWNER) {
     environment: {} as Session["environment"],
   };
   const ctx = createInnerTRPCContext({ session, headers: {} });
+  const orgSession = {
+    ...session,
+    orgId: org.id,
+    orgRole: role,
+  } satisfies OrgAuthedContext["session"];
   return {
     org,
     project,
     user,
+    session: orgSession,
     caller: appRouter.createCaller({ ...ctx, prisma }),
   };
 }
@@ -260,8 +269,7 @@ describe("LLM gateway control plane", () => {
   });
 
   it("owns successful and failed mutation auditing in gateway services", async () => {
-    const { org, user } = await prepare();
-    const actor = { userId: user.id, orgRole: Role.OWNER };
+    const { org, session } = await prepare();
     const gatewayService = new GatewayService(prisma);
     const providerService = new GatewayProviderService(prisma);
     const apiKeyService = new GatewayApiKeyService(prisma);
@@ -271,19 +279,19 @@ describe("LLM gateway control plane", () => {
       defaultIngestionProjectId: null,
       createProjectName: "Audited ingestion project",
       instrumentationMode: "USAGE",
-      actor,
+      session,
     });
     await providerService.create({
       organizationId: org.id,
       name: "Audited provider",
       provider: "OPENAI",
       credential: "sk-audited-provider",
-      actor,
+      session,
     });
     const key = await apiKeyService.create({
       organizationId: org.id,
       metadata: {},
-      actor,
+      session,
     });
 
     expect(
@@ -302,7 +310,7 @@ describe("LLM gateway control plane", () => {
     await apiKeyService.revoke({
       organizationId: org.id,
       apiKeyId: key.id,
-      actor,
+      session,
     });
     const auditCountAfterSuccess = await prisma.auditLog.count({
       where: { orgId: org.id },
@@ -311,7 +319,7 @@ describe("LLM gateway control plane", () => {
       apiKeyService.revoke({
         organizationId: org.id,
         apiKeyId: key.id,
-        actor,
+        session,
       }),
     ).rejects.toThrow("Gateway API key not found");
     expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
@@ -329,7 +337,7 @@ describe("LLM gateway control plane", () => {
         name: "Rejected provider",
         provider: "OPENAI",
         credential: "sk-rejected",
-        actor,
+        session,
       }),
     ).rejects.toThrow("invalid credential");
     expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
@@ -482,8 +490,7 @@ describe("LLM gateway control plane", () => {
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
-    const { caller, org, user } = await prepare();
-    const actor = { userId: user.id, orgRole: Role.OWNER };
+    const { caller, org, session } = await prepare();
     const connection = await caller.llmGateway.createConnection({
       orgId: org.id,
       name: "Anthropic",
@@ -526,7 +533,7 @@ describe("LLM gateway control plane", () => {
     ).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
-      actor,
+      session,
     });
     expect(failedRetry.success).toBe(false);
     expect(
@@ -547,7 +554,7 @@ describe("LLM gateway control plane", () => {
     await new GatewayProviderService(prisma, successfulFetch).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
-      actor,
+      session,
     });
     expect(
       await prisma.gatewayAiConnection.findUnique({

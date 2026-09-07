@@ -1,12 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { GatewayProviderService } from "./provider";
 import { GatewayRepository } from "./repository";
 
 vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: vi.fn(),
 }));
+
+const session = {
+  user: { id: "user-1" },
+  orgId: "org-1",
+  orgRole: "OWNER",
+} as OrgAuthedContext["session"];
 
 function connection(id: string, routingPriority: number) {
   return {
@@ -122,7 +129,7 @@ describe("GatewayRepository pagination", () => {
     await service.reorder({
       organizationId: "org-1",
       connectionIds: connections.map(({ id }) => id),
-      actor: { userId: "user-1", orgRole: "OWNER" },
+      session,
     });
 
     expect(findMany).toHaveBeenCalledTimes(4);
@@ -146,7 +153,7 @@ describe("GatewayRepository pagination", () => {
       service.reorder({
         organizationId: "org-1",
         connectionIds: connections.slice(0, 100).map(({ id }) => id),
-        actor: { userId: "user-1", orgRole: "OWNER" },
+        session,
       }),
     ).rejects.toThrow(
       "Reorder must contain every organization gateway connection exactly once",
