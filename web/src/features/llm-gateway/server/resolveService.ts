@@ -11,7 +11,7 @@ import {
   gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
-} from "./providerRegistry";
+} from "./provider";
 import { GatewayRepository } from "./repository";
 
 export class GatewayResolveError extends Error {

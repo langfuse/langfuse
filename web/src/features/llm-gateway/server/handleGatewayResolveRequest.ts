@@ -1,8 +1,8 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 
-import type { AuthenticatedGatewayResolveHandler } from "./gatewayResolveAuth";
-import { GatewayResolveResponseSchema } from "./providerRegistry";
+import type { AuthenticatedGatewayResolveHandler } from "./auth";
+import { GatewayResolveResponseSchema } from "./provider";
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
 
 export const handleGatewayResolveRequest: AuthenticatedGatewayResolveHandler =

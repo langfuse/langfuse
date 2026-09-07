@@ -1,14 +1,32 @@
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, createHmac, generateKeyPairSync, sign } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
 import {
-  buildGatewayHmacCanonicalMessage,
-  createGatewayHmacSignature,
   issueGatewayIngestionToken,
   verifyGatewayHmacAuthorization,
   verifyGatewayIngestionToken,
-} from "@/src/features/llm-gateway/server";
+} from "./auth";
+
+function createTestGatewayHmacSignature(input: {
+  timestamp: number;
+  virtualSecretKey: string;
+  requestBody: string;
+  serviceKey: string;
+}) {
+  const sha256 = (value: string) =>
+    createHash("sha256").update(value, "utf8").digest("hex");
+  const canonicalMessage = [
+    input.timestamp.toString(),
+    sha256(input.virtualSecretKey),
+    "/api/internal/ai-gateway/v1/resolve",
+    "POST",
+    sha256(input.requestBody),
+  ].join("\n");
+  return createHmac("sha256", input.serviceKey)
+    .update(canonicalMessage, "utf8")
+    .digest("base64url");
+}
 
 describe("LLM gateway authentication", () => {
   it("uses a deterministic canonical message and verifies current/previous keys", () => {
@@ -18,17 +36,7 @@ describe("LLM gateway authentication", () => {
       requestBody: '{"api_format":"openai.responses"}',
     };
 
-    expect(buildGatewayHmacCanonicalMessage(input)).toBe(
-      [
-        "1788430200",
-        "a1d25ea3068123a17984e97222ae1d3d9a9a0980363aa7eea3a0e01c6172b89c",
-        "/api/internal/ai-gateway/v1/resolve",
-        "POST",
-        "0c81946f9f684a1b490df4316fd8f76a1aaee1f19ba902f0dafcf54530163847",
-      ].join("\n"),
-    );
-
-    const signature = createGatewayHmacSignature({
+    const signature = createTestGatewayHmacSignature({
       ...input,
       serviceKey: "previous-service-key",
     });

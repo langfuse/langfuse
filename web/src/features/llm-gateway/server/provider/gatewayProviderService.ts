@@ -12,7 +12,7 @@ import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "./providerRegistry";
-import { GatewayRepository } from "./repository";
+import { GatewayRepository } from "../repository";
 
 type ModelRefreshResult =
   | { connectionId: string; success: true; models: string[] }

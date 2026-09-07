@@ -60,7 +60,7 @@ function safeEqual(left: string, right: string): boolean {
   );
 }
 
-export function buildGatewayHmacCanonicalMessage(
+function buildGatewayHmacCanonicalMessage(
   input: GatewayHmacMessageInput,
 ): string {
   return [
@@ -72,7 +72,7 @@ export function buildGatewayHmacCanonicalMessage(
   ].join("\n");
 }
 
-export function createGatewayHmacSignature(
+function createGatewayHmacSignature(
   input: GatewayHmacMessageInput & { serviceKey: string },
 ): string {
   return createHmac("sha256", input.serviceKey)

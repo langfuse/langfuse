@@ -6,12 +6,9 @@ import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { verifyGatewayHmacAuthorization } from "./auth";
-import {
-  GatewayApiFormatSchema,
-  type GatewayApiFormat,
-} from "./providerRegistry";
-import { GatewayRepository } from "./repository";
-import { GatewayResolveError } from "./resolveService";
+import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
+import { GatewayRepository } from "../repository";
+import { GatewayResolveError } from "../resolveService";
 
 const bodySchema = z.object({ api_format: GatewayApiFormatSchema }).strict();
 

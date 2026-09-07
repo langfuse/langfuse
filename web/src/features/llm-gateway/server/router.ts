@@ -17,9 +17,8 @@ import {
 import { invalidateCachedOrgApiKeys, redis } from "@langfuse/shared/src/server";
 
 import { GatewayApiKeyService } from "./gatewayApiKeyService";
-import { GatewayProviderService } from "./gatewayProviderService";
 import { GatewayService } from "./gatewayService";
-import { GatewayMetadataSchema } from "./providerRegistry";
+import { GatewayMetadataSchema, GatewayProviderService } from "./provider";
 
 const organizationInput = z.object({ orgId: z.string() });
 const paginatedOrganizationInput = organizationInput.extend({

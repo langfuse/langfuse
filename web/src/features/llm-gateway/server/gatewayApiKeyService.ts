@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import type { Cluster, Redis } from "ioredis";
 
-import type { GatewayMetadata } from "./providerRegistry";
+import type { GatewayMetadata } from "./provider";
 import { GatewayRepository } from "./repository";
 
 export class GatewayApiKeyService {

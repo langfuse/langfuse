@@ -4,7 +4,7 @@ import {
   GatewayProviderService,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
-} from "@/src/features/llm-gateway/server";
+} from ".";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
 describe("LLM gateway provider registry", () => {

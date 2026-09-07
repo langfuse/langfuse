@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
-import { GatewayProviderService } from "./gatewayProviderService";
+import { GatewayProviderService } from "./provider";
 import { GatewayRepository } from "./repository";
 
 function connection(id: string, routingPriority: number) {
