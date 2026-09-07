@@ -153,3 +153,5 @@ minimumReleaseAgeExclude:
   - next@16.3.3
   - pnpm@12.3.1
   - qs@6.16.0
+  # Host confusion + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
+  - fast-uri@3.1.7

@@ -22,6 +22,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
 export function CreateRuleDialogContent({
@@ -113,7 +114,7 @@ export function CreateRuleDialogContent({
     });
     capture("evaluation_rules:create", {
       assignmentCount: draft.assignments.length,
-      filterCount: draft.filter.length,
+      ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
     });

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Context Handover"
+  short_description: "Reconstruct a feature's history, and hand your reasoning over"
+  default_prompt: "Use $linear-context-handover to reconstruct a feature's history before changing it, and to write the handover onto its work item before asking for review."

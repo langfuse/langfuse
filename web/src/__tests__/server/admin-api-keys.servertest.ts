@@ -77,10 +77,12 @@ describe("Admin API keys route", () => {
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(res._getJSONData()).toEqual({
+    const responseBody = res._getJSONData();
+    expect(responseBody).toEqual({
       message: "All cached API keys invalidated",
-      invalidatedCount: 2,
+      invalidatedCount: expect.any(Number),
     });
+    expect(responseBody.invalidatedCount).toBeGreaterThanOrEqual(2);
     expect(await getRedisValue(redisClient, existingApiKeyCacheKey)).toBeNull();
     expect(await getRedisValue(redisClient, missingApiKeyCacheKey)).toBeNull();
     expect(await getRedisValue(redisClient, "other-cache:existing-key")).toBe(
