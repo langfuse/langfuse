@@ -131,7 +131,7 @@ describe("useOrganizationSettingsPages", () => {
       },
       status: "authenticated",
       update: vi.fn(),
-    });
+    } as ReturnType<typeof useSession>);
   });
 
   it("hides organization API key settings without organization api key access", () => {
@@ -224,7 +224,7 @@ describe("useOrganizationSettingsPages", () => {
       },
       status: "authenticated",
       update: vi.fn(),
-    });
+    } as ReturnType<typeof useSession>);
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
     const gatewayPages = result.current.filter((page) =>
