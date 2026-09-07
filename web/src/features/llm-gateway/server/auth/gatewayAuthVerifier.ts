@@ -10,7 +10,7 @@ import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayRepository } from "../repository";
-import { GatewayResolveError } from "../resolveService";
+import { GatewayResolveError } from "@/src/features/llm-gateway/server/resolve/resolveService";
 
 const RESOLVE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
