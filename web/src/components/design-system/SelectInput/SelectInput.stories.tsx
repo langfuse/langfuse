@@ -3,6 +3,9 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SelectInput } from "./SelectInput";
 
+const longOptionLabel =
+  "This is a very long option label that should remain on a single line without wrapping";
+
 const meta = preview.meta({
   component: SelectInput,
 });
@@ -67,6 +70,25 @@ export const Default = meta.story({
       />
     );
   },
+});
+
+export const WithLongText = meta.story({
+  args: {
+    value: "long-option",
+    placeholder: "Select an option",
+    options: [
+      {
+        value: "long-option",
+        label: longOptionLabel,
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-64">
+      <SelectInput {...args} />
+    </div>
+  ),
 });
 
 export const TestKeyboardSelection = meta.story({

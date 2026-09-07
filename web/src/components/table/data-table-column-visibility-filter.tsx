@@ -49,9 +49,18 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
+/**
+ * A whole column GROUP was shown or hidden at once (its "Select All" /
+ * "Deselect All"). Surfaces that care which family a group is — the experiments
+ * tables and their score levels — hook in here rather than having this generic
+ * picker know about them.
+ */
 export type ColumnGroupTogglePayload = {
+  /** The group column's accessorKey. */
   groupId: string;
+  /** Columns visible in the group after the toggle: all of them, or none. */
   enabledCount: number;
+  /** Columns in the group. */
   totalCount: number;
 };
 

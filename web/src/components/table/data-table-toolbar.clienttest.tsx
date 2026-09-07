@@ -25,6 +25,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: 500,
             selectedRowIds: selectedIds(50),
@@ -43,6 +44,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             selectedRowIds: selectedIds(50),
@@ -59,6 +61,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: 30,
             selectedRowIds: selectedIds(30),
@@ -78,6 +81,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -98,6 +102,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             selectAll: true,
             totalCount: null,
@@ -114,6 +119,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             selectAll: true,
             totalCount: 823,
@@ -131,6 +137,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: false,
@@ -148,6 +155,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -165,6 +173,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,

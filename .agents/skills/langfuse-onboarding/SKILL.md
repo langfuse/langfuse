@@ -121,11 +121,11 @@ Start with:
 
 | Page | What it answers |
 | --- | --- |
-| `product-engineering/how-we-work/onboarding.mdx` | Day 1, Week 1, months 1–3, month 6 — the timeline and its outcomes |
-| `product-engineering/how-we-work/how-we-ship.mdx` | Prioritisation, specification, releases, issue states |
-| `tools-and-processes/using-linear.mdx` | How the tracker is used, and the working agreement |
-| `how-we-work/productivity-and-ai.mdx` | Agent tooling, and keeping `AGENTS.md` current |
-| `product-engineering/how-we-work/code-review.mdx` | What review is for here |
+| `content/handbook/product-engineering/how-we-work/onboarding.mdx` | Day 1, Week 1, months 1–3, month 6 — the timeline and its outcomes |
+| `content/handbook/product-engineering/how-we-work/how-we-ship.mdx` | Prioritisation, specification, releases, issue states |
+| `content/handbook/tools-and-processes/using-linear.mdx` | How the tracker is used, and the working agreement |
+| `content/handbook/how-we-work/productivity-and-ai.mdx` | Agent tooling, and keeping `AGENTS.md` current |
+| `content/handbook/product-engineering/how-we-work/code-review.mdx` | What review is for here |
 
 Then, in the repos:
 

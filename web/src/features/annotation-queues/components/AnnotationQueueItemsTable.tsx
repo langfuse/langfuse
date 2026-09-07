@@ -401,6 +401,7 @@ export function AnnotationQueueItemsTable({
   return (
     <>
       <DataTableToolbar
+        tableName="annotation-queue-items"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

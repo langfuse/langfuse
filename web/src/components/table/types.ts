@@ -13,6 +13,12 @@ declare module "@tanstack/react-table" {
       href?: string;
     };
     /**
+     * Render the header as a block instead of one truncated line, for a header
+     * that carries more than the column's name (e.g. a score column's
+     * aggregate over the rows in view).
+     */
+    headerBlock?: boolean;
+    /**
      * Plain-text name of the column, for surfaces that want a label rather than
      * the rendered header — the column picker. Only needed when `header` is not
      * a string.

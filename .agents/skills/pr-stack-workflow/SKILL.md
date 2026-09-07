@@ -143,7 +143,9 @@ specifically:
   routinely produce an export whose only consumer lives in a later slice: dead
   code on this branch, fine on the tip, and `knip` is a required check. The fix
   is to move the export into the slice that uses it, not to widen an ignore list.
-- **A rendering change is not verified until somebody loads the screen.** Do it
-  once per slice, on that slice's branch and its own preview, not once on the
-  tip. Green checks and bot reviews have between them approved a branch that
-  rendered a blank page.
+- **Somebody has to load the screen, per slice.** Green checks and bot reviews
+  have between them approved a branch that rendered a blank page, and each slice
+  has its own branch and its own preview — so a look at the tip proves nothing
+  about slice 3. Who looks is a judgement call `.agents/AGENTS.md` covers: drive
+  it yourself where the outcome is uncertain, hand over the preview URL where it
+  is not.

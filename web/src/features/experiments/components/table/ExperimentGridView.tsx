@@ -34,6 +34,8 @@ type ExperimentGridViewProps = {
   baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
@@ -68,6 +70,7 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  showDiff,
   singleLine,
   rows,
   isLoading,
@@ -176,8 +179,14 @@ export const ExperimentGridView = ({
               traceScoreOrder={traceScoreOrder}
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
+              showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
             />
@@ -195,6 +204,7 @@ export const ExperimentGridView = ({
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    showDiff,
     singleLine,
   ]);
 
