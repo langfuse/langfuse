@@ -5,7 +5,7 @@ import { signHmacSha256, verifyHmacSha256 } from "@/src/server/utils/hmac";
 describe("HMAC-SHA256 utilities", () => {
   it("signs messages as unpadded base64url", () => {
     expect(signHmacSha256("message", "secret")).toBe(
-      "iKqz7ejTrflNJquQ07r9GxVBW9KQA9qgnfONygNw9mM",
+      "i19IcCmVwVmMVz2x4hhmqbgl1KeU0WnXBgoDYFeWNgs",
     );
   });
 
