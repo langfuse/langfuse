@@ -61,7 +61,9 @@ export function useTraceDetailMode({
         if (selectedObservation) {
           query.observation = selectedObservation.id;
           if (selectedObservation.traceId) {
+            const traceChanged = query.traceId !== selectedObservation.traceId;
             query.traceId = selectedObservation.traceId;
+            if (traceChanged) delete query.timestamp;
           }
         } else {
           const defaultObservationId = getDefaultObservationId(trace);

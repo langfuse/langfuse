@@ -60,6 +60,7 @@ describe("useTraceDetailMode", () => {
         traceId: "trace-1",
         aggregation: "session",
         observation: "trace-2:observation-2",
+        timestamp: "2024-01-01T00:00:00.000Z",
       },
       replace,
     });
