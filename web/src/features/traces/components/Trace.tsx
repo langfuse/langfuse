@@ -288,13 +288,17 @@ function TraceWithSelection({
         : activeEntry.observations,
     [activeEntry.observations, detachedObservation],
   );
+  const sessionTraces = useMemo(
+    () => sessionTraceEntries?.map((entry) => entry.trace),
+    [sessionTraceEntries],
+  );
 
   return (
     <TraceDataProvider
       trace={activeTrace}
       observations={observations}
       activeTraceObservations={activeTraceObservations}
-      sessionTraces={sessionTraceEntries?.map((entry) => entry.trace)}
+      sessionTraces={sessionTraces}
       serverScores={sessionScores}
       corrections={sessionCorrections}
       comments={commentsMap}
