@@ -1,8 +1,8 @@
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { type ComponentProps } from "react";
 
-import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline";
+import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 
 type TimelineProps = ComponentProps<typeof SessionConversationTimeline>;
 type LoadedState = Extract<TimelineProps["state"], { type: "loaded" }>;

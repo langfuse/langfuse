@@ -1,6 +1,6 @@
 import { type FilterState } from "@langfuse/shared";
 
-import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline";
+import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 

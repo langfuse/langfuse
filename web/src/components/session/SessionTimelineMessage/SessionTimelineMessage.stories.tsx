@@ -1,8 +1,8 @@
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 
-import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
+import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 
 const meta = preview.meta({
   component: SessionTimelineMessage,

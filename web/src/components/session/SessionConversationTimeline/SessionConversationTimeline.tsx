@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/utils/normalized-io";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
+import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import {
   formatIdleGap,

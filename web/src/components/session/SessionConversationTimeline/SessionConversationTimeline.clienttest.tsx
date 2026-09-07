@@ -19,8 +19,8 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
   LangfuseMediaView: () => <div>Media</div>,
 }));
 
-import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline";
-import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage";
+import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
+import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 
 type TimelineProps = ComponentProps<typeof SessionConversationTimeline>;
 type LoadedState = Extract<TimelineProps["state"], { type: "loaded" }>;
