@@ -8109,6 +8109,106 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails.output_reasoning_tokens).toBe(25);
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
+    it.each<{
+      name: string;
+      aliases: Record<string, number>;
+      expectedCacheCreation: number;
+    }>([
+      {
+        name: "official cache-write attribute",
+        aliases: { "cache_write.input_tokens": 25 },
+        expectedCacheCreation: 25,
+      },
+      {
+        name: "existing dotted creation alias takes precedence",
+        aliases: {
+          "cache_creation.input_tokens": 7,
+          "cache_write.input_tokens": 25,
+        },
+        expectedCacheCreation: 7,
+      },
+      {
+        name: "zero in the existing dotted creation alias takes precedence",
+        aliases: {
+          "cache_creation.input_tokens": 0,
+          "cache_write.input_tokens": 25,
+        },
+        expectedCacheCreation: 0,
+      },
+      {
+        name: "zero in the official write alias takes precedence over flat creation",
+        aliases: {
+          "cache_write.input_tokens": 0,
+          cache_creation_input_tokens: 25,
+        },
+        expectedCacheCreation: 0,
+      },
+    ])(
+      "should normalize cache-write usage: $name",
+      async ({ aliases, expectedCacheCreation }) => {
+        const resourceSpan: ResourceSpan = {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "test-genai" },
+              spans: [
+                {
+                  traceId: Buffer.from(
+                    "abcdef1234567890abcdef1234567890",
+                    "hex",
+                  ),
+                  spanId: Buffer.from("1234567890abcdef", "hex"),
+                  name: "cache-write-usage",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                  },
+                  attributes: Object.entries({
+                    input_tokens: 300,
+                    "cache_read.input_tokens": 40,
+                    ...aliases,
+                  }).map(([key, count]) => ({
+                    key: `gen_ai.usage.${key}`,
+                    value: {
+                      intValue: { low: count, high: 0, unsigned: false },
+                    },
+                  })),
+                  status: {},
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find(
+          (event) =>
+            event.type === "generation-create" || event.type === "span-create",
+        );
+
+        expect(observation).toBeDefined();
+        const usageDetails = observation!.body.usageDetails;
+        expect(usageDetails).toEqual({
+          input: 300 - 40 - expectedCacheCreation,
+          input_cached_tokens: 40,
+          input_cache_creation: expectedCacheCreation,
+        });
+        expect(
+          Object.entries(usageDetails)
+            .filter(([key]) => key.toLowerCase().includes("input"))
+            .reduce((sum, [, value]) => sum + (value ?? 0), 0),
+        ).toBe(300);
+      },
+    );
+
     it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
       // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
       const traceId = "abcdef1234567890abcdef1234567893";
