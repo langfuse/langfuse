@@ -1,17 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-import { z } from "zod/v4";
-
-import {
-  createEd25519JwtSigner,
-  createEd25519JwtVerifier,
-  type Ed25519JwtSigner,
-  type Ed25519JwtVerifier,
-} from "@/src/server/utils/jwt";
-
 const RESOLVE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
-export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 type GatewayHmacMessageInput = {
   timestamp: number;
@@ -22,24 +12,6 @@ type GatewayHmacMessageInput = {
 type GatewayServiceKey = {
   secret: string;
 };
-
-const GatewayIngestionClaimsSchema = z.object({
-  version: z.literal(1),
-  organizationId: z.string(),
-  projectId: z.string(),
-  keyId: z.string(),
-  instrumentation_mode: z.enum(["usage", "full"]),
-  scope: z.literal("gateway-ingest"),
-  exp: z.number().int(),
-  iss: z.string(),
-  aud: z.string(),
-  iat: z.number().int(),
-  jti: z.string(),
-});
-
-export type GatewayIngestionClaims = z.infer<
-  typeof GatewayIngestionClaimsSchema
->;
 
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left, "utf8");
@@ -103,51 +75,4 @@ export function verifyGatewayHmacAuthorization(input: {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-export function createGatewayIngestionTokenSigner(input: {
-  privateKey: string;
-  keyId: string;
-  issuer: string;
-  audience: string;
-}): Ed25519JwtSigner {
-  return createEd25519JwtSigner(input);
-}
-
-export function createGatewayIngestionTokenVerifier(input: {
-  publicKeys: Array<{ id: string; publicKey: string }>;
-  issuer: string;
-  audience: string;
-}): Ed25519JwtVerifier<GatewayIngestionClaims> {
-  return createEd25519JwtVerifier({
-    ...input,
-    claimsSchema: GatewayIngestionClaimsSchema,
-  });
-}
-
-export function issueGatewayIngestionToken(input: {
-  signer: Ed25519JwtSigner;
-  now?: Date;
-  claims: Pick<
-    GatewayIngestionClaims,
-    "organizationId" | "projectId" | "keyId" | "instrumentation_mode"
-  >;
-}): string {
-  return input.signer.sign({
-    expiresInSeconds: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
-    now: input.now,
-    claims: {
-      version: 1,
-      ...input.claims,
-      scope: "gateway-ingest",
-    },
-  });
-}
-
-export function verifyGatewayIngestionToken(input: {
-  verifier: Ed25519JwtVerifier<GatewayIngestionClaims>;
-  token: string;
-  now?: Date;
-}): GatewayIngestionClaims {
-  return input.verifier.verify({ token: input.token, now: input.now });
 }

@@ -25,14 +25,14 @@ import {
   GatewayResolveService,
   withGatewayResolveAuth,
 } from "@/src/features/llm-gateway/server";
-import {
-  createGatewayIngestionTokenSigner,
-  createGatewayIngestionTokenVerifier,
-  verifyGatewayIngestionToken,
-} from "@/src/features/llm-gateway/server/auth";
+import { GatewayIngestionClaimsSchema } from "@/src/features/llm-gateway/server/auth/ingestionToken";
 import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/gatewayApiKeyService";
 import { GatewayService } from "@/src/features/llm-gateway/server/gatewayService";
 import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
+import {
+  createEd25519JwtSigner,
+  createEd25519JwtVerifier,
+} from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 
@@ -499,7 +499,7 @@ describe("LLM gateway control plane", () => {
       organizationId: org.id,
       apiKeyId: gatewayKey.id,
     });
-    const jwtSigner = createGatewayIngestionTokenSigner({
+    const jwtSigner = createEd25519JwtSigner({
       privateKey: signingKeys.privateKey
         .export({ format: "pem", type: "pkcs8" })
         .toString(),
@@ -507,7 +507,7 @@ describe("LLM gateway control plane", () => {
       issuer: "test-issuer",
       audience: "test-audience",
     });
-    const jwtVerifier = createGatewayIngestionTokenVerifier({
+    const jwtVerifier = createEd25519JwtVerifier({
       publicKeys: [
         {
           id: "current",
@@ -518,6 +518,7 @@ describe("LLM gateway control plane", () => {
       ],
       issuer: "test-issuer",
       audience: "test-audience",
+      claimsSchema: GatewayIngestionClaimsSchema,
     });
     const result = await new GatewayResolveService(prisma, {
       jwtSigner,
@@ -532,9 +533,8 @@ describe("LLM gateway control plane", () => {
       base_url: "https://openrouter.ai/api/v1",
       auth: { type: "Bearer", token: "sk-test-openrouter" },
     });
-    const ingestionClaims = verifyGatewayIngestionToken({
+    const ingestionClaims = jwtVerifier.verify({
       token: result.ingestion!.access_token,
-      verifier: jwtVerifier,
     });
     expect(ingestionClaims).toMatchObject({
       organizationId: org.id,

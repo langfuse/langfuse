@@ -10,7 +10,7 @@ import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 import {
   GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
   issueGatewayIngestionToken,
-} from "./auth/auth";
+} from "./auth/ingestionToken";
 import {
   type GatewayApiFormat,
   gatewayProviders,

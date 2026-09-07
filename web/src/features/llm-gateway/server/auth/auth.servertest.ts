@@ -2,15 +2,16 @@ import { createHash, createHmac, generateKeyPairSync } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { createEd25519JwtSigner } from "@/src/server/utils/jwt";
+import {
+  createEd25519JwtSigner,
+  createEd25519JwtVerifier,
+} from "@/src/server/utils/jwt";
 
 import {
-  createGatewayIngestionTokenSigner,
-  createGatewayIngestionTokenVerifier,
+  GatewayIngestionClaimsSchema,
   issueGatewayIngestionToken,
-  verifyGatewayHmacAuthorization,
-  verifyGatewayIngestionToken,
-} from "./auth";
+} from "./ingestionToken";
+import { verifyGatewayHmacAuthorization } from "./auth";
 
 function createTestGatewayHmacSignature(input: {
   timestamp: number;
@@ -77,16 +78,17 @@ describe("LLM gateway authentication", () => {
     const publicKeyPem = publicKey
       .export({ format: "pem", type: "spki" })
       .toString();
-    const signer = createGatewayIngestionTokenSigner({
+    const signer = createEd25519JwtSigner({
       privateKey: privateKeyPem,
       keyId: "current",
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
     });
-    const verifier = createGatewayIngestionTokenVerifier({
+    const verifier = createEd25519JwtVerifier({
       publicKeys: [{ id: "current", publicKey: publicKeyPem }],
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
+      claimsSchema: GatewayIngestionClaimsSchema,
     });
 
     const token = issueGatewayIngestionToken({
@@ -100,9 +102,8 @@ describe("LLM gateway authentication", () => {
       },
     });
 
-    const verified = verifyGatewayIngestionToken({
+    const verified = verifier.verify({
       token,
-      verifier,
       now,
     });
 
@@ -137,9 +138,8 @@ describe("LLM gateway authentication", () => {
       },
     });
     expect(() =>
-      verifyGatewayIngestionToken({
+      verifier.verify({
         token: wrongScopeToken,
-        verifier,
         now,
       }),
     ).toThrow();

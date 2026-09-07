@@ -1,14 +1,14 @@
 import { env } from "@/src/env.mjs";
+import { createEd25519JwtSigner } from "@/src/server/utils/jwt";
 import { prisma } from "@langfuse/shared/src/db";
 
 import type { AuthenticatedGatewayResolveHandler } from "./auth";
 import { GatewayResolveResponseSchema } from "./provider";
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
-import { createGatewayIngestionTokenSigner } from "./auth/auth";
 
 const gatewayIngestionTokenSigner =
   env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY && env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY
-    ? createGatewayIngestionTokenSigner({
+    ? createEd25519JwtSigner({
         privateKey: env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,
         keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
         issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,

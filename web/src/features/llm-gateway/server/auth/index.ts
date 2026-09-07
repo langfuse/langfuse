@@ -1,9 +1,4 @@
 export {
-  createGatewayIngestionTokenSigner,
-  createGatewayIngestionTokenVerifier,
-  verifyGatewayIngestionToken,
-} from "./auth";
-export {
   withGatewayResolveAuth,
   type AuthenticatedGatewayResolveHandler,
 } from "./gatewayResolveAuth";

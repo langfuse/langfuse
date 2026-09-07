@@ -4,11 +4,12 @@ import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import type { AuthHeaderValidVerificationResult } from "@langfuse/shared/src/server";
 
+import { createEd25519JwtVerifier } from "@/src/server/utils/jwt";
+
 import {
-  createGatewayIngestionTokenVerifier,
+  GatewayIngestionClaimsSchema,
   type GatewayIngestionClaims,
-  verifyGatewayIngestionToken,
-} from "./auth";
+} from "./ingestionToken";
 
 const gatewayIngestionTokenVerifier = (() => {
   const publicKeys = [
@@ -32,10 +33,11 @@ const gatewayIngestionTokenVerifier = (() => {
   ];
 
   return publicKeys.length > 0
-    ? createGatewayIngestionTokenVerifier({
+    ? createEd25519JwtVerifier({
         issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
         audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
         publicKeys,
+        claimsSchema: GatewayIngestionClaimsSchema,
       })
     : undefined;
 })();
@@ -46,10 +48,7 @@ function verifyConfiguredGatewayIngestionToken(
   if (!gatewayIngestionTokenVerifier) {
     throw new Error("Gateway ingestion verification is not configured");
   }
-  return verifyGatewayIngestionToken({
-    token,
-    verifier: gatewayIngestionTokenVerifier,
-  });
+  return gatewayIngestionTokenVerifier.verify({ token });
 }
 
 export async function verifyGatewayIngestionAuthorization(
