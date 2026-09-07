@@ -45,6 +45,14 @@ type SessionConversationTimelineState =
       observations: readonly SessionObservation[];
     };
 
+type ParsedTimelineMessages =
+  | { type: "loaded"; messages: NormalizedMessage[] }
+  | { type: "error" };
+
+type ProcessedTimelineMessages = ReturnType<
+  typeof processTimelineMessages
+>[number];
+
 const toPreviewText = (value: unknown) =>
   typeof value === "string"
     ? value
@@ -187,63 +195,30 @@ function SessionTimelineToolRow({
 
 function SessionTimelineConversationObservation({
   observation,
-  showSystemPrompt,
-  standaloneToolCallIds,
+  parsed,
+  processedMessages,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
-  showSystemPrompt: boolean;
-  standaloneToolCallIds: ReadonlySet<string>;
+  parsed: ParsedTimelineMessages | null;
+  processedMessages: ProcessedTimelineMessages;
   onOpenInTraceView: () => void;
 }) {
   const isTruncated = observation.inputTruncated || observation.outputTruncated;
-
-  const parsed = useMemo<
-    { type: "loaded"; messages: NormalizedMessage[] } | { type: "error" }
-  >(() => {
-    try {
-      return {
-        type: "loaded",
-        messages: normalizeSpanIO({
-          input: observation.input,
-          output: observation.output,
-          metadata: observation.metadataTruncated
-            ? undefined
-            : observation.metadata,
-        }).messages,
-      };
-    } catch {
-      return { type: "error" };
-    }
-  }, [
-    observation.input,
-    observation.output,
-    observation.metadata,
-    observation.metadataTruncated,
-  ]);
-
-  const processedMessages =
-    parsed.type === "loaded"
-      ? processTimelineMessages({
-          messages: parsed.messages,
-          showSystemPrompt,
-          standaloneToolCallIds,
-        })
-      : { messages: [], rolledUpToolCalls: [] };
   const visibleMessages = processedMessages.messages;
   const hasTimelineContent =
-    parsed.type === "loaded" &&
+    parsed?.type === "loaded" &&
     parsed.messages.some((message) =>
       message.parts.some((part) => part.type !== "tool-result"),
     );
   const hasNoConversationalContent =
     !isTruncated &&
-    parsed.type === "loaded" &&
+    parsed?.type === "loaded" &&
     visibleMessages.length === 0 &&
     (parsed.messages.length === 0 || hasTimelineContent);
   const hasObservationBody =
     isTruncated ||
-    parsed.type === "error" ||
+    parsed?.type === "error" ||
     visibleMessages.length > 0 ||
     observation.metadataTruncated;
 
@@ -300,7 +275,7 @@ function SessionTimelineConversationObservation({
           ) : null}
           {isTruncated ? (
             <TruncatedObservation observation={observation} />
-          ) : parsed.type === "error" ? (
+          ) : parsed?.type === "error" ? (
             <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-destructive text-xs">
                 This observation could not be parsed.
@@ -312,7 +287,7 @@ function SessionTimelineConversationObservation({
           ) : visibleMessages.length > 0 ? (
             visibleMessages.map((message, index) => (
               <SessionTimelineMessage
-                key={message.id ?? `${message.source}-${message.role}-${index}`}
+                key={`${message.id ?? `${message.source}-${message.role}`}-${index}`}
                 message={message}
               />
             ))
@@ -358,13 +333,13 @@ function RolledUpToolRow({
 
 function SessionTimelineObservation({
   observation,
-  showSystemPrompt,
-  standaloneToolCallIds,
+  parsed,
+  processedMessages,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
-  showSystemPrompt: boolean;
-  standaloneToolCallIds: ReadonlySet<string>;
+  parsed: ParsedTimelineMessages | null;
+  processedMessages: ProcessedTimelineMessages;
   onOpenInTraceView: () => void;
 }) {
   if (observation.type === "TOOL") {
@@ -386,8 +361,8 @@ function SessionTimelineObservation({
   return (
     <SessionTimelineConversationObservation
       observation={observation}
-      showSystemPrompt={showSystemPrompt}
-      standaloneToolCallIds={standaloneToolCallIds}
+      parsed={parsed}
+      processedMessages={processedMessages}
       onOpenInTraceView={onOpenInTraceView}
     />
   );
@@ -412,10 +387,55 @@ export function SessionConversationTimeline({
 }) {
   const showIdleGap =
     idleGapSeconds !== null && idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
-  const standaloneToolCallIds =
-    state.type === "loaded"
-      ? getStandaloneToolCallIds(state.observations)
-      : new Set<string>();
+  const preparedObservations = useMemo(() => {
+    if (state.type !== "loaded") return [];
+
+    const parsedObservations = state.observations.map((observation) => {
+      if (
+        observation.type === "TOOL" ||
+        observation.inputTruncated ||
+        observation.outputTruncated
+      ) {
+        return { parsed: null, messages: null };
+      }
+
+      try {
+        const messages = normalizeSpanIO({
+          input: observation.input,
+          output: observation.output,
+          metadata: observation.metadataTruncated
+            ? undefined
+            : observation.metadata,
+        }).messages;
+        return {
+          parsed: { type: "loaded", messages } as const,
+          messages,
+        };
+      } catch {
+        return {
+          parsed: { type: "error" } as const,
+          messages: null,
+        };
+      }
+    });
+    const processedMessageGroups = processTimelineMessages({
+      messageGroups: parsedObservations.map(({ messages }) => messages),
+      reconcileHistory: state.observations.map(
+        (observation) => observation.type === "GENERATION",
+      ),
+      showSystemPrompt,
+      standaloneToolCallIds: getStandaloneToolCallIds(state.observations),
+    });
+
+    return state.observations.map((observation, index) => ({
+      observation,
+      parsed: parsedObservations[index]?.parsed ?? null,
+      processedMessages: processedMessageGroups[index] ?? {
+        messages: [],
+        rolledUpToolCalls: [],
+      },
+    }));
+  }, [showSystemPrompt, state]);
 
   return (
     <div className="px-4 pb-14 sm:px-6 lg:px-10">
@@ -513,15 +533,17 @@ export function SessionConversationTimeline({
         </div>
       ) : (
         <div className="flex flex-col gap-1">
-          {state.observations.map((observation) => (
-            <SessionTimelineObservation
-              key={observation.id}
-              observation={observation}
-              showSystemPrompt={showSystemPrompt}
-              standaloneToolCallIds={standaloneToolCallIds}
-              onOpenInTraceView={() => onOpenObservation(observation.id)}
-            />
-          ))}
+          {preparedObservations.map(
+            ({ observation, parsed, processedMessages }) => (
+              <SessionTimelineObservation
+                key={observation.id}
+                observation={observation}
+                parsed={parsed}
+                processedMessages={processedMessages}
+                onOpenInTraceView={() => onOpenObservation(observation.id)}
+              />
+            ),
+          )}
         </div>
       )}
     </div>

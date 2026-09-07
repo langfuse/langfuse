@@ -2124,5 +2124,11 @@ export const MergeSystemPrompts = meta.story({
     await expect(canvas.getAllByRole("button", { name: "skill" })).toHaveLength(
       1,
     );
+    await expect(canvas.getAllByText(inAppAgentPrompt)).toHaveLength(1);
+    await expect(
+      canvas.getByText(
+        "Summarize the taxonomy, recommend the first fix, and suggest a durable way to track it.",
+      ),
+    ).toBeInTheDocument();
   },
 });
