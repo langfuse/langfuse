@@ -531,6 +531,36 @@ function buildTraceTree(
   return { roots: [traceNode], nodeMap };
 }
 
+function flattenTreeToSearchItems({
+  roots,
+  parentTotalCost,
+  parentTotalDuration,
+  getObservationId,
+}: {
+  roots: TreeNode[];
+  parentTotalCost: Decimal | undefined;
+  parentTotalDuration: number | undefined;
+  getObservationId: (node: TreeNode) => string | undefined;
+}) {
+  const searchItems: TraceSearchListItem[] = [];
+  const stack = [...roots].reverse();
+
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    searchItems.push({
+      node,
+      parentTotalCost,
+      parentTotalDuration,
+      observationId: getObservationId(node),
+    });
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push(node.children[i]!);
+    }
+  }
+
+  return searchItems;
+}
+
 /**
  * Main entry point: builds complete UI data from trace and observations.
  *
@@ -577,41 +607,17 @@ export function buildTraceUiData(
         )
       : undefined;
 
-  // Build flat search items list (iterative to avoid stack overflow on deep trees)
-  const searchItems: TraceSearchListItem[] = [];
-
-  // Initialize stack with all roots (in reverse order for correct DFS traversal)
-  const stack: TreeNode[] = [];
-  for (let i = roots.length - 1; i >= 0; i--) {
-    stack.push(roots[i]!);
-  }
-
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    searchItems.push({
-      node,
-      parentTotalCost: rootTotalCost,
-      parentTotalDuration: rootDuration,
-      observationId: node.type === "TRACE" ? undefined : node.id,
-    });
-    // Push children in reverse order to maintain depth-first left-to-right traversal
-    for (let i = node.children.length - 1; i >= 0; i--) {
-      stack.push(node.children[i]!);
-    }
-  }
+  const searchItems = flattenTreeToSearchItems({
+    roots,
+    parentTotalCost: rootTotalCost,
+    parentTotalDuration: rootDuration,
+    getObservationId: (node) => (node.type === "TRACE" ? undefined : node.id),
+  });
 
   return { roots, searchItems, nodeMap };
 }
 
-/**
- * Builds one session forest while preserving trace boundaries. Each v4 trace
- * is built independently and wrapped in a TRACE node before the forests are
- * combined, so parent ids can never connect observations from different
- * traces.
- */
-export function buildSessionUiData(
-  sessionId: string,
-  traces: TraceType[],
+function groupSessionObservationsByTrace(
   observations: ObservationReturnType[],
 ) {
   const observationIdCounts = new Map<string, number>();
@@ -621,6 +627,7 @@ export function buildSessionUiData(
       (observationIdCounts.get(observation.id) ?? 0) + 1,
     );
   }
+
   const observationsByTraceId = new Map<string, ObservationReturnType[]>();
   for (const observation of observations) {
     const id =
@@ -645,8 +652,16 @@ export function buildSessionUiData(
     }
   }
 
+  return observationsByTraceId;
+}
+
+function buildSessionTraceRoots(
+  traces: TraceType[],
+  observationsByTraceId: Map<string, ObservationReturnType[]>,
+) {
   const roots: TreeNode[] = [];
   const nodeMap = new Map<string, TreeNode>();
+
   for (const trace of traces) {
     const traceUiData = buildTraceUiData(
       {
@@ -658,6 +673,7 @@ export function buildSessionUiData(
     );
     const traceRoot = traceUiData.roots[0];
     if (!traceRoot) continue;
+
     roots.push(traceRoot);
     for (const [id, node] of traceUiData.nodeMap) {
       if (
@@ -671,6 +687,10 @@ export function buildSessionUiData(
     }
   }
 
+  return { roots, nodeMap };
+}
+
+function createSessionRoot(sessionId: string, roots: TreeNode[]) {
   roots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   let sessionStartTime: Date | undefined;
   const boundsStack = [...roots];
@@ -713,6 +733,7 @@ export function buildSessionUiData(
     roots.length > 0
       ? Math.max(...roots.map((root) => root.childrenDepth)) + 1
       : 0;
+
   const sessionRoot: TreeNode = {
     id: sessionNodeId(sessionId),
     sessionId,
@@ -728,24 +749,40 @@ export function buildSessionUiData(
     depth: -2,
     childrenDepth: sessionChildrenDepth,
   };
-  nodeMap.set(sessionRoot.id, sessionRoot);
-  const sessionRoots = [sessionRoot];
 
-  const searchItems: TraceSearchListItem[] = [];
-  const stack = [...sessionRoots].reverse();
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    searchItems.push({
-      node,
-      parentTotalCost: sessionTotalCost,
-      parentTotalDuration: sessionDuration,
-      observationId:
-        node.type === "SESSION" || node.type === "TRACE" ? undefined : node.id,
-    });
-    for (let i = node.children.length - 1; i >= 0; i--) {
-      stack.push(node.children[i]!);
-    }
-  }
+  return { sessionRoot, sessionTotalCost, sessionDuration };
+}
+
+/**
+ * Builds one session forest while preserving trace boundaries. Each v4 trace
+ * is built independently and wrapped in a TRACE node before the forests are
+ * combined, so parent ids can never connect observations from different
+ * traces.
+ */
+export function buildSessionUiData(
+  sessionId: string,
+  traces: TraceType[],
+  observations: ObservationReturnType[],
+) {
+  const observationsByTraceId = groupSessionObservationsByTrace(observations);
+  const { roots, nodeMap } = buildSessionTraceRoots(
+    traces,
+    observationsByTraceId,
+  );
+  const { sessionRoot, sessionTotalCost, sessionDuration } = createSessionRoot(
+    sessionId,
+    roots,
+  );
+  nodeMap.set(sessionRoot.id, sessionRoot);
+
+  const sessionRoots = [sessionRoot];
+  const searchItems = flattenTreeToSearchItems({
+    roots: sessionRoots,
+    parentTotalCost: sessionTotalCost,
+    parentTotalDuration: sessionDuration,
+    getObservationId: (node) =>
+      node.type === "SESSION" || node.type === "TRACE" ? undefined : node.id,
+  });
 
   return { roots: sessionRoots, searchItems, nodeMap };
 }
