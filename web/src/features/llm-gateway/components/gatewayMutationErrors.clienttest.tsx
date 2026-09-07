@@ -2,6 +2,7 @@ import { TRPCClientError } from "@trpc/client";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { Button } from "@/src/components/ui/button";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayProvider";
 
 const {
@@ -71,8 +72,8 @@ const gatewayApiKeyError = () =>
 vi.mock("@/src/utils/api", () => {
   const React = require("react");
 
-  const createStatefulMutation = (
-    mutateImpl: (...args: unknown[]) => Promise<unknown>,
+  const createStatefulMutation = <TArgs extends unknown[]>(
+    mutateImpl: (...args: TArgs) => Promise<unknown>,
     stateKey: keyof typeof mutationStates,
   ) => {
     return (options?: { onError?: (error: unknown) => void }) => {
@@ -84,8 +85,14 @@ vi.mock("@/src/utils/api", () => {
 
       return {
         ...mutationState,
-        mutateAsync: async (...args: unknown[]) => {
-          setMutationState((current) => ({ ...current, isPending: true }));
+        mutateAsync: async (...args: TArgs) => {
+          setMutationState(
+            (current: {
+              isError: boolean;
+              isPending: boolean;
+              error: Error | null;
+            }) => ({ ...current, isPending: true }),
+          );
           try {
             return await mutateImpl(...args);
           } catch (error) {
@@ -157,8 +164,7 @@ vi.mock("next/router", () => ({
 }));
 
 import { CreateGatewayApiKeyDialogController } from "@/src/features/llm-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
-import { CreateProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/CreateProviderDialogController/CreateProviderDialogController";
-import { EditProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/EditProviderDialogController/EditProviderDialogController";
+import { ProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 
 const testConnection: GatewayConnection = {
   id: "conn-1",
@@ -211,13 +217,13 @@ describe("gateway mutation local error handling", () => {
 
   it("create provider dialog routes tRPC failures locally without a global toast", async () => {
     render(
-      <CreateProviderDialogController organizationId="org-1">
+      <ProviderDialogController organizationId="org-1">
         {({ Trigger }) => (
           <Trigger asChild>
             <Button>Add provider</Button>
           </Trigger>
         )}
-      </CreateProviderDialogController>,
+      </ProviderDialogController>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
@@ -247,7 +253,7 @@ describe("gateway mutation local error handling", () => {
 
   it("edit provider dialog routes tRPC failures locally without a global toast", async () => {
     render(
-      <EditProviderDialogController
+      <ProviderDialogController
         organizationId="org-1"
         connection={testConnection}
       >
@@ -256,7 +262,7 @@ describe("gateway mutation local error handling", () => {
             <Button>Edit provider</Button>
           </Trigger>
         )}
-      </EditProviderDialogController>,
+      </ProviderDialogController>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Edit provider" }));
@@ -279,13 +285,15 @@ describe("gateway mutation local error handling", () => {
 
   it("create gateway api key dialog routes tRPC failures locally and ignores blank metadata rows", async () => {
     render(
-      <CreateGatewayApiKeyDialogController organizationId="org-1">
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <Button>Issue key</Button>
-          </Trigger>
-        )}
-      </CreateGatewayApiKeyDialogController>,
+      <TooltipProvider>
+        <CreateGatewayApiKeyDialogController organizationId="org-1">
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <Button>Issue key</Button>
+            </Trigger>
+          )}
+        </CreateGatewayApiKeyDialogController>
+      </TooltipProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Issue key" }));

@@ -70,23 +70,4 @@ export class GatewayApiKeyRepository {
       },
     });
   }
-
-  resolveGatewayContext(params: { fastHashedSecretKey: string }) {
-    const now = new Date();
-    return this.prisma.gatewayApiKeyAssociation.findFirst({
-      where: {
-        apiKey: {
-          fastHashedSecretKey: params.fastHashedSecretKey,
-          scope: "ORGANIZATION",
-          orgId: { not: null },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
-      },
-      select: {
-        apiKeyId: true,
-        apiKey: { select: { orgId: true } },
-        metadata: true,
-      },
-    });
-  }
 }

@@ -8,14 +8,14 @@ import { decrypt } from "@langfuse/shared/encryption";
 import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/llm-gateway/server/auth/ingestionTokenVerifier";
-import { GatewayConfigRepository } from "@/src/features/llm-gateway/server/config/gatewayConfigRepository";
+import { isGatewayEnabledForOrganization } from "@/src/features/llm-gateway/server/availability";
 import {
   type GatewayApiFormat,
   gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
 } from "@/src/features/llm-gateway/server/provider";
-import { GatewayProviderRepository } from "@/src/features/llm-gateway/server/provider/gatewayProviderRepository";
+import { GatewayResolveRepository } from "./gatewayResolveRepository";
 
 export class GatewayResolveError extends Error {
   constructor(
@@ -31,37 +31,32 @@ type ResolveConfig = {
 };
 
 export class GatewayResolveService {
-  private readonly configRepository: GatewayConfigRepository;
-  private readonly providerRepository: GatewayProviderRepository;
+  private readonly repository: GatewayResolveRepository;
 
   constructor(
     prisma: PrismaClient,
     private readonly config: ResolveConfig,
   ) {
-    this.configRepository = new GatewayConfigRepository(prisma);
-    this.providerRepository = new GatewayProviderRepository(prisma);
+    this.repository = new GatewayResolveRepository(prisma);
   }
 
   async resolve(params: {
-    organizationId: string;
-    apiKeyId: string;
+    fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
   }) {
     const supportedProviders = gatewayProviders.filter((provider) =>
       providerSupportsApiFormat(provider, params.apiFormat),
     ) as GatewayProvider[];
-    const [config, connection] = await Promise.all([
-      this.configRepository.getConfig(params.organizationId),
-      this.providerRepository.selectConnectionWithCredential({
-        organizationId: params.organizationId,
+    const { organizationId, apiKeyId, config, connection } =
+      await this.getResolveContext({
+        fastHashedSecretKey: params.fastHashedSecretKey,
         providers: supportedProviders,
-      }),
-    ]);
+      });
     if (
       !config?.defaultIngestionProjectId ||
       !config.defaultIngestionProject ||
       config.defaultIngestionProject.deletedAt ||
-      config.defaultIngestionProject.orgId !== params.organizationId
+      config.defaultIngestionProject.orgId !== organizationId
     ) {
       throw new GatewayResolveError(
         "Gateway ingestion project is unavailable",
@@ -93,13 +88,38 @@ export class GatewayResolveService {
       },
       ingestion: this.createIngestionResponse({
         mode: config.instrumentationMode,
-        organizationId: params.organizationId,
+        organizationId,
         projectId: config.defaultIngestionProjectId,
-        apiKeyId: params.apiKeyId,
+        apiKeyId,
       }),
     };
 
     return response;
+  }
+
+  private async getResolveContext(params: {
+    fastHashedSecretKey: string;
+    providers: GatewayProvider[];
+  }) {
+    const context = await this.repository.resolveContext(params);
+    const organizationId = context?.apiKey.orgId;
+    const organization = context?.apiKey.organization;
+    if (!context || !organizationId || !organization) {
+      throw new GatewayResolveError("Invalid gateway key", 401);
+    }
+    if (!isGatewayEnabledForOrganization(organizationId)) {
+      throw new GatewayResolveError(
+        "Gateway is not enabled for this organization",
+        403,
+      );
+    }
+
+    return {
+      organizationId,
+      apiKeyId: context.apiKeyId,
+      config: organization.gatewayConfig,
+      connection: organization.gatewayAiConnections[0],
+    };
   }
 
   private createIngestionResponse(params: {

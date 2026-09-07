@@ -148,25 +148,6 @@ export class GatewayProviderRepository {
     });
   }
 
-  selectConnectionWithCredential(params: {
-    organizationId: string;
-    providers: GatewayProvider[];
-  }) {
-    return this.prisma.gatewayAiConnection.findFirst({
-      where: {
-        organizationId: params.organizationId,
-        provider: { in: params.providers },
-        status: "ENABLED",
-      },
-      orderBy: { routingPriority: "asc" },
-      select: {
-        id: true,
-        provider: true,
-        encryptedCredential: true,
-      },
-    });
-  }
-
   private updatePriority(
     tx: DatabaseClient,
     params: {

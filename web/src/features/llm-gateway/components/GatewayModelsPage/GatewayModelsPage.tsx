@@ -27,6 +27,7 @@ export function GatewayModelsPage({
 }: {
   organizationId: string;
 }) {
+  const utils = api.useUtils();
   const connectionsQuery = api.llmGateway.listConnections.useInfiniteQuery(
     { orgId: organizationId, limit: 100 },
     { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
@@ -35,6 +36,11 @@ export function GatewayModelsPage({
     { orgId: organizationId },
     { enabled: connectionsQuery.isSuccess },
   );
+  const syncModelsMutation = api.llmGateway.syncModels.useMutation({
+    onSuccess: (data) => {
+      utils.llmGateway.refreshModels.setData({ orgId: organizationId }, data);
+    },
+  });
 
   if (connectionsQuery.isPending) {
     return <ModelsSkeleton />;
@@ -51,8 +57,8 @@ export function GatewayModelsPage({
   const failedResults = results?.filter((result) => !result.success) ?? [];
 
   const sync = () =>
-    modelsQuery
-      .refetch()
+    syncModelsMutation
+      .mutateAsync({ orgId: organizationId })
       .then(() => undefined)
       .catch((error) => reportNonTrpcError(error, "llm-gateway-models"));
 
@@ -63,8 +69,12 @@ export function GatewayModelsPage({
       providerCount={results?.length ?? connections.length}
       hasProviders={connections.length > 0}
       hasSynced={results !== null}
-      isLoading={modelsQuery.isPending || modelsQuery.isFetching}
-      syncError={modelsQuery.isError}
+      isLoading={
+        modelsQuery.isPending ||
+        modelsQuery.isFetching ||
+        syncModelsMutation.isPending
+      }
+      syncError={modelsQuery.isError || syncModelsMutation.isError}
       onSync={sync}
       hasMoreProviders={Boolean(connectionsQuery.hasNextPage)}
       isLoadingMoreProviders={connectionsQuery.isFetchingNextPage}

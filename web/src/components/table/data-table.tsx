@@ -119,6 +119,10 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  renderRow?: (props: {
+    row: Row<TData>;
+    children: React.ReactNode;
+  }) => React.ReactNode;
   /** Used for row click handling and MemoizedTableBody snapshot only. Render <TablePeekView> as a sibling outside DataTable. */
   peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
@@ -242,6 +246,7 @@ export function DataTable<TData extends object, TValue>({
   className,
   shouldRenderGroupHeaders = false,
   onRowClick,
+  renderRow,
   peekView,
   hidePagination = false,
   tableName,
@@ -625,6 +630,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                renderRow={renderRow}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
                 selectionStore={selectionStore}
@@ -646,6 +652,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                renderRow={renderRow}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
                 selectionStore={selectionStore}
@@ -761,6 +768,10 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  renderRow?: (props: {
+    row: Row<TData>;
+    children: React.ReactNode;
+  }) => React.ReactNode;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
   selectionStore?: TableSelectionStoreLike;
@@ -839,6 +850,7 @@ function TableBodyComponent<TData>({
   help,
   noResultsMessage,
   onRowClick,
+  renderRow,
   getRowClassName,
   highlightAllRows,
   selectionStore,
@@ -922,82 +934,87 @@ function TableBodyComponent<TData>({
           </TableRow>
         ))
       ) : rowModelRows.length ? (
-        rowModelRows.map((row) => (
-          <TableRowComponent
-            key={row.id}
-            row={row}
-            onRowClick={onRowClick}
-            getRowClassName={getRowClassName}
-            highlightAllRows={highlightAllRows}
-            selectionStore={selectionStore}
-          >
-            {row.getVisibleCells().map((cell) => {
-              const cellValue = cell.getValue();
-              const isStringCell = typeof cellValue === "string";
-              const isSmallRowHeight = (rowHeight ?? "s") === "s";
-              const columnDef = cell.column
-                .columnDef as LangfuseColumnDef<TData>;
+        rowModelRows.map((row) => {
+          const cells = row.getVisibleCells().map((cell) => {
+            const cellValue = cell.getValue();
+            const isStringCell = typeof cellValue === "string";
+            const isSmallRowHeight = (rowHeight ?? "s") === "s";
+            const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
 
-              return (
-                <TableCell
-                  key={cell.id}
+            return (
+              <TableCell
+                key={cell.id}
+                className={cn(
+                  "overflow-hidden border-b text-xs first:pl-2",
+                  getCellPaddingClassName(columnDef.cellPadding ?? cellPadding),
+                  isSmallRowHeight && "whitespace-nowrap",
+                  getPinningClasses(cell.column),
+                  getCellBackgroundClassName(columnDef.cellBackground),
+                )}
+                style={{
+                  ...getCommonPinningStyles(cell.column),
+                  width: columnDef.isFlexWidth
+                    ? "auto"
+                    : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                }}
+              >
+                <div
                   className={cn(
-                    "overflow-hidden border-b text-xs first:pl-2",
-                    getCellPaddingClassName(
-                      columnDef.cellPadding ?? cellPadding,
-                    ),
-                    isSmallRowHeight && "whitespace-nowrap",
-                    getPinningClasses(cell.column),
-                    getCellBackgroundClassName(columnDef.cellBackground),
+                    "flex",
+                    isSmallRowHeight && !topAlignCells
+                      ? "items-center"
+                      : "items-start",
+                    !isSmallRowHeight && "py-1",
+                    rowheighttw,
                   )}
-                  style={{
-                    ...getCommonPinningStyles(cell.column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  }}
                 >
-                  <div
-                    className={cn(
-                      "flex",
-                      isSmallRowHeight && !topAlignCells
-                        ? "items-center"
-                        : "items-start",
-                      !isSmallRowHeight && "py-1",
-                      rowheighttw,
-                    )}
-                  >
-                    {isStringCell && isSmallRowHeight ? (
-                      <div
-                        className="min-w-0 truncate leading-normal"
-                        title={getPlainTextFromReactNode(
-                          flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          ),
-                        )}
-                      >
-                        {flexRender(
+                  {isStringCell && isSmallRowHeight ? (
+                    <div
+                      className="min-w-0 truncate leading-normal"
+                      title={getPlainTextFromReactNode(
+                        flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
-                        )}
-                      </div>
-                    ) : isStringCell && !isSmallRowHeight ? (
-                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ) : (
-                      flexRender(cell.column.columnDef.cell, cell.getContext())
-                    )}
-                  </div>
-                </TableCell>
-              );
-            })}
-          </TableRowComponent>
-        ))
+                        ),
+                      )}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
+                  ) : isStringCell && !isSmallRowHeight ? (
+                    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
+                  ) : (
+                    flexRender(cell.column.columnDef.cell, cell.getContext())
+                  )}
+                </div>
+              </TableCell>
+            );
+          });
+
+          return renderRow ? (
+            <React.Fragment key={row.id}>
+              {renderRow({ row, children: cells })}
+            </React.Fragment>
+          ) : (
+            <TableRowComponent
+              key={row.id}
+              row={row}
+              onRowClick={onRowClick}
+              getRowClassName={getRowClassName}
+              highlightAllRows={highlightAllRows}
+              selectionStore={selectionStore}
+            >
+              {cells}
+            </TableRowComponent>
+          );
+        })
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">

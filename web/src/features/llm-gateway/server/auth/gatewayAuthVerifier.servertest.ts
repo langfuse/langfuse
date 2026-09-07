@@ -5,8 +5,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { signHmacSha256 } from "@/src/server/utils/hmac";
+import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiKeyRepository } from "../apiKey/gatewayApiKeyRepository";
 import { withGatewayResolveAuth } from "./gatewayAuthVerifier";
 
 vi.mock("@/src/env.mjs", () => ({
@@ -72,41 +72,7 @@ function gatewayAuthorization(input: {
   )}`;
 }
 
-function mockGatewayKey(organizationId = "org-1") {
-  return vi
-    .spyOn(GatewayApiKeyRepository.prototype, "resolveGatewayContext")
-    .mockResolvedValue({
-      apiKeyId: "key-1",
-      apiKey: { orgId: organizationId },
-      metadata: {},
-    });
-}
-
 describe("withGatewayResolveAuth", () => {
-  it("rejects gateway keys from organizations outside the allowlist", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(now);
-    mockGatewayKey("org-not-allowed");
-    const body = '{"api_format":"openai.responses"}';
-    const res = response();
-    const handler = vi.fn();
-
-    await withGatewayResolveAuth(handler)(
-      request({
-        authorization: "Bearer sk-gateway",
-        gatewayAuthorization: gatewayAuthorization({
-          body,
-          secret: "current-service-secret",
-        }),
-        body,
-      }),
-      res,
-    );
-
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(handler).not.toHaveBeenCalled();
-  });
-
   it.each([
     undefined,
     "Basic sk-gateway",
@@ -135,7 +101,6 @@ describe("withGatewayResolveAuth", () => {
     async (secret) => {
       vi.useFakeTimers();
       vi.setSystemTime(now);
-      mockGatewayKey();
       const body = '{ "api_format": "openai.responses" }\n';
       const req = request({
         authorization: "  Bearer   sk-gateway  ",
@@ -150,7 +115,7 @@ describe("withGatewayResolveAuth", () => {
       expect(handler).toHaveBeenCalledWith({
         req,
         res,
-        auth: { organizationId: "org-1", apiKeyId: "key-1" },
+        fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
         apiFormat: "openai.responses",
       });
     },
@@ -159,7 +124,6 @@ describe("withGatewayResolveAuth", () => {
   it("hashes the exact raw request body", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    mockGatewayKey();
     const signedBody = '{ "api_format": "openai.responses" }\n';
     const handler = vi.fn();
     const res = response();
@@ -183,7 +147,6 @@ describe("withGatewayResolveAuth", () => {
   it("rejects stale signatures and headers containing a key id", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    mockGatewayKey();
     const body = '{"api_format":"openai.responses"}';
     const staleHeader = gatewayAuthorization({
       body,

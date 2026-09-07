@@ -1,9 +1,16 @@
 import { useState } from "react";
-import { Check, Copy, Gauge, RadioTower, Sparkles } from "lucide-react";
+import { Check, Copy, Gauge, Plus, RadioTower, Sparkles } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
+import {
+  DialogBody,
+  DialogController,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -20,12 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { DEFAULT_GATEWAY_INGESTION_PROJECT_NAME } from "@/src/features/llm-gateway/constants/gatewayConfig";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
 
 const GATEWAY_BASE_URL = "https://gateway.langfuse.com/v1";
-const CREATE_PROJECT_VALUE = "__create_project__";
-const DEFAULT_PROJECT_NAME = "llm-ingestion-project";
 
 type InstrumentationMode = "NONE" | "USAGE" | "FULL";
 type Project = {
@@ -83,16 +89,14 @@ export function GatewayConfigurationView({
   const initialProjectExists =
     initialProjectId !== null &&
     activeProjects.some((project) => project.id === initialProjectId);
-  const [projectSelection, setProjectSelection] = useState(
-    initialProjectExists ? initialProjectId : CREATE_PROJECT_VALUE,
+  const [projectSelection, setProjectSelection] = useState<string | undefined>(
+    initialProjectExists ? initialProjectId : undefined,
   );
-  const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
+  const [showExistingProjects, setShowExistingProjects] =
+    useState(initialProjectExists);
   const [mode, setMode] = useState<InstrumentationMode>(initialMode);
-  const projectId =
-    projectSelection === CREATE_PROJECT_VALUE ? null : projectSelection;
-  const isCreatingProject = projectSelection === CREATE_PROJECT_VALUE;
-  const isDirty =
-    isCreatingProject || projectId !== initialProjectId || mode !== initialMode;
+  const projectId = projectSelection ?? null;
+  const isDirty = projectId !== initialProjectId || mode !== initialMode;
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,41 +123,54 @@ export function GatewayConfigurationView({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Default ingestion project</CardTitle>
-          <CardDescription>
-            Gateway traces and usage data are written to this project.
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={projectSelection} onValueChange={setProjectSelection}>
-            <SelectTrigger className="ph-no-capture max-w-md">
-              <SelectValue placeholder="Select a project" />
-            </SelectTrigger>
-            <SelectContent className="ph-no-capture">
-              <SelectItem value={CREATE_PROJECT_VALUE}>
-                Create new project
-              </SelectItem>
-              {activeProjects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {isCreatingProject ? (
-            <div className="mt-4 max-w-md">
-              <Label htmlFor="gateway-project-name">Project name</Label>
-              <Input
-                id="gateway-project-name"
-                className="ph-no-capture mt-1.5"
-                value={projectName}
-                onChange={(event) => setProjectName(event.target.value)}
+          {showExistingProjects ? (
+            <div className="flex max-w-md flex-col items-start gap-2">
+              <Select
+                value={projectSelection}
+                onValueChange={setProjectSelection}
+              >
+                <SelectTrigger className="ph-no-capture w-full">
+                  <SelectValue placeholder="Select a project" />
+                </SelectTrigger>
+                <SelectContent className="ph-no-capture">
+                  {activeProjects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <CreateIngestionProjectDialog
+                mode={mode}
+                isSaving={isSaving}
+                onCreate={onSave}
+                triggerLabel="or create a new project"
               />
-              <p className="text-muted-foreground mt-1.5 text-xs">
-                Only you receive access initially. Other organization members
-                must be invited explicitly.
-              </p>
             </div>
-          ) : null}
+          ) : (
+            <div className="flex flex-row items-center gap-2">
+              <CreateIngestionProjectDialog
+                mode={mode}
+                isSaving={isSaving}
+                onCreate={onSave}
+                triggerLabel="Create ingestion project"
+                showIcon
+              />
+              <button
+                type="button"
+                className="text-primary text-sm hover:underline"
+                onClick={() => setShowExistingProjects(true)}
+              >
+                or use an existing project
+              </button>
+            </div>
+          )}
+          <p className="text-muted-foreground mt-2 text-xs">
+            A dedicated project keeps gateway traffic separate from your
+            application traces.
+          </p>
         </CardContent>
       </Card>
 
@@ -203,24 +220,100 @@ export function GatewayConfigurationView({
 
       <div className="flex justify-end">
         <Button
-          disabled={
-            !isDirty || isSaving || (isCreatingProject && !projectName.trim())
-          }
+          disabled={!isDirty || isSaving}
           loading={isSaving}
-          onClick={() =>
-            onSave({
-              projectId,
-              createProjectName: isCreatingProject
-                ? projectName.trim()
-                : undefined,
-              mode,
-            })
-          }
+          onClick={() => onSave({ projectId, mode })}
         >
           Save
         </Button>
       </div>
     </div>
+  );
+}
+
+function CreateIngestionProjectDialog({
+  mode,
+  isSaving,
+  onCreate,
+  triggerLabel,
+  showIcon = false,
+}: {
+  mode: InstrumentationMode;
+  isSaving: boolean;
+  onCreate: (values: {
+    projectId: string | null;
+    createProjectName?: string;
+    mode: InstrumentationMode;
+  }) => void | Promise<void>;
+  triggerLabel: string;
+  showIcon?: boolean;
+}) {
+  const [projectName, setProjectName] = useState(
+    DEFAULT_GATEWAY_INGESTION_PROJECT_NAME,
+  );
+
+  return (
+    <DialogController
+      size="default"
+      closeOnInteractionOutside={false}
+      onBeforeClose={() => !isSaving}
+      onDismiss={() => setProjectName(DEFAULT_GATEWAY_INGESTION_PROJECT_NAME)}
+      renderContent={() => (
+        <>
+          <DialogHeader>
+            <DialogTitle>Create ingestion project</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div>
+              <Label htmlFor="gateway-project-name">Project name</Label>
+              <Input
+                id="gateway-project-name"
+                className="ph-no-capture mt-1.5"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+              />
+              <p className="text-muted-foreground mt-1.5 text-xs">
+                Only you receive access initially. Other organization members
+                must be invited explicitly.
+              </p>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              disabled={!projectName.trim() || isSaving}
+              loading={isSaving}
+              onClick={() =>
+                onCreate({
+                  projectId: null,
+                  createProjectName: projectName.trim(),
+                  mode,
+                })
+              }
+            >
+              Create project
+            </Button>
+          </DialogFooter>
+        </>
+      )}
+    >
+      {({ Trigger }) => (
+        <Trigger asChild>
+          {showIcon ? (
+            <Button>
+              <Plus className="mr-1.5 size-4" />
+              {triggerLabel}
+            </Button>
+          ) : (
+            <button
+              type="button"
+              className="text-primary text-sm hover:underline"
+            >
+              {triggerLabel}
+            </button>
+          )}
+        </Trigger>
+      )}
+    </DialogController>
   );
 }
 
