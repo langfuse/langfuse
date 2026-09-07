@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { api, sendAsPostOption } from "@/src/utils/api";
+import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
@@ -48,6 +48,95 @@ interface UseEventsTraceDataResult {
    * server response — never a client-side copy of the constant.
    */
   truncatedAtObservations: number | undefined;
+}
+
+function adaptSessionEventsToTraceFormat({
+  projectId,
+  sessionId,
+  transformed,
+  traceSummaries,
+  observations,
+}: {
+  projectId: string;
+  sessionId: string;
+  transformed: NonNullable<UseEventsTraceDataResult["data"]>;
+  traceSummaries: RouterOutputs["sessions"]["tracesFromEvents"];
+  observations: EventsTraceObservation[];
+}) {
+  const observationsByTraceId = new Map<string, EventsTraceObservation[]>();
+  for (const observation of observations) {
+    if (!observation.traceId) continue;
+    const traceObservations = observationsByTraceId.get(observation.traceId);
+    if (traceObservations) traceObservations.push(observation);
+    else observationsByTraceId.set(observation.traceId, [observation]);
+  }
+
+  const sessionTraceEntries = traceSummaries.map((traceSummary) => {
+    const traceObservations = observationsByTraceId.get(traceSummary.id) ?? [];
+    const adapted = traceObservations.length
+      ? adaptEventsToTraceFormat({
+          events: traceObservations,
+          traceId: traceSummary.id,
+        })
+      : {
+          trace: {
+            id: traceSummary.id,
+            projectId,
+            name: traceSummary.name,
+            timestamp: traceSummary.timestamp,
+            input: null,
+            output: null,
+            metadata: "{}",
+            tags: [],
+            bookmarked: false,
+            public: false,
+            release: null,
+            version: null,
+            userId: traceSummary.userId,
+            sessionId,
+            environment: traceSummary.environment ?? "default",
+            latency:
+              traceSummary.latencyMs === null
+                ? undefined
+                : traceSummary.latencyMs / 1000,
+            createdAt: traceSummary.timestamp,
+            updatedAt: traceSummary.timestamp,
+          },
+          observations: [],
+        };
+
+    if (traceSummary.id === transformed.id) {
+      return {
+        trace: transformed,
+        observations: adapted.observations,
+        scores: transformed.scores,
+        corrections: transformed.corrections,
+      };
+    }
+
+    return {
+      trace: {
+        ...adapted.trace,
+        name: traceSummary.name,
+        timestamp: traceSummary.timestamp,
+        userId: traceSummary.userId,
+        environment: traceSummary.environment ?? adapted.trace.environment,
+        latency:
+          traceSummary.latencyMs === null
+            ? adapted.trace.latency
+            : traceSummary.latencyMs / 1000,
+      },
+      observations: adapted.observations,
+      scores: traceSummary.scores,
+      corrections: [],
+    };
+  });
+
+  return {
+    ...transformed,
+    observations: sessionTraceEntries.flatMap((entry) => entry.observations),
+    sessionTraceEntries,
+  };
 }
 
 /**
@@ -208,85 +297,14 @@ export function useEventsTraceData(
       return undefined;
     }
 
-    const sessionObservations = sessionObservationsQuery.data
-      .observations as EventsTraceObservation[];
-    const observationsByTraceId = new Map<string, EventsTraceObservation[]>();
-    for (const observation of sessionObservations) {
-      if (!observation.traceId) continue;
-      const traceObservations = observationsByTraceId.get(observation.traceId);
-      if (traceObservations) traceObservations.push(observation);
-      else observationsByTraceId.set(observation.traceId, [observation]);
-    }
-
-    const sessionTraceEntries = sessionTraceSummariesQuery.data.map(
-      (traceSummary) => {
-        const traceObservations =
-          observationsByTraceId.get(traceSummary.id) ?? [];
-        const adapted = traceObservations.length
-          ? adaptEventsToTraceFormat({
-              events: traceObservations,
-              traceId: traceSummary.id,
-            })
-          : {
-              trace: {
-                id: traceSummary.id,
-                projectId,
-                name: traceSummary.name,
-                timestamp: traceSummary.timestamp,
-                input: null,
-                output: null,
-                metadata: "{}",
-                tags: [],
-                bookmarked: false,
-                public: false,
-                release: null,
-                version: null,
-                userId: traceSummary.userId,
-                sessionId,
-                environment: traceSummary.environment ?? "default",
-                latency:
-                  traceSummary.latencyMs === null
-                    ? undefined
-                    : traceSummary.latencyMs / 1000,
-                createdAt: traceSummary.timestamp,
-                updatedAt: traceSummary.timestamp,
-              },
-              observations: [],
-            };
-
-        if (traceSummary.id === transformed.id) {
-          return {
-            trace: transformed,
-            observations: adapted.observations,
-            scores: transformed.scores,
-            corrections: transformed.corrections,
-          };
-        }
-
-        return {
-          trace: {
-            ...adapted.trace,
-            name: traceSummary.name,
-            timestamp: traceSummary.timestamp,
-            userId: traceSummary.userId,
-            environment: traceSummary.environment ?? adapted.trace.environment,
-            latency:
-              traceSummary.latencyMs === null
-                ? adapted.trace.latency
-                : traceSummary.latencyMs / 1000,
-          },
-          observations: adapted.observations,
-          scores: traceSummary.scores,
-          corrections: [],
-        };
-      },
-    );
-
-    return {
-      ...transformed,
-      observations: sessionTraceEntries.flatMap((entry) => entry.observations),
-      sessionTraceEntries,
-    };
+    return adaptSessionEventsToTraceFormat({
+      projectId,
+      sessionId,
+      transformed,
+      traceSummaries: sessionTraceSummariesQuery.data,
+      observations: sessionObservationsQuery.data
+        .observations as EventsTraceObservation[],
+    });
   }, [
     projectId,
     sessionId,
