@@ -13,7 +13,14 @@ import { Label } from "@/src/components/ui/label";
 import { CredentialFields } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/CredentialFields";
 import { providerLabels } from "@/src/features/llm-gateway/constants/providerLabels";
 import type { GatewayConnection } from "@/src/features/llm-gateway/types/gatewayProvider";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import {
+  api,
+  reportNonTrpcError,
+  reportTrpcErrorWithoutToast,
+} from "@/src/utils/api";
+
+const defaultEditProviderErrorMessage =
+  "The credential could not be saved or validated. Check the key and try again.";
 
 export function EditProviderForm({
   organizationId,
@@ -27,7 +34,10 @@ export function EditProviderForm({
   const [name, setName] = useState(connection.name);
   const [credential, setCredential] = useState("");
   const utils = api.useUtils();
-  const update = api.llmGateway.updateConnection.useMutation();
+  const update = api.llmGateway.updateConnection.useMutation({
+    onError: (error) =>
+      reportTrpcErrorWithoutToast(error, "llm-gateway-providers"),
+  });
 
   const submit = async () => {
     try {
@@ -71,8 +81,7 @@ export function EditProviderForm({
           <Alert variant="destructive">
             <Alert.Title>Provider validation failed</Alert.Title>
             <Alert.Description>
-              The credential could not be saved or validated. Check the key and
-              try again.
+              {update.error?.message ?? defaultEditProviderErrorMessage}
             </Alert.Description>
           </Alert>
         ) : null}

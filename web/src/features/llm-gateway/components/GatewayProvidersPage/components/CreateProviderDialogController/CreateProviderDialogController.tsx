@@ -13,7 +13,14 @@ import {
 import { CredentialFields } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/CredentialFields";
 import { ProviderSelect } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ProviderSelect";
 import type { GatewayProvider } from "@/src/features/llm-gateway/types/gatewayProvider";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import {
+  api,
+  reportNonTrpcError,
+  reportTrpcErrorWithoutToast,
+} from "@/src/utils/api";
+
+const defaultCreateProviderErrorMessage =
+  "The credential could not be saved or validated. Check the key and try again.";
 
 export function CreateProviderDialogController({
   organizationId,
@@ -26,7 +33,10 @@ export function CreateProviderDialogController({
   const [name, setName] = useState("");
   const [credential, setCredential] = useState("");
   const utils = api.useUtils();
-  const create = api.llmGateway.createConnection.useMutation();
+  const create = api.llmGateway.createConnection.useMutation({
+    onError: (error) =>
+      reportTrpcErrorWithoutToast(error, "llm-gateway-providers"),
+  });
 
   const reset = () => {
     setProvider("OPENAI");
@@ -76,8 +86,7 @@ export function CreateProviderDialogController({
               <Alert variant="destructive">
                 <Alert.Title>Provider validation failed</Alert.Title>
                 <Alert.Description>
-                  The credential could not be saved or validated. Check the key
-                  and try again.
+                  {create.error?.message ?? defaultCreateProviderErrorMessage}
                 </Alert.Description>
               </Alert>
             ) : null}

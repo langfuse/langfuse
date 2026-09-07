@@ -14,7 +14,14 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { GeneratedKeyContent } from "@/src/features/llm-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import {
+  api,
+  reportNonTrpcError,
+  reportTrpcErrorWithoutToast,
+} from "@/src/utils/api";
+
+const defaultCreateGatewayApiKeyErrorMessage =
+  "Check the metadata and try again.";
 
 type MetadataField = {
   id: number;
@@ -40,7 +47,10 @@ export function CreateGatewayApiKeyDialogController({
     secretKey: string;
   } | null>(null);
   const utils = api.useUtils();
-  const create = api.llmGateway.createApiKey.useMutation();
+  const create = api.llmGateway.createApiKey.useMutation({
+    onError: (error) =>
+      reportTrpcErrorWithoutToast(error, "llm-gateway-api-keys"),
+  });
 
   const reset = () => {
     setNote("");
@@ -192,7 +202,8 @@ export function CreateGatewayApiKeyDialogController({
                   <Alert variant="destructive">
                     <Alert.Title>Gateway key could not be created</Alert.Title>
                     <Alert.Description>
-                      Check the metadata and try again.
+                      {create.error?.message ??
+                        defaultCreateGatewayApiKeyErrorMessage}
                     </Alert.Description>
                   </Alert>
                 ) : null}

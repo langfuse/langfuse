@@ -60,6 +60,7 @@ vi.mock("@/src/utils/api", () => {
       }),
     },
     reportNonTrpcError: vi.fn(),
+    reportTrpcErrorWithoutToast: vi.fn(),
   };
 });
 
