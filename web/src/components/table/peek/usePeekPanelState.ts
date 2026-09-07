@@ -59,6 +59,81 @@ function readSidebarOffsetPx(): number {
   return rect.left < 100 && rect.width > 0 ? Math.round(rect.right) : 0;
 }
 
+function useSidebarOffsetPx() {
+  const [sidebarOffset, setSidebarOffset] = useState(() =>
+    readSidebarOffsetPx(),
+  );
+
+  useEffect(() => {
+    const measure = () => setSidebarOffset(readSidebarOffsetPx());
+    measure();
+    window.addEventListener("resize", measure);
+    const sidebar = document.querySelector('[data-sidebar="sidebar"]');
+    const observer =
+      sidebar && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    if (sidebar) observer?.observe(sidebar);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return sidebarOffset;
+}
+
+function useTraceNavigationWidthPx({
+  isOpen,
+  widthMode,
+}: {
+  isOpen: boolean;
+  widthMode: PeekPanelWidthMode;
+}) {
+  const [navigationWidthPx, setNavigationWidthPx] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!isOpen || widthMode !== "split") return;
+    const peek = document.querySelector<HTMLElement>("[data-peek-content]");
+    if (!peek) return;
+
+    let observedNavigation: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    const observeNavigation = () => {
+      const navigation = peek.querySelector<HTMLElement>(
+        "[data-trace-navigation-panel]",
+      );
+      if (navigation === observedNavigation) return;
+
+      resizeObserver?.disconnect();
+      observedNavigation = navigation;
+      if (!navigation) return;
+
+      const measure = () => {
+        const next = Math.round(navigation.getBoundingClientRect().width);
+        if (next <= 0) return;
+        setNavigationWidthPx((current) => (current === next ? current : next));
+      };
+      measure();
+      resizeObserver =
+        typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(measure)
+          : null;
+      resizeObserver?.observe(navigation);
+    };
+
+    observeNavigation();
+    const mutationObserver = new MutationObserver(observeNavigation);
+    mutationObserver.observe(peek, { childList: true, subtree: true });
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+    };
+  }, [isOpen, widthMode]);
+
+  return navigationWidthPx;
+}
+
 /**
  * Integration boundary for the peek panel width: owns the per-mount widget-width
  * store, derives the final width (widget vs expanded), and wires drag/keyboard
@@ -139,68 +214,12 @@ export function usePeekPanelState({
   // synchronously on mount (lazy initializer, SSR-safe via the guard in
   // readSidebarOffsetPx) so the first expanded paint already uses the real
   // offset rather than calc(100vw - 0px) = full width for one frame.
-  const [sidebarOffset, setSidebarOffset] = useState(() =>
-    readSidebarOffsetPx(),
-  );
+  const sidebarOffset = useSidebarOffsetPx();
   // Track the sidebar continuously — NOT only while expanded — so a sidebar
   // toggle/resize that happens while the peek is collapsed is still reflected
   // by the next expand (no stale-offset flash). The observer is idle unless the
   // sidebar actually resizes, and setSidebarOffset bails on an unchanged value.
-  useEffect(() => {
-    const measure = () => setSidebarOffset(readSidebarOffsetPx());
-    measure();
-    window.addEventListener("resize", measure);
-    const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-    const observer =
-      sidebar && typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(measure)
-        : null;
-    if (sidebar) observer?.observe(sidebar);
-    return () => {
-      window.removeEventListener("resize", measure);
-      observer?.disconnect();
-    };
-  }, []);
-
-  const [navigationWidthPx, setNavigationWidthPx] = useState(0);
-  useLayoutEffect(() => {
-    if (!isOpen || widthMode !== "split") return;
-    const peek = document.querySelector<HTMLElement>("[data-peek-content]");
-    if (!peek) return;
-
-    let observedNavigation: HTMLElement | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-    const observeNavigation = () => {
-      const navigation = peek.querySelector<HTMLElement>(
-        "[data-trace-navigation-panel]",
-      );
-      if (navigation === observedNavigation) return;
-
-      resizeObserver?.disconnect();
-      observedNavigation = navigation;
-      if (!navigation) return;
-
-      const measure = () => {
-        const next = Math.round(navigation.getBoundingClientRect().width);
-        if (next <= 0) return;
-        setNavigationWidthPx((current) => (current === next ? current : next));
-      };
-      measure();
-      resizeObserver =
-        typeof ResizeObserver !== "undefined"
-          ? new ResizeObserver(measure)
-          : null;
-      resizeObserver?.observe(navigation);
-    };
-
-    observeNavigation();
-    const mutationObserver = new MutationObserver(observeNavigation);
-    mutationObserver.observe(peek, { childList: true, subtree: true });
-    return () => {
-      mutationObserver.disconnect();
-      resizeObserver?.disconnect();
-    };
-  }, [isOpen, widthMode]);
+  const navigationWidthPx = useTraceNavigationWidthPx({ isOpen, widthMode });
 
   useLayoutEffect(() => {
     const state = store.getState();
