@@ -33,16 +33,48 @@ function getBackfillRange(
   }
 }
 
+function normalizeBackfillRange(
+  nextRange: EvaluatorBackfillRange,
+  previousFrom: Date,
+  now = new Date(),
+): EvaluatorBackfillRange {
+  const earliestAllowedStart = startOfDay(subMonths(now, 6));
+  const latestAllowedEnd = endOfDay(now);
+  const clampDate = (date: Date) =>
+    new Date(
+      Math.min(
+        Math.max(date.getTime(), earliestAllowedStart.getTime()),
+        latestAllowedEnd.getTime(),
+      ),
+    );
+  let from = clampDate(nextRange.from);
+  let to = clampDate(nextRange.to);
+
+  if (from > to) {
+    if (nextRange.from.getTime() !== previousFrom.getTime()) {
+      to = clampDate(endOfDay(from));
+    } else {
+      from = clampDate(startOfDay(to));
+    }
+  }
+
+  return { from, to };
+}
+
 export function useEvaluatorSavedBackfill({
   projectId,
   evaluatorId,
   knownTestRunCostUsd,
   historicEvaluationLimit,
+  claimMissingCostTest,
+  resetMissingCostTest,
 }: {
   projectId: string;
   evaluatorId: string;
   knownTestRunCostUsd?: number;
   historicEvaluationLimit?: number;
+  claimMissingCostTest: () => boolean;
+  resetMissingCostTest: () => void;
 }) {
   const utils = api.useUtils();
   const runEvaluation = api.batchAction.runEvaluation.create.useMutation({
@@ -65,13 +97,14 @@ export function useEvaluatorSavedBackfill({
       const requestId = ++estimateRequestId.current;
       setIsEstimating(true);
       try {
+        const shouldRunMissingTest = claimMissingCostTest();
         const result =
           await utils.client.evalsV2.activationCostEstimates.mutate({
             projectId,
             evaluatorIds: [evaluatorId],
             filter: scope.filter,
             sampling: scope.sampling,
-            shouldRunMissingTest: true,
+            shouldRunMissingTest,
             timeRange: estimateRange,
             ...(knownTestRunCostUsd !== undefined
               ? { knownTestRunCostUsd }
@@ -82,6 +115,9 @@ export function useEvaluatorSavedBackfill({
           ({ evaluatorId: resultEvaluatorId }) =>
             resultEvaluatorId === evaluatorId,
         );
+        if (shouldRunMissingTest && estimate?.matchingObservations === 0) {
+          resetMissingCostTest();
+        }
         setMatchingObservations(estimate?.matchingObservations ?? 0);
         setTestRunCostUsd(estimate?.testRunCostUsd ?? null);
       } catch (error) {
@@ -96,7 +132,15 @@ export function useEvaluatorSavedBackfill({
         }
       }
     },
-    [evaluatorId, knownTestRunCostUsd, projectId, range, utils.client],
+    [
+      claimMissingCostTest,
+      evaluatorId,
+      knownTestRunCostUsd,
+      projectId,
+      range,
+      resetMissingCostTest,
+      utils.client,
+    ],
   );
 
   const clearScope = useCallback(() => {
@@ -132,21 +176,7 @@ export function useEvaluatorSavedBackfill({
       nextRange: EvaluatorBackfillRange,
       scope: EvaluatorBackfillScope | null,
     ) => {
-      const now = new Date();
-      const earliestAllowedStart = subMonths(now, 6);
-      let from =
-        nextRange.from < earliestAllowedStart
-          ? earliestAllowedStart
-          : nextRange.from;
-      let to = nextRange.to > now ? now : nextRange.to;
-      if (from > to) {
-        if (nextRange.from.getTime() !== range.from.getTime()) {
-          to = endOfDay(from);
-        } else {
-          from = startOfDay(to);
-        }
-      }
-      const clampedRange = { from, to };
+      const clampedRange = normalizeBackfillRange(nextRange, range.from);
       setRange(clampedRange);
       if (scope) {
         requestEstimate(scope, clampedRange).catch(() => undefined);
@@ -180,6 +210,10 @@ export function useEvaluatorSavedBackfill({
     executionRange: EvaluatorBackfillRange,
   ) => {
     if (!enabled || hasScheduled.current) return;
+    const normalizedExecutionRange = normalizeBackfillRange(
+      executionRange,
+      range.from,
+    );
     await runEvaluation.mutateAsync({
       projectId,
       query: {
@@ -189,13 +223,13 @@ export function useEvaluatorSavedBackfill({
             column: "startTime",
             type: "datetime",
             operator: ">=",
-            value: executionRange.from,
+            value: normalizedExecutionRange.from,
           },
           {
             column: "startTime",
             type: "datetime",
             operator: "<=",
-            value: executionRange.to,
+            value: normalizedExecutionRange.to,
           },
         ],
         orderBy: { column: "startTime", order: "DESC" },

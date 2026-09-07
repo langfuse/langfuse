@@ -135,6 +135,7 @@ describe("getActivationCostEstimates", () => {
       ],
       limit: 1,
       offset: 0,
+      dedupeBySpanId: true,
     });
     expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledOnce();
     expect(result).toEqual([
@@ -182,6 +183,7 @@ describe("getActivationCostEstimates", () => {
       ],
       limit: 1,
       offset: 0,
+      dedupeBySpanId: true,
     });
   });
 

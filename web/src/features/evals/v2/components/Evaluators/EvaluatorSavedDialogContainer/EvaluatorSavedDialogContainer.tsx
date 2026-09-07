@@ -74,6 +74,14 @@ export function EvaluatorSavedDialogContainer({
   const hasRequestedMissingCostTest = useRef(
     evaluator.hasCompletedTestCall ?? false,
   );
+  const claimMissingCostTest = useCallback(() => {
+    if (hasRequestedMissingCostTest.current) return false;
+    hasRequestedMissingCostTest.current = true;
+    return true;
+  }, []);
+  const resetMissingCostTest = useCallback(() => {
+    hasRequestedMissingCostTest.current = false;
+  }, []);
   const missingCostTestRequest = useRef<Promise<void> | null>(null);
   const activeRules = api.evalsV2.rules.list.useQuery(
     {
@@ -103,6 +111,8 @@ export function EvaluatorSavedDialogContainer({
     evaluatorId: evaluator.id,
     knownTestRunCostUsd: evaluator.testRunCostUsd ?? undefined,
     historicEvaluationLimit: historicEvaluationLimit.data,
+    claimMissingCostTest,
+    resetMissingCostTest,
   });
   const availableRules = useMemo(
     () =>
@@ -227,10 +237,9 @@ export function EvaluatorSavedDialogContainer({
         }
         if (estimateRequestId.current !== requestId) return;
 
-        const shouldRunMissingTest = !hasRequestedMissingCostTest.current;
+        const shouldRunMissingTest = claimMissingCostTest();
         let finishMissingCostTestRequest: (() => void) | undefined;
         if (shouldRunMissingTest) {
-          hasRequestedMissingCostTest.current = true;
           missingCostTestRequest.current = new Promise<void>((resolve) => {
             finishMissingCostTestRequest = resolve;
           });
@@ -266,18 +275,20 @@ export function EvaluatorSavedDialogContainer({
           if (shouldRunMissingTest) missingCostTestRequest.current = null;
         }
         if (estimateRequestId.current !== requestId) return;
-        if (result?.matchingObservations === 0) {
-          hasRequestedMissingCostTest.current = false;
+        if (shouldRunMissingTest && result?.matchingObservations === 0) {
+          resetMissingCostTest();
         }
       } finally {
         if (estimateRequestId.current === requestId) setIsEstimating(false);
       }
     },
     [
+      claimMissingCostTest,
       evaluator.id,
       evaluator.name,
       evaluator.testRunCostUsd,
       requestActivation,
+      resetMissingCostTest,
       setActivationOpen,
     ],
   );

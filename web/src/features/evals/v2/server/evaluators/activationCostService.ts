@@ -85,6 +85,7 @@ export async function getActivationCostEstimates(params: {
       // Required by the shared query shape; the count aggregate ignores paging.
       limit: 1,
       offset: 0,
+      dedupeBySpanId: true,
     }),
     Promise.all(
       llmEvaluators.map(async (evaluator) =>
