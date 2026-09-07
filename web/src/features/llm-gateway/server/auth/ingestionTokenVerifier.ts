@@ -9,6 +9,7 @@ import {
   createEd25519JwtVerifier,
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
+import { requireGatewayEnabledForOrganization } from "../availability";
 
 export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
@@ -84,6 +85,7 @@ export async function verifyGatewayIngestionAuthorization(
   } catch {
     throw new UnauthorizedError("Invalid gateway ingestion token");
   }
+  requireGatewayEnabledForOrganization(claims.organizationId);
 
   const [project, gatewayKey] = await Promise.all([
     database.project.findFirst({

@@ -31,9 +31,13 @@ import {
 } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
+import { env } from "@/src/env.mjs";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
+const originalGatewayOrganizationAllowlist = [
+  ...env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+];
 
 const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
@@ -56,6 +60,11 @@ afterEach(async () => {
   await prisma.user.deleteMany({
     where: { id: { in: cleanupUsers.splice(0) } },
   });
+  env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+    0,
+    env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
+    ...originalGatewayOrganizationAllowlist,
+  );
   vi.clearAllMocks();
 });
 
@@ -75,6 +84,7 @@ async function prepare(role: Role = Role.OWNER) {
   });
   cleanupOrganizations.push(org.id);
   cleanupUsers.push(user.id);
+  env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
 
   const session: Session = {
     expires: "1",
@@ -116,6 +126,18 @@ async function prepare(role: Role = Role.OWNER) {
 }
 
 describe("LLM gateway control plane", () => {
+  it("rejects control-plane access outside the organization allowlist", async () => {
+    const { caller, org } = await prepare();
+    env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+      env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.indexOf(org.id),
+      1,
+    );
+
+    await expect(
+      caller.llmGateway.getConfig({ orgId: org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("creates a private ingestion project and blocks implicit member access", async () => {
     const owner = await prepare();
     const existingMember = await prisma.user.create({

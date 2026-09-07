@@ -356,6 +356,17 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
     LANGFUSE_GATEWAY_JWT_KEY_ID: z.string().min(1).default("current"),
     LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: z.string().min(1).optional(),
@@ -1047,6 +1058,8 @@ export const env = createEnv({
     LANGFUSE_GATEWAY_SERVICE_KEY: process.env.LANGFUSE_GATEWAY_SERVICE_KEY,
     LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+      process.env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_GATEWAY_JWT_KEY_ID,
     LANGFUSE_GATEWAY_JWT_PRIVATE_KEY:
       process.env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,

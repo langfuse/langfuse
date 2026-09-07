@@ -1,5 +1,5 @@
 import { useSession } from "next-auth/react";
-import { isInternalOnlyFlag } from "../available-flags";
+import { isRestrictedFlag } from "../available-flags";
 import type { Flag } from "../types";
 import { getContextualFeatureFlags } from "../utils";
 
@@ -28,7 +28,7 @@ export default function useIsFeatureEnabled(
       organizationId,
     })?.[feature] ?? false;
 
-  if (isInternalOnlyFlag(feature)) {
+  if (isRestrictedFlag(feature)) {
     return isFeatureEnabledOnUser;
   }
 

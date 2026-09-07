@@ -9,6 +9,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiKeyRepository } from "../apiKey/gatewayApiKeyRepository";
+import { isGatewayEnabledForOrganization } from "../availability";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayResolveError } from "@/src/features/llm-gateway/server/resolve/resolveService";
 
@@ -58,6 +59,12 @@ async function authenticateGatewayResolveRequest(input: {
   const organizationId = association?.apiKey.orgId;
   if (!association || !organizationId) {
     throw new GatewayResolveError("Invalid gateway key", 401);
+  }
+  if (!isGatewayEnabledForOrganization(organizationId)) {
+    throw new GatewayResolveError(
+      "Gateway is not enabled for this organization",
+      403,
+    );
   }
 
   return {

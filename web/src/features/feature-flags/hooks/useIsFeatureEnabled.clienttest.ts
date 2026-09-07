@@ -21,30 +21,40 @@ const mockSession = ({
       environment: { enableExperimentalFeatures },
       user: {
         admin,
-        featureFlags: { llmGateway },
-        organizations: [],
+        featureFlags: { llmGateway: false },
+        organizations: [
+          {
+            id: "org-1",
+            featureFlags: { llmGateway },
+            projects: [],
+          },
+        ],
       },
     },
   } as unknown as ReturnType<typeof useSession>);
 };
 
 describe("useIsFeatureEnabled", () => {
-  it("does not let admin or experimental-feature overrides enable internal flags", () => {
+  it("does not let admin or experimental-feature overrides enable restricted flags", () => {
     mockSession({
       llmGateway: false,
       admin: true,
       enableExperimentalFeatures: true,
     });
 
-    const { result } = renderHook(() => useIsFeatureEnabled("llmGateway"));
+    const { result } = renderHook(() =>
+      useIsFeatureEnabled("llmGateway", { organizationId: "org-1" }),
+    );
 
     expect(result.current).toBe(false);
   });
 
-  it("returns the server-resolved internal flag", () => {
+  it("returns the server-resolved organization flag", () => {
     mockSession({ llmGateway: true });
 
-    const { result } = renderHook(() => useIsFeatureEnabled("llmGateway"));
+    const { result } = renderHook(() =>
+      useIsFeatureEnabled("llmGateway", { organizationId: "org-1" }),
+    );
 
     expect(result.current).toBe(true);
   });

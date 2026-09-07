@@ -25,6 +25,7 @@ vi.mock("@/src/env.mjs", () => ({
     LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
     LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
     LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+    LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
   },
 }));
 
@@ -35,12 +36,12 @@ const signer = createEd25519JwtSigner({
   audience: "test-audience",
 });
 
-function token() {
+function token(organizationId = "org-1") {
   return signer.sign({
     expiresInSeconds: 60,
     claims: {
       version: 1,
-      organizationId: "org-1",
+      organizationId,
       projectId: "project-1",
       keyId: "key-1",
       instrumentation_mode: "full",
@@ -80,6 +81,18 @@ function database(
 }
 
 describe("verifyGatewayIngestionAuthorization", () => {
+  it("rejects tokens for organizations outside the allowlist", async () => {
+    const db = database();
+
+    await expect(
+      verifyGatewayIngestionAuthorization(
+        `Bearer ${token("org-not-allowed")}`,
+        db,
+      ),
+    ).rejects.toThrow("LLM Gateway is not enabled for this organization");
+    expect(db.project.findFirst).not.toHaveBeenCalled();
+  });
+
   it.each([
     undefined,
     "Basic token",

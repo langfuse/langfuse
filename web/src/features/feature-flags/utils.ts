@@ -1,7 +1,7 @@
 import {
   availableFlags,
   filterFeaturePreviewFlags,
-  isInternalOnlyFlag,
+  isRestrictedFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
@@ -20,13 +20,11 @@ const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   );
 };
 
-const isLangfuseEmployeeEmail = (email: string | null | undefined): boolean =>
-  email?.toLowerCase().endsWith("@langfuse.com") === true;
-
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    llmGatewayEnabled?: boolean;
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
@@ -35,8 +33,8 @@ export const parseFlags = (
   );
 
   availableFlags.forEach((flag) => {
-    if (isInternalOnlyFlag(flag)) {
-      parsedFlags[flag] = isLangfuseEmployeeEmail(context.email);
+    if (isRestrictedFlag(flag)) {
+      parsedFlags[flag] = context.llmGatewayEnabled === true;
       return;
     }
 
@@ -68,6 +66,7 @@ export const parseFlagsWithOrganizationDefaults = (
   organizationDefaults: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    llmGatewayEnabled?: boolean;
   },
 ): Flags => {
   const featurePreviewDefaults =

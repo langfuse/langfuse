@@ -37,11 +37,12 @@ describe("parseFlags", () => {
     expect(flags.modernSession).toBe(false);
   });
 
-  it("enables the internal gateway flag only for Langfuse users", () => {
+  it("enables the gateway flag only for allowlisted organizations", () => {
     expect(
       parseFlags([], {
-        email: "TEAM.MEMBER@LANGFUSE.COM",
+        email: "user@example.com",
         v4BetaEnabled: true,
+        llmGatewayEnabled: true,
       }).llmGateway,
     ).toBe(true);
     expect(
@@ -52,7 +53,7 @@ describe("parseFlags", () => {
     ).toBe(false);
     expect(
       parseFlags(["llmGateway"], {
-        email: "team.member@clickhouse.com",
+        email: "team.member@langfuse.com",
         v4BetaEnabled: true,
       }).llmGateway,
     ).toBe(false);

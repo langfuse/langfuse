@@ -16,6 +16,7 @@ import {
 import { redis } from "@langfuse/shared/src/server";
 
 import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
+import { requireGatewayEnabledForOrganization } from "./availability";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { GatewayMetadataSchema, GatewayProviderService } from "./provider";
 
@@ -26,6 +27,7 @@ const paginatedOrganizationInput = organizationInput.extend({
 });
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
+  requireGatewayEnabledForOrganization(params.orgId);
   throwIfNoOrganizationAccess({
     session: params.session,
     organizationId: params.orgId,
