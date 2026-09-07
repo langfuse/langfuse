@@ -1,6 +1,8 @@
-import { createHash, createHmac, generateKeyPairSync, sign } from "node:crypto";
+import { createHash, createHmac, generateKeyPairSync } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
+
+import { signEd25519Jwt } from "@/src/server/utils/jwt";
 
 import {
   issueGatewayIngestionToken,
@@ -64,15 +66,18 @@ describe("LLM gateway authentication", () => {
     ).toBe(false);
   });
 
-  it("issues and verifies a 15-minute Ed25519 ingestion token by kid", () => {
+  it("applies gateway claims and a 15-minute ingestion token lifetime", () => {
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-    const previous = generateKeyPairSync("ed25519");
     const now = new Date("2026-09-04T15:00:00.000Z");
+    const privateKeyPem = privateKey
+      .export({ format: "pem", type: "pkcs8" })
+      .toString();
+    const publicKeyPem = publicKey
+      .export({ format: "pem", type: "spki" })
+      .toString();
 
     const token = issueGatewayIngestionToken({
-      privateKey: privateKey
-        .export({ format: "pem", type: "pkcs8" })
-        .toString(),
+      privateKey: privateKeyPem,
       keyId: "current",
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
@@ -90,20 +95,7 @@ describe("LLM gateway authentication", () => {
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
       now,
-      publicKeys: [
-        {
-          id: "previous",
-          publicKey: previous.publicKey
-            .export({ format: "pem", type: "spki" })
-            .toString(),
-        },
-        {
-          id: "current",
-          publicKey: publicKey
-            .export({ format: "pem", type: "spki" })
-            .toString(),
-        },
-      ],
+      publicKeys: [{ id: "current", publicKey: publicKeyPem }],
     });
 
     expect(verified).toMatchObject({
@@ -119,82 +111,29 @@ describe("LLM gateway authentication", () => {
     expect(verified.exp - verified.iat).toBe(15 * 60);
     expect(verified.jti).toEqual(expect.any(String));
 
-    const previousToken = issueGatewayIngestionToken({
-      privateKey: previous.privateKey
-        .export({ format: "pem", type: "pkcs8" })
-        .toString(),
-      keyId: "previous",
+    const wrongScopeToken = signEd25519Jwt({
+      privateKey: privateKeyPem,
+      keyId: "current",
       issuer: "langfuse-control-plane",
       audience: "langfuse-ingestion",
+      expiresInSeconds: 15 * 60,
       now,
       claims: {
+        version: 1,
         organizationId: "org-1",
         projectId: "project-1",
         keyId: "gateway-key-1",
         instrumentation_mode: "usage",
+        scope: "unrelated-api",
       },
     });
-    expect(
-      verifyGatewayIngestionToken({
-        token: previousToken,
-        issuer: "langfuse-control-plane",
-        audience: "langfuse-ingestion",
-        now,
-        publicKeys: [
-          {
-            id: "previous",
-            publicKey: previous.publicKey
-              .export({ format: "pem", type: "spki" })
-              .toString(),
-          },
-        ],
-      }).instrumentation_mode,
-    ).toBe("usage");
-
-    expect(() =>
-      verifyGatewayIngestionToken({
-        token,
-        issuer: "langfuse-control-plane",
-        audience: "langfuse-ingestion",
-        now: new Date(now.getTime() + 15 * 60 * 1000),
-        publicKeys: [
-          {
-            id: "current",
-            publicKey: publicKey
-              .export({ format: "pem", type: "spki" })
-              .toString(),
-          },
-        ],
-      }),
-    ).toThrow("claims");
-
-    const [header, payload] = token.split(".");
-    const wrongScopePayload = Buffer.from(
-      JSON.stringify({
-        ...JSON.parse(Buffer.from(payload, "base64url").toString("utf8")),
-        scope: "unrelated-api",
-      }),
-    ).toString("base64url");
-    const signingInput = `${header}.${wrongScopePayload}`;
-    const wrongScopeToken = `${signingInput}.${sign(
-      null,
-      Buffer.from(signingInput),
-      privateKey,
-    ).toString("base64url")}`;
     expect(() =>
       verifyGatewayIngestionToken({
         token: wrongScopeToken,
         issuer: "langfuse-control-plane",
         audience: "langfuse-ingestion",
         now,
-        publicKeys: [
-          {
-            id: "current",
-            publicKey: publicKey
-              .export({ format: "pem", type: "spki" })
-              .toString(),
-          },
-        ],
+        publicKeys: [{ id: "current", publicKey: publicKeyPem }],
       }),
     ).toThrow();
   });

@@ -1,15 +1,8 @@
-import {
-  createHash,
-  createHmac,
-  createPrivateKey,
-  createPublicKey,
-  randomUUID,
-  sign,
-  timingSafeEqual,
-  verify,
-} from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod/v4";
+
+import { signEd25519Jwt, verifyEd25519Jwt } from "@/src/server/utils/jwt";
 
 const RESOLVE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
@@ -42,14 +35,6 @@ const GatewayIngestionClaimsSchema = z.object({
 export type GatewayIngestionClaims = z.infer<
   typeof GatewayIngestionClaimsSchema
 >;
-
-function encodeJson(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
-}
-
-function normalizePem(value: string): string {
-  return value.replaceAll("\\n", "\n");
-}
 
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left, "utf8");
@@ -126,25 +111,19 @@ export function issueGatewayIngestionToken(input: {
     "organizationId" | "projectId" | "keyId" | "instrumentation_mode"
   >;
 }): string {
-  const iat = Math.floor((input.now ?? new Date()).getTime() / 1000);
-  const header = encodeJson({ alg: "EdDSA", typ: "JWT", kid: input.keyId });
-  const payload = encodeJson({
-    version: 1,
-    ...input.claims,
-    scope: "gateway-ingest",
-    iat,
-    exp: iat + INGESTION_TOKEN_TTL_SECONDS,
-    iss: input.issuer,
-    aud: input.audience,
-    jti: randomUUID(),
+  return signEd25519Jwt({
+    privateKey: input.privateKey,
+    keyId: input.keyId,
+    issuer: input.issuer,
+    audience: input.audience,
+    expiresInSeconds: INGESTION_TOKEN_TTL_SECONDS,
+    now: input.now,
+    claims: {
+      version: 1,
+      ...input.claims,
+      scope: "gateway-ingest",
+    },
   });
-  const signingInput = `${header}.${payload}`;
-  const signature = sign(
-    null,
-    Buffer.from(signingInput, "utf8"),
-    createPrivateKey(normalizePem(input.privateKey)),
-  ).toString("base64url");
-  return `${signingInput}.${signature}`;
 }
 
 export function verifyGatewayIngestionToken(input: {
@@ -154,39 +133,8 @@ export function verifyGatewayIngestionToken(input: {
   publicKeys: Array<{ id: string; publicKey: string }>;
   now?: Date;
 }): GatewayIngestionClaims {
-  const parts = input.token.split(".");
-  if (parts.length !== 3) throw new Error("Invalid gateway ingestion token");
-  const [encodedHeader, encodedPayload, encodedSignature] = parts;
-  const header = z
-    .object({
-      alg: z.literal("EdDSA"),
-      typ: z.literal("JWT"),
-      kid: z.string(),
-    })
-    .parse(
-      JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")),
-    );
-  const key = input.publicKeys.find((candidate) => candidate.id === header.kid);
-  if (!key) throw new Error("Unknown gateway ingestion signing key");
-
-  const valid = verify(
-    null,
-    Buffer.from(`${encodedHeader}.${encodedPayload}`, "utf8"),
-    createPublicKey(normalizePem(key.publicKey)),
-    Buffer.from(encodedSignature, "base64url"),
-  );
-  if (!valid) throw new Error("Invalid gateway ingestion token signature");
-
-  const claims = GatewayIngestionClaimsSchema.parse(
-    JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")),
-  );
-  const now = Math.floor((input.now ?? new Date()).getTime() / 1000);
-  if (
-    claims.iss !== input.issuer ||
-    claims.aud !== input.audience ||
-    claims.exp <= now
-  ) {
-    throw new Error("Invalid gateway ingestion token claims");
-  }
-  return claims;
+  return verifyEd25519Jwt({
+    ...input,
+    claimsSchema: GatewayIngestionClaimsSchema,
+  });
 }
