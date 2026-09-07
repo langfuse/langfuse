@@ -129,8 +129,9 @@ export function ProviderDialogController({
               <Alert variant="destructive">
                 <Alert.Title>Provider validation failed</Alert.Title>
                 <Alert.Description>
-                  The credential could not be saved or validated. Check the key
-                  and try again.
+                  {create.error?.message ??
+                    update.error?.message ??
+                    "The credential could not be saved or validated. Check the key and try again."}
                 </Alert.Description>
               </Alert>
             ) : null}

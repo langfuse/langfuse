@@ -223,7 +223,8 @@ export function CreateGatewayApiKeyDialogController({
                   <Alert variant="destructive">
                     <Alert.Title>Gateway key could not be created</Alert.Title>
                     <Alert.Description>
-                      Check the metadata and try again.
+                      {create.error?.message ??
+                        "Check the metadata and try again."}
                     </Alert.Description>
                   </Alert>
                 ) : null}
