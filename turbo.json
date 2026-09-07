@@ -27,6 +27,19 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "build-storybook": {
+      "dependsOn": ["^build-storybook"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/.env*"],
+      "outputs": ["storybook-static/**"],
+      "env": [
+        "NODE_ENV",
+        "CI_STORYBOOK_NODE_VERSION",
+        "STORYBOOK_*",
+        "VITE_*",
+        "NEXT_PUBLIC_*"
+      ],
+      "outputLogs": "errors-only"
+    },
     "start": {
       "dependsOn": ["^start"]
     },

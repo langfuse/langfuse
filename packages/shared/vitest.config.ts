@@ -1,7 +1,9 @@
 import { defineConfig } from "vitest/config";
+import { ciVitestCache } from "../../scripts/vitest/transform-cache.mjs";
 
 export default defineConfig({
   test: {
+    experimental: ciVitestCache("shared"),
     silent: "passed-only",
     dir: "./src",
     include: ["**/*.test.ts"],
