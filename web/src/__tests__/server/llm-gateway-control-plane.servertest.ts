@@ -102,6 +102,7 @@ async function prepare(role: Role = Role.OWNER) {
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const orgSession = {
     ...session,
+    user: session.user!,
     orgId: org.id,
     orgRole: role,
   } satisfies OrgAuthedContext["session"];
