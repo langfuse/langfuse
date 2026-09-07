@@ -8,7 +8,6 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
-import { ciVitestCache } from "../scripts/vitest/transform-cache.mjs";
 
 expand(config({ path: "../.env.test" }));
 expand(config({ path: "../.env" }));
@@ -131,7 +130,11 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
+  dedupe: [
+    "@ag-ui/core",
+    "@ag-ui/client",
+    "langfuse",
+  ],
 };
 
 function serverProject(
@@ -181,7 +184,6 @@ export default defineConfig({
     ],
   },
   test: {
-    experimental: ciVitestCache("web"),
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
@@ -259,8 +261,6 @@ export default defineConfig({
         ],
         test: {
           name: "storybook",
-          // Vitest's filesystem module cache supports Node environments only.
-          experimental: { fsModuleCache: false },
           browser: {
             enabled: true,
             provider: playwright(),

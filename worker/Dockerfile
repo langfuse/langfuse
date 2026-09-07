@@ -56,8 +56,6 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
-# Typechecked Vitest configs import these root helpers outside the pruned packages.
-COPY --from=pruner /app/scripts/vitest/ ./scripts/vitest/
 
 RUN turbo run build --filter=worker...
 

@@ -59,6 +59,7 @@ declare const globalThis: {
   prismaGlobal: PrismaClient | undefined;
 } & typeof global;
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
   globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
 }

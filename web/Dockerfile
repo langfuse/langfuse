@@ -123,8 +123,6 @@ ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
-# Typechecked Vitest configs import these root helpers outside the pruned packages.
-COPY --from=pruner /app/scripts/vitest/ ./scripts/vitest/
 
 # Keep the documented direct golang-migrate recovery paths available in the
 # production image while maintaining canonical/ as the only authored tree.

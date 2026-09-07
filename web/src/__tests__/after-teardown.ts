@@ -11,4 +11,7 @@ afterAll(async () => {
   }
 
   await teardown();
+  // The teardown dynamically imports the heavy @langfuse/shared server module
+  // graph; under a fully loaded CI runner that alone can exceed the default
+  // 10s hook timeout.
 }, 30_000);
