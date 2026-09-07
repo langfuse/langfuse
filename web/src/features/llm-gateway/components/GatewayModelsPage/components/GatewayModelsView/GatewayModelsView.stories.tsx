@@ -1,10 +1,21 @@
 import type { ComponentProps } from "react";
+import NextAdapterPages from "next-query-params/pages";
 import { fn } from "storybook/test";
+import { QueryParamProvider } from "use-query-params";
 
 import preview from "@/.storybook/preview";
 import { GatewayModelsView } from "./GatewayModelsView";
 
-const meta = preview.meta({ component: GatewayModelsView });
+const meta = preview.meta({
+  component: GatewayModelsView,
+  decorators: [
+    (Story) => (
+      <QueryParamProvider adapter={NextAdapterPages}>
+        <Story />
+      </QueryParamProvider>
+    ),
+  ],
+});
 
 const models = [
   {
