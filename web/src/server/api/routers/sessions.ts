@@ -796,29 +796,44 @@ export const sessionRouter = createTRPCRouter({
         return traces.map((trace) => ({ ...trace, scores: [] }));
       }
 
-      const chunks = chunk(traces, 500);
-      const scores = await Promise.all(
-        chunks.map((traceChunk) =>
-          getScoresForTraces({
-            projectId: input.projectId,
-            traceIds: traceChunk.map((t) => t.id),
-            timestamp: new Date(
-              Math.min(...traceChunk.map((t) => t.timestamp.getTime())),
-            ),
-          }),
-        ),
-      ).then((results) => results.flat());
+      const traceChunks = chunk(traces, 500);
+      let scoreChunks: Awaited<ReturnType<typeof getScoresForTraces>>[] = [];
+      for (const concurrentChunks of chunk(traceChunks, 4)) {
+        const results = await Promise.all(
+          concurrentChunks.map((traceChunk) =>
+            getScoresForTraces({
+              projectId: input.projectId,
+              traceIds: traceChunk.map((t) => t.id),
+              timestamp: new Date(
+                Math.min(...traceChunk.map((t) => t.timestamp.getTime())),
+              ),
+            }),
+          ),
+        );
+        scoreChunks = scoreChunks.concat(results);
+      }
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: scoreChunks.flat(),
         dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
+      const scoresByTraceId = new Map<
+        string,
+        (typeof validatedScores)[number][]
+      >();
+      for (const score of validatedScores) {
+        if (!score.traceId) continue;
+        const traceScores = scoresByTraceId.get(score.traceId);
+        if (traceScores) traceScores.push(score);
+        else scoresByTraceId.set(score.traceId, [score]);
+      }
+
       return traces.map((trace) => ({
         ...trace,
         scores: toDomainArrayWithStringifiedMetadata(
-          validatedScores.filter((s) => s.traceId === trace.id),
+          scoresByTraceId.get(trace.id) ?? [],
         ),
       }));
     }),
