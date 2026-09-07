@@ -1,22 +1,11 @@
-DO $$ BEGIN
-  CREATE TYPE "GatewayInstrumentationMode" AS ENUM ('usage', 'full', 'none');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
+-- CreateEnum
+CREATE TYPE "GatewayInstrumentationMode" AS ENUM ('usage', 'full', 'none');
 
 -- CreateEnum
-DO $$ BEGIN
-  CREATE TYPE "GatewayProvider" AS ENUM ('openai', 'anthropic', 'openrouter');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "GatewayProvider" AS ENUM ('openai', 'anthropic', 'openrouter');
 
 -- CreateEnum
-DO $$ BEGIN
-  CREATE TYPE "GatewayConnectionStatus" AS ENUM ('enabled', 'disabled', 'error');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "GatewayConnectionStatus" AS ENUM ('enabled', 'disabled', 'error');
 
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "gateway_configs" (
@@ -35,8 +24,8 @@ CREATE TABLE IF NOT EXISTS "gateway_ai_connections" (
     "organization_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "provider" "GatewayProvider" NOT NULL,
-    "encrypted_credentials" TEXT NOT NULL,
-    "display_secret_key" TEXT NOT NULL,
+    "encrypted_credential" TEXT NOT NULL,
+    "display_secret" TEXT NOT NULL,
     "created_by_id" TEXT,
     "routing_priority" INTEGER NOT NULL,
     "status" "GatewayConnectionStatus" NOT NULL DEFAULT 'enabled',
@@ -70,41 +59,32 @@ ON "gateway_ai_connections"("organization_id", "status", "routing_priority");
 CREATE INDEX IF NOT EXISTS "gateway_ai_connections_created_by_id_idx"
 ON "gateway_ai_connections"("created_by_id");
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'gateway_configs_organization_id_fkey') THEN
-    ALTER TABLE "gateway_configs"
-    ADD CONSTRAINT "gateway_configs_organization_id_fkey"
-    FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
+-- AddForeignKey
+ALTER TABLE "gateway_configs"
+ADD CONSTRAINT "gateway_configs_organization_id_fkey"
+FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'gateway_configs_default_ingestion_project_id_fkey') THEN
-    ALTER TABLE "gateway_configs"
-    ADD CONSTRAINT "gateway_configs_default_ingestion_project_id_fkey"
-    FOREIGN KEY ("default_ingestion_project_id") REFERENCES "projects"("id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
-  END IF;
+-- AddForeignKey
+ALTER TABLE "gateway_configs"
+ADD CONSTRAINT "gateway_configs_default_ingestion_project_id_fkey"
+FOREIGN KEY ("default_ingestion_project_id") REFERENCES "projects"("id")
+ON DELETE SET NULL ON UPDATE CASCADE;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'gateway_ai_connections_organization_id_fkey') THEN
-    ALTER TABLE "gateway_ai_connections"
-    ADD CONSTRAINT "gateway_ai_connections_organization_id_fkey"
-    FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
+-- AddForeignKey
+ALTER TABLE "gateway_ai_connections"
+ADD CONSTRAINT "gateway_ai_connections_organization_id_fkey"
+FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'gateway_ai_connections_created_by_id_fkey') THEN
-    ALTER TABLE "gateway_ai_connections"
-    ADD CONSTRAINT "gateway_ai_connections_created_by_id_fkey"
-    FOREIGN KEY ("created_by_id") REFERENCES "users"("id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
-  END IF;
+-- AddForeignKey
+ALTER TABLE "gateway_ai_connections"
+ADD CONSTRAINT "gateway_ai_connections_created_by_id_fkey"
+FOREIGN KEY ("created_by_id") REFERENCES "users"("id")
+ON DELETE SET NULL ON UPDATE CASCADE;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'gateway_api_key_associations_api_key_id_fkey') THEN
-    ALTER TABLE "gateway_api_key_associations"
-    ADD CONSTRAINT "gateway_api_key_associations_api_key_id_fkey"
-    FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
-END
-$$;
+-- AddForeignKey
+ALTER TABLE "gateway_api_key_associations"
+ADD CONSTRAINT "gateway_api_key_associations_api_key_id_fkey"
+FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;

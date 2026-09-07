@@ -27,17 +27,7 @@ BEGIN
 END;
 $$;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_trigger
-    WHERE tgname = 'protect_gateway_ingestion_project_membership'
-  ) THEN
-    CREATE TRIGGER protect_gateway_ingestion_project_membership
-    AFTER INSERT ON "organization_memberships"
-    FOR EACH ROW
-    EXECUTE FUNCTION protect_gateway_ingestion_project_membership();
-  END IF;
-END
-$$;
+CREATE TRIGGER protect_gateway_ingestion_project_membership
+AFTER INSERT ON "organization_memberships"
+FOR EACH ROW
+EXECUTE FUNCTION protect_gateway_ingestion_project_membership();
