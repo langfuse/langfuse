@@ -75,6 +75,81 @@ const DESKTOP_LAYOUT_BY_CONTEXT = {
 type DesktopLayout =
   (typeof DESKTOP_LAYOUT_BY_CONTEXT)[keyof typeof DESKTOP_LAYOUT_BY_CONTEXT];
 
+type TraceEntry = NonNullable<TraceProps["sessionTraceEntries"]>[number];
+
+function useActiveTraceEntry({
+  primaryEntry,
+  sessionTraceEntries,
+  selectedNodeId,
+  projectId,
+}: {
+  primaryEntry: TraceEntry;
+  sessionTraceEntries: TraceProps["sessionTraceEntries"];
+  selectedNodeId: string | null;
+  projectId: string;
+}) {
+  const traceEntries = sessionTraceEntries ?? [primaryEntry];
+  const selectedTraceEntry =
+    traceEntries.find(
+      (entry) => traceNodeId(entry.trace.id) === selectedNodeId,
+    ) ??
+    traceEntries.find((entry) =>
+      entry.observations.some(
+        (observation) =>
+          observation.id === selectedNodeId ||
+          `${entry.trace.id}:${observation.id}` === selectedNodeId,
+      ),
+    ) ??
+    traceEntries.find((entry) => entry.trace.id === primaryEntry.trace.id) ??
+    traceEntries[0]!;
+  const shouldHydrate =
+    !!sessionTraceEntries &&
+    selectedTraceEntry.trace.id !== primaryEntry.trace.id;
+  const hydratedTraceData = useEventsTraceData({
+    projectId,
+    traceId: selectedTraceEntry.trace.id,
+    timestamp: selectedTraceEntry.trace.timestamp,
+    enabled: shouldHydrate,
+    scopeToSession: false,
+  });
+  const activeEntry = hydratedTraceData.data
+    ? {
+        trace: hydratedTraceData.data,
+        observations: hydratedTraceData.data.observations,
+        scores: hydratedTraceData.data.scores,
+        corrections: hydratedTraceData.data.corrections,
+      }
+    : selectedTraceEntry;
+  const selectedObservationId = activeEntry.observations.find(
+    (observation) =>
+      observation.id === selectedNodeId ||
+      `${activeEntry.trace.id}:${observation.id}` === selectedNodeId,
+  )?.id;
+  const sessionScores = sessionTraceEntries
+    ? sessionTraceEntries.flatMap((entry) =>
+        entry.trace.id === activeEntry.trace.id
+          ? activeEntry.scores
+          : entry.scores,
+      )
+    : activeEntry.scores;
+  const sessionCorrections = sessionTraceEntries
+    ? sessionTraceEntries.flatMap((entry) =>
+        entry.trace.id === activeEntry.trace.id
+          ? activeEntry.corrections
+          : entry.corrections,
+      )
+    : activeEntry.corrections;
+
+  return {
+    activeEntry,
+    selectedObservationId,
+    sessionScores,
+    sessionCorrections,
+    isLoading: shouldHydrate && hydratedTraceData.isLoading,
+    isError: shouldHydrate && !!hydratedTraceData.error,
+  };
+}
+
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
  * resolved before the tree is built: past the observation cap the selected row is
@@ -116,47 +191,25 @@ function TraceWithSelection({
   desktopLayout: DesktopLayout;
 }) {
   const { selectedNodeId } = useSelection();
-
-  const traceEntries = sessionTraceEntries ?? [
-    { trace, observations: loadedObservations, scores, corrections },
-  ];
-  const selectedTraceEntry =
-    traceEntries.find(
-      (entry) => traceNodeId(entry.trace.id) === selectedNodeId,
-    ) ??
-    traceEntries.find((entry) =>
-      entry.observations.some(
-        (observation) =>
-          observation.id === selectedNodeId ||
-          `${entry.trace.id}:${observation.id}` === selectedNodeId,
-      ),
-    ) ??
-    traceEntries.find((entry) => entry.trace.id === trace.id) ??
-    traceEntries[0]!;
-  const shouldHydrateSelectedTrace =
-    !!sessionTraceEntries && selectedTraceEntry.trace.id !== trace.id;
-  const hydratedTraceData = useEventsTraceData({
+  const {
+    activeEntry,
+    selectedObservationId,
+    sessionScores,
+    sessionCorrections,
+    isLoading: isTraceDetailLoading,
+    isError: isTraceDetailError,
+  } = useActiveTraceEntry({
+    primaryEntry: {
+      trace,
+      observations: loadedObservations,
+      scores,
+      corrections,
+    },
+    sessionTraceEntries,
+    selectedNodeId,
     projectId,
-    traceId: selectedTraceEntry.trace.id,
-    timestamp: selectedTraceEntry.trace.timestamp,
-    enabled: shouldHydrateSelectedTrace,
-    scopeToSession: false,
   });
-  const hydratedSelectedTraceEntry = hydratedTraceData.data
-    ? {
-        trace: hydratedTraceData.data,
-        observations: hydratedTraceData.data.observations,
-        scores: hydratedTraceData.data.scores,
-        corrections: hydratedTraceData.data.corrections,
-      }
-    : selectedTraceEntry;
-  const activeTrace = hydratedSelectedTraceEntry.trace;
-  const selectedObservationId = hydratedSelectedTraceEntry.observations.find(
-    (observation) =>
-      observation.id === selectedNodeId ||
-      `${hydratedSelectedTraceEntry.trace.id}:${observation.id}` ===
-        selectedNodeId,
-  )?.id;
+  const activeTrace = activeEntry.trace;
 
   // Fetch comment counts using existing hook
   const { observationCommentCounts, traceCommentCount, traceCommentCounts } =
@@ -203,7 +256,7 @@ function TraceWithSelection({
     selectedNodeId: selectedObservationId ?? selectedNodeId,
     traceId: activeTrace.id,
     projectId,
-    observations: hydratedSelectedTraceEntry.observations,
+    observations: activeEntry.observations,
   });
   const detachedObservation =
     selected.kind === "observation" && selected.isOutsideLoadedList
@@ -218,10 +271,8 @@ function TraceWithSelection({
   const detachedIsMisplaced = useMemo(() => {
     const parentId = detachedObservation?.parentObservationId;
     if (!parentId) return false;
-    return !hydratedSelectedTraceEntry.observations.some(
-      (obs) => obs.id === parentId,
-    );
-  }, [detachedObservation, hydratedSelectedTraceEntry.observations]);
+    return !activeEntry.observations.some((obs) => obs.id === parentId);
+  }, [detachedObservation, activeEntry.observations]);
 
   const observations = useMemo(
     () =>
@@ -233,24 +284,10 @@ function TraceWithSelection({
   const activeTraceObservations = useMemo(
     () =>
       detachedObservation
-        ? [...hydratedSelectedTraceEntry.observations, detachedObservation]
-        : hydratedSelectedTraceEntry.observations,
-    [hydratedSelectedTraceEntry.observations, detachedObservation],
+        ? [...activeEntry.observations, detachedObservation]
+        : activeEntry.observations,
+    [activeEntry.observations, detachedObservation],
   );
-  const sessionScores = sessionTraceEntries
-    ? sessionTraceEntries.flatMap((entry) =>
-        entry.trace.id === hydratedSelectedTraceEntry.trace.id
-          ? hydratedSelectedTraceEntry.scores
-          : entry.scores,
-      )
-    : hydratedSelectedTraceEntry.scores;
-  const sessionCorrections = sessionTraceEntries
-    ? sessionTraceEntries.flatMap((entry) =>
-        entry.trace.id === hydratedSelectedTraceEntry.trace.id
-          ? hydratedSelectedTraceEntry.corrections
-          : entry.corrections,
-      )
-    : hydratedSelectedTraceEntry.corrections;
 
   return (
     <TraceDataProvider
@@ -264,12 +301,8 @@ function TraceWithSelection({
       detachedObservationId={detachedObservation?.id ?? null}
       detachedObservationIsMisplaced={detachedIsMisplaced}
       truncatedAtObservations={truncatedAtObservations}
-      isTraceDetailLoading={
-        shouldHydrateSelectedTrace && hydratedTraceData.isLoading
-      }
-      isTraceDetailError={
-        shouldHydrateSelectedTrace && !!hydratedTraceData.error
-      }
+      isTraceDetailLoading={isTraceDetailLoading}
+      isTraceDetailError={isTraceDetailError}
     >
       <TraceGraphDataProvider
         projectId={activeTrace.projectId}
