@@ -2,7 +2,7 @@ import { useId, useMemo } from "react";
 import { Star } from "lucide-react";
 import type { FilterState } from "@langfuse/shared";
 
-import { Radio } from "@/src/components/Radio/Radio";
+import { Radio } from "@/src/components/design-system/Radio/Radio";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";

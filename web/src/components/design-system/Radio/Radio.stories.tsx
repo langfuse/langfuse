@@ -1,5 +1,5 @@
 import { fn } from "storybook/test";
-import preview from "../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { Radio } from "./Radio";
 
 const meta = preview.meta({
