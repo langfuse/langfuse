@@ -47,74 +47,6 @@ import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
-type TableDensity = "compact" | "comfortable";
-
-const TableHeader = React.forwardRef<
-  HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
-));
-TableHeader.displayName = "TableHeader";
-
-const TableBody = React.forwardRef<
-  HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <tbody
-    ref={ref}
-    className={cn("text-xs [&_tr:last-child]:border-0", className)}
-    {...props}
-  />
-));
-TableBody.displayName = "TableBody";
-
-const TableRow = React.forwardRef<
-  HTMLTableRowElement,
-  React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => (
-  <tr
-    ref={ref}
-    className={cn(
-      "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
-      className,
-    )}
-    {...props}
-  />
-));
-TableRow.displayName = "TableRow";
-
-const TableHead = React.forwardRef<
-  HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
-      className,
-    )}
-    {...props}
-  />
-));
-TableHead.displayName = "TableHead";
-
-const TableCell = React.forwardRef<
-  HTMLTableCellElement,
-  React.TdHTMLAttributes<HTMLTableCellElement> & { density?: TableDensity }
->(({ className, density = "compact", ...props }, ref) => (
-  <td
-    ref={ref}
-    className={cn(
-      "h-full align-middle [&:has([role=checkbox])]:pr-0",
-      density === "comfortable" ? "p-2" : "px-2 py-0",
-      "border-b [:last-child_>_&]:border-b-0",
-      className,
-    )}
-    {...props}
-  />
-));
-TableCell.displayName = "TableCell";
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
@@ -524,9 +456,12 @@ export function DataTable<TData extends object, TValue>({
             />
           </div>
           <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
-            <TableHeader className="sticky top-0 z-20">
+            <thead className="sticky top-0 z-20 [&_tr]:border-b">
               {tableHeaders.map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <tr
+                  key={headerGroup.id}
+                  className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors"
+                >
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<ModelTableRow>;
@@ -543,10 +478,11 @@ export function DataTable<TData extends object, TValue>({
                         : 150;
 
                     return header.column.getIsVisible() ? (
-                      <TableHead
+                      <th
                         key={header.id}
                         className={cn(
-                          "group p-1 first:pl-2",
+                          "bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold first:pl-2 [&:has([role=checkbox])]:pr-0",
+                          "group",
                           sortingEnabled && "cursor-pointer",
                           getPinningClasses(header.column),
                         )}
@@ -669,12 +605,12 @@ export function DataTable<TData extends object, TValue>({
                             />
                           </div>
                         )}
-                      </TableHead>
+                      </th>
                     ) : null;
                   })}
-                </TableRow>
+                </tr>
               ))}
-            </TableHeader>
+            </thead>
             {table.getState().columnSizingInfo.isResizingColumn ||
             !!peekView ? (
               <MemoizedTableBody
@@ -863,7 +799,7 @@ function TableRowComponent<TData>({
   );
 
   return (
-    <TableRow
+    <tr
       data-row-index={row.index}
       onClick={(e) => {
         if (shouldIgnoreRowClickTarget(e.target)) return;
@@ -876,7 +812,7 @@ function TableRowComponent<TData>({
         }
       }}
       className={cn(
-        "hover:bg-accent",
+        "data-[state=selected]:bg-muted hover:bg-accent border-b transition-colors",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         (rowIsSelected || shouldHighlightAllRows) &&
           "bg-muted/40 dark:bg-muted",
@@ -887,7 +823,7 @@ function TableRowComponent<TData>({
       )}
     >
       {children}
-    </TableRow>
+    </tr>
   );
 }
 
@@ -916,18 +852,22 @@ function TableBodyComponent<TData>({
   );
 
   return (
-    <TableBody>
+    <tbody className="text-xs [&_tr:last-child]:border-0">
       {data.isLoading || !data.data ? (
         Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
-          <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
+          <tr
+            key={`loading-row-${rowIndex}`}
+            aria-hidden="true"
+            className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors"
+          >
             {visibleColumns.map((column, columnIndex) => {
               const columnDef = column.columnDef as LangfuseColumnDef<TData>;
 
               return (
-                <TableCell
+                <td
                   key={`${column.id}-loading-cell-${rowIndex}`}
                   className={cn(
-                    "overflow-hidden border-b text-xs first:pl-2",
+                    "h-full overflow-hidden border-b px-2 py-0 align-middle text-xs first:pl-2 [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
                     getCellPaddingClassName(
                       columnDef.cellPadding ?? cellPadding,
                     ),
@@ -977,10 +917,10 @@ function TableBodyComponent<TData>({
                       );
                     })()}
                   </div>
-                </TableCell>
+                </td>
               );
             })}
-          </TableRow>
+          </tr>
         ))
       ) : rowModelRows.length ? (
         rowModelRows.map((row) => (
@@ -1000,10 +940,10 @@ function TableBodyComponent<TData>({
                 .columnDef as LangfuseColumnDef<TData>;
 
               return (
-                <TableCell
+                <td
                   key={cell.id}
                   className={cn(
-                    "overflow-hidden border-b text-xs first:pl-2",
+                    "h-full overflow-hidden border-b px-2 py-0 align-middle text-xs first:pl-2 [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
                     getCellPaddingClassName(
                       columnDef.cellPadding ?? cellPadding,
                     ),
@@ -1054,14 +994,17 @@ function TableBodyComponent<TData>({
                       flexRender(cell.column.columnDef.cell, cell.getContext())
                     )}
                   </div>
-                </TableCell>
+                </td>
               );
             })}
           </TableRowComponent>
         ))
       ) : (
-        <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={columns.length} className="h-24">
+        <tr className="data-[state=selected]:bg-muted border-b transition-colors hover:bg-transparent">
+          <td
+            colSpan={columns.length}
+            className="h-24 border-b px-2 py-0 align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0"
+          >
             <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
               {noResultsMessage ?? (
                 <>
@@ -1072,10 +1015,10 @@ function TableBodyComponent<TData>({
                 </>
               )}
             </div>
-          </TableCell>
-        </TableRow>
+          </td>
+        </tr>
       )}
-    </TableBody>
+    </tbody>
   );
 }
 
