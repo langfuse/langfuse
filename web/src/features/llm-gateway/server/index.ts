@@ -9,7 +9,6 @@ export { GatewayProviderService } from "./gatewayProviderService";
 export {
   authenticateGatewayResolveRequest,
   withGatewayResolveAuth,
-  type GatewayResolveAuthContext,
 } from "./gatewayResolveAuth";
 export { handleGatewayResolveRequest } from "./handleGatewayResolveRequest";
 export { verifyGatewayIngestionAuthorization } from "./ingestionTokenVerification";
