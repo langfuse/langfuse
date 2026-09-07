@@ -52,6 +52,7 @@ import {
   type SessionOptions,
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -793,7 +794,11 @@ export const sessionRouter = createTRPCRouter({
       });
 
       if (input.includeScores === false) {
-        return traces.map((trace) => ({ ...trace, scores: [] }));
+        return traces.map((trace) => ({
+          ...trace,
+          scores: [],
+          corrections: [],
+        }));
       }
 
       const traceChunks = chunk(traces, 500);
@@ -815,16 +820,26 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: scoreChunks.flat(),
-        dataTypes: LISTABLE_SCORE_TYPES,
+        dataTypes: ScoreDataTypeArray,
         onParseError: traceException,
       });
 
       const scoresByTraceId = new Map<
         string,
-        (typeof validatedScores)[number][]
+        Exclude<(typeof validatedScores)[number], { dataType: "CORRECTION" }>[]
+      >();
+      const correctionsByTraceId = new Map<
+        string,
+        Extract<(typeof validatedScores)[number], { dataType: "CORRECTION" }>[]
       >();
       for (const score of validatedScores) {
         if (!score.traceId) continue;
+        if (score.dataType === "CORRECTION") {
+          const corrections = correctionsByTraceId.get(score.traceId);
+          if (corrections) corrections.push(score);
+          else correctionsByTraceId.set(score.traceId, [score]);
+          continue;
+        }
         const traceScores = scoresByTraceId.get(score.traceId);
         if (traceScores) traceScores.push(score);
         else scoresByTraceId.set(score.traceId, [score]);
@@ -835,6 +850,7 @@ export const sessionRouter = createTRPCRouter({
         scores: toDomainArrayWithStringifiedMetadata(
           scoresByTraceId.get(trace.id) ?? [],
         ),
+        corrections: correctionsByTraceId.get(trace.id) ?? [],
       }));
     }),
   observationsForSessionFromEvents: protectedGetSessionProcedure

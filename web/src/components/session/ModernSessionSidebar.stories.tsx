@@ -20,6 +20,7 @@ const traces = [
     observationCount: 2,
     latencyMs: 60_000,
     scores: [],
+    corrections: [],
   },
   {
     id: "turn-2",
@@ -30,6 +31,7 @@ const traces = [
     observationCount: 2,
     latencyMs: 60_000,
     scores: [],
+    corrections: [],
   },
   {
     id: "turn-3",
@@ -40,6 +42,7 @@ const traces = [
     observationCount: 1,
     latencyMs: 30_000,
     scores: [],
+    corrections: [],
   },
 ] satisfies EventSessionTrace[];
 
@@ -168,6 +171,7 @@ const largeSessionData = Array.from(
           ) * 1_000,
         ),
         scores: [],
+        corrections: [],
       } satisfies EventSessionTrace,
       observations,
     };

@@ -131,7 +131,7 @@ function adaptSessionEventsToTraceFormat({
       },
       observations: adapted.observations,
       scores: traceSummary.scores,
-      corrections: [],
+      corrections: traceSummary.corrections,
     };
   });
 
