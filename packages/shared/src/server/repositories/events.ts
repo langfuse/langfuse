@@ -484,15 +484,30 @@ export const getObservationsForSessionFromEventsTable = async (params: {
   projectId: string;
   sessionId: string;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const sessionEventIdsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw("DISTINCT e.trace_id as trace_id", "e.span_id as span_id")
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    });
+  const sessionEventIds = sessionEventIdsBuilder.buildWithParams();
   const latestEventsBuilder = new EventsQueryBuilder({
     projectId: params.projectId,
   })
     .selectFieldSet("baseWithoutTools", "calculated")
+    .whereRaw(
+      "(e.trace_id, e.span_id) IN (SELECT trace_id, span_id FROM session_event_ids)",
+    )
     .qualifyRaw(
       "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
     );
   const latestEvents = latestEventsBuilder.buildWithParams();
   const { query, params: queryParams } = new CTEQueryBuilder()
+    .withCTE("session_event_ids", {
+      ...sessionEventIds,
+      schema: ["trace_id", "span_id"],
+    })
     .withCTE("latest_events", {
       ...latestEvents,
       schema: latestEventsBuilder.getSelectedAliases(),
@@ -2503,6 +2518,14 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
   chMinStartTime: string;
   chMaxStartTime: string;
 }) {
+  const sessionEventIdsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw("DISTINCT e.trace_id as trace_id", "e.span_id as span_id")
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    });
+  const sessionEventIds = sessionEventIdsBuilder.buildWithParams();
   const latestEventsBuilder = new EventsQueryBuilder({
     projectId: params.projectId,
   })
@@ -2518,11 +2541,18 @@ export async function getAgentGraphDataForSessionFromEventsTable(params: {
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node",
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step",
     )
+    .whereRaw(
+      "(e.trace_id, e.span_id) IN (SELECT trace_id, span_id FROM session_event_ids)",
+    )
     .qualifyRaw(
       "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
     );
   const latestEvents = latestEventsBuilder.buildWithParams();
   const { query, params: queryParams } = new CTEQueryBuilder()
+    .withCTE("session_event_ids", {
+      ...sessionEventIds,
+      schema: ["trace_id", "span_id"],
+    })
     .withCTE("latest_events", {
       ...latestEvents,
       schema: latestEventsBuilder.getSelectedAliases(),
