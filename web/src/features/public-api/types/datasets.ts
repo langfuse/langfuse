@@ -316,6 +316,11 @@ export const PostDatasetsV1Response = APIDataset.extend({
 
 // GET /datasets
 export const GetDatasetsV1Query = z.object({
+  // Optional case-insensitive substring filter on the dataset row's
+  // `name` column. Wired through `listDatasetsByProjectForApi` in
+  // `web/src/features/datasets/server/publicDatasetService.ts`.
+  // Mirrors the v2 filter added in PR #17135.
+  name: z.string().nullish(),
   ...paginationZod,
 });
 export const GetDatasetsV1Response = z
