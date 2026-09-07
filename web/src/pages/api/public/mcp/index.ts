@@ -96,20 +96,16 @@ export default async function handler(
       throw new UnauthorizedError(authCheck.error);
     }
 
-    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
-      throw new ForbiddenError(
-        "Access denied: MCP requires project-scoped API keys with BasicAuth",
-      );
-    }
+    // MCP authorizes solely through the policy core: assert the connection
+    // holds mcp:access and resolve the bound project (throws on denial).
+    const { authz, projectId } = await resolveMcpAuthz({
+      headers: req.headers,
+    });
 
     addUserToSpan({
       apiKeyId: authCheck.scope.apiKeyId,
       publicKey: authCheck.scope.publicKey,
-      projectId: authCheck.scope.projectId,
+      projectId,
       orgId: authCheck.scope.orgId,
       plan: authCheck.scope.plan,
     });
@@ -132,15 +128,11 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Legacy decides the connection; the seam runs the policy core beside it
-    // (shadow: parity + coverage, authz attached only on resolve; enforce: gate).
-    const { authz } = await resolveMcpAuthz({ headers: req.headers });
-
     // Build ServerContext from authenticated scope. In-app-agent keys need a
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
-      projectId: authCheck.scope.projectId,
+      projectId,
       orgId: authCheck.scope.orgId,
       userId: undefined, // API keys don't have associated users
       apiKeyId: authCheck.scope.apiKeyId,
