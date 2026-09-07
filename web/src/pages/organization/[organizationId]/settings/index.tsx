@@ -23,6 +23,7 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/Org
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
+import { useSession } from "next-auth/react";
 import {
   GatewayApiKeysPage,
   GatewayConfigurationPage,
@@ -56,6 +57,9 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const showV4Migration = useV4UpgradeUiFlag();
+  const session = useSession();
+  const isLangfuseEmployee =
+    session.data?.user?.email?.toLowerCase().endsWith("@langfuse.com") === true;
 
   if (!organization) return [];
 
@@ -66,7 +70,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
-    showLlmGateway: canUpdateOrganization,
+    showLlmGateway: canUpdateOrganization && isLangfuseEmployee,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });

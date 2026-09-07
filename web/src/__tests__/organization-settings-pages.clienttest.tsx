@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import { useSession } from "next-auth/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -9,6 +10,10 @@ import { useOrganizationSettingsPages } from "@/src/pages/organization/[organiza
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(),
 }));
 
 vi.mock("@/src/components/layouts/header", () => ({
@@ -118,6 +123,15 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(usePlan).mockReturnValue("oss");
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          email: "user@example.com",
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
   });
 
   it("hides organization API key settings without organization api key access", () => {
@@ -185,10 +199,32 @@ describe("useOrganizationSettingsPages", () => {
     ).toBe(true);
   });
 
-  it("shows all LLM Gateway settings with organization update access", () => {
+  it("hides all LLM Gateway settings from non-Langfuse users", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organization:update",
     );
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const gatewayPages = result.current.filter((page) =>
+      page.slug.startsWith("llm-gateway"),
+    );
+
+    expect(gatewayPages.every((page) => page.show === false)).toBe(true);
+  });
+
+  it("shows all LLM Gateway settings to Langfuse users with organization update access", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "organization:update",
+    );
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          email: "USER@LANGFUSE.COM",
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
     const gatewayPages = result.current.filter((page) =>
