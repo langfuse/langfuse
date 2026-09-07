@@ -966,13 +966,32 @@ async function getObservationsFromEventsTableInternal<T>(
   }
 
   if (opts.dedupeBySpanId === "latest-event-join") {
+    const { queryBuilder: candidateBuilder } =
+      buildEventsObservationRowSelection({
+        projectId,
+        filter: baseFilter,
+        searchQuery: opts.searchQuery,
+        searchType: opts.searchType,
+        orderBy,
+      });
+    candidateBuilder.selectRaw(
+      "DISTINCT e.trace_id AS trace_id",
+      "e.span_id AS span_id",
+    );
+    if (isCursorPagination) {
+      applyObservationsCursorFilter(opts.cursor, candidateBuilder);
+    }
+
     queryBuilder
+      .withCTE("candidate_event_ids", candidateBuilder.buildWithParams())
       .withCTE("latest_event_versions", {
         query: `
-          SELECT project_id, trace_id, span_id, max(event_ts) AS event_ts
-          FROM events_core
-          WHERE project_id = {projectId: String}
-          GROUP BY project_id, trace_id, span_id
+          SELECT e.project_id, e.trace_id, e.span_id, max(e.event_ts) AS event_ts
+          FROM events_core e
+          INNER JOIN candidate_event_ids candidates
+            ON candidates.trace_id = e.trace_id AND candidates.span_id = e.span_id
+          WHERE e.project_id = {projectId: String}
+          GROUP BY e.project_id, e.trace_id, e.span_id
         `,
         params: { projectId },
       })
