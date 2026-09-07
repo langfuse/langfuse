@@ -58,7 +58,8 @@ export const OtelIngestionEvent = z.object({
     validKey: z.literal(true),
     scope: z.object({
       projectId: z.string(),
-      accessLevel: z.literal("project"),
+      /** @deprecated Authorization runs once at the ingestion edge; the worker holds no authz context. Optional this release, dropped next. */
+      accessLevel: z.literal("project").optional(),
       orgId: z.string().optional(),
     }),
   }),

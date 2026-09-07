@@ -75,10 +75,8 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authResult = await verifyIngestionAuth({ req });
+    const authResult = await verifyIngestionAuth({ headers: req.headers });
     if (!authResult.ok) {
-      if (authResult.projectId)
-        projectIdForIngestFailure = authResult.projectId;
       throw authResult.error;
     }
     const authCheck = authResult.authCheck;
@@ -156,15 +154,11 @@ export default async function handler(
           );
         }
 
-        const authorized =
-          env.PUBLIC_API_AUTHZ_MIGRATION !== "legacy" && authResult.context
-            ? authorizeIngestionEvents({
-                batch: batchForProcessing,
-                accessLevel: authCheck.scope.accessLevel,
-                context: authResult.context,
-                projectId,
-              })
-            : { batchForProcessing, rejectedErrors: [] };
+        const authorized = authorizeIngestionEvents({
+          batch: batchForProcessing,
+          context: authResult.context,
+          projectId,
+        });
 
         const result = await processEventBatch(
           authorized.batchForProcessing,
