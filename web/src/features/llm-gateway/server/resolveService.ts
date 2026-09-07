@@ -7,10 +7,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 
 import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 
-import {
-  GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
-  issueGatewayIngestionToken,
-} from "./auth/ingestionToken";
+import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "./auth/ingestionTokenVerifier";
 import {
   type GatewayApiFormat,
   gatewayProviders,
@@ -116,13 +113,15 @@ export class GatewayResolveService {
       );
     }
     return {
-      access_token: issueGatewayIngestionToken({
-        signer: this.config.jwtSigner,
+      access_token: this.config.jwtSigner.sign({
+        expiresInSeconds: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
         claims: {
+          version: 1,
           organizationId: params.organizationId,
           projectId: params.projectId,
           keyId: params.apiKeyId,
           instrumentation_mode: params.mode.toLowerCase() as "usage" | "full",
+          scope: "gateway-ingest",
         },
       }),
       token_type: "Bearer" as const,

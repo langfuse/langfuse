@@ -3,13 +3,31 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import type { AuthHeaderValidVerificationResult } from "@langfuse/shared/src/server";
-
-import { createEd25519JwtVerifier } from "@/src/server/utils/jwt";
+import { z } from "zod/v4";
 
 import {
-  GatewayIngestionClaimsSchema,
-  type GatewayIngestionClaims,
-} from "./ingestionToken";
+  createEd25519JwtVerifier,
+  type JwtRegisteredClaims,
+} from "@/src/server/utils/jwt";
+
+export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
+
+const GatewayIngestionClaimsSchema = z.object({
+  version: z.literal(1),
+  organizationId: z.string(),
+  projectId: z.string(),
+  keyId: z.string(),
+  instrumentation_mode: z.enum(["usage", "full"]),
+  scope: z.literal("gateway-ingest"),
+  exp: z.number().int(),
+  iss: z.string(),
+  aud: z.string(),
+  iat: z.number().int(),
+  jti: z.string(),
+});
+
+type GatewayIngestionClaims = z.infer<typeof GatewayIngestionClaimsSchema> &
+  JwtRegisteredClaims;
 
 const gatewayIngestionTokenVerifier = (() => {
   const publicKeys = [
@@ -60,8 +78,11 @@ export async function verifyGatewayIngestionAuthorization(
     })
   | null
 > {
-  const token = /^Bearer (.+)$/.exec(authorization ?? "")?.[1];
-  if (!token || token.split(".").length !== 3) return null;
+  const [scheme, token, ...additionalParts] = (authorization ?? "")
+    .trim()
+    .split(/\s+/);
+  if (scheme !== "Bearer" || !token || additionalParts.length > 0) return null;
+  if (token.split(".").length !== 3) return null;
 
   let claims: GatewayIngestionClaims;
   try {

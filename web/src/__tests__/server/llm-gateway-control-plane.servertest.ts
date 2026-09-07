@@ -1,14 +1,9 @@
-import {
-  createHash,
-  createHmac,
-  generateKeyPairSync,
-  randomUUID,
-} from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 
-import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
+import { z } from "zod/v4";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
@@ -23,9 +18,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   type GatewayResolveError,
   GatewayResolveService,
-  withGatewayResolveAuth,
 } from "@/src/features/llm-gateway/server";
-import { GatewayIngestionClaimsSchema } from "@/src/features/llm-gateway/server/auth/ingestionToken";
 import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/gatewayApiKeyService";
 import { GatewayService } from "@/src/features/llm-gateway/server/gatewayService";
 import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
@@ -38,6 +31,20 @@ import { decrypt } from "@langfuse/shared/encryption";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
+
+const GatewayIngestionClaimsSchema = z.object({
+  version: z.literal(1),
+  organizationId: z.string(),
+  projectId: z.string(),
+  keyId: z.string(),
+  instrumentation_mode: z.enum(["usage", "full"]),
+  scope: z.literal("gateway-ingest"),
+  exp: z.number().int(),
+  iss: z.string(),
+  aud: z.string(),
+  iat: z.number().int(),
+  jti: z.string(),
+});
 
 afterEach(async () => {
   await prisma.organization.deleteMany({
@@ -96,62 +103,6 @@ async function prepare(role: Role = Role.OWNER) {
     user,
     caller: appRouter.createCaller({ ...ctx, prisma }),
   };
-}
-
-async function authenticateResolveRequest(params: {
-  virtualSecretKey: string;
-  requestBody: string;
-  gatewayAuthorization: string;
-  organizationId: string;
-  apiKeyId: string;
-}) {
-  const req = {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${params.virtualSecretKey}`,
-      "langfuse-gateway-authorization": params.gatewayAuthorization,
-    },
-    body: params.requestBody,
-  } as unknown as NextApiRequest;
-  const res = { setHeader: vi.fn() };
-  const authenticate = vi.fn().mockResolvedValue({
-    organizationId: params.organizationId,
-    apiKeyId: params.apiKeyId,
-  });
-  let context: { organizationId: string; apiKeyId: string } | undefined;
-
-  await withGatewayResolveAuth(async ({ auth }) => {
-    context = auth;
-  }, authenticate)(req, res as unknown as NextApiResponse);
-
-  expect(authenticate).toHaveBeenCalledWith({
-    virtualSecretKey: params.virtualSecretKey,
-    requestBody: params.requestBody,
-    gatewayAuthorization: params.gatewayAuthorization,
-  });
-  if (!context)
-    throw new Error("Gateway resolve request was not authenticated");
-  return context;
-}
-
-function createTestGatewayHmacSignature(input: {
-  timestamp: number;
-  virtualSecretKey: string;
-  requestBody: string;
-  serviceKey: string;
-}) {
-  const sha256 = (value: string) =>
-    createHash("sha256").update(value, "utf8").digest("hex");
-  const canonicalMessage = [
-    input.timestamp.toString(),
-    sha256(input.virtualSecretKey),
-    "/api/internal/ai-gateway/v1/resolve",
-    "POST",
-    sha256(input.requestBody),
-  ].join("\n");
-  return createHmac("sha256", input.serviceKey)
-    .update(canonicalMessage, "utf8")
-    .digest("base64url");
 }
 
 describe("LLM gateway control plane", () => {
@@ -480,25 +431,7 @@ describe("LLM gateway control plane", () => {
     });
 
     const signingKeys = generateKeyPairSync("ed25519");
-    const serviceKey = "test-control-plane-service-key";
-    const timestamp = Math.floor(Date.now() / 1000);
     const apiFormat = "openai.chat-completions" as const;
-    const requestBody = JSON.stringify({ api_format: apiFormat });
-    const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${createTestGatewayHmacSignature(
-      {
-        timestamp,
-        virtualSecretKey: gatewayKey.secretKey,
-        requestBody,
-        serviceKey,
-      },
-    )}`;
-    const auth = await authenticateResolveRequest({
-      virtualSecretKey: gatewayKey.secretKey,
-      requestBody,
-      gatewayAuthorization,
-      organizationId: org.id,
-      apiKeyId: gatewayKey.id,
-    });
     const jwtSigner = createEd25519JwtSigner({
       privateKey: signingKeys.privateKey
         .export({ format: "pem", type: "pkcs8" })
@@ -523,7 +456,8 @@ describe("LLM gateway control plane", () => {
     const result = await new GatewayResolveService(prisma, {
       jwtSigner,
     }).resolve({
-      ...auth,
+      organizationId: org.id,
+      apiKeyId: gatewayKey.id,
       apiFormat,
     });
 
@@ -649,28 +583,11 @@ describe("LLM gateway control plane", () => {
       where: { id: project.id },
       data: { deletedAt: new Date() },
     });
-    const timestamp = Math.floor(Date.now() / 1000);
-    const serviceKey = "service";
     const apiFormat = "openai.responses" as const;
-    const requestBody = JSON.stringify({ api_format: apiFormat });
-    const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${createTestGatewayHmacSignature(
-      {
-        timestamp,
-        virtualSecretKey: key.secretKey,
-        requestBody,
-        serviceKey,
-      },
-    )}`;
-    const auth = await authenticateResolveRequest({
-      virtualSecretKey: key.secretKey,
-      requestBody,
-      gatewayAuthorization,
-      organizationId: org.id,
-      apiKeyId: key.id,
-    });
     await expect(
       new GatewayResolveService(prisma, {}).resolve({
-        ...auth,
+        organizationId: org.id,
+        apiKeyId: key.id,
         apiFormat,
       }),
     ).rejects.toEqual(

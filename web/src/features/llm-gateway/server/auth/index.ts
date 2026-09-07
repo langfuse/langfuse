@@ -1,5 +1,2 @@
-export {
-  withGatewayResolveAuth,
-  type AuthenticatedGatewayResolveHandler,
-} from "./gatewayResolveAuth";
-export { verifyGatewayIngestionAuthorization } from "./ingestionTokenVerification";
+export { withGatewayResolveAuth } from "./gatewayAuthVerifier";
+export { verifyGatewayIngestionAuthorization } from "./ingestionTokenVerifier";

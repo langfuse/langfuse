@@ -1,9 +1,12 @@
 import { env } from "@/src/env.mjs";
 import { createEd25519JwtSigner } from "@/src/server/utils/jwt";
 import { prisma } from "@langfuse/shared/src/db";
+import type { NextApiRequest, NextApiResponse } from "next";
 
-import type { AuthenticatedGatewayResolveHandler } from "./auth";
-import { GatewayResolveResponseSchema } from "./provider";
+import {
+  type GatewayApiFormat,
+  GatewayResolveResponseSchema,
+} from "./provider";
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
 
 const gatewayIngestionTokenSigner =
@@ -16,21 +19,29 @@ const gatewayIngestionTokenSigner =
       })
     : undefined;
 
-export const handleGatewayResolveRequest: AuthenticatedGatewayResolveHandler =
-  async ({ res, auth, apiFormat }) => {
-    try {
-      const result = await new GatewayResolveService(prisma, {
-        jwtSigner: gatewayIngestionTokenSigner,
-      }).resolve({
-        organizationId: auth.organizationId,
-        apiKeyId: auth.apiKeyId,
-        apiFormat,
-      });
-      return res.status(200).json(GatewayResolveResponseSchema.parse(result));
-    } catch (error) {
-      if (error instanceof GatewayResolveError) {
-        return res.status(error.status).json({ error: error.message });
-      }
-      return res.status(500).json({ error: "Internal server error" });
+export async function handleGatewayResolveRequest({
+  res,
+  auth,
+  apiFormat,
+}: {
+  req: NextApiRequest;
+  res: NextApiResponse;
+  auth: { organizationId: string; apiKeyId: string };
+  apiFormat: GatewayApiFormat;
+}) {
+  try {
+    const result = await new GatewayResolveService(prisma, {
+      jwtSigner: gatewayIngestionTokenSigner,
+    }).resolve({
+      organizationId: auth.organizationId,
+      apiKeyId: auth.apiKeyId,
+      apiFormat,
+    });
+    return res.status(200).json(GatewayResolveResponseSchema.parse(result));
+  } catch (error) {
+    if (error instanceof GatewayResolveError) {
+      return res.status(error.status).json({ error: error.message });
     }
-  };
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}

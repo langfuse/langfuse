@@ -1,23 +1,30 @@
+import { createHash } from "node:crypto";
+
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
+import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { verifyGatewayHmacAuthorization } from "./auth";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayRepository } from "../repository";
 import { GatewayResolveError } from "../resolveService";
 
+const RESOLVE_METHOD = "POST";
+const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
+const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
 const bodySchema = z.object({ api_format: GatewayApiFormatSchema }).strict();
+const gatewayAuthorizationSchema =
+  /^HMAC timestamp=(\d+),signature=([A-Za-z0-9_-]{43})$/;
 
 type GatewayResolveAuthContext = {
   organizationId: string;
   apiKeyId: string;
 };
 
-export type AuthenticatedGatewayResolveHandler = (params: {
+type AuthenticatedGatewayResolveHandler = (params: {
   req: NextApiRequest;
   res: NextApiResponse;
   auth: GatewayResolveAuthContext;
@@ -29,12 +36,6 @@ type GatewayResolveAuthConfig = {
   serviceKeys: Array<{ secret: string }>;
 };
 
-type GatewayResolveAuthenticator = (params: {
-  virtualSecretKey: string;
-  requestBody: string;
-  gatewayAuthorization: string | undefined;
-}) => Promise<GatewayResolveAuthContext>;
-
 async function authenticateGatewayResolveRequest(
   params: {
     virtualSecretKey: string;
@@ -44,14 +45,7 @@ async function authenticateGatewayResolveRequest(
   database: PrismaClient,
   config: GatewayResolveAuthConfig,
 ): Promise<GatewayResolveAuthContext> {
-  if (
-    !verifyGatewayHmacAuthorization({
-      header: params.gatewayAuthorization,
-      virtualSecretKey: params.virtualSecretKey,
-      requestBody: params.requestBody,
-      keys: config.serviceKeys,
-    })
-  ) {
+  if (!verifyGatewayAuthorization(params, config.serviceKeys)) {
     throw new GatewayResolveError("Invalid gateway authorization", 401);
   }
 
@@ -73,7 +67,6 @@ async function authenticateGatewayResolveRequest(
 
 export function withGatewayResolveAuth(
   handler: AuthenticatedGatewayResolveHandler,
-  authenticate: GatewayResolveAuthenticator = authenticateConfiguredGatewayResolveRequest,
 ) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     res.setHeader("Cache-Control", "no-store");
@@ -106,7 +99,7 @@ export function withGatewayResolveAuth(
     }
 
     try {
-      const auth = await authenticate({
+      const auth = await authenticateConfiguredGatewayResolveRequest({
         virtualSecretKey: token,
         requestBody,
         gatewayAuthorization: singleHeader(
@@ -127,6 +120,42 @@ export function withGatewayResolveAuth(
       return res.status(500).json({ error: "Internal server error" });
     }
   };
+}
+
+function verifyGatewayAuthorization(
+  input: {
+    virtualSecretKey: string;
+    requestBody: string;
+    gatewayAuthorization: string | undefined;
+  },
+  serviceKeys: Array<{ secret: string }>,
+): boolean {
+  const match = gatewayAuthorizationSchema.exec(
+    input.gatewayAuthorization ?? "",
+  );
+  if (!match) return false;
+
+  const [, timestampValue, signature] = match;
+  const timestamp = Number(timestampValue);
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    !Number.isSafeInteger(timestamp) ||
+    Math.abs(now - timestamp) > SIGNATURE_MAX_AGE_SECONDS
+  ) {
+    return false;
+  }
+
+  return verifyHmacSha256({
+    message: [
+      timestamp.toString(),
+      sha256(input.virtualSecretKey),
+      RESOLVE_PATH,
+      RESOLVE_METHOD,
+      sha256(input.requestBody),
+    ].join("\n"),
+    signature,
+    secrets: serviceKeys.map(({ secret }) => secret),
+  });
 }
 
 async function authenticateConfiguredGatewayResolveRequest(params: {
@@ -166,7 +195,7 @@ function parseJson(value: string): unknown {
 async function readRequestBody(req: NextApiRequest): Promise<string> {
   if (typeof req.body === "string") return req.body;
   if (Buffer.isBuffer(req.body)) return req.body.toString("utf8");
-  if (req.body !== undefined) return JSON.stringify(req.body);
+  if (req.body !== undefined) throw new Error("Expected an unparsed body");
 
   const chunks: Buffer[] = [];
   let size = 0;
@@ -183,4 +212,8 @@ function singleHeader(
   value: string | string[] | undefined,
 ): string | undefined {
   return Array.isArray(value) ? undefined : value;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
