@@ -188,14 +188,6 @@ export function CreateGatewayApiKeyDialogController({
                     ))}
                   </div>
                 </div>
-                <Alert>
-                  <Alert.Title>Full gateway access, shown once</Alert.Title>
-                  <Alert.Description>
-                    The key can reach every enabled model on every provider
-                    credential in this organization. Its secret is displayed
-                    once after creation and never stored in readable form.
-                  </Alert.Description>
-                </Alert>
                 {create.isError ? (
                   <Alert variant="destructive">
                     <Alert.Title>Gateway key could not be created</Alert.Title>
