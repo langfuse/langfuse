@@ -1,6 +1,9 @@
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  stringifyMetadata,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
 import {
   ViewPreferencesProvider,
@@ -29,8 +32,8 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
-import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { api, sendAsPostOption } from "@/src/utils/api";
 
 import { useMemo } from "react";
 
@@ -107,19 +110,65 @@ function useActiveTraceEntry({
   const shouldHydrate =
     !!sessionTraceEntries &&
     selectedTraceEntry.trace.id !== primaryEntry.trace.id;
-  const hydratedTraceData = useEventsTraceData({
-    projectId,
-    traceId: selectedTraceEntry.trace.id,
-    timestamp: selectedTraceEntry.trace.timestamp,
-    enabled: shouldHydrate,
-    scopeToSession: false,
-  });
-  const activeEntry = hydratedTraceData.data
+  const primaryObservation = useMemo(() => {
+    const root = selectedTraceEntry.observations.find(
+      (observation) => !observation.parentObservationId,
+    );
+    if (root) return root;
+    return selectedTraceEntry.observations.reduce<
+      TraceEntry["observations"][number] | null
+    >((earliest, observation) => {
+      if (!earliest || observation.startTime < earliest.startTime) {
+        return observation;
+      }
+      return earliest;
+    }, null);
+  }, [selectedTraceEntry.observations]);
+  const observationTimeRange = useMemo(() => {
+    if (!primaryObservation) return null;
+    let minStartTime = primaryObservation.startTime;
+    let maxStartTime = primaryObservation.startTime;
+    for (const observation of selectedTraceEntry.observations) {
+      if (observation.startTime < minStartTime) {
+        minStartTime = observation.startTime;
+      }
+      if (observation.startTime > maxStartTime) {
+        maxStartTime = observation.startTime;
+      }
+    }
+    return { minStartTime, maxStartTime };
+  }, [primaryObservation, selectedTraceEntry.observations]);
+  const rootIOQuery = api.events.batchIO.useQuery(
+    {
+      projectId,
+      traceId: selectedTraceEntry.trace.id,
+      observations: primaryObservation
+        ? [{ id: primaryObservation.id, traceId: selectedTraceEntry.trace.id }]
+        : [],
+      minStartTime:
+        observationTimeRange?.minStartTime ??
+        selectedTraceEntry.trace.timestamp,
+      maxStartTime:
+        observationTimeRange?.maxStartTime ??
+        selectedTraceEntry.trace.timestamp,
+      truncated: false,
+    },
+    {
+      ...sendAsPostOption,
+      enabled: shouldHydrate && !!primaryObservation && !!observationTimeRange,
+      staleTime: 60 * 1000,
+    },
+  );
+  const rootIO = rootIOQuery.data?.[0];
+  const activeEntry = rootIO
     ? {
-        trace: hydratedTraceData.data,
-        observations: hydratedTraceData.data.observations,
-        scores: hydratedTraceData.data.scores,
-        corrections: hydratedTraceData.data.corrections,
+        ...selectedTraceEntry,
+        trace: {
+          ...selectedTraceEntry.trace,
+          input: rootIO.input,
+          output: rootIO.output,
+          metadata: stringifyMetadata(rootIO.metadata) ?? "{}",
+        },
       }
     : selectedTraceEntry;
   const selectedObservationId = activeEntry.observations.find(
@@ -147,8 +196,8 @@ function useActiveTraceEntry({
     selectedObservationId,
     sessionScores,
     sessionCorrections,
-    isLoading: shouldHydrate && hydratedTraceData.isLoading,
-    isError: shouldHydrate && !!hydratedTraceData.error,
+    isLoading: shouldHydrate && rootIOQuery.isLoading,
+    isError: shouldHydrate && !!rootIOQuery.error,
   };
 }
 
