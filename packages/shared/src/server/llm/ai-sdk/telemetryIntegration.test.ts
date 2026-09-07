@@ -13,6 +13,7 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { createOpenAI } from "@ai-sdk/openai";
+import { z } from "zod";
 
 import { encrypt } from "../../../encryption";
 import { env } from "../../../env";
@@ -24,7 +25,11 @@ import {
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
-import { generateLLMText, mapLegacyLLMCompletionParams } from "../llmText";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "../llmText";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 
@@ -166,7 +171,18 @@ describe("AI SDK telemetry integration", () => {
     const serializedAttributes = JSON.stringify(
       spans.flatMap((span: any) => span.attributes),
     );
-    expect(serializedAttributes.match(/@@@langfuseMedia/g)).toHaveLength(1);
+    const rootAttributes = Object.fromEntries(
+      spans[0].attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ?? attribute.value,
+      ]),
+    );
+    expect(rootAttributes["langfuse.observation.input"]).toContain(
+      originalReference,
+    );
+    // The safe value is intentionally present in both the GenAI model input
+    // and Langfuse root-observation input attributes.
+    expect(serializedAttributes.match(/@@@langfuseMedia/g)).toHaveLength(2);
     expect(serializedAttributes).toContain(originalReference);
     expect(serializedAttributes).toContain("Inspect");
     expect(serializedAttributes).toContain("text");
@@ -220,6 +236,7 @@ describe("AI SDK telemetry integration", () => {
       "gen_ai.operation.name": "chat",
       "gen_ai.provider.name": "openai",
       "gen_ai.request.model": "gpt-4o",
+      "langfuse.observation.output": "Hello there",
     });
 
     // The captured spans convert through the real OTel ingestion processor —
@@ -477,6 +494,111 @@ describe("AI SDK telemetry integration", () => {
 
     expect(generationSpan.status).toMatchObject({ code: 2 });
     expect(attributes).toMatchObject({ "error.type": "AI_APICallError" });
+  });
+
+  it("marks the root generation as failed when structured output parsing fails", async () => {
+    vi.mocked(createOpenAI).mockReturnValue({
+      chat: () =>
+        new MockLanguageModelV4({
+          provider: "openai",
+          modelId: "gpt-4o",
+          doGenerate: {
+            content: [{ type: "text", text: "not valid json" }],
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: {
+                total: 3,
+                noCache: 3,
+                cacheRead: undefined,
+                cacheWrite: undefined,
+              },
+              outputTokens: { total: 3, text: 3, reasoning: undefined },
+            },
+            warnings: [],
+          },
+        }),
+    } as never);
+
+    await expect(
+      generateLLMText({
+        ...mapLegacyLLMCompletionParams({
+          messages,
+          modelParams,
+          connection: { secretKey: encrypt("sk-test") },
+        }),
+        output: createLLMOutput(z.object({ score: z.number() })),
+        trace: traceSinkParams,
+      }),
+    ).rejects.toMatchObject({ name: "AI_NoObjectGeneratedError" });
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status).toMatchObject({ code: 2 });
+    expect(
+      Object.fromEntries(
+        spans[0].attributes.map((attribute: any) => [
+          attribute.key,
+          attribute.value.stringValue ?? attribute.value,
+        ]),
+      ),
+    ).toMatchObject({ "error.type": "AI_NoObjectGeneratedError" });
+  });
+
+  it("keeps retries in one root generation", async () => {
+    const retryableError = new APICallError({
+      message: "Service unavailable",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 503,
+      isRetryable: true,
+    });
+    let attempt = 0;
+    const model = new MockLanguageModelV4({
+      provider: "openai",
+      modelId: "gpt-4o",
+      doGenerate: async () => {
+        attempt += 1;
+        if (attempt === 1) throw retryableError;
+        return {
+          content: [{ type: "text" as const, text: "Hello after retry" }],
+          finishReason: { unified: "stop" as const, raw: "stop" },
+          usage: {
+            inputTokens: {
+              total: 3,
+              noCache: 3,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: { total: 4, text: 4, reasoning: undefined },
+          },
+          warnings: [],
+        };
+      },
+    });
+    vi.mocked(createOpenAI).mockReturnValue({ chat: () => model } as never);
+
+    await expect(
+      generateLLMText({
+        ...mapLegacyLLMCompletionParams({
+          messages,
+          modelParams,
+          connection: { secretKey: encrypt("sk-test") },
+        }),
+        maxRetries: 1,
+        trace: traceSinkParams,
+      }),
+    ).resolves.toMatchObject({ text: "Hello after retry" });
+
+    expect(model.doGenerateCalls).toHaveLength(2);
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    expect(spans).toHaveLength(1);
+    expect(spans.filter((span: any) => !span.parentSpanId)).toHaveLength(1);
   });
 
   it("records unsupported media URL errors without downloading or calling the model", async () => {
