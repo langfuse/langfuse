@@ -49,74 +49,6 @@ import {
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
 
-type TableDensity = "compact" | "comfortable";
-
-const TableHeader = React.forwardRef<
-  HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
-));
-TableHeader.displayName = "TableHeader";
-
-const TableBody = React.forwardRef<
-  HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <tbody
-    ref={ref}
-    className={cn("text-xs [&_tr:last-child]:border-0", className)}
-    {...props}
-  />
-));
-TableBody.displayName = "TableBody";
-
-const TableRow = React.forwardRef<
-  HTMLTableRowElement,
-  React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => (
-  <tr
-    ref={ref}
-    className={cn(
-      "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
-      className,
-    )}
-    {...props}
-  />
-));
-TableRow.displayName = "TableRow";
-
-const TableHead = React.forwardRef<
-  HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
-      className,
-    )}
-    {...props}
-  />
-));
-TableHead.displayName = "TableHead";
-
-const TableCell = React.forwardRef<
-  HTMLTableCellElement,
-  React.TdHTMLAttributes<HTMLTableCellElement> & { density?: TableDensity }
->(({ className, density = "compact", ...props }, ref) => (
-  <td
-    ref={ref}
-    className={cn(
-      "h-full align-middle [&:has([role=checkbox])]:pr-0",
-      density === "comfortable" ? "p-2" : "px-2 py-0",
-      "border-b [:last-child_>_&]:border-b-0",
-      className,
-    )}
-    {...props}
-  />
-));
-TableCell.displayName = "TableCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   convertRowIdToKeyPath,
@@ -435,7 +367,7 @@ const JsonTableRowComponent = memo(
     });
 
     return (
-      <TableRow
+      <tr
         ref={
           rowIndex === 0 && row.original.level === 0
             ? topLevelRowRef
@@ -444,6 +376,7 @@ const JsonTableRowComponent = memo(
         data-observation-id={row.id}
         {...rowClickProps}
         className={cn(
+          "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky z-10 shadow-xs"
@@ -457,18 +390,18 @@ const JsonTableRowComponent = memo(
         }
       >
         {row.getVisibleCells().map((cell) => (
-          <TableCell
+          <td
             key={cell.id}
             className={cn(
-              "px-2 py-1 align-top whitespace-normal",
+              "h-full border-b px-2 py-1 align-top whitespace-normal [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
               toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
+          </td>
         ))}
-      </TableRow>
+      </tr>
     );
   },
 );
@@ -757,21 +690,22 @@ function JsonPrettyTable({
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
-        <TableHeader>
+        <thead className="[&_tr]:border-b">
           {table.getHeaderGroups().map((headerGroup, index) => (
-            <TableRow
+            <tr
               key={headerGroup.id}
               ref={index === 0 ? headerRef : undefined}
               className={cn(
+                "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
                 stickyTopLevelKey ? "sticky top-0 z-20" : "",
                 toneClasses?.row,
               )}
             >
               {headerGroup.headers.map((header) => (
-                <TableHead
+                <th
                   key={header.id}
                   className={cn(
-                    "h-8 px-2 py-1",
+                    "text-muted-foreground relative h-8 border-b px-2 py-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
                     stickyTopLevelKey ? "bg-background" : "bg-transparent",
                     toneClasses?.cell,
                   )}
@@ -783,12 +717,12 @@ function JsonPrettyTable({
                         header.column.columnDef.header,
                         header.getContext(),
                       )}
-                </TableHead>
+                </th>
               ))}
-            </TableRow>
+            </tr>
           ))}
-        </TableHeader>
-        <TableBody>
+        </thead>
+        <tbody className="text-xs [&_tr:last-child]:border-0">
           {table.getRowModel().rows.map((row, rowIndex) => (
             <JsonTableRowComponent
               key={row.id}
@@ -807,7 +741,7 @@ function JsonPrettyTable({
               toneClasses={toneClasses}
             />
           ))}
-        </TableBody>
+        </tbody>
       </table>
     </div>
   );
