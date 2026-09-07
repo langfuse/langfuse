@@ -19,15 +19,9 @@ vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
   submitFeedback: mockSubmitFeedback,
 }));
 
-vi.mock("@/src/features/public-api/server/apiAuth", () => {
-  function ApiAuthService() {
-    return {
-      verifyAuthHeaderAndReturnScope: mockVerifyAuth,
-    };
-  }
-
-  return { ApiAuthService };
-});
+vi.mock("@/src/features/auth/policy/shadow.projects", () => ({
+  verifyAuth: mockVerifyAuth,
+}));
 
 vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   RateLimitService: {
