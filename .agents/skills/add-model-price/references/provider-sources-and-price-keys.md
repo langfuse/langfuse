@@ -502,6 +502,27 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   none of the three 2.5-family pricing-file entries carry a `grounding_queries` key —
   the 0.014/query rate is correctly scoped to 3.x models only. No change needed; this
   confirms the existing scoping is correct rather than being a shared/hardcoded bug.
+- **September 6 2026 audit: full re-fetch found no price or catalog drift; a newer
+  Gemini specialized-model wave confirmed out of scope** — Re-fetched the full
+  Anthropic pricing table, the OpenAI aggregate Standard/Fast-mode/Flex pricing
+  tables plus the dedicated `gpt-6-astra` model page, and the Gemini AI Studio
+  pricing pages (`ai.google.dev/pricing` for the 2.5 family, plus
+  `ai.google.dev/gemini-api/docs/pricing` and `ai.google.dev/gemini-api/docs/models`
+  for the 3.x family and full model catalog). Every price already in the pricing
+  file — including `gpt-6-astra`'s six tiers and `gemini-3.8-flash`'s introductory
+  rate — matched verbatim; no updates were needed. `ai.google.dev/gemini-api/docs/models`
+  now additionally lists `gemini-3.5-transcribe` / `gemini-3.5-transcribe-live`
+  (speech-to-text), `gemini-omni-1.1-flash` (video generation/editing, replacing the
+  August 21 2026 wave's `gemini-omni-flash` name), `gemini-2.5-computer-use-preview-10-2025`
+  (UI automation), `deep-research-preview-04-2026` (research agent), and
+  `antigravity-preview-05-2026` — confirmed via a targeted fetch to be "a
+  general-purpose managed agent that autonomously plans, reasons, runs code, manages
+  files, and browses the web inside a secure, isolated Linux sandbox," i.e. an agentic
+  product with no standard `generateContent` per-token text pricing, not a chat model.
+  None of these five are a general-purpose text/chat completion model with standard
+  per-token text pricing, so none were added, consistent with the existing
+  modality-specific/restricted-access skip rule. Re-investigate only if one of them
+  gains a standard text-generation mode with its own per-token text pricing.
 
 Capture:
 
