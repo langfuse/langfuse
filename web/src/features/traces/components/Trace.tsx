@@ -268,7 +268,9 @@ function TraceWithSelection({
     useTraceComments({
       projectId,
       traceId: activeTrace.id,
-      includeAllTraceCommentCounts: !!sessionTraceEntries,
+      sessionId: sessionTraceEntries
+        ? (trace.sessionId ?? undefined)
+        : undefined,
     });
 
   // Merge observation + trace comments into single Map for TraceDataContext

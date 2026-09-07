@@ -325,21 +325,25 @@ export const commentsRouter = createTRPCRouter({
         : // eslint-disable-next-line @typescript-eslint/no-deprecated
           await getTracesIdentifierForSession(input.projectId, input.sessionId);
 
+      const traceIds = clickhouseTraces.map((trace) => trace.id);
+      if (traceIds.length === 0) return new Map<string, number>();
+
       const allTraceCommentCounts = await ctx.prisma.$queryRaw<
         Array<{ objectId: string; count: bigint }>
       >`
           SELECT object_id as "objectId", COUNT(*) as count
           FROM comments
-          WHERE project_id = ${input.projectId}
-          AND object_type = 'TRACE'
-          GROUP BY object_id
-        `;
+            WHERE project_id = ${input.projectId}
+            AND object_type = 'TRACE'
+            AND object_id IN (${Prisma.join(traceIds)})
+            GROUP BY object_id
+          `;
 
-      const traceIds = new Set(clickhouseTraces.map((t) => t.id));
       return new Map(
-        allTraceCommentCounts
-          .filter((c) => traceIds.has(c.objectId))
-          .map(({ objectId, count }) => [objectId, Number(count)]),
+        allTraceCommentCounts.map(({ objectId, count }) => [
+          objectId,
+          Number(count),
+        ]),
       );
     }),
   getTraceCommentsBySessionId: protectedProjectProcedure

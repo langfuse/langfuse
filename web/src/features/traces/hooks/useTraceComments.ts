@@ -5,13 +5,13 @@ import { castToNumberMap } from "@/src/utils/map-utils";
 export type UseTraceCommentsParams = {
   projectId: string;
   traceId: string;
-  includeAllTraceCommentCounts?: boolean;
+  sessionId?: string;
 };
 
 export function useTraceComments({
   projectId,
   traceId,
-  includeAllTraceCommentCounts,
+  sessionId,
 }: UseTraceCommentsParams) {
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -35,25 +35,26 @@ export function useTraceComments({
     },
     {
       refetchOnMount: false,
-      enabled: isAuthenticatedAndProjectMember && !includeAllTraceCommentCounts,
+      enabled: isAuthenticatedAndProjectMember && !sessionId,
     },
   );
 
-  const allTraceCommentCountsQuery = api.comments.getCountByObjectType.useQuery(
-    {
-      projectId,
-      objectType: "TRACE",
-    },
-    {
-      refetchOnMount: false,
-      enabled: isAuthenticatedAndProjectMember && includeAllTraceCommentCounts,
-    },
-  );
+  const sessionTraceCommentCountsQuery =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId: sessionId ?? "",
+      },
+      {
+        refetchOnMount: false,
+        enabled: isAuthenticatedAndProjectMember && !!sessionId,
+      },
+    );
 
   // Extract trace comment count from the Map response
-  const traceCommentCountMap = includeAllTraceCommentCounts
-    ? allTraceCommentCountsQuery.data
-      ? castToNumberMap(allTraceCommentCountsQuery.data)
+  const traceCommentCountMap = sessionId
+    ? sessionTraceCommentCountsQuery.data
+      ? castToNumberMap(sessionTraceCommentCountsQuery.data)
       : undefined
     : traceCommentCountQuery.data
       ? castToNumberMap(traceCommentCountQuery.data)
@@ -69,6 +70,6 @@ export function useTraceComments({
     isLoading:
       observationCommentCounts.isLoading ||
       traceCommentCountQuery.isLoading ||
-      allTraceCommentCountsQuery.isLoading,
+      sessionTraceCommentCountsQuery.isLoading,
   };
 }
