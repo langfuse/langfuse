@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import type { NextApiRequest, NextApiResponse } from "next";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,7 +37,7 @@ describe("withGatewayResolveAuth", () => {
 
     expect(authenticate).toHaveBeenCalledWith({
       virtualSecretKey: "sk-gateway",
-      apiFormat: "openai.responses",
+      requestBody: '{"api_format":"openai.responses"}',
       gatewayAuthorization: "HMAC signed",
     });
     expect(handler).toHaveBeenCalledWith({
@@ -44,5 +46,30 @@ describe("withGatewayResolveAuth", () => {
       auth: { organizationId: "org-1", apiKeyId: "key-1" },
       apiFormat: "openai.responses",
     });
+  });
+
+  it("passes the exact raw request body to HMAC verification", async () => {
+    const requestBody = '{ "api_format": "openai.responses" }\n';
+    const req = Object.assign(Readable.from([requestBody]), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer sk-gateway",
+        "langfuse-gateway-authorization": "HMAC signed",
+      },
+      body: undefined,
+    }) as unknown as NextApiRequest;
+    const authenticate = vi.fn().mockResolvedValue({
+      organizationId: "org-1",
+      apiKeyId: "key-1",
+    });
+
+    await withGatewayResolveAuth(
+      vi.fn().mockResolvedValue(undefined),
+      authenticate,
+    )(req, response());
+
+    expect(authenticate).toHaveBeenCalledWith(
+      expect.objectContaining({ requestBody }),
+    );
   });
 });

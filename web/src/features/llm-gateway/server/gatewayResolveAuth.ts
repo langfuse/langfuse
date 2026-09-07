@@ -29,19 +29,19 @@ export type AuthenticatedGatewayResolveHandler = (params: {
 
 type GatewayResolveAuthConfig = {
   salt: string;
-  serviceKeys: Array<{ id: string; secret: string }>;
+  serviceKeys: Array<{ secret: string }>;
 };
 
 type GatewayResolveAuthenticator = (params: {
   virtualSecretKey: string;
-  apiFormat: GatewayApiFormat;
+  requestBody: string;
   gatewayAuthorization: string | undefined;
 }) => Promise<GatewayResolveAuthContext>;
 
 export async function authenticateGatewayResolveRequest(
   params: {
     virtualSecretKey: string;
-    apiFormat: GatewayApiFormat;
+    requestBody: string;
     gatewayAuthorization: string | undefined;
   },
   database: PrismaClient,
@@ -50,7 +50,8 @@ export async function authenticateGatewayResolveRequest(
   if (
     !verifyGatewayHmacAuthorization({
       header: params.gatewayAuthorization,
-      apiFormat: params.apiFormat,
+      virtualSecretKey: params.virtualSecretKey,
+      requestBody: params.requestBody,
       keys: config.serviceKeys,
     })
   ) {
@@ -91,7 +92,14 @@ export function withGatewayResolveAuth(
       return res.status(401).json({ error: "Invalid gateway key" });
     }
 
-    const body = bodySchema.safeParse(req.body);
+    let requestBody: string;
+    try {
+      requestBody = await readRequestBody(req);
+    } catch {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+
+    const body = bodySchema.safeParse(parseJson(requestBody));
     if (!body.success) {
       return res.status(400).json({ error: "Invalid request" });
     }
@@ -99,7 +107,7 @@ export function withGatewayResolveAuth(
     try {
       const auth = await authenticate({
         virtualSecretKey: bearer,
-        apiFormat: body.data.api_format,
+        requestBody,
         gatewayAuthorization: singleHeader(
           req.headers["langfuse-gateway-authorization"],
         ),
@@ -122,7 +130,7 @@ export function withGatewayResolveAuth(
 
 async function authenticateConfiguredGatewayResolveRequest(params: {
   virtualSecretKey: string;
-  apiFormat: GatewayApiFormat;
+  requestBody: string;
   gatewayAuthorization: string | undefined;
 }) {
   if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
@@ -133,20 +141,41 @@ async function authenticateConfiguredGatewayResolveRequest(params: {
     salt: env.SALT,
     serviceKeys: [
       {
-        id: env.LANGFUSE_GATEWAY_SERVICE_KEY_ID,
         secret: env.LANGFUSE_GATEWAY_SERVICE_KEY,
       },
-      ...(env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS_ID &&
-      env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS
+      ...(env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS
         ? [
             {
-              id: env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS_ID,
               secret: env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS,
             },
           ]
         : []),
     ],
   });
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readRequestBody(req: NextApiRequest): Promise<string> {
+  if (typeof req.body === "string") return req.body;
+  if (Buffer.isBuffer(req.body)) return req.body.toString("utf8");
+  if (req.body !== undefined) return JSON.stringify(req.body);
+
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > 1024) throw new Error("Gateway resolve body is too large");
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function singleHeader(

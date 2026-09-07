@@ -354,9 +354,7 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
-    LANGFUSE_GATEWAY_SERVICE_KEY_ID: z.string().min(1).default("current"),
     LANGFUSE_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
-    LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS_ID: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_JWT_KEY_ID: z.string().min(1).default("current"),
     LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: z.string().min(1).optional(),
@@ -1046,11 +1044,7 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
-    LANGFUSE_GATEWAY_SERVICE_KEY_ID:
-      process.env.LANGFUSE_GATEWAY_SERVICE_KEY_ID,
     LANGFUSE_GATEWAY_SERVICE_KEY: process.env.LANGFUSE_GATEWAY_SERVICE_KEY,
-    LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS_ID:
-      process.env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS_ID,
     LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS,
     LANGFUSE_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_GATEWAY_JWT_KEY_ID,

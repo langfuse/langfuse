@@ -14,11 +14,18 @@ describe("LLM gateway authentication", () => {
   it("uses a deterministic canonical message and verifies current/previous keys", () => {
     const input = {
       timestamp: 1_788_430_200,
-      apiFormat: "openai.responses" as const,
+      virtualSecretKey: "sk-lf-user-key",
+      requestBody: '{"api_format":"openai.responses"}',
     };
 
     expect(buildGatewayHmacCanonicalMessage(input)).toBe(
-      "POST\n/api/internal/ai-gateway/v1/resolve\n1788430200\nopenai.responses",
+      [
+        "1788430200",
+        "a1d25ea3068123a17984e97222ae1d3d9a9a0980363aa7eea3a0e01c6172b89c",
+        "/api/internal/ai-gateway/v1/resolve",
+        "POST",
+        "0c81946f9f684a1b490df4316fd8f76a1aaee1f19ba902f0dafcf54530163847",
+      ].join("\n"),
     );
 
     const signature = createGatewayHmacSignature({
@@ -28,21 +35,23 @@ describe("LLM gateway authentication", () => {
 
     expect(
       verifyGatewayHmacAuthorization({
-        header: `HMAC keyId=previous,timestamp=${input.timestamp},signature=${signature}`,
-        apiFormat: input.apiFormat,
+        header: `HMAC timestamp=${input.timestamp},signature=${signature}`,
+        virtualSecretKey: input.virtualSecretKey,
+        requestBody: input.requestBody,
         now: new Date(input.timestamp * 1000),
         keys: [
-          { id: "current", secret: "current-service-key" },
-          { id: "previous", secret: "previous-service-key" },
+          { secret: "current-service-key" },
+          { secret: "previous-service-key" },
         ],
       }),
     ).toBe(true);
     expect(
       verifyGatewayHmacAuthorization({
-        header: `HMAC keyId=previous,timestamp=${input.timestamp},signature=${signature}`,
-        apiFormat: "anthropic.messages",
+        header: `HMAC timestamp=${input.timestamp},signature=${signature}`,
+        virtualSecretKey: input.virtualSecretKey,
+        requestBody: '{"api_format":"anthropic.messages"}',
         now: new Date(input.timestamp * 1000),
-        keys: [{ id: "previous", secret: "previous-service-key" }],
+        keys: [{ secret: "previous-service-key" }],
       }),
     ).toBe(false);
   });

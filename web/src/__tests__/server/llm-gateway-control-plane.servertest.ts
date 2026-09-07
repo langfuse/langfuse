@@ -335,23 +335,25 @@ describe("LLM gateway control plane", () => {
     const serviceKey = "test-control-plane-service-key";
     const timestamp = Math.floor(Date.now() / 1000);
     const apiFormat = "openai.chat-completions" as const;
-    const gatewayAuthorization = `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
+    const requestBody = JSON.stringify({ api_format: apiFormat });
+    const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${createGatewayHmacSignature(
       {
         timestamp,
-        apiFormat,
+        virtualSecretKey: gatewayKey.secretKey,
+        requestBody,
         serviceKey,
       },
     )}`;
     const auth = await authenticateGatewayResolveRequest(
       {
         virtualSecretKey: gatewayKey.secretKey,
-        apiFormat,
+        requestBody,
         gatewayAuthorization,
       },
       prisma,
       {
         salt: env.SALT,
-        serviceKeys: [{ id: "current", secret: serviceKey }],
+        serviceKeys: [{ secret: serviceKey }],
       },
     );
     const result = await new GatewayResolveService(prisma, {
@@ -487,23 +489,25 @@ describe("LLM gateway control plane", () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const serviceKey = "service";
     const apiFormat = "openai.responses" as const;
-    const gatewayAuthorization = `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
+    const requestBody = JSON.stringify({ api_format: apiFormat });
+    const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${createGatewayHmacSignature(
       {
         timestamp,
-        apiFormat,
+        virtualSecretKey: key.secretKey,
+        requestBody,
         serviceKey,
       },
     )}`;
     const auth = await authenticateGatewayResolveRequest(
       {
         virtualSecretKey: key.secretKey,
-        apiFormat,
+        requestBody,
         gatewayAuthorization,
       },
       prisma,
       {
         salt: env.SALT,
-        serviceKeys: [{ id: "current", secret: serviceKey }],
+        serviceKeys: [{ secret: serviceKey }],
       },
     );
     await expect(

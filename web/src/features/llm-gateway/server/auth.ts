@@ -1,4 +1,5 @@
 import {
+  createHash,
   createHmac,
   createPrivateKey,
   createPublicKey,
@@ -10,19 +11,17 @@ import {
 
 import { z } from "zod/v4";
 
-import type { GatewayApiFormat } from "./providerRegistry";
-
 const RESOLVE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
 const INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 type GatewayHmacMessageInput = {
   timestamp: number;
-  apiFormat: GatewayApiFormat;
+  virtualSecretKey: string;
+  requestBody: string;
 };
 
 type GatewayServiceKey = {
-  id: string;
   secret: string;
 };
 
@@ -65,10 +64,11 @@ export function buildGatewayHmacCanonicalMessage(
   input: GatewayHmacMessageInput,
 ): string {
   return [
-    RESOLVE_METHOD,
-    RESOLVE_PATH,
     input.timestamp.toString(),
-    input.apiFormat,
+    sha256(input.virtualSecretKey),
+    RESOLVE_PATH,
+    RESOLVE_METHOD,
+    sha256(input.requestBody),
   ].join("\n");
 }
 
@@ -77,36 +77,42 @@ export function createGatewayHmacSignature(
 ): string {
   return createHmac("sha256", input.serviceKey)
     .update(buildGatewayHmacCanonicalMessage(input), "utf8")
-    .digest("hex");
+    .digest("base64url");
 }
 
 export function verifyGatewayHmacAuthorization(input: {
   header: string | undefined;
-  apiFormat: GatewayApiFormat;
+  virtualSecretKey: string;
+  requestBody: string;
   keys: GatewayServiceKey[];
   now?: Date;
 }): boolean {
-  const match =
-    /^HMAC keyId=([^,\s]+),timestamp=(\d+),signature=([a-f0-9]{64})$/.exec(
-      input.header ?? "",
-    );
+  const match = /^HMAC timestamp=(\d+),signature=([A-Za-z0-9_-]{43})$/.exec(
+    input.header ?? "",
+  );
   if (!match) return false;
 
-  const [, keyId, timestampValue, signature] = match;
+  const [, timestampValue, signature] = match;
   const timestamp = Number(timestampValue);
   const now = Math.floor((input.now ?? new Date()).getTime() / 1000);
   if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > 300) {
     return false;
   }
-  const key = input.keys.find((candidate) => candidate.id === keyId);
-  if (!key) return false;
+  return input.keys.some((key) =>
+    safeEqual(
+      signature,
+      createGatewayHmacSignature({
+        timestamp,
+        virtualSecretKey: input.virtualSecretKey,
+        requestBody: input.requestBody,
+        serviceKey: key.secret,
+      }),
+    ),
+  );
+}
 
-  const expected = createGatewayHmacSignature({
-    timestamp,
-    apiFormat: input.apiFormat,
-    serviceKey: key.secret,
-  });
-  return safeEqual(signature, expected);
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 export function issueGatewayIngestionToken(input: {
