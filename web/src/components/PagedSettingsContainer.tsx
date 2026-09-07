@@ -23,11 +23,13 @@ type SettingsProps = {
     } & ({ content: ReactNode } | { href: string })
   >;
   activeSlug?: string;
+  fullHeight?: boolean;
 };
 
 export const PagedSettingsContainer = ({
   pages,
   activeSlug,
+  fullHeight = false,
 }: SettingsProps) => {
   const router = useRouter();
   const availablePages = pages.filter((page) =>
@@ -51,8 +53,19 @@ export const PagedSettingsContainer = ({
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 py-4 md:gap-8">
-      <div className="grid w-full items-start gap-4 md:grid-cols-[150px_1fr] lg:grid-cols-[220px_1fr]">
+    <main
+      className={cn(
+        "flex flex-1 flex-col gap-4 py-4 md:gap-8",
+        fullHeight && "min-h-0 overflow-hidden",
+      )}
+    >
+      <div
+        className={cn(
+          "grid w-full items-start gap-4 md:grid-cols-[150px_1fr] lg:grid-cols-[220px_1fr]",
+          fullHeight &&
+            "min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-rows-1",
+        )}
+      >
         <nav className="block md:hidden">
           <Select
             onValueChange={(slug) => {
@@ -92,7 +105,7 @@ export const PagedSettingsContainer = ({
             <Fragment key={page.title}>
               {page.section &&
               page.section !== availablePages[index - 1]?.section ? (
-                <span className="text-foreground-tertiary mt-4 text-xs tracking-wider uppercase first:mt-0">
+                <span className="text-foreground mt-4 text-xs tracking-wider uppercase first:mt-0">
                   {page.section}
                 </span>
               ) : null}
@@ -108,9 +121,8 @@ export const PagedSettingsContainer = ({
                 <span
                   onClick={() => onChange(page.slug)}
                   className={cn(
-                    "hover:bg-muted/60 -mx-2 cursor-pointer rounded-sm border-l-2 border-transparent px-2 py-1",
-                    page.slug === currentPage.slug &&
-                      "border-primary bg-muted text-primary font-bold",
+                    "cursor-pointer font-bold",
+                    page.slug === currentPage.slug && "text-primary",
                   )}
                 >
                   {page.title}
@@ -119,7 +131,12 @@ export const PagedSettingsContainer = ({
             </Fragment>
           ))}
         </nav>
-        <div className="w-full overflow-hidden p-1">
+        <div
+          className={cn(
+            "w-full overflow-hidden p-1",
+            fullHeight && "h-full min-h-0",
+          )}
+        >
           {currentPage && "content" in currentPage ? currentPage.content : null}
         </div>
       </div>

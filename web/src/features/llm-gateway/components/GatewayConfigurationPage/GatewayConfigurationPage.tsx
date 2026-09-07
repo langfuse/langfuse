@@ -1,3 +1,5 @@
+import { useSession } from "next-auth/react";
+
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +21,7 @@ export function GatewayConfigurationPage({
   organizationId: string;
   projects: Project[];
 }) {
+  const session = useSession();
   const configQuery = api.llmGateway.getConfig.useQuery({
     orgId: organizationId,
   });
@@ -70,6 +73,7 @@ export function GatewayConfigurationPage({
           await utils.llmGateway.getConfig.invalidate({
             orgId: organizationId,
           });
+          if (createProjectName) await session.update();
           showSuccessToast({
             title: "Gateway configuration saved",
             description: "New gateway requests will use this configuration.",

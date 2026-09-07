@@ -5,9 +5,8 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { CreateProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/CreateProviderDialogController/CreateProviderDialogController";
 import { DeleteProviderDialog } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/DeleteProviderDialog";
-import { EditProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/EditProviderDialogController/EditProviderDialogController";
+import { ProviderDialogController } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 import { GatewayProvidersView } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/GatewayProvidersView/GatewayProvidersView";
 import { ReorderProviderButton } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/ReorderProviderButton";
 import { RetryProviderButton } from "@/src/features/llm-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
@@ -22,7 +21,13 @@ export function GatewayProvidersPage({
     { orgId: organizationId, limit: 50 },
     { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
   );
-  const [modelCounts, setModelCounts] = useState<Record<string, number>>({});
+  const modelsQuery = api.llmGateway.refreshModels.useQuery(
+    { orgId: organizationId },
+    { enabled: connectionsQuery.isSuccess },
+  );
+  const [retriedModelCounts, setRetriedModelCounts] = useState<
+    Record<string, number>
+  >({});
   const utils = api.useUtils();
   const reorder = api.llmGateway.reorderConnections.useMutation();
 
@@ -53,6 +58,19 @@ export function GatewayProvidersPage({
 
   const connections =
     connectionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
+  const modelCounts: Record<string, number | "loading"> = modelsQuery.isPending
+    ? Object.fromEntries(
+        connections
+          .filter((connection) => connection.status === "ENABLED")
+          .map((connection) => [connection.id, "loading"]),
+      )
+    : Object.fromEntries(
+        (modelsQuery.data ?? [])
+          .filter((result) => result.success)
+          .map((result) => [result.connectionId, result.models.length]),
+      );
+  Object.assign(modelCounts, retriedModelCounts);
+
   return (
     <GatewayProvidersView
       connections={connections}
@@ -83,7 +101,7 @@ export function GatewayProvidersPage({
         }
       }}
       createAction={
-        <CreateProviderDialogController organizationId={organizationId}>
+        <ProviderDialogController organizationId={organizationId}>
           {({ Trigger }) => (
             <Trigger asChild>
               <Button>
@@ -92,7 +110,7 @@ export function GatewayProvidersPage({
               </Button>
             </Trigger>
           )}
-        </CreateProviderDialogController>
+        </ProviderDialogController>
       }
       renderPriorityActions={(_connection, index) => (
         <>
@@ -121,13 +139,14 @@ export function GatewayProvidersPage({
               organizationId={organizationId}
               connectionId={connection.id}
               onModelsLoaded={(count) =>
-                setModelCounts((current) => ({
+                setRetriedModelCounts((current) => ({
                   ...current,
                   [connection.id]: count,
                 }))
               }
             />
-            <EditProviderDialogController
+            <ProviderDialogController
+              key={`${connection.id}:${connection.updatedAt.toISOString()}`}
               organizationId={organizationId}
               connection={connection}
             >
@@ -142,7 +161,7 @@ export function GatewayProvidersPage({
                   </Button>
                 </Trigger>
               )}
-            </EditProviderDialogController>
+            </ProviderDialogController>
             <DeleteProviderDialog
               organizationId={organizationId}
               connection={connection}

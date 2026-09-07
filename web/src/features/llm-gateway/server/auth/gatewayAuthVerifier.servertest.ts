@@ -5,8 +5,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { signHmacSha256 } from "@/src/server/utils/hmac";
+import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiKeyRepository } from "../apiKey/gatewayApiKeyRepository";
 import { withGatewayResolveAuth } from "./gatewayAuthVerifier";
 
 vi.mock("@/src/env.mjs", () => ({
@@ -71,16 +71,6 @@ function gatewayAuthorization(input: {
   )}`;
 }
 
-function mockGatewayKey() {
-  return vi
-    .spyOn(GatewayApiKeyRepository.prototype, "resolveGatewayContext")
-    .mockResolvedValue({
-      apiKeyId: "key-1",
-      apiKey: { orgId: "org-1" },
-      metadata: {},
-    });
-}
-
 describe("withGatewayResolveAuth", () => {
   it.each([
     undefined,
@@ -110,7 +100,6 @@ describe("withGatewayResolveAuth", () => {
     async (secret) => {
       vi.useFakeTimers();
       vi.setSystemTime(now);
-      mockGatewayKey();
       const body = '{ "api_format": "openai.responses" }\n';
       const req = request({
         authorization: "  Bearer   sk-gateway  ",
@@ -125,7 +114,7 @@ describe("withGatewayResolveAuth", () => {
       expect(handler).toHaveBeenCalledWith({
         req,
         res,
-        auth: { organizationId: "org-1", apiKeyId: "key-1" },
+        fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
         apiFormat: "openai.responses",
       });
     },
@@ -134,7 +123,6 @@ describe("withGatewayResolveAuth", () => {
   it("hashes the exact raw request body", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    mockGatewayKey();
     const signedBody = '{ "api_format": "openai.responses" }\n';
     const handler = vi.fn();
     const res = response();
@@ -158,7 +146,6 @@ describe("withGatewayResolveAuth", () => {
   it("rejects stale signatures and headers containing a key id", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    mockGatewayKey();
     const body = '{"api_format":"openai.responses"}';
     const staleHeader = gatewayAuthorization({
       body,

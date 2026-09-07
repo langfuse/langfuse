@@ -21,20 +21,19 @@ const gatewayIngestionTokenSigner =
 
 export async function gatewayResolveApiHandler({
   res,
-  auth,
+  fastHashedSecretKey,
   apiFormat,
 }: {
   req: NextApiRequest;
   res: NextApiResponse;
-  auth: { organizationId: string; apiKeyId: string };
+  fastHashedSecretKey: string;
   apiFormat: GatewayApiFormat;
 }) {
   try {
     const result = await new GatewayResolveService(prisma, {
       jwtSigner: gatewayIngestionTokenSigner,
     }).resolve({
-      organizationId: auth.organizationId,
-      apiKeyId: auth.apiKeyId,
+      fastHashedSecretKey,
       apiFormat,
     });
     return res.status(200).json(GatewayResolveResponseSchema.parse(result));

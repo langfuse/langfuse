@@ -5,10 +5,8 @@ import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
-import { prisma } from "@langfuse/shared/src/db";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiKeyRepository } from "../apiKey/gatewayApiKeyRepository";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayResolveError } from "@/src/features/llm-gateway/server/resolve/resolveService";
 
@@ -19,23 +17,18 @@ const bodySchema = z.object({ api_format: GatewayApiFormatSchema }).strict();
 const gatewayAuthorizationSchema =
   /^HMAC timestamp=(\d+),signature=([A-Za-z0-9_-]{43})$/;
 
-type GatewayResolveAuthContext = {
-  organizationId: string;
-  apiKeyId: string;
-};
-
-type AuthenticatedGatewayResolveHandler = (params: {
+type GatewayResolveHandler = (params: {
   req: NextApiRequest;
   res: NextApiResponse;
-  auth: GatewayResolveAuthContext;
+  fastHashedSecretKey: string;
   apiFormat: GatewayApiFormat;
 }) => Promise<unknown>;
 
-async function authenticateGatewayResolveRequest(input: {
+function verifyGatewayResolveRequest(input: {
   virtualSecretKey: string;
   requestBody: string;
   gatewayAuthorization: string | undefined;
-}): Promise<GatewayResolveAuthContext> {
+}): string {
   if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
     throw new GatewayResolveError("Gateway service is not configured", 503);
   }
@@ -50,25 +43,10 @@ async function authenticateGatewayResolveRequest(input: {
     throw new GatewayResolveError("Invalid gateway authorization", 401);
   }
 
-  const association = await new GatewayApiKeyRepository(
-    prisma,
-  ).resolveGatewayContext({
-    fastHashedSecretKey: createShaHash(input.virtualSecretKey, env.SALT),
-  });
-  const organizationId = association?.apiKey.orgId;
-  if (!association || !organizationId) {
-    throw new GatewayResolveError("Invalid gateway key", 401);
-  }
-
-  return {
-    organizationId,
-    apiKeyId: association.apiKeyId,
-  };
+  return createShaHash(input.virtualSecretKey, env.SALT);
 }
 
-export function withGatewayResolveAuth(
-  handler: AuthenticatedGatewayResolveHandler,
-) {
+export function withGatewayResolveAuth(handler: GatewayResolveHandler) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Pragma", "no-cache");
@@ -100,7 +78,7 @@ export function withGatewayResolveAuth(
     }
 
     try {
-      const auth = await authenticateGatewayResolveRequest({
+      const fastHashedSecretKey = verifyGatewayResolveRequest({
         virtualSecretKey: token,
         requestBody,
         gatewayAuthorization: singleHeader(
@@ -111,7 +89,7 @@ export function withGatewayResolveAuth(
       return await handler({
         req,
         res,
-        auth,
+        fastHashedSecretKey,
         apiFormat: body.data.api_format,
       });
     } catch (error) {

@@ -162,6 +162,16 @@ export const llmGatewayRouter = createTRPCRouter({
       );
     }),
 
+  syncModels: protectedOrganizationProcedure
+    .input(organizationInput)
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).refreshAllModels(
+        input.orgId,
+        true,
+      );
+    }),
+
   retryConnection: protectedOrganizationProcedure
     .input(organizationInput.extend({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {

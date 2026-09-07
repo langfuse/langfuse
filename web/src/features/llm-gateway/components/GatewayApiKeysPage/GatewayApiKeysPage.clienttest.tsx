@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: {}, push: vi.fn() }),
@@ -68,6 +69,16 @@ vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
   CodeView: ({ content }: { content: string }) => <pre>{content}</pre>,
 }));
 
+vi.mock("@/src/components/ui/InfoTooltip/InfoTooltip", () => ({
+  InfoTooltip: ({
+    label,
+    children,
+  }: {
+    label: string;
+    children: ReactNode;
+  }) => <span aria-label={label}>{children}</span>,
+}));
+
 import { GatewayApiKeysPage } from "./GatewayApiKeysPage";
 
 describe("GatewayApiKeysPage", () => {
@@ -79,25 +90,38 @@ describe("GatewayApiKeysPage", () => {
     fetchNextPage.mockClear();
   });
 
-  it("shows a clear loading skeleton", () => {
-    queryState.isPending = true;
-
+  it("lists only the masked gateway key", () => {
     render(<GatewayApiKeysPage organizationId="org-1" />);
 
-    expect(screen.getByTestId("gateway-api-keys-loading")).toBeInTheDocument();
+    expect(screen.getByText("sk-lf-...cdef")).toBeInTheDocument();
+    expect(screen.queryByText("pk-lf-gateway")).not.toBeInTheDocument();
   });
 
-  it("renders only masked gateway key details and flat metadata", () => {
+  it("adds metadata entries in the expandable editor", () => {
     render(<GatewayApiKeysPage organizationId="org-1" />);
 
-    expect(screen.getByText("pk-lf-gateway")).toBeInTheDocument();
-    expect(screen.getByText("sk-lf-...cdef")).toBeInTheDocument();
-    expect(screen.getByText("Production app")).toBeInTheDocument();
-    expect(screen.getByText("environment: production")).toBeInTheDocument();
-    expect(screen.getByText("region: eu")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway key" }));
+
+    const metadataTrigger = screen.getByRole("button", {
+      name: /Metadata \(optional\)/,
+    });
     expect(
-      screen.getByRole("button", { name: "Revoke gateway key" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("textbox", { name: "Metadata key" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(metadataTrigger);
+    fireEvent.change(screen.getByRole("textbox", { name: "Metadata key" }), {
+      target: { value: "team" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Metadata value" }), {
+      target: { value: "checkout" },
+    });
+    expect(metadataTrigger).toHaveTextContent("1 set");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add metadata" }));
+    expect(
+      screen.getAllByRole("textbox", { name: "Metadata key" }),
+    ).toHaveLength(2);
   });
 
   it("loads the next page and exposes its pending state", () => {

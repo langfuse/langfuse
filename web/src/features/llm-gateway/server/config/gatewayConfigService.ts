@@ -102,6 +102,12 @@ export class GatewayConfigService {
         select: { id: true },
       });
       if (existing) {
+        const config = await tx.gatewayConfig.findUnique({
+          where: { organizationId: params.organizationId },
+        });
+        if (config?.defaultIngestionProjectId === existing.id) {
+          return { config, project: null };
+        }
         throw new InvalidRequestError(
           "A project with this name already exists",
         );

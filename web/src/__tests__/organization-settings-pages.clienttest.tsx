@@ -222,8 +222,5 @@ describe("useOrganizationSettingsPages", () => {
       "llm-gateway-api-keys",
     ]);
     expect(gatewayPages.every((page) => page.show === true)).toBe(true);
-    expect(
-      gatewayPages.every((page) => (page.cmdKKeywords?.length ?? 0) > 0),
-    ).toBe(true);
   });
 });

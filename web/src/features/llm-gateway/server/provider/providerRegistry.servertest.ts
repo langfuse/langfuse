@@ -6,6 +6,8 @@ import {
   providerSupportsApiFormat,
 } from ".";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { encrypt } from "@langfuse/shared/encryption";
+import type { Redis } from "ioredis";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const session = {
@@ -65,5 +67,95 @@ describe("LLM gateway provider registry", () => {
       provider: "OPENAI",
       credential: "invalid",
     });
+  });
+
+  it("reads model lists from an organization and connection scoped cache", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const redis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(["gpt-5-mini"])),
+      setex: vi.fn(),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: "unused",
+        }),
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(
+      prisma,
+      fetcher,
+      undefined,
+      redis,
+    );
+
+    await expect(
+      service.refreshModels({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toEqual({
+      connectionId: "connection-1",
+      success: true,
+      models: ["gpt-5-mini"],
+    });
+    expect(redis.get).toHaveBeenCalledWith(
+      "llm-gateway:models:org-1:connection-1",
+    );
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("bypasses and refreshes the cache during an explicit sync", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: "gpt-5" }] }), {
+        status: 200,
+      }),
+    );
+    const redis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(["stale-model"])),
+      setex: vi.fn().mockResolvedValue("OK"),
+      del: vi.fn().mockResolvedValue(1),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          status: "ENABLED",
+        }),
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(
+      prisma,
+      fetcher,
+      undefined,
+      redis,
+    );
+
+    await expect(
+      service.refreshModels({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+        forceRefresh: true,
+      }),
+    ).resolves.toEqual({
+      connectionId: "connection-1",
+      success: true,
+      models: ["gpt-5"],
+    });
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.del).toHaveBeenCalledWith(
+      "llm-gateway:models:org-1:connection-1",
+    );
+    expect(redis.setex).toHaveBeenCalledWith(
+      "llm-gateway:models:org-1:connection-1",
+      300,
+      JSON.stringify(["gpt-5"]),
+    );
   });
 });

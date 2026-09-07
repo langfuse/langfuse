@@ -13,6 +13,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import {
   createInnerTRPCContext,
@@ -31,6 +32,7 @@ import {
 } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
+import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -142,6 +144,24 @@ describe("LLM gateway control plane", () => {
     const project = await prisma.project.findFirstOrThrow({
       where: { id: ingestionProjectId },
     });
+
+    const retriedConfig = await owner.caller.llmGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: null,
+      createProjectName: "llm-ingestion-project",
+      instrumentationMode: "USAGE",
+    });
+    expect(retriedConfig.defaultIngestionProjectId).toBe(ingestionProjectId);
+    await expect(
+      prisma.project.count({
+        where: {
+          orgId: owner.org.id,
+          name: "llm-ingestion-project",
+          deletedAt: null,
+        },
+      }),
+    ).resolves.toBe(1);
+
     const memberships = await prisma.projectMembership.findMany({
       where: { projectId: project.id },
       orderBy: { userId: "asc" },
@@ -494,8 +514,7 @@ describe("LLM gateway control plane", () => {
     const result = await new GatewayResolveService(prisma, {
       jwtSigner,
     }).resolve({
-      organizationId: org.id,
-      apiKeyId: gatewayKey.id,
+      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
       apiFormat,
     });
 
@@ -623,8 +642,7 @@ describe("LLM gateway control plane", () => {
     const apiFormat = "openai.responses" as const;
     await expect(
       new GatewayResolveService(prisma, {}).resolve({
-        organizationId: org.id,
-        apiKeyId: key.id,
+        fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
         apiFormat,
       }),
     ).rejects.toEqual(

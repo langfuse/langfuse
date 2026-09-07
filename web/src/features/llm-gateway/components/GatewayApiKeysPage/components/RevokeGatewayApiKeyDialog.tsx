@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
@@ -33,8 +32,13 @@ export function RevokeGatewayApiKeyDialog({
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <Button size="icon-xs" variant="ghost" aria-label="Revoke gateway key">
-          <Trash2 className="size-4" />
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="text-foreground hover:text-foreground h-auto px-0 py-0"
+        >
+          Revoke
         </Button>
       }
       title="Revoke gateway API key"

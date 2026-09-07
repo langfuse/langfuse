@@ -42,15 +42,12 @@ export function GatewayApiKeysView({
       size: 120,
     },
     {
-      accessorKey: "apiKey.publicKey",
+      accessorKey: "apiKey.displaySecretKey",
       id: "key",
       header: "Key",
       cell: ({ row }) => (
         <div className="ph-no-capture font-mono">
-          <div>{row.original.apiKey.publicKey}</div>
-          <div className="text-muted-foreground">
-            {row.original.apiKey.displaySecretKey}
-          </div>
+          {row.original.apiKey.displaySecretKey}
         </div>
       ),
     },
@@ -81,9 +78,12 @@ export function GatewayApiKeysView({
     {
       accessorKey: "apiKey.id",
       id: "actions",
-      header: "",
+      header: "Actions",
       cell: ({ row }) => renderRevokeAction(row.original.apiKey.id),
-      size: 60,
+      size: 100,
+      isFixedPosition: true,
+      enableSorting: false,
+      enableResizing: false,
     },
   ];
 
@@ -99,6 +99,7 @@ export function GatewayApiKeysView({
           columns={columns}
           data={{ isLoading: false, isError: false, data: apiKeys }}
           noResultsMessage="No gateway API keys created."
+          getRowClassName={() => "h-9"}
           cellPadding="comfortable"
         />
       </SettingsTableCard>
