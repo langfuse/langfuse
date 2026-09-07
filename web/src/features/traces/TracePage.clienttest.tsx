@@ -36,7 +36,18 @@ vi.mock("@/src/features/traces/hooks/useTraceDetailMode", () => ({
   }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  default: ({
+    children,
+    headerProps,
+  }: {
+    children: React.ReactNode;
+    headerProps: { actionButtonsRight?: React.ReactNode };
+  }) => (
+    <>
+      {headerProps.actionButtonsRight}
+      {children}
+    </>
+  ),
 }));
 vi.mock("@/src/features/traces/components/TraceDetailBody", () => ({
   TraceDetailBody: () => <div>Session detail body</div>,
@@ -45,7 +56,11 @@ vi.mock("@/src/features/traces/components/TraceDetailActions", () => ({
   TraceDetailActions: () => null,
 }));
 vi.mock("@/src/features/navigate-detail-pages/DetailPageNav", () => ({
-  DetailPageNav: () => null,
+  DetailPageNav: ({
+    path,
+  }: {
+    path: (entry: { id: string; params?: { timestamp?: string } }) => string;
+  }) => <div>{path({ id: "trace-2" })}</div>,
 }));
 vi.mock("@/src/features/traces/components/TraceAggregationToggle", () => ({
   TraceAggregationToggle: () => null,
@@ -75,5 +90,30 @@ describe("TracePage", () => {
 
     expect(screen.getByText("Loading...")).toBeInTheDocument();
     expect(screen.queryByText("Session detail body")).not.toBeInTheDocument();
+  });
+
+  it("leaves session scope when navigating to another trace", () => {
+    mockTraceDetailData.mockReturnValue({
+      data: {
+        id: "trace-1",
+        projectId: "project-1",
+        public: false,
+        observations: [],
+        sessionTraceEntries: [],
+      },
+      isLoading: false,
+      isUnauthorized: false,
+      isSessionScopeUnavailable: false,
+      isNotFound: false,
+      isError: false,
+      isEventsTraceSource: true,
+      canAggregateBySession: true,
+    });
+
+    render(<TracePage traceId="trace-1" />);
+
+    expect(
+      screen.getByText("/project/project-1/traces/trace-2"),
+    ).toBeInTheDocument();
   });
 });

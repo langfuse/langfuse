@@ -177,7 +177,7 @@ export function TracePage({
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
-                  ...(aggregationLevel !== "trace"
+                  ...(aggregationLevel === "observation"
                     ? { aggregation: aggregationLevel }
                     : {}),
                 });
