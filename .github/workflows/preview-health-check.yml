@@ -58,9 +58,14 @@ jobs:
             exit 0
           fi
 
+          # curl already prints 000 for a timeout, DNS failure or refused
+          # connection, so swallow its exit status rather than echoing a second
+          # 000 after it (which would report "HTTP 000000").
           probe() {
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
-              "https://pr-$1.preview.langfuse.com/api/public/health" 2>/dev/null || echo 000
+            local code
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+              "https://pr-$1.preview.langfuse.com/api/public/health" 2>/dev/null || true)"
+            printf '%s' "${code:-000}"
           }
 
           unhealthy=""
@@ -70,21 +75,23 @@ jobs:
           for n in $numbers; do
             code="$(probe "$n")"
 
+            # A rebuild rolls the web Deployment, and a brief ImagePullBackOff is
+            # documented as normal and self-healing. Re-probe once before calling
+            # it broken so a rollout in progress doesn't cry wolf.
+            if [ "$code" != "200" ] && [ "$code" != "404" ]; then
+              sleep 30
+              code="$(probe "$n")"
+            fi
+
             # 404 is the shared ALB's wildcard catch-all: the PR is labeled but
             # nothing is deployed for it — an author off the deploy allowlist, or
             # a teardown still in flight. Not a failure, so don't page on it.
+            # Checked after the re-probe as well, so a teardown that completes
+            # mid-check reads as undeployed rather than broken.
             if [ "$code" = "404" ]; then
               undeployed=$((undeployed + 1))
               echo "pr-$n: not deployed (404)"
               continue
-            fi
-
-            # A rebuild rolls the web Deployment, and a brief ImagePullBackOff is
-            # documented as normal and self-healing. Re-probe once before calling
-            # it broken so a rollout in progress doesn't cry wolf.
-            if [ "$code" != "200" ]; then
-              sleep 30
-              code="$(probe "$n")"
             fi
 
             if [ "$code" = "200" ]; then
