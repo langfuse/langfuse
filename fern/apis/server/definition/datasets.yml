@@ -13,6 +13,13 @@ service:
       request:
         name: GetDatasetsRequest
         query-parameters:
+          name:
+            type: optional<string>
+            docs: |
+              Optional case-insensitive substring filter on the dataset
+              row's `name` column. Omit to return datasets regardless of
+              name. Wired through the shared `listDatasetsForApi`
+              service function.
           page:
             type: optional<integer>
             docs: page number, starts at 1

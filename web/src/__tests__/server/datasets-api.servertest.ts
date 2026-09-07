@@ -2200,4 +2200,121 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
+
+  describe("GET /v2/datasets name filter", () => {
+    // Two datasets whose names share a substring ("eval") and one that
+    // doesn't, so the case-insensitive substring filter can be exercised
+    // without relying on ordering or pagination.
+    let evalName1: string;
+    let evalName2: string;
+    let unrelatedName: string;
+
+    beforeEach(async () => {
+      evalName1 = `eval-suite-${v4()}`;
+      evalName2 = `my-eval-${v4()}`;
+      unrelatedName = `unrelated-${v4()}`;
+
+      await prisma.dataset.create({
+        data: { name: evalName1, projectId },
+      });
+      await prisma.dataset.create({
+        data: { name: evalName2, projectId },
+      });
+      await prisma.dataset.create({
+        data: { name: unrelatedName, projectId },
+      });
+    });
+
+    it("filters GET /v2/datasets by case-insensitive name substring", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV2Response,
+        "GET",
+        "/api/public/v2/datasets?name=eval&limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      // Lowercase substring "eval" matches "eval-suite-..." and "my-eval-..."
+      // but not "unrelated-..."
+      expect(names).toEqual(expect.arrayContaining([evalName1, evalName2]));
+      expect(names).not.toContain(unrelatedName);
+      expect(response.body.meta.totalItems).toBe(2);
+    });
+
+    it("is case-insensitive (EVAL matches the same datasets as eval)", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV2Response,
+        "GET",
+        "/api/public/v2/datasets?name=EVAL&limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual(expect.arrayContaining([evalName1, evalName2]));
+      expect(names).not.toContain(unrelatedName);
+    });
+
+    it("omits the name filter when the param is not provided (existing behavior)", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV2Response,
+        "GET",
+        "/api/public/v2/datasets?limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual(
+        expect.arrayContaining([evalName1, evalName2, unrelatedName]),
+      );
+    });
+
+    it("returns an empty list when the substring matches no dataset", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV2Response,
+        "GET",
+        "/api/public/v2/datasets?name=zzz-no-match-zzz&limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+      expect(response.body.meta.totalItems).toBe(0);
+    });
+
+    it("composes the name filter with the existing project scope", async () => {
+      // Create a dataset with the same name substring in a different
+      // project so we can prove the filter does not leak across the
+      // project boundary.
+      const other = await createOrgProjectAndApiKey();
+
+      await prisma.dataset.create({
+        data: {
+          name: `eval-other-project-${v4()}`,
+          projectId: other.projectId,
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV2Response,
+        "GET",
+        "/api/public/v2/datasets?name=eval&limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      // Only the two datasets in `projectId` (not the other project) should
+      // appear; the filter still respects the project scope.
+      expect(names).toEqual(expect.arrayContaining([evalName1, evalName2]));
+      expect(names).toHaveLength(2);
+    });
+  });
 });
