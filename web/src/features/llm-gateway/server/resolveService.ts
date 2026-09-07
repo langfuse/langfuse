@@ -4,12 +4,8 @@ import type {
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import {
-  issueGatewayIngestionToken,
-  verifyGatewayHmacAuthorization,
-} from "./auth";
+import { issueGatewayIngestionToken } from "./auth";
 import {
   type GatewayApiFormat,
   gatewayProviders,
@@ -28,8 +24,6 @@ export class GatewayResolveError extends Error {
 }
 
 type ResolveConfig = {
-  salt: string;
-  serviceKeys: Array<{ id: string; secret: string }>;
   jwt?: {
     privateKey: string;
     keyId: string;
@@ -49,38 +43,17 @@ export class GatewayResolveService {
   }
 
   async resolve(params: {
-    virtualSecretKey: string;
+    organizationId: string;
+    apiKeyId: string;
     apiFormat: GatewayApiFormat;
-    gatewayAuthorization: string | undefined;
   }) {
-    if (
-      !verifyGatewayHmacAuthorization({
-        header: params.gatewayAuthorization,
-        apiFormat: params.apiFormat,
-        keys: this.config.serviceKeys,
-      })
-    ) {
-      throw new GatewayResolveError("Invalid gateway authorization", 401);
-    }
-
-    const association = await this.repository.resolveGatewayContext({
-      fastHashedSecretKey: createShaHash(
-        params.virtualSecretKey,
-        this.config.salt,
-      ),
-    });
-    const organizationId = association?.apiKey.orgId;
-    if (!association || !organizationId) {
-      throw new GatewayResolveError("Invalid gateway key", 401);
-    }
-
     const supportedProviders = gatewayProviders.filter((provider) =>
       providerSupportsApiFormat(provider, params.apiFormat),
     ) as GatewayProvider[];
     const [config, connection] = await Promise.all([
-      this.repository.getConfig(organizationId),
+      this.repository.getConfig(params.organizationId),
       this.repository.selectConnectionWithCredential({
-        organizationId,
+        organizationId: params.organizationId,
         providers: supportedProviders,
       }),
     ]);
@@ -88,7 +61,7 @@ export class GatewayResolveService {
       !config?.defaultIngestionProjectId ||
       !config.defaultIngestionProject ||
       config.defaultIngestionProject.deletedAt ||
-      config.defaultIngestionProject.orgId !== organizationId
+      config.defaultIngestionProject.orgId !== params.organizationId
     ) {
       throw new GatewayResolveError(
         "Gateway ingestion project is unavailable",
@@ -120,9 +93,9 @@ export class GatewayResolveService {
       },
       ingestion: this.createIngestionResponse({
         mode: config.instrumentationMode,
-        organizationId,
+        organizationId: params.organizationId,
         projectId: config.defaultIngestionProjectId,
-        apiKeyId: association.apiKeyId,
+        apiKeyId: params.apiKeyId,
       }),
     };
 

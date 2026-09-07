@@ -1,3 +1,6 @@
-import { handleGatewayResolveRequest } from "@/src/features/llm-gateway/server";
+import {
+  handleGatewayResolveRequest,
+  withGatewayResolveAuth,
+} from "@/src/features/llm-gateway/server";
 
-export default handleGatewayResolveRequest;
+export default withGatewayResolveAuth(handleGatewayResolveRequest);

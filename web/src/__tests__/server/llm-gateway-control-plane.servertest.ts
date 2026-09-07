@@ -16,6 +16,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import {
+  authenticateGatewayResolveRequest,
   createGatewayHmacSignature,
   GatewayProviderService,
   type GatewayResolveError,
@@ -341,9 +342,19 @@ describe("LLM gateway control plane", () => {
         serviceKey,
       },
     )}`;
+    const auth = await authenticateGatewayResolveRequest(
+      {
+        virtualSecretKey: gatewayKey.secretKey,
+        apiFormat,
+        gatewayAuthorization,
+      },
+      prisma,
+      {
+        salt: env.SALT,
+        serviceKeys: [{ id: "current", secret: serviceKey }],
+      },
+    );
     const result = await new GatewayResolveService(prisma, {
-      salt: env.SALT,
-      serviceKeys: [{ id: "current", secret: serviceKey }],
       jwt: {
         privateKey: signingKeys.privateKey
           .export({ format: "pem", type: "pkcs8" })
@@ -353,9 +364,8 @@ describe("LLM gateway control plane", () => {
         audience: "test-audience",
       },
     }).resolve({
-      virtualSecretKey: gatewayKey.secretKey,
+      ...auth,
       apiFormat,
-      gatewayAuthorization,
     });
 
     expect(openRouter.routingPriority).toBe(0);
@@ -476,20 +486,30 @@ describe("LLM gateway control plane", () => {
     });
     const timestamp = Math.floor(Date.now() / 1000);
     const serviceKey = "service";
-    await expect(
-      new GatewayResolveService(prisma, {
+    const apiFormat = "openai.responses" as const;
+    const gatewayAuthorization = `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
+      {
+        timestamp,
+        apiFormat,
+        serviceKey,
+      },
+    )}`;
+    const auth = await authenticateGatewayResolveRequest(
+      {
+        virtualSecretKey: key.secretKey,
+        apiFormat,
+        gatewayAuthorization,
+      },
+      prisma,
+      {
         salt: env.SALT,
         serviceKeys: [{ id: "current", secret: serviceKey }],
-      }).resolve({
-        virtualSecretKey: key.secretKey,
-        apiFormat: "openai.responses",
-        gatewayAuthorization: `HMAC keyId=current,timestamp=${timestamp},signature=${createGatewayHmacSignature(
-          {
-            timestamp,
-            apiFormat: "openai.responses",
-            serviceKey,
-          },
-        )}`,
+      },
+    );
+    await expect(
+      new GatewayResolveService(prisma, {}).resolve({
+        ...auth,
+        apiFormat,
       }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 403 }),
