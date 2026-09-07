@@ -5,7 +5,6 @@ import {
   randomUUID,
 } from "node:crypto";
 
-import { createMocks } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +20,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { env } from "@/src/env.mjs";
 import {
   type GatewayResolveError,
   GatewayResolveService,
@@ -98,32 +96,36 @@ async function authenticateResolveRequest(params: {
   virtualSecretKey: string;
   requestBody: string;
   gatewayAuthorization: string;
-  serviceKey: string;
+  organizationId: string;
+  apiKeyId: string;
 }) {
-  const previousServiceKey = env.LANGFUSE_GATEWAY_SERVICE_KEY;
-  env.LANGFUSE_GATEWAY_SERVICE_KEY = params.serviceKey;
-  try {
-    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${params.virtualSecretKey}`,
-        "langfuse-gateway-authorization": params.gatewayAuthorization,
-      },
-      body: params.requestBody,
-    });
-    let context: { organizationId: string; apiKeyId: string } | undefined;
+  const req = {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${params.virtualSecretKey}`,
+      "langfuse-gateway-authorization": params.gatewayAuthorization,
+    },
+    body: params.requestBody,
+  } as unknown as NextApiRequest;
+  const res = { setHeader: vi.fn() };
+  const authenticate = vi.fn().mockResolvedValue({
+    organizationId: params.organizationId,
+    apiKeyId: params.apiKeyId,
+  });
+  let context: { organizationId: string; apiKeyId: string } | undefined;
 
-    await withGatewayResolveAuth(async ({ auth }) => {
-      context = auth;
-    })(req, res);
+  await withGatewayResolveAuth(async ({ auth }) => {
+    context = auth;
+  }, authenticate)(req, res as unknown as NextApiResponse);
 
-    expect(res.statusCode).toBe(200);
-    if (!context)
-      throw new Error("Gateway resolve request was not authenticated");
-    return context;
-  } finally {
-    env.LANGFUSE_GATEWAY_SERVICE_KEY = previousServiceKey;
-  }
+  expect(authenticate).toHaveBeenCalledWith({
+    virtualSecretKey: params.virtualSecretKey,
+    requestBody: params.requestBody,
+    gatewayAuthorization: params.gatewayAuthorization,
+  });
+  if (!context)
+    throw new Error("Gateway resolve request was not authenticated");
+  return context;
 }
 
 function createTestGatewayHmacSignature(input: {
@@ -410,7 +412,8 @@ describe("LLM gateway control plane", () => {
       virtualSecretKey: gatewayKey.secretKey,
       requestBody,
       gatewayAuthorization,
-      serviceKey,
+      organizationId: org.id,
+      apiKeyId: gatewayKey.id,
     });
     const result = await new GatewayResolveService(prisma, {
       jwt: {
@@ -558,7 +561,8 @@ describe("LLM gateway control plane", () => {
       virtualSecretKey: key.secretKey,
       requestBody,
       gatewayAuthorization,
-      serviceKey,
+      organizationId: org.id,
+      apiKeyId: key.id,
     });
     await expect(
       new GatewayResolveService(prisma, {}).resolve({
