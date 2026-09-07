@@ -3,13 +3,16 @@ import type {
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { InvalidRequestError } from "@langfuse/shared";
+import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
 
+import { auditLog } from "@/src/features/audit-logs/server";
+import type { GatewayAuditActor } from "./audit";
 import { GatewayRepository } from "./repository";
 
 export class GatewayService {
   private readonly repository: GatewayRepository;
 
-  constructor(prisma: PrismaClient) {
+  constructor(private readonly prisma: PrismaClient) {
     this.repository = new GatewayRepository(prisma);
   }
 
@@ -21,15 +24,17 @@ export class GatewayService {
     organizationId: string;
     defaultIngestionProjectId: string | null;
     createProjectName?: string;
-    createdByUserId: string;
     instrumentationMode: GatewayInstrumentationMode;
+    actor: GatewayAuditActor;
   }) {
+    const before = await this.getConfig(params.organizationId);
+    let result;
     if (params.createProjectName) {
       try {
-        return await this.repository.createIngestionProjectAndUpsertConfig({
+        result = await this.repository.createIngestionProjectAndUpsertConfig({
           organizationId: params.organizationId,
           projectName: params.createProjectName,
-          createdByUserId: params.createdByUserId,
+          createdByUserId: params.actor.userId,
           instrumentationMode: params.instrumentationMode,
         });
       } catch (error) {
@@ -41,26 +46,56 @@ export class GatewayService {
         }
         throw error;
       }
-    }
-    if (params.defaultIngestionProjectId) {
-      const project = await this.repository.getActiveOrganizationProject({
-        organizationId: params.organizationId,
-        projectId: params.defaultIngestionProjectId,
-      });
-      if (!project) {
-        throw new InvalidRequestError(
-          "Default ingestion project must be an active project in the organization",
-        );
+    } else {
+      if (params.defaultIngestionProjectId) {
+        const project = await this.repository.getActiveOrganizationProject({
+          organizationId: params.organizationId,
+          projectId: params.defaultIngestionProjectId,
+        });
+        if (!project) {
+          throw new InvalidRequestError(
+            "Default ingestion project must be an active project in the organization",
+          );
+        }
       }
+      result = {
+        config: await this.repository.upsertConfig({
+          organizationId: params.organizationId,
+          defaultIngestionProjectId: params.defaultIngestionProjectId,
+          instrumentationMode: params.instrumentationMode,
+        }),
+        project: null,
+      };
     }
 
-    return {
-      config: await this.repository.upsertConfig({
-        organizationId: params.organizationId,
-        defaultIngestionProjectId: params.defaultIngestionProjectId,
-        instrumentationMode: params.instrumentationMode,
-      }),
-      project: null,
-    };
+    await auditLog(
+      {
+        userId: params.actor.userId,
+        orgId: params.organizationId,
+        orgRole: params.actor.orgRole,
+        resourceType: "gatewayConfig",
+        resourceId: params.organizationId,
+        action: before ? "update" : "create",
+        before,
+        after: result.config,
+      },
+      this.prisma,
+    );
+    if (result.project) {
+      await auditLog(
+        {
+          userId: params.actor.userId,
+          orgId: params.organizationId,
+          orgRole: params.actor.orgRole,
+          resourceType: "project",
+          resourceId: result.project.id,
+          action: "create",
+          after: result.project,
+        },
+        this.prisma,
+      );
+      await invalidateCachedOrgApiKeys(params.organizationId);
+    }
+    return result;
   }
 }

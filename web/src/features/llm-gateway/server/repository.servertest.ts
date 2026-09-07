@@ -4,6 +4,10 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { GatewayProviderService } from "./provider";
 import { GatewayRepository } from "./repository";
 
+vi.mock("@/src/features/audit-logs/server", () => ({
+  auditLog: vi.fn(),
+}));
+
 function connection(id: string, routingPriority: number) {
   return {
     id,
@@ -102,6 +106,8 @@ describe("GatewayRepository pagination", () => {
     const findMany = vi
       .fn()
       .mockResolvedValueOnce(connections.slice(0, 101))
+      .mockResolvedValueOnce(connections.slice(100))
+      .mockResolvedValueOnce(connections.slice(0, 101))
       .mockResolvedValueOnce(connections.slice(100));
     const update = vi.fn().mockResolvedValue(undefined);
     const transaction = vi.fn(
@@ -116,9 +122,10 @@ describe("GatewayRepository pagination", () => {
     await service.reorder({
       organizationId: "org-1",
       connectionIds: connections.map(({ id }) => id),
+      actor: { userId: "user-1", orgRole: "OWNER" },
     });
 
-    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany).toHaveBeenCalledTimes(4);
     expect(findMany.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ take: 101 }),
     );
@@ -139,6 +146,7 @@ describe("GatewayRepository pagination", () => {
       service.reorder({
         organizationId: "org-1",
         connectionIds: connections.slice(0, 100).map(({ id }) => id),
+        actor: { userId: "user-1", orgRole: "OWNER" },
       }),
     ).rejects.toThrow(
       "Reorder must contain every organization gateway connection exactly once",

@@ -2,7 +2,6 @@ import { z } from "zod/v4";
 import type { Session } from "next-auth";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 
-import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -14,7 +13,7 @@ import {
   GatewayInstrumentationMode,
   GatewayProvider,
 } from "@langfuse/shared/src/db";
-import { invalidateCachedOrgApiKeys, redis } from "@langfuse/shared/src/server";
+import { redis } from "@langfuse/shared/src/server";
 
 import { GatewayApiKeyService } from "./gatewayApiKeyService";
 import { GatewayService } from "./gatewayService";
@@ -58,37 +57,19 @@ export const llmGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const service = new GatewayService(ctx.prisma);
-      const before = await service.getConfig(input.orgId);
-      const result = await service.updateConfig({
+      const result = await new GatewayService(ctx.prisma).updateConfig({
         organizationId: input.orgId,
         defaultIngestionProjectId: input.defaultIngestionProjectId,
         ...(input.createProjectName
           ? { createProjectName: input.createProjectName }
           : {}),
-        createdByUserId: ctx.session.user.id,
         instrumentationMode: input.instrumentationMode,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
+        },
       });
-      const after = result.config;
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayConfig",
-        resourceId: input.orgId,
-        action: before ? "update" : "create",
-        before,
-        after,
-      });
-      if (result.project) {
-        await auditLog({
-          session: ctx.session,
-          resourceType: "project",
-          resourceId: result.project.id,
-          action: "create",
-          after: result.project,
-        });
-        await invalidateCachedOrgApiKeys(input.orgId);
-      }
-      return after;
+      return result.config;
     }),
 
   listConnections: protectedOrganizationProcedure
@@ -117,14 +98,10 @@ export const llmGatewayRouter = createTRPCRouter({
         name: input.name,
         provider: input.provider,
         credential: input.credential,
-        createdById: ctx.session.user.id,
-      });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: connection.id,
-        action: "create",
-        after: connection,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
+        },
       });
       return connection;
     }),
@@ -145,42 +122,30 @@ export const llmGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const service = new GatewayProviderService(ctx.prisma);
-      const before = (await service.listAll(input.orgId)).find(
-        (connection) => connection.id === input.id,
-      );
-      const after = await service.update({
+      return new GatewayProviderService(ctx.prisma).update({
         organizationId: input.orgId,
         id: input.id,
         name: input.name,
         credential: input.credential,
         status: input.status,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
+        },
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: input.id,
-        action: "update",
-        before,
-        after,
-      });
-      return after;
     }),
 
   deleteConnection: protectedOrganizationProcedure
     .input(organizationInput.extend({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const deleted = await new GatewayProviderService(ctx.prisma).delete({
+      await new GatewayProviderService(ctx.prisma).delete({
         organizationId: input.orgId,
         id: input.id,
-      });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: input.id,
-        action: "delete",
-        before: deleted,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
+        },
       });
       return { success: true };
     }),
@@ -193,22 +158,14 @@ export const llmGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const service = new GatewayProviderService(ctx.prisma);
-      const before = await service.listAll(input.orgId);
-      await service.reorder({
+      return new GatewayProviderService(ctx.prisma).reorder({
         organizationId: input.orgId,
         connectionIds: input.connectionIds,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
+        },
       });
-      const after = await service.listAll(input.orgId);
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: input.orgId,
-        action: "reorder",
-        before,
-        after,
-      });
-      return after;
     }),
 
   refreshModels: protectedOrganizationProcedure
@@ -224,20 +181,14 @@ export const llmGatewayRouter = createTRPCRouter({
     .input(organizationInput.extend({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const result = await new GatewayProviderService(ctx.prisma).refreshModels(
-        {
-          organizationId: input.orgId,
-          connectionId: input.id,
-          explicitRetry: true,
+      return new GatewayProviderService(ctx.prisma).retryConnection({
+        organizationId: input.orgId,
+        connectionId: input.id,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
         },
-      );
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: input.id,
-        action: "retry",
       });
-      return result;
     }),
 
   listApiKeys: protectedOrganizationProcedure
@@ -264,18 +215,9 @@ export const llmGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         note: input.note,
         metadata: input.metadata,
-        createdByUserId: ctx.session.user.id,
-      });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayApiKey",
-        resourceId: key.id,
-        action: "create",
-        after: {
-          id: key.id,
-          publicKey: key.publicKey,
-          displaySecretKey: key.displaySecretKey,
-          note: key.note,
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
         },
       });
       return key;
@@ -288,12 +230,10 @@ export const llmGatewayRouter = createTRPCRouter({
       await new GatewayApiKeyService(ctx.prisma, redis).revoke({
         organizationId: input.orgId,
         apiKeyId: input.id,
-      });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "gatewayApiKey",
-        resourceId: input.id,
-        action: "delete",
+        actor: {
+          userId: ctx.session.user.id,
+          orgRole: ctx.session.orgRole,
+        },
       });
       return { success: true };
     }),

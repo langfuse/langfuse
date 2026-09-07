@@ -8,6 +8,8 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
+import { auditLog } from "@/src/features/audit-logs/server";
+import type { GatewayAuditActor } from "../audit";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
@@ -31,7 +33,7 @@ export class GatewayProviderService {
   private readonly repository: GatewayRepository;
 
   constructor(
-    prisma: PrismaClient,
+    private readonly prisma: PrismaClient,
     private readonly fetcher: typeof fetch = fetch,
     private readonly validateCredential: CredentialValidator = validateGatewayCredential,
   ) {
@@ -63,21 +65,34 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
-    createdById: string | null;
+    actor: GatewayAuditActor;
   }) {
     await this.validateCredential({
       provider: params.provider,
       credential: params.credential,
     });
-    return this.repository.createConnection({
+    const connection = await this.repository.createConnection({
       organizationId: params.organizationId,
       name: params.name,
       provider: params.provider,
       encryptedCredential: encrypt(params.credential),
       displaySecret: getDisplaySecretKey(params.credential),
-      createdById: params.createdById,
+      createdById: params.actor.userId,
       status: "ENABLED",
     });
+    await auditLog(
+      {
+        userId: params.actor.userId,
+        orgId: params.organizationId,
+        orgRole: params.actor.orgRole,
+        resourceType: "gatewayAiConnection",
+        resourceId: connection.id,
+        action: "create",
+        after: connection,
+      },
+      this.prisma,
+    );
+    return connection;
   }
 
   async update(params: {
@@ -86,6 +101,7 @@ export class GatewayProviderService {
     name?: string;
     credential?: string;
     status?: GatewayConnectionStatus;
+    actor: GatewayAuditActor;
   }) {
     const existing = await this.repository.getSafeConnection({
       organizationId: params.organizationId,
@@ -108,7 +124,7 @@ export class GatewayProviderService {
       });
     }
 
-    return this.repository.updateConnection({
+    const updated = await this.repository.updateConnection({
       organizationId: params.organizationId,
       id: params.id,
       name: params.name,
@@ -120,22 +136,53 @@ export class GatewayProviderService {
         ? getDisplaySecretKey(params.credential)
         : undefined,
     });
+    await auditLog(
+      {
+        userId: params.actor.userId,
+        orgId: params.organizationId,
+        orgRole: params.actor.orgRole,
+        resourceType: "gatewayAiConnection",
+        resourceId: params.id,
+        action: "update",
+        before: existing,
+        after: updated,
+      },
+      this.prisma,
+    );
+    return updated;
   }
 
-  async delete(params: { organizationId: string; id: string }) {
+  async delete(params: {
+    organizationId: string;
+    id: string;
+    actor: GatewayAuditActor;
+  }) {
     const deleted = await this.repository.deleteConnection(params);
     const remaining = await this.listAll(params.organizationId);
     await this.repository.reorderConnections({
       organizationId: params.organizationId,
       connectionIds: remaining.map((connection) => connection.id),
     });
+    await auditLog(
+      {
+        userId: params.actor.userId,
+        orgId: params.organizationId,
+        orgRole: params.actor.orgRole,
+        resourceType: "gatewayAiConnection",
+        resourceId: params.id,
+        action: "delete",
+        before: deleted,
+      },
+      this.prisma,
+    );
     return deleted;
   }
 
   async reorder(params: {
     organizationId: string;
     connectionIds: string[];
-  }): Promise<void> {
+    actor: GatewayAuditActor;
+  }) {
     const existing = await this.listAll(params.organizationId);
     const existingIds = new Set(existing.map((connection) => connection.id));
     const requestedIds = new Set(params.connectionIds);
@@ -149,6 +196,21 @@ export class GatewayProviderService {
       );
     }
     await this.repository.reorderConnections(params);
+    const reordered = await this.listAll(params.organizationId);
+    await auditLog(
+      {
+        userId: params.actor.userId,
+        orgId: params.organizationId,
+        orgRole: params.actor.orgRole,
+        resourceType: "gatewayAiConnection",
+        resourceId: params.organizationId,
+        action: "reorder",
+        before: existing,
+        after: reordered,
+      },
+      this.prisma,
+    );
+    return reordered;
   }
 
   async refreshAllModels(
@@ -157,7 +219,7 @@ export class GatewayProviderService {
     const connections = await this.listAll(organizationId, "ENABLED");
     return Promise.all(
       connections.map((connection) =>
-        this.refreshModels({
+        this.refreshConnectionModels({
           organizationId,
           connectionId: connection.id,
           explicitRetry: false,
@@ -167,6 +229,42 @@ export class GatewayProviderService {
   }
 
   async refreshModels(params: {
+    organizationId: string;
+    connectionId: string;
+  }): Promise<ModelRefreshResult> {
+    return this.refreshConnectionModels({
+      ...params,
+      explicitRetry: false,
+    });
+  }
+
+  async retryConnection(params: {
+    organizationId: string;
+    connectionId: string;
+    actor: GatewayAuditActor;
+  }): Promise<ModelRefreshResult> {
+    const result = await this.refreshConnectionModels({
+      organizationId: params.organizationId,
+      connectionId: params.connectionId,
+      explicitRetry: true,
+    });
+    if (result.success) {
+      await auditLog(
+        {
+          userId: params.actor.userId,
+          orgId: params.organizationId,
+          orgRole: params.actor.orgRole,
+          resourceType: "gatewayAiConnection",
+          resourceId: params.connectionId,
+          action: "retry",
+        },
+        this.prisma,
+      );
+    }
+    return result;
+  }
+
+  private async refreshConnectionModels(params: {
     organizationId: string;
     connectionId: string;
     explicitRetry: boolean;

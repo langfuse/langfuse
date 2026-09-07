@@ -50,7 +50,7 @@ describe("LLM gateway provider registry", () => {
         name: "Primary",
         provider: "OPENAI",
         credential: "invalid",
-        createdById: "user-1",
+        actor: { userId: "user-1", orgRole: "OWNER" },
       }),
     ).rejects.toThrow("invalid provider credential");
     expect(validator).toHaveBeenCalledWith({

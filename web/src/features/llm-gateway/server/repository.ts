@@ -317,7 +317,21 @@ export class GatewayRepository {
           scope: "ORGANIZATION",
         },
       },
-      select: { apiKeyId: true },
+      select: {
+        metadata: true,
+        apiKey: {
+          select: {
+            id: true,
+            publicKey: true,
+            displaySecretKey: true,
+            note: true,
+            createdAt: true,
+            expiresAt: true,
+            lastUsedAt: true,
+            createdByUserId: true,
+          },
+        },
+      },
     });
   }
 

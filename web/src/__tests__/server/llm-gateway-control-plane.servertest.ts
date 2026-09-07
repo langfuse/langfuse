@@ -30,6 +30,8 @@ import {
   createGatewayIngestionTokenVerifier,
   verifyGatewayIngestionToken,
 } from "@/src/features/llm-gateway/server/auth";
+import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/gatewayApiKeyService";
+import { GatewayService } from "@/src/features/llm-gateway/server/gatewayService";
 import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -306,6 +308,84 @@ describe("LLM gateway control plane", () => {
     ).rejects.toThrow("Gateway API key not found");
   });
 
+  it("owns successful and failed mutation auditing in gateway services", async () => {
+    const { org, user } = await prepare();
+    const actor = { userId: user.id, orgRole: Role.OWNER };
+    const gatewayService = new GatewayService(prisma);
+    const providerService = new GatewayProviderService(prisma);
+    const apiKeyService = new GatewayApiKeyService(prisma);
+
+    await gatewayService.updateConfig({
+      organizationId: org.id,
+      defaultIngestionProjectId: null,
+      createProjectName: "Audited ingestion project",
+      instrumentationMode: "USAGE",
+      actor,
+    });
+    await providerService.create({
+      organizationId: org.id,
+      name: "Audited provider",
+      provider: "OPENAI",
+      credential: "sk-audited-provider",
+      actor,
+    });
+    const key = await apiKeyService.create({
+      organizationId: org.id,
+      metadata: {},
+      actor,
+    });
+
+    expect(
+      await prisma.auditLog.findMany({
+        where: { orgId: org.id },
+        select: { resourceType: true, action: true },
+        orderBy: { createdAt: "asc" },
+      }),
+    ).toEqual([
+      { resourceType: "gatewayConfig", action: "create" },
+      { resourceType: "project", action: "create" },
+      { resourceType: "gatewayAiConnection", action: "create" },
+      { resourceType: "gatewayApiKey", action: "create" },
+    ]);
+
+    await apiKeyService.revoke({
+      organizationId: org.id,
+      apiKeyId: key.id,
+      actor,
+    });
+    const auditCountAfterSuccess = await prisma.auditLog.count({
+      where: { orgId: org.id },
+    });
+    await expect(
+      apiKeyService.revoke({
+        organizationId: org.id,
+        apiKeyId: key.id,
+        actor,
+      }),
+    ).rejects.toThrow("Gateway API key not found");
+    expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
+      auditCountAfterSuccess,
+    );
+
+    const failingProviderService = new GatewayProviderService(
+      prisma,
+      fetch,
+      vi.fn().mockRejectedValue(new Error("invalid credential")),
+    );
+    await expect(
+      failingProviderService.create({
+        organizationId: org.id,
+        name: "Rejected provider",
+        provider: "OPENAI",
+        credential: "sk-rejected",
+        actor,
+      }),
+    ).rejects.toThrow("invalid credential");
+    expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
+      auditCountAfterSuccess,
+    );
+  });
+
   it("cursor-paginates provider connections", async () => {
     const { caller, org } = await prepare();
 
@@ -468,7 +548,8 @@ describe("LLM gateway control plane", () => {
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
-    const { caller, org } = await prepare();
+    const { caller, org, user } = await prepare();
+    const actor = { userId: user.id, orgRole: Role.OWNER };
     const connection = await caller.llmGateway.createConnection({
       orgId: org.id,
       name: "Anthropic",
@@ -482,7 +563,6 @@ describe("LLM gateway control plane", () => {
     await unauthorized.refreshModels({
       organizationId: org.id,
       connectionId: connection.id,
-      explicitRetry: false,
     });
     expect(
       await prisma.gatewayAiConnection.findUnique({
@@ -506,11 +586,20 @@ describe("LLM gateway control plane", () => {
     const failingFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 500 }));
-    await new GatewayProviderService(prisma, failingFetch).refreshModels({
+    const failedRetry = await new GatewayProviderService(
+      prisma,
+      failingFetch,
+    ).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
-      explicitRetry: true,
+      actor,
     });
+    expect(failedRetry.success).toBe(false);
+    expect(
+      await prisma.auditLog.count({
+        where: { orgId: org.id, action: "retry" },
+      }),
+    ).toBe(0);
     expect(
       await prisma.gatewayAiConnection.findUnique({
         where: { id: connection.id },
@@ -521,10 +610,10 @@ describe("LLM gateway control plane", () => {
     const successfulFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(Response.json({ data: [{ id: "claude-test" }] }));
-    await new GatewayProviderService(prisma, successfulFetch).refreshModels({
+    await new GatewayProviderService(prisma, successfulFetch).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
-      explicitRetry: true,
+      actor,
     });
     expect(
       await prisma.gatewayAiConnection.findUnique({
@@ -532,6 +621,11 @@ describe("LLM gateway control plane", () => {
         select: { status: true },
       }),
     ).toEqual({ status: "ENABLED" });
+    expect(
+      await prisma.auditLog.count({
+        where: { orgId: org.id, action: "retry" },
+      }),
+    ).toBe(1);
   });
 
   it("blocks resolve after the default ingestion project is deleted", async () => {
