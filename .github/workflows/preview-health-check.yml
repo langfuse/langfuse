@@ -69,44 +69,56 @@ jobs:
           }
 
           unhealthy=""
+          suspects=""
           undeployed=0
           healthy=0
+          total=0
+
+          # 404 is the shared ALB's wildcard catch-all: the PR is labeled but
+          # nothing is deployed for it — an author off the deploy allowlist, or a
+          # teardown still in flight. Not a failure, so it never alerts, in
+          # either pass.
+          classify() {
+            case "$2" in
+              200) healthy=$((healthy + 1)); echo "pr-$1: ok" ;;
+              404) undeployed=$((undeployed + 1)); echo "pr-$1: not deployed (404)" ;;
+              *) return 1 ;;
+            esac
+          }
 
           for n in $numbers; do
+            total=$((total + 1))
             code="$(probe "$n")"
-
-            # A rebuild rolls the web Deployment, and a brief ImagePullBackOff is
-            # documented as normal and self-healing. Re-probe once before calling
-            # it broken so a rollout in progress doesn't cry wolf.
-            if [ "$code" != "200" ] && [ "$code" != "404" ]; then
-              sleep 30
-              code="$(probe "$n")"
-            fi
-
-            # 404 is the shared ALB's wildcard catch-all: the PR is labeled but
-            # nothing is deployed for it — an author off the deploy allowlist, or
-            # a teardown still in flight. Not a failure, so don't page on it.
-            # Checked after the re-probe as well, so a teardown that completes
-            # mid-check reads as undeployed rather than broken.
-            if [ "$code" = "404" ]; then
-              undeployed=$((undeployed + 1))
-              echo "pr-$n: not deployed (404)"
-              continue
-            fi
-
-            if [ "$code" = "200" ]; then
-              healthy=$((healthy + 1))
-              echo "pr-$n: ok"
-            else
-              unhealthy="${unhealthy:+$unhealthy }pr-$n(HTTP $code)"
-              echo "::error::pr-$n.preview.langfuse.com is labeled but not serving (HTTP $code)"
+            if ! classify "$n" "$code"; then
+              suspects="${suspects:+$suspects }$n"
+              echo "pr-$n: HTTP $code, re-probing"
             fi
           done
 
+          # A rebuild rolls the web Deployment, and a brief ImagePullBackOff is
+          # documented as normal and self-healing, so nothing is called broken on
+          # a single bad response. The wait is shared across all suspects rather
+          # than paid per preview: at 50 previews a per-preview sleep would run
+          # for tens of minutes.
+          if [ -n "$suspects" ]; then
+            sleep 30
+            for n in $suspects; do
+              code="$(probe "$n")"
+              if ! classify "$n" "$code"; then
+                # Space-free token: the Slack step counts and truncates this
+                # list by word, so an entry must never contain a space.
+                unhealthy="${unhealthy:+$unhealthy }pr-$n($code)"
+                echo "::error::pr-$n.preview.langfuse.com is labeled but not serving (HTTP $code)"
+              fi
+            done
+          fi
+
           echo "unhealthy=$unhealthy" >> "$GITHUB_OUTPUT"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
           {
             echo "## Preview health"
             echo ""
+            echo "- labeled previews: $total"
             echo "- serving: $healthy"
             echo "- not deployed (404, ignored): $undeployed"
             echo "- not serving: ${unhealthy:-none}"
@@ -115,35 +127,44 @@ jobs:
       - name: Notify Slack
         if: steps.probe.outputs.unhealthy != ''
         env:
-          # Same bot and channel as the Argo CD preview sync-failure alerts, so
-          # every preview signal lands in one place.
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL: langfuse-engineering-notifications
+          # Incoming webhook bound to #lf-preview-alerts, the same channel the
+          # Argo CD preview sync-failure alerts post to, so every preview signal
+          # lands in one place and none of it competes with CI failures.
+          SLACK_WEBHOOK: ${{ secrets.SLACK_PREVIEW_ALERTS_WEBHOOK_URL }}
           UNHEALTHY: ${{ steps.probe.outputs.unhealthy }}
+          TOTAL: ${{ steps.probe.outputs.total }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
 
-          if [ -z "${SLACK_BOT_TOKEN:-}" ]; then
-            echo "::warning::SLACK_BOT_TOKEN is unset; skipping the Slack post."
+          if [ -z "${SLACK_WEBHOOK:-}" ]; then
+            echo "::warning::SLACK_PREVIEW_ALERTS_WEBHOOK_URL is unset; skipping the Slack post."
             exit 0
           fi
 
-          text="Preview environments labeled but not serving: ${UNHEALTHY}. Run: ${RUN_URL}"
+          # One message per run listing every offender, never one per preview, so
+          # the alert volume is set by the schedule (6/day) and not by the size of
+          # the fleet. Only the list itself grows, so cap it: a broken ALB would
+          # otherwise paste 50 hostnames into the channel.
+          count="$(printf '%s' "$UNHEALTHY" | wc -w | tr -d ' ')"
+          shown="$(printf '%s' "$UNHEALTHY" | tr ' ' '\n' | head -10 | paste -sd' ' -)"
+          if [ "$count" -gt 10 ]; then
+            shown="$shown (+$((count - 10)) more)"
+          fi
 
-          response="$(curl -sS -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" \
+          text="Preview health: $count of ${TOTAL} labeled previews not serving — ${shown}. Run: ${RUN_URL}"
+
+          response="$(curl -sS -X POST "$SLACK_WEBHOOK" \
             -H 'Content-type: application/json; charset=utf-8' \
-            --data "$(jq -nc --arg channel "$SLACK_CHANNEL" --arg text "$text" \
-              '{channel: $channel, text: $text}')")"
+            --data "$(jq -nc --arg text "$text" '{text: $text}')")"
 
-          # chat.postMessage answers 200 with {"ok":false} on a bad token or an
-          # uninvited bot, so the HTTP status alone proves nothing.
-          if [ "$(printf '%s' "$response" | jq -r '.ok')" != "true" ]; then
-            echo "::error::Slack post failed: $(printf '%s' "$response" | jq -r '.error // "unknown"')"
+          # A Slack incoming webhook answers with the literal body "ok"; a revoked
+          # or mistyped hook answers 4xx with a reason, which -sS surfaces.
+          if [ "$response" != "ok" ]; then
+            echo "::error::Slack post failed: $response"
             exit 1
           fi
-          echo "Posted to #${SLACK_CHANNEL}."
+          echo "Posted to #lf-preview-alerts."
 
       - name: Fail if any preview is not serving
         if: steps.probe.outputs.unhealthy != ''
