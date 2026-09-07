@@ -36,7 +36,6 @@ export class GatewayApiKeyService {
         scope: "ORGANIZATION",
         note: params.note,
         createdByUserId: params.createdByUserId,
-        isGatewayKey: true,
       });
       await tx.gatewayApiKeyAssociation.create({
         data: {

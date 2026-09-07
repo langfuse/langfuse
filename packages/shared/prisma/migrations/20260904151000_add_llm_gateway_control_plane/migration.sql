@@ -14,9 +14,6 @@ CREATE TABLE IF NOT EXISTS "gateway_configs" (
     CONSTRAINT "gateway_configs_pkey" PRIMARY KEY ("organization_id")
 );
 
-CREATE INDEX IF NOT EXISTS "gateway_configs_default_ingestion_project_id_idx"
-ON "gateway_configs"("default_ingestion_project_id");
-
 ALTER TABLE "gateway_configs"
 ADD CONSTRAINT "gateway_configs_organization_id_fkey"
 FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
@@ -32,8 +29,8 @@ CREATE TABLE IF NOT EXISTS "gateway_ai_connections" (
     "organization_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "provider" "GatewayProvider" NOT NULL,
-    "encrypted_credential" TEXT NOT NULL,
-    "display_secret" TEXT NOT NULL,
+    "encrypted_credentials" TEXT NOT NULL,
+    "display_secret_key" TEXT NOT NULL,
     "created_by_id" TEXT,
     "routing_priority" INTEGER NOT NULL,
     "status" "GatewayConnectionStatus" NOT NULL DEFAULT 'enabled',

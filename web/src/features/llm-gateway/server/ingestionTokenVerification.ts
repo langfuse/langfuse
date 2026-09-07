@@ -84,7 +84,6 @@ export async function verifyGatewayIngestionAuthorization(
         apiKeyId: claims.keyId,
         apiKey: {
           orgId: claims.organizationId,
-          isGatewayKey: true,
         },
       },
       select: { apiKeyId: true },

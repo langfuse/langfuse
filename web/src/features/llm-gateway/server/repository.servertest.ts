@@ -87,7 +87,6 @@ describe("GatewayRepository pagination", () => {
         take: 3,
         where: {
           apiKey: {
-            isGatewayKey: true,
             orgId: "org-1",
             scope: "ORGANIZATION",
           },

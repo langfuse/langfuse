@@ -6,7 +6,10 @@ import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
-import { ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+import {
+  ApiKeyRepository,
+  type ApiKeyWithGatewayAssociation,
+} from "@/src/features/apiKey/apiKeyRepository";
 import {
   type ErrorResult,
   type Success,
@@ -137,8 +140,8 @@ export class Verifier {
 }
 
 /** privateKey wraps an ApiKey row as the full-access privateKey presentation. */
-function privateKey(apiKey: ApiKey): VerifyApiKeyResult {
-  if (apiKey.isGatewayKey) return unauthorized();
+function privateKey(apiKey: ApiKeyWithGatewayAssociation): VerifyApiKeyResult {
+  if (apiKey.gatewayAssociation) return unauthorized();
   return { success: true, authorization: "privateKey", apiKey };
 }
 

@@ -277,7 +277,6 @@ export class GatewayRepository {
         apiKey: {
           orgId: params.organizationId,
           scope: "ORGANIZATION",
-          isGatewayKey: true,
         },
       },
       select: {
@@ -329,7 +328,6 @@ export class GatewayRepository {
         apiKey: {
           fastHashedSecretKey: params.fastHashedSecretKey,
           scope: "ORGANIZATION",
-          isGatewayKey: true,
           orgId: { not: null },
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },

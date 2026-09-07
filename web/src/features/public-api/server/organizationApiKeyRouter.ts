@@ -29,7 +29,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
           orgId: input.orgId,
           scope: "ORGANIZATION",
           isInAppAgentKey: false,
-          isGatewayKey: false,
+          gatewayAssociation: null,
         },
         select: {
           id: true,
@@ -117,7 +117,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
           id: input.keyId,
           orgId: input.orgId,
           isInAppAgentKey: false,
-          isGatewayKey: false,
+          gatewayAssociation: null,
         },
       });
 
@@ -133,6 +133,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
           id: input.keyId,
           orgId: input.orgId,
           isInAppAgentKey: false,
+          gatewayAssociation: null,
         },
         data: {
           note: input.note,
@@ -161,10 +162,15 @@ export const organizationApiKeysRouter = createTRPCRouter({
           orgId: input.orgId,
           scope: "ORGANIZATION",
         },
+        include: {
+          gatewayAssociation: {
+            select: { apiKeyId: true },
+          },
+        },
       });
 
       if (apiKey.isInAppAgentKey) return false;
-      if (apiKey.isGatewayKey) return false;
+      if (apiKey.gatewayAssociation) return false;
 
       await auditLog({
         session: ctx.session,

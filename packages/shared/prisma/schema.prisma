@@ -215,7 +215,6 @@ model ApiKey {
   lastUsedAt          DateTime?     @map("last_used_at")
   expiresAt           DateTime?     @map("expires_at")
   isInAppAgentKey     Boolean       @default(false) @map("is_in_app_agent_key")
-  isGatewayKey        Boolean       @default(false) @map("is_gateway_key")
   projectId           String?       @map("project_id")
   project             Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   orgId               String?       @map("organization_id")
@@ -264,7 +263,6 @@ model GatewayConfig {
   createdAt                 DateTime                   @default(now()) @map("created_at")
   updatedAt                 DateTime                   @default(now()) @updatedAt @map("updated_at")
 
-  @@index([defaultIngestionProjectId])
   @@map("gateway_configs")
 }
 

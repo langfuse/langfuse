@@ -27,7 +27,11 @@ const UNKNOWN_SECRET = "sk-lf-unknown";
 
 const knownHash = createShaHash(KNOWN_SECRET, SALT);
 
-const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
+type TestApiKey = ApiKey & {
+  gatewayAssociation: { apiKeyId: string } | null;
+};
+
+const apiKey = (over: Partial<TestApiKey> = {}): TestApiKey => ({
   id: "key_p",
   createdAt: new Date(0),
   note: null,
@@ -38,7 +42,7 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
   lastUsedAt: null,
   expiresAt: null,
   isInAppAgentKey: false,
-  isGatewayKey: false,
+  gatewayAssociation: null,
   projectId: PRJ,
   orgId: ORG,
   scope: "PROJECT",
@@ -221,6 +225,23 @@ describe("Authenticator consolidated context cache", () => {
     expect(gated.success).toBe(false);
     if (!gated.success) {
       expect(gated.error).toBeInstanceOf(UnauthorizedError);
+    }
+  });
+
+  it("rejects gateway-associated keys from regular API authentication", async () => {
+    const gatewayKey = apiKey({
+      scope: "ORGANIZATION",
+      projectId: null,
+      gatewayAssociation: { apiKeyId: "key_p" },
+    });
+    const result = await new Verifier(store(gatewayKey), SALT).verify({
+      kind: "bearer",
+      token: KNOWN_SECRET,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBeInstanceOf(UnauthorizedError);
     }
   });
 
