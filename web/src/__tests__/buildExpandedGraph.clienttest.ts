@@ -413,6 +413,16 @@ describe("buildExpandedGraph", () => {
     expect(result.graph.edges).toEqual([]);
   });
 
+  it("bails before a large overlapping sibling group exhausts the main thread", () => {
+    const data = Array.from({ length: 1500 }, (_, i) =>
+      obs({ id: `o${i}`, startTime: t(0), endTime: t(10) }),
+    );
+
+    const result = buildExpandedGraph(data);
+
+    expect(result.limitExceeded).toBe(true);
+  });
+
   it("keeps a maximal linear chain under the edge budget", () => {
     // 5000 sequential calls (the panel's observation cap) are ~5000 linear
     // edges — a legitimate shape that must render, not bail.

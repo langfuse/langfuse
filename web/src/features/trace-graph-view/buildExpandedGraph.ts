@@ -36,6 +36,7 @@ const SYSTEM_NODE_IDS = new Set<string>([
  * 5000-call chain is ~5000 edges) and cuts off the quadratic ones.
  */
 export const MAX_EXPANDED_EDGES = 10_000;
+const MAX_EXPANDED_COMPARISONS = 1_000_000;
 
 export interface ExpandedGraphResult extends GraphParseResult {
   /** True when the trace exceeded MAX_EXPANDED_EDGES — the graph is empty. */
@@ -122,6 +123,7 @@ function buildFlowEdges(
 
   const edges: Edge[] = [];
   const rootSiblingFroms = new Set<string>();
+  let comparisons = 0;
   for (const [parentId, group] of groups) {
     const ordered = [...group].sort(byRunOrder);
     // Precomputed times + index loops: the scan is O(n²) in the group size
@@ -129,6 +131,24 @@ function buildFlowEdges(
     // panel cap (a naive slice/filter per element takes seconds there).
     const starts = ordered.map(startMs);
     const ends = ordered.map(endMs);
+
+    if (
+      ordered.every(
+        (_, index) => index === 0 || ends[index - 1] <= starts[index],
+      )
+    ) {
+      for (let i = 0; i < ordered.length; i++) {
+        const current = ordered[i];
+        if (i === 0) {
+          if (parentId !== null) edges.push({ from: parentId, to: current.id });
+          continue;
+        }
+        edges.push({ from: ordered[i - 1].id, to: current.id });
+        if (parentId === null) rootSiblingFroms.add(ordered[i - 1].id);
+      }
+      continue;
+    }
+
     for (let i = 0; i < ordered.length; i++) {
       if (edges.length > MAX_EXPANDED_EDGES) return null;
       const current = ordered[i];
@@ -145,6 +165,8 @@ function buildFlowEdges(
       let maxStartIdx = -1;
       let secondMaxStart = -Infinity;
       for (let j = 0; j < i; j++) {
+        comparisons++;
+        if (comparisons > MAX_EXPANDED_COMPARISONS) return null;
         if (ends[j] > starts[i]) continue;
         finishedCount++;
         if (ends[j] >= maxEnd) {
@@ -174,6 +196,8 @@ function buildFlowEdges(
       // chain instead of orphaning every successor onto __start__.
       let emitted = false;
       for (let j = 0; j < i; j++) {
+        comparisons++;
+        if (comparisons > MAX_EXPANDED_COMPARISONS) return null;
         if (ends[j] > starts[i]) continue;
         const othersMaxStart = j === maxStartIdx ? secondMaxStart : maxStart;
         if (ends[j] > othersMaxStart) {
@@ -275,31 +299,31 @@ export function buildExpandedGraph(
   data: AgentGraphDataResponse[],
   ancestry: AgentGraphDataResponse[] = data,
 ): ExpandedGraphResult {
-  const traceIds = [
-    ...new Set(
-      data
-        .map((observation) => observation.traceId)
-        .filter((traceId): traceId is string => Boolean(traceId)),
-    ),
-  ];
+  const traceDataById = new Map<string, AgentGraphDataResponse[]>();
+  const sessionIds = new Set<string>();
+  for (const observation of data) {
+    if (observation.sessionId) sessionIds.add(observation.sessionId);
+    if (!observation.traceId) continue;
+    const traceData = traceDataById.get(observation.traceId);
+    if (traceData) traceData.push(observation);
+    else traceDataById.set(observation.traceId, [observation]);
+  }
+  const traceIds = [...traceDataById.keys()];
   if (traceIds.length === 0) return buildExpandedGraphForTrace(data, ancestry);
+
+  const traceAncestryById = new Map<string, AgentGraphDataResponse[]>();
+  for (const observation of ancestry) {
+    if (!observation.traceId) continue;
+    const traceAncestry = traceAncestryById.get(observation.traceId);
+    if (traceAncestry) traceAncestry.push(observation);
+    else traceAncestryById.set(observation.traceId, [observation]);
+  }
 
   const graph: ExpandedGraphResult["graph"] = { nodes: [], edges: [] };
   const nodeToObservationsMap: Record<string, string[]> = {};
-  const sessionIds = [
-    ...new Set(
-      data
-        .map((observation) => observation.sessionId)
-        .filter((sessionId): sessionId is string => Boolean(sessionId)),
-    ),
-  ];
   for (const traceId of traceIds) {
-    const traceData = data.filter(
-      (observation) => observation.traceId === traceId,
-    );
-    const traceAncestry = ancestry.filter(
-      (observation) => observation.traceId === traceId,
-    );
+    const traceData = traceDataById.get(traceId) ?? [];
+    const traceAncestry = traceAncestryById.get(traceId) ?? [];
     const result = buildExpandedGraphForTrace(traceData, traceAncestry);
     if (result.limitExceeded) return EDGE_LIMIT_RESULT;
 
@@ -335,8 +359,8 @@ export function buildExpandedGraph(
       .flatMap((edge) => result.nodeToObservationsMap[edge.to] ?? []);
   }
 
-  if (sessionIds.length === 1) {
-    const sessionId = sessionIds[0]!;
+  if (sessionIds.size === 1) {
+    const sessionId = sessionIds.values().next().value!;
     const sessionRootId = `session-${sessionId}`;
     graph.nodes.unshift({
       id: sessionRootId,
