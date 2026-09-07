@@ -199,6 +199,7 @@ function codingAgentObservation({
   latency,
   input,
   output,
+  metadata,
 }: {
   traceId: string;
   id: string;
@@ -209,6 +210,7 @@ function codingAgentObservation({
   latency: number | null;
   input: string | null;
   output: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   return {
     id,
@@ -235,6 +237,7 @@ function codingAgentObservation({
         ? { modelID: "demo-model-1", providerID: "demo-provider" }
         : {}),
       ...(type === "TOOL" ? { callID: `call-${id}`, tool: name } : {}),
+      ...metadata,
     },
     latency,
     model: type === "GENERATION" ? "demo-model-1" : null,
@@ -1027,6 +1030,709 @@ const implementationCodingAgentObservations = [
   }),
 ];
 
+const inAppAgentTraceId = "trace-demo-error-analysis";
+const inAppAgentTurnId = "error-analysis-agent-turn";
+const inAppAgentPrompt =
+  "Analyze failed traces for a fictional travel assistant. Sample representative failures, group recurring causes into a taxonomy, recommend what to fix first, and suggest how to track the top issue.";
+const inAppAgentMetadata = {
+  cloud_region: "DEMO",
+  conversation_id: "conversation-demo-error-analysis",
+  execution_runtime: "worker",
+  langfuse_ai_feature: "in-app-agent",
+  langfuse_project_id: "project-demo-travel-assistant",
+  langfuse_user_email: "redacted",
+  langfuse_user_id: "user-demo-analyst",
+  langfuse_user_is_admin: false,
+  prompt_name: "demo-in-app-agent-system-prompt",
+  prompt_version: 1,
+  run_id: "run-demo-error-analysis",
+};
+
+const inAppAgentActions: Array<{
+  offsetMs: number;
+  latency: number;
+  summary: string;
+  tools: Array<{
+    name: string;
+    latency: number;
+    input: Record<string, unknown>;
+    output: unknown;
+    outputAsText?: boolean;
+  }>;
+}> = [
+  {
+    offsetMs: 300_000,
+    latency: 6.37,
+    summary: "I will load the error-analysis workflow before inspecting data.",
+    tools: [
+      {
+        name: "skill",
+        latency: 0.001,
+        input: { name: "error-analysis" },
+        output:
+          "Use representative samples, separate symptoms from root causes, and quantify each recurring category.",
+        outputAsText: true,
+      },
+    ],
+  },
+  {
+    offsetMs: 307_000,
+    latency: 5.345,
+    summary:
+      "I will confirm the analysis guidance and retrieve a bounded sample of failed observations.",
+    tools: [
+      {
+        name: "langfuseDocs_getLangfuseDocsPage",
+        latency: 0.29,
+        input: { pathOrUrl: "/docs/observability/errors", silent: false },
+        output: {
+          type: "tool-result",
+          toolName: "langfuseDocs_getLangfuseDocsPage",
+          content: "Synthetic guidance for investigating failed traces.",
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.233,
+        input: {
+          fields: ["id", "name", "level", "statusMessage"],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 25,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 25, cursor: "cursor-demo-page-2" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 313_000,
+    latency: 2.759,
+    summary:
+      "I will summarize the first sample locally without exposing payloads.",
+    tools: [
+      {
+        name: "bash",
+        latency: 1.541,
+        input: { command: "jq 'group_by(.name)' synthetic-errors.json" },
+        output: {
+          startedAt: "2026-01-08T09:00:13Z",
+          completedAt: "2026-01-08T09:00:14Z",
+          exitCode: 0,
+          stdout: "booking-assistant: 11\nroute-planner: 8\nfare-checker: 6",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 317_000,
+    latency: 5.457,
+    summary: "I will inspect status-message frequencies in the sample.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.195,
+        input: {
+          command: "jq 'group_by(.statusMessage)' synthetic-errors.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:00:17Z",
+          completedAt: "2026-01-08T09:00:17Z",
+          exitCode: 0,
+          stdout: "timeout: 9\ninvalid itinerary: 7\nmissing fare: 5\nother: 4",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 323_000,
+    latency: 5.896,
+    summary: "I will fetch examples from the largest failure category.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.219,
+        input: {
+          fields: ["id", "traceId", "input", "output", "statusMessage"],
+          filter: [
+            { column: "statusMessage", operator: "contains", value: "timeout" },
+          ],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 10,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 10, sample: "synthetic timeout observations" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 329_000,
+    latency: 2.974,
+    summary: "I will compare error signatures across those examples.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.207,
+        input: {
+          command: "jq '.[] | [.name, .statusMessage]' synthetic-timeouts.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:00:29Z",
+          completedAt: "2026-01-08T09:00:29Z",
+          exitCode: 0,
+          stdout:
+            "upstream timeout: 6\nretry exhausted: 3\nclient cancelled: 1",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 332_000,
+    latency: 8.043,
+    summary:
+      "I will discover the available model values before filtering further.",
+    tools: [
+      {
+        name: "langfuse_getObservationFilterValues",
+        latency: 0.284,
+        input: {
+          column: "model",
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          limit: 20,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_getObservationFilterValues",
+          output: ["demo-chat-large", "demo-chat-fast", "demo-embed-small"],
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 341_000,
+    latency: 3.716,
+    summary: "I will quantify failures by model and operation.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.2,
+        input: {
+          command: "jq 'group_by([.model,.name])' synthetic-errors.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:00:41Z",
+          completedAt: "2026-01-08T09:00:41Z",
+          exitCode: 0,
+          stdout:
+            "demo-chat-fast / route-planner: 8\ndemo-chat-large / booking-assistant: 11",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 344_000,
+    latency: 15.801,
+    summary: "I will inspect invalid-itinerary failures as the second cluster.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.202,
+        input: {
+          fields: ["id", "traceId", "input", "output", "metadata"],
+          filter: [
+            {
+              column: "statusMessage",
+              operator: "contains",
+              value: "invalid itinerary",
+            },
+          ],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 10,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: {
+            count: 7,
+            sample: "synthetic itinerary validation failures",
+          },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 361_000,
+    latency: 5.819,
+    summary: "I will extract the common validation causes.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.183,
+        input: {
+          command:
+            "jq '.[] | .metadata.validationReason' synthetic-itineraries.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:01:01Z",
+          completedAt: "2026-01-08T09:01:01Z",
+          exitCode: 0,
+          stdout:
+            "impossible connection: 4\nmissing airport: 2\ndate ordering: 1",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 367_000,
+    latency: 14.948,
+    summary: "I will inspect missing-fare failures as the third cluster.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.675,
+        input: {
+          fields: ["id", "traceId", "input", "output", "metadata"],
+          filter: [
+            {
+              column: "statusMessage",
+              operator: "contains",
+              value: "missing fare",
+            },
+          ],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          limit: 10,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 5, sample: "synthetic pricing lookup failures" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 382_000,
+    latency: 7.054,
+    summary: "I will compare provider and cache behavior for missing fares.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.199,
+        input: {
+          command:
+            "jq 'group_by([.metadata.provider,.metadata.cache])' synthetic-fares.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:01:22Z",
+          completedAt: "2026-01-08T09:01:22Z",
+          exitCode: 0,
+          stdout: "provider unavailable / cache miss: 4\nmalformed response: 1",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 390_000,
+    latency: 9.036,
+    summary: "I will calculate an initial taxonomy and prevalence table.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.199,
+        input: { command: "node scripts/summarize-synthetic-errors.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:01:30Z",
+          completedAt: "2026-01-08T09:01:30Z",
+          exitCode: 0,
+          stdout:
+            "upstream reliability 36%\nvalidation 28%\ndata availability 20%\nother 16%",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 399_000,
+    latency: 12.964,
+    summary:
+      "I will page through additional failures to check whether the taxonomy holds.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.192,
+        input: {
+          cursor: "cursor-demo-page-2",
+          environment: "production-demo",
+          fields: ["id", "name", "level", "statusMessage"],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 25,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 25, cursor: null },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 412_000,
+    latency: 5.249,
+    summary: "I will merge both pages and recompute category shares.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.197,
+        input: { command: "node scripts/merge-synthetic-samples.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:01:52Z",
+          completedAt: "2026-01-08T09:01:52Z",
+          exitCode: 0,
+          stdout: "50 observations classified; 46 matched the draft taxonomy",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 417_000,
+    latency: 9.648,
+    summary:
+      "I will identify representative trace IDs for each major category.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.43,
+        input: { command: "node scripts/select-synthetic-representatives.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:01:57Z",
+          completedAt: "2026-01-08T09:01:57Z",
+          exitCode: 0,
+          stdout:
+            "trace-demo-timeout\ntrace-demo-validation\ntrace-demo-fare\ntrace-demo-other",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 428_000,
+    latency: 18.765,
+    summary: "I will inspect four representative traces in parallel.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 1.207,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-timeout",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 14, category: "upstream timeout" },
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.138,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-validation",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 9, category: "itinerary validation" },
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.139,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-fare",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 11, category: "fare unavailable" },
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.12,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-other",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 7, category: "uncategorized" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 448_000,
+    latency: 7.902,
+    summary: "I will compare the causal chains in those representative traces.",
+    tools: [
+      {
+        name: "bash",
+        latency: 1.924,
+        input: { command: "node scripts/compare-synthetic-traces.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:02:28Z",
+          completedAt: "2026-01-08T09:02:30Z",
+          exitCode: 0,
+          stdout:
+            "timeouts originate at the inventory provider; validation failures originate before model invocation; missing fares follow cache misses",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 459_000,
+    latency: 21.138,
+    summary:
+      "I will calculate impact and confidence for the recommended priority order.",
+    tools: [
+      {
+        name: "bash",
+        latency: 1.783,
+        input: { command: "node scripts/rank-synthetic-fixes.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:02:39Z",
+          completedAt: "2026-01-08T09:02:41Z",
+          exitCode: 0,
+          stdout:
+            "1 provider timeout handling\n2 itinerary pre-validation\n3 fare cache fallback\n4 improve unknown-error metadata",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 482_000,
+    latency: 22.149,
+    summary:
+      "The dominant failure mode is upstream inventory timeout, followed by invalid itinerary construction and missing fare data. Fix timeout retries and circuit breaking first, then add deterministic itinerary validation before model invocation. Track the top category with a categorical evaluator or an annotation queue.",
+    tools: [],
+  },
+];
+
+const inAppAgentSystemMessages = [
+  {
+    role: "system",
+    content:
+      "You are a demo observability analyst. Use only fictional project data.",
+  },
+  {
+    role: "system",
+    content:
+      "Inspect representative failures before proposing a taxonomy or remediation.",
+  },
+  {
+    role: "system",
+    content: "Never expose identifiers or payloads from real users.",
+    providerOptions: { demo: { cacheControl: "temporary" } },
+  },
+];
+
+const inAppAgentObservations = [
+  ...inAppAgentActions.flatMap((action, actionIndex) => {
+    const generationId = `error-analysis-generation-${actionIndex + 1}`;
+    const previousMessages = inAppAgentActions
+      .slice(0, actionIndex)
+      .flatMap((previousAction, previousActionIndex) => [
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: previousAction.tools.map((tool, toolIndex) => ({
+            toolCallId: `error-analysis-call-${previousActionIndex + 1}-${toolIndex + 1}`,
+            toolName: tool.name,
+            args: tool.input,
+          })),
+        },
+        {
+          role: "tool",
+          content: JSON.stringify(
+            previousAction.tools.map((tool, toolIndex) => ({
+              toolCallId: `error-analysis-call-${previousActionIndex + 1}-${toolIndex + 1}`,
+              toolName: tool.name,
+              output: tool.output,
+            })),
+          ),
+        },
+      ]);
+    const runtimeContextOffsetMs =
+      actionIndex < 6
+        ? inAppAgentActions[0]!.offsetMs
+        : actionIndex < 13
+          ? inAppAgentActions[6]!.offsetMs
+          : actionIndex < 18
+            ? inAppAgentActions[13]!.offsetMs
+            : inAppAgentActions[18]!.offsetMs;
+    const generationInput = JSON.stringify({
+      messages: [
+        ...inAppAgentSystemMessages,
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: inAppAgentPrompt,
+              providerOptions: { demo: { cacheControl: "temporary" } },
+            },
+          ],
+          providerOptions: { demo: { cacheControl: "temporary" } },
+        },
+        ...previousMessages,
+        ...(actionIndex === inAppAgentActions.length - 1
+          ? [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Summarize the taxonomy, recommend the first fix, and suggest a durable way to track it.",
+                  },
+                ],
+                providerOptions: {
+                  demo: { cacheControl: "temporary" },
+                },
+              },
+            ]
+          : []),
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `<screen_context>
+Current page: /project/project-demo-travel-assistant/traces
+Active filter: level is ERROR
+  Saved view: booking-assistant, route-planner, fare-checker
+  </screen_context>
+  <current_time>${new Date(fixtureStart + runtimeContextOffsetMs).toISOString()}</current_time>`,
+            },
+          ],
+        },
+      ],
+      providerOptions: { demo: { region: "local" } },
+      toolChoice: { type: "auto" },
+      tools: [
+        { name: "langfuse_listObservations" },
+        { name: "langfuse_getObservationFilterValues" },
+        { name: "langfuseDocs_getLangfuseDocsPage" },
+        { name: "bash" },
+      ],
+    });
+    const generationOutput = JSON.stringify(
+      action.tools.length > 0
+        ? {
+            tool_calls: action.tools.map((tool, toolIndex) => ({
+              args: tool.input,
+              toolCallId: `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`,
+              toolName: tool.name,
+            })),
+          }
+        : { text: action.summary },
+    );
+
+    return [
+      codingAgentObservation({
+        traceId: inAppAgentTraceId,
+        id: generationId,
+        parentObservationId: inAppAgentTurnId,
+        type: "GENERATION",
+        name: "invoke-model",
+        offsetMs: action.offsetMs,
+        latency: action.latency,
+        input: generationInput,
+        output: generationOutput,
+        metadata: { ...inAppAgentMetadata, finish_reason: "stop" },
+      }),
+      ...action.tools.map((tool, toolIndex) => {
+        const toolCallId = `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`;
+        return codingAgentObservation({
+          traceId: inAppAgentTraceId,
+          id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
+          parentObservationId: inAppAgentTurnId,
+          type: "TOOL",
+          name: tool.name,
+          offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
+          latency: tool.latency,
+          input: JSON.stringify(tool.input),
+          output: tool.outputAsText
+            ? String(tool.output)
+            : JSON.stringify({
+                type: "tool-result",
+                toolCallId,
+                toolName: tool.name,
+                output: tool.output,
+              }),
+          metadata: {
+            ...inAppAgentMetadata,
+            parentMessageId: `message-demo-${actionIndex + 1}`,
+            toolCallApprovalSource: "automatic",
+            toolCallId,
+          },
+        });
+      }),
+    ];
+  }),
+];
+
+const inAppAgentTrace = {
+  id: inAppAgentTraceId,
+  name: "Analyze fictional travel-assistant failures",
+  timestamp: new Date(fixtureStart + 300_000),
+  environment: "storybook",
+  userId: "user-demo-analyst",
+  observationCount: inAppAgentObservations.length,
+  latencyMs: 205_058,
+  scores: [],
+} satisfies TimelineProps["trace"];
+
 const researchCodingAgentTrace = {
   id: researchTraceId,
   name: "Research recipe dashboard density setting",
@@ -1098,6 +1804,18 @@ export const CodingAgentWorkflow = meta.story({
       />
     </>
   ),
+});
+
+export const InAppAgentErrorAnalysis = meta.story({
+  args: {
+    trace: inAppAgentTrace,
+    turnNumber: 4,
+    idleGapSeconds: 4 * 60,
+    state: { type: "loaded", observations: inAppAgentObservations },
+    showSystemPrompt: true,
+    onOpenTrace: fn(),
+    onOpenObservation: fn(),
+  },
 });
 
 export const SystemPromptHidden = meta.story({
