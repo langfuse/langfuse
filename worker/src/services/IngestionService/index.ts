@@ -1969,7 +1969,7 @@ export class IngestionService {
         (Object.keys(
           "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
         ).length === 0
-          ? newInputCount && newOutputCount
+          ? newInputCount != null && newOutputCount != null
             ? newInputCount + newOutputCount
             : (newInputCount ?? newOutputCount)
           : undefined);
