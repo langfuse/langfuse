@@ -136,6 +136,30 @@ describe("usePeekPanelState", () => {
     peek.remove();
   });
 
+  it("does not search for navigation again after unrelated subtree mutations", async () => {
+    const navigation = document.createElement("div");
+    navigation.dataset.traceNavigationPanel = "";
+    vi.spyOn(navigation, "getBoundingClientRect").mockReturnValue({
+      width: 200,
+    } as DOMRect);
+    const peek = document.createElement("div");
+    peek.dataset.peekContent = "";
+    peek.appendChild(navigation);
+    document.body.appendChild(peek);
+    const querySelector = vi.spyOn(peek, "querySelector");
+
+    setup(false, "split");
+    expect(querySelector).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      navigation.appendChild(document.createElement("span"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(querySelector).toHaveBeenCalledTimes(1);
+    peek.remove();
+  });
+
   it("shrinks on the first switch when navigation mounts after the hook", async () => {
     Object.defineProperty(window, "innerWidth", {
       value: 1000,

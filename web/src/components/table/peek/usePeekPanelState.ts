@@ -123,7 +123,10 @@ function useTraceNavigationWidthPx({
     };
 
     observeNavigation();
-    const mutationObserver = new MutationObserver(observeNavigation);
+    const mutationObserver = new MutationObserver(() => {
+      if (observedNavigation?.isConnected) return;
+      observeNavigation();
+    });
     mutationObserver.observe(peek, { childList: true, subtree: true });
     return () => {
       mutationObserver.disconnect();
