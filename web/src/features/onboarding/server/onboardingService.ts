@@ -4,7 +4,10 @@ import {
   Role,
   SurveyName,
 } from "@langfuse/shared/src/db";
-import { resolveProjectRole } from "@langfuse/shared/src/server";
+import {
+  resolveProjectRole,
+  invalidateCachedOrgApiKeys,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -431,6 +434,10 @@ export const provisionStarterOrganizationForNewUser = async ({
     },
     prisma,
   );
+
+  // After the tx commits: refresh org-scoped keys' baked projectIds for the
+  // new starter project.
+  await invalidateCachedOrgApiKeys(createdResources.organization.id);
 
   return createdResources;
 };

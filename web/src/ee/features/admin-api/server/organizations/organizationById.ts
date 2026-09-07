@@ -1,6 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  invalidateCachedOrgApiKeys,
+  logger,
+} from "@langfuse/shared/src/server";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
@@ -195,6 +198,10 @@ export async function handleDeleteOrganization(
         "Deletion of your projects is still being processed, please try deleting the organization later",
     });
   }
+
+  // Evict before the delete: ApiKey.organization cascades, so keys are gone
+  // by the time a post-delete eviction would run and it would find nothing.
+  await invalidateCachedOrgApiKeys(organizationId);
 
   // Delete the organization
   const deletedOrganization = await prisma.organization.delete({

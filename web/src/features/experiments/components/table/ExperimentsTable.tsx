@@ -37,7 +37,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { ChevronDown, GitCompareArrows, LightbulbIcon } from "lucide-react";
+import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -54,6 +54,7 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { collectScoreNameCoverage } from "@/src/features/scores/lib/aggregateScores";
 import {
   collectPresentScoreKeys,
   revealScoreColumns,
@@ -64,10 +65,8 @@ import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
-import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
+import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
@@ -78,7 +77,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
-  chartsSectionToggledProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
@@ -173,6 +171,8 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
+    // The list's own way into a comparison — the same events the picker and the
+    // baseline control emit, told apart by their source.
     capture(
       "experiment:comparison_changed",
       comparisonChangedProps({
@@ -430,13 +430,19 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
-    useExperimentsTableData({
-      projectId,
-      filterState,
-      orderByState,
-      paginationState,
-    });
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentCount,
+  } = useExperimentsTableData({
+    projectId,
+    filterState,
+    orderByState,
+    paginationState,
+  });
 
   // A score column that is empty for every experiment in view is noise, so only
   // create columns for the keys the metrics query actually returned. Undefined
@@ -450,6 +456,18 @@ export default function ExperimentsTable({
         rows.map((r) => r.observationItemScores),
       ),
       experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
+
+  // Which score the runs in view actually measured, from the same rows and at
+  // the same time as `presentScoreKeys`: the strip opens on the best-recorded
+  // numeric score instead of the alphabetically first one, with no extra query.
+  const scoreCoverage = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),
+      experiment: collectScoreNameCoverage(rows.map((r) => r.experimentScores)),
     };
   }, [experiments, metricsLoading]);
 
@@ -821,15 +839,17 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
-  // Get experiments from the current query result (for charts)
+  // The strip's series. The strip orders its own x-axis chronologically, which
+  // is deliberately not this table's newest-first order.
   const chartExperiments = useMemo(() => {
-    return rows.map((row) => ({ id: row.id, name: row.name }));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      startTime: row.startTime,
+    }));
   }, [rows]);
 
-  // Charts accordion collapsed state (persisted in session storage)
   const capture = usePostHogClientCapture();
-  const { accordionValue, setAccordionValue } =
-    useExperimentChartsAccordion(projectId);
 
   const datasetIdByExperimentId = useMemo(() => {
     const map: Record<string, string> = {};
@@ -839,6 +859,10 @@ export default function ExperimentsTable({
     return map;
   }, [rows]);
 
+  // Which score family do people actually want visible, now that all of them are
+  // on by default? The column drawer's per-family Select All / Deselect All is
+  // the family-level intent; the individual checkboxes stay on
+  // `table:column_visibility_changed`, which already carries the column.
   const handleColumnGroupToggle = useCallback(
     ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
       const props = scoreColumnScopeToggledProps({
@@ -853,28 +877,11 @@ export default function ExperimentsTable({
     [capture],
   );
 
-  const handleChartsAccordionChange = useCallback(
-    (value: string) => {
-      const isExpanded = value === "charts";
-      const wasExpanded = accordionValue === "charts";
-      if (isExpanded !== wasExpanded) {
-        capture(
-          "experiment:charts_section_toggled",
-          chartsSectionToggledProps({
-            tableName: "experiments",
-            isExpanded,
-          }),
-        );
-      }
-      setAccordionValue(value);
-    },
-    [accordionValue, capture, setAccordionValue],
-  );
-
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
   // the compare baseline relies on).
   const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
   useExperimentsTableSelectionSync({
     store: experimentsTableStore,
     pageRowIds,
@@ -925,6 +932,7 @@ export default function ExperimentsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              mergeSettingsIntoPopover
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               actionButtons={[
@@ -938,38 +946,14 @@ export default function ExperimentsTable({
             />
           </div>
 
-          {/* Charts section - Collapsible Accordion */}
-          {tableDateRange && (
-            <AccordionPrimitive.Root
-              type="single"
-              collapsible
-              value={accordionValue}
-              onValueChange={handleChartsAccordionChange}
-            >
-              <AccordionPrimitive.Item className="border-t" value="charts">
-                <AccordionPrimitive.Header className="flex">
-                  <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-between px-3 pt-2 pb-1 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">Charts</span>
-                    </div>
-                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-                  </AccordionPrimitive.Trigger>
-                </AccordionPrimitive.Header>
-                <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
-                  <div className="px-3 pt-1 pb-1">
-                    <div className="max-h-[40dvh] overflow-x-auto">
-                      <ExperimentChartsGrid
-                        projectId={projectId}
-                        experiments={chartExperiments}
-                        fromTimestamp={tableDateRange.from}
-                        toTimestamp={tableDateRange.to}
-                        isExternalLoading={experiments.status === "loading"}
-                      />
-                    </div>
-                  </div>
-                </AccordionPrimitive.Content>
-              </AccordionPrimitive.Item>
-            </AccordionPrimitive.Root>
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentCount === 1
+                ? "most recent run"
+                : `${mostRecentCount} most recent runs`}{" "}
+              instead.
+            </div>
           )}
 
           {/* Content area with sidebar and table */}
@@ -981,6 +965,19 @@ export default function ExperimentsTable({
             />
 
             <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Table-width, like the events table's pulse strip: inside the
+                  layout so the facet sidebar keeps its full height and the
+                  strip resizes with the table. */}
+              {tableDateRange && (
+                <ExperimentMetricStrip
+                  projectId={projectId}
+                  experiments={chartExperiments}
+                  fromTimestamp={tableDateRange.from}
+                  toTimestamp={tableDateRange.to}
+                  isExternalLoading={experiments.status === "loading"}
+                  scoreCoverage={scoreCoverage}
+                />
+              )}
               <DataTable
                 key={`experiments-table-${dataUpdatedAt}`}
                 tableName="experiments"
