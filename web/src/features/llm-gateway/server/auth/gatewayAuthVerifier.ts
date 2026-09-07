@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
-import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
@@ -31,29 +31,30 @@ type AuthenticatedGatewayResolveHandler = (params: {
   apiFormat: GatewayApiFormat;
 }) => Promise<unknown>;
 
-type GatewayResolveAuthConfig = {
-  salt: string;
-  serviceKeys: Array<{ secret: string }>;
-};
+async function authenticateGatewayResolveRequest(input: {
+  virtualSecretKey: string;
+  requestBody: string;
+  gatewayAuthorization: string | undefined;
+}): Promise<GatewayResolveAuthContext> {
+  if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
+    throw new GatewayResolveError("Gateway service is not configured", 503);
+  }
+  const serviceKeys = [
+    { secret: env.LANGFUSE_GATEWAY_SERVICE_KEY },
+    ...(env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS
+      ? [{ secret: env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS }]
+      : []),
+  ];
 
-async function authenticateGatewayResolveRequest(
-  params: {
-    virtualSecretKey: string;
-    requestBody: string;
-    gatewayAuthorization: string | undefined;
-  },
-  database: PrismaClient,
-  config: GatewayResolveAuthConfig,
-): Promise<GatewayResolveAuthContext> {
-  if (!verifyGatewayAuthorization(params, config.serviceKeys)) {
+  if (!verifyGatewayAuthorization(input, serviceKeys)) {
     throw new GatewayResolveError("Invalid gateway authorization", 401);
   }
 
-  const association = await new GatewayRepository(
-    database,
-  ).resolveGatewayContext({
-    fastHashedSecretKey: createShaHash(params.virtualSecretKey, config.salt),
-  });
+  const association = await new GatewayRepository(prisma).resolveGatewayContext(
+    {
+      fastHashedSecretKey: createShaHash(input.virtualSecretKey, env.SALT),
+    },
+  );
   const organizationId = association?.apiKey.orgId;
   if (!association || !organizationId) {
     throw new GatewayResolveError("Invalid gateway key", 401);
@@ -99,7 +100,7 @@ export function withGatewayResolveAuth(
     }
 
     try {
-      const auth = await authenticateConfiguredGatewayResolveRequest({
+      const auth = await authenticateGatewayResolveRequest({
         virtualSecretKey: token,
         requestBody,
         gatewayAuthorization: singleHeader(
@@ -155,32 +156,6 @@ function verifyGatewayAuthorization(
     ].join("\n"),
     signature,
     secrets: serviceKeys.map(({ secret }) => secret),
-  });
-}
-
-async function authenticateConfiguredGatewayResolveRequest(params: {
-  virtualSecretKey: string;
-  requestBody: string;
-  gatewayAuthorization: string | undefined;
-}) {
-  if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
-    throw new GatewayResolveError("Gateway service is not configured", 503);
-  }
-
-  return authenticateGatewayResolveRequest(params, prisma, {
-    salt: env.SALT,
-    serviceKeys: [
-      {
-        secret: env.LANGFUSE_GATEWAY_SERVICE_KEY,
-      },
-      ...(env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS
-        ? [
-            {
-              secret: env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS,
-            },
-          ]
-        : []),
-    ],
   });
 }
 

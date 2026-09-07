@@ -60,15 +60,6 @@ const gatewayIngestionTokenVerifier = (() => {
     : undefined;
 })();
 
-function verifyConfiguredGatewayIngestionToken(
-  token: string,
-): GatewayIngestionClaims {
-  if (!gatewayIngestionTokenVerifier) {
-    throw new Error("Gateway ingestion verification is not configured");
-  }
-  return gatewayIngestionTokenVerifier.verify({ token });
-}
-
 export async function verifyGatewayIngestionAuthorization(
   authorization: string | undefined,
   database: PrismaClient = prisma,
@@ -86,7 +77,10 @@ export async function verifyGatewayIngestionAuthorization(
 
   let claims: GatewayIngestionClaims;
   try {
-    claims = verifyConfiguredGatewayIngestionToken(token);
+    if (!gatewayIngestionTokenVerifier) {
+      throw new Error("Gateway ingestion verification is not configured");
+    }
+    claims = gatewayIngestionTokenVerifier.verify({ token });
   } catch {
     throw new UnauthorizedError("Invalid gateway ingestion token");
   }
@@ -109,6 +103,8 @@ export async function verifyGatewayIngestionAuthorization(
         },
       },
     }),
+    // Revalidate the live gateway association so deleting or reassigning the
+    // key revokes already-issued ingestion tokens and preserves org tenancy.
     database.gatewayApiKeyAssociation.findFirst({
       where: {
         apiKeyId: claims.keyId,
