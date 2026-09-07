@@ -166,7 +166,7 @@ describe("AI SDK telemetry integration", () => {
     const serializedAttributes = JSON.stringify(
       spans.flatMap((span: any) => span.attributes),
     );
-    expect(serializedAttributes.match(/@@@langfuseMedia/g)).toHaveLength(2);
+    expect(serializedAttributes.match(/@@@langfuseMedia/g)).toHaveLength(1);
     expect(serializedAttributes).toContain(originalReference);
     expect(serializedAttributes).toContain("Inspect");
     expect(serializedAttributes).toContain("text");
@@ -195,20 +195,17 @@ describe("AI SDK telemetry integration", () => {
       rs.scopeSpans.flatMap((ss: any) => ss.spans),
     );
 
-    // Exactly two spans: the internal root and one generation per model call
-    // (the minimal telemetry integration emits no operation/step spans).
-    expect(spans).toHaveLength(2);
+    // Evaluator traces contain only the model generation. The generation is
+    // the trace root, avoiding a wrapper observation that adds no eval value.
+    expect(spans).toHaveLength(1);
     for (const span of spans) {
       expect(span.traceId.toLowerCase()).toBe(VALID_TRACE_ID);
     }
 
     const rootSpans = spans.filter((span: any) => !span.parentSpanId);
     expect(rootSpans).toHaveLength(1);
-    expect(rootSpans[0].name).toBe("Execute evaluator: helpfulness");
-
-    const generationSpan = spans.find((span: any) => span.parentSpanId);
+    const generationSpan = rootSpans[0];
     expect(generationSpan.name).toBe("chat gpt-4o");
-    expect(generationSpan.parentSpanId).toBe(rootSpans[0].spanId);
     // OTLP SpanKind 3 = CLIENT. The detached trace owns the actual GenAI
     // client span; worker eval.* spans remain INTERNAL orchestration spans.
     expect(generationSpan.kind).toBe(3);
@@ -310,7 +307,7 @@ describe("AI SDK telemetry integration", () => {
     });
 
     const eventInputs = processor.processToEvent(resourceSpans);
-    expect(eventInputs).toHaveLength(2);
+    expect(eventInputs).toHaveLength(1);
     for (const eventInput of eventInputs) {
       expect(eventInput).toMatchObject({
         evaluationContext: {
@@ -462,7 +459,7 @@ describe("AI SDK telemetry integration", () => {
     const spans = resourceSpans.flatMap((resourceSpan: any) =>
       resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
     );
-    const generationSpan = spans.find((span: any) => span.parentSpanId);
+    const generationSpan = spans.find((span: any) => !span.parentSpanId);
     const attributes = Object.fromEntries(
       generationSpan.attributes.map((attribute: any) => [
         attribute.key,
@@ -535,41 +532,8 @@ describe("AI SDK telemetry integration", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(model.doGenerateCalls).toHaveLength(0);
-    expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
-
-    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
-    const spans = resourceSpans.flatMap((resourceSpan: any) =>
-      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
-    );
-    const rootSpan = spans.find((span: any) => !span.parentSpanId);
-    const attributes = Object.fromEntries(
-      rootSpan.attributes.map((attribute: any) => [
-        attribute.key,
-        attribute.value.stringValue ?? attribute.value,
-      ]),
-    );
-
-    expect(rootSpan.status).toMatchObject({ code: 2, message: errorMessage });
-    expect(attributes).toMatchObject({ "error.type": "LLMValidationError" });
-
-    // Convert the failed root span through the production ingestion mapper to
-    // prove the evaluator execution trace exposes the validation error.
-    const { OtelIngestionProcessor } = await vi.importActual<
-      typeof import("../../otel/OtelIngestionProcessor")
-    >("../../otel/OtelIngestionProcessor");
-    const eventInputs = new OtelIngestionProcessor({
-      projectId: "project-1",
-      publicKey: "",
-      sdkName: "langfuse-internal-ai-sdk",
-      sdkVersion: "unknown",
-      isLangfuseInternal: true,
-    }).processToEvent(resourceSpans);
-    const rootEvent = eventInputs.find((input: any) => !input.parentSpanId);
-
-    expect(rootEvent).toMatchObject({
-      level: "ERROR",
-      statusMessage: errorMessage,
-      environment: "langfuse-llm-judge",
-    });
+    // Validation failed before a model call began, so there is no generation
+    // to persist and evaluator traces do not fall back to a wrapper span.
+    expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
   });
 });

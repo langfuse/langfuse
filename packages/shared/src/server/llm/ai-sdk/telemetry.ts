@@ -151,47 +151,59 @@ export function createAiSdkTelemetryCapture(params: {
     ? buildEvaluationAttributes(traceSinkParams.evaluationContext)
     : undefined;
 
-  const rootSpan: Span = tracer.startSpan(
-    traceSinkParams.traceName,
-    {
-      attributes: {
-        [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
-        [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
-        ...(traceSinkParams.userId
-          ? {
-              [LangfuseOtelSpanAttributes.TRACE_USER_ID]:
-                traceSinkParams.userId,
-            }
-          : {}),
-        ...(evaluationAttributes ?? {}),
-        ...(traceSinkParams.metadata
-          ? {
-              [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
-                traceSinkParams.metadata,
-              ),
-            }
-          : {}),
-        ...(serializedInput !== undefined
-          ? {
-              [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: serializedInput,
-            }
-          : {}),
-      },
-    },
-    // ROOT_CONTEXT detaches from the server's own observability trace.
-    ROOT_CONTEXT,
-  );
-  const activeContext = trace.setSpan(ROOT_CONTEXT, rootSpan);
-
   const experimentContext = traceSinkParams.eventsWriter?.experimentContext;
-  const experimentAttributes = experimentContext
-    ? buildExperimentAttributes(
-        experimentContext,
-        rootSpan.spanContext().spanId,
-      )
-    : undefined;
+  // An evaluator execution is exactly one model call, so its generation is
+  // the trace root. Other internal traces can describe a larger operation and
+  // retain their synthetic root span.
+  const generationIsRoot =
+    evaluationAttributes !== undefined && experimentContext === undefined;
+  const rootSpan: Span | undefined = generationIsRoot
+    ? undefined
+    : tracer.startSpan(
+        traceSinkParams.traceName,
+        {
+          attributes: {
+            [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
+            [LangfuseOtelSpanAttributes.ENVIRONMENT]:
+              traceSinkParams.environment,
+            ...(traceSinkParams.userId
+              ? {
+                  [LangfuseOtelSpanAttributes.TRACE_USER_ID]:
+                    traceSinkParams.userId,
+                }
+              : {}),
+            ...(evaluationAttributes ?? {}),
+            ...(traceSinkParams.metadata
+              ? {
+                  [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
+                    traceSinkParams.metadata,
+                  ),
+                }
+              : {}),
+            ...(serializedInput !== undefined
+              ? {
+                  [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]:
+                    serializedInput,
+                }
+              : {}),
+          },
+        },
+        // ROOT_CONTEXT detaches from the server's own observability trace.
+        ROOT_CONTEXT,
+      );
+  const activeContext = rootSpan
+    ? trace.setSpan(ROOT_CONTEXT, rootSpan)
+    : ROOT_CONTEXT;
+
+  const experimentAttributes =
+    experimentContext && rootSpan
+      ? buildExperimentAttributes(
+          experimentContext,
+          rootSpan.spanContext().spanId,
+        )
+      : undefined;
   if (experimentAttributes) {
-    rootSpan.setAttributes(experimentAttributes);
+    rootSpan?.setAttributes(experimentAttributes);
   }
 
   const promptAttributes = traceSinkParams.prompt
@@ -223,6 +235,13 @@ export function createAiSdkTelemetryCapture(params: {
       ...(promptAttributes ?? {}),
       [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
       [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
+      ...(generationIsRoot && traceSinkParams.metadata
+        ? {
+            [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
+              traceSinkParams.metadata,
+            ),
+          }
+        : {}),
       ...(traceSinkParams.userId
         ? {
             [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
@@ -242,7 +261,7 @@ export function createAiSdkTelemetryCapture(params: {
   let flushed = false;
 
   const setRootOutput = (output: unknown): void => {
-    if (flushed || output === undefined) return;
+    if (!rootSpan || flushed || output === undefined) return;
     const serializedOutput = stringifyValue(output);
 
     rootSpan.setAttribute(
@@ -252,7 +271,7 @@ export function createAiSdkTelemetryCapture(params: {
   };
 
   const setRootError = (error: unknown): void => {
-    if (flushed) return;
+    if (!rootSpan || flushed) return;
     rootSpan.setAttribute("error.type", getErrorType(error));
     rootSpan.setStatus({
       code: SpanStatusCode.ERROR,
@@ -266,7 +285,7 @@ export function createAiSdkTelemetryCapture(params: {
     flushed = true;
 
     try {
-      rootSpan.end();
+      rootSpan?.end();
       await tracerProvider.forceFlush();
 
       const spans = exporter.getFinishedSpans();
