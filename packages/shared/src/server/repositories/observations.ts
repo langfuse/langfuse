@@ -543,7 +543,7 @@ export type ObservationTableQuery = {
    */
   ioSizeCap?: { inlineChars: number; previewChars: number };
   /** Events table only: collapse unmerged row versions before limiting. */
-  dedupeBySpanId?: "limit-by" | "latest-event";
+  dedupeBySpanId?: "latest-event-join" | "latest-event";
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 

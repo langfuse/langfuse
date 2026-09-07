@@ -284,7 +284,7 @@ export async function getEventListCursor(
     limit: params.limit + 1,
     cursorPagination: true,
     cursor: params.cursor,
-    dedupeBySpanId: "limit-by",
+    dedupeBySpanId: "latest-event-join",
     selectIOAndMetadata: false,
     renderingProps: { truncated: true, shouldJsonParse: false },
   });

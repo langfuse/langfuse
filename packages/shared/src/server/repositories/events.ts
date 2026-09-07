@@ -965,6 +965,24 @@ async function getObservationsFromEventsTableInternal<T>(
     );
   }
 
+  if (opts.dedupeBySpanId === "latest-event-join") {
+    queryBuilder
+      .withCTE("latest_event_versions", {
+        query: `
+          SELECT project_id, trace_id, span_id, max(event_ts) AS event_ts
+          FROM events_core
+          WHERE project_id = {projectId: String}
+          GROUP BY project_id, trace_id, span_id
+        `,
+        params: { projectId },
+      })
+      .innerJoin(
+        "latest_event_versions latest",
+        "ON latest.project_id = e.project_id AND latest.trace_id = e.trace_id AND latest.span_id = e.span_id AND latest.event_ts = e.event_ts",
+      )
+      .whereRaw("e.is_deleted = 0");
+  }
+
   queryBuilder
     .when(isCursorPagination, (b) =>
       applyObservationsCursorFilter(opts.cursor, b),
@@ -972,7 +990,7 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(isCursorPagination, (b) => {
       const cursorOrderedBuilder = b.orderByColumns([
         ...orderByForObservationsQuery("e"),
-        ...(opts.dedupeBySpanId
+        ...(opts.dedupeBySpanId === "latest-event"
           ? [{ column: "e.event_ts", direction: "DESC" as const }]
           : []),
       ]);
@@ -985,13 +1003,6 @@ async function getObservationsFromEventsTableInternal<T>(
           "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
         );
       }
-      if (opts.dedupeBySpanId === "limit-by") {
-        return cursorOrderedBuilder.limitBy(
-          "e.span_id",
-          "e.trace_id",
-          "e.project_id",
-        );
-      }
       return cursorOrderedBuilder;
     })
     .when(
@@ -999,10 +1010,8 @@ async function getObservationsFromEventsTableInternal<T>(
         (orderByEntries.length > 0 || Boolean(opts.dedupeBySpanId)),
       (b) =>
         b.orderByColumns(
-          opts.dedupeBySpanId
-            ? // event_ts DESC within the caller's order so LIMIT 1 BY keeps
-              // the newest version of each span.
-              [
+          opts.dedupeBySpanId === "latest-event"
+            ? [
                 ...orderByEntries,
                 { column: "e.event_ts", direction: "DESC" as const },
               ]
@@ -1013,9 +1022,6 @@ async function getObservationsFromEventsTableInternal<T>(
       b.qualifyRaw(
         "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
       ),
-    )
-    .when(!isCursorPagination && opts.dedupeBySpanId === "limit-by", (b) =>
-      b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
