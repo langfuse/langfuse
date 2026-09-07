@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * Model parameters badges for ObservationDetailView
  * Renders dynamic badges for each model parameter with truncation
@@ -8,25 +7,10 @@ import { type JsonNested } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function ModelParametersBadges({
-  modelParameters,
+  entries,
 }: {
-  modelParameters: JsonNested | null | undefined;
+  entries: [string, JsonNested][];
 }) {
-  // Only render if modelParameters is an object (not array, primitive, or null)
-  if (
-    !modelParameters ||
-    typeof modelParameters !== "object" ||
-    Array.isArray(modelParameters)
-  ) {
-    return null;
-  }
-
-  const entries = Object.entries(modelParameters).filter(
-    ([_, value]) => value !== null,
-  );
-
-  if (entries.length === 0) return null;
-
   return (
     <>
       {entries.map(([key, value]) => {

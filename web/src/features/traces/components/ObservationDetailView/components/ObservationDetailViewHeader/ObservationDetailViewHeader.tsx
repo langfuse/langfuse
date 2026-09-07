@@ -15,6 +15,7 @@ import {
   AnnotationQueueObjectType,
   isGenerationLike,
   LangfuseInternalTraceEnvironment,
+  type JsonNested,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -192,6 +193,17 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
+    const modelParameterEntries =
+      observation.modelParameters &&
+      typeof observation.modelParameters === "object" &&
+      !Array.isArray(observation.modelParameters)
+        ? (
+            Object.entries(observation.modelParameters) as [
+              string,
+              JsonNested,
+            ][]
+          ).filter(([, value]) => value !== null)
+        : [];
     const showsOwnObservationCost = !subtreeMetrics;
     const hasProvidedCostDetails =
       Object.keys(observation.providedCostDetails).length > 0;
@@ -789,9 +801,9 @@ export const ObservationDetailViewHeader = memo(
                   usageDetails={observation.usageDetails}
                 />
               )}
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
+              {modelParameterEntries.length > 0 && (
+                <ModelParametersBadges entries={modelParameterEntries} />
+              )}
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
                   level={observation.level}
