@@ -638,7 +638,7 @@ export function SampleObservationSelectorBase(
         />
         {selectionControl === "radio" ? (
           <RadioGroup
-            className="contents"
+            layout="inline"
             aria-label={selectionControlLabel ?? "Sample observation selection"}
             value={selectedObservationId ?? ""}
             onValueChange={(observationId) => {

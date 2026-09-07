@@ -2,30 +2,43 @@
 
 import * as React from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
+import { cva } from "class-variance-authority";
+import { cn } from "@/src/utils/tailwind";
+
+const radioGroupVariants = cva("grid gap-2", {
+  variants: {
+    layout: {
+      stack: "",
+      // RadioGroup.Root rendered as a layout-neutral wrapper (used when the
+      // radio items live inside a larger block, e.g. a data-table column)
+      inline: "contents",
+    },
+  },
+  defaultVariants: { layout: "stack" },
+});
 
 type RadioGroupProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
-  | "aria-label"
-  | "children"
-  | "className"
-  | "defaultValue"
-  | "onValueChange"
-  | "value"
->;
+  "aria-label" | "children" | "defaultValue" | "onValueChange" | "value"
+> & { layout?: "stack" | "inline" };
 
 const RadioGroupRoot = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->((props, ref) => {
+>(({ layout, ...props }, ref) => {
   return (
-    <RadioGroupPrimitive.Root className="grid gap-2" {...props} ref={ref} />
+    <RadioGroupPrimitive.Root
+      className={cn(radioGroupVariants({ layout }))}
+      {...props}
+      ref={ref}
+    />
   );
 });
 RadioGroupRoot.displayName = RadioGroupPrimitive.Root.displayName;
 
 type RadioGroupItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>,
-  "aria-controls" | "disabled" | "id" | "value"
+  "aria-controls" | "aria-label" | "disabled" | "id" | "value"
 >;
 
 const RadioGroupItem = React.forwardRef<
