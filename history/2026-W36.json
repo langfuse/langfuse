@@ -1,0 +1,136 @@
+{
+  "isoWeek": "2026-W36",
+  "kind": "full",
+  "analyzedAt": "2026-09-07",
+  "note": "Trailing 7 days 2026-09-01..2026-09-07. All four days carrying merge_group traffic (09-01..09-04) fall in ISO week 2026-W36; 09-07 is the Monday that opens W37 and had no merge_group runs. ISO week label verified by computation this run, not assumed — the prior run's file 2026-W35.json covers 08-25..08-31 under the same 'label = week the window predominantly covers' convention.",
+  "window": {
+    "from": "2026-09-01",
+    "to": "2026-09-07",
+    "daysWithMergeGroupTraffic": ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04"],
+    "emptyDays": ["2026-09-05", "2026-09-06", "2026-09-07"],
+    "emptyDayNote": "09-05 (Sat), 09-06 (Sun) and 09-07 (Mon, today, partial) had zero merge_group runs. Weekend gap is normal for this repo; charts omit these days rather than plotting zeros."
+  },
+  "population": {
+    "mergeGroupSuccess": 145,
+    "mergeGroupFailure": 18,
+    "mergeGroupSuccessByDay": { "2026-09-01": 32, "2026-09-02": 44, "2026-09-03": 32, "2026-09-04": 37 },
+    "mergeGroupFailureByDay": { "2026-09-01": 0, "2026-09-02": 1, "2026-09-03": 3, "2026-09-04": 14 },
+    "otherEventsInWindow": { "pull_request": 183, "push": 25, "workflow_dispatch": 5 },
+    "sampledForTiming": 28,
+    "samplingMethod": "7 successful merge_group runs per day, evenly spread by created_at, all 4 populated days. Every day clears the >=5-run/day bar for per-day medians.",
+    "excluded": "18 failed merge_group runs excluded from all timing metrics; counted here only."
+  },
+  "merge_group": {
+    "perceivedByDay": { "2026-09-01": 240, "2026-09-02": 241, "2026-09-03": 228, "2026-09-04": 288 },
+    "executionByDay": { "2026-09-01": 223, "2026-09-02": 226, "2026-09-03": 210, "2026-09-04": 283 },
+    "runnerWaitByDay": { "2026-09-01": 14, "2026-09-02": 17, "2026-09-03": 16, "2026-09-04": 5 },
+    "segmentsByDay": {
+      "webBuildStep": { "2026-09-01": 51, "2026-09-02": 57, "2026-09-03": 49, "2026-09-04": 53 },
+      "webRunTestsStep": { "2026-09-01": 89, "2026-09-02": 97, "2026-09-03": 87, "2026-09-04": 94 },
+      "workerRunTestsStep": { "2026-09-01": 118, "2026-09-02": 116, "2026-09-03": 109, "2026-09-04": 111 },
+      "e2eTestsJob": { "2026-09-01": 167, "2026-09-02": 151, "2026-09-03": 164, "2026-09-04": 167 }
+    },
+    "pooledWeekly": {
+      "n": 28,
+      "perceivedP50": 239,
+      "perceivedP90": 333,
+      "executionP50": 224.5,
+      "executionP90": 328,
+      "runnerWaitP50": 12.5,
+      "runnerWaitP90": 18
+    },
+    "weeklyMedianOfDailyMedians": {
+      "perceived": 240.5,
+      "execution": 224.5,
+      "runnerWait": 15,
+      "webBuildStep": 52,
+      "webRunTestsStep": 91.5,
+      "workerRunTestsStep": 113.5,
+      "e2eTestsJob": 165.5
+    }
+  },
+  "comparisonToBaselineAndPriorCheckpoint": {
+    "vsPriorWeek_2026-W35_08-25..08-31": {
+      "perceived": "201 -> 240.5 (+19.7%)",
+      "execution": "187 -> 224.5 (+20.1%)",
+      "runnerWait": "15 -> 15 (flat)",
+      "webBuildStep": "47 -> 52 (+10.6%)",
+      "webRunTestsStep": "85 -> 91.5 (+7.6%)",
+      "e2eTestsJob": "134 -> 165.5 (+23.5%)",
+      "caveat": "W35 rests on only 4 successful merge_group runs, all on 08-30. Treat as a weak comparator; the W34 comparison below is the load-bearing one."
+    },
+    "vsDenseCheckpoint_08-18..08-24_n37": {
+      "perceived": "198.3 -> 240.5 (+21.3%)",
+      "execution": "185.3 -> 224.5 (+21.2%)",
+      "runnerWait": "15.3 -> 15 (flat)",
+      "webBuildStep": "48 -> 52 (+8.3%)",
+      "webRunTestsStep": "77.8 -> 91.5 (+17.6%)",
+      "workerRunTestsStep": "106 -> 113.5 (+7.1%)",
+      "e2eTestsJob": "158.3 -> 165.5 (+4.5%)"
+    },
+    "vsW28Baseline": {
+      "perceivedP50": "396 -> 239 (-39.6%)",
+      "perceivedP90": "522 -> 333 (-36.2%)",
+      "comment": "Still far below the W28 baseline. This week is a regression against recent form, not against the long-run baseline."
+    },
+    "verdict": "Crosses the ~10% call-out bar on perceived and execution against both comparators. Runner wait is flat, so the regression is execution-bound, not queue-bound."
+  },
+  "intraWeekShiftCheck": {
+    "result": "no sustained shift",
+    "detail": "Daily perceived 240/241/228/288 and webRunTests 89/97/87/94 show no >=50% move sustained across 3+ consecutive days. 09-04 is a single-day outlier (+26% perceived vs the 09-01..09-03 mean), not a step change.",
+    "note09_04": "09-04 also carried 14 of the week's 18 merge_group failures (27% failure rate that day vs 0-9% on 09-01..09-03). Failed merge-queue runs force requeues and re-runs, raising concurrent load; this is the most plausible local cause of that day's slower medians and it is self-limiting, not a code regression."
+  },
+  "causeAnalysis": {
+    "method": "Same-day fast/slow pair on 09-03, ~7h apart: run 33745159758 (10:39, webRunTests 86s) vs run 33785884076 (17:45, webRunTests 163s).",
+    "finding": "The wall-clock 'run tests' step grew 90% (86s -> 163s) while the summed top-10 slowest-file durations grew only 23% (126.2s -> 155.5s). The slowdown is also non-uniform: write-heavy files inflated (score-comparison-analytics 16.07 -> 33.89, traces-api 13.81 -> 21.58, datasets-api 8.26 -> 14.73, ingestion-api 13.96 -> 17.31) while read/query-heavy files got FASTER (event-repository 21.53 -> 15.89, queryBuilder 13.56 -> 8.62).",
+    "interpretation": "Wall time growing 4x faster than test-execution time means the extra seconds sit in scheduling and I/O stalls, not in test bodies. The split between inflated write-heavy and unaffected read-heavy files points at the containerised Postgres/ClickHouse services being write-slow under host I/O pressure. This is host/runner capacity variance, not a code regression.",
+    "secondaryContributor": "Worker suite grew from 174 files / 2308 tests (09-01) to 177 files / 2345 tests (09-04), +1.6% tests in three days. Real but far too small to account for +21%.",
+    "confidence": "medium-high on 'not a code regression' (no single job regressed day-over-day; per-job medians stable; within-day spread on 09-01 alone ranges 184s-314s perceived). Lower confidence on the precise host mechanism, which is not observable from the API."
+  },
+  "flakyTests": [
+    {
+      "test": "web/src/__tests__/server/admin-api-keys.servertest.ts > Admin API keys route > invalidates all cached API keys without deleting other redis entries",
+      "occurrences": 2,
+      "seenOn": ["2026-09-04 (merge_group, job 101037949242)", "2026-09-06 (pull_request, job 101556400822)"],
+      "retries": 1,
+      "status": "NEW this week, already recurring across two different events",
+      "rootCause": "The test asserts an exact invalidatedCount of 2 against a shared Redis database while the handler's invalidate-all scans every api-key:* key globally. Any concurrently-running shard or leftover entry that holds an API-key cache key makes the observed count 3+, and the assertion fails. Widening parallelism widens the collision window.",
+      "fixShape": "Stop asserting an exact global count. Either assert invalidatedCount >= 2, or scope the assertion to the two keys the test itself created (the surrounding per-key assertions on lines 84-88 already cover the real behaviour). Not proposed as a diff this run because it is not verifiable in-sandbox (needs Redis).",
+      "verified": false
+    }
+  ],
+  "flakyNote": "Retried-tests blocks were present and empty (i.e. absent => zero retries) in 5 of 7 sampled job logs: 09-01 web (99790862002), 09-01 worker (99790862197), 09-03 fast web (100615830854), 09-03 slow web (100750439034), 09-04 worker (101037949234). The two occurrences above are the week's only retries. Both prior watchlist entries CLEARED: unstable-evaluator-v2-api.servertest.ts 'paginates evaluator lists' did not recur (stays at 1 occurrence, 08-23) and otelToObservationForEval.test.ts did not recur (stays at 2, 07-30/08-13).",
+  "slowestTests": {
+    "webServer": [
+      "event-repository.servertest.ts (92-93 tests): 15.89-21.53s — #1 or #2 every sampled run, unchanged from prior weeks",
+      "score-comparison-analytics.servertest.ts (46 tests): 16.07-33.89s — highest variance of any file; the single test 'should skip FINAL and apply hash-based sampling for large matched datasets' alone ranges 3.51s-7.79s",
+      "traces-api.servertest.ts (84 tests): 12.43-21.58s",
+      "ingestion-api.servertest.ts (63 tests): 12.36-17.31s",
+      "dataset-service.servertest.ts (35 tests): 9.87-15.29s",
+      "queryBuilder.servertest.ts (115 tests): 7.30-13.56s",
+      "scores-api-v3.servertest.ts (80 tests): 9.23-10.59s",
+      "datasets-api.servertest.ts (25 tests): 7.08-14.73s"
+    ],
+    "worker": [
+      "webhooks.test.ts (22 tests): 23.51s — #1 every week. Top test 'should reset failure count when webhook is re-enabled after being disabled' 7.17s. Checked this run for artificial sleeps: NO matches for setTimeout/sleep/waitFor/useFakeTimers/advanceTimers. The time is real DB and HTTP work, so the fake-timer optimisation idea is DEAD — do not re-propose it.",
+      "batchExport.test.ts (77 tests): 10.49s",
+      "IngestionService.integration.test.ts (59 tests): 8.50s",
+      "evalService.test.ts (108 tests): 8.07s",
+      "awsLambdaCodeEvalDispatcher.integration.test.ts (5 tests): 7.16s — only 5 tests for 7.16s, worst per-test ratio in the worker suite",
+      "bufferedStreamUploader.test.ts (46 tests): 6.54s"
+    ]
+  },
+  "structuralObservations": [
+    "turbo compile-cache save race: on both 09-03 tests-web shards the post-job step logged 'Failed to save: Unable to reserve cache with key Linux-turbo-tests-web-compile-<hash>, another job may be creating this cache'. The two tests-web shards share one cache key, so one shard tars 0.8-2.6 GB and then discards it. On 09-04 and 09-06 the save succeeded. Wasted work is a few seconds per run and it is off the critical path, but it is pure waste. Cannot be addressed by this workflow: the fix lives in .github/workflows/**, which is edit-forbidden here.",
+    "A job named validate-v3-release-tag appears in sampled runs on 09-04 (26 jobs) but not on 09-01..09-03 (25 jobs). Added mid-week; runs in 0s and is not on the critical path.",
+    "Critical path unchanged: all-ci-passed finishes last in every sampled run. Gating jobs are tests-web (196-209s), e2e-server-tests (~175s), tests-worker (~175s), e2e-tests (~165s), tests-storybook (~160s).",
+    "tests-web step composition: 'run tests' 93s + 'Build' 54s = ~147s of the ~201.5s step-median sum. Remainder is install 9.5s, finalize build 9s, setup/containers/migrate ~24s combined.",
+    "PR #17103 'chore(ci): test fast' (open, created 2026-09-05) sets VITEST_MAX_WORKERS: 12 and is visible in the 09-06 pull_request run sampled here. A colleague is already working on vitest concurrency — do NOT propose competing concurrency changes. Also treat 09-06 run timings as non-representative of main."
+  ],
+  "toolingBlockers": [
+    "DB-backed verification still standing-blocked in this sandbox (no Postgres/ClickHouse/Redis): github/gh-aw#52140, github/gh-aw-firewall#7268. Every top slowest file in both suites is DB-backed, so the weekly optimisation mining keeps terminating at 'cannot verify'.",
+    "No issue-search or issue-read MCP tool, so issues.json number/url can never be backfilled. missing_tool already filed twice; not re-filed this run.",
+    "list_workflow_runs returns 30 items/page regardless of per_page; the event: merge_group filter cut this week's paging from ~40 pages to 7 and was validated against the unfiltered set over the overlapping range."
+  ],
+  "action": "Reported the +21% execution-bound regression with the fast/slow evidence that attributes it to host capacity rather than code, and reported the new recurring flaky test with a precise root cause. No diff proposed: the flaky fix needs Redis to verify, and the two runtime candidates surfaced this week are dead (webhooks fake timers) or forbidden (turbo cache key in .github/workflows)."
+}

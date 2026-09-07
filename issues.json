@@ -24,10 +24,11 @@
     },
     "appliedOnMain": false,
     "appliedAt": null,
+    "appliedCheckNote": "n/a — no diff was ever proposed for this entry, so there is nothing to detect on main. Do not re-run the search each week; this is settled.",
     "followUps": [
-      "Carried candidate layout.clienttest.ts was verified and DROPPED by run 22 — measured, no win. See history/2026-W35-partial-0824.json."
+      "RESOLVED 2026-09-07: carried candidate layout.clienttest.ts was verified and DROPPED by run 22 — measured, no win. See history/2026-W35-partial-0824.json."
     ],
-    "lastCheckedAt": "2026-08-24",
+    "lastCheckedAt": "2026-09-07",
     "outcome": "Filed with no suggested diff. No regression met the actionable bar. One strong new optimization candidate (web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts, #1 slowest client file at 6.87s, landed 2026-08-17 in 91970f83d/#16124) was identified but could not be verified: the whole TraceTimelineV2 directory was absent from the analyst's checkout, which was 19 commits behind origin/main. Carried to run 22, which verified it in-sandbox and dropped it — the hoist delivered no measurable win because layout() positions all 10,000 rows of the `huge` shape on every combination, dwarfing prepareTimeline. No diff was ever proposed for this entry."
   },
   {
@@ -56,12 +57,13 @@
     },
     "appliedOnMain": false,
     "appliedAt": null,
+    "appliedCheckNote": "n/a — no diff proposed. Settled; do not re-search.",
     "followUps": [
-      "Watch web/src/__tests__/server/unstable-evaluator-v2-api.servertest.ts > 'paginates evaluator lists' for a 2nd flaky occurrence (1st was 2026-08-23, retries=2).",
-      "otelToObservationForEval.test.ts stays at 2 historical flaky instances (07-30, 08-13); watch for a 3rd."
+      "RESOLVED 2026-09-07: unstable-evaluator-v2-api.servertest.ts > 'paginates evaluator lists' did NOT recur in W36 sampling. Stays at 1 lifetime occurrence (2026-08-23). Dropped from the watchlist.",
+      "RESOLVED 2026-09-07: otelToObservationForEval.test.ts did NOT recur in W36 sampling. Stays at 2 lifetime occurrences (07-30, 08-13). Dropped from the watchlist."
     ],
-    "lastCheckedAt": "2026-08-24",
-    "outcome": "Filed with no suggested diff. Best week on record (p50 198s, p90 284.6s vs baseline 396/522). No regression met the acting threshold. The one carried optimization candidate was verified in-sandbox, measured to deliver no win, and dropped. missing_tool filed for the absent issue-search capability."
+    "lastCheckedAt": "2026-09-07",
+    "outcome": "Filed with no suggested diff. Best week on record (p50 198s, p90 284.6s vs baseline 396/522). No regression met the acting threshold. The one carried optimization candidate was verified in-sandbox, measured to deliver no win, and dropped. missing_tool filed for the absent issue-search capability. FOLLOW-UP 2026-09-07: this week's dense figures are now the load-bearing comparator for W36, which regressed +21.3% against them."
   },
   {
     "number": null,
@@ -89,8 +91,50 @@
     },
     "appliedOnMain": false,
     "appliedAt": null,
-    "followUps": [],
-    "lastCheckedAt": "2026-08-31",
+    "appliedCheckNote": "n/a — no diff proposed. Settled; do not re-search.",
+    "followUps": [
+      "RESOLVED 2026-09-07: the 9.3% webRunTests uptick flagged here (77.8s -> 85s) did NOT revert — it continued to 91.5s in W36 (+17.6% cumulative vs the 08-18..08-24 dense checkpoint). What looked like thin-data noise was the leading edge of a real multi-week drift. Treat sub-threshold upticks in a thin week as worth carrying, not discarding."
+    ],
+    "lastCheckedAt": "2026-09-07",
     "outcome": "Filed with no suggested diff. Data too thin (4 same-day runs vs 10+ multi-day minimum) for confident trend detection. Web runTests up 9.3% (77.8s → 85s), the only metric crossing ~10%, but does not meet the 'sustained 3+ days' bar. The one optimization candidate (score-comparison-analytics Promise.all batching) remains parked due to standing DB verification blocker. Zero flaky tests. Stable at 'best week on record' level, but lack of run density prevents stronger claims."
+  },
+  {
+    "number": null,
+    "url": null,
+    "openedAt": "2026-09-07",
+    "title": "CI Runtime Report: 2026-09-01..09-07 (trailing 7 days)",
+    "note": "Number/url are null (same structural reason: safe-outputs creates the issue after the agent exits, and no issue-read tool exists). Identify by label ci-performance, assignee wochinge, title prefix, opened 2026-09-07.",
+    "suggestedDiff": false,
+    "expectedImpact": null,
+    "baselineStats": {
+      "window": "2026-09-01..2026-09-07",
+      "isoWeek": "2026-W36",
+      "mergeGroupRuns": 145,
+      "mergeGroupFailures": 18,
+      "mergeGroupRunsSampledForTiming": 28,
+      "dataQualityNote": "Good density: 4 populated days (09-01..09-04) at 32-44 successful runs each, all clearing the >=5/day bar. 09-05/06/07 had zero merge_group runs (weekend + partial Monday).",
+      "perceivedP50": 239,
+      "perceivedP90": 333,
+      "weeklyMedianOfDailyMedians": {
+        "perceived": 240.5,
+        "execution": 224.5,
+        "runnerWait": 15,
+        "webBuildStep": 52,
+        "webRunTestsStep": 91.5,
+        "workerRunTestsStep": 113.5,
+        "e2eTestsJob": 165.5
+      }
+    },
+    "appliedOnMain": false,
+    "appliedAt": null,
+    "appliedCheckNote": "n/a — no diff proposed.",
+    "followUps": [
+      "PRIMARY: admin-api-keys.servertest.ts > 'invalidates all cached API keys without deleting other redis entries' flaked twice this week (09-04 merge_group, 09-06 pull_request), retries=1 each. Root cause identified: exact assertion invalidatedCount === 2 against a shared Redis DB while the handler scans api-key:* globally. Fix is a one-line assertion change but needs Redis to verify. If a future run gains DB access, this is the first thing to ship. Watch for a 3rd occurrence regardless.",
+      "Re-measure next week whether the +21% is transient host variance (expected: reverts toward ~200s) or the new normal (expected: holds at ~240s). This single datapoint decides whether to escalate.",
+      "PR #17103 'chore(ci): test fast' (open since 09-05, sets VITEST_MAX_WORKERS: 12) — check whether it merged and what it did to webRunTests. Do not propose competing concurrency work while it is open.",
+      "DEAD, do not re-propose: webhooks.test.ts fake timers (grepped 2026-09-07, no setTimeout/sleep/waitFor/useFakeTimers anywhere in the file — the 23.5s is real DB and HTTP work)."
+    ],
+    "lastCheckedAt": "2026-09-07",
+    "outcome": "Filed with no suggested diff. First real regression since the issue-output regime began: perceived +21.3% and execution +21.2% against the dense 08-18..08-24 checkpoint, with runner wait flat, so it is execution-bound not queue-bound. A same-day fast/slow pair on 09-03 attributes it to host capacity rather than code: wall-clock run tests grew 90% while summed test durations grew only 23%, and the inflation was confined to write-heavy DB files while read-heavy files got faster. No single job regressed day-over-day. One new recurring flaky test found with a precise root cause but no verifiable diff (needs Redis). Both prior flaky watchlist entries cleared."
   }
 ]

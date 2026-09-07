@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="700" viewBox="0 0 720 700" font-family="Helvetica,Arial,sans-serif">
+  <rect width="720" height="700" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="17" font-weight="bold" fill="#1a1a1a">Langfuse CI runtime — 2026-W36 (2026-09-01..09-07)</text>
+  <text x="360" y="46" text-anchor="middle" font-size="11" fill="#666666">merge_group runs only, 7 sampled per day, 28 total. 09-05/06/07 had zero merge_group runs and are omitted.</text>
+
+  <!-- ================= PANEL 1: run-level decomposition ================= -->
+  <text x="70" y="72" font-size="13" font-weight="bold" fill="#1a1a1a">Perceived vs execution vs runner wait (seconds, daily median)</text>
+
+  <!-- grid + y axis 0..300 mapped to y=300..60 (0.8 px/s) -->
+  <line x1="70" y1="300" x2="660" y2="300" stroke="#333333" stroke-width="1.2"/>
+  <line x1="70" y1="60" x2="70" y2="300" stroke="#333333" stroke-width="1.2"/>
+  <line x1="70" y1="240" x2="660" y2="240" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="180" x2="660" y2="180" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="120" x2="660" y2="120" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="60" x2="660" y2="60" stroke="#e6e6e6" stroke-width="1"/>
+  <text x="62" y="304" text-anchor="end" font-size="10" fill="#666666">0</text>
+  <text x="62" y="244" text-anchor="end" font-size="10" fill="#666666">75</text>
+  <text x="62" y="184" text-anchor="end" font-size="10" fill="#666666">150</text>
+  <text x="62" y="124" text-anchor="end" font-size="10" fill="#666666">225</text>
+  <text x="62" y="64" text-anchor="end" font-size="10" fill="#666666">300</text>
+
+  <text x="140" y="318" text-anchor="middle" font-size="11" fill="#333333">09-01</text>
+  <text x="300" y="318" text-anchor="middle" font-size="11" fill="#333333">09-02</text>
+  <text x="460" y="318" text-anchor="middle" font-size="11" fill="#333333">09-03</text>
+  <text x="620" y="318" text-anchor="middle" font-size="11" fill="#333333">09-04</text>
+
+  <!-- perceived 240,241,228,288 -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2.5" points="140,108 300,107.2 460,117.6 620,69.6"/>
+  <circle cx="140" cy="108" r="4" fill="#3987e5"/><circle cx="300" cy="107.2" r="4" fill="#3987e5"/>
+  <circle cx="460" cy="117.6" r="4" fill="#3987e5"/><circle cx="620" cy="69.6" r="4" fill="#3987e5"/>
+  <text x="140" y="100" text-anchor="middle" font-size="10" fill="#3987e5">240</text>
+  <text x="300" y="99" text-anchor="middle" font-size="10" fill="#3987e5">241</text>
+  <text x="460" y="110" text-anchor="middle" font-size="10" fill="#3987e5">228</text>
+  <text x="620" y="62" text-anchor="middle" font-size="10" fill="#3987e5">288</text>
+
+  <!-- execution 223,226,210,283 -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2.5" points="140,121.6 300,119.2 460,132 620,73.6"/>
+  <circle cx="140" cy="121.6" r="4" fill="#de5a20"/><circle cx="300" cy="119.2" r="4" fill="#de5a20"/>
+  <circle cx="460" cy="132" r="4" fill="#de5a20"/><circle cx="620" cy="73.6" r="4" fill="#de5a20"/>
+  <text x="140" y="136" text-anchor="middle" font-size="10" fill="#de5a20">223</text>
+  <text x="300" y="133" text-anchor="middle" font-size="10" fill="#de5a20">226</text>
+  <text x="460" y="146" text-anchor="middle" font-size="10" fill="#de5a20">210</text>
+  <text x="620" y="88" text-anchor="middle" font-size="10" fill="#de5a20">283</text>
+
+  <!-- runner wait 14,17,16,5 -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2.5" points="140,288.8 300,286.4 460,287.2 620,296"/>
+  <circle cx="140" cy="288.8" r="4" fill="#8875e0"/><circle cx="300" cy="286.4" r="4" fill="#8875e0"/>
+  <circle cx="460" cy="287.2" r="4" fill="#8875e0"/><circle cx="620" cy="296" r="4" fill="#8875e0"/>
+  <text x="140" y="283" text-anchor="middle" font-size="10" fill="#8875e0">14</text>
+  <text x="300" y="280" text-anchor="middle" font-size="10" fill="#8875e0">17</text>
+  <text x="460" y="281" text-anchor="middle" font-size="10" fill="#8875e0">16</text>
+  <text x="620" y="290" text-anchor="middle" font-size="10" fill="#8875e0">5</text>
+
+  <!-- legend panel 1 -->
+  <rect x="440" y="196" width="216" height="66" fill="#ffffff" stroke="#cccccc" stroke-width="1" rx="3"/>
+  <line x1="452" y1="212" x2="480" y2="212" stroke="#3987e5" stroke-width="2.5"/>
+  <text x="488" y="216" font-size="11" fill="#333333">Perceived (wall clock)</text>
+  <line x1="452" y1="230" x2="480" y2="230" stroke="#de5a20" stroke-width="2.5"/>
+  <text x="488" y="234" font-size="11" fill="#333333">Execution (job union)</text>
+  <line x1="452" y1="248" x2="480" y2="248" stroke="#8875e0" stroke-width="2.5"/>
+  <text x="488" y="252" font-size="11" fill="#333333">Runner wait</text>
+
+  <!-- ================= PANEL 2: segments ================= -->
+  <text x="70" y="372" font-size="13" font-weight="bold" fill="#1a1a1a">Critical-path segments (seconds, daily median)</text>
+
+  <!-- y axis 0..180 mapped to y=640..400 (1.3333 px/s) -->
+  <line x1="70" y1="640" x2="660" y2="640" stroke="#333333" stroke-width="1.2"/>
+  <line x1="70" y1="400" x2="70" y2="640" stroke="#333333" stroke-width="1.2"/>
+  <line x1="70" y1="580" x2="660" y2="580" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="520" x2="660" y2="520" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="460" x2="660" y2="460" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="400" x2="660" y2="400" stroke="#e6e6e6" stroke-width="1"/>
+  <text x="62" y="644" text-anchor="end" font-size="10" fill="#666666">0</text>
+  <text x="62" y="584" text-anchor="end" font-size="10" fill="#666666">45</text>
+  <text x="62" y="524" text-anchor="end" font-size="10" fill="#666666">90</text>
+  <text x="62" y="464" text-anchor="end" font-size="10" fill="#666666">135</text>
+  <text x="62" y="404" text-anchor="end" font-size="10" fill="#666666">180</text>
+
+  <text x="140" y="658" text-anchor="middle" font-size="11" fill="#333333">09-01</text>
+  <text x="300" y="658" text-anchor="middle" font-size="11" fill="#333333">09-02</text>
+  <text x="460" y="658" text-anchor="middle" font-size="11" fill="#333333">09-03</text>
+  <text x="620" y="658" text-anchor="middle" font-size="11" fill="#333333">09-04</text>
+
+  <!-- e2e-tests 167,151,164,167 -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2.5" points="140,417.3 300,438.7 460,421.3 620,417.3"/>
+  <circle cx="140" cy="417.3" r="4" fill="#8875e0"/><circle cx="300" cy="438.7" r="4" fill="#8875e0"/>
+  <circle cx="460" cy="421.3" r="4" fill="#8875e0"/><circle cx="620" cy="417.3" r="4" fill="#8875e0"/>
+  <text x="140" y="410" text-anchor="middle" font-size="10" fill="#8875e0">167</text>
+  <text x="300" y="432" text-anchor="middle" font-size="10" fill="#8875e0">151</text>
+  <text x="460" y="414" text-anchor="middle" font-size="10" fill="#8875e0">164</text>
+  <text x="620" y="410" text-anchor="middle" font-size="10" fill="#8875e0">167</text>
+
+  <!-- web run tests 89,97,87,94 -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2.5" points="140,521.3 300,510.7 460,524 620,514.7"/>
+  <circle cx="140" cy="521.3" r="4" fill="#3987e5"/><circle cx="300" cy="510.7" r="4" fill="#3987e5"/>
+  <circle cx="460" cy="524" r="4" fill="#3987e5"/><circle cx="620" cy="514.7" r="4" fill="#3987e5"/>
+  <text x="140" y="514" text-anchor="middle" font-size="10" fill="#3987e5">89</text>
+  <text x="300" y="503" text-anchor="middle" font-size="10" fill="#3987e5">97</text>
+  <text x="460" y="537" text-anchor="middle" font-size="10" fill="#3987e5">87</text>
+  <text x="620" y="507" text-anchor="middle" font-size="10" fill="#3987e5">94</text>
+
+  <!-- web Build 51,57,49,53 -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2.5" points="140,572 300,564 460,574.7 620,569.3"/>
+  <circle cx="140" cy="572" r="4" fill="#de5a20"/><circle cx="300" cy="564" r="4" fill="#de5a20"/>
+  <circle cx="460" cy="574.7" r="4" fill="#de5a20"/><circle cx="620" cy="569.3" r="4" fill="#de5a20"/>
+  <text x="140" y="587" text-anchor="middle" font-size="10" fill="#de5a20">51</text>
+  <text x="300" y="557" text-anchor="middle" font-size="10" fill="#de5a20">57</text>
+  <text x="460" y="590" text-anchor="middle" font-size="10" fill="#de5a20">49</text>
+  <text x="620" y="584" text-anchor="middle" font-size="10" fill="#de5a20">53</text>
+
+  <!-- legend panel 2 -->
+  <rect x="440" y="600" width="216" height="66" fill="#ffffff" stroke="#cccccc" stroke-width="1" rx="3"/>
+  <line x1="452" y1="616" x2="480" y2="616" stroke="#3987e5" stroke-width="2.5"/>
+  <text x="488" y="620" font-size="11" fill="#333333">tests-web &#183; run tests</text>
+  <line x1="452" y1="634" x2="480" y2="634" stroke="#de5a20" stroke-width="2.5"/>
+  <text x="488" y="638" font-size="11" fill="#333333">tests-web &#183; Build</text>
+  <line x1="452" y1="652" x2="480" y2="652" stroke="#8875e0" stroke-width="2.5"/>
+  <text x="488" y="656" font-size="11" fill="#333333">e2e-tests (whole job)</text>
+
+  <text x="70" y="686" font-size="10" fill="#888888">Weekly median-of-daily-medians: perceived 240.5s, execution 224.5s, wait 15s. Pooled p50 239s / p90 333s (n=28).</text>
+</svg>
