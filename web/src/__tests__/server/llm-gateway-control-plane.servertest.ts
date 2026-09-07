@@ -452,17 +452,19 @@ describe("LLM gateway control plane", () => {
       base_url: "https://openrouter.ai/api/v1",
       auth: { type: "Bearer", token: "sk-test-openrouter" },
     });
-    expect(
-      verifyGatewayIngestionToken({
-        token: result.ingestion!.access_token,
-        verifier: jwtVerifier,
-      }),
-    ).toMatchObject({
+    const ingestionClaims = verifyGatewayIngestionToken({
+      token: result.ingestion!.access_token,
+      verifier: jwtVerifier,
+    });
+    expect(ingestionClaims).toMatchObject({
       organizationId: org.id,
       projectId: project.id,
       keyId: gatewayKey.id,
       instrumentation_mode: "full",
     });
+    expect(result.ingestion?.expires_in).toBe(
+      ingestionClaims.exp - ingestionClaims.iat,
+    );
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {

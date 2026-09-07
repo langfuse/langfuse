@@ -11,7 +11,7 @@ import {
 
 const RESOLVE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
-const INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
+export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 type GatewayHmacMessageInput = {
   timestamp: number;
@@ -134,7 +134,7 @@ export function issueGatewayIngestionToken(input: {
   >;
 }): string {
   return input.signer.sign({
-    expiresInSeconds: INGESTION_TOKEN_TTL_SECONDS,
+    expiresInSeconds: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
     now: input.now,
     claims: {
       version: 1,

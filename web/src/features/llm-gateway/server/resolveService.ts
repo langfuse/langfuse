@@ -7,7 +7,10 @@ import { decrypt } from "@langfuse/shared/encryption";
 
 import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 
-import { issueGatewayIngestionToken } from "./auth";
+import {
+  GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
+  issueGatewayIngestionToken,
+} from "./auth/auth";
 import {
   type GatewayApiFormat,
   gatewayProviders,
@@ -123,7 +126,7 @@ export class GatewayResolveService {
         },
       }),
       token_type: "Bearer" as const,
-      expires_in: 15 * 60,
+      expires_in: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
     };
   }
 }
