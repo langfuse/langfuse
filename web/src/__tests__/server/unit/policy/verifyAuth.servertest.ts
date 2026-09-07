@@ -9,12 +9,14 @@ const {
   mockEnforceProjectAuth,
   mockDiffResults,
   mockRecordCoverage,
+  mockVerifyGatewayIngestionAuthorization,
 } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "legacy" as string },
   mockLegacyVerifyAuth: vi.fn(),
   mockEnforceProjectAuth: vi.fn(),
   mockDiffResults: vi.fn(),
   mockRecordCoverage: vi.fn(),
+  mockVerifyGatewayIngestionAuthorization: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env }));
@@ -31,6 +33,10 @@ vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   diffResults: mockDiffResults,
   recordCoverage: mockRecordCoverage,
+}));
+
+vi.mock("@/src/features/llm-gateway/server", () => ({
+  verifyGatewayIngestionAuthorization: mockVerifyGatewayIngestionAuthorization,
 }));
 
 import { verifyAuth } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -98,6 +104,47 @@ describe("project seam verifyAuth", () => {
       legacyDenies(403);
       await expect(call()).rejects.toEqual({ status: 403, message: "legacy" });
       expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("gateway ingestion token opt-in", () => {
+    it("returns gateway authorization before selecting an API auth migration path", async () => {
+      const gatewayAuthorization = {
+        validKey: true,
+        scope: {
+          projectId: "gateway-project",
+          accessLevel: "project",
+        },
+      };
+      mockVerifyGatewayIngestionAuthorization.mockResolvedValue(
+        gatewayAuthorization,
+      );
+
+      await expect(
+        verifyAuth({
+          req,
+          name: "Ingest Traces",
+          action: "traces:create",
+          allowGatewayIngestionToken: true,
+        }),
+      ).resolves.toBe(gatewayAuthorization);
+      expect(mockLegacyVerifyAuth).not.toHaveBeenCalled();
+      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+    });
+
+    it("falls through to the selected API auth path for non-gateway credentials", async () => {
+      mockVerifyGatewayIngestionAuthorization.mockResolvedValue(null);
+      legacyAllows();
+
+      await expect(
+        verifyAuth({
+          req,
+          name: "Ingest Traces",
+          action: "traces:create",
+          allowGatewayIngestionToken: true,
+        }),
+      ).resolves.toBe(legacyScope);
+      expect(mockLegacyVerifyAuth).toHaveBeenCalledOnce();
     });
   });
 
