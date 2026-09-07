@@ -207,6 +207,7 @@ export function ModernSession({
         name: observation.name,
         type: observation.type,
         latency: observation.latency,
+        parentObservationId: observation.parentObservationId,
       };
       if (observations) observations.push(row);
       else observationsByTraceId.set(observation.traceId, [row]);

@@ -17,7 +17,7 @@ const traces = [
     timestamp: new Date("2026-01-01T12:00:00.000Z"),
     environment: "production",
     userId: "user-1",
-    observationCount: 2,
+    observationCount: 10,
     latencyMs: 60_000,
     scores: [],
   },
@@ -45,29 +45,100 @@ const traces = [
 
 const observationsByTraceId: Record<
   string,
-  Array<{ id: string; name: string; type: string; latency: number | null }>
+  Array<{
+    id: string;
+    name: string;
+    type: string;
+    latency: number | null;
+    parentObservationId?: string | null;
+  }>
 > = {
   "turn-1": [
     {
       id: "span-1",
-      name: "Retrieve documentation",
+      name: "Billing support agent",
       type: "SPAN",
-      latency: 0.42,
+      latency: 4.82,
+      parentObservationId: null,
     },
     {
       id: "generation-1",
-      name: "Compose response",
+      name: "Plan investigation",
       type: "GENERATION",
-      latency: 1.8,
+      latency: 0.61,
+      parentObservationId: "span-1",
+    },
+    {
+      id: "tool-1",
+      name: "Load customer account",
+      type: "TOOL",
+      latency: 0.24,
+      parentObservationId: "generation-1",
+    },
+    {
+      id: "tool-2",
+      name: "Search billing documentation",
+      type: "TOOL",
+      latency: 0.31,
+      parentObservationId: "generation-1",
+    },
+    {
+      id: "generation-2",
+      name: "Analyze account usage",
+      type: "GENERATION",
+      latency: 0.94,
+      parentObservationId: "span-1",
+    },
+    {
+      id: "tool-3",
+      name: "Query usage records",
+      type: "TOOL",
+      latency: 0.48,
+      parentObservationId: "generation-2",
+    },
+    {
+      id: "tool-4",
+      name: "Calculate expected cost",
+      type: "TOOL",
+      latency: 0.12,
+      parentObservationId: "generation-2",
+    },
+    {
+      id: "generation-3",
+      name: "Draft customer response",
+      type: "GENERATION",
+      latency: 1.26,
+      parentObservationId: "span-1",
+    },
+    {
+      id: "tool-5",
+      name: "Find supporting citations",
+      type: "TOOL",
+      latency: 0.39,
+      parentObservationId: "generation-3",
+    },
+    {
+      id: "tool-6",
+      name: "Check refund policy",
+      type: "TOOL",
+      latency: 0.17,
+      parentObservationId: "generation-3",
     },
   ],
   "turn-2": [
-    { id: "tool-1", name: "Search knowledge base", type: "TOOL", latency: 0.7 },
+    {
+      id: "tool-2",
+      name: "Search knowledge base",
+      type: "TOOL",
+      latency: 0.7,
+      parentObservationId: null,
+    },
     {
       id: "generation-2",
       name: "Write follow-up",
       type: "GENERATION",
       latency: 1.2,
+      parentObservationId: null,
     },
   ],
   "turn-3": [
@@ -76,6 +147,7 @@ const observationsByTraceId: Record<
       name: "Conversation closed",
       type: "EVENT",
       latency: null,
+      parentObservationId: null,
     },
   ],
 };
@@ -183,7 +255,13 @@ const toSidebarTraces = (
   sourceTraces: EventSessionTrace[],
   observations: Record<
     string,
-    Array<{ id: string; name: string; type: string; latency: number | null }>
+    Array<{
+      id: string;
+      name: string;
+      type: string;
+      latency: number | null;
+      parentObservationId?: string | null;
+    }>
   >,
 ): ModernSessionSidebarTrace[] =>
   sourceTraces.map((trace, index) => ({
@@ -193,7 +271,11 @@ const toSidebarTraces = (
       index === 0
         ? null
         : computeIdleGapSeconds(sourceTraces[index - 1]!, trace),
-    observations: observations[trace.id] ?? [],
+    observations:
+      observations[trace.id]?.map((observation) => ({
+        ...observation,
+        parentObservationId: observation.parentObservationId ?? null,
+      })) ?? [],
     hasMatchingTraceLevelIO: false,
   }));
 
@@ -330,6 +412,25 @@ const meta = preview.meta({
 export default meta;
 
 export const Default = meta.story({ args: loadedArgs });
+
+export const NestedObservations = meta.story({
+  args: {
+    ...loadedArgs,
+    traces: [sidebarTraces[0]!],
+    activeTraceId: "turn-1",
+    expandedTraceIds: new Set(["turn-1"]),
+  },
+});
+
+export const SearchResults = meta.story({
+  args: {
+    ...loadedArgs,
+    traces: [sidebarTraces[0]!],
+    activeTraceId: "turn-1",
+    search: "tool",
+    expandedTraceIds: new Set(["turn-1"]),
+  },
+});
 
 export const DarkMode = meta.story({
   args: {
@@ -480,6 +581,7 @@ export const TestSelectsFilteredTurnByStableNumber = meta.story({
             name: "Matching observation",
             type: "SPAN",
             latency: 0.5,
+            parentObservationId: null,
           },
         ],
       },
@@ -515,7 +617,7 @@ export const TestSelectsObservation = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: /^Search knowledge base 0.70s$/i }),
     );
-    await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-1");
+    await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-2");
   },
 });
 

@@ -51,6 +51,7 @@ type ObservationListRow = {
   name: string | null;
   type: string;
   latency: number | null;
+  parentObservationId: string | null;
 };
 
 type ObservationListRowsState =
@@ -82,6 +83,7 @@ export type ModernSessionSidebarFilterControls =
 function ObservationListRows({
   state,
   onSelectObservation,
+  showNesting,
   onFilterObservationByName,
 }:
   | {
@@ -90,11 +92,13 @@ function ObservationListRows({
         { type: "loading" | "error" | "trace-io-only" | "empty" }
       >;
       onSelectObservation?: never;
+      showNesting?: never;
       onFilterObservationByName?: never;
     }
   | {
       state: Extract<ObservationListRowsState, { type: "loaded" }>;
       onSelectObservation: (observationId: string) => void;
+      showNesting: boolean;
       onFilterObservationByName?: (
         name: string,
         operator: "any of" | "none of",
@@ -139,70 +143,159 @@ function ObservationListRows({
     throw new Error("Loaded observation rows require a selection handler");
   }
 
+  const observationsById = new Map(
+    state.rows.map((observation) => [observation.id, observation]),
+  );
+  const childrenByParentId = new Map<string | null, ObservationListRow[]>();
+  state.rows.forEach((observation) => {
+    const parentObservationId = showNesting
+      ? observation.parentObservationId
+      : null;
+    const siblings = childrenByParentId.get(parentObservationId) ?? [];
+    siblings.push(observation);
+    childrenByParentId.set(parentObservationId, siblings);
+  });
+  const ancestorIdsByObservationId = new Map<string, string[]>();
+  state.rows.forEach((observation) => {
+    const ancestorIds: string[] = [];
+    const visitedAncestorIds = new Set<string>();
+    let ancestorId = showNesting ? observation.parentObservationId : null;
+    while (ancestorId && !visitedAncestorIds.has(ancestorId)) {
+      ancestorIds.unshift(ancestorId);
+      visitedAncestorIds.add(ancestorId);
+      ancestorId =
+        observationsById.get(ancestorId)?.parentObservationId ?? null;
+    }
+    ancestorIdsByObservationId.set(observation.id, ancestorIds);
+  });
+
   return (
     <div className="mt-2 flex flex-col">
-      {state.rows.map((observation) => (
-        <div
-          key={observation.id}
-          className="hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
-        >
-          <button
-            type="button"
-            onClick={() => onSelectObservation(observation.id)}
-            className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left"
+      {state.rows.map((observation) => {
+        const ancestorIds =
+          ancestorIdsByObservationId.get(observation.id) ?? [];
+        const parentObservationId = showNesting
+          ? observation.parentObservationId
+          : null;
+        const siblings = childrenByParentId.get(parentObservationId) ?? [];
+        const isLastSibling = siblings.at(-1)?.id === observation.id;
+        const hasVisibleChildren = childrenByParentId.has(observation.id);
+
+        return (
+          <div
+            key={observation.id}
+            className="group/observation -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150 hover:bg-[color-mix(in_srgb,hsl(var(--foreground))_10%,hsl(var(--background)))] hover:[--tree-icon-bg:color-mix(in_srgb,hsl(var(--foreground))_10%,hsl(var(--background)))]"
           >
-            {renderFilterIcon(observation.type)}
-            <span
-              className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
-              title={observation.name ?? observation.id}
+            <button
+              type="button"
+              onClick={() => onSelectObservation(observation.id)}
+              className="relative flex min-w-0 flex-1 items-center gap-2 self-stretch py-1 pr-1 text-left"
             >
-              {observation.name ?? observation.id}
-            </span>
-            {observation.latency !== null && observation.type !== "EVENT" ? (
-              <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-                {formatIntervalSeconds(observation.latency)}
+              <span
+                aria-hidden="true"
+                className="relative -my-1 shrink-0 self-stretch"
+                style={{ width: `${ancestorIds.length * 20 + 24}px` }}
+              >
+                {ancestorIds.slice(1).map((branchId, ancestorIndex) => {
+                  const branch = observationsById.get(branchId);
+                  const branchSiblings = branch
+                    ? (childrenByParentId.get(branch.parentObservationId) ?? [])
+                    : [];
+                  const branchIsLastSibling =
+                    branchSiblings.at(-1)?.id === branchId;
+
+                  return branchIsLastSibling ? null : (
+                    <span
+                      key={branchId}
+                      className="bg-border-contrast absolute top-0 bottom-0 w-px"
+                      style={{ left: `${ancestorIndex * 20 + 12}px` }}
+                    />
+                  );
+                })}
+                {ancestorIds.length > 0 ? (
+                  <>
+                    <span
+                      className="bg-border-contrast absolute top-0 w-px"
+                      style={{
+                        bottom: isLastSibling ? "50%" : 0,
+                        left: `${(ancestorIds.length - 1) * 20 + 12}px`,
+                      }}
+                    />
+                    <span
+                      className="bg-border-contrast absolute top-1/2 h-px w-2"
+                      style={{
+                        left: `${(ancestorIds.length - 1) * 20 + 12}px`,
+                      }}
+                    />
+                  </>
+                ) : null}
+                {hasVisibleChildren ? (
+                  <span
+                    className="bg-border-contrast absolute top-1/2 -bottom-px w-px"
+                    style={{ left: `${ancestorIds.length * 20 + 12}px` }}
+                  />
+                ) : null}
+                <span
+                  className="absolute top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center bg-[var(--tree-icon-bg)] transition-colors duration-150"
+                  style={{ left: `${ancestorIds.length * 20 + 4}px` }}
+                >
+                  <span className="translate-x-px">
+                    {renderFilterIcon(observation.type)}
+                  </span>
+                </span>
               </span>
+              <span
+                className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
+                title={observation.name ?? observation.id}
+              >
+                {observation.name ?? observation.id}
+              </span>
+              {observation.latency !== null && observation.type !== "EVENT" ? (
+                <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
+                  {formatIntervalSeconds(observation.latency)}
+                </span>
+              ) : null}
+            </button>
+            {observation.name && onFilterObservationByName ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
+                    aria-label={`Actions for ${observation.name}`}
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={0}>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      onFilterObservationByName(
+                        observation.name as string,
+                        "any of",
+                      )
+                    }
+                  >
+                    Only show observations with the same name
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      onFilterObservationByName(
+                        observation.name as string,
+                        "none of",
+                      )
+                    }
+                  >
+                    Exclude observations with the same name
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
-          </button>
-          {observation.name && onFilterObservationByName ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
-                  aria-label={`Actions for ${observation.name}`}
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={0}>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    onFilterObservationByName(
-                      observation.name as string,
-                      "any of",
-                    )
-                  }
-                >
-                  Only show observations with the same name
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    onFilterObservationByName(
-                      observation.name as string,
-                      "none of",
-                    )
-                  }
-                >
-                  Exclude observations with the same name
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -216,6 +309,7 @@ const TurnCard = React.memo(
     onToggleCollapse,
     onSelect,
     hasFilters,
+    isSearching,
     onFilterObservationByName,
   }: {
     sidebarTrace: ModernSessionSidebarTrace;
@@ -225,6 +319,7 @@ const TurnCard = React.memo(
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number, observationId?: string) => void;
     hasFilters: boolean;
+    isSearching: boolean;
     onFilterObservationByName: (
       name: string,
       operator: "any of" | "none of",
@@ -245,8 +340,9 @@ const TurnCard = React.memo(
           onSelect(selectIndex);
         }}
         className={cn(
-          "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
-          isActive && "border-primary-accent/50 bg-background dark:bg-muted",
+          "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150 [--tree-icon-bg:hsl(var(--background))] hover:[--tree-icon-bg:color-mix(in_srgb,hsl(var(--muted))_60%,hsl(var(--background)))]",
+          isActive &&
+            "border-primary-accent/50 bg-background dark:bg-muted dark:[--tree-icon-bg:hsl(var(--muted))]",
           isTraceLevelIOOnly && "cursor-pointer",
         )}
         data-observation-list-active={isActive}
@@ -302,6 +398,7 @@ const TurnCard = React.memo(
               onSelectObservation={(observationId) =>
                 onSelect(selectIndex, observationId)
               }
+              showNesting={!isSearching}
               onFilterObservationByName={onFilterObservationByName}
             />
           )
@@ -678,6 +775,7 @@ export function ModernSessionSidebar(
                         search.trim() !== "" ||
                         filterControls.activeFilterCount > 0
                       }
+                      isSearching={search.trim() !== ""}
                       onFilterObservationByName={onFilterObservationByName}
                     />
                   </div>
