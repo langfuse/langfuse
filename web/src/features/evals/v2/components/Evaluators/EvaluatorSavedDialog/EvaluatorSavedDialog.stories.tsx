@@ -177,6 +177,26 @@ export const FromTestFilters = meta.story({
   },
 });
 
+export const CodeEvaluator = meta.story({
+  args: {
+    ...sharedArgs,
+    mode: "test-filters",
+    costSummary: (
+      <EvaluatorSavedCostSummary
+        estimates={[]}
+        unavailableEstimateCount={0}
+        matchingObservations={80}
+        sampling={1}
+        isEstimating={false}
+        evaluatorType="CODE"
+        backfill={{ enabled: false }}
+        onSamplingChange={fn()}
+      />
+    ),
+    primaryActionLabel: "Execute",
+  },
+});
+
 const backfillCostSummary = (
   <EvaluatorSavedCostSummary
     estimates={[
