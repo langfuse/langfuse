@@ -27,11 +27,7 @@ const UNKNOWN_SECRET = "sk-lf-unknown";
 
 const knownHash = createShaHash(KNOWN_SECRET, SALT);
 
-type TestApiKey = ApiKey & {
-  gatewayAssociation: { apiKeyId: string } | null;
-};
-
-const apiKey = (over: Partial<TestApiKey> = {}): TestApiKey => ({
+const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
   id: "key_p",
   createdAt: new Date(0),
   note: null,
@@ -42,7 +38,6 @@ const apiKey = (over: Partial<TestApiKey> = {}): TestApiKey => ({
   lastUsedAt: null,
   expiresAt: null,
   isInAppAgentKey: false,
-  gatewayAssociation: null,
   projectId: PRJ,
   orgId: ORG,
   scope: "PROJECT",

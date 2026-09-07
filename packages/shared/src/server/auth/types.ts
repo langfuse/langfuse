@@ -18,8 +18,6 @@ const ApiKeyBaseSchema = z.object({
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
   isIngestionSuspended: z.boolean().nullish(),
   isInAppAgentKey: z.boolean().default(false),
-  // Derived from the gateway API key association when the cache entry is written.
-  isGatewayKey: z.boolean().default(false),
   // nullish for backward compatibility with cache entries written before
   // these columns existed
   createdByUserId: z.string().nullish(),

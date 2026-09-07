@@ -20,11 +20,6 @@ export class ApiKeyRepository {
     try {
       const apiKey = await this.prisma.apiKey.findUnique({
         where: { fastHashedSecretKey },
-        include: {
-          gatewayAssociation: {
-            select: { apiKeyId: true },
-          },
-        },
       });
       return { success: true, apiKey };
     } catch (error) {
@@ -42,11 +37,6 @@ export class ApiKeyRepository {
     try {
       const apiKey = await this.prisma.apiKey.findUnique({
         where: { publicKey },
-        include: {
-          gatewayAssociation: {
-            select: { apiKeyId: true },
-          },
-        },
       });
       return { success: true, apiKey };
     } catch (error) {
@@ -74,9 +64,5 @@ export class ApiKeyRepository {
 
 /** FindApiKeyResult is a hit, a miss (null), or an infra failure; a miss is normal control flow, not an error. */
 export type FindApiKeyResult =
-  | (Success & { apiKey: ApiKeyWithGatewayAssociation | null })
+  | (Success & { apiKey: ApiKey | null })
   | ErrorResult<InternalServerError>;
-
-export type ApiKeyWithGatewayAssociation = ApiKey & {
-  gatewayAssociation: { apiKeyId: string } | null;
-};

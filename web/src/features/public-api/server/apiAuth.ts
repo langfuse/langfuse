@@ -109,9 +109,6 @@ export class ApiAuthService {
                 include: {
                   project: { include: { organization: true } },
                   organization: true,
-                  gatewayAssociation: {
-                    select: { apiKeyId: true },
-                  },
                 },
               });
 
@@ -157,10 +154,6 @@ export class ApiAuthService {
               logger.info("No project id found for key", publicKey);
               throw new Error("Invalid credentials");
             }
-            if (finalApiKey.isGatewayKey) {
-              throw new Error("Invalid credentials");
-            }
-
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
@@ -216,9 +209,6 @@ export class ApiAuthService {
             const publicKey = authHeader.replace("Bearer ", "");
 
             const dbKey = await this.findDbKeyOrThrow(publicKey);
-            if (dbKey.gatewayAssociation) {
-              throw new Error("Invalid credentials");
-            }
 
             if (dbKey.scope === "ORGANIZATION") {
               throw new Error(
@@ -317,9 +307,6 @@ export class ApiAuthService {
       include: {
         project: { include: { organization: true } },
         organization: true,
-        gatewayAssociation: {
-          select: { apiKeyId: true },
-        },
       },
     });
     if (!dbKey) {
@@ -352,9 +339,6 @@ export class ApiAuthService {
       include: {
         project: { include: { organization: true } },
         organization: true,
-        gatewayAssociation: {
-          select: { apiKeyId: true },
-        },
       },
     });
 
@@ -449,8 +433,6 @@ export class ApiAuthService {
         cloudConfig: Prisma.JsonValue;
         cloudFreeTierUsageThresholdState: string | null;
       } | null;
-    } & {
-      gatewayAssociation: { apiKeyId: string } | null;
     },
   ) {
     const orgId =
@@ -510,8 +492,6 @@ export class ApiAuthService {
         cloudConfig: Prisma.JsonValue;
         cloudFreeTierUsageThresholdState: string | null;
       } | null;
-    } & {
-      gatewayAssociation: { apiKeyId: string } | null;
     },
   ) {
     const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
@@ -519,7 +499,6 @@ export class ApiAuthService {
 
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
-      isGatewayKey: Boolean(apiKeyAndOrganisation.gatewayAssociation),
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
       orgId,
       plan: getOrganizationPlanServerSide(cloudConfig),
