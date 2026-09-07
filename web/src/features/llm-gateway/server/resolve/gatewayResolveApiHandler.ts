@@ -7,10 +7,7 @@ import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
 } from "@/src/features/llm-gateway/server/provider";
-import {
-  GatewayResolveError,
-  GatewayResolveService,
-} from "@/src/features/llm-gateway/server/resolveService";
+import { GatewayResolveError, GatewayResolveService } from "./resolveService";
 
 const gatewayIngestionTokenSigner =
   env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY && env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY

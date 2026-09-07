@@ -7,14 +7,14 @@ import { decrypt } from "@langfuse/shared/encryption";
 
 import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 
-import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "./auth/ingestionTokenVerifier";
+import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/llm-gateway/server/auth/ingestionTokenVerifier";
 import {
   type GatewayApiFormat,
   gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
-} from "./provider";
-import { GatewayRepository } from "./repository";
+} from "@/src/features/llm-gateway/server/provider";
+import { GatewayRepository } from "@/src/features/llm-gateway/server/repository";
 
 export class GatewayResolveError extends Error {
   constructor(

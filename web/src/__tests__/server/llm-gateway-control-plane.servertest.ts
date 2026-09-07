@@ -18,7 +18,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   type GatewayResolveError,
   GatewayResolveService,
-} from "@/src/features/llm-gateway/server";
+} from "@/src/features/llm-gateway/server/resolve/resolveService";
 import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/gatewayApiKeyService";
 import { GatewayService } from "@/src/features/llm-gateway/server/gatewayService";
 import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
