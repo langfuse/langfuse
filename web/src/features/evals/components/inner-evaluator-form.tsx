@@ -1365,7 +1365,6 @@ export const InnerEvaluatorForm = (props: {
           evalTemplate={props.evalTemplate}
           target={watchedTarget}
           scoreName={watchedScoreName}
-          disabled={props.disabled}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
       ) : isCodeEvalConfig ? null : (
