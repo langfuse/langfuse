@@ -20,9 +20,8 @@ const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   );
 };
 
-export const isLangfuseEmployeeEmail = (
-  email: string | null | undefined,
-): boolean => email?.toLowerCase().endsWith("@langfuse.com") === true;
+const isLangfuseEmployeeEmail = (email: string | null | undefined): boolean =>
+  email?.toLowerCase().endsWith("@langfuse.com") === true;
 
 export const parseFlags = (
   dbFlags: string[],

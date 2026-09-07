@@ -4,9 +4,9 @@ export const featurePreviewFlags = ["modernSession"] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-export const internalOnlyFlags = ["llmGateway"] as const;
+const internalOnlyFlags = ["llmGateway"] as const;
 
-export type InternalOnlyFlag = (typeof internalOnlyFlags)[number];
+type InternalOnlyFlag = (typeof internalOnlyFlags)[number];
 
 export const isInternalOnlyFlag = (flag: string): flag is InternalOnlyFlag =>
   internalOnlyFlags.some((internalFlag) => internalFlag === flag);
