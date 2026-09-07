@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import { GatewayProviderService } from "./provider";
-import { GatewayRepository } from "./repository";
+import { GatewayProviderRepository } from "./gatewayProviderRepository";
+import { GatewayProviderService } from "./gatewayProviderService";
 
 vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: vi.fn(),
@@ -30,24 +30,8 @@ function connection(id: string, routingPriority: number) {
   };
 }
 
-function gatewayApiKey(id: string) {
-  return {
-    metadata: {},
-    apiKey: {
-      id,
-      publicKey: `pk-${id}`,
-      displaySecretKey: "sk-...",
-      note: null,
-      createdAt: new Date(0),
-      expiresAt: null,
-      lastUsedAt: null,
-      createdByUserId: null,
-    },
-  };
-}
-
-describe("GatewayRepository pagination", () => {
-  it("bounds provider and API key pages with stable cursors", async () => {
+describe("GatewayProviderRepository pagination", () => {
+  it("bounds provider pages with stable cursors", async () => {
     const connectionFindMany = vi
       .fn()
       .mockResolvedValue([
@@ -55,16 +39,8 @@ describe("GatewayRepository pagination", () => {
         connection("connection-2", 1),
         connection("connection-3", 2),
       ]);
-    const apiKeyFindMany = vi
-      .fn()
-      .mockResolvedValue([
-        gatewayApiKey("key-1"),
-        gatewayApiKey("key-2"),
-        gatewayApiKey("key-3"),
-      ]);
-    const repository = new GatewayRepository({
+    const repository = new GatewayProviderRepository({
       gatewayAiConnection: { findMany: connectionFindMany },
-      gatewayApiKeyAssociation: { findMany: apiKeyFindMany },
     } as unknown as PrismaClient);
 
     await expect(
@@ -80,28 +56,6 @@ describe("GatewayRepository pagination", () => {
       expect.objectContaining({
         orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
         take: 3,
-      }),
-    );
-
-    await expect(
-      repository.listGatewayApiKeys({
-        organizationId: "org-1",
-        limit: 2,
-      }),
-    ).resolves.toMatchObject({
-      data: [{ apiKey: { id: "key-1" } }, { apiKey: { id: "key-2" } }],
-      nextCursor: "key-2",
-    });
-    expect(apiKeyFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
-        take: 3,
-        where: {
-          apiKey: {
-            orgId: "org-1",
-            scope: "ORGANIZATION",
-          },
-        },
       }),
     );
   });

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { signHmacSha256 } from "@/src/server/utils/hmac";
 
-import { GatewayRepository } from "../repository";
+import { GatewayApiKeyRepository } from "../apiKey/gatewayApiKeyRepository";
 import { withGatewayResolveAuth } from "./gatewayAuthVerifier";
 
 vi.mock("@/src/env.mjs", () => ({
@@ -73,7 +73,7 @@ function gatewayAuthorization(input: {
 
 function mockGatewayKey() {
   return vi
-    .spyOn(GatewayRepository.prototype, "resolveGatewayContext")
+    .spyOn(GatewayApiKeyRepository.prototype, "resolveGatewayContext")
     .mockResolvedValue({
       apiKeyId: "key-1",
       apiKey: { orgId: "org-1" },

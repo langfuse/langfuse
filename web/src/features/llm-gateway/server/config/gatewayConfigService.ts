@@ -1,20 +1,20 @@
+import { InvalidRequestError } from "@langfuse/shared";
 import type {
   GatewayInstrumentationMode,
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
-import { InvalidRequestError } from "@langfuse/shared";
 import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import { GatewayRepository } from "./repository";
+import { GatewayConfigRepository } from "./gatewayConfigRepository";
 
-export class GatewayService {
-  private readonly repository: GatewayRepository;
+export class GatewayConfigService {
+  private readonly repository: GatewayConfigRepository;
 
   constructor(private readonly prisma: PrismaClient) {
-    this.repository = new GatewayRepository(prisma);
+    this.repository = new GatewayConfigRepository(prisma);
   }
 
   getConfig(organizationId: string) {

@@ -15,8 +15,8 @@ import {
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 
-import { GatewayApiKeyService } from "./gatewayApiKeyService";
-import { GatewayService } from "./gatewayService";
+import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
+import { GatewayConfigService } from "./config/gatewayConfigService";
 import { GatewayMetadataSchema, GatewayProviderService } from "./provider";
 
 const organizationInput = z.object({ orgId: z.string() });
@@ -38,7 +38,7 @@ export const llmGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayService(ctx.prisma).getConfig(input.orgId);
+      return new GatewayConfigService(ctx.prisma).getConfig(input.orgId);
     }),
 
   updateConfig: protectedOrganizationProcedure
@@ -57,7 +57,7 @@ export const llmGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const result = await new GatewayService(ctx.prisma).updateConfig({
+      const result = await new GatewayConfigService(ctx.prisma).updateConfig({
         organizationId: input.orgId,
         defaultIngestionProjectId: input.defaultIngestionProjectId,
         ...(input.createProjectName

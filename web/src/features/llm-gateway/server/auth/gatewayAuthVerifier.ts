@@ -8,8 +8,8 @@ import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { prisma } from "@langfuse/shared/src/db";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
+import { GatewayApiKeyRepository } from "../apiKey/gatewayApiKeyRepository";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
-import { GatewayRepository } from "../repository";
 import { GatewayResolveError } from "@/src/features/llm-gateway/server/resolve/resolveService";
 
 const RESOLVE_METHOD = "POST";
@@ -50,11 +50,11 @@ async function authenticateGatewayResolveRequest(input: {
     throw new GatewayResolveError("Invalid gateway authorization", 401);
   }
 
-  const association = await new GatewayRepository(prisma).resolveGatewayContext(
-    {
-      fastHashedSecretKey: createShaHash(input.virtualSecretKey, env.SALT),
-    },
-  );
+  const association = await new GatewayApiKeyRepository(
+    prisma,
+  ).resolveGatewayContext({
+    fastHashedSecretKey: createShaHash(input.virtualSecretKey, env.SALT),
+  });
   const organizationId = association?.apiKey.orgId;
   if (!association || !organizationId) {
     throw new GatewayResolveError("Invalid gateway key", 401);

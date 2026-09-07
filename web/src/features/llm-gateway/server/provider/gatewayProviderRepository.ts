@@ -1,6 +1,5 @@
 import type {
   GatewayConnectionStatus,
-  GatewayInstrumentationMode,
   GatewayProvider,
   Prisma,
   PrismaClient,
@@ -21,48 +20,8 @@ const safeConnectionSelect = {
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
 
-export class GatewayRepository {
+export class GatewayProviderRepository {
   constructor(private readonly prisma: PrismaClient) {}
-
-  getConfig(organizationId: string) {
-    return this.prisma.gatewayConfig.findUnique({
-      where: { organizationId },
-      include: {
-        defaultIngestionProject: {
-          select: { id: true, orgId: true, deletedAt: true },
-        },
-      },
-    });
-  }
-
-  getActiveOrganizationProject(params: {
-    organizationId: string;
-    projectId: string;
-  }) {
-    return this.prisma.project.findFirst({
-      where: {
-        id: params.projectId,
-        orgId: params.organizationId,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-  }
-
-  async upsertConfig(params: {
-    organizationId: string;
-    defaultIngestionProjectId: string | null;
-    instrumentationMode: GatewayInstrumentationMode;
-  }) {
-    return this.prisma.gatewayConfig.upsert({
-      where: { organizationId: params.organizationId },
-      create: params,
-      update: {
-        defaultIngestionProjectId: params.defaultIngestionProjectId,
-        instrumentationMode: params.instrumentationMode,
-      },
-    });
-  }
 
   async listConnections(params: {
     organizationId: string;
@@ -107,7 +66,7 @@ export class GatewayRepository {
     });
   }
 
-  async createConnection(params: {
+  createConnection(params: {
     organizationId: string;
     name: string;
     provider: GatewayProvider;
@@ -177,20 +136,6 @@ export class GatewayRepository {
     });
   }
 
-  private updatePriority(
-    tx: DatabaseClient,
-    params: {
-      organizationId: string;
-      id: string;
-      routingPriority: number;
-    },
-  ) {
-    return tx.gatewayAiConnection.update({
-      where: { id: params.id, organizationId: params.organizationId },
-      data: { routingPriority: params.routingPriority },
-    });
-  }
-
   updateConnectionStatus(params: {
     organizationId: string;
     id: string;
@@ -200,93 +145,6 @@ export class GatewayRepository {
       where: { id: params.id, organizationId: params.organizationId },
       data: { status: params.status },
       select: safeConnectionSelect,
-    });
-  }
-
-  async listGatewayApiKeys(params: {
-    organizationId: string;
-    cursor?: string;
-    limit: number;
-  }) {
-    const rows = await this.prisma.gatewayApiKeyAssociation.findMany({
-      where: {
-        apiKey: {
-          orgId: params.organizationId,
-          scope: "ORGANIZATION",
-        },
-      },
-      select: {
-        metadata: true,
-        apiKey: {
-          select: {
-            id: true,
-            publicKey: true,
-            displaySecretKey: true,
-            note: true,
-            createdAt: true,
-            expiresAt: true,
-            lastUsedAt: true,
-            createdByUserId: true,
-          },
-        },
-      },
-      orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
-      take: params.limit + 1,
-      ...(params.cursor
-        ? { cursor: { apiKeyId: params.cursor }, skip: 1 }
-        : undefined),
-    });
-    const hasMore = rows.length > params.limit;
-    const data = hasMore ? rows.slice(0, params.limit) : rows;
-    return {
-      data,
-      nextCursor: hasMore ? (data.at(-1)?.apiKey.id ?? null) : null,
-    };
-  }
-
-  getGatewayApiKey(params: { organizationId: string; apiKeyId: string }) {
-    return this.prisma.gatewayApiKeyAssociation.findFirst({
-      where: {
-        apiKeyId: params.apiKeyId,
-        apiKey: {
-          orgId: params.organizationId,
-          scope: "ORGANIZATION",
-        },
-      },
-      select: {
-        metadata: true,
-        apiKey: {
-          select: {
-            id: true,
-            publicKey: true,
-            displaySecretKey: true,
-            note: true,
-            createdAt: true,
-            expiresAt: true,
-            lastUsedAt: true,
-            createdByUserId: true,
-          },
-        },
-      },
-    });
-  }
-
-  resolveGatewayContext(params: { fastHashedSecretKey: string }) {
-    const now = new Date();
-    return this.prisma.gatewayApiKeyAssociation.findFirst({
-      where: {
-        apiKey: {
-          fastHashedSecretKey: params.fastHashedSecretKey,
-          scope: "ORGANIZATION",
-          orgId: { not: null },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
-      },
-      select: {
-        apiKeyId: true,
-        apiKey: { select: { orgId: true } },
-        metadata: true,
-      },
     });
   }
 
@@ -306,6 +164,20 @@ export class GatewayRepository {
         provider: true,
         encryptedCredential: true,
       },
+    });
+  }
+
+  private updatePriority(
+    tx: DatabaseClient,
+    params: {
+      organizationId: string;
+      id: string;
+      routingPriority: number;
+    },
+  ) {
+    return tx.gatewayAiConnection.update({
+      where: { id: params.id, organizationId: params.organizationId },
+      data: { routingPriority: params.routingPriority },
     });
   }
 }

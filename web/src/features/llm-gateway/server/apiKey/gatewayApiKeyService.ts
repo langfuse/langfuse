@@ -7,18 +7,18 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import type { GatewayMetadata } from "@/src/features/llm-gateway/server/provider";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import type { GatewayMetadata } from "./provider";
-import { GatewayRepository } from "./repository";
+import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 
 export class GatewayApiKeyService {
-  private readonly repository: GatewayRepository;
+  private readonly repository: GatewayApiKeyRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly redis?: Redis | Cluster | null,
   ) {
-    this.repository = new GatewayRepository(prisma);
+    this.repository = new GatewayApiKeyRepository(prisma);
   }
 
   list(params: { organizationId: string; cursor?: string; limit: number }) {

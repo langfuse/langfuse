@@ -8,13 +8,14 @@ import { decrypt } from "@langfuse/shared/encryption";
 import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/llm-gateway/server/auth/ingestionTokenVerifier";
+import { GatewayConfigRepository } from "@/src/features/llm-gateway/server/config/gatewayConfigRepository";
 import {
   type GatewayApiFormat,
   gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
 } from "@/src/features/llm-gateway/server/provider";
-import { GatewayRepository } from "@/src/features/llm-gateway/server/repository";
+import { GatewayProviderRepository } from "@/src/features/llm-gateway/server/provider/gatewayProviderRepository";
 
 export class GatewayResolveError extends Error {
   constructor(
@@ -30,13 +31,15 @@ type ResolveConfig = {
 };
 
 export class GatewayResolveService {
-  private readonly repository: GatewayRepository;
+  private readonly configRepository: GatewayConfigRepository;
+  private readonly providerRepository: GatewayProviderRepository;
 
   constructor(
     prisma: PrismaClient,
     private readonly config: ResolveConfig,
   ) {
-    this.repository = new GatewayRepository(prisma);
+    this.configRepository = new GatewayConfigRepository(prisma);
+    this.providerRepository = new GatewayProviderRepository(prisma);
   }
 
   async resolve(params: {
@@ -48,8 +51,8 @@ export class GatewayResolveService {
       providerSupportsApiFormat(provider, params.apiFormat),
     ) as GatewayProvider[];
     const [config, connection] = await Promise.all([
-      this.repository.getConfig(params.organizationId),
-      this.repository.selectConnectionWithCredential({
+      this.configRepository.getConfig(params.organizationId),
+      this.providerRepository.selectConnectionWithCredential({
         organizationId: params.organizationId,
         providers: supportedProviders,
       }),

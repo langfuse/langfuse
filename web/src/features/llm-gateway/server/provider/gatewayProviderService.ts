@@ -14,7 +14,7 @@ import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "./providerRegistry";
-import { GatewayRepository } from "../repository";
+import { GatewayProviderRepository } from "./gatewayProviderRepository";
 
 type ModelRefreshResult =
   | { connectionId: string; success: true; models: string[] }
@@ -30,14 +30,14 @@ type CredentialValidator = (params: {
 }) => Promise<void>;
 
 export class GatewayProviderService {
-  private readonly repository: GatewayRepository;
+  private readonly repository: GatewayProviderRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly fetcher: typeof fetch = fetch,
     private readonly validateCredential: CredentialValidator = validateGatewayCredential,
   ) {
-    this.repository = new GatewayRepository(prisma);
+    this.repository = new GatewayProviderRepository(prisma);
   }
 
   list(params: { organizationId: string; cursor?: string; limit: number }) {

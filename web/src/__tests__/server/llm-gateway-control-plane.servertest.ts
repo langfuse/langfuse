@@ -22,8 +22,8 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/llm-gateway/server/resolve/resolveService";
-import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/gatewayApiKeyService";
-import { GatewayService } from "@/src/features/llm-gateway/server/gatewayService";
+import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/apiKey/gatewayApiKeyService";
+import { GatewayConfigService } from "@/src/features/llm-gateway/server/config/gatewayConfigService";
 import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
 import {
   createEd25519JwtSigner,
@@ -271,7 +271,7 @@ describe("LLM gateway control plane", () => {
 
   it("owns successful and failed mutation auditing in gateway services", async () => {
     const { org, session } = await prepare();
-    const gatewayService = new GatewayService(prisma);
+    const gatewayService = new GatewayConfigService(prisma);
     const providerService = new GatewayProviderService(prisma);
     const apiKeyService = new GatewayApiKeyService(prisma);
 
