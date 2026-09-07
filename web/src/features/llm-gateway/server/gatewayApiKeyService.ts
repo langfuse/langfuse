@@ -32,6 +32,7 @@ export class GatewayApiKeyService {
     actor: GatewayAuditActor;
   }) {
     const key = await this.prisma.$transaction(async (tx) => {
+      // TODO: Narrow this virtual key to the `gateway:invoke` permission once granular API-key scopes are available.
       const key = await createAndAddApiKeysToDb({
         prisma: tx,
         entityId: params.organizationId,
