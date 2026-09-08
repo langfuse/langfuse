@@ -8,15 +8,26 @@ import {
 
 describe("gateway organization allowlist", () => {
   it("matches organization IDs exactly", () => {
-    expect(isGatewayEnabledForOrganization("org-1", ["org-1", "org-2"])).toBe(
-      true,
+    const environment = { nodeEnv: "production" };
+
+    expect(
+      isGatewayEnabledForOrganization("org-1", ["org-1", "org-2"], environment),
+    ).toBe(true);
+    expect(isGatewayEnabledForOrganization("org", ["org-1"], environment)).toBe(
+      false,
     );
-    expect(isGatewayEnabledForOrganization("org", ["org-1"])).toBe(false);
   });
 
-  it("rejects organizations outside the configured allowlist", () => {
+  it("keeps the allowlist active outside local development", () => {
+    expect(
+      isGatewayEnabledForOrganization("org-not-allowed", [], {
+        nodeEnv: "production",
+      }),
+    ).toBe(false);
     expect(() =>
-      requireGatewayEnabledForOrganization("org-not-allowed", []),
+      requireGatewayEnabledForOrganization("org-not-allowed", [], {
+        nodeEnv: "production",
+      }),
     ).toThrow(ForbiddenError);
   });
 });
