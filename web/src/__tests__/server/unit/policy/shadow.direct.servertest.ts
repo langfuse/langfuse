@@ -10,14 +10,12 @@ const {
   env,
   mockVerifyScope,
   mockEnforceOrgAuth,
-  mockEnforceProjectAuth,
   mockDiffResults,
   mockRecordCoverage,
 } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "legacy" as string },
   mockVerifyScope: vi.fn(),
   mockEnforceOrgAuth: vi.fn(),
-  mockEnforceProjectAuth: vi.fn(),
   mockDiffResults: vi.fn(),
   mockRecordCoverage: vi.fn(),
 }));
@@ -34,20 +32,13 @@ vi.mock("@/src/features/auth/policy/enforceOrgAuth", () => ({
   enforceOrgAuth: mockEnforceOrgAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/enforceProjectAuth", () => ({
-  enforceProjectAuth: mockEnforceProjectAuth,
-}));
-
 vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   diffResults: mockDiffResults,
   recordCoverage: mockRecordCoverage,
 }));
 
-import {
-  verifyOrgAuth,
-  verifyProjectAuthDirect,
-} from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
 import { type Principal } from "@/src/features/auth/policy/types";
 
 const organization = {
@@ -243,62 +234,6 @@ describe("org direct seam verifyOrgAuth", () => {
       await call();
       expect(mockDiffResults).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();
-    });
-  });
-});
-
-describe("project direct seam verifyProjectAuthDirect", () => {
-  const projectScope = { accessLevel: "project", projectId: "prj_1" };
-  const projectDenied = "project key required";
-  const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
-
-  const call = () =>
-    verifyProjectAuthDirect({
-      req,
-      name: "Get Project",
-      action: "project:read",
-      scopeDeniedMessage: projectDenied,
-    });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    env.API_AUTH_MIGRATION = "legacy";
-  });
-
-  it("returns the legacy project scope in legacy mode", async () => {
-    mockVerifyScope.mockResolvedValue({ validKey: true, scope: projectScope });
-    expect(await call()).toEqual({ validKey: true, scope: projectScope });
-    expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
-  });
-
-  it("returns the scope the new pipeline built in enforce mode", async () => {
-    env.API_AUTH_MIGRATION = "enforce";
-    mockEnforceProjectAuth.mockResolvedValue({
-      success: true,
-      context: { principal: apiKeyPrincipal("PROJECT"), policies: [] },
-      projectId: "prj_1",
-    });
-    expect(await call()).toEqual({
-      validKey: true,
-      scope: { ...mappedFields, projectId: "prj_1", accessLevel: "project" },
-    });
-    expect(mockVerifyScope).not.toHaveBeenCalled();
-    expect(mockEnforceProjectAuth).toHaveBeenCalledWith({
-      headers: req.headers,
-      action: "project:read",
-    });
-  });
-
-  it("returns the route's own 403 when the new pipeline denies in enforce mode", async () => {
-    env.API_AUTH_MIGRATION = "enforce";
-    mockEnforceProjectAuth.mockResolvedValue({
-      success: false,
-      error: new ForbiddenError("nope"),
-    });
-    expect(await call()).toEqual({
-      validKey: false,
-      status: 403,
-      error: projectDenied,
     });
   });
 });

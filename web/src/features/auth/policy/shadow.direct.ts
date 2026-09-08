@@ -6,19 +6,9 @@ import { type ApiAccessScope, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { env } from "@/src/env.mjs";
 import { enforceOrgAuth } from "./enforceOrgAuth";
-import { enforceProjectAuth } from "./enforceProjectAuth";
-import { orgScope, projectScope } from "./scope";
-import {
-  diffResults,
-  legacyFromStatus,
-  recordCoverage,
-  type Seam,
-} from "./shadow";
-import {
-  type OrganizationAction,
-  type ProjectAction,
-  type Success,
-} from "./types";
+import { orgScope } from "./scope";
+import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
+import { type OrganizationAction } from "./types";
 
 /** scopeDeniedCode is the http status legacy returns when a key's access level is wrong for the route. */
 const scopeDeniedCode = 403;
@@ -27,89 +17,55 @@ const scopeDeniedCode = 403;
 export async function verifyOrgAuth(
   params: VerifyOrgAuthParams,
 ): Promise<DirectAuthResult> {
-  return runDirectSeam({
-    req: params.req,
-    name: params.name,
-    seam: "org_route",
-    accessLevel: "organization",
-    scopeDeniedMessage: params.scopeDeniedMessage,
-    action: params.action ?? "none",
-    enforce: async (headers) => {
-      const authz = await enforceOrgAuth({
-        headers,
-        action: params.action ?? undefined,
-      });
-      if (!authz.success) return authz;
-      return orgScope(authz.context.principal, authz.orgId);
-    },
-  });
-}
-
-/** verifyProjectAuthDirect is the project direct-handler seam for routes that authenticate inline rather than through the route factory. */
-export async function verifyProjectAuthDirect(
-  params: VerifyProjectAuthParams,
-): Promise<DirectAuthResult> {
-  return runDirectSeam({
-    req: params.req,
-    name: params.name,
-    seam: "project_route",
-    accessLevel: "project",
-    scopeDeniedMessage: params.scopeDeniedMessage,
-    action: params.action ?? "none",
-    enforce: async (headers) => {
-      const authz = await enforceProjectAuth({
-        headers,
-        action: params.action ?? undefined,
-      });
-      if (!authz.success) return authz;
-      return projectScope(authz.context.principal, authz.projectId);
-    },
-  });
-}
-
-/** runDirectSeam runs the migration-mode-selected pipeline and returns the legacy-shaped decision the handler renders. */
-async function runDirectSeam(
-  config: DirectSeamConfig,
-): Promise<DirectAuthResult> {
   if (env.API_AUTH_MIGRATION === "enforce") {
-    const authz = await config.enforce(config.req.headers);
+    const authz = await enforceOrgAuth({
+      headers: params.req.headers,
+      action: params.action ?? undefined,
+    });
     if (!authz.success) {
-      return enforceDenial(authz.error, config.scopeDeniedMessage);
+      return enforceDenial(authz.error, params.scopeDeniedMessage);
     }
-    return { validKey: true, scope: authz.scope };
+    const mapped = orgScope(authz.context.principal, authz.orgId);
+    if (!mapped.success) {
+      return enforceDenial(mapped.error, params.scopeDeniedMessage);
+    }
+    return { validKey: true, scope: mapped.scope };
   }
 
   if (env.API_AUTH_MIGRATION === "shadow") {
-    const legacy = await runLegacyScope(config);
-    const authz = await config.enforce(config.req.headers);
-    recordCoverage(config.name);
-    diffResults(authz, legacyFromStatus(legacy.status), {
-      seam: config.seam,
-      action: config.action,
+    const legacy = await runLegacyScope(params.req);
+    const authz = await enforceOrgAuth({
+      headers: params.req.headers,
+      action: params.action ?? undefined,
     });
-    return legacyResult(legacy, config.scopeDeniedMessage);
+    recordCoverage(params.name);
+    diffResults(authz, legacyFromStatus(legacy.status), {
+      seam: "org_route",
+      action: params.action ?? "none",
+    });
+    return legacyResult(legacy, params.scopeDeniedMessage);
   }
 
   // any other value, a blank one included, fails safe to legacy
-  return legacyResult(await runLegacyScope(config), config.scopeDeniedMessage);
+  return legacyResult(
+    await runLegacyScope(params.req),
+    params.scopeDeniedMessage,
+  );
 }
 
-/** runLegacyScope verifies the credential and its access level, capturing every outcome as a value. */
-async function runLegacyScope(
-  config: DirectSeamConfig,
-): Promise<LegacyDecision> {
+/** runLegacyScope verifies the credential and its organization access level, capturing every outcome as a value. */
+async function runLegacyScope(req: NextApiRequest): Promise<LegacyDecision> {
   const authCheck = await new ApiAuthService(
     prisma,
     redis,
-  ).verifyAuthHeaderAndReturnScope(config.req.headers.authorization);
+  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
   if (!authCheck.validKey) {
     return { status: 401, authError: authCheck.error };
   }
-  const id =
-    config.accessLevel === "organization"
-      ? authCheck.scope.orgId
-      : authCheck.scope.projectId;
-  if (authCheck.scope.accessLevel !== config.accessLevel || !id) {
+  if (
+    authCheck.scope.accessLevel !== "organization" ||
+    !authCheck.scope.orgId
+  ) {
     return { status: scopeDeniedCode };
   }
   return { status: 200, scope: authCheck.scope };
@@ -154,34 +110,10 @@ export type VerifyOrgAuthParams = {
   scopeDeniedMessage: string;
 };
 
-/** VerifyProjectAuthParams is the request, the route name for coverage, its checked project action, and the route's own scope-denied message. */
-export type VerifyProjectAuthParams = {
-  req: NextApiRequest;
-  name: string;
-  action: ProjectAction | null;
-  scopeDeniedMessage: string;
-};
-
 /** DirectAuthResult is the direct seam's outcome: the verified scope, or the status and message the handler renders. */
 export type DirectAuthResult =
   | { validKey: true; scope: ApiAccessScope }
   | { validKey: false; status: number; error: string };
-
-/** DirectSeamConfig is one direct seam's shared inputs: the request, its telemetry tags, the required access level, and the new-pipeline call. */
-type DirectSeamConfig = {
-  req: NextApiRequest;
-  name: string;
-  seam: Seam;
-  accessLevel: "organization" | "project";
-  scopeDeniedMessage: string;
-  action: string;
-  enforce: (headers: NextApiRequest["headers"]) => Promise<EnforceResult>;
-};
-
-/** EnforceResult is the new pipeline's outcome: the scope it built for the handler, or the typed error the seam renders. */
-type EnforceResult =
-  | (Success & { scope: ApiAccessScope })
-  | { success: false; error: EnforceError };
 
 /** EnforceError is a new-pipeline failure reduced to what the seam renders. */
 type EnforceError = { httpCode: number; message: string };

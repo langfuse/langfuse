@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type VerifyAuthParams } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
 // Proves the enforce mapper returns a scope byte-identical to legacy's across
 // credential kinds. The parity matrix asserts status; this asserts scope
@@ -55,9 +55,9 @@ describe("enforce maps principals to legacy-identical scopes", () => {
     originalCloudRegion = (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     (env as any).ADMIN_API_KEY = adminApiKey;
 
-    ({ verifyAuth } =
-      (await import("@/src/features/public-api/server/createAuthedProjectAPIRoute")) as unknown as {
-        verifyAuth: VerifyAuth;
+    ({ verifyProjectAuth: verifyAuth } =
+      (await import("@/src/features/public-api/server/verifyProjectAuth")) as unknown as {
+        verifyProjectAuth: VerifyAuth;
       });
 
     const base = await createOrgProjectAndApiKey();

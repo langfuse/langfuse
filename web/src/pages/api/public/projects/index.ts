@@ -4,10 +4,8 @@ import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import {
-  verifyOrgAuth,
-  verifyProjectAuthDirect,
-} from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyProjectAuth } from "@/src/features/public-api/server/verifyProjectAuth";
 
 /** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
 const projectKeyRequired =
@@ -31,21 +29,23 @@ export default async function handler(
   }
 
   if (req.method === "GET") {
-    const authCheck = await verifyProjectAuthDirect({
-      req,
-      name: "Get Project",
-      action: "project:read",
-      scopeDeniedMessage: projectKeyRequired,
-    });
-    if (!authCheck.validKey) {
-      return res.status(authCheck.status).json({
-        message: authCheck.error,
+    let auth;
+    try {
+      auth = await verifyProjectAuth({
+        req,
+        name: "Get Project",
+        action: "project:read",
+      });
+    } catch (error: any) {
+      const status = error.status ?? 401;
+      return res.status(status).json({
+        message:
+          status === 403
+            ? projectKeyRequired
+            : (error.message ?? "Authentication failed"),
       });
     }
-    const projectId = authCheck.scope.projectId;
-    if (!projectId) {
-      return res.status(403).json({ message: projectKeyRequired });
-    }
+    const projectId = auth.scope.projectId;
 
     try {
       // Do not apply rate limits as it can break applications on lower tier plans when using auth_check in prod

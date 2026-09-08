@@ -33,14 +33,14 @@ vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
   recordCoverage: mockRecordCoverage,
 }));
 
-import { verifyAuth } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { verifyProjectAuth } from "@/src/features/public-api/server/verifyProjectAuth";
 
-describe("project seam verifyAuth", () => {
+describe("project seam verifyProjectAuth", () => {
   const legacyScope = { scope: { projectId: "p1", accessLevel: "project" } };
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
   const call = () =>
-    verifyAuth({ req, name: "Get Traces", action: "traces:read" });
+    verifyProjectAuth({ req, name: "Get Traces", action: "traces:read" });
 
   const legacyAllows = () =>
     mockLegacyVerifyAuth.mockResolvedValue(legacyScope);

@@ -14,26 +14,27 @@ import { env } from "@/src/env.mjs";
 import {
   type DirectAuthResult,
   type VerifyOrgAuthParams,
-  type VerifyProjectAuthParams,
 } from "@/src/features/auth/policy/shadow.direct";
+import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
-// The direct seams are imported dynamically so the authenticator singleton
-// captures the admin key set in beforeAll.
+// The seams are imported dynamically so the authenticator singleton captures
+// the admin key set in beforeAll.
 
-type Seam = {
+type OrgSeam = {
   verifyOrgAuth: (params: VerifyOrgAuthParams) => Promise<DirectAuthResult>;
-  verifyProjectAuthDirect: (
-    params: VerifyProjectAuthParams,
-  ) => Promise<DirectAuthResult>;
 };
+
+type ProjectVerify = (params: VerifyAuthParams) => Promise<{
+  validKey: true;
+  scope: Record<string, unknown>;
+}>;
 
 const adminApiKey = "test-admin-api-key-direct-enforce-scope";
 
 const orgKeyRequired = "org key required";
 
-const projectKeyRequired = "project key required";
-
-let seam: Seam;
+let orgSeam: OrgSeam;
+let verifyProjectAuth: ProjectVerify;
 let orgId = "";
 let projectId = "";
 let orgAuth = "";
@@ -55,6 +56,16 @@ const dropScopeKey = ({
   ...rest
 }: Record<string, unknown>) => rest;
 
+const asResult = async (
+  fn: () => Promise<{ validKey: true; scope: Record<string, unknown> }>,
+): Promise<DirectAuthResult> => {
+  try {
+    return (await fn()) as unknown as DirectAuthResult;
+  } catch (error: any) {
+    return { validKey: false, status: error.status, error: error.message };
+  }
+};
+
 const orgResultUnderModes = async (authorization: string) => {
   const params: VerifyOrgAuthParams = {
     req: reqWith({ authorization }),
@@ -63,9 +74,9 @@ const orgResultUnderModes = async (authorization: string) => {
     scopeDeniedMessage: orgKeyRequired,
   };
   setMode("legacy");
-  const legacy = await seam.verifyOrgAuth(params);
+  const legacy = await orgSeam.verifyOrgAuth(params);
   setMode("enforce");
-  const enforce = await seam.verifyOrgAuth(params);
+  const enforce = await orgSeam.verifyOrgAuth(params);
   return { legacy, enforce };
 };
 
@@ -73,16 +84,15 @@ const projectResultUnderModes = async (
   authorization: string,
   target?: string,
 ) => {
-  const params: VerifyProjectAuthParams = {
+  const params: VerifyAuthParams = {
     req: reqWith({ authorization, "x-langfuse-project-id": target }),
     name: "Get Project",
     action: "project:read",
-    scopeDeniedMessage: projectKeyRequired,
   };
   setMode("legacy");
-  const legacy = await seam.verifyProjectAuthDirect(params);
+  const legacy = await asResult(() => verifyProjectAuth(params));
   setMode("enforce");
-  const enforce = await seam.verifyProjectAuthDirect(params);
+  const enforce = await asResult(() => verifyProjectAuth(params));
   return { legacy, enforce };
 };
 
@@ -114,8 +124,12 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     originalAdminApiKey = (env as any).ADMIN_API_KEY;
     (env as any).ADMIN_API_KEY = adminApiKey;
 
-    seam =
-      (await import("@/src/features/auth/policy/shadow.direct")) as unknown as Seam;
+    orgSeam =
+      (await import("@/src/features/auth/policy/shadow.direct")) as unknown as OrgSeam;
+    ({ verifyProjectAuth } =
+      (await import("@/src/features/public-api/server/verifyProjectAuth")) as unknown as {
+        verifyProjectAuth: ProjectVerify;
+      });
 
     const base = await createOrgProjectAndApiKey();
     orgId = base.orgId;
@@ -159,22 +173,18 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     expect(enforce).toEqual(legacy);
   });
 
-  it("an organization key naming a project 403s with the route's message in both modes", async () => {
+  it("an organization key naming a project 403s in both modes", async () => {
     const { legacy, enforce } = await projectResultUnderModes(
       orgAuth,
       projectId,
     );
-    expect(legacy).toEqual({
-      validKey: false,
-      status: 403,
-      error: projectKeyRequired,
-    });
-    expect(enforce).toEqual(legacy);
+    expect(legacy).toMatchObject({ validKey: false, status: 403 });
+    expect(enforce).toMatchObject({ validKey: false, status: 403 });
   });
 
   it("an organization key naming no project 400s in enforce where legacy 403s", async () => {
     const { legacy, enforce } = await projectResultUnderModes(orgAuth);
-    expect(legacy).toMatchObject({ status: 403, error: projectKeyRequired });
+    expect(legacy).toMatchObject({ status: 403 });
     expect(enforce).toMatchObject({
       status: 400,
       error:
