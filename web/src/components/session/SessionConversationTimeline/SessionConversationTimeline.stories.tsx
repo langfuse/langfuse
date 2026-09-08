@@ -1952,7 +1952,7 @@ const meta = preview.meta({
 
 export default meta;
 
-export const Loaded = meta.story({
+export const SupportAgentWorkflow = meta.story({
   args: loadedArgs,
 });
 
@@ -1990,7 +1990,7 @@ export const CodingAgentWorkflow = meta.story({
   },
 });
 
-export const InAppAgentErrorAnalysis = meta.story({
+export const LangfuseAssistantWorkflow = meta.story({
   args: {
     ...loadedArgs,
     traces: [
@@ -2035,7 +2035,7 @@ export const FilteredEmpty = meta.story({
 
 export const RenderLoadedConversation = meta.story({
   name: "(Test) Renders Loaded Conversation",
-  args: Loaded.input.args,
+  args: SupportAgentWorkflow.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const traceButton = canvas.getByRole("button", {
@@ -2380,7 +2380,7 @@ export const ExpandRolledUpTool = meta.story({
 
 export const MergeSystemPrompts = meta.story({
   name: "(Test) Merges System Prompts",
-  args: InAppAgentErrorAnalysis.input.args,
+  args: LangfuseAssistantWorkflow.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const firstGeneration = canvasElement.querySelector(
