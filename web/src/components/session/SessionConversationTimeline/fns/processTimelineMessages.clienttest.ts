@@ -3,10 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 
-import {
-  getStandaloneToolCallIds,
-  processTimelineMessages,
-} from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
+import { processTimelineMessages } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
 
 const messages = [
   {
@@ -358,39 +355,5 @@ describe("processTimelineMessages", () => {
 
     expect(result[1]?.messages).toEqual([eventMessage]);
     expect(result[2]?.messages).toEqual([]);
-  });
-});
-
-describe("getStandaloneToolCallIds", () => {
-  it("reads supported ids from non-truncated tool metadata", () => {
-    expect(
-      getStandaloneToolCallIds([
-        {
-          type: "TOOL",
-          metadata: { toolCallId: "tool-call-id" },
-          metadataTruncated: false,
-        },
-        {
-          type: "TOOL",
-          metadata: JSON.stringify({ callID: "call-id" }),
-          metadataTruncated: false,
-        },
-        {
-          type: "GENERATION",
-          metadata: { toolCallId: "generation-id" },
-          metadataTruncated: false,
-        },
-        {
-          type: "TOOL",
-          metadata: { toolCallId: "truncated-id" },
-          metadataTruncated: true,
-        },
-        {
-          type: "TOOL",
-          metadata: "invalid JSON",
-          metadataTruncated: false,
-        },
-      ]),
-    ).toEqual(new Set(["tool-call-id", "call-id"]));
   });
 });

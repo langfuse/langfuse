@@ -4,12 +4,10 @@ import {
   type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
-import {
-  deduplicateTimelineInput,
-  getSemanticallyMatchedChildToolCalls,
-  getStandaloneToolCallIds,
-  processTimelineMessages,
-} from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
+import { deduplicateTimelineInput } from "@/src/components/session/SessionConversationTimeline/fns/deduplicateTimelineInput";
+import { getSemanticallyMatchedChildToolCalls } from "@/src/components/session/SessionConversationTimeline/fns/getSemanticallyMatchedChildToolCalls";
+import { getStandaloneToolCallIds } from "@/src/components/session/SessionConversationTimeline/fns/getStandaloneToolCallIds";
+import { processTimelineMessages } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
 
 export type SessionTimelineObservation = {
   id: string;
@@ -33,7 +31,7 @@ export type ParsedSessionTimelineObservation =
     }
   | { type: "error" };
 
-export type ProcessedSessionTimelineMessages = ReturnType<
+type ProcessedSessionTimelineMessages = ReturnType<
   typeof processTimelineMessages
 >[number];
 export type PreparedSessionTimelineMessages = Pick<
