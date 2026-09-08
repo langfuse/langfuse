@@ -73,7 +73,7 @@ const SortableHandleContext = createContext<SortableHandleContextValue | null>(
   null,
 );
 
-export type GatewayConnectionRow = GatewayConnection;
+type GatewayConnectionRow = GatewayConnection;
 
 type GatewayProvidersViewProps = {
   connections: GatewayConnectionRow[];
