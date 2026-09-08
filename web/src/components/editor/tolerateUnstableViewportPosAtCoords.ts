@@ -2,9 +2,10 @@ import { type EditorView, ViewPlugin } from "@uiw/react-codemirror";
 
 /**
  * After a failed CodeMirror measure (viewport did not stabilize), `lineAt` can
- * return null and `scanTile` reads `.length` on that null. `posAtCoords` and
- * `posAndSideAtCoords` already return null when a position cannot be resolved,
- * so treat this TypeError as an unresolved position.
+ * return null and `scanTile` reads `.length` on that null. Default
+ * `posAtCoords` / `posAndSideAtCoords` already return null when a position
+ * cannot be resolved. Callers that pass `precise: false` (mouse selection,
+ * drops) require a non-null result, so fall back to the document start.
  */
 export function isCodeMirrorUnstableViewportError(error: unknown): boolean {
   if (!(error instanceof TypeError)) {
@@ -33,6 +34,17 @@ type PosAndSideAtCoordsFn = (
   precise?: boolean,
 ) => { pos: number; assoc: number } | null;
 
+const IMPRECISE_SIDE_FALLBACK = { pos: 0, assoc: -1 } as const;
+
+function fallbackForUnstableViewport(precise: boolean | undefined) {
+  // precise === false is the mouse-selection / drop path; those callers read
+  // .pos / .assoc (or the number) without a null check.
+  if (precise === false) {
+    return { pos: 0 as number | null, side: IMPRECISE_SIDE_FALLBACK };
+  }
+  return { pos: null as number | null, side: null };
+}
+
 export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
   const originalPosAtCoords = view.posAtCoords as PosAtCoordsFn;
   const originalPosAndSideAtCoords =
@@ -43,7 +55,7 @@ export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
       return originalPosAtCoords.call(view, coords, precise);
     } catch (error) {
       if (isCodeMirrorUnstableViewportError(error)) {
-        return null;
+        return fallbackForUnstableViewport(precise).pos;
       }
       throw error;
     }
@@ -54,7 +66,7 @@ export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
       return originalPosAndSideAtCoords.call(view, coords, precise);
     } catch (error) {
       if (isCodeMirrorUnstableViewportError(error)) {
-        return null;
+        return fallbackForUnstableViewport(precise).side;
       }
       throw error;
     }

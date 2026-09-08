@@ -9,8 +9,14 @@ import {
 const COORDS = { x: 10, y: 20 };
 
 function createView(overrides?: {
-  posAtCoords?: () => number | null;
-  posAndSideAtCoords?: () => { pos: number; assoc: number } | null;
+  posAtCoords?: (
+    coords: { x: number; y: number },
+    precise?: boolean,
+  ) => number | null;
+  posAndSideAtCoords?: (
+    coords: { x: number; y: number },
+    precise?: boolean,
+  ) => { pos: number; assoc: number } | null;
 }) {
   return {
     posAtCoords: (overrides?.posAtCoords ??
@@ -19,6 +25,10 @@ function createView(overrides?: {
       (() => ({ pos: 4, assoc: 1 }))) as EditorView["posAndSideAtCoords"],
   };
 }
+
+const nullTileError = () => {
+  throw new TypeError("Cannot read properties of null (reading 'length')");
+};
 
 describe("isCodeMirrorUnstableViewportError", () => {
   it("matches the Chrome null-tile TypeError", () => {
@@ -41,32 +51,31 @@ describe("isCodeMirrorUnstableViewportError", () => {
 });
 
 describe("wrapEditorViewCoordLookups", () => {
-  it("returns null when posAtCoords throws the null-tile TypeError", () => {
+  it("returns null when precise lookups throw the null-tile TypeError", () => {
     const view = createView({
-      posAtCoords: () => {
-        throw new TypeError(
-          "Cannot read properties of null (reading 'length')",
-        );
-      },
+      posAtCoords: nullTileError,
+      posAndSideAtCoords: nullTileError,
     });
 
     wrapEditorViewCoordLookups(view);
 
     expect(view.posAtCoords(COORDS)).toBeNull();
+    expect(view.posAndSideAtCoords(COORDS)).toBeNull();
   });
 
-  it("returns null when posAndSideAtCoords throws the null-tile TypeError", () => {
+  it("returns a non-null fallback when imprecise lookups throw", () => {
     const view = createView({
-      posAndSideAtCoords: () => {
-        throw new TypeError(
-          "Cannot read properties of null (reading 'length')",
-        );
-      },
+      posAtCoords: nullTileError,
+      posAndSideAtCoords: nullTileError,
     });
 
     wrapEditorViewCoordLookups(view);
 
-    expect(view.posAndSideAtCoords(COORDS)).toBeNull();
+    expect(view.posAtCoords(COORDS, false)).toBe(0);
+    expect(view.posAndSideAtCoords(COORDS, false)).toEqual({
+      pos: 0,
+      assoc: -1,
+    });
   });
 
   it("rethrows unrelated lookup errors", () => {
