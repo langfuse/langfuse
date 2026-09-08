@@ -38,6 +38,8 @@ export type PreparedSessionTimelineObservation<
   parsed: ParsedSessionTimelineObservation | null;
   processedMessages: ProcessedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
+  ancestorObservationIds: readonly string[];
+  nestedObservationCounts: Readonly<Record<string, number>>;
 };
 
 const EMPTY_TOOL_CALL_IDS: ReadonlySet<string> = new Set();
@@ -160,9 +162,38 @@ export function prepareSessionTimelineObservations<
   const result: PreparedSessionTimelineObservation<Observation>[] = [];
   const emitted = new Set<string>();
   const active = new Set<string>();
+  const nestedObservationCountsByKey = new Map<
+    string,
+    Readonly<Record<string, number>>
+  >();
+  const getNestedObservationCounts = (
+    key: string,
+    activeKeys: ReadonlySet<string>,
+  ) => {
+    const cached = nestedObservationCountsByKey.get(key);
+    if (cached) return cached;
+
+    const nextActiveKeys = new Set(activeKeys).add(key);
+    const counts: Record<string, number> = {};
+    for (const child of childrenByParentKey.get(key) ?? []) {
+      const childKey = observationKey(child.observation);
+      if (nextActiveKeys.has(childKey)) continue;
+
+      const type = child.observation.type ?? "EVENT";
+      counts[type] = (counts[type] ?? 0) + 1;
+      for (const [nestedType, count] of Object.entries(
+        getNestedObservationCounts(childKey, nextActiveKeys),
+      )) {
+        counts[nestedType] = (counts[nestedType] ?? 0) + count;
+      }
+    }
+    nestedObservationCountsByKey.set(key, counts);
+    return counts;
+  };
   const emit = (
     prepared: (typeof preparedObservations)[number],
     ancestorMessages: ProcessedSessionTimelineMessages["messages"],
+    ancestorObservationIds: readonly string[],
   ) => {
     const key = observationKey(prepared.observation);
     if (emitted.has(key) || active.has(key)) return;
@@ -175,6 +206,8 @@ export function prepareSessionTimelineObservations<
     const contextualPrepared = {
       ...prepared,
       processedMessages: { ...prepared.processedMessages, messages },
+      ancestorObservationIds,
+      nestedObservationCounts: getNestedObservationCounts(key, new Set()),
     };
     if (children.length === 0) {
       emitted.add(key);
@@ -198,7 +231,12 @@ export function prepareSessionTimelineObservations<
           )
         : messages.filter((message) => message.source === "input");
     const descendantContext = ancestorMessages.concat(ownInputMessages);
-    for (const child of children) emit(child, descendantContext);
+    const descendantObservationIds = ancestorObservationIds.concat(
+      prepared.observation.id,
+    );
+    for (const child of children) {
+      emit(child, descendantContext, descendantObservationIds);
+    }
     result.push({
       ...contextualPrepared,
       phase: "end",
@@ -216,9 +254,9 @@ export function prepareSessionTimelineObservations<
       ? `${prepared.observation.traceId ?? ""}\0${prepared.observation.parentObservationId}`
       : null;
     if (parentKey && preparedByKey.has(parentKey)) continue;
-    emit(prepared, []);
+    emit(prepared, [], []);
   }
-  for (const prepared of preparedObservations) emit(prepared, []);
+  for (const prepared of preparedObservations) emit(prepared, [], []);
 
   return result;
 }

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, MessageSquareOff } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ChevronDown, ChevronsUpDown, MessageSquareOff } from "lucide-react";
 import { type ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
@@ -57,6 +57,31 @@ const toPreviewText = (value: unknown) =>
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
+
+const NESTED_OBSERVATION_TYPE_ORDER = ["GENERATION", "TOOL"];
+
+const formatNestedObservationCounts = (
+  counts: Readonly<Record<string, number>>,
+) => {
+  const labels = Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => {
+      const leftIndex = NESTED_OBSERVATION_TYPE_ORDER.indexOf(left);
+      const rightIndex = NESTED_OBSERVATION_TYPE_ORDER.indexOf(right);
+      if (leftIndex !== -1 && rightIndex !== -1) return leftIndex - rightIndex;
+      if (leftIndex !== -1) return -1;
+      if (rightIndex !== -1) return 1;
+      return left.localeCompare(right);
+    })
+    .map(
+      ([type, count]) =>
+        `${count} ${type.toLowerCase()}${count === 1 ? "" : "s"}`,
+    );
+
+  if (labels.length < 2) return labels[0] ?? "nested observations";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
+};
 
 function TruncatedObservation({
   observation,
@@ -378,6 +403,96 @@ function SessionTimelineObservation({
   );
 }
 
+function LoadedSessionConversationTimeline({
+  observations,
+  onOpenObservation,
+}: {
+  observations: readonly PreparedSessionTimelineObservation<SessionObservation>[];
+  onOpenObservation: (observationId: string) => void;
+}) {
+  const [collapsedObservationIds, setCollapsedObservationIds] = useState(
+    () =>
+      new Set(
+        observations.flatMap(
+          ({ observation, phase, ancestorObservationIds }) =>
+            phase === "start" && ancestorObservationIds.length === 0
+              ? [observation.id]
+              : [],
+        ),
+      ),
+  );
+
+  return (
+    <div className="flex flex-col gap-1">
+      {observations.map(
+        ({
+          observation,
+          parsed,
+          processedMessages,
+          phase,
+          ancestorObservationIds,
+          nestedObservationCounts,
+        }) => {
+          if (
+            ancestorObservationIds.some((ancestorId) =>
+              collapsedObservationIds.has(ancestorId),
+            )
+          ) {
+            return null;
+          }
+
+          const isToolStart = observation.type === "TOOL" && phase === "start";
+          const isEmptyEnd =
+            phase === "end" &&
+            processedMessages.messages.length === 0 &&
+            processedMessages.rolledUpToolCalls.length === 0 &&
+            !(
+              observation.outputTruncated && hasPreviewValue(observation.output)
+            );
+          const hasNestedObservations =
+            Object.keys(nestedObservationCounts).length > 0;
+          const isCollapsed = collapsedObservationIds.has(observation.id);
+
+          return (
+            <Fragment key={`${observation.id}-${phase}`}>
+              {!isToolStart && !isEmptyEnd ? (
+                <SessionTimelineObservation
+                  observation={observation}
+                  parsed={parsed}
+                  processedMessages={processedMessages}
+                  phase={phase}
+                  onOpenInTraceView={() => onOpenObservation(observation.id)}
+                />
+              ) : null}
+              {phase === "start" && hasNestedObservations ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground mx-auto h-7 gap-1.5 px-2 font-mono text-[11px] font-normal"
+                  aria-expanded={!isCollapsed}
+                  onClick={() =>
+                    setCollapsedObservationIds((current) => {
+                      const next = new Set(current);
+                      if (isCollapsed) next.delete(observation.id);
+                      else next.add(observation.id);
+                      return next;
+                    })
+                  }
+                >
+                  <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  {isCollapsed ? "Show" : "Hide"}{" "}
+                  {formatNestedObservationCounts(nestedObservationCounts)}
+                </Button>
+              ) : null}
+            </Fragment>
+          );
+        },
+      )}
+    </div>
+  );
+}
+
 export function SessionConversationTimeline({
   trace,
   turnNumber,
@@ -537,37 +652,13 @@ export function PreparedSessionConversationTimeline({
           {state.message}
         </div>
       ) : (
-        <div className="flex flex-col gap-1">
-          {state.observations.map(
-            ({ observation, parsed, processedMessages, phase }) => {
-              if (observation.type === "TOOL" && phase === "start") {
-                return null;
-              }
-              if (
-                phase === "end" &&
-                processedMessages.messages.length === 0 &&
-                processedMessages.rolledUpToolCalls.length === 0 &&
-                !(
-                  observation.outputTruncated &&
-                  hasPreviewValue(observation.output)
-                )
-              ) {
-                return null;
-              }
-
-              return (
-                <SessionTimelineObservation
-                  key={`${observation.id}-${phase}`}
-                  observation={observation}
-                  parsed={parsed}
-                  processedMessages={processedMessages}
-                  phase={phase}
-                  onOpenInTraceView={() => onOpenObservation(observation.id)}
-                />
-              );
-            },
-          )}
-        </div>
+        <LoadedSessionConversationTimeline
+          key={state.observations
+            .map(({ observation, phase }) => `${observation.id}:${phase}`)
+            .join("\0")}
+          observations={state.observations}
+          onOpenObservation={onOpenObservation}
+        />
       )}
     </div>
   );

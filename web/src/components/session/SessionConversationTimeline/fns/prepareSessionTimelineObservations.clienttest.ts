@@ -271,6 +271,22 @@ describe("prepareSessionTimelineObservations", () => {
       "second-child:complete",
       "root:end",
     ]);
+    expect(prepared[0]).toMatchObject({
+      ancestorObservationIds: [],
+      nestedObservationCounts: {
+        GENERATION: 1,
+        EVENT: 1,
+        TOOL: 1,
+      },
+    });
+    expect(prepared[1]).toMatchObject({
+      ancestorObservationIds: ["root"],
+      nestedObservationCounts: { TOOL: 1 },
+    });
+    expect(prepared[2]).toMatchObject({
+      ancestorObservationIds: ["root", "first-child"],
+      nestedObservationCounts: {},
+    });
   });
 
   it("renders observations with filtered or missing parents as roots", () => {
