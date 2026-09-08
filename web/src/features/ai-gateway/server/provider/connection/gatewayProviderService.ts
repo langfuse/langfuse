@@ -57,6 +57,10 @@ export class GatewayProviderService {
     return connections;
   }
 
+  testCredential(params: { provider: GatewayProvider; credential: string }) {
+    return this.validateCredential(params);
+  }
+
   async create(params: {
     organizationId: string;
     name: string;
@@ -64,7 +68,7 @@ export class GatewayProviderService {
     credential: string;
     session: OrgAuthedContext["session"];
   }) {
-    await this.validateCredential({
+    await this.testCredential({
       provider: params.provider,
       credential: params.credential,
     });
@@ -114,7 +118,7 @@ export class GatewayProviderService {
       );
     }
     if (params.credential) {
-      await this.validateCredential({
+      await this.testCredential({
         provider: existing.provider,
         credential: params.credential,
       });

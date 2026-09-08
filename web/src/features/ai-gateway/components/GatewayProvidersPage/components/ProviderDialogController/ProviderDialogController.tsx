@@ -40,6 +40,10 @@ export function ProviderDialogController({
   const [name, setName] = useState(connection?.name ?? "");
   const [credential, setCredential] = useState("");
   const utils = api.useUtils();
+  const test = api.aiGateway.testConnection.useMutation({
+    onError: (error) =>
+      reportTrpcErrorWithoutToast(error, "ai-gateway-providers"),
+  });
   const create = api.aiGateway.createConnection.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-providers"),
@@ -48,13 +52,26 @@ export function ProviderDialogController({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-providers"),
   });
-  const isPending = create.isPending || update.isPending;
-  const isError = create.isError || update.isError;
+  const isSaving = create.isPending || update.isPending;
+  const isPending = test.isPending || isSaving;
+  const isError = test.isError || create.isError || update.isError;
 
   const reset = () => {
     setProvider(connection?.provider ?? "OPENAI");
     setName(connection?.name ?? "");
     setCredential("");
+  };
+
+  const testCredential = async () => {
+    try {
+      await test.mutateAsync({
+        orgId: organizationId,
+        provider: connection?.provider ?? provider,
+        credential,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-providers");
+    }
   };
 
   const submit = async (closeDialog: () => void) => {
@@ -129,19 +146,33 @@ export function ProviderDialogController({
               <Alert variant="destructive">
                 <Alert.Title>Provider validation failed</Alert.Title>
                 <Alert.Description>
-                  {create.error?.message ??
+                  {test.error?.message ??
+                    create.error?.message ??
                     update.error?.message ??
                     "The credential could not be saved or validated. Check the key and try again."}
                 </Alert.Description>
+              </Alert>
+            ) : test.isSuccess ? (
+              <Alert>
+                <Alert.Title>Provider credential is valid</Alert.Title>
+                <Alert.Description>No changes were saved.</Alert.Description>
               </Alert>
             ) : null}
           </DialogBody>
           <DialogFooter>
             <Button
+              variant="secondary"
+              disabled={!credential || isPending}
+              loading={test.isPending}
+              onClick={testCredential}
+            >
+              Test only
+            </Button>
+            <Button
               disabled={
                 !name.trim() || (!connection && !credential) || isPending
               }
-              loading={isPending}
+              loading={isSaving}
               onClick={() => submit(closeDialog)}
             >
               Test and save

@@ -86,6 +86,22 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  testConnection: protectedOrganizationProcedureWithoutTracing
+    .input(
+      organizationInput.extend({
+        provider: z.enum(GatewayProvider),
+        credential: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewayProviderService(ctx.prisma).testCredential({
+        provider: input.provider,
+        credential: input.credential,
+      });
+      return { success: true };
+    }),
+
   createConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({

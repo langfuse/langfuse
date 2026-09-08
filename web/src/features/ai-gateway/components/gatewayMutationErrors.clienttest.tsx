@@ -9,10 +9,16 @@ const {
   reportTrpcErrorWithoutToastMock,
   reportNonTrpcErrorMock,
   showErrorToastMock,
+  testConnectionMutateAsync,
   createApiKeyMutateAsync,
   mutationStates,
 } = vi.hoisted(() => {
   const mutationStates = {
+    testConnection: {
+      isError: false,
+      isPending: false,
+      error: null as Error | null,
+    },
     createConnection: {
       isError: false,
       isPending: false,
@@ -34,6 +40,7 @@ const {
     reportTrpcErrorWithoutToastMock: vi.fn(),
     reportNonTrpcErrorMock: vi.fn(),
     showErrorToastMock: vi.fn(),
+    testConnectionMutateAsync: vi.fn(),
     createApiKeyMutateAsync: vi.fn(),
     mutationStates,
   };
@@ -125,6 +132,16 @@ vi.mock("@/src/utils/api", () => {
         },
       }),
       aiGateway: {
+        testConnection: {
+          useMutation: createStatefulMutation(
+            async (input: {
+              orgId: string;
+              provider: string;
+              credential: string;
+            }) => testConnectionMutateAsync(input),
+            "testConnection",
+          ),
+        },
         createConnection: {
           useMutation: createStatefulMutation(async () => {
             throw providerValidationError();
@@ -197,7 +214,13 @@ describe("gateway mutation local error handling", () => {
     reportTrpcErrorWithoutToastMock.mockClear();
     reportNonTrpcErrorMock.mockClear();
     showErrorToastMock.mockClear();
+    testConnectionMutateAsync.mockClear();
     createApiKeyMutateAsync.mockClear();
+    mutationStates.testConnection = {
+      isError: false,
+      isPending: false,
+      error: null,
+    };
     mutationStates.createConnection = {
       isError: false,
       isPending: false,
@@ -213,6 +236,35 @@ describe("gateway mutation local error handling", () => {
       isPending: false,
       error: null,
     };
+  });
+
+  it("tests a provider credential without saving", async () => {
+    render(
+      <ProviderDialogController organizationId="org-1">
+        {({ Trigger }) => (
+          <Trigger asChild>
+            <Button>Add provider</Button>
+          </Trigger>
+        )}
+      </ProviderDialogController>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    fireEvent.change(screen.getByLabelText("Secret key"), {
+      target: { value: "sk-test-only" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Test only" }));
+
+    await waitFor(() => {
+      expect(testConnectionMutateAsync).toHaveBeenCalledWith({
+        orgId: "org-1",
+        provider: "OPENAI",
+        credential: "sk-test-only",
+      });
+    });
+    expect(
+      screen.getByRole("heading", { name: "Add provider credential" }),
+    ).toBeInTheDocument();
   });
 
   it("create provider dialog routes tRPC failures locally without a global toast", async () => {

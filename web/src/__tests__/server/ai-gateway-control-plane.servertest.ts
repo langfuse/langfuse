@@ -311,6 +311,31 @@ describe("AI gateway control plane", () => {
     expect(decrypt(stored.encryptedCredential)).toBe(credential);
   });
 
+  it("tests provider credentials without saving a connection", async () => {
+    const { caller, org } = await prepare();
+    const credential = "sk-test-only";
+
+    await caller.aiGateway.testConnection({
+      orgId: org.id,
+      provider: "OPENAI",
+      credential,
+    });
+
+    expect(SharedServer.testModelCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "openai",
+        apiKey: expect.objectContaining({
+          secretKey: expect.not.stringContaining(credential),
+        }),
+      }),
+    );
+    await expect(
+      prisma.gatewayAiConnection.count({
+        where: { organizationId: org.id },
+      }),
+    ).resolves.toBe(0);
+  });
+
   it("validates new and updated Anthropic credentials with an active compatible model", async () => {
     const { caller, org } = await prepare();
 
