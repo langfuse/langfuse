@@ -1,7 +1,11 @@
-import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
+import {
+  normalizeSpanIO,
+  type ToolCallPart,
+} from "@langfuse/shared/src/utils/normalized-io";
 
 import {
   deduplicateTimelineInput,
+  getSemanticallyMatchedChildToolCalls,
   getStandaloneToolCallIds,
   processTimelineMessages,
 } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
@@ -10,6 +14,7 @@ export type SessionTimelineObservation = {
   id: string;
   traceId: string | null;
   parentObservationId?: string | null;
+  name?: string | null;
   type: string | null;
   startTime: Date;
   input: unknown;
@@ -157,6 +162,33 @@ export function prepareSessionTimelineObservations<
           right.observation.startTime.getTime(),
       );
     } else childrenByParentKey.set(parentKey, [prepared]);
+  }
+
+  for (const prepared of preparedObservations) {
+    const childToolObservations = (
+      childrenByParentKey.get(observationKey(prepared.observation)) ?? []
+    ).map(({ observation }) => observation);
+    if (childToolObservations.length === 0) continue;
+
+    const allToolCalls =
+      prepared.parsed?.type === "loaded"
+        ? prepared.parsed.messages.flatMap((message) =>
+            message.source === "output"
+              ? message.parts.filter(
+                  (part): part is ToolCallPart => part.type === "tool-call",
+                )
+              : [],
+          )
+        : [];
+    const matchedCalls = getSemanticallyMatchedChildToolCalls({
+      rolledUpToolCalls: prepared.processedMessages.rolledUpToolCalls,
+      allToolCalls,
+      childToolObservations,
+    });
+    prepared.processedMessages.rolledUpToolCalls =
+      prepared.processedMessages.rolledUpToolCalls.filter(
+        (toolCall) => !matchedCalls.has(toolCall),
+      );
   }
 
   const result: PreparedSessionTimelineObservation<Observation>[] = [];

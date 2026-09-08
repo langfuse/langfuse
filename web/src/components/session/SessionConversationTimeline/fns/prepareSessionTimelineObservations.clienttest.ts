@@ -12,15 +12,18 @@ const observation = (
   startTime = new Date(0),
   traceId = "trace-1",
   parentObservationId: string | null = null,
+  metadata: unknown = null,
+  name = id,
 ) => ({
   id,
+  name,
   traceId,
   parentObservationId,
   type,
   startTime,
   input,
   output,
-  metadata: null,
+  metadata,
   inputTruncated: false,
   outputTruncated: false,
   metadataTruncated: false,
@@ -224,6 +227,94 @@ describe("prepareSessionTimelineObservations", () => {
       "Generation finished",
       "Agent finished",
     ]);
+  });
+
+  it("deduplicates a direct child tool by its unique name and input", () => {
+    const prepared = prepareSessionTimelineObservations(
+      [
+        observation("generation", null, [
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "generation-call-id",
+                type: "function",
+                function: {
+                  name: "search",
+                  arguments: JSON.stringify({
+                    query: "dashboard",
+                    limit: 5,
+                  }),
+                },
+              },
+            ],
+          },
+        ]),
+        observation(
+          "tool-observation",
+          JSON.stringify({ limit: 5, query: "dashboard" }),
+          "Found dashboard",
+          "TOOL",
+          new Date(1),
+          "trace-1",
+          "generation",
+          { callID: "different-call-id" },
+          "search",
+        ),
+      ],
+      true,
+    );
+
+    expect(
+      prepared.find(
+        ({ observation: item, phase }) =>
+          item.id === "generation" && phase === "end",
+      )?.processedMessages.rolledUpToolCalls,
+    ).toEqual([]);
+  });
+
+  it("keeps a rolled-up tool call when semantic child matching is ambiguous", () => {
+    const toolCall = {
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "generation-call-id",
+          type: "function",
+          function: {
+            name: "search",
+            arguments: JSON.stringify({ query: "dashboard" }),
+          },
+        },
+      ],
+    };
+    const prepared = prepareSessionTimelineObservations(
+      [
+        observation("generation", null, [toolCall]),
+        ...["first-tool", "second-tool"].map((id, index) =>
+          observation(
+            id,
+            JSON.stringify({ query: "dashboard" }),
+            "Found dashboard",
+            "TOOL",
+            new Date(index + 1),
+            "trace-1",
+            "generation",
+            { callID: `${id}-call-id` },
+            "search",
+          ),
+        ),
+      ],
+      true,
+    );
+
+    expect(
+      prepared.find(
+        ({ observation: item, phase }) =>
+          item.id === "generation" && phase === "end",
+      )?.processedMessages.rolledUpToolCalls,
+    ).toHaveLength(1);
   });
 
   it("flattens multiple nesting levels while preserving sibling chronology", () => {

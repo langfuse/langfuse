@@ -6,6 +6,8 @@ import {
 
 type ToolObservation = {
   type?: string | null;
+  name?: string | null;
+  input?: unknown;
   metadata: unknown;
   metadataTruncated?: boolean;
 };
@@ -152,41 +154,118 @@ function getVisibleMessages({
   return visibleMessages;
 }
 
+const getToolObservationCallId = (observation: ToolObservation) => {
+  if (observation.metadataTruncated) return null;
+
+  let metadataValue: unknown = observation.metadata;
+  if (typeof metadataValue === "string") {
+    try {
+      metadataValue = JSON.parse(metadataValue) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (
+    typeof metadataValue !== "object" ||
+    metadataValue === null ||
+    Array.isArray(metadataValue)
+  ) {
+    return null;
+  }
+
+  const metadata = metadataValue as Record<string, unknown>;
+  const toolCallId = metadata.toolCallId ?? metadata.callID;
+  return typeof toolCallId === "string" && toolCallId.length > 0
+    ? toolCallId
+    : null;
+};
+
 export function getStandaloneToolCallIds(
   observations: readonly ToolObservation[],
 ) {
   const toolCallIds = new Set<string>();
 
   for (const observation of observations) {
-    if (observation.type !== "TOOL" || observation.metadataTruncated) {
-      continue;
-    }
-
-    let metadataValue: unknown = observation.metadata;
-    if (typeof metadataValue === "string") {
-      try {
-        metadataValue = JSON.parse(metadataValue) as unknown;
-      } catch {
-        // Metadata is optional for matching, so malformed values are ignored.
-        continue;
-      }
-    }
-    if (
-      typeof metadataValue !== "object" ||
-      metadataValue === null ||
-      Array.isArray(metadataValue)
-    ) {
-      continue;
-    }
-
-    const metadata = metadataValue as Record<string, unknown>;
-    const toolCallId = metadata.toolCallId ?? metadata.callID;
-    if (typeof toolCallId === "string" && toolCallId.length > 0) {
-      toolCallIds.add(toolCallId);
-    }
+    if (observation.type !== "TOOL") continue;
+    const toolCallId = getToolObservationCallId(observation);
+    if (toolCallId) toolCallIds.add(toolCallId);
   }
 
   return toolCallIds;
+}
+
+const canonicalizeToolInput = (value: unknown): unknown => {
+  let parsedValue = value;
+  if (typeof value === "string") {
+    try {
+      parsedValue = JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(parsedValue)) {
+    return parsedValue.map(canonicalizeToolInput);
+  }
+  if (typeof parsedValue !== "object" || parsedValue === null) {
+    return parsedValue;
+  }
+
+  return Object.fromEntries(
+    Object.entries(parsedValue)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nestedValue]) => [key, canonicalizeToolInput(nestedValue)]),
+  );
+};
+
+const getToolSemanticKey = (name: string | null | undefined, input: unknown) =>
+  name ? JSON.stringify([name, canonicalizeToolInput(input)]) : null;
+
+export function getSemanticallyMatchedChildToolCalls({
+  rolledUpToolCalls,
+  allToolCalls,
+  childToolObservations,
+}: {
+  rolledUpToolCalls: readonly ToolCallPart[];
+  allToolCalls: readonly ToolCallPart[];
+  childToolObservations: readonly ToolObservation[];
+}) {
+  const emittedToolCallIds = new Set(
+    allToolCalls.flatMap((toolCall) =>
+      toolCall.toolCallId ? [toolCall.toolCallId] : [],
+    ),
+  );
+  const unmatchedChildrenBySemanticKey = new Map<string, ToolObservation[]>();
+  for (const observation of childToolObservations) {
+    if (observation.type !== "TOOL") continue;
+    const observationCallId = getToolObservationCallId(observation);
+    if (observationCallId && emittedToolCallIds.has(observationCallId))
+      continue;
+
+    const semanticKey = getToolSemanticKey(observation.name, observation.input);
+    if (!semanticKey) continue;
+    const matchingChildren = unmatchedChildrenBySemanticKey.get(semanticKey);
+    if (matchingChildren) matchingChildren.push(observation);
+    else unmatchedChildrenBySemanticKey.set(semanticKey, [observation]);
+  }
+
+  const unmatchedCallsBySemanticKey = new Map<string, ToolCallPart[]>();
+  for (const toolCall of rolledUpToolCalls) {
+    const semanticKey = getToolSemanticKey(toolCall.toolName, toolCall.input);
+    if (!semanticKey) continue;
+    const matchingCalls = unmatchedCallsBySemanticKey.get(semanticKey);
+    if (matchingCalls) matchingCalls.push(toolCall);
+    else unmatchedCallsBySemanticKey.set(semanticKey, [toolCall]);
+  }
+
+  const matchedCalls = new Set<ToolCallPart>();
+  for (const [semanticKey, calls] of unmatchedCallsBySemanticKey) {
+    if (calls.length !== 1) continue;
+    if (unmatchedChildrenBySemanticKey.get(semanticKey)?.length !== 1) continue;
+    const matchingCall = calls[0];
+    if (matchingCall) matchedCalls.add(matchingCall);
+  }
+  return matchedCalls;
 }
 
 /**
