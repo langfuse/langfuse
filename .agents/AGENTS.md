@@ -201,8 +201,9 @@ langfuse/
 ### Cursor Cloud specific instructions
 
 - Identity: `cursor-cloud` `run-info` (`owningUserName`, `owningUserEmail`),
-  then the roster. Ignore `git config` (`cursoragent@cursor.com`) and Cloud
-  `gh` `.permissions.push`.
+  then the roster. Repo postinstall and Cloud start normally recover
+  `~/.config/langfuse/me.md` from `LINEAR_API_KEY` first. Ignore `git config`
+  (`cursoragent@cursor.com`) and Cloud `gh` `.permissions.push`.
 - Linear: MCP if already authorized; else a real read with `LINEAR_API_KEY`
   (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`). Interactive `mcp_auth` does not
   work in Cloud. If neither works, tell them to add **`LINEAR_API_KEY`** as a

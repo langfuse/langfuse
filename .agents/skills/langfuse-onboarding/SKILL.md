@@ -26,6 +26,12 @@ for a maintainer comes from the first, so do that before anything else.
 
 ## Step 1 — name them, then prove Linear; do not ask what you can find out
 
+Normal path: `scripts/agents/configure-langfuse-identity.sh` already ran from
+repo postinstall or Cursor Cloud start and created
+`~/.config/langfuse/me.md` from the Linear viewer. Read it and continue. It
+never overwrites an existing file, so the human's Focus and corrections survive
+across worktrees.
+
 Run the local probe first, then stop at the first path that names a person:
 
 ```bash

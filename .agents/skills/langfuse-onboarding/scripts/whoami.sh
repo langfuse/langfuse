@@ -9,48 +9,8 @@ else
   echo "me.md: absent"
 fi
 
-linear_token=""
-if [[ -n "${LINEAR_API_KEY:-}" ]]; then
-  linear_token="${LINEAR_API_KEY}"
-  echo "linear_token: set (LINEAR_API_KEY)"
-elif [[ -n "${LINEAR_TOKEN:-}" ]]; then
-  linear_token="${LINEAR_TOKEN}"
-  echo "linear_token: set (LINEAR_TOKEN)"
-elif [[ -n "${LINEAR_API_TOKEN:-}" ]]; then
-  linear_token="${LINEAR_API_TOKEN}"
-  echo "linear_token: set (LINEAR_API_TOKEN)"
-else
-  echo "linear_token: unset"
-fi
-
-if [[ -n "${linear_token}" ]]; then
-  viewer="$(
-    curl -sS https://api.linear.app/graphql \
-      -H "Content-Type: application/json" \
-      -H "Authorization: ${linear_token}" \
-      --data '{"query":"{ viewer { name email } }"}'
-  )"
-  python3 -c '
-import json, sys
-raw = sys.stdin.read()
-try:
-    data = json.loads(raw)
-except json.JSONDecodeError:
-    print("linear_viewer: error (non-json response)")
-    sys.exit(0)
-err = data.get("errors")
-if err:
-    print("linear_viewer: error")
-    sys.exit(0)
-viewer = (data.get("data") or {}).get("viewer") or {}
-name = viewer.get("name") or ""
-email = viewer.get("email") or ""
-if name or email:
-    print(f"linear_viewer: {name} <{email}>")
-else:
-    print("linear_viewer: error (no viewer)")
-' <<<"${viewer}"
-fi
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+bash "$repo_root/scripts/agents/configure-langfuse-identity.sh" --probe
 
 set +e
 gh_login="$(gh api user --jq .login 2>/dev/null)"
