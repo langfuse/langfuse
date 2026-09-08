@@ -25,6 +25,8 @@ export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
   };
   scoreTarget: Target;
   scores: WithStringifiedMetadata<ScoreDomain>[];
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export function AnnotateDrawerController<Target extends ScoreTarget>({
@@ -37,8 +39,12 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   scoreMetadata,
   scoreTarget,
   scores,
+  isOpen: controlledIsOpen,
+  onOpenChange: controlledOnOpenChange,
 }: AnnotateDrawerControllerProps<Target>) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen ?? internalIsOpen;
+  const setIsOpen = controlledOnOpenChange ?? setInternalIsOpen;
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -60,7 +66,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={setIsOpen}>
+    <Drawer open={hasAccess && isOpen} onOpenChange={setIsOpen}>
       {children({ annotationCount, disabled, openDrawer })}
       <AnnotateDrawerContent
         analyticsData={analyticsData}

@@ -1,5 +1,5 @@
 import preview from "@/.storybook/preview";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps } from "react";
 
 import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
@@ -1755,6 +1755,16 @@ const implementationCodingAgentTrace = {
   scores: [],
 } satisfies TimelineProps["trace"];
 
+const observationActions = {
+  canAnnotate: true,
+  canAddComment: true,
+  canAddToDataset: true,
+  onFilterByName: fn(),
+  onAnnotate: fn(),
+  onAddComment: fn(),
+  onAddToDataset: fn(),
+} satisfies NonNullable<TimelineProps["observationActions"]>;
+
 const loadedArgs = {
   trace,
   turnNumber: 1,
@@ -1764,6 +1774,7 @@ const loadedArgs = {
   },
   onOpenTrace: fn(),
   onOpenObservation: fn(),
+  observationActions,
 } satisfies TimelineProps;
 
 const nestedObservation = ({
@@ -1865,11 +1876,10 @@ export const Loaded = meta.story({
 
 export const CodingAgentWorkflow = meta.story({
   args: {
+    ...loadedArgs,
     trace: researchCodingAgentTrace,
     turnNumber: 2,
     state: { type: "loaded", observations: researchCodingAgentObservations },
-    onOpenTrace: fn(),
-    onOpenObservation: fn(),
   },
   render: (args) => (
     <>
@@ -1890,11 +1900,10 @@ export const CodingAgentWorkflow = meta.story({
 
 export const InAppAgentErrorAnalysis = meta.story({
   args: {
+    ...loadedArgs,
     trace: inAppAgentTrace,
     turnNumber: 4,
     state: { type: "loaded", observations: inAppAgentObservations },
-    onOpenTrace: fn(),
-    onOpenObservation: fn(),
   },
 });
 
@@ -2043,6 +2052,85 @@ export const TruncatedObservation = meta.story({
   },
 });
 
+export const UseObservationActions = meta.story({
+  name: "(Test) Uses Observation Actions",
+  args: {
+    ...loadedArgs,
+    observationActions: {
+      canAnnotate: true,
+      canAddComment: true,
+      canAddToDataset: true,
+      onFilterByName: fn(),
+      onAnnotate: fn(),
+      onAddComment: fn(),
+      onAddToDataset: fn(),
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const actionsButton = canvas.getByRole("button", {
+      name: "Actions for Plan support response",
+    });
+
+    await userEvent.click(actionsButton);
+    await expect(
+      page.getByRole("menuitem", {
+        name: "Only show observations with the same name",
+      }),
+    ).toBeInTheDocument();
+    await expect(
+      page.getByRole("menuitem", {
+        name: "Exclude observations with the same name",
+      }),
+    ).toBeInTheDocument();
+    await expect(
+      page.getByRole("menuitem", { name: "Annotate" }),
+    ).toBeInTheDocument();
+    await expect(
+      page.getByRole("menuitem", { name: "Add comment" }),
+    ).toBeInTheDocument();
+    await expect(
+      page.getByRole("menuitem", { name: "Add to dataset" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      page.getByRole("menuitem", {
+        name: "Only show observations with the same name",
+      }),
+    );
+    await expect(args.observationActions?.onFilterByName).toHaveBeenCalledWith(
+      "Plan support response",
+      "any of",
+    );
+
+    await userEvent.click(actionsButton);
+    await userEvent.click(page.getByRole("menuitem", { name: "Annotate" }));
+    await expect(args.observationActions?.onAnnotate).toHaveBeenCalledWith(
+      observations[0],
+    );
+
+    await userEvent.click(actionsButton);
+    await userEvent.click(page.getByRole("menuitem", { name: "Add comment" }));
+    await expect(args.observationActions?.onAddComment).toHaveBeenCalledWith(
+      observations[0],
+    );
+
+    await userEvent.click(actionsButton);
+    await userEvent.click(
+      page.getByRole("menuitem", { name: "Add to dataset" }),
+    );
+    await expect(args.observationActions?.onAddToDataset).toHaveBeenCalledWith(
+      observations[0],
+    );
+    await waitFor(() =>
+      expect(
+        canvasElement.ownerDocument.getElementById("__next"),
+      ).not.toHaveAttribute("aria-hidden", "true"),
+    );
+  },
+});
+
 export const MetadataOmitted = meta.story({
   name: "(Test) Renders Omitted Metadata",
   args: {
@@ -2084,7 +2172,7 @@ export const OpenObservation = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: /Plan support response/i }),
+      canvas.getByRole("button", { name: "Plan support response" }),
     );
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
@@ -2128,6 +2216,12 @@ export const ExpandRolledUpTool = meta.story({
     });
     const toolRow = expandButton.closest("[data-session-observation-depth]");
     const toolIcon = expandButton.previousElementSibling?.querySelector("svg");
+    const unavailableActionsIcon = within(toolRow as HTMLElement).getByRole(
+      "img",
+      {
+        name: "Actions available on parent observation",
+      },
+    );
 
     await expect(
       toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
@@ -2165,6 +2259,11 @@ export const ExpandRolledUpTool = meta.story({
       );
     });
     await expect(railsIntersectingToolRow).toHaveLength(0);
+    await userEvent.hover(unavailableActionsIcon);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("Actions are available on the parent observation");
+    await userEvent.unhover(unavailableActionsIcon);
 
     await userEvent.click(expandButton);
 
@@ -2355,7 +2454,7 @@ export const ExpandNestedObservations = meta.story({
       nestedTool?.querySelector("[data-session-observation-rail-end]"),
     ).not.toBeInTheDocument();
     await expect(nestedToggle).toHaveStyle({ left: "7.5px" });
-    await expect(nestedToggle).toHaveClass("top-[18px]");
+    await expect(nestedToggle).toHaveClass("top-5");
 
     await userEvent.click(nestedToggle);
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
@@ -6,6 +6,7 @@ import {
   PreparedSessionConversationTimeline,
   type PreparedSessionConversationTimelineState,
   type SessionObservation,
+  type SessionObservationActions,
 } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 import {
   prepareSessionTimelineObservations,
@@ -16,6 +17,11 @@ import { type EventSessionTrace } from "@/src/components/session/sessionDetailPa
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 const BATCH_IO_SIZE = 500;
 const SESSION_TIMELINE_OVERSCAN = 5;
@@ -36,6 +42,82 @@ type TimelineNavigation = {
   onSelect: (index: number, observationId?: string) => void;
 };
 
+type ObservationActionTarget = {
+  action: "annotate" | "comment" | "dataset";
+  observation: SessionObservation;
+  trace: EventSessionTrace;
+  requestId: number;
+};
+
+function ConnectedObservationAction({
+  projectId,
+  target,
+  onOpenChange,
+}: {
+  projectId: string;
+  target: ObservationActionTarget;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { action, observation, trace } = target;
+
+  if (action === "annotate") {
+    return (
+      <AnnotateDrawerController
+        key={target.requestId}
+        projectId={projectId}
+        scoreTarget={{
+          type: "trace",
+          traceId: trace.id,
+          observationId: observation.id,
+        }}
+        scores={trace.scores.filter(
+          (score) => score.observationId === observation.id,
+        )}
+        analyticsData={{ type: "trace", source: "SessionDetail" }}
+        scoreMetadata={{
+          projectId,
+          environment: trace.environment ?? undefined,
+        }}
+        isOpen
+        onOpenChange={onOpenChange}
+      >
+        {() => <span className="hidden" aria-hidden="true" />}
+      </AnnotateDrawerController>
+    );
+  }
+
+  if (action === "comment") {
+    return (
+      <CommentDrawerController
+        key={target.requestId}
+        projectId={projectId}
+        objectId={observation.id}
+        objectType="OBSERVATION"
+        isOpen
+        onOpenChange={onOpenChange}
+      >
+        {() => <span className="hidden" aria-hidden="true" />}
+      </CommentDrawerController>
+    );
+  }
+
+  return (
+    <NewDatasetItemFromExistingObjectDialogController
+      key={target.requestId}
+      projectId={projectId}
+      traceId={trace.id}
+      observationId={observation.id}
+      input={observation.input}
+      output={observation.output}
+      metadata={observation.metadata}
+      isOpen
+      onOpenChange={onOpenChange}
+    >
+      {() => <span className="hidden" aria-hidden="true" />}
+    </NewDatasetItemFromExistingObjectDialogController>
+  );
+}
+
 export function ConnectedSessionConversationTimeline({
   traces,
   projectId,
@@ -45,6 +127,7 @@ export function ConnectedSessionConversationTimeline({
   viewLabel,
   openPeek,
   renderSidebar,
+  onFilterObservationByName,
 }: {
   traces: readonly SessionConversationTimelineTrace[];
   projectId: string;
@@ -57,7 +140,26 @@ export function ConnectedSessionConversationTimeline({
     row: EventSessionTrace & { observationId?: string },
   ) => void;
   renderSidebar: (navigation: TimelineNavigation) => ReactNode;
+  onFilterObservationByName: (
+    name: string,
+    operator: "any of" | "none of",
+  ) => void;
 }) {
+  const capture = usePostHogClientCapture();
+  const canAnnotate = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+  const canAddComment = useHasProjectAccess({
+    projectId,
+    scope: "comments:CUD",
+  });
+  const canAddToDataset = useHasProjectAccess({
+    projectId,
+    scope: "datasets:CUD",
+  });
+  const [actionTarget, setActionTarget] =
+    useState<ObservationActionTarget | null>(null);
   const observationRefs = traces.flatMap(
     ({ trace, observations }) =>
       observations?.map((observation) => ({
@@ -206,15 +308,66 @@ export function ConnectedSessionConversationTimeline({
     },
   );
 
+  const openObservationAction = (
+    action: ObservationActionTarget["action"],
+    trace: EventSessionTrace,
+    observation: SessionObservation,
+  ) => {
+    if (action === "annotate" && !canAnnotate) return;
+    if (action === "comment" && !canAddComment) return;
+    if (action === "dataset" && !canAddToDataset) return;
+
+    if (action === "annotate") {
+      const hasScores = trace.scores.some(
+        (score) => score.observationId === observation.id,
+      );
+      capture(hasScores ? "score:update_form_open" : "score:create_form_open", {
+        type: "trace",
+        source: "SessionDetail",
+      });
+    }
+    if (action === "dataset") {
+      capture("dataset_item:new_from_trace_form_open", {
+        object: "observation",
+      });
+    }
+
+    setActionTarget((current) => ({
+      action,
+      trace,
+      observation,
+      requestId: (current?.requestId ?? 0) + 1,
+    }));
+  };
+
   return (
-    <SessionConversationTimelineFeed
-      traces={traces}
-      items={traces.map(({ trace }) => trace)}
-      states={timelineStates}
-      filterMeasurementKey={filterMeasurementKey}
-      openPeek={openPeek}
-      renderSidebar={renderSidebar}
-    />
+    <>
+      <SessionConversationTimelineFeed
+        traces={traces}
+        items={traces.map(({ trace }) => trace)}
+        states={timelineStates}
+        filterMeasurementKey={filterMeasurementKey}
+        openPeek={openPeek}
+        renderSidebar={renderSidebar}
+        onFilterObservationByName={onFilterObservationByName}
+        onObservationAction={openObservationAction}
+        observationActionAccess={{
+          canAnnotate,
+          canAddComment,
+          canAddToDataset,
+        }}
+      />
+      {actionTarget ? (
+        <ConnectedObservationAction
+          key={actionTarget.requestId}
+          projectId={projectId}
+          target={actionTarget}
+          onOpenChange={(open) => {
+            if (!open) setActionTarget(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -225,6 +378,9 @@ function SessionConversationTimelineFeed({
   filterMeasurementKey,
   openPeek,
   renderSidebar,
+  onFilterObservationByName,
+  onObservationAction,
+  observationActionAccess,
 }: {
   traces: readonly SessionConversationTimelineTrace[];
   items: EventSessionTrace[];
@@ -235,6 +391,16 @@ function SessionConversationTimelineFeed({
     row: EventSessionTrace & { observationId?: string },
   ) => void;
   renderSidebar: (navigation: TimelineNavigation) => ReactNode;
+  onFilterObservationByName: SessionObservationActions["onFilterByName"];
+  onObservationAction: (
+    action: ObservationActionTarget["action"],
+    trace: EventSessionTrace,
+    observation: SessionObservation,
+  ) => void;
+  observationActionAccess: Pick<
+    SessionObservationActions,
+    "canAnnotate" | "canAddComment" | "canAddToDataset"
+  >;
 }) {
   const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
   const virtualizer = useVirtualizer({
@@ -350,6 +516,16 @@ function SessionConversationTimelineFeed({
                     onOpenObservation={(observationId) =>
                       openPeek(trace.id, { ...trace, observationId })
                     }
+                    observationActions={{
+                      ...observationActionAccess,
+                      onFilterByName: onFilterObservationByName,
+                      onAnnotate: (observation) =>
+                        onObservationAction("annotate", trace, observation),
+                      onAddComment: (observation) =>
+                        onObservationAction("comment", trace, observation),
+                      onAddToDataset: (observation) =>
+                        onObservationAction("dataset", trace, observation),
+                    }}
                   />
                 </SessionVirtualizedRow>
               );

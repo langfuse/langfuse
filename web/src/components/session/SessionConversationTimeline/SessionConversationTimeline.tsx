@@ -5,6 +5,10 @@ import {
   ChevronsUpDown,
   FileWarning,
   MessageSquareOff,
+  MoreHorizontal,
+  Plus,
+  SquarePen,
+  MessageSquare,
 } from "lucide-react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import {
@@ -17,6 +21,13 @@ import { SessionTimelineMessage } from "@/src/components/session/SessionTimeline
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -55,6 +66,16 @@ export type PreparedSessionConversationTimelineState =
       observations: readonly PreparedSessionTimelineItem<SessionObservation>[];
     };
 
+export type SessionObservationActions = {
+  canAnnotate: boolean;
+  canAddComment: boolean;
+  canAddToDataset: boolean;
+  onFilterByName: (name: string, operator: "any of" | "none of") => void;
+  onAnnotate: (observation: SessionObservation) => void;
+  onAddComment: (observation: SessionObservation) => void;
+  onAddToDataset: (observation: SessionObservation) => void;
+};
+
 const toPreviewText = (value: unknown) =>
   typeof value === "string"
     ? value
@@ -62,6 +83,59 @@ const toPreviewText = (value: unknown) =>
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
+
+function SessionObservationActionsMenuContent({
+  observation,
+  actions,
+}: {
+  observation: SessionObservation;
+  actions: SessionObservationActions;
+}) {
+  return (
+    <DropdownMenuContent align="end" sideOffset={0}>
+      {observation.name ? (
+        <>
+          <DropdownMenuItem
+            onSelect={() =>
+              actions.onFilterByName(observation.name as string, "any of")
+            }
+          >
+            Only show observations with the same name
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() =>
+              actions.onFilterByName(observation.name as string, "none of")
+            }
+          >
+            Exclude observations with the same name
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      ) : null}
+      <DropdownMenuItem
+        disabled={!actions.canAnnotate}
+        onSelect={() => actions.onAnnotate(observation)}
+      >
+        <SquarePen className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+        Annotate
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={!actions.canAddComment}
+        onSelect={() => actions.onAddComment(observation)}
+      >
+        <MessageSquare className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+        Add comment
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={!actions.canAddToDataset}
+        onSelect={() => actions.onAddToDataset(observation)}
+      >
+        <Plus className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+        Add to dataset
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  );
+}
 
 function SessionTimelineRailEnd() {
   return (
@@ -157,6 +231,8 @@ function SessionTimelineToolRow({
   isExpanded,
   onExpandedChange,
   onOpenInTraceView,
+  observation,
+  actions,
 }: {
   id: string;
   name: string;
@@ -169,6 +245,8 @@ function SessionTimelineToolRow({
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   onOpenInTraceView: () => void;
+  observation?: SessionObservation;
+  actions?: SessionObservationActions;
 }) {
   return (
     <section
@@ -215,6 +293,40 @@ function SessionTimelineToolRow({
           <time className="text-muted-foreground font-mono text-[10px]">
             {startTime.toLocaleTimeString()}
           </time>
+          {observation && actions ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="text-muted-foreground hover:text-foreground shrink-0"
+                  aria-label={`Actions for ${observation.name ?? observation.id}`}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <SessionObservationActionsMenuContent
+                observation={observation}
+                actions={actions}
+              />
+            </DropdownMenu>
+          ) : !observation ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="text-muted-foreground/50 flex h-6 w-6 shrink-0 items-center justify-center"
+                  role="img"
+                  aria-label="Actions available on parent observation"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Actions are available on the parent observation
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </span>
       </div>
       {isExpanded ? (
@@ -261,12 +373,14 @@ function SessionTimelineConversationObservation({
   processedMessages,
   phase,
   onOpenInTraceView,
+  actions,
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
   processedMessages: PreparedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
   onOpenInTraceView: () => void;
+  actions?: SessionObservationActions;
 }) {
   const isTruncated = observation.inputTruncated || observation.outputTruncated;
   const visibleMessages = processedMessages.messages;
@@ -349,6 +463,28 @@ function SessionTimelineConversationObservation({
             <time className="text-muted-foreground font-mono text-[10px]">
               {observation.startTime.toLocaleTimeString()}
             </time>
+            {actions ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                    aria-label={`Actions for ${observation.name ?? observation.id}`}
+                  >
+                    <MoreHorizontal
+                      className="h-3.5 w-3.5"
+                      aria-hidden="true"
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <SessionObservationActionsMenuContent
+                  observation={observation}
+                  actions={actions}
+                />
+              </DropdownMenu>
+            ) : null}
           </span>
         </div>
       ) : null}
@@ -390,6 +526,7 @@ function SessionTimelineObservation({
   isToolExpanded,
   onToolExpandedChange,
   onOpenInTraceView,
+  actions,
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
@@ -398,6 +535,7 @@ function SessionTimelineObservation({
   isToolExpanded: boolean;
   onToolExpandedChange: (isExpanded: boolean) => void;
   onOpenInTraceView: () => void;
+  actions?: SessionObservationActions;
 }) {
   if (observation.type === "TOOL") {
     return (
@@ -413,6 +551,8 @@ function SessionTimelineObservation({
         isExpanded={isToolExpanded}
         onExpandedChange={onToolExpandedChange}
         onOpenInTraceView={onOpenInTraceView}
+        observation={observation}
+        actions={actions}
       />
     );
   }
@@ -424,6 +564,7 @@ function SessionTimelineObservation({
       processedMessages={processedMessages}
       phase={phase}
       onOpenInTraceView={onOpenInTraceView}
+      actions={actions}
     />
   );
 }
@@ -431,9 +572,11 @@ function SessionTimelineObservation({
 function LoadedSessionConversationTimeline({
   observations,
   onOpenObservation,
+  observationActions,
 }: {
   observations: readonly PreparedSessionTimelineItem<SessionObservation>[];
   onOpenObservation: (observationId: string) => void;
+  observationActions?: SessionObservationActions;
 }) {
   const [collapsedObservationIds, setCollapsedObservationIds] = useState(
     () =>
@@ -576,6 +719,7 @@ function LoadedSessionConversationTimeline({
                     })
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
+                  actions={observationActions}
                 />
               ) : null}
               {phase === "start" && hasNestedObservations ? (
@@ -586,7 +730,7 @@ function LoadedSessionConversationTimeline({
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        className="bg-background text-muted-foreground hover:text-foreground absolute top-[18px] z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                        className="bg-background text-muted-foreground hover:text-foreground absolute top-5 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
                         style={{ left: "7.5px" }}
                         aria-expanded={!isCollapsed}
                         aria-label={`${isCollapsed ? "Show" : "Hide"} ${formatNestedObservationCounts(nestedObservationCounts)}`}
@@ -633,12 +777,14 @@ export function SessionConversationTimeline({
   state,
   onOpenTrace,
   onOpenObservation,
+  observationActions,
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
   state: SessionConversationTimelineState;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
+  observationActions?: SessionObservationActions;
 }) {
   const preparedState = useMemo<PreparedSessionConversationTimelineState>(
     () =>
@@ -660,6 +806,7 @@ export function SessionConversationTimeline({
       state={preparedState}
       onOpenTrace={onOpenTrace}
       onOpenObservation={onOpenObservation}
+      observationActions={observationActions}
     />
   );
 }
@@ -670,12 +817,14 @@ export function PreparedSessionConversationTimeline({
   state,
   onOpenTrace,
   onOpenObservation,
+  observationActions,
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
   state: PreparedSessionConversationTimelineState;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
+  observationActions?: SessionObservationActions;
 }) {
   return (
     <div
@@ -775,6 +924,7 @@ export function PreparedSessionConversationTimeline({
             .join("\0")}
           observations={state.observations}
           onOpenObservation={onOpenObservation}
+          observationActions={observationActions}
         />
       )}
     </div>

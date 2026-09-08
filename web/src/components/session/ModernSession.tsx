@@ -415,6 +415,7 @@ export function ModernSession({
           />
         )
       }
+      onFilterObservationByName={onFilterObservationByName}
     />
   );
 }
