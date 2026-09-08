@@ -12,7 +12,7 @@ interface EvalVersionCalloutProps {
   content: CalloutContent;
 }
 
-export interface CalloutContent {
+interface CalloutContent {
   title: string;
   description: React.ReactNode;
 }
