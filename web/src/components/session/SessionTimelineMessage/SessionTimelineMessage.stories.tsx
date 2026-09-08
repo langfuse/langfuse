@@ -125,6 +125,69 @@ export const Reasoning = meta.story({
   },
 });
 
+export const EmbeddedImages = meta.story({
+  args: {
+    message: {
+      role: "user",
+      source: "input",
+      parts: [
+        {
+          type: "text",
+          text: "Here are a landscape image and a square image.",
+        },
+        {
+          type: "file",
+          filename: "product-overview.jpg",
+          mediaType: "image/jpeg",
+          content: { kind: "url", url: "/assets/v4-beta-intro.jpg" },
+        },
+        {
+          type: "file",
+          filename: "app-icon.png",
+          mediaType: "image/png",
+          content: { kind: "url", url: "/icon256.png" },
+        },
+      ],
+    } satisfies NormalizedMessage,
+  },
+});
+
+export const FileAttachment = meta.story({
+  name: "(Test) File Attachment Layout",
+  args: {
+    message: {
+      role: "user",
+      source: "input",
+      parts: [
+        {
+          type: "text",
+          text: "Here is the report from the inspection.",
+        },
+        {
+          type: "file",
+          filename: "inspection-report.pdf",
+          mediaType: "application/pdf",
+          content: {
+            kind: "url",
+            url: "https://example.com/inspection-report.pdf",
+          },
+        },
+      ],
+    } satisfies NormalizedMessage,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const attachment = canvas
+      .getByText("inspection-report.pdf")
+      .closest(".bg-background");
+
+    await expect(attachment).toHaveClass("w-fit", "max-w-full");
+    await expect(attachment?.parentElement?.parentElement).toHaveClass(
+      "bg-muted",
+    );
+  },
+});
+
 export const ExpandToolCall = meta.story({
   name: "(Test) Expands Tool Call",
   args: ToolCall.input.args,

@@ -24,7 +24,7 @@ import {
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
 
 const rolePresentation = {
@@ -215,6 +215,10 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
   const source = part.providerMetadata?.source;
   const safeUrl =
     part.content.kind === "url" ? getSafeLinkUrl(part.content.url) : null;
+  const safeImageUrl =
+    part.content.kind === "url" && part.mediaType?.startsWith("image/")
+      ? getSafeImageUrl(part.content.url)
+      : null;
   const reference =
     part.content.kind === "reference" &&
     part.mediaType &&
@@ -223,13 +227,22 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
       : undefined;
 
   return (
-    <div className="border-border/70 flex flex-col gap-2 rounded-md border p-3">
+    <div className="border-border/70 bg-background flex w-fit max-w-full flex-col gap-2 rounded-md border p-3">
       <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
         <FileIcon className="h-3.5 w-3.5" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
       {reference ? (
         <LangfuseMediaView mediaReferenceString={reference} variant="preview" />
+      ) : safeImageUrl ? (
+        <a href={safeImageUrl} target="_blank" rel="noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={safeImageUrl}
+            alt={part.filename ?? "Embedded image"}
+            className="max-h-64 max-w-full rounded-md object-contain"
+          />
+        </a>
       ) : safeUrl ? (
         <a
           href={safeUrl}
