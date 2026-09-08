@@ -249,6 +249,33 @@ describe("ClickHouse Resource Error Handling", () => {
         errorType: "OVERCOMMIT",
       },
       {
+        name: "Memory limit for query exceeded (capitalized)",
+        errorMessage:
+          "Memory limit (for query) exceeded: would use 2.25 GiB (attempt to allocate chunk of 0.00 B), current RSS: 1.42 GiB, maximum: 2.25 GiB",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
+        name: "Memory limit total exceeded (capitalized)",
+        errorMessage:
+          "Memory limit (total) exceeded: would use 2.25 GiB, current RSS: 1.42 GiB, maximum: 2.25 GiB",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
+        name: "Memory limit for user exceeded (capitalized)",
+        errorMessage: "Memory limit (for user) exceeded: would use 2.25 GiB",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
+        name: "Overcommit decision with memory limit message",
+        errorMessage:
+          "(total) memory limit exceeded: would use 2.25 GiB. OvercommitTracker decision: Query was selected to stop by OvercommitTracker: While executing AggregatingTransform",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
         name: "Simple memory error",
         errorMessage: "memory limit exceeded",
         shouldBeResourceError: true,
@@ -288,6 +315,9 @@ describe("ClickHouse Resource Error Handling", () => {
           })(wrappedError);
 
           expect(isResourceError).toBe(shouldBeResourceError);
+          expect(ClickHouseResourceError.is(wrappedError)).toBe(
+            shouldBeResourceError,
+          );
 
           const resourceError = wrappedError as ClickHouseResourceError;
           if (shouldBeResourceError && errorType) {
