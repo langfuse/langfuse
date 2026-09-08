@@ -149,7 +149,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -204,14 +204,14 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      - name: cursor PR label tests
+        run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Turbo runs up to three packages at once. The largest overlap is web's
-        # four ESLint workers plus two packages with two workers each, matching
-        # this runner's eight vCPUs.
-        run: pnpm turbo run lint --concurrency=3
+        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
+        run: pnpm turbo run lint --concurrency=3 -- --concurrency=4
       - name: typecheck
         run: pnpm run typecheck
 
@@ -398,7 +398,7 @@ jobs:
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -407,6 +407,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     timeout-minutes: 10
     env:
+      VITEST_MAX_WORKERS: "4"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -470,7 +471,7 @@ jobs:
 
   tests-shared:
     timeout-minutes: 15
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -478,6 +479,7 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      VITEST_MAX_WORKERS: "6"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -643,7 +645,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -652,6 +654,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
+      VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
       matrix:
@@ -804,7 +807,7 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
@@ -813,10 +816,12 @@ jobs:
 
   tests-web-client:
     timeout-minutes: 10
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      VITEST_MAX_WORKERS: "6"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -853,7 +858,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ matrix.deploy-mode == '-redis-cluster' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -862,6 +867,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
+      VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
       matrix:
@@ -1159,7 +1165,7 @@ jobs:
         run: pnpm --filter=web run test:e2e
 
   e2e-server-tests:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1167,6 +1173,7 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      VITEST_MAX_WORKERS: "4"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
