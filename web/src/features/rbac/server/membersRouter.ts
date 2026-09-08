@@ -113,7 +113,7 @@ async function createProjectMembershipOrThrowIfDuplicate({
   prisma,
   data,
 }: {
-  prisma: PrismaClient;
+  prisma: PrismaClient | Prisma.TransactionClient;
   data: {
     userId: string;
     projectId: string;
@@ -331,22 +331,44 @@ export const membersRouter = createTRPCRouter({
         }
 
         // create org membership as user is not a member yet, unless that
-        // would exceed the member limit
-        const orgMembership = await createWithinEntitlementLimit({
-          prisma: ctx.prisma,
-          orgId: input.orgId,
-          entitlementLimit: "organization-member-count",
-          sessionUser: ctx.session.user,
-          countCurrentUsage: countSeatsInUse,
-          create: (tx) =>
-            tx.organizationMembership.create({
-              data: {
-                userId: user.id,
-                orgId: input.orgId,
-                role: input.orgRole,
-              },
-            }),
-        });
+        // would exceed the member limit. On limited plans this runs inside the
+        // entitlement transaction, so creating the project membership here too
+        // keeps both inserts atomic: a duplicate-project-membership rejection
+        // rolls back the org membership instead of leaving a consumed seat.
+        const { orgMembership, projectMembership } =
+          await createWithinEntitlementLimit({
+            prisma: ctx.prisma,
+            orgId: input.orgId,
+            entitlementLimit: "organization-member-count",
+            sessionUser: ctx.session.user,
+            countCurrentUsage: countSeatsInUse,
+            create: async (tx) => {
+              const createdOrgMembership =
+                await tx.organizationMembership.create({
+                  data: {
+                    userId: user.id,
+                    orgId: input.orgId,
+                    role: input.orgRole,
+                  },
+                });
+              const createdProjectMembership =
+                project && input.projectRole && input.projectRole !== Role.NONE
+                  ? await createProjectMembershipOrThrowIfDuplicate({
+                      prisma: tx,
+                      data: {
+                        userId: user.id,
+                        projectId: project.id,
+                        role: input.projectRole,
+                        orgMembershipId: createdOrgMembership.id,
+                      },
+                    })
+                  : null;
+              return {
+                orgMembership: createdOrgMembership,
+                projectMembership: createdProjectMembership,
+              };
+            },
+          });
         await auditLog({
           session: ctx.session,
           resourceType: "orgMembership",
@@ -361,17 +383,7 @@ export const membersRouter = createTRPCRouter({
           email: user.email,
           role: input.orgRole,
         });
-        if (project && input.projectRole && input.projectRole !== Role.NONE) {
-          const projectMembership =
-            await createProjectMembershipOrThrowIfDuplicate({
-              prisma: ctx.prisma,
-              data: {
-                userId: user.id,
-                projectId: project.id,
-                role: input.projectRole,
-                orgMembershipId: orgMembership.id,
-              },
-            });
+        if (projectMembership) {
           await auditLog({
             session: ctx.session,
             resourceType: "projectMembership",
