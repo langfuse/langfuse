@@ -21,7 +21,7 @@ const projectKey = (): AuthorizationContext => ({
     scope: "PROJECT",
     presentation: "privateKey",
     organizations: [],
-    boundResource: { projectId: PRJ },
+    boundResource: { orgId: "org_1", projectId: PRJ },
   },
   policies: [],
 });

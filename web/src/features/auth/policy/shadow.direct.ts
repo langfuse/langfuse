@@ -38,7 +38,6 @@ export async function verifyOrgAuth(
       const authz = await enforceOrgAuth({
         headers,
         action: params.action ?? undefined,
-        requiredAccessLevel: "organization",
       });
       if (!authz.success) return authz;
       return orgScope(authz.context.principal, authz.orgId);
@@ -61,7 +60,6 @@ export async function verifyProjectAuthDirect(
       const authz = await enforceProjectAuth({
         headers,
         action: params.action ?? undefined,
-        requiredAccessLevel: "project",
       });
       if (!authz.success) return authz;
       return projectScope(authz.context.principal, authz.projectId);

@@ -1,6 +1,5 @@
 import { type IncomingHttpHeaders } from "http";
 
-import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 import {
   type ForbiddenError,
   type InternalServerError,
@@ -10,7 +9,6 @@ import {
 
 import { authorize } from "./authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
-import { requireAccessLevel } from "./scope";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -26,7 +24,7 @@ const headerValue = (
   value: string | string[] | undefined,
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
 
-/** enforceOrgAuth runs the new org pipeline — authenticate, the route's required access level, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
+/** enforceOrgAuth runs the new org pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
 export async function enforceOrgAuth(
   params: EnforceOrgAuthParams,
 ): Promise<OrgAccessResult | ErrorResult<AuthError>> {
@@ -38,12 +36,6 @@ export async function enforceOrgAuth(
   if (!authn.success) return authn;
 
   const context = authn.context;
-  const denied = requireAccessLevel(
-    context.principal,
-    params.requiredAccessLevel,
-  );
-  if (denied) return denied;
-
   const target = getOrgId(context, params.headers);
   if (!target.success) return target;
 
@@ -84,18 +76,16 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** boundOrgIdOf returns the org an api key is bound to, when any. */
+/** boundOrgIdOf returns the org an api key is bound to; every api key has one. */
 function boundOrgIdOf(context: AuthorizationContext): string | undefined {
   if (context.principal.kind !== "apiKey") return undefined;
-  const bound = context.principal.boundResource;
-  return bound && "orgId" in bound ? bound.orgId : undefined;
+  return context.principal.boundResource.orgId;
 }
 
-/** EnforceOrgAuthParams is the request headers, the checked action, the access level the route requires, and its key-kind opt-ins. */
+/** EnforceOrgAuthParams is the request headers, the checked action, and the route's key-kind opt-ins. */
 export type EnforceOrgAuthParams = {
   headers: IncomingHttpHeaders;
   action?: OrganizationAction;
-  requiredAccessLevel?: ApiAccessLevel;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };

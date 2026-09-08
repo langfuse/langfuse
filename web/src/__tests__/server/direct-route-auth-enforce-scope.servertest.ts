@@ -69,9 +69,12 @@ const orgResultUnderModes = async (authorization: string) => {
   return { legacy, enforce };
 };
 
-const projectResultUnderModes = async (authorization: string) => {
+const projectResultUnderModes = async (
+  authorization: string,
+  target?: string,
+) => {
   const params: VerifyProjectAuthParams = {
-    req: reqWith({ authorization }),
+    req: reqWith({ authorization, "x-langfuse-project-id": target }),
     name: "Get Project",
     action: "project:read",
     scopeDeniedMessage: projectKeyRequired,
@@ -156,14 +159,27 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     expect(enforce).toEqual(legacy);
   });
 
-  it("an organization key on a project route 403s with the route's message in both modes", async () => {
-    const { legacy, enforce } = await projectResultUnderModes(orgAuth);
+  it("an organization key naming a project 403s with the route's message in both modes", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(
+      orgAuth,
+      projectId,
+    );
     expect(legacy).toEqual({
       validKey: false,
       status: 403,
       error: projectKeyRequired,
     });
     expect(enforce).toEqual(legacy);
+  });
+
+  it("an organization key naming no project 400s in enforce where legacy 403s", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(orgAuth);
+    expect(legacy).toMatchObject({ status: 403, error: projectKeyRequired });
+    expect(enforce).toMatchObject({
+      status: 400,
+      error:
+        "No project target: send x-langfuse-project-id or use a project-scoped API key",
+    });
   });
 
   it("a bearer-presented project key on a project route 403s in both modes", async () => {

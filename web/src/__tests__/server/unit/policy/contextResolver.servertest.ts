@@ -128,13 +128,14 @@ describe("expansion table: scope PROJECT, privateKey", () => {
 });
 
 describe("expansion table: scope ORGANIZATION, privateKey", () => {
-  it("grants the full org vocabulary and project:read across org projects", async () => {
+  it("grants the org vocabulary and no project action", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",
       apiKey: orgKey(),
     });
+    expect(authorize(ctx, "projects:read", { orgId: ORG }).success).toBe(true);
     expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
-      true,
+      false,
     );
     expect(authorize(ctx, "traces:read", { projectId: PRJ }).success).toBe(
       false,

@@ -74,7 +74,7 @@ describe("project seam verifyAuth", () => {
         publicKey: "pk-lf-1",
         presentation,
         organizations: [principalOrg],
-        boundResource: { projectId: "p1" },
+        boundResource: { orgId: principalOrg.orgId, projectId: "p1" },
       },
       policies: [],
     },

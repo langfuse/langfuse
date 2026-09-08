@@ -11,11 +11,11 @@ import {
 import {
   wildcard,
   type AuthorizationContext,
+  type BoundResource,
   type ErrorResult,
   type Policy,
   type Principal,
   type PrincipalOrganization,
-  type Resource,
   type Success,
   type SystemPolicy,
 } from "./types";
@@ -106,7 +106,7 @@ function materialize(
     scope: apiKey.scope,
     presentation: authorization,
     organizations: [org],
-    boundResource: boundResourceFor(apiKey),
+    boundResource: boundResourceFor(apiKey, org),
   };
 
   const grants =
@@ -159,11 +159,10 @@ function projectResources(principal: Principal): Policy["resources"] {
   if (principal.kind === "admin") return wildcard;
   const bound =
     principal.kind === "apiKey" ? principal.boundResource : undefined;
-  if (bound && "projectId" in bound) return [bound.projectId];
-  const orgs =
-    bound && "orgId" in bound
-      ? principal.organizations.filter((o) => o.orgId === bound.orgId)
-      : principal.organizations;
+  if (bound?.projectId) return [bound.projectId];
+  const orgs = bound
+    ? principal.organizations.filter((o) => o.orgId === bound.orgId)
+    : principal.organizations;
   return orgs.flatMap((o) => o.projectIds);
 }
 
@@ -172,17 +171,19 @@ function orgResources(principal: Principal): Policy["resources"] {
   if (principal.kind === "admin") return wildcard;
   const bound =
     principal.kind === "apiKey" ? principal.boundResource : undefined;
-  const orgs =
-    bound && "orgId" in bound
-      ? principal.organizations.filter((o) => o.orgId === bound.orgId)
-      : principal.organizations;
+  const orgs = bound
+    ? principal.organizations.filter((o) => o.orgId === bound.orgId)
+    : principal.organizations;
   return orgs.map((o) => o.orgId);
 }
 
-/** boundResourceFor is the legacy single-target a request resolves against with no header. */
-function boundResourceFor(apiKey: ApiKey): Resource {
-  if (apiKey.scope === "ORGANIZATION") return { orgId: apiKey.orgId! };
-  return { projectId: apiKey.projectId! };
+/** boundResourceFor is the target a request resolves against with no header: the key's org, narrowed to its project when the key is project-scoped. */
+function boundResourceFor(
+  apiKey: ApiKey,
+  org: PrincipalOrganization,
+): BoundResource {
+  if (apiKey.scope === "ORGANIZATION") return { orgId: org.orgId };
+  return { orgId: org.orgId, projectId: apiKey.projectId! };
 }
 
 /** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */

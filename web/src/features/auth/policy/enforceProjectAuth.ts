@@ -1,6 +1,5 @@
 import { type IncomingHttpHeaders } from "http";
 
-import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 import {
   type ForbiddenError,
   type InternalServerError,
@@ -10,7 +9,6 @@ import {
 
 import { authorize } from "./authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
-import { requireAccessLevel } from "./scope";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -26,7 +24,7 @@ const headerValue = (
   value: string | string[] | undefined,
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
 
-/** enforceProjectAuth runs the new project pipeline — authenticate, the route's required access level, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
+/** enforceProjectAuth runs the new project pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
 export async function enforceProjectAuth(
   params: EnforceProjectAuthParams,
 ): Promise<ProjectAccessResult | ErrorResult<AuthError>> {
@@ -38,12 +36,6 @@ export async function enforceProjectAuth(
   if (!authn.success) return authn;
 
   const context = authn.context;
-  const denied = requireAccessLevel(
-    context.principal,
-    params.requiredAccessLevel,
-  );
-  if (denied) return denied;
-
   const target = getProjectId(context, params.headers);
   if (!target.success) return target;
 
@@ -86,18 +78,16 @@ function getProjectId(
   return { success: true, projectId };
 }
 
-/** boundProjectIdOf returns the project an api key is bound to, when any. */
+/** boundProjectIdOf returns the project an api key is bound to, when it is project-scoped. */
 function boundProjectIdOf(context: AuthorizationContext): string | undefined {
   if (context.principal.kind !== "apiKey") return undefined;
-  const bound = context.principal.boundResource;
-  return bound && "projectId" in bound ? bound.projectId : undefined;
+  return context.principal.boundResource.projectId;
 }
 
-/** EnforceProjectAuthParams is the request headers, the checked action, the access level the route requires, and its key-kind opt-ins. */
+/** EnforceProjectAuthParams is the request headers, the checked action, and the route's key-kind opt-ins. */
 export type EnforceProjectAuthParams = {
   headers: IncomingHttpHeaders;
   action?: ProjectAction;
-  requiredAccessLevel?: ApiAccessLevel;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };

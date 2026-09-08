@@ -68,7 +68,9 @@ const apiKeyPrincipal = (scope: "ORGANIZATION" | "PROJECT"): Principal => ({
   presentation: "privateKey",
   organizations: [organization],
   boundResource:
-    scope === "ORGANIZATION" ? { orgId: "org_1" } : { projectId: "prj_1" },
+    scope === "ORGANIZATION"
+      ? { orgId: "org_1" }
+      : { orgId: "org_1", projectId: "prj_1" },
 });
 
 const mappedFields = {
@@ -197,13 +199,12 @@ describe("org direct seam verifyOrgAuth", () => {
       expect(mockVerifyScope).not.toHaveBeenCalled();
     });
 
-    it("requires the organization access level of the new pipeline", async () => {
+    it("passes the route's action to the new pipeline", async () => {
       authzAllows();
       await call();
       expect(mockEnforceOrgAuth).toHaveBeenCalledWith({
         headers: req.headers,
         action: "projects:read",
-        requiredAccessLevel: "organization",
       });
     });
 
@@ -285,7 +286,6 @@ describe("project direct seam verifyProjectAuthDirect", () => {
     expect(mockEnforceProjectAuth).toHaveBeenCalledWith({
       headers: req.headers,
       action: "project:read",
-      requiredAccessLevel: "project",
     });
   });
 

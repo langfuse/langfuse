@@ -5,7 +5,7 @@ import { InvalidRequestError } from "@langfuse/shared";
 import { __test } from "@/src/features/auth/policy/enforceOrgAuth";
 import {
   type AuthorizationContext,
-  type Resource,
+  type BoundResource,
 } from "@/src/features/auth/policy/types";
 
 const { getOrgId } = __test;
@@ -16,7 +16,7 @@ const ORG = "org_1";
 
 const apiKey = (
   apiKeyId: string,
-  boundResource: Resource,
+  boundResource: BoundResource,
 ): AuthorizationContext => ({
   principal: {
     kind: "apiKey",
@@ -24,7 +24,7 @@ const apiKey = (
     userId: null,
     isInAppAgentKey: false,
     publicKey: "pk-lf-1",
-    scope: "orgId" in boundResource ? "ORGANIZATION" : "PROJECT",
+    scope: boundResource.projectId ? "PROJECT" : "ORGANIZATION",
     presentation: "privateKey",
     organizations: [],
     boundResource,
@@ -34,16 +34,22 @@ const apiKey = (
 
 const orgKey = () => apiKey("key_1", { orgId: ORG });
 
-const projectKey = () => apiKey("key_2", { projectId: "prj_1" });
+const projectKey = () =>
+  apiKey("key_2", { orgId: "org_2", projectId: "prj_1" });
+
+const adminKey = (): AuthorizationContext => ({
+  principal: { kind: "admin", userId: null },
+  policies: [],
+});
 
 describe("getOrgId", () => {
   it("resolves the bound org without a header", () => {
     expect(getOrgId(orgKey(), {})).toEqual({ success: true, orgId: ORG });
   });
-  it("resolves an unbound principal from the header", () => {
-    expect(getOrgId(projectKey(), { [orgIdHeader]: ORG })).toEqual({
+  it("resolves a project-scoped key to its own organization", () => {
+    expect(getOrgId(projectKey(), {})).toEqual({
       success: true,
-      orgId: ORG,
+      orgId: "org_2",
     });
   });
   it("400s a header disagreeing with the bound org", () => {
@@ -52,8 +58,8 @@ describe("getOrgId", () => {
       error: expect.any(InvalidRequestError),
     });
   });
-  it("400s when neither header nor bound org exists", () => {
-    expect(getOrgId(projectKey(), {})).toMatchObject({
+  it("400s a principal carrying no binding", () => {
+    expect(getOrgId(adminKey(), {})).toMatchObject({
       success: false,
       error: expect.any(InvalidRequestError),
     });

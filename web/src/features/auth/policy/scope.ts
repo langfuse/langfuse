@@ -1,8 +1,5 @@
-import { ForbiddenError, InternalServerError } from "@langfuse/shared";
-import {
-  type ApiAccessLevel,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
+import { InternalServerError } from "@langfuse/shared";
+import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
 import {
   type ErrorResult,
@@ -15,6 +12,8 @@ import {
 export function orgScope(principal: Principal, orgId: string): ScopeResult {
   const key = apiKeyPrincipalOf(principal);
   if (!key.success) return key;
+  // The org policies an organization route checks are held by no other key
+  // kind, so a key reaching here is organization-scoped.
   const org = key.principal.organizations.find((o) => o.orgId === orgId);
   if (!org) {
     return invariantBreak(
@@ -49,27 +48,10 @@ export function projectScope(
     scope: {
       ...credentialFields(key.principal, org),
       projectId,
-      accessLevel: "project",
+      accessLevel:
+        key.principal.presentation === "publicKey" ? "scores" : "project",
     },
   };
-}
-
-/** requireAccessLevel denies a credential whose access level is not the one the route requires. */
-export function requireAccessLevel(
-  principal: Principal,
-  required: ApiAccessLevel | undefined,
-): ErrorResult<ForbiddenError> | null {
-  if (!required || accessLevelOf(principal) === required) return null;
-  return { success: false, error: new ForbiddenError() };
-}
-
-/** accessLevelOf is the access level a principal presents, or undefined for a credential that carries none. */
-export function accessLevelOf(
-  principal: Principal,
-): ApiAccessLevel | undefined {
-  if (principal.kind !== "apiKey") return undefined;
-  if (principal.presentation === "publicKey") return "scores";
-  return principal.scope === "ORGANIZATION" ? "organization" : "project";
 }
 
 /** credentialFields are the scope fields both access levels read off the key and its organization. */
