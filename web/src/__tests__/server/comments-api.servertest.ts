@@ -103,14 +103,26 @@ describe("Create and get comments", () => {
   it("should create an observation comment when objectStartTime bounds the lookup", async () => {
     const startTime = new Date("2024-05-15T12:00:00.000Z");
     const observationId = randomUUID();
-    await createEventsCh([
-      createEvent({
-        id: observationId,
-        span_id: observationId,
-        project_id: seedProjectId,
-        start_time: startTime,
-        type: "GENERATION",
-      }),
+    // Seed both tables so the lookup resolves regardless of the v4 write-mode
+    // routing the test environment happens to use.
+    await Promise.all([
+      createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: seedProjectId,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          project_id: seedProjectId,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]),
     ]);
 
     const commentResponse = await makeZodVerifiedAPICall(

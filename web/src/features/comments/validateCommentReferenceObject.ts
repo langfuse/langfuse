@@ -26,6 +26,14 @@ export const validateCommentReferenceObject = async ({
         // can prune partitions/parts; absent, the lookup falls back to a scan.
         startTime: objectStartTime ?? undefined,
       });
+      // objectStartTime is a client-supplied hint on the public API; a wrong or
+      // stale value would bound the lookup to the wrong day and hide an existing
+      // observation. Retry once unbounded on a miss so the hint can only ever
+      // speed up a hit, never turn into a false "not found".
+      if (!commentTarget && objectStartTime) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        commentTarget = await getObservationById({ id: objectId, projectId });
+      }
       break;
     }
     case CommentObjectType.TRACE: {
