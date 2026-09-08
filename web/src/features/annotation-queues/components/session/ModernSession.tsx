@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
-import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
-import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
-import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
-import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
+import { LazySessionTraceEventsRow } from "@/src/features/annotation-queues/components/session/LazySessionTraceEventsRow";
+import { SessionVirtualizedRow } from "@/src/features/annotation-queues/components/session/SessionVirtualizedRow";
+import { type EventSessionTrace } from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "@/src/features/annotation-queues/components/session/sessionIdleGap";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
@@ -13,7 +13,7 @@ import {
   ModernSessionSidebar,
   type ModernSessionSidebarFilterControls,
   type ModernSessionSidebarTrace,
-} from "@/src/components/session/ModernSessionSidebar";
+} from "@/src/features/annotation-queues/components/session/ModernSessionSidebar";
 import { api } from "@/src/utils/api";
 
 const MODERN_SESSION_OVERSCAN = 5;

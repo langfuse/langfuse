@@ -1,7 +1,7 @@
 import { type TableViewPresetState } from "@langfuse/shared";
 import { Check, Filter, Settings2 } from "lucide-react";
 
-import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
+import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/features/annotation-queues/components/session/session-detail-presets";
 import {
   DropdownMenuContent,
   DropdownMenuItem,

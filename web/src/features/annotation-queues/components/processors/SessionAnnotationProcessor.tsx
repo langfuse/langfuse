@@ -4,9 +4,9 @@ import {
 } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import { SessionIO } from "@/src/components/session";
-import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
-import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
+import { SessionIO } from "@/src/features/annotation-queues/components/session";
+import { LazyTraceEventsRow } from "@/src/features/annotation-queues/components/session/TraceEventsRow";
+import { asCommentCounts } from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";

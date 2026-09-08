@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type MouseEventHandler, type ReactNode } from "react";
 import { vi } from "vitest";
 
-import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
+import { ModernSessionHeaderActionsController } from "@/src/features/annotation-queues/components/session/ModernSessionHeaderActionsController";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 
 vi.mock("@/src/components/ui/dropdown-menu", () => ({

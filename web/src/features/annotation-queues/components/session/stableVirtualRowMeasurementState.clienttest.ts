@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createStableVirtualRowMeasurementState } from "@/src/components/session/stableVirtualRowMeasurementState";
+import { createStableVirtualRowMeasurementState } from "@/src/features/annotation-queues/components/session/stableVirtualRowMeasurementState";
 
 describe("createStableVirtualRowMeasurementState", () => {
   it("clears stale pending height when a direct commit lands", () => {

@@ -1,4 +1,4 @@
-import { SessionIO } from "@/src/components/session";
+import { SessionIO } from "@/src/features/annotation-queues/components/session";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
@@ -6,8 +6,8 @@ import { type RouterOutputs } from "@/src/utils/api";
 import Link from "next/link";
 import React, { useEffect, useCallback, useRef } from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
-import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
+import { useSessionDetailStore } from "@/src/features/annotation-queues/components/session/SessionDetailStoreProvider";
+import { SessionTraceActionButtons } from "@/src/features/annotation-queues/components/session/SessionTraceActionButtons";
 
 const TraceSkeleton = () => {
   return (

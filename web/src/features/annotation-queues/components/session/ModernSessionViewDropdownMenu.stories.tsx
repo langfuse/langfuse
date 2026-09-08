@@ -1,10 +1,10 @@
 import { fn } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import {
   ModernSessionViewDropdownMenu,
   type ModernSessionViewDropdownMenuControls,
-} from "@/src/components/session/ModernSessionViewDropdownMenu";
+} from "@/src/features/annotation-queues/components/session/ModernSessionViewDropdownMenu";
 import {
   DropdownMenu,
   DropdownMenuTrigger,

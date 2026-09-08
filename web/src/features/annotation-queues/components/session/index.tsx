@@ -60,11 +60,11 @@ import {
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { LazyTraceRow } from "@/src/components/session/TraceRow";
+import { LazyTraceRow } from "@/src/features/annotation-queues/components/session/TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
+import { LazySessionTraceEventsRow } from "@/src/features/annotation-queues/components/session/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
@@ -90,21 +90,21 @@ import {
   getSessionDetailPresetToApply,
   findSessionDetailViewByFilters,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
-} from "@/src/components/session/session-detail-presets";
-import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
-import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
-import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
-import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
-import { ModernSession } from "@/src/components/session/ModernSession";
-import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
-import { SessionMetadataJsonPathControl } from "@/src/components/session/SessionMetadataJsonPathControl";
+} from "@/src/features/annotation-queues/components/session/session-detail-presets";
+import { downloadSessionAsJson } from "@/src/features/annotation-queues/components/session/actions/downloadSessionAsJson";
+import { SessionDetailStoreProvider } from "@/src/features/annotation-queues/components/session/SessionDetailStoreProvider";
+import { SessionVirtualizedRow } from "@/src/features/annotation-queues/components/session/SessionVirtualizedRow";
+import { createSessionDetailStore } from "@/src/features/annotation-queues/components/session/sessionDetailStore";
+import { ModernSession } from "@/src/features/annotation-queues/components/session/ModernSession";
+import { ModernSessionHeader } from "@/src/features/annotation-queues/components/session/ModernSessionHeader";
+import { SessionMetadataJsonPathControl } from "@/src/features/annotation-queues/components/session/SessionMetadataJsonPathControl";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
-import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
-import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
+import { ModernSessionHeaderActionsController } from "@/src/features/annotation-queues/components/session/ModernSessionHeaderActionsController";
+import { ModernSessionFilterControls } from "@/src/features/annotation-queues/components/session/ModernSessionFilterControls";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
-import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
+import { useHistoryEntryRevisit } from "@/src/features/annotation-queues/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
   asCommentCounts,
@@ -114,12 +114,12 @@ import {
   type EventFilterOptions,
   type EventSessionTrace,
   type LegacySessionTrace,
-} from "@/src/components/session/sessionDetailPageTypes";
-import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
+} from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
+import { getSessionFilterOptionsStartTimeFilters } from "@/src/features/annotation-queues/components/session/sessionFilterOptions";
 import {
   INITIAL_SESSION_USERS_DISPLAY_COUNT,
   SESSION_USERS_PER_PAGE,
-} from "@/src/components/session/sessionUsers";
+} from "@/src/features/annotation-queues/components/session/sessionUsers";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.

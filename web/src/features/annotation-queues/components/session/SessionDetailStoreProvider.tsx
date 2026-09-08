@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import {
   type SessionDetailStore,
   type SessionDetailStoreState,
-} from "@/src/components/session/sessionDetailStore";
+} from "@/src/features/annotation-queues/components/session/sessionDetailStore";
 
 const SessionDetailStoreContext = createContext<SessionDetailStore | null>(
   null,

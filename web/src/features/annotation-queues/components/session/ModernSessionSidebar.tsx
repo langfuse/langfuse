@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-margin-on-root-elements */
 import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -13,17 +12,17 @@ import {
 import { type FilterState } from "@langfuse/shared";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
-import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { SessionVirtualizedRow } from "@/src/features/annotation-queues/components/session/SessionVirtualizedRow";
+import { type EventSessionTrace } from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
 import {
   ModernSessionViewDropdownMenu,
   type ModernSessionViewDropdownMenuControls,
-} from "@/src/components/session/ModernSessionViewDropdownMenu";
-import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+} from "@/src/features/annotation-queues/components/session/ModernSessionViewDropdownMenu";
+import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/annotation-queues/components/session/session-detail-presets";
 import {
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
-} from "@/src/components/session/sessionIdleGap";
+} from "@/src/features/annotation-queues/components/session/sessionIdleGap";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {

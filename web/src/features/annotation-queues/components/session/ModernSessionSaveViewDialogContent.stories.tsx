@@ -1,8 +1,8 @@
 import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
-import { ModernSessionSaveViewDialogContent } from "@/src/components/session/ModernSessionSaveViewDialogContent";
+import preview from "@/.storybook/preview";
+import { ModernSessionSaveViewDialogContent } from "@/src/features/annotation-queues/components/session/ModernSessionSaveViewDialogContent";
 import { Dialog } from "@/src/components/ui/dialog";
 
 const defaultArgs = {

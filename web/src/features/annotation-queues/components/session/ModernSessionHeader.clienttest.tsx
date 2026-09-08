@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
-import { sessionHeaderVisibilityStorageKey } from "@/src/components/session/sessionHeaderVisibility";
+import { ModernSessionHeader } from "@/src/features/annotation-queues/components/session/ModernSessionHeader";
+import { sessionHeaderVisibilityStorageKey } from "@/src/features/annotation-queues/components/session/sessionHeaderVisibility";
 
 const capture = vi.hoisted(() => vi.fn());
 

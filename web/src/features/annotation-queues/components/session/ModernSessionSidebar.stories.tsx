@@ -1,13 +1,13 @@
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps, useState } from "react";
 
 import {
   ModernSessionSidebar,
   type ModernSessionSidebarTrace,
-} from "@/src/components/session/ModernSessionSidebar";
-import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
-import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
+} from "@/src/features/annotation-queues/components/session/ModernSessionSidebar";
+import { type EventSessionTrace } from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "@/src/features/annotation-queues/components/session/sessionIdleGap";
 import { type FilterState } from "@langfuse/shared";
 
 const traces = [
