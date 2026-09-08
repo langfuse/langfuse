@@ -177,12 +177,12 @@ describe("useOrganizationSettingsPages", () => {
     ).toBe(true);
   });
 
-  it("hides all AI Gateway settings without organization update access", () => {
+  it("hides all AI Gateway settings without gateway management access", () => {
     const { result } = renderHook(() => useOrganizationSettingsPages());
 
     expect(useHasOrganizationAccess).toHaveBeenCalledWith({
       organizationId: "org-1",
-      scope: "organization:update",
+      scope: "gateway:manage",
     });
     expect(
       result.current
@@ -193,7 +193,7 @@ describe("useOrganizationSettingsPages", () => {
 
   it("hides all AI Gateway settings when the internal flag is disabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "organization:update",
+      ({ scope }) => scope === "gateway:manage",
     );
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
@@ -204,9 +204,9 @@ describe("useOrganizationSettingsPages", () => {
     expect(gatewayPages.every((page) => page.show === false)).toBe(true);
   });
 
-  it("shows all AI Gateway settings when the internal flag and organization access are enabled", () => {
+  it("shows all AI Gateway settings when the internal flag and gateway management access are enabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "organization:update",
+      ({ scope }) => scope === "gateway:manage",
     );
     vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
 

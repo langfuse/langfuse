@@ -158,7 +158,7 @@ describe("AI gateway control plane", () => {
     }
   });
 
-  it("creates a private ingestion project and blocks implicit member access", async () => {
+  it("limits default ingestion project access to organization owners and admins", async () => {
     const owner = await prepare();
     const existingMember = await prisma.user.create({
       data: { email: `gateway-member-${randomUUID()}@example.test` },
@@ -171,6 +171,20 @@ describe("AI gateway control plane", () => {
         role: "MEMBER",
       },
     });
+    const existingPrivilegedUsers = await Promise.all(
+      [Role.OWNER, Role.ADMIN].map(async (role) => {
+        const user = await prisma.user.create({
+          data: {
+            email: `gateway-existing-${role.toLowerCase()}-${randomUUID()}@example.test`,
+          },
+        });
+        cleanupUsers.push(user.id);
+        await prisma.organizationMembership.create({
+          data: { orgId: owner.org.id, userId: user.id, role },
+        });
+        return user;
+      }),
+    );
 
     const config = await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
@@ -202,10 +216,10 @@ describe("AI gateway control plane", () => {
       }),
     ).resolves.toBe(1);
 
-    // A member who joined before the project was created and one who joins
-    // after it must both be excluded, and the creator must keep access. This
-    // goes through the real NextAuth session callback because that session is
-    // what every project-scoped tRPC procedure authorizes against.
+    // Members remain excluded whether they joined before or after project
+    // creation. Organization owners and admins inherit access in both cases.
+    // This goes through the real NextAuth session callback because that session
+    // is what every project-scoped tRPC procedure authorizes against.
     const futureMember = await prisma.user.create({
       data: { email: `gateway-future-${randomUUID()}@example.test` },
     });
@@ -217,10 +231,29 @@ describe("AI gateway control plane", () => {
         role: "MEMBER",
       },
     });
+    const futurePrivilegedUsers = await Promise.all(
+      [Role.OWNER, Role.ADMIN].map(async (role) => {
+        const user = await prisma.user.create({
+          data: {
+            email: `gateway-future-${role.toLowerCase()}-${randomUUID()}@example.test`,
+          },
+        });
+        cleanupUsers.push(user.id);
+        await prisma.organizationMembership.create({
+          data: { orgId: owner.org.id, userId: user.id, role },
+        });
+        return user;
+      }),
+    );
 
     await expect(sessionProjectIds(owner.user.email!)).resolves.toContain(
       project.id,
     );
+    for (const user of [...existingPrivilegedUsers, ...futurePrivilegedUsers]) {
+      await expect(sessionProjectIds(user.email!)).resolves.toContain(
+        project.id,
+      );
+    }
     await expect(
       sessionProjectIds(existingMember.email!),
     ).resolves.not.toContain(project.id);

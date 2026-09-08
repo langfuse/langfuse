@@ -99,7 +99,7 @@ export const PagedSettingsContainer = ({
         </nav>
         <nav
           className={cn(
-            "text-muted-foreground hidden gap-4 text-sm md:sticky md:top-5 md:grid",
+            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid",
             fullHeight && "md:top-0",
           )}
           x-chunk="dashboard-04-chunk-0"
@@ -108,14 +108,14 @@ export const PagedSettingsContainer = ({
             <Fragment key={page.title}>
               {page.section &&
               page.section !== availablePages[index - 1]?.section ? (
-                <span className="text-foreground mt-4 text-xs tracking-wider uppercase first:mt-0">
+                <span className="text-muted-foreground mt-4 flex h-8 items-center px-2 text-xs font-bold first:mt-0">
                   {page.section}
                 </span>
               ) : null}
               {"href" in page ? (
                 <Link
                   href={page.href}
-                  className="flex flex-row items-center gap-2 font-bold"
+                  className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
                 >
                   {page.title}
                   <ArrowUpRight size={14} className="inline" />
@@ -124,8 +124,9 @@ export const PagedSettingsContainer = ({
                 <span
                   onClick={() => onChange(page.slug)}
                   className={cn(
-                    "cursor-pointer font-bold",
-                    page.slug === currentPage.slug && "text-primary",
+                    "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
+                    page.slug === currentPage.slug &&
+                      "bg-muted text-primary font-bold",
                   )}
                 >
                   {page.title}

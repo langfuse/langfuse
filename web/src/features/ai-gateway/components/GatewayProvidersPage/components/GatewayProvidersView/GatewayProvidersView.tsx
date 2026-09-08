@@ -292,7 +292,7 @@ export function GatewayProvidersView({
           items={orderedConnections.map((connection) => connection.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="overflow-hidden rounded-md border">
+          <div className="flex max-h-[60dvh] flex-col overflow-hidden rounded-md border">
             <DataTable
               tableName={TABLE_NAME}
               columns={columns}

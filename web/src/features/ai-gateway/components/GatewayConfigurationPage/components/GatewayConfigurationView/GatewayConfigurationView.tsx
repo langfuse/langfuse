@@ -271,8 +271,8 @@ function CreateIngestionProjectDialog({
                 onChange={(event) => setProjectName(event.target.value)}
               />
               <p className="text-muted-foreground mt-1.5 text-xs">
-                Only you receive access initially. Other organization members
-                must be invited explicitly.
+                Organization owners and admins receive access automatically.
+                Other members must be invited explicitly.
               </p>
             </div>
           </DialogBody>

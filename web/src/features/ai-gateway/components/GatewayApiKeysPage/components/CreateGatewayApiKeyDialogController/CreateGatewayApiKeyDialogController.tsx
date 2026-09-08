@@ -98,9 +98,6 @@ export function CreateGatewayApiKeyDialogController({
       renderContent={({ closeDialog }) => (
         <>
           <DialogHeader>
-            <p className="text-foreground-tertiary text-xs tracking-wider uppercase">
-              New key
-            </p>
             <DialogTitle>
               {generatedKeys ? "Gateway API key created" : "Issue API key"}
             </DialogTitle>

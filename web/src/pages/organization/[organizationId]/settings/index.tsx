@@ -53,6 +53,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organization:update",
   });
+  const canManageGateway = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "gateway:manage",
+  });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
@@ -71,7 +75,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
-    showAiGateway: canUpdateOrganization && isAiGatewayEnabled,
+    showAiGateway: canManageGateway && isAiGatewayEnabled,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });

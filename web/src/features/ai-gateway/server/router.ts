@@ -35,7 +35,7 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   throwIfNoOrganizationAccess({
     session: params.session,
     organizationId: params.orgId,
-    scope: "organization:update",
+    scope: "gateway:manage",
   });
 }
 

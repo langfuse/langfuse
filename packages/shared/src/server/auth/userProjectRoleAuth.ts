@@ -6,12 +6,9 @@ import { usersTableCols } from "../../tableDefinitions/usersTable";
 /**
  * Resolves the role a user holds on a project.
  *
- * An explicit project membership always wins. Without one, the user inherits
- * their organization role — except for projects listed in
- * `explicitMembershipOnlyProjectIds`, which grant no access at all unless an
- * explicit membership exists. The AI gateway ingestion project uses this:
- * organization members must not see gateway traffic just because they belong to
- * the organization.
+ * An explicit project membership always wins. Without one, organization owners
+ * and admins inherit their organization role. Other users inherit their role
+ * unless the project is listed in `explicitMembershipOnlyProjectIds`.
  */
 export function resolveProjectRole({
   projectId,
@@ -28,7 +25,13 @@ export function resolveProjectRole({
     (membership) => membership.projectId === projectId,
   )?.role;
   if (explicitRole) return explicitRole;
-  if (explicitMembershipOnlyProjectIds?.includes(projectId)) return Role.NONE;
+  if (
+    explicitMembershipOnlyProjectIds?.includes(projectId) &&
+    orgMembershipRole !== Role.OWNER &&
+    orgMembershipRole !== Role.ADMIN
+  ) {
+    return Role.NONE;
+  }
   return orgMembershipRole;
 }
 
@@ -49,6 +52,7 @@ export function resolveProjectRole({
  * ROLE RESOLUTION:
  * - If user has explicit project role: use project role
  * - If user has no project role: inherit organization role
+ * - Gateway ingestion projects only inherit OWNER and ADMIN roles
  * - Users with NONE role at either level are excluded
  *
  * @param params Query parameters
@@ -84,8 +88,16 @@ function generateUserProjectRolesQuery({
       INNER JOIN users u ON om.user_id = u.id
       WHERE om.org_id = ${orgId}
         AND om.role != 'NONE'
+        AND (
+          om.role IN ('OWNER', 'ADMIN')
+          OR NOT EXISTS (
+            SELECT 1 FROM gateway_configs gc
+            WHERE gc.organization_id = om.org_id
+              AND gc.default_ingestion_project_id = ${projectId}
+          )
+        )
         AND NOT EXISTS (
-          SELECT 1 FROM project_memberships pm 
+          SELECT 1 FROM project_memberships pm
           WHERE pm.org_membership_id = om.id
             AND pm.project_id = ${projectId}
         )

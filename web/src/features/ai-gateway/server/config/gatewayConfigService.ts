@@ -88,11 +88,10 @@ export class GatewayConfigService {
   /**
    * Points the gateway at a project that already exists.
    *
-   * The ingestion project is excluded from organization-role inheritance (see
-   * resolveProjectRole), so without this the setting would silently remove an
-   * existing project from everyone who reached it through their organization
-   * role. Current access is therefore written out as explicit memberships, and
-   * only members who join later are kept out.
+   * Regular organization members do not inherit access to the ingestion project
+   * (see resolveProjectRole). Current access is therefore written out as
+   * explicit memberships so selecting an existing project does not remove it.
+   * Only regular members who join later are kept out.
    */
   private upsertConfigForExistingProject(params: {
     organizationId: string;
@@ -183,10 +182,9 @@ export class GatewayConfigService {
           name: params.projectName,
         },
       });
-      // The ingestion project is not accessible through organization-role
-      // inheritance (see resolveProjectRole), so the creator needs an explicit
-      // membership to keep managing it. Everyone else gains access only when an
-      // admin grants them a project role.
+      // Preserve the creator's access even if their organization role changes.
+      // Other organization owners and admins inherit access; regular members
+      // need an explicit project role.
       await tx.projectMembership.create({
         data: {
           projectId: project.id,
