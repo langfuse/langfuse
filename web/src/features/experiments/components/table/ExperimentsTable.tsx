@@ -14,6 +14,7 @@ import {
 } from "@/src/features/filters";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
 import {
   DEFAULT_SEARCH_TYPE,
@@ -346,6 +347,7 @@ export default function ExperimentsTable({
     filterOptions,
     datasetIdByName,
     datasetNameById,
+    datasetNamesQuery,
     isFilterOptionsPending,
   } = useExperimentFilterOptions({
     projectId,
@@ -443,11 +445,10 @@ export default function ExperimentsTable({
 
   // Use the custom hook for experiments data fetching
   // A dataset-name filter cannot be queried until the name -> id map lands.
-  const awaitsDatasetNames =
-    datasetIdByName.size === 0 &&
-    combinedFilterState.some(
-      (filter) => filter.column === "experimentDatasetName",
-    );
+  const waitingForDatasetNames = awaitsDatasetNames(
+    combinedFilterState,
+    datasetNamesQuery,
+  );
 
   const {
     experiments,
@@ -461,7 +462,7 @@ export default function ExperimentsTable({
     filterState,
     orderByState,
     paginationState,
-    enabled: !awaitsDatasetNames,
+    enabled: !waitingForDatasetNames,
   });
 
   // A score column that is empty for every experiment in view is noise, so only
