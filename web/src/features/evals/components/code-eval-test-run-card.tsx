@@ -12,7 +12,7 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
