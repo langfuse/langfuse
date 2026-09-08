@@ -42,7 +42,6 @@ const prepare = async () => {
         },
       ],
       featureFlags: {
-        searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,

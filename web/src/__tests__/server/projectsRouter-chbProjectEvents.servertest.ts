@@ -95,7 +95,6 @@ function makeCaller({
           : [],
       })),
       featureFlags: {
-        searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,
