@@ -1,12 +1,13 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude,
-  Greptile, and Codex review comments, preview test steps, proof of work
-  posted on the GitHub PR, and review-doubt notes for Cursor agents. Use
-  when a Cursor Cloud or Cursor desktop agent implements a Linear issue,
-  opens a GitHub PR, asks a human to test, posts screenshots or videos,
-  or handles Claude, Greptile, or Codex code-review comments.
+  Human handoff, Linear branch names, reviewable (non-draft) PRs, the
+  `cursor` GitHub label, Claude, Greptile, and Codex review comments,
+  preview test steps, proof of work posted on the GitHub PR, and
+  review-doubt notes for Cursor agents. Use when a Cursor Cloud or
+  Cursor desktop agent implements a Linear issue, opens a GitHub PR,
+  asks a human to test, posts screenshots or videos, or handles Claude,
+  Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -50,6 +51,13 @@ practice being followed.
 Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
 when a human asks for one.
+
+After opening the PR, apply the GitHub `cursor` label. Use the PR label
+tool. Do not wait for a human to add it, and do not substitute a `codex`
+or other agent label. A same-repo workflow also applies `cursor` when the
+author is `cursor[bot]`, the branch starts with `cursor/`, or the PR body
+contains the Cursor agent marker — still apply it yourself so the tag is
+present immediately.
 
 Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
 a non-draft same-repo PR from a write-access user, github-actions posts
