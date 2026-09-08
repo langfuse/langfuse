@@ -91,7 +91,7 @@ export default async function handler(
   if (req.method === "POST") {
     const authCheck = await verifyOrgAuth({
       req,
-      action: "projects:read",
+      action: "projects:create",
     });
     if (!authCheck.validKey) {
       return res.status(authCheck.status).json({

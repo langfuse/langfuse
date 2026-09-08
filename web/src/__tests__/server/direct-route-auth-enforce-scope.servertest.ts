@@ -15,7 +15,10 @@ import {
   type DirectAuthResult,
   type VerifyOrgAuthParams,
 } from "@/src/features/auth/policy/shadow.direct";
-import { type ProjectAction } from "@/src/features/auth/policy/types";
+import {
+  type OrganizationAction,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
 import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
 // The seams are imported dynamically so the authenticator singleton captures
@@ -66,10 +69,13 @@ const asResult = async (
   }
 };
 
-const orgResultUnderModes = async (authorization: string) => {
+const orgResultUnderModes = async (
+  authorization: string,
+  action: OrganizationAction = "projects:read",
+) => {
   const params: VerifyOrgAuthParams = {
     req: reqWith({ authorization }),
-    action: "projects:read",
+    action,
   };
   setMode("legacy");
   const legacy = await orgSeam.verifyOrgAuth(params);
@@ -170,6 +176,36 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
       dropScopeKey(scopeOf(legacy)),
     );
   });
+
+  const orgRouteActions: OrganizationAction[] = [
+    "organization:CRUD_apiKeys",
+    "organizationMembers:read",
+    "organizationMembers:CUD",
+    "projects:create",
+  ];
+
+  it.each(orgRouteActions)(
+    "an organization key is authorized for %s in both modes",
+    async (action) => {
+      const { legacy, enforce } = await orgResultUnderModes(orgAuth, action);
+      expect(scopeOf(enforce).accessLevel).toBe("organization");
+      expect(dropScopeKey(scopeOf(enforce))).toEqual(
+        dropScopeKey(scopeOf(legacy)),
+      );
+    },
+  );
+
+  it.each(orgRouteActions)(
+    "a project key on an org route 403s for %s in both modes",
+    async (action) => {
+      const { legacy, enforce } = await orgResultUnderModes(
+        projectAuth,
+        action,
+      );
+      expect(legacy).toMatchObject({ validKey: false, status: 403 });
+      expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    },
+  );
 
   it("a project key on a project route yields a legacy-identical project scope", async () => {
     const { legacy, enforce } = await projectResultUnderModes(projectAuth);

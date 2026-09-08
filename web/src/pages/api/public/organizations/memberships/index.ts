@@ -33,7 +33,10 @@ export default async function handler(
   // CHECK AUTH
   const authCheck = await verifyOrgAuth({
     req,
-    action: "projects:read",
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
   });
   if (!authCheck.validKey) {
     return res.status(authCheck.status).json({
