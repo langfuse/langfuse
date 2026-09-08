@@ -4,11 +4,11 @@ export type Flag = (typeof availableFlags)[number];
 export type Flags = {
   [key in Exclude<
     Flag,
-    "modernSession" | "normalizedIoPreview" | "llmGateway"
+    "modernSession" | "normalizedIoPreview" | "aiGateway"
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
   modernSession?: boolean;
   normalizedIoPreview?: boolean;
-  llmGateway?: boolean;
+  aiGateway?: boolean;
 };

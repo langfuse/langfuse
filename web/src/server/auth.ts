@@ -15,7 +15,7 @@ import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
 } from "@/src/features/feature-flags/utils";
-import { isGatewayEnabledForOrganization } from "@/src/features/llm-gateway/server/availability";
+import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
@@ -916,10 +916,9 @@ export async function getAuthOptions(signupAttribution?: {
                             {
                               email: dbUser.email,
                               v4BetaEnabled,
-                              llmGatewayEnabled:
-                                isGatewayEnabledForOrganization(
-                                  orgMembership.organization.id,
-                                ),
+                              aiGatewayEnabled: isGatewayEnabledForOrganization(
+                                orgMembership.organization.id,
+                              ),
                             },
                           ),
                           cloudConfig: parsedCloudConfig.data,

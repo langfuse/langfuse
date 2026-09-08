@@ -42,20 +42,20 @@ describe("parseFlags", () => {
       parseFlags([], {
         email: "user@example.com",
         v4BetaEnabled: true,
-        llmGatewayEnabled: true,
-      }).llmGateway,
+        aiGatewayEnabled: true,
+      }).aiGateway,
     ).toBe(true);
     expect(
-      parseFlags(["llmGateway"], {
+      parseFlags(["aiGateway"], {
         email: "user@example.com",
         v4BetaEnabled: true,
-      }).llmGateway,
+      }).aiGateway,
     ).toBe(false);
     expect(
-      parseFlags(["llmGateway"], {
+      parseFlags(["aiGateway"], {
         email: "team.member@langfuse.com",
         v4BetaEnabled: true,
-      }).llmGateway,
+      }).aiGateway,
     ).toBe(false);
   });
 

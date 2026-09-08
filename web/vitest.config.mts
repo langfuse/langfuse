@@ -130,11 +130,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: [
-    "@ag-ui/core",
-    "@ag-ui/client",
-    "langfuse",
-  ],
+  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
 };
 
 function serverProject(
@@ -281,8 +277,8 @@ export default defineConfig({
         },
       },
       serverProject(
-        "gateway-e2e-server",
-        ["src/__e2e__/**/*.gatewaye2e.{ts,tsx}"],
+        "ai-gateway-e2e-server",
+        ["src/__e2e__/**/ai-gateway.gatewaye2e.{ts,tsx}"],
         { isolate: true },
       ),
     ],

@@ -8,11 +8,11 @@ vi.mock("next-auth/react", () => ({
 }));
 
 const mockSession = ({
-  llmGateway,
+  aiGateway,
   admin = false,
   enableExperimentalFeatures = false,
 }: {
-  llmGateway: boolean;
+  aiGateway: boolean;
   admin?: boolean;
   enableExperimentalFeatures?: boolean;
 }) => {
@@ -21,11 +21,11 @@ const mockSession = ({
       environment: { enableExperimentalFeatures },
       user: {
         admin,
-        featureFlags: { llmGateway: false },
+        featureFlags: { aiGateway: false },
         organizations: [
           {
             id: "org-1",
-            featureFlags: { llmGateway },
+            featureFlags: { aiGateway },
             projects: [],
           },
         ],
@@ -37,23 +37,23 @@ const mockSession = ({
 describe("useIsFeatureEnabled", () => {
   it("does not let admin or experimental-feature overrides enable restricted flags", () => {
     mockSession({
-      llmGateway: false,
+      aiGateway: false,
       admin: true,
       enableExperimentalFeatures: true,
     });
 
     const { result } = renderHook(() =>
-      useIsFeatureEnabled("llmGateway", { organizationId: "org-1" }),
+      useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
     );
 
     expect(result.current).toBe(false);
   });
 
   it("returns the server-resolved organization flag", () => {
-    mockSession({ llmGateway: true });
+    mockSession({ aiGateway: true });
 
     const { result } = renderHook(() =>
-      useIsFeatureEnabled("llmGateway", { organizationId: "org-1" }),
+      useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
     );
 
     expect(result.current).toBe(true);

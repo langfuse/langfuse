@@ -118,10 +118,10 @@ jobs:
               - 'packages/shared/src/server/llm/**'
               - 'worker/src/__tests__/llmConnections.test.ts'
 
-  gateway-filter:
+  ai-gateway-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
-      changed: ${{ steps.filter.outputs.gateway }}
+      changed: ${{ steps.filter.outputs.ai_gateway }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -135,10 +135,10 @@ jobs:
         id: filter
         with:
           filters: |
-            gateway:
+            ai_gateway:
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
-              - 'web/src/features/llm-gateway/**'
+              - 'web/src/features/ai-gateway/**'
               - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
               - 'web/src/pages/api/internal/ai-gateway/**'
               - 'web/src/pages/api/public/ingestion.ts'
@@ -1268,14 +1268,14 @@ jobs:
         if: env.CI_CACHE_ALLOWED == 'true'
         run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
-  test-gateway-e2e:
+  test-ai-gateway-e2e:
     timeout-minutes: 25
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-      - gateway-filter
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
-    name: test-gateway-e2e (node24, pg15)
+      - ai-gateway-filter
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    name: test-ai-gateway-e2e (node24, pg15)
     env:
       NODE_ENV: test
     steps:
@@ -1350,8 +1350,8 @@ jobs:
         run: timeout 30 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
       - name: Check server health
         run: timeout 30 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
-      - name: Run gateway end-to-end tests
-        run: pnpm --filter=web run test:e2e:gateway
+      - name: Run AI Gateway end-to-end tests
+        run: pnpm --filter=web run test:e2e:ai-gateway
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
@@ -1374,7 +1374,7 @@ jobs:
         tests-web-client,
         tests-worker,
         test-worker-llm-connections,
-        test-gateway-e2e,
+        test-ai-gateway-e2e,
         e2e-tests,
         test-docker-build,
         e2e-server-tests,

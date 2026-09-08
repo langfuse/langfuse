@@ -96,7 +96,7 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: vi.fn(),
 }));
 
-vi.mock("@/src/features/llm-gateway", () => ({
+vi.mock("@/src/features/ai-gateway", () => ({
   GatewayApiKeysPage: () => null,
   GatewayConfigurationPage: () => null,
   GatewayModelsPage: () => null,
@@ -177,7 +177,7 @@ describe("useOrganizationSettingsPages", () => {
     ).toBe(true);
   });
 
-  it("hides all LLM Gateway settings without organization update access", () => {
+  it("hides all AI Gateway settings without organization update access", () => {
     const { result } = renderHook(() => useOrganizationSettingsPages());
 
     expect(useHasOrganizationAccess).toHaveBeenCalledWith({
@@ -186,25 +186,25 @@ describe("useOrganizationSettingsPages", () => {
     });
     expect(
       result.current
-        .filter((page) => page.slug.startsWith("llm-gateway"))
+        .filter((page) => page.slug.startsWith("ai-gateway"))
         .every((page) => page.show === false),
     ).toBe(true);
   });
 
-  it("hides all LLM Gateway settings when the internal flag is disabled", () => {
+  it("hides all AI Gateway settings when the internal flag is disabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organization:update",
     );
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
     const gatewayPages = result.current.filter((page) =>
-      page.slug.startsWith("llm-gateway"),
+      page.slug.startsWith("ai-gateway"),
     );
 
     expect(gatewayPages.every((page) => page.show === false)).toBe(true);
   });
 
-  it("shows all LLM Gateway settings when the internal flag and organization access are enabled", () => {
+  it("shows all AI Gateway settings when the internal flag and organization access are enabled", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organization:update",
     );
@@ -212,14 +212,14 @@ describe("useOrganizationSettingsPages", () => {
 
     const { result } = renderHook(() => useOrganizationSettingsPages());
     const gatewayPages = result.current.filter((page) =>
-      page.slug.startsWith("llm-gateway"),
+      page.slug.startsWith("ai-gateway"),
     );
 
     expect(gatewayPages.map((page) => page.slug)).toEqual([
-      "llm-gateway",
-      "llm-gateway-providers",
-      "llm-gateway-models",
-      "llm-gateway-api-keys",
+      "ai-gateway",
+      "ai-gateway-providers",
+      "ai-gateway-models",
+      "ai-gateway-api-keys",
     ]);
     expect(gatewayPages.every((page) => page.show === true)).toBe(true);
   });

@@ -25,7 +25,7 @@
     "test-storybook": "vitest run --project storybook",
     "test:e2e": "dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
     "test:e2e:server": "vitest run --project e2e-server",
-    "test:e2e:gateway": "dotenv -e ../.env -- vitest run --project gateway-e2e-server",
+    "test:e2e:ai-gateway": "dotenv -e ../.env -- vitest run --project ai-gateway-e2e-server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack",
     "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
     "structure:stats": "node scripts/structure/stats.mjs",

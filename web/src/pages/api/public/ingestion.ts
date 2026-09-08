@@ -32,7 +32,7 @@ import {
   SDK_VERSION_ATTRIBUTE,
   extractSdkAttributes,
 } from "@langfuse/shared/instrumentation/bootstrap";
-import { verifyGatewayIngestionAuthorization } from "@/src/features/llm-gateway/server";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
 
 export const config = {
   api: {
@@ -98,6 +98,7 @@ export default async function handler(
     // CHECK AUTH FOR ALL EVENTS
     const gatewayAuth = await verifyGatewayIngestionAuthorization(
       req.headers.authorization,
+      req.headers["langfuse-gateway-authorization"],
     );
     const authCheck =
       gatewayAuth ??

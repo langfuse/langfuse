@@ -9,7 +9,7 @@ import { usersTableCols } from "../../tableDefinitions/usersTable";
  * An explicit project membership always wins. Without one, the user inherits
  * their organization role — except for projects listed in
  * `explicitMembershipOnlyProjectIds`, which grant no access at all unless an
- * explicit membership exists. The LLM gateway ingestion project uses this:
+ * explicit membership exists. The AI gateway ingestion project uses this:
  * organization members must not see gateway traffic just because they belong to
  * the organization.
  */

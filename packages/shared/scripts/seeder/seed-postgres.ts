@@ -183,7 +183,7 @@ async function main() {
     },
   });
 
-  await seedLlmGateway({
+  await seedAiGateway({
     organizationId: seedOrgId,
     userId: user.id,
     orgMembershipId: orgMembership.id,
@@ -516,7 +516,7 @@ main()
     process.exit(1);
   });
 
-async function seedLlmGateway(params: {
+async function seedAiGateway(params: {
   organizationId: string;
   userId: string;
   orgMembershipId: string;
@@ -530,7 +530,7 @@ async function seedLlmGateway(params: {
     where: { id: ingestionProjectId },
     create: {
       id: ingestionProjectId,
-      name: "LLM Gateway Ingestion",
+      name: "AI Gateway Ingestion",
       orgId: params.organizationId,
     },
     update: { orgId: params.organizationId },

@@ -34,8 +34,10 @@ export type Es256JwtVerifier<TClaims extends JwtRegisteredClaims> = {
   verify(input: { token: string; now?: Date }): TClaims;
 };
 
-// ES256 uses ECDSA P-256 with SHA-256, an approved signature service in the
-// RHEL 9 OpenSSL FIPS provider: https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4857
+// ES256 is ECDSA P-256 with SHA-256:
+// https://www.rfc-editor.org/rfc/rfc7518.html#section-3.4
+// RHEL 9's validated OpenSSL provider approves that combination in Table 6:
+// https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4857.pdf
 const Es256JwtHeaderSchema = z.object({
   alg: z.literal("ES256"),
   typ: z.literal("JWT"),

@@ -4,7 +4,7 @@ export const featurePreviewFlags = ["modernSession"] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-const restrictedFlags = ["llmGateway"] as const;
+const restrictedFlags = ["aiGateway"] as const;
 
 type RestrictedFlag = (typeof restrictedFlags)[number];
 

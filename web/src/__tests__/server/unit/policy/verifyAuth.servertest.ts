@@ -35,7 +35,7 @@ vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
   recordCoverage: mockRecordCoverage,
 }));
 
-vi.mock("@/src/features/llm-gateway/server", () => ({
+vi.mock("@/src/features/ai-gateway/server", () => ({
   verifyGatewayIngestionAuthorization: mockVerifyGatewayIngestionAuthorization,
 }));
 

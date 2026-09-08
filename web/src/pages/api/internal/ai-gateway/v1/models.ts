@@ -1,12 +1,6 @@
 import {
   gatewayModelsApiHandler,
   withGatewayModelsAuth,
-} from "@/src/features/llm-gateway/server";
+} from "@/src/features/ai-gateway/server";
 
 export default withGatewayModelsAuth(gatewayModelsApiHandler);
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};

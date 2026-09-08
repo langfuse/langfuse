@@ -29,7 +29,7 @@ import {
   GatewayConfigurationPage,
   GatewayModelsPage,
   GatewayProvidersPage,
-} from "@/src/features/llm-gateway";
+} from "@/src/features/ai-gateway";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -57,7 +57,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const showV4Migration = useV4UpgradeUiFlag();
-  const isLlmGatewayEnabled = useIsFeatureEnabled("llmGateway", {
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
     enableForAdmins: false,
     organizationId: organization?.id,
   });
@@ -71,7 +71,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
-    showLlmGateway: canUpdateOrganization && isLlmGatewayEnabled,
+    showAiGateway: canUpdateOrganization && isAiGatewayEnabled,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -84,7 +84,7 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
-  showLlmGateway,
+  showAiGateway,
   showFeaturePreviews,
 }: {
   organization: {
@@ -102,7 +102,7 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
-  showLlmGateway: boolean;
+  showAiGateway: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -239,8 +239,8 @@ export const getOrganizationSettingsPages = ({
   },
   {
     title: "Configuration",
-    slug: "llm-gateway",
-    section: "LLM Gateway",
+    slug: "ai-gateway",
+    section: "AI Gateway",
     cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
     content: (
       <GatewayConfigurationPage
@@ -248,12 +248,12 @@ export const getOrganizationSettingsPages = ({
         projects={organization.projects}
       />
     ),
-    show: showLlmGateway,
+    show: showAiGateway,
   },
   {
     title: "Provider credentials",
-    slug: "llm-gateway-providers",
-    section: "LLM Gateway",
+    slug: "ai-gateway-providers",
+    section: "AI Gateway",
     cmdKKeywords: [
       "gateway",
       "providers",
@@ -263,23 +263,23 @@ export const getOrganizationSettingsPages = ({
       "openrouter",
     ],
     content: <GatewayProvidersPage organizationId={organization.id} />,
-    show: showLlmGateway,
+    show: showAiGateway,
   },
   {
     title: "Models",
-    slug: "llm-gateway-models",
-    section: "LLM Gateway",
+    slug: "ai-gateway-models",
+    section: "AI Gateway",
     cmdKKeywords: ["gateway", "models", "discovery", "sync"],
     content: <GatewayModelsPage organizationId={organization.id} />,
-    show: showLlmGateway,
+    show: showAiGateway,
   },
   {
     title: "Gateway API keys",
-    slug: "llm-gateway-api-keys",
-    section: "LLM Gateway",
+    slug: "ai-gateway-api-keys",
+    section: "AI Gateway",
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
     content: <GatewayApiKeysPage organizationId={organization.id} />,
-    show: showLlmGateway,
+    show: showAiGateway,
   },
 ];
 
@@ -296,13 +296,13 @@ const OrgSettingsPage = () => {
       headerProps={{
         title: "Organization Settings",
       }}
-      extendRight={router.query.page === "llm-gateway-models"}
-      fullHeight={router.query.page === "llm-gateway-models"}
+      extendRight={router.query.page === "ai-gateway-models"}
+      fullHeight={router.query.page === "ai-gateway-models"}
     >
       <PagedSettingsContainer
         activeSlug={page as string | undefined}
         pages={pages}
-        fullHeight={router.query.page === "llm-gateway-models"}
+        fullHeight={router.query.page === "ai-gateway-models"}
       />
     </ContainerPage>
   );

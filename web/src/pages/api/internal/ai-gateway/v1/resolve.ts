@@ -1,7 +1,7 @@
 import {
   gatewayResolveApiHandler,
   withGatewayResolveAuth,
-} from "@/src/features/llm-gateway/server";
+} from "@/src/features/ai-gateway/server";
 
 export default withGatewayResolveAuth(gatewayResolveApiHandler);
 
