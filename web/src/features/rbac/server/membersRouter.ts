@@ -310,6 +310,26 @@ export const membersRouter = createTRPCRouter({
           });
         }
 
+        // A project membership can outlive this org's membership (e.g. a stray
+        // row referencing another org). Reject the duplicate before creating
+        // the org membership so a failed project insert cannot leave a
+        // committed org membership (and consumed seat) behind.
+        if (
+          project &&
+          input.projectRole &&
+          input.projectRole !== Role.NONE &&
+          (await ctx.prisma.projectMembership.findUnique({
+            where: {
+              projectId_userId: { projectId: project.id, userId: user.id },
+            },
+          }))
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "User is already a member of this project",
+          });
+        }
+
         // create org membership as user is not a member yet, unless that
         // would exceed the member limit
         const orgMembership = await createWithinEntitlementLimit({
