@@ -63,14 +63,22 @@ jobs:
               if (error.status !== 404) {
                 throw error;
               }
-              await github.rest.issues.createLabel({
-                owner,
-                repo,
-                name: LABEL,
-                color: COLOR,
-                description: DESCRIPTION,
-              });
-              core.info(`Created missing '${LABEL}' label.`);
+              try {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: LABEL,
+                  color: COLOR,
+                  description: DESCRIPTION,
+                });
+                core.info(`Created missing '${LABEL}' label.`);
+              } catch (createError) {
+                if (createError.status !== 422) {
+                  throw createError;
+                }
+                await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+                core.info(`'${LABEL}' label appeared concurrently; continuing.`);
+              }
             }
 
             await github.rest.issues.addLabels({
