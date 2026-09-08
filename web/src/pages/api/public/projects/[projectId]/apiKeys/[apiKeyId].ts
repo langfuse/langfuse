@@ -29,13 +29,11 @@ export default async function handler(
     // CHECK AUTH
     const authCheck = await verifyOrgAuth({
       req,
-      name: "Delete Project API Key",
       action: "projects:read",
-      scopeDeniedMessage: orgKeyRequired,
     });
     if (!authCheck.validKey) {
       return res.status(authCheck.status).json({
-        message: authCheck.error,
+        message: authCheck.status === 403 ? orgKeyRequired : authCheck.error,
       });
     }
     // END CHECK AUTH

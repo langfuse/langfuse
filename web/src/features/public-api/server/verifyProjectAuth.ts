@@ -39,7 +39,7 @@ export async function verifyProjectAuth(
   if (env.API_AUTH_MIGRATION === "shadow") {
     const legacy = await runLegacyAuth(params);
     const authz = await runNewAuth(params);
-    recordCoverage(params.name);
+    recordCoverage(params.req.url ?? "");
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: "project_route",
       action: params.action,
@@ -90,7 +90,6 @@ function runNewAuth(params: VerifyAuthParams) {
 /** VerifyAuthParams is the request plus the route's action and legacy auth options. */
 export type VerifyAuthParams = {
   req: NextApiRequest;
-  name: string;
   action: ProjectAction;
   isAdminApiKeyAuthAllowed?: boolean;
   allowedAccessLevels?: RouteAccessLevel[];

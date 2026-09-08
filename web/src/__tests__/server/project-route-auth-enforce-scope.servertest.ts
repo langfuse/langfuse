@@ -77,7 +77,6 @@ describe("enforce maps principals to legacy-identical scopes", () => {
       req: reqWith({
         authorization: createBasicAuthHeader(publicKey, secretKey),
       }),
-      name: "Get Traces",
       action: "traces:read",
       allowedAccessLevels: ["project"],
     });
@@ -89,7 +88,6 @@ describe("enforce maps principals to legacy-identical scopes", () => {
   it("public-key bearer on a score-ingest route yields the scores access level", async () => {
     const { legacy, enforce } = await scopeUnderModes({
       req: reqWith({ authorization: `Bearer ${publicKey}` }),
-      name: "Create Score",
       action: "scores:create",
       allowedAccessLevels: ["project", "scores"],
     });
@@ -105,7 +103,6 @@ describe("enforce maps principals to legacy-identical scopes", () => {
         "x-langfuse-admin-api-key": adminApiKey,
         "x-langfuse-project-id": projectId,
       }),
-      name: "Get Models",
       action: "models:read",
       isAdminApiKeyAuthAllowed: true,
     });
@@ -122,7 +119,6 @@ describe("enforce maps principals to legacy-identical scopes", () => {
         "x-langfuse-admin-api-key": adminApiKey,
         "x-langfuse-project-id": projectId,
       }),
-      name: "Get Models",
       action: "models:read",
       isAdminApiKeyAuthAllowed: true,
     };

@@ -140,7 +140,6 @@ export const createAuthedProjectAPIRoute = <
     try {
       auth = await verifyProjectAuth({
         req,
-        name: routeConfig.name,
         action: routeConfig.action,
         isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
         allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],

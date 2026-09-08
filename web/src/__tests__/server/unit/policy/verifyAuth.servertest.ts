@@ -39,8 +39,7 @@ describe("project seam verifyProjectAuth", () => {
   const legacyScope = { scope: { projectId: "p1", accessLevel: "project" } };
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
-  const call = () =>
-    verifyProjectAuth({ req, name: "Get Traces", action: "traces:read" });
+  const call = () => verifyProjectAuth({ req, action: "traces:read" });
 
   const legacyAllows = () =>
     mockLegacyVerifyAuth.mockResolvedValue(legacyScope);
@@ -137,7 +136,7 @@ describe("project seam verifyProjectAuth", () => {
       legacyAllows();
       authzDenies();
       await call();
-      expect(mockRecordCoverage).toHaveBeenCalledWith("Get Traces");
+      expect(mockRecordCoverage).toHaveBeenCalledWith("");
       expect(mockDiffResults).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
         { ok: true },

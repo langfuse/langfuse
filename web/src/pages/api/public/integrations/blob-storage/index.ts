@@ -33,10 +33,7 @@ async function handleGetBlobStorageIntegrations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(
-    req,
-    "List Blob Storage Integrations",
-  );
+  const scope = await authorizeBlobStorageRequest(req);
 
   if (
     !hasEntitlementBasedOnPlan({
@@ -101,10 +98,7 @@ async function handleUpsertBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(
-    req,
-    "Upsert Blob Storage Integration",
-  );
+  const scope = await authorizeBlobStorageRequest(req);
 
   if (
     !hasEntitlementBasedOnPlan({
@@ -223,19 +217,13 @@ async function handleUpsertBlobStorageIntegration(
 /** authorizeBlobStorageRequest gates a blob-storage request on an organization key, returning the verified scope. */
 async function authorizeBlobStorageRequest(
   req: NextApiRequest,
-  name: string,
 ): Promise<ApiAccessScope> {
-  const authCheck = await verifyOrgAuth({
-    req,
-    name,
-    action: "projects:read",
-    scopeDeniedMessage: orgKeyRequired,
-  });
+  const authCheck = await verifyOrgAuth({ req, action: "projects:read" });
   if (!authCheck.validKey) {
     if (authCheck.status === 401) {
       throw new UnauthorizedError(authCheck.error);
     }
-    throw new ForbiddenError(authCheck.error);
+    throw new ForbiddenError(orgKeyRequired);
   }
   return authCheck.scope;
 }

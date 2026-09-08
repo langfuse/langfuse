@@ -77,15 +77,12 @@ const mappedFields = {
 describe("org direct seam verifyOrgAuth", () => {
   const orgScope = { accessLevel: "organization", orgId: "org_1" };
   const projectScope = { accessLevel: "project", projectId: "prj_1" };
-  const orgDenied = "org key required";
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
   const call = () =>
     verifyOrgAuth({
       req,
-      name: "Get Organization Projects",
       action: "projects:read",
-      scopeDeniedMessage: orgDenied,
     });
 
   const legacyOrgKey = () =>
@@ -127,12 +124,12 @@ describe("org direct seam verifyOrgAuth", () => {
       });
     });
 
-    it("returns the route's own 403 for a non-org key", async () => {
+    it("403s a non-org key, leaving the body to the route", async () => {
       legacyProjectKey();
       expect(await call()).toEqual({
         validKey: false,
         status: 403,
-        error: orgDenied,
+        error: "",
       });
     });
   });
@@ -161,9 +158,7 @@ describe("org direct seam verifyOrgAuth", () => {
       legacyOrgKey();
       authzDenies();
       await call();
-      expect(mockRecordCoverage).toHaveBeenCalledWith(
-        "Get Organization Projects",
-      );
+      expect(mockRecordCoverage).toHaveBeenCalledWith("");
       expect(mockDiffResults).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
         { ok: true },
@@ -208,12 +203,12 @@ describe("org direct seam verifyOrgAuth", () => {
       expect(await call()).toMatchObject({ validKey: false, status: 500 });
     });
 
-    it("returns the route's own 403 when the new pipeline denies", async () => {
+    it("403s when the new pipeline denies, leaving the body to the route", async () => {
       authzDenies();
       expect(await call()).toEqual({
         validKey: false,
         status: 403,
-        error: orgDenied,
+        error: "nope",
       });
     });
 

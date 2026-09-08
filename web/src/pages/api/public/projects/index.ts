@@ -33,7 +33,6 @@ export default async function handler(
     try {
       auth = await verifyProjectAuth({
         req,
-        name: "Get Project",
         action: "project:read",
       });
     } catch (error: any) {
@@ -92,13 +91,11 @@ export default async function handler(
   if (req.method === "POST") {
     const authCheck = await verifyOrgAuth({
       req,
-      name: "Create Project",
       action: "projects:read",
-      scopeDeniedMessage: orgKeyRequired,
     });
     if (!authCheck.validKey) {
       return res.status(authCheck.status).json({
-        message: authCheck.error,
+        message: authCheck.status === 403 ? orgKeyRequired : authCheck.error,
       });
     }
 
