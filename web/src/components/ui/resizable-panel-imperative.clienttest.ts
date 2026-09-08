@@ -40,7 +40,11 @@ describe("isUnmountedResizablePanelGroupError", () => {
 
   it("does not match unrelated errors", () => {
     expect(
-      isUnmountedResizablePanelGroupError(new Error("Group Context not found")),
+      isUnmountedResizablePanelGroupError(
+        new Error(
+          "Group Context not found; did you render a Panel or Separator outside of a Group?",
+        ),
+      ),
     ).toBe(false);
     expect(isUnmountedResizablePanelGroupError(new Error("not found"))).toBe(
       false,

@@ -8,9 +8,9 @@ import type { PanelImperativeHandle } from "react-resizable-panels";
  */
 export function isUnmountedResizablePanelGroupError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  // Same "Group … not found" shape as the registry miss, but this one means a
-  // Panel rendered outside a Group — still an application bug.
-  if (error.message === "Group Context not found") return false;
+  // Same "Group … not found" prefix as the registry miss, but this library
+  // message means a Panel rendered outside a Group — still an application bug.
+  if (error.message.startsWith("Group Context not found")) return false;
   return (
     /^Group \S+ not found$/.test(error.message) ||
     /^Could not find (?:data for )?Group with id /.test(error.message)
