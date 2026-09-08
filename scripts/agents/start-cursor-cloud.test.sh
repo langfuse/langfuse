@@ -67,6 +67,10 @@ chmod +x \
 # Leave $test_docker_socket missing so ensure_docker_socket_reachable must
 # repair the parent directory before the daemon probe loop.
 PATH="$tmpdir/bin:$PATH" \
+LANGFUSE_CONFIG_DIR="$tmpdir/identity" \
+LINEAR_API_KEY="" \
+LINEAR_TOKEN="" \
+LINEAR_API_TOKEN="" \
 DATABASE_URL="postgresql://external.example:5432/production" \
 CLICKHOUSE_URL="https://external.example:8443" \
 CURSOR_COMPOSE_WAIT_TIMEOUT_SECONDS=321 \

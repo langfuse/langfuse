@@ -151,9 +151,10 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
-  // The normalized-parser formatted view is gated to admins and explicitly
-  // flagged users; it must never surface for regular users.
-  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+  // "Improved Message Rendering" feature preview: when enabled, the Formatted
+  // view is powered by the normalized parser instead of the legacy one.
+  const improvedRenderingEnabled = useIsFeatureEnabled("normalizedIoPreview", {
+    enableForAdmins: false,
     projectId,
   });
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -164,7 +165,13 @@ export function IOPreview({
     "jsonViewPreference",
     "pretty",
   );
-  const selectedView = currentView ?? localCurrentView;
+  // A previously persisted "pretty-beta" preference is no longer a view mode;
+  // fall back to the Formatted view.
+  const normalizedLocalView: ViewMode =
+    (localCurrentView as string) === "pretty-beta"
+      ? "pretty"
+      : localCurrentView;
+  const selectedView = currentView ?? normalizedLocalView;
   const showViewToggle = currentView === undefined;
 
   const [compensateScrollRef, startPreserveScroll] =
@@ -232,8 +239,6 @@ export function IOPreview({
           selectedView={selectedView}
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
-          showPrettyBeta={showPrettyBeta}
-          prettyBetaDisabled={chatMLParserResult !== undefined}
         />
       )}
 
@@ -306,11 +311,9 @@ export function IOPreview({
         <IOPreviewPretty
           {...sharedProps}
           parser={
-            // Precomputed legacy parses win inside the parser hook, so a
-            // beta-labeled view must never claim them as normalized output.
-            selectedView === "pretty-beta" &&
-            showPrettyBeta &&
-            chatMLParserResult === undefined
+            // Precomputed legacy parses win inside the parser hook, so the
+            // Formatted view must never claim them as normalized output.
+            improvedRenderingEnabled && chatMLParserResult === undefined
               ? "normalized"
               : "legacy"
           }

@@ -64,7 +64,6 @@ import {
 } from "@/src/features/traces/fns/traceAggregation";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";
 
 export interface ConnectedObservationDetailViewProps {
@@ -177,29 +176,14 @@ export function ConnectedObservationDetailView({
     setGlobalSelectedTab(tab);
   };
 
-  // The normalized-parser formatted view is gated to admins and explicitly
-  // flagged users; it must never surface for regular users.
-  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
-    projectId,
-  });
-
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  // A persisted "pretty-beta" preference clamps to "pretty" when the beta
-  // tab is unavailable, so the highlighted tab matches the rendered parser.
-  const selectedViewTab =
-    currentView === "pretty-beta"
-      ? showPrettyBeta
-        ? "pretty-beta"
-        : "pretty"
-      : currentView === "pretty"
-        ? "pretty"
-        : "json";
+  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
-      if (tab === "pretty" || tab === "pretty-beta") {
+      if (tab === "pretty") {
         setJsonViewPreference(tab);
       } else {
         // When switching to JSON, use beta preference
@@ -374,9 +358,7 @@ export function ConnectedObservationDetailView({
                   <div className="ml-auto h-fit px-2 py-0.5">
                     <Tabs
                       value={
-                        selectedTab === "log" &&
-                        (isLogViewVirtualized ||
-                          selectedViewTab === "pretty-beta")
+                        selectedTab === "log" && isLogViewVirtualized
                           ? "pretty"
                           : selectedViewTab
                       }
@@ -392,15 +374,6 @@ export function ConnectedObservationDetailView({
                       }}
                     >
                       <Tabs.List size="sm">
-                        {/* Log view never runs the normalized parser, so the
-                          beta tab only renders on the preview tab. */}
-                        {showPrettyBeta && selectedTab !== "log" && (
-                          <Tabs.Trigger
-                            value="pretty-beta"
-                            size="sm"
-                            label="Normalized (beta)"
-                          />
-                        )}
                         <Tabs.Trigger
                           value="pretty"
                           size="sm"
