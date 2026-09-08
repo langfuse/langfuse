@@ -76,6 +76,10 @@ import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
+  recordExportFreshnessLag,
+  windowClassFromBlobFrequency,
+} from "../../services/exportFreshnessLagMetric";
+import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
   formatBlobExportTimestamp,
@@ -1216,9 +1220,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
   const { count: claimed } = await prisma.blobStorageIntegration.updateMany({
     where: { projectId },
-    data: { runStartedAt: new Date() },
+    data: { runStartedAt: runStartTime },
   });
   if (claimed === 0) {
     logger.info(
@@ -1274,6 +1279,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
         lastError: null,
         lastErrorAt: null,
       },
+    });
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
     });
     return;
   }
@@ -1534,6 +1548,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: maxTimestamp,
+    });
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
@@ -1551,6 +1574,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
     }
+
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "failure",
+      runStartTime,
+      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+    });
 
     switch (outcome.kind) {
       case "disabled-by-us":

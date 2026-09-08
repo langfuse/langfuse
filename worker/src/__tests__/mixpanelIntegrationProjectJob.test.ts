@@ -128,6 +128,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { MixpanelIntegrationProcessingQueue: "mixpanel" },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordIncrement: vi.fn(),
+  recordDistribution: vi.fn(),
   getCurrentSpan: vi.fn(() => undefined),
   getTracesForAnalyticsIntegrations: vi.fn(() => h.fakeStream("traces")),
   getGenerationsForAnalyticsIntegrations: vi.fn(() =>

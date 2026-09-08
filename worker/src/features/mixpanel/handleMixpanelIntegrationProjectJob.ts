@@ -14,6 +14,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
@@ -263,6 +264,8 @@ export const handleMixpanelIntegrationProjectJob = async (
     useGraceHash: job.attemptsMade > 0,
   };
 
+  const runStartTime = new Date();
+
   try {
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
@@ -314,10 +317,24 @@ export const handleMixpanelIntegrationProjectJob = async (
       bytes: mixpanel.getSerializedBytes(),
       projectId,
     });
+    recordExportFreshnessLag({
+      integration: "mixpanel",
+      window: "1h",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: executionConfig.maxTimestamp,
+    });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    recordExportFreshnessLag({
+      integration: "mixpanel",
+      window: "1h",
+      status: "failure",
+      runStartTime,
+      maxExportedTimestamp: mixpanelIntegration.lastSyncAt,
+    });
     const mixpanelFaultReason = classifyCustomerFault(error);
     if (mixpanelFaultReason !== undefined) {
       recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
