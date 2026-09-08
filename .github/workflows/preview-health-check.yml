@@ -1,4 +1,4 @@
-name: AWS preview health check
+name: Preview deployment health check
 
 # Poll every labeled preview's public health endpoint and shout in Slack when
 # one answers but is not serving. Argo CD notifications already cover a preview
