@@ -10,15 +10,28 @@ else
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+
+# Every signal below is independent, so no probe may abort the others: a
+# blocked Linear route must not hide the GitHub lines, and vice versa.
+set +e
 bash "$repo_root/scripts/agents/configure-langfuse-identity.sh" --probe
+linear_probe_status=$?
+set -e
+if [[ "${linear_probe_status}" -ne 0 ]]; then
+  echo "linear_viewer: unavailable (probe exited ${linear_probe_status})"
+fi
 
 set +e
 gh_login="$(gh api user --jq .login 2>/dev/null)"
 gh_user_status=$?
+gh_name=""
+gh_email=""
+if [[ "${gh_user_status}" -eq 0 && -n "${gh_login}" ]]; then
+  gh_name="$(gh api user --jq '.name // ""' 2>/dev/null)"
+  gh_email="$(gh api user --jq '.email // ""' 2>/dev/null)"
+fi
 set -e
 if [[ "${gh_user_status}" -eq 0 && -n "${gh_login}" ]]; then
-  gh_name="$(gh api user --jq '.name // ""')"
-  gh_email="$(gh api user --jq '.email // ""')"
   echo "gh_user: ${gh_login} ${gh_name} ${gh_email}"
   set +e
   gh_perm_json="$(gh api repos/langfuse/langfuse --jq .permissions 2>/dev/null)"
@@ -29,7 +42,7 @@ if [[ "${gh_user_status}" -eq 0 && -n "${gh_login}" ]]; then
 import json, sys
 p = json.loads(sys.argv[1])
 print("gh_permissions: push=%s maintain=%s admin=%s" % (p.get("push"), p.get("maintain"), p.get("admin")))
-' "${gh_perm_json}"
+' "${gh_perm_json}" || echo "gh_permissions: unavailable"
   else
     echo "gh_permissions: unavailable"
   fi

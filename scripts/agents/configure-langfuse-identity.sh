@@ -42,7 +42,12 @@ response="$(
       --data '{"query":"{ viewer { name email } teams { nodes { name key } } }"}' \
       2>/dev/null
 )" || {
-  echo "Langfuse identity: $linear_token_name is set but Linear rejected the viewer query."
+  if [[ "$mode" = "--probe" ]]; then
+    echo "linear_token: set ($linear_token_name)"
+    echo "linear_viewer: unavailable (Linear unreachable or token rejected)"
+  else
+    echo "Langfuse identity: $linear_token_name is set but Linear rejected the viewer query."
+  fi
   exit 0
 }
 

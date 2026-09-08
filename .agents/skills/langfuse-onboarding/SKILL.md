@@ -50,8 +50,12 @@ token works, and whether `gh api user` works. On Cursor Cloud, a working
    Use `owningUserName` and `owningUserEmail`. Join the name to the roster
    (`components-mdx/team-members.mdx` in a docs checkout, or
    `gh api repos/langfuse/langfuse-docs/contents/components-mdx/team-members.mdx`).
-   A roster row, or an `@clickhouse.com` / `@langfuse.com` address, is a
-   **maintainer**. Take the GitHub handle from the roster.
+   **Maintainer needs Langfuse-team evidence**: a roster row, or membership of
+   the `LF` team on the Linear read below. Take the GitHub handle from the
+   roster. An `@clickhouse.com` / `@langfuse.com` address alone is *not* that
+   evidence — ClickHouse is far larger than this team, and a colleague from
+   another team owns none of the Langfuse tracker. Say the address named them,
+   that you found no Langfuse-team row, and ask once rather than assuming.
 3. **`gh api user` succeeded** (desktop and similar). Then
    `gh api repos/langfuse/langfuse --jq '.permissions | {push, maintain, admin}'`.
    **`push: true`** → maintainer. **`push: false`** → contributor until they
@@ -70,11 +74,13 @@ not a contributor. Prove access with a real read, not a status indicator:
 
 1. Linear MCP tools exist and the namespace is not `needsAuth` → query `viewer`
    (or list issues).
-2. Else if `whoami.sh` reported a Linear token → GraphQL `{ viewer { name email } }`
-   with that env var (never echo it), or
-   `linear-context-handover/scripts/lf-context.sh`. Record the viewer as
-   tracker identity. Cloud often has the secret while Linear MCP still shows
-   `needsAuth` — the token is the access; do not wait on OAuth.
+2. Else if `whoami.sh` reported a Linear token → GraphQL
+   `{ viewer { name email } teams { nodes { name key } } }` with that env var
+   (never echo it), or `linear-context-handover/scripts/lf-context.sh`. Record
+   the viewer as tracker identity, and treat the `LF` team in that response as
+   the Langfuse-team evidence step 1 asked for. Cloud often has the secret while
+   Linear MCP still shows `needsAuth` — the token is the access; do not wait on
+   OAuth.
 3. Else: no Linear. On Cursor Cloud, **do not call `mcp_auth`** — it only works
    in the desktop IDE. Tell them, in one line, to create a personal Linear API
    key (Linear → Settings → Account → Security) and add it as secret
