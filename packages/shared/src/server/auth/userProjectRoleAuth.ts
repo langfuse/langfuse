@@ -3,19 +3,33 @@ import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
 
+/**
+ * Resolves the role a user holds on a project.
+ *
+ * An explicit project membership always wins. Without one, the user inherits
+ * their organization role — except for projects listed in
+ * `explicitMembershipOnlyProjectIds`, which grant no access at all unless an
+ * explicit membership exists. The LLM gateway ingestion project uses this:
+ * organization members must not see gateway traffic just because they belong to
+ * the organization.
+ */
 export function resolveProjectRole({
   projectId,
   projectMemberships,
   orgMembershipRole,
+  explicitMembershipOnlyProjectIds,
 }: {
   projectId: string;
   projectMemberships: ProjectMembership[];
   orgMembershipRole: Role;
+  explicitMembershipOnlyProjectIds?: (string | null | undefined)[];
 }): Role {
-  return (
-    projectMemberships.find((membership) => membership.projectId === projectId)
-      ?.role ?? orgMembershipRole
-  );
+  const explicitRole = projectMemberships.find(
+    (membership) => membership.projectId === projectId,
+  )?.role;
+  if (explicitRole) return explicitRole;
+  if (explicitMembershipOnlyProjectIds?.includes(projectId)) return Role.NONE;
+  return orgMembershipRole;
 }
 
 /**

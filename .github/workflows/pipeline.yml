@@ -1348,6 +1348,7 @@ jobs:
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          # Do not run inference requests with this!
           LANGFUSE_LLM_CONNECTION_OPENROUTER_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENROUTER_KEY }}
 
   all-ci-passed:

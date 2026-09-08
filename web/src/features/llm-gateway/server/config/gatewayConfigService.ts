@@ -1,7 +1,6 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import type {
   GatewayInstrumentationMode,
-  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
@@ -119,11 +118,25 @@ export class GatewayConfigService {
           name: params.projectName,
         },
       });
-      await this.createPrivateProjectMemberships({
-        tx,
-        organizationId: params.organizationId,
-        projectId: project.id,
-        createdByUserId: params.createdByUserId,
+      // The ingestion project is not accessible through organization-role
+      // inheritance (see resolveProjectRole), so the creator needs an explicit
+      // membership to keep managing it. Everyone else gains access only when an
+      // admin grants them a project role.
+      await tx.projectMembership.create({
+        data: {
+          projectId: project.id,
+          userId: params.createdByUserId,
+          orgMembershipId: (
+            await tx.organizationMembership.findFirstOrThrow({
+              where: {
+                orgId: params.organizationId,
+                userId: params.createdByUserId,
+              },
+              select: { id: true },
+            })
+          ).id,
+          role: "OWNER",
+        },
       });
       const config = await tx.gatewayConfig.upsert({
         where: { organizationId: params.organizationId },
@@ -139,35 +152,5 @@ export class GatewayConfigService {
       });
       return { config, project };
     });
-  }
-
-  private async createPrivateProjectMemberships(params: {
-    tx: Prisma.TransactionClient;
-    organizationId: string;
-    projectId: string;
-    createdByUserId: string;
-  }) {
-    let membershipCursor: string | undefined;
-    do {
-      const memberships = await params.tx.organizationMembership.findMany({
-        where: { orgId: params.organizationId },
-        select: { id: true, userId: true },
-        orderBy: { id: "asc" },
-        take: 100,
-        ...(membershipCursor
-          ? { cursor: { id: membershipCursor }, skip: 1 }
-          : undefined),
-      });
-      await params.tx.projectMembership.createMany({
-        data: memberships.map((membership) => ({
-          projectId: params.projectId,
-          userId: membership.userId,
-          orgMembershipId: membership.id,
-          role: membership.userId === params.createdByUserId ? "OWNER" : "NONE",
-        })),
-      });
-      membershipCursor =
-        memberships.length === 100 ? memberships.at(-1)?.id : undefined;
-    } while (membershipCursor);
   }
 }

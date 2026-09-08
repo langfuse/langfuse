@@ -15,6 +15,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
+import { getAuthOptions } from "@/src/server/auth";
 import {
   createInnerTRPCContext,
   type OrgAuthedContext,
@@ -43,6 +44,22 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+
+/**
+ * Resolves the project ids a user can read through the real NextAuth session
+ * callback — the same object every project-scoped tRPC procedure authorizes
+ * against.
+ */
+const sessionProjectIds = async (email: string) => {
+  const authOptions = await getAuthOptions();
+  const session = (await authOptions.callbacks!.session!({
+    session: {} as Session,
+    token: { email },
+  } as never)) as Session;
+  return (session.user?.organizations ?? []).flatMap((organization) =>
+    organization.projects.map((project) => project.id),
+  );
+};
 
 const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
@@ -190,17 +207,10 @@ describe("LLM gateway control plane", () => {
       }),
     ).resolves.toBe(1);
 
-    const memberships = await prisma.projectMembership.findMany({
-      where: { projectId: project.id },
-      orderBy: { userId: "asc" },
-    });
-    expect(memberships).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ userId: owner.user.id, role: "OWNER" }),
-        expect.objectContaining({ userId: existingMember.id, role: "NONE" }),
-      ]),
-    );
-
+    // A member who joined before the project was created and one who joins
+    // after it must both be excluded, and the creator must keep access. This
+    // goes through the real NextAuth session callback because that session is
+    // what every project-scoped tRPC procedure authorizes against.
     const futureMember = await prisma.user.create({
       data: { email: `gateway-future-${randomUUID()}@example.test` },
     });
@@ -212,16 +222,43 @@ describe("LLM gateway control plane", () => {
         role: "MEMBER",
       },
     });
+
+    await expect(sessionProjectIds(owner.user.email!)).resolves.toContain(
+      project.id,
+    );
     await expect(
-      prisma.projectMembership.findUnique({
-        where: {
-          projectId_userId: {
-            projectId: project.id,
-            userId: futureMember.id,
-          },
-        },
-      }),
-    ).resolves.toMatchObject({ role: "NONE" });
+      sessionProjectIds(existingMember.email!),
+    ).resolves.not.toContain(project.id);
+    await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
+      project.id,
+    );
+
+    // Sanity check that exclusion is specific to the ingestion project: an
+    // ordinary project in the same organization stays visible to the same
+    // member through organization-role inheritance.
+    const ordinaryProject = await prisma.project.create({
+      data: { orgId: owner.org.id, name: `ordinary-${randomUUID()}` },
+    });
+    await expect(sessionProjectIds(existingMember.email!)).resolves.toContain(
+      ordinaryProject.id,
+    );
+
+    // An explicit project membership still overrides the exclusion.
+    const orgMembership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: owner.org.id, userId: existingMember.id },
+      select: { id: true },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        projectId: project.id,
+        userId: existingMember.id,
+        orgMembershipId: orgMembership.id,
+        role: Role.VIEWER,
+      },
+    });
+    await expect(sessionProjectIds(existingMember.email!)).resolves.toContain(
+      project.id,
+    );
   });
 
   it("enforces admin scope and validates the ingestion project organization", async () => {

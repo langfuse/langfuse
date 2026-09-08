@@ -843,6 +843,9 @@ export async function getAuthOptions(signupAttribution?: {
                           createdAt: "desc",
                         },
                       },
+                      gatewayConfig: {
+                        select: { defaultIngestionProjectId: true },
+                      },
                     },
                   },
                   ProjectMemberships: {
@@ -984,6 +987,10 @@ export async function getAuthOptions(signupAttribution?: {
                                 projectMemberships:
                                   orgMembership.ProjectMemberships,
                                 orgMembershipRole: orgMembership.role,
+                                explicitMembershipOnlyProjectIds: [
+                                  orgMembership.organization.gatewayConfig
+                                    ?.defaultIngestionProjectId,
+                                ],
                               });
                               return {
                                 id: project.id,
