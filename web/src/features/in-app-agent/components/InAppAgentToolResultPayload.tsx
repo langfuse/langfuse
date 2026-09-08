@@ -19,14 +19,18 @@ const TOOL_CALL_RESULT_PRESENTATION = {
 export function InAppAgentToolResultPayload({
   status,
   value,
+  toolName,
 }: {
   status: InAppAgentToolCallContent["status"];
   value: string;
+  toolName?: string;
 }) {
   const presentation = TOOL_CALL_RESULT_PRESENTATION[status];
 
   return (
     <InAppAgentToolPayload
+      toolName={toolName}
+      kind="result"
       label={presentation.label}
       value={value}
       variant={presentation.variant}
