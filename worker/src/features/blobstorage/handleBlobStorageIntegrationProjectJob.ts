@@ -76,6 +76,10 @@ import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
+  recordExportFreshnessLag,
+  windowClassFromBlobFrequency,
+} from "../../services/exportFreshnessLagMetric";
+import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
   formatBlobExportTimestamp,
@@ -1216,9 +1220,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
   const { count: claimed } = await prisma.blobStorageIntegration.updateMany({
     where: { projectId },
-    data: { runStartedAt: new Date() },
+    data: { runStartedAt: runStartTime },
   });
   if (claimed === 0) {
     logger.info(
@@ -1275,6 +1280,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
         lastErrorAt: null,
       },
     });
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+    });
     return;
   }
 
@@ -1282,6 +1296,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+  let watermarkAdvanced = false;
   try {
     // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
@@ -1510,6 +1525,20 @@ export const handleBlobStorageIntegrationProjectJob = async (
       return;
     }
 
+    // The export watermark is committed. Catch-up enqueue below can still
+    // fail (Redis); that must not be recorded as an export-freshness failure
+    // against the pre-run lastSyncAt.
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: maxTimestamp,
+    });
+    watermarkAdvanced = true;
+
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
       const queue = BlobStorageIntegrationProcessingQueue.getInstance();
@@ -1550,6 +1579,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
+    }
+
+    if (!watermarkAdvanced) {
+      recordExportFreshnessLag({
+        integration: "blob_storage",
+        window: windowClassFromBlobFrequency(
+          blobStorageIntegration.exportFrequency,
+        ),
+        status: "failure",
+        runStartTime,
+        maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+      });
     }
 
     switch (outcome.kind) {
