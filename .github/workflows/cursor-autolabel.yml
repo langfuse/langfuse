@@ -33,8 +33,8 @@ jobs:
             const pr = context.payload.pull_request;
             const { owner, repo } = context.repo;
 
-            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
-              core.info("Fork PR; auto-label is limited to same-repo branches.");
+            if (!pr.head.repo || pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info("Fork or missing head repo; auto-label is limited to same-repo branches.");
               return;
             }
 
