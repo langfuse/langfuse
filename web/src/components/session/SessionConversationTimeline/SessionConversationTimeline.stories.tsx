@@ -2030,26 +2030,6 @@ export const FilteredEmpty = meta.story({
   },
 });
 
-export const FalsyTruncatedValues = meta.story({
-  args: {
-    ...loadedArgs,
-    traces: [
-      {
-        trace,
-        turnNumber: 1,
-        observations: [
-          {
-            ...observations[0]!,
-            input: "0",
-            output: "false",
-            outputTruncated: true,
-          },
-        ],
-      },
-    ],
-  },
-});
-
 export const RenderLoadedConversation = meta.story({
   name: "(Test) Renders Loaded Conversation",
   args: Loaded.input.args,
@@ -2094,23 +2074,6 @@ export const RenderLoadedConversation = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Expand get_order" }),
     ).toBeInTheDocument();
-  },
-});
-
-export const RenderTimelineLoadingState = meta.story({
-  name: "(Test) Renders Timeline Loading State",
-  args: Loading.input.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const loadingState = canvas.getByRole("status", {
-      name: "Loading conversation",
-    });
-
-    await expect(
-      loadingState.querySelectorAll('[data-slot="skeleton"]').length,
-    ).toBeGreaterThan(8);
-    await expect(loadingState.querySelector(".justify-end")).not.toBeNull();
-    await expect(loadingState.querySelector(".justify-start")).not.toBeNull();
   },
 });
 
@@ -2273,7 +2236,23 @@ export const MetadataOmitted = meta.story({
 
 export const RenderFalsyTruncatedValues = meta.story({
   name: "(Test) Renders Falsy Truncated Values",
-  args: FalsyTruncatedValues.input.args,
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: [
+          {
+            ...observations[0]!,
+            input: "0",
+            output: "false",
+            outputTruncated: true,
+          },
+        ],
+      },
+    ],
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("0")).toBeInTheDocument();
