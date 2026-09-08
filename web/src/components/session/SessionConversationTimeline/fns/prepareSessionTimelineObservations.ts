@@ -222,6 +222,10 @@ export function prepareSessionTimelineObservations<
 
     const nextActiveKeys = new Set(activeKeys).add(key);
     const counts: Record<string, number> = {};
+    const rolledUpToolCallCount =
+      preparedByKey.get(key)?.processedMessages.rolledUpToolCalls.length ?? 0;
+    if (rolledUpToolCallCount > 0) counts.TOOL = rolledUpToolCallCount;
+
     for (const child of childrenByParentKey.get(key) ?? []) {
       const childKey = observationKey(child.observation);
       if (nextActiveKeys.has(childKey)) continue;
@@ -270,7 +274,9 @@ export function prepareSessionTimelineObservations<
         parsed: null,
         processedMessages: { messages: [] },
         phase: "complete",
-        ancestorObservationIds,
+        ancestorObservationIds: ancestorObservationIds.concat(
+          prepared.observation.id,
+        ),
         nestedObservationCounts: {},
       });
     });
@@ -294,14 +300,15 @@ export function prepareSessionTimelineObservations<
       ancestorObservationIds,
       nestedObservationCounts: getNestedObservationCounts(key, new Set()),
     };
-    if (children.length === 0) {
+    const rolledUpToolCalls =
+      contextualPrepared.processedMessages.rolledUpToolCalls;
+    if (children.length === 0 && rolledUpToolCalls.length === 0) {
       emitted.add(key);
       appendTimelineItems({
         prepared,
         phase: "complete",
         messages: contextualPrepared.processedMessages.messages,
-        rolledUpToolCalls:
-          contextualPrepared.processedMessages.rolledUpToolCalls,
+        rolledUpToolCalls: [],
         ancestorObservationIds,
         nestedObservationCounts: contextualPrepared.nestedObservationCounts,
       });
@@ -313,7 +320,7 @@ export function prepareSessionTimelineObservations<
       prepared,
       phase: "start",
       messages: messages.filter((message) => message.source === "input"),
-      rolledUpToolCalls: [],
+      rolledUpToolCalls,
       ancestorObservationIds,
       nestedObservationCounts: contextualPrepared.nestedObservationCounts,
     });
@@ -334,7 +341,7 @@ export function prepareSessionTimelineObservations<
       prepared,
       phase: "end",
       messages: messages.filter((message) => message.source === "output"),
-      rolledUpToolCalls: prepared.processedMessages.rolledUpToolCalls,
+      rolledUpToolCalls: [],
       ancestorObservationIds,
       nestedObservationCounts: contextualPrepared.nestedObservationCounts,
     });

@@ -215,7 +215,7 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
   });
 
-  it("emits rolled-up tool calls as same-depth timeline items", () => {
+  it("emits rolled-up tool calls as nested items before generation output", () => {
     const prepared = prepareSessionTimelineObservations([
       observation("generation", "Question", [
         {
@@ -235,16 +235,38 @@ describe("prepareSessionTimelineObservations", () => {
       ]),
     ]);
 
-    expect(prepared.map((item) => item.type)).toEqual(["observation", "tool"]);
+    expect(prepared.map((item) => item.type)).toEqual([
+      "observation",
+      "tool",
+      "observation",
+    ]);
+    expect(prepared[0]).toMatchObject({
+      type: "observation",
+      phase: "start",
+      ancestorObservationIds: [],
+      nestedObservationCounts: { TOOL: 1 },
+      processedMessages: {
+        messages: [{ source: "input" }],
+      },
+    });
     expect(prepared[1]).toMatchObject({
       type: "tool",
       observation: { id: "generation" },
       phase: "complete",
-      ancestorObservationIds: [],
+      ancestorObservationIds: ["generation"],
       toolCall: {
         toolCallId: "call-search",
         toolName: "search",
         input: { query: "dashboard" },
+      },
+    });
+    expect(prepared[2]).toMatchObject({
+      type: "observation",
+      phase: "end",
+      ancestorObservationIds: [],
+      nestedObservationCounts: { TOOL: 1 },
+      processedMessages: {
+        messages: [{ source: "output" }],
       },
     });
   });

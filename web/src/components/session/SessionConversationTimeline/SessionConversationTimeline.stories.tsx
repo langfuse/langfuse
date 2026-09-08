@@ -1782,6 +1782,80 @@ const loadedArgs = {
   observationActions,
 } satisfies TimelineProps;
 
+type ToolShape = {
+  callId: string;
+  name: string;
+  input: Record<string, unknown>;
+};
+
+const toolShapePrompt =
+  "Help me determine whether customer CUS-48291 can cancel their annual plan and receive a refund.";
+const toolShapeGenerationMessage =
+  "I'll review the customer account and refund policy.";
+
+const toolShapeArgs = ({
+  generationTool,
+  observationTool,
+  nestObservationTool,
+}: {
+  generationTool: ToolShape | null;
+  observationTool: (ToolShape & { output: Record<string, unknown> }) | null;
+  nestObservationTool: boolean;
+}) => {
+  const generationId = "tool-shape-generation";
+  const shapeObservations = [
+    codingAgentObservation({
+      traceId: trace.id,
+      id: generationId,
+      parentObservationId: null,
+      type: "GENERATION",
+      name: "Tool shape generation",
+      offsetMs: 0,
+      latency: 1,
+      input: JSON.stringify([{ role: "user", content: toolShapePrompt }]),
+      output: generationTool
+        ? assistantToolCalls(toolShapeGenerationMessage, [
+            {
+              id: generationTool.callId,
+              name: generationTool.name,
+              arguments: generationTool.input,
+            },
+          ])
+        : assistantMessage(toolShapeGenerationMessage),
+    }),
+    ...(observationTool
+      ? [
+          codingAgentObservation({
+            traceId: trace.id,
+            id: "tool-shape-observation",
+            parentObservationId: nestObservationTool ? generationId : null,
+            type: "TOOL",
+            name: observationTool.name,
+            offsetMs: 1,
+            latency: 1,
+            input: JSON.stringify(observationTool.input),
+            output: JSON.stringify(observationTool.output),
+            metadata: { callID: observationTool.callId },
+          }),
+        ]
+      : []),
+  ];
+
+  return {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: {
+          ...trace,
+          observationCount: shapeObservations.length,
+        },
+        turnNumber: 1,
+        observations: shapeObservations,
+      },
+    ],
+  } satisfies TimelineProps;
+};
+
 const nestedObservation = ({
   id,
   parentObservationId,
@@ -2009,6 +2083,11 @@ export const RenderLoadedConversation = meta.story({
         name: "get_order",
       }),
     ).not.toBeInTheDocument();
+    await userEvent.click(
+      within(
+        generation?.closest("[data-session-observation-depth]") as HTMLElement,
+      ).getByRole("button", { name: "Show 1 tool" }),
+    );
     await expect(
       canvas.getByRole("button", { name: "get_order" }),
     ).toBeInTheDocument();
@@ -2250,6 +2329,14 @@ export const ExpandRolledUpTool = meta.story({
   args: loadedArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const generation = canvasElement
+      .querySelector('[data-session-observation-id="generation-1"]')
+      ?.closest("[data-session-observation-depth]");
+    await userEvent.click(
+      within(generation as HTMLElement).getByRole("button", {
+        name: "Show 1 tool",
+      }),
+    );
     const expandButton = canvas.getByRole("button", {
       name: "Expand get_order",
     });
@@ -2262,42 +2349,18 @@ export const ExpandRolledUpTool = meta.story({
       },
     );
 
+    await expect(toolRow).toHaveAttribute(
+      "data-session-observation-depth",
+      "1",
+    );
+    await expect(toolRow).toHaveStyle({ paddingLeft: "24px" });
     await expect(
       toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
-    ).not.toBeInTheDocument();
-    const precedingGeneration = canvasElement
-      .querySelector('[data-session-observation-id="generation-1"]')
-      ?.closest("[data-session-observation-depth]");
+    ).toBeInTheDocument();
     await expect(
-      precedingGeneration?.querySelector(
-        '[data-session-observation-rail-depth="0"]',
-      ),
-    ).toHaveClass("bottom-0");
+      toolRow?.querySelector('[data-session-observation-rail-depth="1"]'),
+    ).not.toBeInTheDocument();
     await expect(toolIcon).not.toBeNull();
-    const toolIconRect = (toolIcon as SVGElement).getBoundingClientRect();
-    const toolRowRect = (toolRow as HTMLElement).getBoundingClientRect();
-    const depthZeroRails = Array.from(
-      canvasElement.querySelectorAll<HTMLElement>(
-        '[data-session-observation-rail-depth="0"]',
-      ),
-    );
-    const railsIntersectingToolIcon = Array.from(depthZeroRails).filter(
-      (rail) => {
-        const railRect = rail.getBoundingClientRect();
-        return (
-          railRect.top < toolIconRect.bottom &&
-          railRect.bottom > toolIconRect.top
-        );
-      },
-    );
-    await expect(railsIntersectingToolIcon).toHaveLength(0);
-    const railsIntersectingToolRow = depthZeroRails.filter((rail) => {
-      const railRect = rail.getBoundingClientRect();
-      return (
-        railRect.top < toolRowRect.bottom && railRect.bottom > toolRowRect.top
-      );
-    });
-    await expect(railsIntersectingToolRow).toHaveLength(0);
     await userEvent.hover(unavailableActionsIcon);
     await expect(
       await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
@@ -2307,7 +2370,7 @@ export const ExpandRolledUpTool = meta.story({
     await userEvent.click(expandButton);
 
     await expect(
-      toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
+      toolRow?.querySelector('[data-session-observation-rail-depth="1"]'),
     ).toBeInTheDocument();
     await expect(
       toolRow?.querySelector("[data-session-observation-rail-end]"),
@@ -2532,6 +2595,142 @@ export const ExpandEmptyTopLevelObservation = meta.story({
       canvas.getByRole("button", {
         name: "Hide 2 generations and 5 tools",
       }),
+    ).toBeInTheDocument();
+  },
+});
+
+export const ToolObservationDataOnly = meta.story({
+  name: "(Test) Tool Observation Data Only",
+  args: toolShapeArgs({
+    generationTool: null,
+    nestObservationTool: true,
+    observationTool: {
+      callId: "call-subscription-details",
+      name: "get_subscription_details",
+      input: { customerId: "CUS-48291" },
+      output: {
+        plan: "annual_pro",
+        refundable: true,
+        refundWindowEndsAt: "2026-01-15",
+      },
+    },
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await expect(
+      canvas.getAllByRole("button", { name: "get_subscription_details" }),
+    ).toHaveLength(1);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="tool-shape-observation"]',
+      ),
+    ).toBeInTheDocument();
+  },
+});
+
+export const GenerationToolDataOnly = meta.story({
+  name: "(Test) Generation Tool Data Only",
+  args: toolShapeArgs({
+    generationTool: {
+      callId: "call-subscription-details",
+      name: "get_subscription_details",
+      input: { customerId: "CUS-48291" },
+    },
+    nestObservationTool: false,
+    observationTool: null,
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await expect(
+      canvas.getAllByRole("button", { name: "get_subscription_details" }),
+    ).toHaveLength(1);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="tool-shape-generation-tool-call-call-subscription-details"]',
+      ),
+    ).toBeInTheDocument();
+  },
+});
+
+export const DeduplicateMatchingToolData = meta.story({
+  name: "(Test) Deduplicates Matching Tool Data",
+  args: toolShapeArgs({
+    generationTool: {
+      callId: "call-subscription-details",
+      name: "get_subscription_details",
+      input: { customerId: "CUS-48291" },
+    },
+    nestObservationTool: true,
+    observationTool: {
+      callId: "call-subscription-details",
+      name: "get_subscription_details",
+      input: { customerId: "CUS-48291" },
+      output: {
+        plan: "annual_pro",
+        refundable: true,
+        refundWindowEndsAt: "2026-01-15",
+      },
+    },
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await expect(
+      canvas.getAllByRole("button", { name: "get_subscription_details" }),
+    ).toHaveLength(1);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="tool-shape-observation"]',
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="tool-shape-generation-tool-call-call-subscription-details"]',
+      ),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const KeepDifferentToolData = meta.story({
+  name: "(Test) Keeps Different Tool Data",
+  args: toolShapeArgs({
+    generationTool: {
+      callId: "call-cancellation-policy",
+      name: "search_documentation",
+      input: { query: "annual plan cancellation policy", limit: 3 },
+    },
+    nestObservationTool: true,
+    observationTool: {
+      callId: "call-customer-profile",
+      name: "get_customer_profile",
+      input: { customerId: "CUS-48291" },
+      output: {
+        plan: "annual_pro",
+        renewalDate: "2026-06-15",
+        accountStatus: "active",
+      },
+    },
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Show 2 tools" }));
+    await expect(
+      canvas.getAllByRole("button", { name: "search_documentation" }),
+    ).toHaveLength(1);
+    await expect(
+      canvas.getAllByRole("button", { name: "get_customer_profile" }),
+    ).toHaveLength(1);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="tool-shape-generation-tool-call-call-cancellation-policy"]',
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="tool-shape-observation"]',
+      ),
     ).toBeInTheDocument();
   },
 });
