@@ -105,7 +105,7 @@ function placementNextTo(anchor: DashboardPlacement) {
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3 and fire a wave of
 // legacy-table queries that was thrown away once the session landed.
-export default function DashboardDetail() {
+export default function DashboardDetailPage() {
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
   const { readPath } = useReadPath();
