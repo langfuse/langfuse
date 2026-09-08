@@ -38,6 +38,17 @@ async function handleGetBlobStorageIntegrations(
     "List Blob Storage Integrations",
   );
 
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: scope.plan,
+      entitlement: "scheduled-blob-exports",
+    })
+  ) {
+    throw new ForbiddenError(
+      "scheduled-blob-exports entitlement required for this feature.",
+    );
+  }
+
   // Get all projects for the organization
   const projects = await prisma.project.findMany({
     where: { orgId: scope.orgId },
@@ -94,6 +105,17 @@ async function handleUpsertBlobStorageIntegration(
     req,
     "Upsert Blob Storage Integration",
   );
+
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: scope.plan,
+      entitlement: "scheduled-blob-exports",
+    })
+  ) {
+    throw new ForbiddenError(
+      "scheduled-blob-exports entitlement required for this feature.",
+    );
+  }
 
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
@@ -198,7 +220,7 @@ async function handleUpsertBlobStorageIntegration(
   return res.status(200).json(responseData);
 }
 
-/** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the scheduled-blob-exports entitlement, returning the verified scope. */
+/** authorizeBlobStorageRequest gates a blob-storage request on an organization key, returning the verified scope. */
 async function authorizeBlobStorageRequest(
   req: NextApiRequest,
   name: string,
@@ -214,16 +236,6 @@ async function authorizeBlobStorageRequest(
       throw new UnauthorizedError(authCheck.error);
     }
     throw new ForbiddenError(authCheck.error);
-  }
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
   }
   return authCheck.scope;
 }

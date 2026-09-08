@@ -31,6 +31,18 @@ async function handleDeleteBlobStorageIntegration(
     req,
     "Delete Blob Storage Integration",
   );
+
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: scope.plan,
+      entitlement: "scheduled-blob-exports",
+    })
+  ) {
+    throw new ForbiddenError(
+      "scheduled-blob-exports entitlement required for this feature.",
+    );
+  }
+
   const { id } = req.query;
 
   if (!id || typeof id !== "string") {
@@ -79,6 +91,17 @@ async function handleGetBlobStorageIntegrationStatus(
     "Get Blob Storage Integration Status",
   );
 
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: scope.plan,
+      entitlement: "scheduled-blob-exports",
+    })
+  ) {
+    throw new ForbiddenError(
+      "scheduled-blob-exports entitlement required for this feature.",
+    );
+  }
+
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     throw new InvalidRequestError("Invalid integration ID");
@@ -111,7 +134,7 @@ async function handleGetBlobStorageIntegrationStatus(
   return res.status(200).json(responseData);
 }
 
-/** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the scheduled-blob-exports entitlement, returning the verified scope. */
+/** authorizeBlobStorageRequest gates a blob-storage request on an organization key, returning the verified scope. */
 async function authorizeBlobStorageRequest(
   req: NextApiRequest,
   name: string,
@@ -127,16 +150,6 @@ async function authorizeBlobStorageRequest(
       throw new UnauthorizedError(authCheck.error);
     }
     throw new ForbiddenError(authCheck.error);
-  }
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
   }
   return authCheck.scope;
 }
