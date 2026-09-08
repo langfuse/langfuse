@@ -17,6 +17,13 @@ type ConversationPart = Exclude<
   { type: "tool-call" | "tool-result" }
 >;
 
+export type SessionTimelineConversationMessage = Omit<
+  NormalizedMessage,
+  "parts"
+> & {
+  parts: ConversationPart[];
+};
+
 type ConversationEntry = {
   key: string;
   messageIndex: number;
@@ -24,7 +31,7 @@ type ConversationEntry = {
 };
 
 function getConversationEntries(
-  messages: NormalizedMessage[],
+  messages: readonly NormalizedMessage[],
   source?: NormalizedMessage["source"],
 ) {
   const entries: ConversationEntry[] = [];
@@ -76,8 +83,8 @@ function getHistoricalInputIndices(
 }
 
 export function deduplicateTimelineInput(
-  messages: NormalizedMessage[],
-  ancestorMessages: NormalizedMessage[],
+  messages: SessionTimelineConversationMessage[],
+  ancestorMessages: readonly NormalizedMessage[],
 ) {
   const currentInput = getConversationEntries(messages, "input");
   const ancestorInput = getConversationEntries(ancestorMessages, "input");
@@ -116,7 +123,7 @@ function getVisibleMessages({
       .filter((_entry, index) => historicalInputIndices.has(index))
       .map((entry) => `${entry.messageIndex}:${entry.partIndex}`),
   );
-  const visibleMessages: NormalizedMessage[] = [];
+  const visibleMessages: SessionTimelineConversationMessage[] = [];
 
   messages.forEach((message, messageIndex) => {
     const parts = message.parts.filter(
@@ -279,7 +286,7 @@ export function processTimelineMessages({
   standaloneToolCallIdsByGroup: readonly ReadonlySet<string>[];
 }) {
   const processedGroups: Array<{
-    messages: NormalizedMessage[];
+    messages: SessionTimelineConversationMessage[];
     rolledUpToolCalls: ToolCallPart[];
   }> = [];
   let previousContext: ConversationEntry[] = [];

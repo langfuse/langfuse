@@ -1,7 +1,7 @@
 import preview from "@/.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
-import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 
+import { type SessionTimelineConversationMessage } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 
 const meta = preview.meta({
@@ -23,7 +23,7 @@ export const Assistant = meta.story({
         },
       ],
       finishReason: { type: "stop", raw: "stop" },
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
 });
 
@@ -39,7 +39,7 @@ export const NamedUser = meta.story({
           text: "Find the latest documentation and summarize the relevant section.",
         },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
 });
 
@@ -54,7 +54,7 @@ export const SystemPrompt = meta.story({
           text: "Answer using the product documentation and cite relevant sources.",
         },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
 });
 
@@ -75,30 +75,7 @@ export const StructuredData = meta.story({
           value: 7,
         },
       ],
-    } satisfies NormalizedMessage,
-  },
-});
-
-export const ToolCall = meta.story({
-  args: {
-    message: {
-      role: "assistant",
-      source: "output",
-      parts: [
-        {
-          type: "tool-call",
-          toolCallId: "call-search-1",
-          toolName: "search_documentation",
-          input: { resultLimit: 3 },
-        },
-        {
-          type: "tool-result",
-          toolCallId: "call-search-1",
-          toolName: "search_documentation",
-          output: { resultCount: 3 },
-        },
-      ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
 });
 
@@ -121,7 +98,7 @@ export const Reasoning = meta.story({
         },
         { type: "text", text: "Here is the result." },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
 });
 
@@ -148,7 +125,7 @@ export const EmbeddedImages = meta.story({
           content: { kind: "url", url: "/icon256.png" },
         },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
 });
 
@@ -173,7 +150,7 @@ export const FileAttachment = meta.story({
           },
         },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -185,18 +162,6 @@ export const FileAttachment = meta.story({
     await expect(attachment?.parentElement?.parentElement).toHaveClass(
       "bg-muted",
     );
-  },
-});
-
-export const ExpandToolCall = meta.story({
-  name: "(Test) Expands Tool Call",
-  args: ToolCall.input.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", { name: /search_documentation/i }),
-    );
-    await expect(canvas.getByText("call-search-1")).toBeVisible();
   },
 });
 
@@ -235,16 +200,10 @@ export const RenderSupportedParts = meta.story({
       source: "output",
       parts: [
         { type: "reasoning", content: { kind: "text", text: "Think" } },
-        {
-          type: "tool-result",
-          toolCallId: "call-hidden-result",
-          toolName: "hidden_search_result",
-          output: { result: "found" },
-        },
         { type: "data", value: { confidence: 0.9 } },
         { type: "custom", kind: "citation", value: { id: "doc-1" } },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -253,9 +212,6 @@ export const RenderSupportedParts = meta.story({
 
     await userEvent.click(canvas.getByRole("button", { name: "Reasoning" }));
     await expect(canvas.getByText("Think")).toBeVisible();
-    await expect(
-      canvas.queryByText("hidden_search_result"),
-    ).not.toBeInTheDocument();
     await expect(canvasElement).toHaveTextContent("confidence");
     await expect(canvasElement).toHaveTextContent("citation");
   },
@@ -274,7 +230,7 @@ export const RejectUnsafeFileUrl = meta.story({
           content: { kind: "url", url: "javascript:alert(1)" },
         },
       ],
-    } satisfies NormalizedMessage,
+    } satisfies SessionTimelineConversationMessage,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

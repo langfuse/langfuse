@@ -1,5 +1,6 @@
 import {
   normalizeSpanIO,
+  type NormalizedMessage,
   type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
@@ -283,7 +284,7 @@ export function prepareSessionTimelineObservations<
   };
   const emit = (
     prepared: (typeof preparedObservations)[number],
-    ancestorMessages: ProcessedSessionTimelineMessages["messages"],
+    ancestorMessages: readonly NormalizedMessage[],
     ancestorObservationIds: readonly string[],
   ) => {
     const key = observationKey(prepared.observation);

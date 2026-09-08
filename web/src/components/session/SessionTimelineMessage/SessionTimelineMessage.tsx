@@ -4,8 +4,6 @@ import {
   Brain,
   Check,
   ChevronDown,
-  CircleAlert,
-  Cog,
   FileIcon,
   Settings2,
   UserRound,
@@ -15,12 +13,10 @@ import {
 import { assertUnreachable } from "@langfuse/shared";
 import {
   type FilePart,
-  type NormalizedMessage,
-  type NormalizedMessagePart,
   type ReasoningPart,
-  type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
+import { type SessionTimelineConversationMessage } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -54,7 +50,7 @@ const rolePresentation = {
     container: "w-full",
   },
 } satisfies Record<
-  NormalizedMessage["role"],
+  SessionTimelineConversationMessage["role"],
   {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
@@ -190,27 +186,6 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
   );
 }
 
-function SessionTimelineToolCall({ part }: { part: ToolCallPart }) {
-  return (
-    <CollapsiblePart
-      label={part.toolName}
-      icon={part.invalid ? CircleAlert : Cog}
-      status={part.invalid ? "error" : "success"}
-      variant="card"
-      alignment="start"
-    >
-      <div className="flex flex-col gap-3">
-        {part.toolCallId ? (
-          <span className="text-foreground font-mono text-[11px]">
-            {part.toolCallId}
-          </span>
-        ) : null}
-        <PrettyJsonView json={part.input} currentView="pretty" />
-      </div>
-    </CollapsiblePart>
-  );
-}
-
 function SessionTimelineFile({ part }: { part: FilePart }) {
   const source = part.providerMetadata?.source;
   const safeUrl =
@@ -263,7 +238,7 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
 function SessionTimelinePart({
   part,
 }: {
-  part: Exclude<NormalizedMessagePart, { type: "tool-result" }>;
+  part: SessionTimelineConversationMessage["parts"][number];
 }) {
   if (part.type === "text") {
     return (
@@ -278,10 +253,6 @@ function SessionTimelinePart({
 
   if (part.type === "reasoning") {
     return <SessionTimelineReasoning part={part} />;
-  }
-
-  if (part.type === "tool-call") {
-    return <SessionTimelineToolCall part={part} />;
   }
 
   if (part.type === "file") {
@@ -308,7 +279,7 @@ function SessionTimelinePart({
 function SessionTimelineSystemMessage({
   message,
 }: {
-  message: NormalizedMessage;
+  message: SessionTimelineConversationMessage;
 }) {
   return (
     <div className="ph-no-capture flex w-full">
@@ -318,11 +289,9 @@ function SessionTimelineSystemMessage({
         alignment="row"
       >
         <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-6">
-          {message.parts
-            .filter((part) => part.type !== "tool-result")
-            .map((part, index) => (
-              <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
-            ))}
+          {message.parts.map((part, index) => (
+            <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
+          ))}
         </div>
       </CollapsiblePart>
     </div>
@@ -332,7 +301,7 @@ function SessionTimelineSystemMessage({
 export function SessionTimelineMessage({
   message,
 }: {
-  message: NormalizedMessage;
+  message: SessionTimelineConversationMessage;
 }) {
   if (message.role === "system") {
     return <SessionTimelineSystemMessage message={message} />;
@@ -364,11 +333,9 @@ export function SessionTimelineMessage({
           </div>
         ) : null}
         <div className="flex flex-col gap-2 text-sm leading-6">
-          {message.parts
-            .filter((part) => part.type !== "tool-result")
-            .map((part, index) => (
-              <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
-            ))}
+          {message.parts.map((part, index) => (
+            <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
+          ))}
         </div>
       </article>
     </div>
