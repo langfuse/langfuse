@@ -23,11 +23,22 @@ type CoordLookupView = {
   posAndSideAtCoords: EditorView["posAndSideAtCoords"];
 };
 
-export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
-  const originalPosAtCoords = view.posAtCoords;
-  const originalPosAndSideAtCoords = view.posAndSideAtCoords;
+type PosAtCoordsFn = (
+  coords: { x: number; y: number },
+  precise?: boolean,
+) => number | null;
 
-  view.posAtCoords = (coords, precise) => {
+type PosAndSideAtCoordsFn = (
+  coords: { x: number; y: number },
+  precise?: boolean,
+) => { pos: number; assoc: number } | null;
+
+export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
+  const originalPosAtCoords = view.posAtCoords as PosAtCoordsFn;
+  const originalPosAndSideAtCoords =
+    view.posAndSideAtCoords as PosAndSideAtCoordsFn;
+
+  view.posAtCoords = ((coords, precise?: boolean) => {
     try {
       return originalPosAtCoords.call(view, coords, precise);
     } catch (error) {
@@ -36,9 +47,9 @@ export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
       }
       throw error;
     }
-  };
+  }) as EditorView["posAtCoords"];
 
-  view.posAndSideAtCoords = (coords, precise) => {
+  view.posAndSideAtCoords = ((coords, precise?: boolean) => {
     try {
       return originalPosAndSideAtCoords.call(view, coords, precise);
     } catch (error) {
@@ -47,11 +58,12 @@ export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
       }
       throw error;
     }
-  };
+  }) as EditorView["posAndSideAtCoords"];
 
   return () => {
-    view.posAtCoords = originalPosAtCoords;
-    view.posAndSideAtCoords = originalPosAndSideAtCoords;
+    view.posAtCoords = originalPosAtCoords as EditorView["posAtCoords"];
+    view.posAndSideAtCoords =
+      originalPosAndSideAtCoords as EditorView["posAndSideAtCoords"];
   };
 }
 

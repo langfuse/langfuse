@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { type EditorView } from "@uiw/react-codemirror";
 import {
   isCodeMirrorUnstableViewportError,
   wrapEditorViewCoordLookups,
@@ -12,9 +13,10 @@ function createView(overrides?: {
   posAndSideAtCoords?: () => { pos: number; assoc: number } | null;
 }) {
   return {
-    posAtCoords: overrides?.posAtCoords ?? (() => 4),
-    posAndSideAtCoords:
-      overrides?.posAndSideAtCoords ?? (() => ({ pos: 4, assoc: 1 })),
+    posAtCoords: (overrides?.posAtCoords ??
+      (() => 4)) as EditorView["posAtCoords"],
+    posAndSideAtCoords: (overrides?.posAndSideAtCoords ??
+      (() => ({ pos: 4, assoc: 1 }))) as EditorView["posAndSideAtCoords"],
   };
 }
 
