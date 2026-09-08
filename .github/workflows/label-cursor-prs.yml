@@ -61,14 +61,23 @@ jobs:
               if (error.status !== 404) {
                 throw error;
               }
-              await github.rest.issues.createLabel({
-                owner,
-                repo,
-                name: LABEL,
-                color: "000000",
-                description: "Opened by a Cursor agent",
-              });
-              core.info("Created missing 'cursor' repository label.");
+              try {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: LABEL,
+                  color: "000000",
+                  description: "Opened by a Cursor agent",
+                });
+                core.info("Created missing 'cursor' repository label.");
+              } catch (createError) {
+                // Concurrent runs can both see 404 and race createLabel.
+                // 422 means the other run won; continue to addLabels.
+                if (createError.status !== 422) {
+                  throw createError;
+                }
+                core.info("Label already exists; continuing to apply it.");
+              }
             }
 
             await github.rest.issues.addLabels({

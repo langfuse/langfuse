@@ -62,3 +62,8 @@ test("workflow uses the same three Cursor signals as isCursorPr", () => {
   assert.match(workflow, /headRef\.startsWith\("cursor\/"\)/);
   assert.match(workflow, /body\.includes\("CURSOR_AGENT_PR_BODY_BEGIN"\)/);
 });
+
+test("workflow treats a concurrent createLabel 422 as success", () => {
+  assert.match(workflow, /createError\.status !== 422/);
+  assert.match(workflow, /Label already exists; continuing to apply it/);
+});
