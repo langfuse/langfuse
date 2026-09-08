@@ -29,6 +29,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -664,14 +665,21 @@ export function DataTable<TData extends object, TValue>({
                 cellPadding={cellPadding}
               />
             )}
+            {footer ? (
+              <TableFooter className="bg-transparent">
+                <TableRow>
+                  <TableCell
+                    className="h-12 text-center"
+                    colSpan={table.getVisibleLeafColumns().length}
+                  >
+                    {footer}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
+            ) : null}
           </Table>
         </div>
       </div>
-      {footer ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full shrink-0 justify-center border-t p-2">
-          {footer}
-        </div>
-      ) : null}
       {!hidePagination && pagination !== undefined ? (
         <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
