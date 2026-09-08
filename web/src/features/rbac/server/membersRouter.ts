@@ -109,6 +109,34 @@ async function throwIfHigherProjectRole({
   }
 }
 
+async function createProjectMembershipOrThrowIfDuplicate({
+  prisma,
+  data,
+}: {
+  prisma: PrismaClient;
+  data: {
+    userId: string;
+    projectId: string;
+    role: Role;
+    orgMembershipId: string;
+  };
+}) {
+  try {
+    return await prisma.projectMembership.create({ data });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "User is already a member of this project",
+      });
+    }
+    throw error;
+  }
+}
+
 export const membersRouter = createTRPCRouter({
   ...allMembersRoutes,
   ...allInvitesRoutes,
@@ -256,7 +284,8 @@ export const membersRouter = createTRPCRouter({
           ) {
             // Create project role for user
             const newProjectMembership =
-              await ctx.prisma.projectMembership.create({
+              await createProjectMembershipOrThrowIfDuplicate({
+                prisma: ctx.prisma,
                 data: {
                   userId: user.id,
                   projectId: project.id,
@@ -313,14 +342,16 @@ export const membersRouter = createTRPCRouter({
           role: input.orgRole,
         });
         if (project && input.projectRole && input.projectRole !== Role.NONE) {
-          const projectMembership = await ctx.prisma.projectMembership.create({
-            data: {
-              userId: user.id,
-              projectId: project.id,
-              role: input.projectRole,
-              orgMembershipId: orgMembership.id,
-            },
-          });
+          const projectMembership =
+            await createProjectMembershipOrThrowIfDuplicate({
+              prisma: ctx.prisma,
+              data: {
+                userId: user.id,
+                projectId: project.id,
+                role: input.projectRole,
+                orgMembershipId: orgMembership.id,
+              },
+            });
           await auditLog({
             session: ctx.session,
             resourceType: "projectMembership",

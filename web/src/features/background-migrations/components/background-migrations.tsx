@@ -89,7 +89,7 @@ export default function BackgroundMigrationsTable() {
         title: "Background Migrations",
       }}
     >
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="background-migrations" />
       <DataTable
         tableName="backgroundMigrations"
         columns={columns}

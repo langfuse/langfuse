@@ -28,36 +28,48 @@ const setSigtermReceived = () => {
 export const isSigtermReceived = () =>
   Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
+let drainPromise: Promise<void> | null = null;
+
+// Flip readiness to unhealthy so the load balancer stops routing new traffic,
+// wait TIMEOUT for in-flight requests to drain, then close backend
+// connections. Shared by the SIGTERM/SIGINT path and the fatal-error path;
+// memoized so concurrent triggers reuse one drain instead of closing
+// connections twice.
+export const drainAndClose = (): Promise<void> => {
+  if (drainPromise) {
+    return drainPromise;
+  }
+  setSigtermReceived();
+
+  drainPromise = new Promise<void>((resolve) => {
+    setTimeout(async () => {
+      RateLimitService.shutdown();
+
+      await ClickHouseClientManager.getInstance().closeAllConnections();
+
+      logger.info(`Redis status ${redis?.status}`);
+      if (redis && redis.status !== "end") {
+        redis.disconnect();
+      } else {
+        logger.info("Redis connection already closed");
+      }
+
+      await prisma.$disconnect();
+      logger.info("Prisma connection has been closed.");
+
+      logger.info("Shutdown complete");
+      resolve();
+    }, TIMEOUT);
+  });
+
+  return drainPromise;
+};
+
 export const shutdown = async (signal: PrexitSignal) => {
   if (signal === "SIGTERM" || signal === "SIGINT") {
     console.log(
       `SIGTERM / SIGINT received. Shutting down in ${TIMEOUT / 1000} seconds.`,
     );
-    setSigtermReceived();
-
-    return await new Promise<void>((resolve) => {
-      setTimeout(async () => {
-        RateLimitService.shutdown();
-
-        // Shutdown clickhouse connections
-        await ClickHouseClientManager.getInstance().closeAllConnections();
-
-        logger.info(`Redis status ${redis?.status}`);
-        if (!redis) {
-          return;
-        }
-        if (redis.status === "end") {
-          logger.info("Redis connection already closed");
-          return;
-        }
-        redis?.disconnect();
-
-        await prisma.$disconnect();
-        logger.info("Prisma connection has been closed.");
-
-        logger.info("Shutdown complete");
-        resolve();
-      }, TIMEOUT);
-    });
+    await drainAndClose();
   }
 };
