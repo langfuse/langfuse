@@ -237,6 +237,21 @@ function isDataDocumentUrl(event: ErrorEvent): boolean {
 }
 
 /**
+* Chrome's exact `chrome.runtime.sendMessage` / `chrome.runtime.connect`
+ * lastError when the extension background or content-script port is gone.
+ * Extensions inject this into the page; Langfuse never calls `chrome.runtime`.
+ * Observed as an unhandled rejection with no stack (LANGFUSE-614), so
+ * `denyUrls` cannot match. Whole-message only — an app error that merely
+ * quotes the phrase is longer and is KEPT.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
+  "Could not establish connection. Receiving end does not exist",
+  "The message port closed before a response was received",
+];
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -481,17 +496,26 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // Java bridge (LANGFUSE-60G: Chrome Mobile WebView, anonymous `batch`
     // frames only).
     //
-    // Anchored to Chromium's exact wording (Java identifier method name) AND
-    // a Sentry browser-API / global-handler mechanism so an app-captured
-    // exception that merely quotes this phrase is KEPT. A first-party
-    // TypeError from our own listener is also KEPT (different message).
+    // Chrome extension port lastError (LANGFUSE-614) is the same class of
+    // injected-browser artifact: Chromium's exact `chrome.runtime` wording,
+    // no stack, `denyUrls` cannot match. Sibling message is the other
+    // documented lastError for a torn-down extension port.
+    //
+    // Both are anchored to a Sentry browser-API / global-handler mechanism
+    // so an app-captured exception that merely quotes the phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
     if (
       typeof mechanismType === "string" &&
-      mechanismType.startsWith("auto.browser.") &&
-      ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)
+      mechanismType.startsWith("auto.browser.")
     ) {
-      return true;
+      if (ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)) {
+        return true;
+      }
+      if (
+        CHROME_EXTENSION_PORT_MESSAGES.includes(coreMessage(exceptionValue))
+      ) {
+        return true;
+      }
     }
 
     // Next.js App Router hydrates with
