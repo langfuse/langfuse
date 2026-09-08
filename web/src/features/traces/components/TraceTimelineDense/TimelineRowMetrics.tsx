@@ -57,7 +57,7 @@ function createClusterFitter(budgetPx: number, gapPx: number) {
 }
 
 export type RowMetrics = {
-  /** Already formatted, e.g. `∑ $0.02`. */
+  /** Already formatted, e.g. `$0.02` — plain cost, matching tree rows. */
   costText?: string | null;
 };
 
