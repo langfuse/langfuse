@@ -679,6 +679,14 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  // Both must stay below the orchestrator's stop timeout (ECS stopTimeout,
+  // Kubernetes terminationGracePeriodSeconds) so the worker exits on its own
+  // terms instead of being SIGKILLed with exit code 137.
+  LANGFUSE_SHUTDOWN_QUEUE_CLOSE_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(90_000),
+  LANGFUSE_SHUTDOWN_TIMEOUT_MS: z.coerce.number().positive().default(110_000),
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
 });

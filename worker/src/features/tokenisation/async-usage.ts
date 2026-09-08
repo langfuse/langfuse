@@ -22,6 +22,7 @@ class TokenCountWorkerManager {
   private readonly workerPath: string;
   private readonly poolSize: number;
   private requestCounter = 0;
+  private terminating = false;
 
   constructor(poolSize: number) {
     this.poolSize = poolSize;
@@ -71,14 +72,24 @@ class TokenCountWorkerManager {
     );
 
     worker.on("error", (error) => {
+      if (this.terminating) {
+        return;
+      }
       logger.error("Worker thread error:", error);
       // Recreate worker on error
       this.replaceWorker(worker);
     });
 
     worker.on("exit", (code) => {
+      // terminate() stops every thread with exit code 1 by Node semantics, so
+      // only an exit outside of pool termination is a failure worth replacing.
+      if (this.terminating) {
+        return;
+      }
       if (code !== 0) {
-        logger.error(`Worker stopped with exit code ${code}`);
+        logger.error(
+          `Token count worker thread exited unexpectedly with exit code ${code}`,
+        );
         this.replaceWorker(worker);
       }
     });
@@ -118,6 +129,11 @@ class TokenCountWorkerManager {
     timeoutMs = 30000,
   ): Promise<number | undefined> {
     return new Promise((resolve, reject) => {
+      if (this.terminating) {
+        reject(new Error("Worker pool is terminating"));
+        return;
+      }
+
       const id = `token-count-${++this.requestCounter}-${Date.now()}`;
       const worker = this.getNextWorker();
 
@@ -142,6 +158,8 @@ class TokenCountWorkerManager {
   }
 
   async terminate() {
+    this.terminating = true;
+
     // Clear all pending requests
     for (const [, request] of this.pool.pendingRequests.entries()) {
       clearTimeout(request.timeout);
