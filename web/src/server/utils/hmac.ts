@@ -1,9 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export function signHmacSha256(message: string, secret: string): string {
-  return createHmac("sha256", secret)
-    .update(message, "utf8")
-    .digest("base64url");
+  return createHmac("sha256", secret).update(message, "utf8").digest("hex");
 }
 
 export function verifyHmacSha256(input: {

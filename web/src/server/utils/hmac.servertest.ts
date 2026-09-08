@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { signHmacSha256, verifyHmacSha256 } from "@/src/server/utils/hmac";
 
 describe("HMAC-SHA256 utilities", () => {
-  it("signs messages as unpadded base64url", () => {
+  it("signs messages as lowercase hexadecimal", () => {
     expect(signHmacSha256("message", "secret")).toBe(
-      "i19IcCmVwVmMVz2x4hhmqbgl1KeU0WnXBgoDYFeWNgs",
+      "8b5f48702995c1598c573db1e21866a9b825d4a794d169d7060a03605796360b",
     );
   });
 

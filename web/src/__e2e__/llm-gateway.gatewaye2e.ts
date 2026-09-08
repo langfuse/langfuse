@@ -284,77 +284,80 @@ describe("LLM gateway live end-to-end", () => {
     it.each(PROVIDER_FORMATS)(
       "$provider / $apiFormat returns the provider-native model format",
       async ({ provider, apiFormat }) => {
-        await withGatewayApiKey({ provider, apiFormat }, async (secretKey) => {
-          const modelsBody = await gatewayControlPlaneRequest({
-            path: MODELS_PATH,
-            apiFormat,
-            virtualSecretKey: secretKey,
-          });
-          const models = GatewayModelsResponseSchema.parse(modelsBody);
-          expect(models.data.length).toBeGreaterThan(0);
+        await withGatewayApiKey(
+          { provider, apiFormat },
+          async ({ secretKey }) => {
+            const modelsBody = await gatewayControlPlaneRequest({
+              path: MODELS_PATH,
+              apiFormat,
+              virtualSecretKey: secretKey,
+            });
+            const models = GatewayModelsResponseSchema.parse(modelsBody);
+            expect(models.data.length).toBeGreaterThan(0);
 
-          if (apiFormat === "anthropic.messages") {
-            expect("object" in models).toBe(false);
-            if ("object" in models) {
-              throw new Error("Anthropic returned an OpenAI models response");
-            }
-            expect(models.first_id).toBe(models.data[0]?.id);
-            expect(models.last_id).toBe(models.data.at(-1)?.id);
-            expect(models.data).toEqual(
-              expect.arrayContaining([
-                expect.objectContaining({
-                  type: "model",
-                  id: expect.any(String),
-                  display_name: expect.any(String),
-                  created_at: expect.stringMatching(
-                    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
-                  ),
-                }),
-              ]),
-            );
-            for (const model of models.data) {
-              expect(model).toHaveProperty("capabilities");
-              expect(model).toHaveProperty("max_input_tokens");
-              expect(model).toHaveProperty("max_tokens");
-              expect(
-                model.capabilities === null ||
-                  (typeof model.capabilities === "object" &&
-                    !Array.isArray(model.capabilities)),
-              ).toBe(true);
-              expect(
-                model.max_input_tokens === null ||
-                  typeof model.max_input_tokens === "number",
-              ).toBe(true);
-              expect(
-                model.max_tokens === null ||
-                  typeof model.max_tokens === "number",
-              ).toBe(true);
-            }
-          } else {
-            expect("object" in models).toBe(true);
-            if (!("object" in models)) {
-              throw new Error(
-                "OpenAI-compatible provider returned an Anthropic models response",
+            if (apiFormat === "anthropic.messages") {
+              expect("object" in models).toBe(false);
+              if ("object" in models) {
+                throw new Error("Anthropic returned an OpenAI models response");
+              }
+              expect(models.first_id).toBe(models.data[0]?.id);
+              expect(models.last_id).toBe(models.data.at(-1)?.id);
+              expect(models.data).toEqual(
+                expect.arrayContaining([
+                  expect.objectContaining({
+                    type: "model",
+                    id: expect.any(String),
+                    display_name: expect.any(String),
+                    created_at: expect.stringMatching(
+                      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+                    ),
+                  }),
+                ]),
               );
+              for (const model of models.data) {
+                expect(model).toHaveProperty("capabilities");
+                expect(model).toHaveProperty("max_input_tokens");
+                expect(model).toHaveProperty("max_tokens");
+                expect(
+                  model.capabilities === null ||
+                    (typeof model.capabilities === "object" &&
+                      !Array.isArray(model.capabilities)),
+                ).toBe(true);
+                expect(
+                  model.max_input_tokens === null ||
+                    typeof model.max_input_tokens === "number",
+                ).toBe(true);
+                expect(
+                  model.max_tokens === null ||
+                    typeof model.max_tokens === "number",
+                ).toBe(true);
+              }
+            } else {
+              expect("object" in models).toBe(true);
+              if (!("object" in models)) {
+                throw new Error(
+                  "OpenAI-compatible provider returned an Anthropic models response",
+                );
+              }
+              expect(models.object).toBe("list");
+              expect(models.data).toEqual(
+                expect.arrayContaining([
+                  expect.objectContaining({
+                    object: "model",
+                    id: expect.any(String),
+                    created: expect.any(Number),
+                    owned_by: expect.any(String),
+                  }),
+                ]),
+              );
+              for (const model of models.data) {
+                expect(model).not.toHaveProperty("capabilities");
+                expect(model).not.toHaveProperty("max_input_tokens");
+                expect(model).not.toHaveProperty("max_tokens");
+              }
             }
-            expect(models.object).toBe("list");
-            expect(models.data).toEqual(
-              expect.arrayContaining([
-                expect.objectContaining({
-                  object: "model",
-                  id: expect.any(String),
-                  created: expect.any(Number),
-                  owned_by: expect.any(String),
-                }),
-              ]),
-            );
-            for (const model of models.data) {
-              expect(model).not.toHaveProperty("capabilities");
-              expect(model).not.toHaveProperty("max_input_tokens");
-              expect(model).not.toHaveProperty("max_tokens");
-            }
-          }
-        });
+          },
+        );
       },
       TEST_TIMEOUT_MS,
     );
@@ -364,44 +367,58 @@ describe("LLM gateway live end-to-end", () => {
     it.each(PROVIDER_FORMATS)(
       "$provider / $apiFormat resolves credentials and ingests telemetry",
       async ({ provider, apiFormat, baseUrl, authType }) => {
-        await withGatewayApiKey({ provider, apiFormat }, async (secretKey) => {
-          const resolveBody = await gatewayControlPlaneRequest({
-            path: RESOLVE_PATH,
-            apiFormat,
-            virtualSecretKey: secretKey,
-          });
-          const resolved = GatewayResolveResponseSchema.parse(resolveBody);
-
-          expect(resolved.connection.api_format).toBe(apiFormat);
-          expect(resolved.connection.base_url).toBe(baseUrl);
-          if (authType === "x-api-key") {
-            expect(resolved.connection.auth).toMatchObject({
-              type: "x-api-key",
-              header: "x-api-key",
-              value: expect.stringMatching(/\S/),
+        await withGatewayApiKey(
+          { provider, apiFormat },
+          async ({ secretKey, id: keyId }) => {
+            const resolveBody = await gatewayControlPlaneRequest({
+              path: RESOLVE_PATH,
+              apiFormat,
+              virtualSecretKey: secretKey,
             });
-          } else {
-            expect(resolved.connection.auth).toMatchObject({
-              type: "Bearer",
-              token: expect.stringMatching(/\S/),
+            const resolved = GatewayResolveResponseSchema.parse(resolveBody);
+
+            expect(resolved.connection.api_format).toBe(apiFormat);
+            expect(resolved.connection.base_url).toBe(baseUrl);
+            if (authType === "x-api-key") {
+              expect(resolved.connection.auth).toMatchObject({
+                type: "x-api-key",
+                header: "x-api-key",
+                value: expect.stringMatching(/\S/),
+              });
+            } else {
+              expect(resolved.connection.auth).toMatchObject({
+                type: "Bearer",
+                token: expect.stringMatching(/\S/),
+              });
+            }
+            expect(resolved.attribution).toEqual({
+              test: true,
+              provider,
+              apiFormat,
+              organization_id: ORGANIZATION_ID,
+              project_id: expect.stringMatching(/\S/),
+              key_id: keyId,
             });
-          }
-          expect(resolved.ingestion).toMatchObject({
-            access_token: expect.stringMatching(/\S/),
-            token_type: "Bearer",
-            expires_in: expect.any(Number),
-          });
+            expect(resolved.ingestion).toMatchObject({
+              access_token: expect.stringMatching(/\S/),
+              token_type: "Bearer",
+              expires_in: expect.any(Number),
+            });
 
-          const ingestionToken = resolved.ingestion?.access_token;
-          if (!ingestionToken)
-            throw new Error("Resolve did not return an ingestion token");
+            const ingestionToken = resolved.ingestion?.access_token;
+            if (!ingestionToken)
+              throw new Error("Resolve did not return an ingestion token");
 
-          const { traceId, observationId } = await ingestTrace(ingestionToken, {
-            provider,
-            apiFormat,
-          });
-          await uploadMedia(ingestionToken, { traceId, observationId });
-        });
+            const { traceId, observationId } = await ingestTrace(
+              ingestionToken,
+              {
+                provider,
+                apiFormat,
+              },
+            );
+            await uploadMedia(ingestionToken, { traceId, observationId });
+          },
+        );
       },
       TEST_TIMEOUT_MS,
     );
@@ -413,7 +430,7 @@ async function withGatewayApiKey(
     provider: GatewayProviderName;
     apiFormat: GatewayApiFormat;
   },
-  run: (secretKey: string) => Promise<void>,
+  run: (key: { secretKey: string; id: string }) => Promise<void>,
 ) {
   const targetConnectionId = connectionIdsByProvider.get(input.provider);
   if (!targetConnectionId) {
@@ -442,7 +459,7 @@ async function withGatewayApiKey(
       listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
     ).toBe(true);
 
-    await run(gatewayKey.secretKey);
+    await run({ secretKey: gatewayKey.secretKey, id: gatewayKey.id });
   } finally {
     await admin.caller.llmGateway.revokeApiKey({
       orgId: ORGANIZATION_ID,
@@ -594,11 +611,9 @@ async function gatewayControlPlaneRequest(input: {
   const requestBody = JSON.stringify({ api_format: input.apiFormat });
   const timestamp = Math.floor(Date.now() / 1000);
   const canonicalMessage = [
+    "gateway-web-v1",
     timestamp.toString(),
     sha256Hex(input.virtualSecretKey),
-    input.path,
-    "POST",
-    sha256Hex(requestBody),
   ].join("\n");
   const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${signHmacSha256(
     canonicalMessage,

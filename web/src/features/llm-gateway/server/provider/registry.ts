@@ -30,6 +30,13 @@ export const GatewayResolveResponseSchema = z
         ]),
       })
       .strict(),
+    // Key metadata is flattened alongside the trusted identifiers, so a
+    // metadata key that collides with one of them is dropped on the way out.
+    attribution: z.looseObject({
+      organization_id: z.string(),
+      project_id: z.string(),
+      key_id: z.string(),
+    }),
     ingestion: z
       .object({
         access_token: z.string(),

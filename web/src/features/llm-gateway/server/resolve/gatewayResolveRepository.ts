@@ -20,6 +20,7 @@ export class GatewayResolveRepository {
       },
       select: {
         apiKeyId: true,
+        metadata: true,
         apiKey: {
           select: {
             orgId: true,

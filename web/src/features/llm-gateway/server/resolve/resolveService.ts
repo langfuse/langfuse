@@ -41,7 +41,7 @@ export class GatewayResolveService {
     const supportedProviders = gatewayProviders.filter((provider) =>
       providerSupportsApiFormat(provider, params.apiFormat),
     ) as GatewayProvider[];
-    const { organizationId, apiKeyId, config, connection } =
+    const { organizationId, apiKeyId, keyMetadata, config, connection } =
       await this.getResolveContext({
         fastHashedSecretKey: params.fastHashedSecretKey,
         providers: supportedProviders,
@@ -80,6 +80,12 @@ export class GatewayResolveService {
                 value: credential,
               } as const),
       },
+      attribution: {
+        ...keyMetadata,
+        organization_id: organizationId,
+        project_id: config.defaultIngestionProjectId,
+        key_id: apiKeyId,
+      },
       ingestion: this.createIngestionResponse({
         mode: config.instrumentationMode,
         organizationId,
@@ -111,6 +117,7 @@ export class GatewayResolveService {
     return {
       organizationId,
       apiKeyId: context.apiKeyId,
+      keyMetadata: toKeyMetadata(context.metadata),
       config: organization.gatewayConfig,
       connection: organization.gatewayAiConnections[0],
     };
@@ -145,4 +152,12 @@ export class GatewayResolveService {
       expires_in: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
     };
   }
+}
+
+// The column is JSON, so a key written before validation existed can hold a
+// scalar or an array. Only an object shape can be attributed per event.
+function toKeyMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }

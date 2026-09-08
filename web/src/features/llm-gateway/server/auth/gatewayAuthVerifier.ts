@@ -11,8 +11,7 @@ import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/llm-gateway/server/gatewayControlPlaneError";
 
 const CONTROL_PLANE_METHOD = "POST";
-const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
-const MODELS_PATH = "/api/internal/ai-gateway/v1/models";
+const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
 const resolveBodySchema = z
   .object({ api_format: GatewayApiFormatSchema })
@@ -41,7 +40,7 @@ const modelsBodySchema = z
     );
   });
 const gatewayAuthorizationSchema =
-  /^HMAC timestamp=(\d+),signature=([A-Za-z0-9_-]{43})$/;
+  /^HMAC timestamp=(\d+),signature=([0-9a-f]{64})$/;
 
 type GatewayControlPlaneHandlerParams = {
   req: NextApiRequest;
@@ -72,9 +71,7 @@ type GatewayModelsHandler = (
 
 function verifyGatewayControlPlaneRequest(input: {
   virtualSecretKey: string;
-  requestBody: string;
   gatewayAuthorization: string | undefined;
-  path: string;
 }): string {
   if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
     throw new GatewayControlPlaneError(
@@ -99,7 +96,6 @@ function verifyGatewayControlPlaneRequest(input: {
 export function withGatewayResolveAuth(handler: GatewayResolveHandler) {
   return withGatewayControlPlaneAuth(
     ({ body, ...params }) => handler({ ...params, apiFormat: body.api_format }),
-    RESOLVE_PATH,
     resolveBodySchema,
   );
 }
@@ -116,7 +112,6 @@ export function withGatewayModelsAuth(handler: GatewayModelsHandler) {
             limit: body.limit,
           })
         : handler({ ...params, apiFormat: body.api_format }),
-    MODELS_PATH,
     modelsBodySchema,
   );
 }
@@ -127,7 +122,6 @@ function withGatewayControlPlaneAuth<
   handler: (
     params: GatewayControlPlaneHandlerParams & { body: Body },
   ) => Promise<unknown>,
-  path: string,
   schema: z.ZodType<Body>,
 ) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
@@ -163,11 +157,9 @@ function withGatewayControlPlaneAuth<
     try {
       const fastHashedSecretKey = verifyGatewayControlPlaneRequest({
         virtualSecretKey: token,
-        requestBody,
         gatewayAuthorization: singleHeader(
           req.headers["langfuse-gateway-authorization"],
         ),
-        path,
       });
 
       return await handler({
@@ -188,9 +180,7 @@ function withGatewayControlPlaneAuth<
 function verifyGatewayAuthorization(
   input: {
     virtualSecretKey: string;
-    requestBody: string;
     gatewayAuthorization: string | undefined;
-    path: string;
   },
   serviceKeys: Array<{ secret: string }>,
 ): boolean {
@@ -211,11 +201,9 @@ function verifyGatewayAuthorization(
 
   return verifyHmacSha256({
     message: [
+      SIGNATURE_DOMAIN,
       timestamp.toString(),
       sha256(input.virtualSecretKey),
-      input.path,
-      CONTROL_PLANE_METHOD,
-      sha256(input.requestBody),
     ].join("\n"),
     signature,
     secrets: serviceKeys.map(({ secret }) => secret),

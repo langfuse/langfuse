@@ -17,6 +17,7 @@ describe("GatewayResolveService", () => {
   it("loads the complete resolve context in one database query", async () => {
     const findFirst = vi.fn().mockResolvedValue({
       apiKeyId: "key-1",
+      metadata: { team: "platform", project_id: "spoofed-project" },
       apiKey: {
         orgId: "org-1",
         organization: {
@@ -55,6 +56,12 @@ describe("GatewayResolveService", () => {
       connection: {
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
+      },
+      attribution: {
+        team: "platform",
+        organization_id: "org-1",
+        project_id: "project-1",
+        key_id: "key-1",
       },
       ingestion: undefined,
     });
