@@ -33,7 +33,6 @@ type ModernSessionProps = {
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
-  showSystemPrompt: boolean;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
   onFilterObservationByName: (
     name: string,
@@ -51,7 +50,6 @@ export function ModernSession({
   filterState,
   filterMeasurementKey,
   viewLabel,
-  showSystemPrompt,
   sidebarFilterControls,
   onFilterObservationByName,
 }: ModernSessionProps) {
@@ -389,7 +387,6 @@ export function ModernSession({
       filterState={filterState}
       filterMeasurementKey={filterMeasurementKey}
       viewLabel={viewLabel}
-      showSystemPrompt={showSystemPrompt}
       openPeek={openPeek}
       renderSidebar={({ activeTraceId, onSelect }) =>
         tracesState.type === "loading" ? (

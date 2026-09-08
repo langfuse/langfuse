@@ -51,7 +51,7 @@ const EMPTY_TOOL_CALL_IDS: ReadonlySet<string> = new Set();
 
 export function prepareSessionTimelineObservations<
   Observation extends SessionTimelineObservation,
->(observations: readonly Observation[], showSystemPrompt: boolean) {
+>(observations: readonly Observation[]) {
   const chronologicalObservations = observations
     .map((observation, originalIndex) => ({ observation, originalIndex }))
     .sort(
@@ -109,7 +109,6 @@ export function prepareSessionTimelineObservations<
     reconcileHistory: chronologicalObservations.map(
       ({ observation }) => observation.type === "GENERATION",
     ),
-    showSystemPrompt,
     standaloneToolCallIdsByGroup: chronologicalObservations.map(
       ({ observation }) =>
         standaloneToolCallIdsByTraceId.get(observation.traceId) ??

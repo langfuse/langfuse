@@ -69,7 +69,6 @@ describe("processTimelineMessages", () => {
     const [result] = processTimelineMessages({
       messageGroups: [messages],
       reconcileHistory: [true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(["standalone-call"])],
     });
 
@@ -98,24 +97,10 @@ describe("processTimelineMessages", () => {
     ]);
   });
 
-  it("hides merged system prompts when disabled", () => {
-    const [result] = processTimelineMessages({
-      messageGroups: [messages],
-      reconcileHistory: [true],
-      showSystemPrompt: false,
-      standaloneToolCallIdsByGroup: [new Set()],
-    });
-
-    expect(result?.messages.every((message) => message.role !== "system")).toBe(
-      true,
-    );
-  });
-
   it("does not deduplicate calls without an id", () => {
     const [result] = processTimelineMessages({
       messageGroups: [messages],
       reconcileHistory: [true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set()],
     });
 
@@ -141,7 +126,6 @@ describe("processTimelineMessages", () => {
     const result = processTimelineMessages({
       messageGroups: [[toolCallMessage], [toolCallMessage]],
       reconcileHistory: [true, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(["reused-call-id"]), new Set()],
     });
 
@@ -200,7 +184,6 @@ describe("processTimelineMessages", () => {
         ],
       ] satisfies NormalizedMessage[][],
       reconcileHistory: [true, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
@@ -263,7 +246,6 @@ describe("processTimelineMessages", () => {
         ],
       ] satisfies NormalizedMessage[][],
       reconcileHistory: [true, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
@@ -307,7 +289,6 @@ describe("processTimelineMessages", () => {
         ],
       ] satisfies NormalizedMessage[][],
       reconcileHistory: [true, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
@@ -337,7 +318,6 @@ describe("processTimelineMessages", () => {
         ],
       ],
       reconcileHistory: [true, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(), new Set()],
     });
 
@@ -353,7 +333,6 @@ describe("processTimelineMessages", () => {
     const result = processTimelineMessages({
       messageGroups: [[repeatedMessage], null, [repeatedMessage]],
       reconcileHistory: [true, false, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(), new Set(), new Set()],
     });
 
@@ -374,7 +353,6 @@ describe("processTimelineMessages", () => {
     const result = processTimelineMessages({
       messageGroups: [[repeatedMessage], [eventMessage], [repeatedMessage]],
       reconcileHistory: [true, false, true],
-      showSystemPrompt: true,
       standaloneToolCallIdsByGroup: [new Set(), new Set(), new Set()],
     });
 

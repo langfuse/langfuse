@@ -31,29 +31,26 @@ const observation = (
 
 describe("prepareSessionTimelineObservations", () => {
   it("reconciles cumulative generation history across session traces", () => {
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation(
-          "generation-1",
-          [
-            { role: "system", content: "Instructions" },
-            { role: "user", content: "User 1" },
-          ],
-          "Assistant 1",
-        ),
-        observation(
-          "generation-2",
-          [
-            { role: "system", content: "Instructions" },
-            { role: "user", content: "User 1" },
-            { role: "assistant", content: "Assistant 1" },
-            { role: "user", content: "User 2" },
-          ],
-          "Assistant 2",
-        ),
-      ],
-      true,
-    );
+    const prepared = prepareSessionTimelineObservations([
+      observation(
+        "generation-1",
+        [
+          { role: "system", content: "Instructions" },
+          { role: "user", content: "User 1" },
+        ],
+        "Assistant 1",
+      ),
+      observation(
+        "generation-2",
+        [
+          { role: "system", content: "Instructions" },
+          { role: "user", content: "User 1" },
+          { role: "assistant", content: "Assistant 1" },
+          { role: "user", content: "User 2" },
+        ],
+        "Assistant 2",
+      ),
+    ]);
 
     expect(prepared[1]?.processedMessages.messages).toMatchObject([
       {
@@ -81,7 +78,7 @@ describe("prepareSessionTimelineObservations", () => {
       observation("invalid", invalidInput, null),
     ];
 
-    const prepared = prepareSessionTimelineObservations(observations, true);
+    const prepared = prepareSessionTimelineObservations(observations);
 
     expect(prepared).toHaveLength(observations.length);
     expect(prepared.map(({ observation: item }) => item.id)).toEqual([
@@ -102,42 +99,39 @@ describe("prepareSessionTimelineObservations", () => {
   });
 
   it("reconciles overlapping traces by observation timestamp", () => {
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation(
-          "generation-1",
-          [{ role: "user", content: "User 1" }],
-          "Assistant 1",
-          "GENERATION",
-          new Date(0),
-        ),
-        observation(
-          "generation-3",
-          [
-            { role: "user", content: "User 1" },
-            { role: "assistant", content: "Assistant 1" },
-            { role: "user", content: "User 2" },
-            { role: "assistant", content: "Assistant 2" },
-            { role: "user", content: "User 3" },
-          ],
-          "Assistant 3",
-          "GENERATION",
-          new Date(20),
-        ),
-        observation(
-          "generation-2",
-          [
-            { role: "user", content: "User 1" },
-            { role: "assistant", content: "Assistant 1" },
-            { role: "user", content: "User 2" },
-          ],
-          "Assistant 2",
-          "GENERATION",
-          new Date(10),
-        ),
-      ],
-      true,
-    );
+    const prepared = prepareSessionTimelineObservations([
+      observation(
+        "generation-1",
+        [{ role: "user", content: "User 1" }],
+        "Assistant 1",
+        "GENERATION",
+        new Date(0),
+      ),
+      observation(
+        "generation-3",
+        [
+          { role: "user", content: "User 1" },
+          { role: "assistant", content: "Assistant 1" },
+          { role: "user", content: "User 2" },
+          { role: "assistant", content: "Assistant 2" },
+          { role: "user", content: "User 3" },
+        ],
+        "Assistant 3",
+        "GENERATION",
+        new Date(20),
+      ),
+      observation(
+        "generation-2",
+        [
+          { role: "user", content: "User 1" },
+          { role: "assistant", content: "Assistant 1" },
+          { role: "user", content: "User 2" },
+        ],
+        "Assistant 2",
+        "GENERATION",
+        new Date(10),
+      ),
+    ]);
 
     expect(prepared[1]?.processedMessages.messages).toMatchObject([
       { role: "user", parts: [{ type: "text", text: "User 3" }] },
@@ -150,27 +144,24 @@ describe("prepareSessionTimelineObservations", () => {
   });
 
   it("renders a parent output after its nested observations", () => {
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation(
-          "parent",
-          [{ role: "user", content: "Start" }],
-          [{ role: "assistant", content: "Finished" }],
-          "GENERATION",
-          new Date(0),
-        ),
-        observation(
-          "child",
-          "Tool input",
-          "Tool output",
-          "TOOL",
-          new Date(1),
-          "trace-1",
-          "parent",
-        ),
-      ],
-      true,
-    );
+    const prepared = prepareSessionTimelineObservations([
+      observation(
+        "parent",
+        [{ role: "user", content: "Start" }],
+        [{ role: "assistant", content: "Finished" }],
+        "GENERATION",
+        new Date(0),
+      ),
+      observation(
+        "child",
+        "Tool input",
+        "Tool output",
+        "TOOL",
+        new Date(1),
+        "trace-1",
+        "parent",
+      ),
+    ]);
 
     expect(
       prepared.map(({ observation: item, phase }) => [item.id, phase]),
@@ -189,30 +180,27 @@ describe("prepareSessionTimelineObservations", () => {
 
   it("renders input inherited by nested observations only once", () => {
     const inheritedInput = [{ role: "user", content: "Build the dashboard" }];
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation("agent", inheritedInput, "Agent finished", "AGENT"),
-        observation(
-          "user-event",
-          inheritedInput,
-          null,
-          "EVENT",
-          new Date(1),
-          "trace-1",
-          "agent",
-        ),
-        observation(
-          "generation",
-          [...inheritedInput, { role: "user", content: "Use compact density" }],
-          "Generation finished",
-          "GENERATION",
-          new Date(2),
-          "trace-1",
-          "agent",
-        ),
-      ],
-      true,
-    );
+    const prepared = prepareSessionTimelineObservations([
+      observation("agent", inheritedInput, "Agent finished", "AGENT"),
+      observation(
+        "user-event",
+        inheritedInput,
+        null,
+        "EVENT",
+        new Date(1),
+        "trace-1",
+        "agent",
+      ),
+      observation(
+        "generation",
+        [...inheritedInput, { role: "user", content: "Use compact density" }],
+        "Generation finished",
+        "GENERATION",
+        new Date(2),
+        "trace-1",
+        "agent",
+      ),
+    ]);
 
     const visibleText = prepared.flatMap(({ processedMessages }) =>
       processedMessages.messages.flatMap((message) =>
@@ -230,41 +218,38 @@ describe("prepareSessionTimelineObservations", () => {
   });
 
   it("deduplicates a direct child tool by its unique name and input", () => {
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation("generation", null, [
-          {
-            role: "assistant",
-            content: null,
-            tool_calls: [
-              {
-                id: "generation-call-id",
-                type: "function",
-                function: {
-                  name: "search",
-                  arguments: JSON.stringify({
-                    query: "dashboard",
-                    limit: 5,
-                  }),
-                },
+    const prepared = prepareSessionTimelineObservations([
+      observation("generation", null, [
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "generation-call-id",
+              type: "function",
+              function: {
+                name: "search",
+                arguments: JSON.stringify({
+                  query: "dashboard",
+                  limit: 5,
+                }),
               },
-            ],
-          },
-        ]),
-        observation(
-          "tool-observation",
-          JSON.stringify({ limit: 5, query: "dashboard" }),
-          "Found dashboard",
-          "TOOL",
-          new Date(1),
-          "trace-1",
-          "generation",
-          { callID: "different-call-id" },
-          "search",
-        ),
-      ],
-      true,
-    );
+            },
+          ],
+        },
+      ]),
+      observation(
+        "tool-observation",
+        JSON.stringify({ limit: 5, query: "dashboard" }),
+        "Found dashboard",
+        "TOOL",
+        new Date(1),
+        "trace-1",
+        "generation",
+        { callID: "different-call-id" },
+        "search",
+      ),
+    ]);
 
     expect(
       prepared.find(
@@ -289,25 +274,22 @@ describe("prepareSessionTimelineObservations", () => {
         },
       ],
     };
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation("generation", null, [toolCall]),
-        ...["first-tool", "second-tool"].map((id, index) =>
-          observation(
-            id,
-            JSON.stringify({ query: "dashboard" }),
-            "Found dashboard",
-            "TOOL",
-            new Date(index + 1),
-            "trace-1",
-            "generation",
-            { callID: `${id}-call-id` },
-            "search",
-          ),
+    const prepared = prepareSessionTimelineObservations([
+      observation("generation", null, [toolCall]),
+      ...["first-tool", "second-tool"].map((id, index) =>
+        observation(
+          id,
+          JSON.stringify({ query: "dashboard" }),
+          "Found dashboard",
+          "TOOL",
+          new Date(index + 1),
+          "trace-1",
+          "generation",
+          { callID: `${id}-call-id` },
+          "search",
         ),
-      ],
-      true,
-    );
+      ),
+    ]);
 
     expect(
       prepared.find(
@@ -318,39 +300,36 @@ describe("prepareSessionTimelineObservations", () => {
   });
 
   it("flattens multiple nesting levels while preserving sibling chronology", () => {
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation("root", "root input", "root output"),
-        observation(
-          "second-child",
-          null,
-          null,
-          "EVENT",
-          new Date(3),
-          "trace-1",
-          "root",
-        ),
-        observation(
-          "first-child",
-          "child input",
-          "child output",
-          "GENERATION",
-          new Date(1),
-          "trace-1",
-          "root",
-        ),
-        observation(
-          "grandchild",
-          null,
-          null,
-          "TOOL",
-          new Date(2),
-          "trace-1",
-          "first-child",
-        ),
-      ],
-      true,
-    );
+    const prepared = prepareSessionTimelineObservations([
+      observation("root", "root input", "root output"),
+      observation(
+        "second-child",
+        null,
+        null,
+        "EVENT",
+        new Date(3),
+        "trace-1",
+        "root",
+      ),
+      observation(
+        "first-child",
+        "child input",
+        "child output",
+        "GENERATION",
+        new Date(1),
+        "trace-1",
+        "root",
+      ),
+      observation(
+        "grandchild",
+        null,
+        null,
+        "TOOL",
+        new Date(2),
+        "trace-1",
+        "first-child",
+      ),
+    ]);
 
     expect(
       prepared.map(({ observation: item, phase }) => `${item.id}:${phase}`),
@@ -381,20 +360,17 @@ describe("prepareSessionTimelineObservations", () => {
   });
 
   it("renders observations with filtered or missing parents as roots", () => {
-    const prepared = prepareSessionTimelineObservations(
-      [
-        observation(
-          "orphan",
-          null,
-          null,
-          "EVENT",
-          new Date(0),
-          "trace-1",
-          "filtered-parent",
-        ),
-      ],
-      true,
-    );
+    const prepared = prepareSessionTimelineObservations([
+      observation(
+        "orphan",
+        null,
+        null,
+        "EVENT",
+        new Date(0),
+        "trace-1",
+        "filtered-parent",
+      ),
+    ]);
 
     expect(prepared).toMatchObject([
       { observation: { id: "orphan" }, phase: "complete" },

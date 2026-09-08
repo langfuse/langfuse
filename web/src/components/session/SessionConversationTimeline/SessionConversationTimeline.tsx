@@ -606,7 +606,6 @@ export function SessionConversationTimeline({
   turnNumber,
   idleGapSeconds,
   state,
-  showSystemPrompt,
   onOpenTrace,
   onOpenObservation,
 }: {
@@ -614,7 +613,6 @@ export function SessionConversationTimeline({
   turnNumber: number;
   idleGapSeconds: number | null;
   state: SessionConversationTimelineState;
-  showSystemPrompt: boolean;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
 }) {
@@ -625,11 +623,10 @@ export function SessionConversationTimeline({
             type: "loaded",
             observations: prepareSessionTimelineObservations(
               state.observations,
-              showSystemPrompt,
             ),
           }
         : state,
-    [showSystemPrompt, state],
+    [state],
   );
 
   return (

@@ -106,12 +106,10 @@ function getVisibleMessages({
   messages,
   currentInput,
   historicalInputIndices,
-  showSystemPrompt,
 }: {
   messages: NormalizedMessage[];
   currentInput: ConversationEntry[];
   historicalInputIndices: ReadonlySet<number>;
-  showSystemPrompt: boolean;
 }) {
   const historicalParts = new Set(
     currentInput
@@ -121,8 +119,6 @@ function getVisibleMessages({
   const visibleMessages: NormalizedMessage[] = [];
 
   messages.forEach((message, messageIndex) => {
-    if (!showSystemPrompt && message.role === "system") return;
-
     const parts = message.parts.filter(
       (part, partIndex): part is ConversationPart => {
         if (part.type === "tool-call" || part.type === "tool-result") {
@@ -276,12 +272,10 @@ export function getSemanticallyMatchedChildToolCalls({
 export function processTimelineMessages({
   messageGroups,
   reconcileHistory,
-  showSystemPrompt,
   standaloneToolCallIdsByGroup,
 }: {
   messageGroups: readonly (NormalizedMessage[] | null)[];
   reconcileHistory: readonly boolean[];
-  showSystemPrompt: boolean;
   standaloneToolCallIdsByGroup: readonly ReadonlySet<string>[];
 }) {
   const processedGroups: Array<{
@@ -320,7 +314,6 @@ export function processTimelineMessages({
         messages,
         currentInput,
         historicalInputIndices,
-        showSystemPrompt,
       }),
       rolledUpToolCalls,
     });

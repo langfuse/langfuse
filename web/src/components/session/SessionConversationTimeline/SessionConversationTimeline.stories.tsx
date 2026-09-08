@@ -1763,7 +1763,6 @@ const loadedArgs = {
     type: "loaded",
     observations,
   },
-  showSystemPrompt: true,
   onOpenTrace: fn(),
   onOpenObservation: fn(),
 } satisfies TimelineProps;
@@ -1785,7 +1784,6 @@ export const CodingAgentWorkflow = meta.story({
     turnNumber: 2,
     idleGapSeconds: 92,
     state: { type: "loaded", observations: researchCodingAgentObservations },
-    showSystemPrompt: true,
     onOpenTrace: fn(),
     onOpenObservation: fn(),
   },
@@ -1800,7 +1798,6 @@ export const CodingAgentWorkflow = meta.story({
           type: "loaded",
           observations: implementationCodingAgentObservations,
         }}
-        showSystemPrompt={args.showSystemPrompt}
         onOpenTrace={args.onOpenTrace}
         onOpenObservation={args.onOpenObservation}
       />
@@ -1814,14 +1811,9 @@ export const InAppAgentErrorAnalysis = meta.story({
     turnNumber: 4,
     idleGapSeconds: 4 * 60,
     state: { type: "loaded", observations: inAppAgentObservations },
-    showSystemPrompt: true,
     onOpenTrace: fn(),
     onOpenObservation: fn(),
   },
-});
-
-export const SystemPromptHidden = meta.story({
-  args: { ...loadedArgs, showSystemPrompt: false },
 });
 
 export const Loading = meta.story({
@@ -1936,17 +1928,6 @@ export const RenderLoadedConversation = meta.story({
   },
 });
 
-export const HideSystemPrompt = meta.story({
-  name: "(Test) Hides System Prompt",
-  args: SystemPromptHidden.input.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByText(/You are Acme's customer support agent/),
-    ).not.toBeInTheDocument();
-  },
-});
-
 export const RenderTimelineLoadingState = meta.story({
   name: "(Test) Renders Timeline Loading State",
   args: Loading.input.args,
@@ -2053,35 +2034,6 @@ export const ExpandToolObservation = meta.story({
     );
     await expect(header.getBoundingClientRect().top).toBe(initialTop);
     await expect(canvasElement.querySelectorAll("pre")).toHaveLength(0);
-  },
-});
-
-export const HideOnlySystemMessage = meta.story({
-  name: "(Test) Hides Only System Message",
-  args: {
-    ...loadedArgs,
-    showSystemPrompt: false,
-    state: {
-      type: "loaded",
-      observations: [
-        {
-          ...observations[0]!,
-          input: JSON.stringify([
-            { role: "system", content: "Hidden system prompt" },
-          ]),
-          output: null,
-        },
-      ],
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByText("Hidden system prompt"),
-    ).not.toBeInTheDocument();
-    await expect(
-      canvas.getByLabelText("No conversational content"),
-    ).toBeVisible();
   },
 });
 

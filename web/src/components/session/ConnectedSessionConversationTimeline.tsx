@@ -44,7 +44,6 @@ export function ConnectedSessionConversationTimeline({
   filterState,
   filterMeasurementKey,
   viewLabel,
-  showSystemPrompt,
   openPeek,
   renderSidebar,
 }: {
@@ -54,7 +53,6 @@ export function ConnectedSessionConversationTimeline({
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
-  showSystemPrompt: boolean;
   openPeek: (
     id: string,
     row: EventSessionTrace & { observationId?: string },
@@ -156,7 +154,6 @@ export function ConnectedSessionConversationTimeline({
   });
   const preparedObservations = prepareSessionTimelineObservations(
     hydratedObservationGroups.flatMap((observations) => observations ?? []),
-    showSystemPrompt,
   );
   const groupIndexByObservation = new Map<SessionObservation, number>();
   hydratedObservationGroups.forEach((observations, groupIndex) => {
@@ -216,7 +213,6 @@ export function ConnectedSessionConversationTimeline({
       items={traces.map(({ trace }) => trace)}
       states={timelineStates}
       filterMeasurementKey={filterMeasurementKey}
-      showSystemPrompt={showSystemPrompt}
       openPeek={openPeek}
       renderSidebar={renderSidebar}
     />
@@ -228,7 +224,6 @@ function SessionConversationTimelineFeed({
   items,
   states,
   filterMeasurementKey,
-  showSystemPrompt,
   openPeek,
   renderSidebar,
 }: {
@@ -236,7 +231,6 @@ function SessionConversationTimelineFeed({
   items: EventSessionTrace[];
   states: readonly PreparedSessionConversationTimelineState[];
   filterMeasurementKey: string;
-  showSystemPrompt: boolean;
   openPeek: (
     id: string,
     row: EventSessionTrace & { observationId?: string },
@@ -344,7 +338,7 @@ function SessionConversationTimelineFeed({
                 <SessionVirtualizedRow
                   key={virtualItem.key}
                   itemKey={String(virtualItem.key)}
-                  measurementKey={`${String(virtualItem.key)}:${showSystemPrompt}:${filterMeasurementKey}`}
+                  measurementKey={`${String(virtualItem.key)}:${filterMeasurementKey}`}
                   source="modern"
                   virtualItem={virtualItem}
                   virtualizer={virtualizer}

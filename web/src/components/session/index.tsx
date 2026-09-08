@@ -1998,7 +1998,6 @@ const LoadedSessionEventsPage: React.FC<{
                   filterState={visibleFilterState}
                   filterMeasurementKey={visibleFilterMeasurementKey}
                   viewLabel={viewLabel}
-                  showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
                   onFilterObservationByName={filterObservationsByName}
                 />

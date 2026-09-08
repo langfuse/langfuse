@@ -110,7 +110,6 @@ describe("SessionConversationTimeline nested observations", () => {
           turnNumber={1}
           idleGapSeconds={null}
           state={{ type: "loaded", observations }}
-          showSystemPrompt
           onOpenTrace={vi.fn()}
           onOpenObservation={vi.fn()}
         />
