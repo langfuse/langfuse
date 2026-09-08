@@ -557,6 +557,58 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       expect(deserialized).toEqual(filterWithPendingNoneSelection);
     });
 
+    it("should round-trip object keys containing URL delimiters", () => {
+      // The decode side runs decodeURIComponent on the key slot, so the
+      // encode side must percent-encode it. Keys are arbitrary user strings
+      // (e.g. metadata keys), so `;`, `,` and `%` must survive a round-trip
+      // instead of corrupting the filter or throwing a URIError.
+      const keys = [
+        "semi;colon",
+        "com,ma",
+        "per%cent",
+        "100%",
+        "pipe|char",
+        "back\\slash",
+        "mixed;,%|chars",
+      ];
+
+      for (const key of keys) {
+        const filters: FilterState = [
+          {
+            column: "metadata",
+            type: "stringObject",
+            operator: "=",
+            key,
+            value: "some value",
+          },
+        ];
+
+        const serialized = encodeFilters(filters);
+        expect(() => decodeFilters(serialized)).not.toThrow();
+        expect(decodeFilters(serialized)).toEqual(filters);
+      }
+    });
+
+    it("should not corrupt neighboring filters when a key contains a delimiter", () => {
+      const filters: FilterState = [
+        {
+          column: "metadata",
+          type: "stringObject",
+          operator: "=",
+          key: "semi;colon",
+          value: "x",
+        },
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["prod", "staging"],
+        },
+      ];
+
+      expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+    });
+
     it("should maintain consistency for values containing pipes", () => {
       // Issue #11757: values with literal | should round-trip correctly
       const cases: FilterState[] = [

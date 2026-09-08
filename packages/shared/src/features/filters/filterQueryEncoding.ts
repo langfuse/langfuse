@@ -134,7 +134,9 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             encodedValue = encodeURIComponent(String(f.value));
           }
 
-          return `${f.column};${f.type};${key};${f.operator};${encodedValue}`;
+          // Percent-encode the key: the decode side runs decodeURIComponent on it,
+          // and metadata keys are arbitrary user JSON keys that may contain `;`, `,` or `%`.
+          return `${f.column};${f.type};${encodeURIComponent(key)};${f.operator};${encodedValue}`;
         })
         .filter((s): s is string => s !== null),
       ",",
