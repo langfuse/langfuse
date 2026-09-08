@@ -28,7 +28,6 @@ const getObservationKey = (traceId: string, observationId: string) =>
 export type SessionConversationTimelineTrace = {
   trace: EventSessionTrace;
   turnNumber: number;
-  idleGapSeconds: number | null;
   observations: EventObservation[] | null | undefined;
 };
 
@@ -332,7 +331,7 @@ function SessionConversationTimelineFeed({
               const timelineTrace = traces[virtualItem.index];
               const state = states[virtualItem.index];
               if (!timelineTrace || !state) return null;
-              const { trace, turnNumber, idleGapSeconds } = timelineTrace;
+              const { trace, turnNumber } = timelineTrace;
 
               return (
                 <SessionVirtualizedRow
@@ -346,7 +345,6 @@ function SessionConversationTimelineFeed({
                   <PreparedSessionConversationTimeline
                     trace={trace}
                     turnNumber={turnNumber}
-                    idleGapSeconds={idleGapSeconds}
                     state={state}
                     onOpenTrace={() => openPeek(trace.id, trace)}
                     onOpenObservation={(observationId) =>

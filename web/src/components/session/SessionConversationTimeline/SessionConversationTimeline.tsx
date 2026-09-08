@@ -15,11 +15,6 @@ import {
 } from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
-import {
-  formatIdleGap,
-  IDLE_GAP_THRESHOLD_SECONDS,
-} from "@/src/components/session/sessionIdleGap";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -635,14 +630,12 @@ function LoadedSessionConversationTimeline({
 export function SessionConversationTimeline({
   trace,
   turnNumber,
-  idleGapSeconds,
   state,
   onOpenTrace,
   onOpenObservation,
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
-  idleGapSeconds: number | null;
   state: SessionConversationTimelineState;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
@@ -664,7 +657,6 @@ export function SessionConversationTimeline({
     <PreparedSessionConversationTimeline
       trace={trace}
       turnNumber={turnNumber}
-      idleGapSeconds={idleGapSeconds}
       state={preparedState}
       onOpenTrace={onOpenTrace}
       onOpenObservation={onOpenObservation}
@@ -675,21 +667,16 @@ export function SessionConversationTimeline({
 export function PreparedSessionConversationTimeline({
   trace,
   turnNumber,
-  idleGapSeconds,
   state,
   onOpenTrace,
   onOpenObservation,
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
-  idleGapSeconds: number | null;
   state: PreparedSessionConversationTimelineState;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
 }) {
-  const showIdleGap =
-    idleGapSeconds !== null && idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
-
   return (
     <div
       className="px-4 pb-14 sm:px-6 lg:px-10"
@@ -708,15 +695,6 @@ export function PreparedSessionConversationTimeline({
           <span>trace · {trace.id}</span>
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
-        {showIdleGap ? (
-          <Badge
-            variant="secondary"
-            size="sm"
-            className="shrink-0 font-mono font-normal"
-          >
-            +{formatIdleGap(idleGapSeconds)} idle
-          </Badge>
-        ) : null}
       </div>
 
       {state.type === "loading" ? (

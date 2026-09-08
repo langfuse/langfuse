@@ -373,7 +373,6 @@ export function ModernSession({
       return {
         trace,
         turnNumber: index + 1,
-        idleGapSeconds: sidebarTrace?.idleGapSeconds ?? null,
         observations,
       };
     },

@@ -1758,7 +1758,6 @@ const implementationCodingAgentTrace = {
 const loadedArgs = {
   trace,
   turnNumber: 1,
-  idleGapSeconds: 10 * 60,
   state: {
     type: "loaded",
     observations,
@@ -1868,7 +1867,6 @@ export const CodingAgentWorkflow = meta.story({
   args: {
     trace: researchCodingAgentTrace,
     turnNumber: 2,
-    idleGapSeconds: 92,
     state: { type: "loaded", observations: researchCodingAgentObservations },
     onOpenTrace: fn(),
     onOpenObservation: fn(),
@@ -1879,7 +1877,6 @@ export const CodingAgentWorkflow = meta.story({
       <SessionConversationTimeline
         trace={implementationCodingAgentTrace}
         turnNumber={3}
-        idleGapSeconds={33}
         state={{
           type: "loaded",
           observations: implementationCodingAgentObservations,
@@ -1895,7 +1892,6 @@ export const InAppAgentErrorAnalysis = meta.story({
   args: {
     trace: inAppAgentTrace,
     turnNumber: 4,
-    idleGapSeconds: 4 * 60,
     state: { type: "loaded", observations: inAppAgentObservations },
     onOpenTrace: fn(),
     onOpenObservation: fn(),
@@ -1954,7 +1950,7 @@ export const RenderLoadedConversation = meta.story({
     });
     await expect(traceButton).toBeInTheDocument();
     await expect(within(traceButton).getByText("1")).toHaveClass("bg-tertiary");
-    await expect(canvas.getByText("+10 min idle")).toBeInTheDocument();
+    await expect(canvas.queryByText("+10 min idle")).not.toBeInTheDocument();
 
     const observationButton = canvas.getByRole("button", {
       name: "Plan support response",
@@ -2233,7 +2229,6 @@ export const ExpandNestedObservations = meta.story({
   name: "(Test) Expands Nested Observations",
   args: {
     ...loadedArgs,
-    idleGapSeconds: null,
     state: { type: "loaded", observations: nestedObservations },
   },
   play: async ({ canvasElement }) => {
@@ -2379,7 +2374,6 @@ export const ExpandEmptyTopLevelObservation = meta.story({
   name: "(Test) Expands Empty Top-Level Observation",
   args: {
     ...loadedArgs,
-    idleGapSeconds: null,
     state: {
       type: "loaded",
       observations: nestedObservations.map((observation) =>
