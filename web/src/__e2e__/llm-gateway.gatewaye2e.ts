@@ -393,17 +393,15 @@ describe("LLM gateway live end-to-end", () => {
               });
             }
             expect(resolved.attribution).toEqual({
-              test: true,
-              provider,
-              apiFormat,
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
+              key_metadata: { test: true, provider, apiFormat },
             });
             expect(resolved.ingestion).toMatchObject({
               access_token: expect.stringMatching(/\S/),
               token_type: "Bearer",
-              expires_in: expect.any(Number),
+              expires_at: expect.any(Number),
             });
 
             const ingestionToken = resolved.ingestion?.access_token;
