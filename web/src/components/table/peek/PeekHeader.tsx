@@ -138,7 +138,7 @@ export function PeekHeader({
 
   // Actions and open-in-tab ALWAYS live in the "…" menu — the header shows
   // only nav / expand / close inline (usage data: nav dwarfs everything else).
-  const hasMenu = Boolean(actionsMenu || openInNewTab);
+  const hasMenu = Boolean(actionsMenu || openInNewTab || expand);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
 
   // Measure + plan in a layout effect (before paint), reading width from the
