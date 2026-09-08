@@ -47,6 +47,17 @@ test("ordinary maintainer PRs are not labeled", () => {
   );
 });
 
+test("a prose mention of the marker name is not enough", () => {
+  assert.equal(
+    isCursorPr({
+      author: "maxdeichmann",
+      headRef: "lfe-15605-discuss-marker",
+      body: "Detect Cursor PRs via CURSOR_AGENT_PR_BODY_BEGIN in the workflow.",
+    }),
+    false,
+  );
+});
+
 test("workflow stays on pull_request and does not check out PR code", () => {
   assert.match(workflow, /^on:\n  pull_request:/m);
   assert.doesNotMatch(workflow, /^on:\n  pull_request_target:/m);
@@ -60,7 +71,11 @@ test("workflow stays on pull_request and does not check out PR code", () => {
 test("workflow uses the same three Cursor signals as isCursorPr", () => {
   assert.match(workflow, /author === "cursor\[bot]"/);
   assert.match(workflow, /headRef\.startsWith\("cursor\/"\)/);
-  assert.match(workflow, /body\.includes\("CURSOR_AGENT_PR_BODY_BEGIN"\)/);
+  assert.match(
+    workflow,
+    /body\.includes\("<!-- CURSOR_AGENT_PR_BODY_BEGIN -->"\)/,
+  );
+  assert.match(workflow, /pr\.head\.repo\?\.full_name/);
 });
 
 test("workflow treats a concurrent createLabel 422 as success", () => {
