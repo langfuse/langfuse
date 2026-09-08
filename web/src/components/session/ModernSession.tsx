@@ -3,7 +3,7 @@ import { type FilterState } from "@langfuse/shared";
 
 import {
   ConnectedSessionConversationTimeline,
-  type SessionConversationTimelineTrace,
+  type ConnectedSessionConversationTimelineItem,
 } from "@/src/components/session/ConnectedSessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
@@ -360,7 +360,7 @@ export function ModernSession({
       return next;
     });
   };
-  const timelineTraces: SessionConversationTimelineTrace[] = traces.map(
+  const timelineTraces: ConnectedSessionConversationTimelineItem[] = traces.map(
     (trace, index) => {
       const sidebarTrace = sidebarTraceById.get(trace.id);
       const observations =

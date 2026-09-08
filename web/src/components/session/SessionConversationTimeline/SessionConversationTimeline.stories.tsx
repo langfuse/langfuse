@@ -5,8 +5,9 @@ import { type ComponentProps } from "react";
 import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 
 type TimelineProps = ComponentProps<typeof SessionConversationTimeline>;
-type LoadedState = Extract<TimelineProps["state"], { type: "loaded" }>;
-type Observation = LoadedState["observations"][number];
+type Observation = NonNullable<
+  TimelineProps["traces"][number]["observations"]
+>[number];
 
 const trace = {
   id: "trace-order-support-8f3a2",
@@ -17,7 +18,7 @@ const trace = {
   observationCount: 5,
   latencyMs: 4260,
   scores: [],
-} satisfies TimelineProps["trace"];
+} satisfies TimelineProps["traces"][number]["trace"];
 
 const observations = [
   {
@@ -1731,7 +1732,7 @@ const inAppAgentTrace = {
   observationCount: inAppAgentObservations.length,
   latencyMs: 205_058,
   scores: [],
-} satisfies TimelineProps["trace"];
+} satisfies TimelineProps["traces"][number]["trace"];
 
 const researchCodingAgentTrace = {
   id: researchTraceId,
@@ -1742,7 +1743,7 @@ const researchCodingAgentTrace = {
   observationCount: researchCodingAgentObservations.length,
   latencyMs: 87_347,
   scores: [],
-} satisfies TimelineProps["trace"];
+} satisfies TimelineProps["traces"][number]["trace"];
 
 const implementationCodingAgentTrace = {
   id: implementationTraceId,
@@ -1753,7 +1754,7 @@ const implementationCodingAgentTrace = {
   observationCount: implementationCodingAgentObservations.length,
   latencyMs: 167_662,
   scores: [],
-} satisfies TimelineProps["trace"];
+} satisfies TimelineProps["traces"][number]["trace"];
 
 const observationActions = {
   canAnnotate: true,
@@ -1766,14 +1767,18 @@ const observationActions = {
 } satisfies NonNullable<TimelineProps["observationActions"]>;
 
 const loadedArgs = {
-  trace,
-  turnNumber: 1,
-  state: {
-    type: "loaded",
-    observations,
-  },
+  traces: [{ trace, turnNumber: 1, observations }],
+  filterMeasurementKey: "default",
+  emptyMessage: "This trace has no observations.",
   onOpenTrace: fn(),
   onOpenObservation: fn(),
+  renderSidebar: ({ activeTraceId, onSelect }) => (
+    <nav aria-label="Session traces" className="border-r p-4">
+      <button type="button" onClick={() => onSelect(0)}>
+        {activeTraceId === trace.id ? "Active trace" : "Select trace"}
+      </button>
+    </nav>
+  ),
   observationActions,
 } satisfies TimelineProps;
 
@@ -1877,75 +1882,97 @@ export const Loaded = meta.story({
 export const CodingAgentWorkflow = meta.story({
   args: {
     ...loadedArgs,
-    trace: researchCodingAgentTrace,
-    turnNumber: 2,
-    state: { type: "loaded", observations: researchCodingAgentObservations },
+    traces: [
+      {
+        trace: researchCodingAgentTrace,
+        turnNumber: 2,
+        observations: researchCodingAgentObservations,
+      },
+      {
+        trace: implementationCodingAgentTrace,
+        turnNumber: 3,
+        observations: implementationCodingAgentObservations,
+      },
+    ],
+    renderSidebar: ({ activeTraceId, onSelect }) => (
+      <nav aria-label="Session traces" className="flex flex-col gap-2 p-4">
+        {[researchCodingAgentTrace, implementationCodingAgentTrace].map(
+          (timelineTrace, index) => (
+            <button
+              key={timelineTrace.id}
+              type="button"
+              aria-current={activeTraceId === timelineTrace.id}
+              onClick={() => onSelect(index)}
+            >
+              {timelineTrace.name}
+            </button>
+          ),
+        )}
+      </nav>
+    ),
   },
-  render: (args) => (
-    <>
-      <SessionConversationTimeline {...args} />
-      <SessionConversationTimeline
-        trace={implementationCodingAgentTrace}
-        turnNumber={3}
-        state={{
-          type: "loaded",
-          observations: implementationCodingAgentObservations,
-        }}
-        onOpenTrace={args.onOpenTrace}
-        onOpenObservation={args.onOpenObservation}
-      />
-    </>
-  ),
 });
 
 export const InAppAgentErrorAnalysis = meta.story({
   args: {
     ...loadedArgs,
-    trace: inAppAgentTrace,
-    turnNumber: 4,
-    state: { type: "loaded", observations: inAppAgentObservations },
+    traces: [
+      {
+        trace: inAppAgentTrace,
+        turnNumber: 4,
+        observations: inAppAgentObservations,
+      },
+    ],
   },
 });
 
 export const Loading = meta.story({
-  args: { ...loadedArgs, state: { type: "loading" } },
+  args: {
+    ...loadedArgs,
+    traces: [{ trace, turnNumber: 1, observations: undefined }],
+  },
 });
 
 export const Error = meta.story({
-  args: { ...loadedArgs, state: { type: "error" } },
+  args: {
+    ...loadedArgs,
+    traces: [{ trace, turnNumber: 1, observations: null }],
+  },
 });
 
 export const Empty = meta.story({
   args: {
     ...loadedArgs,
-    state: { type: "empty", message: "This trace has no observations." },
+    traces: [{ trace, turnNumber: 1, observations: [] }],
   },
 });
 
 export const FilteredEmpty = meta.story({
   args: {
     ...loadedArgs,
-    state: {
-      type: "empty",
-      message: "No observation matches the “Generations” view in this trace.",
-    },
+    traces: [{ trace, turnNumber: 1, observations: [] }],
+    emptyMessage:
+      "No observation matches the “Generations” view in this trace.",
   },
 });
 
 export const FalsyTruncatedValues = meta.story({
   args: {
     ...loadedArgs,
-    state: {
-      type: "loaded",
-      observations: [
-        {
-          ...observations[0]!,
-          input: "0",
-          output: "false",
-          outputTruncated: true,
-        },
-      ],
-    },
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: [
+          {
+            ...observations[0]!,
+            input: "0",
+            output: "false",
+            outputTruncated: true,
+          },
+        ],
+      },
+    ],
   },
 });
 
@@ -2012,18 +2039,21 @@ export const TruncatedObservation = meta.story({
   name: "(Test) Renders Truncated Observation",
   args: {
     ...loadedArgs,
-    state: {
-      type: "loaded",
-      observations: [
-        {
-          ...observations[0]!,
-          input: "First 4,000 characters of the input…",
-          output: "First 4,000 characters of the output…",
-          inputTruncated: true,
-          outputTruncated: true,
-        },
-      ],
-    },
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: [
+          {
+            ...observations[0]!,
+            input: "First 4,000 characters of the input…",
+            output: "First 4,000 characters of the output…",
+            inputTruncated: true,
+            outputTruncated: true,
+          },
+        ],
+      },
+    ],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -2107,12 +2137,14 @@ export const UseObservationActions = meta.story({
     await userEvent.click(actionsButton);
     await userEvent.click(page.getByRole("menuitem", { name: "Annotate" }));
     await expect(args.observationActions?.onAnnotate).toHaveBeenCalledWith(
+      trace,
       observations[0],
     );
 
     await userEvent.click(actionsButton);
     await userEvent.click(page.getByRole("menuitem", { name: "Add comment" }));
     await expect(args.observationActions?.onAddComment).toHaveBeenCalledWith(
+      trace,
       observations[0],
     );
 
@@ -2121,6 +2153,7 @@ export const UseObservationActions = meta.story({
       page.getByRole("menuitem", { name: "Add to dataset" }),
     );
     await expect(args.observationActions?.onAddToDataset).toHaveBeenCalledWith(
+      trace,
       observations[0],
     );
     await waitFor(() =>
@@ -2135,10 +2168,13 @@ export const MetadataOmitted = meta.story({
   name: "(Test) Renders Omitted Metadata",
   args: {
     ...loadedArgs,
-    state: {
-      type: "loaded",
-      observations: [{ ...observations[0]!, metadataTruncated: true }],
-    },
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: [{ ...observations[0]!, metadataTruncated: true }],
+      },
+    ],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -2174,7 +2210,10 @@ export const OpenObservation = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Plan support response" }),
     );
-    await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
+    await expect(args.onOpenObservation).toHaveBeenCalledWith(
+      trace,
+      "generation-1",
+    );
   },
 });
 
@@ -2328,7 +2367,7 @@ export const ExpandNestedObservations = meta.story({
   name: "(Test) Expands Nested Observations",
   args: {
     ...loadedArgs,
-    state: { type: "loaded", observations: nestedObservations },
+    traces: [{ trace, turnNumber: 1, observations: nestedObservations }],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -2473,14 +2512,17 @@ export const ExpandEmptyTopLevelObservation = meta.story({
   name: "(Test) Expands Empty Top-Level Observation",
   args: {
     ...loadedArgs,
-    state: {
-      type: "loaded",
-      observations: nestedObservations.map((observation) =>
-        observation.id === "opencode.turn"
-          ? { ...observation, input: null, output: null }
-          : observation,
-      ),
-    },
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: nestedObservations.map((observation) =>
+          observation.id === "opencode.turn"
+            ? { ...observation, input: null, output: null }
+            : observation,
+        ),
+      },
+    ],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
