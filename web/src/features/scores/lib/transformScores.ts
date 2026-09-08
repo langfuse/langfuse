@@ -129,9 +129,12 @@ function transformAggregates(
     );
     if (!config) return;
 
+    // Use the config's real name: the aggregate key only carries the
+    // normalized name (- and . replaced with _), so using `name` here would
+    // rename scores like "my-score" to "my_score" on update.
     const score: AnnotationScore = {
       id: aggregate.id,
-      name,
+      name: config.name,
       dataType,
       source,
       configId: config.id,
