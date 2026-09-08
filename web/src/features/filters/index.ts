@@ -11,8 +11,10 @@ export {
   PopoverFilterBuilder,
 } from "@/src/features/filters/components/filter-builder";
 export { MultiSelect } from "@/src/features/filters/components/multi-select";
-export { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
-export { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
+// eval-logs / evaluators configs stay on the deep path: they import server
+// table definitions (and Prisma enums via those), and re-exporting them here
+// would make every consumer of this client door fail Vite/Storybook's
+// `export * from "@prisma/client"` interop.
 export {
   getMonitorFilterConfig,
   monitorFilterConfig,

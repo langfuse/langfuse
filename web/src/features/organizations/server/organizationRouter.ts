@@ -19,7 +19,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
-import { shouldAutoEnableV4 } from "@/src/features/events";
+import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {

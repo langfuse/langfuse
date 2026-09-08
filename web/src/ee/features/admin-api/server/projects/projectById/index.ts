@@ -8,7 +8,8 @@ import {
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { projectNameSchema, projectRetentionSchema } from "@/src/features/auth";
+import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { ApiAuthService } from "@/src/features/public-api/server";
 import { auditLog } from "@/src/features/audit-logs/server";

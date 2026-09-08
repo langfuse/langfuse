@@ -19,10 +19,8 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import {
-  evalLogFilterConfig,
-  useSidebarFilterState,
-} from "@/src/features/filters";
+import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { JobExecutionStatus, type Prisma } from "@langfuse/shared";

@@ -27,7 +27,7 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 

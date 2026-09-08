@@ -23,4 +23,6 @@ export {
   buildEventsTablePathForSpanName,
 } from "@/src/features/events/lib/eventsTablePaths";
 export { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
-export { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+// shouldAutoEnableV4 / canToggleV4 stay on the deep lib path (or a future
+// server surface). Re-exporting them here would make every server consumer of
+// the client door pull V4PreviewToggleRow and blow up Turbopack RSC builds.

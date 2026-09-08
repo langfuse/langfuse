@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { isBooleanDataType } from "@/src/features/scores";
+import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,

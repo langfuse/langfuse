@@ -92,7 +92,7 @@ import {
   deleteDatasetsByIds,
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   updateDataset,
   upsertDataset,
