@@ -208,6 +208,70 @@ describe("annotation queues trpc", () => {
         startTime.toISOString(),
       );
     });
+
+    it("resolves an observation item when the persisted objectStartTime is wrong", async () => {
+      // objectStartTime can originate from a client-supplied hint on the public
+      // create API, so a stale/wrong day must not hide an existing observation:
+      // the bounded lookup misses and the resolver retries unbounded.
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup, "ADMIN");
+
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Test Queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+
+      const observationId = uuidv4();
+      const traceId = uuidv4();
+      const startTime = new Date("2024-05-15T12:00:00.000Z");
+      const wrongStartTime = new Date("2024-01-01T00:00:00.000Z");
+      await Promise.all([
+        createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            trace_id: traceId,
+            project_id: setup.project.id,
+            start_time: startTime,
+            type: "GENERATION",
+          }),
+        ]),
+        createObservationsCh([
+          createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: setup.project.id,
+            start_time: startTime,
+            type: "GENERATION",
+          }),
+        ]),
+      ]);
+
+      const item = await prisma.annotationQueueItem.create({
+        data: {
+          queueId: queue.id,
+          objectId: observationId,
+          objectType: AnnotationQueueObjectType.OBSERVATION,
+          objectStartTime: wrongStartTime,
+          projectId: setup.project.id,
+        },
+      });
+
+      const result = await caller.annotationQueueItems.byId({
+        projectId: setup.project.id,
+        itemId: item.id,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result && "parentTraceId" in result && result.parentTraceId).toBe(
+        traceId,
+      );
+    });
   });
 
   describe("annotationQueues.create", () => {

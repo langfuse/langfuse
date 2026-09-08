@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
@@ -33,9 +34,18 @@ export const lookupQueueItemObservation = async ({
       : // eslint-disable-next-line @typescript-eslint/no-deprecated
         getObservationById({ id: objectId, projectId, startTime });
 
-  const observation = await lookup(objectStartTime ?? undefined);
-  if (observation || !objectStartTime) {
-    return observation;
+  if (!objectStartTime) {
+    return lookup();
   }
-  return lookup();
+  try {
+    return await lookup(objectStartTime);
+  } catch (e) {
+    // The bounded lookups throw LangfuseNotFoundError on an empty result rather
+    // than returning null, so a wrong/stale hint surfaces here. Retry unbounded
+    // before giving up; any other error is a real failure and propagates.
+    if (e instanceof LangfuseNotFoundError) {
+      return lookup();
+    }
+    throw e;
+  }
 };
