@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 
 import { authorize } from "./authorize";
+import { headerValue } from "./headers";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import {
   type AuthorizationContext,
@@ -18,11 +19,6 @@ import {
 
 /** orgIdHeader selects the target org for keys without a bound org; dead until a Phase 3 multi-scope key exists. */
 const orgIdHeader = "x-langfuse-organization-id";
-
-/** headerValue normalizes a possibly-repeated header to its first value. */
-const headerValue = (
-  value: string | string[] | undefined,
-): string | undefined => (Array.isArray(value) ? value[0] : value);
 
 /** enforceOrgAuth runs the new org pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
 export async function enforceOrgAuth(
