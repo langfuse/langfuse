@@ -171,14 +171,14 @@ export function generateConfusionMatrixData({
   // Create lookup map
   const dataMap = new Map<string, number>();
   data.forEach((d) => {
-    dataMap.set(`${d.row_category}-${d.col_category}`, d.count);
+    dataMap.set(JSON.stringify([d.row_category, d.col_category]), d.count);
   });
 
   // Generate cells
   const cells: HeatmapCell[] = [];
   rowCategories.forEach((rowCat, rowIdx) => {
     colCategories.forEach((colCat, colIdx) => {
-      const count = dataMap.get(`${rowCat}-${colCat}`) || 0;
+      const count = dataMap.get(JSON.stringify([rowCat, colCat])) || 0;
       const percentage = total > 0 ? (count / total) * 100 : 0;
       const isDiagonal = rowCat === colCat;
 
