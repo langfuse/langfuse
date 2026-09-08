@@ -30,6 +30,7 @@ import {
   OBSERVATION_TYPE_COLOR,
   OBSERVATION_TYPE_FALLBACK_COLOR,
 } from "@/src/features/traces/fns/observationTypeColors";
+import { MAX_NODES_FOR_GRAPH_UI } from "@/src/features/traces/contexts/TraceGraphDataContext";
 
 // Lane ordering: generation-ish work first, plumbing last.
 const LANE_ORDER = [
@@ -99,13 +100,15 @@ export function TraceLanesView() {
     return () => observer.disconnect();
   }, []);
 
-  const { lanes, idleGaps, toX, ticks } = useMemo(() => {
+  const { lanes, idleGaps, toX, ticks, exceedsBarCap } = useMemo(() => {
     const originMs = traceStartTime.getTime();
     const totalMs = Math.max(traceDuration * 1000, 1);
     const laneWidthPx = Math.max(width - GUTTER_PX, 100);
 
     const byType = new Map<string, LaneBar[]>();
     const intervals: Array<[number, number]> = [];
+    let barCount = 0;
+    let exceedsBarCap = false;
     // Walk the SAME level-filtered tree `traceStartTime`/`traceDuration` were
     // derived from — the raw `observations` list still includes rows a level
     // filter hides, and building bars from that against filtered bounds is
@@ -120,6 +123,13 @@ export function TraceLanesView() {
       const node = stack.pop()!;
       for (const child of node.children) stack.push(child);
       if (node.type === "TRACE") continue;
+      barCount++;
+      // Same size budget the graph view disables itself at (MAX_NODES_FOR_GRAPH_UI)
+      // — bail out of the rest of the layout math, a centered note replaces lanes.
+      if (barCount >= MAX_NODES_FOR_GRAPH_UI) {
+        exceedsBarCap = true;
+        break;
+      }
       const startMs = node.startTime.getTime() - originMs;
       const endMs = node.endTime
         ? node.endTime.getTime() - originMs
@@ -147,6 +157,16 @@ export function TraceLanesView() {
             : null,
       });
       byType.set(node.type, bars);
+    }
+
+    if (exceedsBarCap) {
+      return {
+        lanes: [],
+        idleGaps: [],
+        toX: (ms: number) => ms,
+        ticks: [],
+        exceedsBarCap: true,
+      };
     }
 
     const idleGaps = findIdleGaps(intervals).filter(
@@ -202,8 +222,16 @@ export function TraceLanesView() {
       ticks.push({ ms, x: toX(ms) });
     }
 
-    return { lanes, idleGaps, toX, ticks };
+    return { lanes, idleGaps, toX, ticks, exceedsBarCap: false };
   }, [roots, traceStartTime, traceDuration, width]);
+
+  if (exceedsBarCap) {
+    return (
+      <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+        Too many observations for the lanes view.
+      </div>
+    );
+  }
 
   if (lanes.length === 0) {
     return (

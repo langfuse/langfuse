@@ -12,7 +12,9 @@ import { api } from "@/src/utils/api";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
-const MAX_NODES_FOR_GRAPH_UI = 5000;
+/** Also the lanes view's size cap (TraceLanesView) — one budget for the two
+ *  visualizations that lay out every observation instead of a scrollable list. */
+export const MAX_NODES_FOR_GRAPH_UI = 5000;
 
 interface TraceGraphDataContextValue {
   /** Agent graph data for visualization */
