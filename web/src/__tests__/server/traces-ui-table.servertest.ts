@@ -287,8 +287,12 @@ describe("Traces table API test", () => {
       const [page0, page1, totalCount] = await Promise.all([
         getTracesTable({ ...query, page: 0 }),
         getTracesTable({ ...query, page: 1 }),
+        // Count matches the UI: orderBy is always null so the aggregate
+        // is not wrapped in a timestamp ORDER BY.
         getTracesTableCount({
-          ...query,
+          projectId: project_id,
+          filter,
+          searchQuery: needle,
           searchType: ["content"],
         }),
       ]);
