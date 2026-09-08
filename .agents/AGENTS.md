@@ -9,13 +9,15 @@ This repo serves two different people, and they get different halves of it.
 Work out which before anything else, and never guess silently.
 
 It is a configuration question, not an interview. Read
-`~/.config/langfuse/me.md`; if it is not there, `gh api repos/langfuse/langfuse
---jq .permissions` settles contributor versus maintainer on its own, and for
-anything it cannot tell you — which areas they work on — **just ask, once**, and
-write the answer to that file so nobody asks again. That is a question and a
-file, not a process. Someone who has worked here for a year does not need
-onboarding; they need you to know their name. `langfuse-onboarding` is for
-people who are actually new.
+`~/.config/langfuse/me.md`; if it is not there, `langfuse-onboarding` step 1
+names them. On Cursor Cloud that is the run owner (`cursor-cloud` `run-info`)
+plus the team roster — **not** `gh api …permissions`, because Cloud's GitHub
+token is a read-only integration and reports `push: false` for maintainers.
+Desktop still uses `gh api user` then `.permissions.push`. For anything those
+cannot tell you — which areas they work on — **just ask, once**, and write the
+answer to that file so nobody asks again. Someone who has worked here for a
+year does not need onboarding; they need you to know their name.
+`langfuse-onboarding` is for people who are actually new.
 
 **An outside contributor** gets the code and `CONTRIBUTING.md`: how to build it,
 what the checks require, how to open a pull request. Nothing about the tracker,
@@ -57,8 +59,8 @@ than two sentences they read.
 - Know who you are working for before you assume what they may do. An outside
   contributor and a Langfuse maintainer get different halves of this repo, and
   the difference is derivable — `~/.config/langfuse/me.md` if it exists, else
-  `gh api repos/langfuse/langfuse --jq .permissions`. `langfuse-onboarding`
-  establishes it once and records it; never guess it silently.
+  `langfuse-onboarding` step 1 (Cloud run owner, not Cloud `gh` permissions).
+  Never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file
@@ -198,6 +200,15 @@ langfuse/
 
 ### Cursor Cloud specific instructions
 
+- Identity: `cursor-cloud` `run-info` (`owningUserName`, `owningUserEmail`),
+  then the roster. Repo postinstall and Cloud start normally recover
+  `~/.config/langfuse/me.md` from `LINEAR_API_KEY` first. Ignore `git config`
+  (`cursoragent@cursor.com`) and Cloud `gh` `.permissions.push`.
+- Linear: MCP if already authorized; else a real read with `LINEAR_API_KEY`
+  (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`). Interactive `mcp_auth` does not
+  work in Cloud. If neither works, tell them to add **`LINEAR_API_KEY`** as a
+  Cursor Cloud secret (https://cursor.com/dashboard/cloud-agents) and start a
+  new run — this one cannot see a secret added later.
 - Cursor Cloud starts the complete source-built stack through
   `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
   process on ports 3000 or 3030.
@@ -209,6 +220,8 @@ langfuse/
 - Open a same-repo reviewable PR after local verification (not a draft) and
   test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
   data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- After opening a PR, apply the GitHub `cursor` label. Do not wait for a
+  human to add it.
 - Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
   `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
   Repo guidance wins.

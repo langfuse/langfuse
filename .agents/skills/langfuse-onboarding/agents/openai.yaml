@@ -1,4 +1,4 @@
 interface:
   display_name: "Langfuse Onboarding"
-  short_description: "Establish who you are, then walk the onboarding path"
-  default_prompt: "Use $langfuse-onboarding to work out whether I am a contributor or a maintainer, record it, and walk me through setup."
+  short_description: "Name you, then check Linear, including Cursor Cloud"
+  default_prompt: "Use $langfuse-onboarding to work out who I am (Cloud run owner, not Cloud gh permissions), whether Linear answers, and if not tell me to set LINEAR_API_KEY."
