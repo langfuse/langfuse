@@ -34,17 +34,20 @@ Wrong: `cursor/short-descriptive-title-8c78`
 
 ## Linear connection
 
-Cursor can reach Linear — desktop and cloud — but the MCP server is not
-configured by default, so it is a one-time setup step per developer. Langfuse
-engineers: the write policy is
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Configure the connection
-once; agents are expected to read a ticket's history before starting and to leave
-their context on it when they finish.
+Cursor desktop can authorize the Linear MCP interactively. Cursor Cloud cannot:
+`mcp_auth` is desktop-only, and the Cloud GitHub token is unrelated to Linear.
 
-If Linear is not reachable in your environment, **say so in your handoff
-message** and hand back the context that should have gone on the ticket. Do not
-skip it silently — a missing connection that nobody notices looks exactly like a
-practice being followed.
+On Cloud, prove Linear with a real read. If the MCP is `needsAuth` or missing,
+use `LINEAR_API_KEY` (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`) via GraphQL or
+`lf-context.sh`. If that env is unset, **say so** and tell them to add
+**`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start a
+new run. Langfuse engineers: the write policy is
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Identity is
+[`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) — Cloud `run-info`, not
+Cloud `gh` permissions.
+
+If Linear is not reachable, **say so in your handoff message** and hand back
+the context that should have gone on the ticket. Do not skip it silently.
 
 ## Pull requests
 

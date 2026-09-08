@@ -232,6 +232,13 @@ idempotent setup and then installs Cursor's Playwright system dependencies.
 Each agent run starts the six-service source stack with
 `scripts/agents/start-cursor-cloud.sh`.
 
+Identity recovery runs in both repo postinstall and Cursor Cloud start. When
+`LINEAR_API_KEY` is available, it verifies the viewer belongs to the Langfuse
+team and creates `~/.config/langfuse/me.md` without exposing the key. The file
+is never overwritten, so human corrections survive repeated installs and
+worktrees. Running it at Cloud start matters because environment builds do not
+rerun install for each new agent.
+
 The start script builds and waits for web, worker, PostgreSQL, ClickHouse,
 Redis, and MinIO, seeds the synthetic demo project, and verifies the web and
 worker health endpoints. The default Cursor VM is accepted only after three
@@ -262,7 +269,7 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 | --- | --- | --- |
 | GitHub | Cursor GitHub App | Enabled for same-repo branches, draft PRs, CI, and preview status |
 | Langfuse Docs | Shared HTTP MCP | Enabled, read-only |
-| Linear | Shared OAuth MCP | Enabled; allow read/search tools only |
+| Linear | Shared OAuth MCP | Enabled; allow read/search tools only. Cursor Cloud cannot complete that OAuth prompt — maintainers add a personal `LINEAR_API_KEY` secret at https://cursor.com/dashboard/cloud-agents and start a new run. |
 | Datadog EU and US | Team Marketplace MCPs | Enabled; allow logs, metrics, traces, dashboards, and monitor reads only |
 | Metabase | Team Marketplace MCP | Enabled; allow metadata and query reads only |
 | Pylon | Team Marketplace MCP | Enabled; allow issue/thread/customer reads only |
