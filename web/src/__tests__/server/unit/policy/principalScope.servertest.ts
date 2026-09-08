@@ -95,9 +95,22 @@ describe("principalScope on a project target", () => {
     if (result.success) expect(result.scope.accessLevel).toBe("scores");
   });
 
-  it("500s an org-scoped key that reached the project mapper", async () => {
+  it("maps an org-scoped key onto the project scope of a project it owns", async () => {
     expect(
       await principalScope(apiKey("ORGANIZATION"), { projectId: "prj_1" }),
-    ).toMatchObject({ success: false, error: expect.any(InternalServerError) });
+    ).toEqual({
+      success: true,
+      scope: {
+        projectId: "prj_1",
+        accessLevel: "project",
+        orgId: "org_1",
+        plan: "oss",
+        rateLimitOverrides: [],
+        apiKeyId: "key_1",
+        publicKey: "pk-lf-1",
+        isIngestionSuspended: false,
+        isInAppAgentKey: false,
+      },
+    });
   });
 });

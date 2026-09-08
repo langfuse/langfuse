@@ -106,13 +106,22 @@ describe("presentation rides in the input", () => {
 });
 
 describe("expansion table: scope PROJECT, privateKey", () => {
-  it("grants the full project vocabulary over the bound project only", async () => {
+  it("grants the project vocabulary less project administration over the bound project only", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",
       apiKey: apiKey(),
     });
     expect(authorize(ctx, "prompts:read", { projectId: PRJ }).success).toBe(
       true,
+    );
+    expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
+      true,
+    );
+    expect(authorize(ctx, "apiKeys:CUD", { projectId: PRJ }).success).toBe(
+      false,
+    );
+    expect(authorize(ctx, "project:update", { projectId: PRJ }).success).toBe(
+      false,
     );
     expect(
       authorize(ctx, "prompts:read", { projectId: OTHER_PRJ }).success,
@@ -128,15 +137,21 @@ describe("expansion table: scope PROJECT, privateKey", () => {
 });
 
 describe("expansion table: scope ORGANIZATION, privateKey", () => {
-  it("grants the org vocabulary and no project action", async () => {
+  it("grants the org vocabulary plus project administration over its own projects only", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",
       apiKey: orgKey(),
     });
     expect(authorize(ctx, "projects:read", { orgId: ORG }).success).toBe(true);
     expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
-      false,
+      true,
     );
+    expect(authorize(ctx, "apiKeys:CUD", { projectId: PRJ }).success).toBe(
+      true,
+    );
+    expect(
+      authorize(ctx, "project:read", { projectId: "prj_foreign" }).success,
+    ).toBe(false);
     expect(authorize(ctx, "traces:read", { projectId: PRJ }).success).toBe(
       false,
     );

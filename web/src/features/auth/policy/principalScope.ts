@@ -58,13 +58,6 @@ async function projectScope(
       `unexpected principal kind on the project seam: ${principal.kind}`,
     );
   }
-  // The project seam denies org keys at the PDP, so one reaching here means a
-  // project route granted an org-satisfiable action.
-  if (principal.scope !== "PROJECT") {
-    return invariantBreak(
-      `org-scoped key ${principal.apiKeyId} reached the project mapper`,
-    );
-  }
   const org = principal.organizations[0];
   if (!org) {
     return invariantBreak(

@@ -164,13 +164,15 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     expect(enforce).toMatchObject({ validKey: false, status: 403 });
   });
 
-  it("an organization key naming a project 403s in both modes", async () => {
+  it("an organization key naming a project it owns is 403 in legacy and authorized in enforce", async () => {
     const { legacy, enforce } = await projectResultUnderModes(
       orgAuth,
       projectId,
     );
     expect(legacy).toMatchObject({ validKey: false, status: 403 });
-    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    expect(scopeOf(enforce).accessLevel).toBe("project");
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(scopeOf(enforce).orgId).toBe(orgId);
   });
 
   it("an organization key naming no project 403s in both modes", async () => {
