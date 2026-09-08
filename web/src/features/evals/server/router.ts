@@ -30,7 +30,7 @@ import {
 import {
   getQueue,
   getAvgCostByEvaluatorIds,
-  getAvgCostByEvaluatorIdsFromObservations,
+  getAvgCostByEvalAnchorIdsFromObservations,
   getCostByEvaluatorIds,
   getTotalCostByRule,
   getEvaluatorExecutionStatusCountsByEvaluatorId,
@@ -1413,10 +1413,67 @@ export const evalRouter = createTRPCRouter({
       const costs =
         ctx.session.user.v4BetaEnabled === true
           ? await getAvgCostByEvaluatorIds(input.projectId, input.evaluatorIds)
-          : await getAvgCostByEvaluatorIdsFromObservations(
-              input.projectId,
-              input.evaluatorIds,
-            );
+          : await (async () => {
+              // Callers pass v2 evaluator ids (the run-evaluation dialog).
+              // In the legacy observations store, current executions stamp
+              // metadata.evaluator_id, while rule-based history anchors
+              // metadata.job_configuration_id to the rule id, which differs
+              // from the evaluator id. Resolve each evaluator's rules so
+              // rule-based history is included, and map rule-anchored groups
+              // back to their evaluator. Groups anchored to a rule with
+              // several of the queried evaluators are ambiguous and skipped.
+              const assignments =
+                await ctx.prisma.evaluationRuleEvaluatorAssignment.findMany({
+                  where: {
+                    projectId: input.projectId,
+                    evaluatorId: { in: input.evaluatorIds },
+                  },
+                  select: { evaluationRuleId: true, evaluatorId: true },
+                });
+              const anchorIds = [
+                ...new Set([
+                  ...input.evaluatorIds,
+                  ...assignments.map((a) => a.evaluationRuleId),
+                ]),
+              ];
+              const rows = await getAvgCostByEvalAnchorIdsFromObservations(
+                input.projectId,
+                anchorIds,
+              );
+              const evaluatorsByRule = new Map<string, string[]>();
+              for (const assignment of assignments) {
+                const list =
+                  evaluatorsByRule.get(assignment.evaluationRuleId) ?? [];
+                list.push(assignment.evaluatorId);
+                evaluatorsByRule.set(assignment.evaluationRuleId, list);
+              }
+              const evaluatorIdSet = new Set(input.evaluatorIds);
+              const merged = new Map<
+                string,
+                { costTotal: number; count: number }
+              >();
+              for (const row of rows) {
+                let target: string | undefined;
+                if (evaluatorIdSet.has(row.anchorId)) {
+                  target = row.anchorId;
+                } else {
+                  const candidates = (
+                    evaluatorsByRule.get(row.anchorId) ?? []
+                  ).filter((id) => evaluatorIdSet.has(id));
+                  if (candidates.length === 1) target = candidates[0];
+                }
+                if (!target) continue;
+                const acc = merged.get(target) ?? { costTotal: 0, count: 0 };
+                acc.costTotal += row.avgCost * row.executionCount;
+                acc.count += row.executionCount;
+                merged.set(target, acc);
+              }
+              return [...merged.entries()].map(([evaluatorId, acc]) => ({
+                evaluatorId,
+                avgCost: acc.costTotal / acc.count,
+                executionCount: acc.count,
+              }));
+            })();
 
       return costs.reduce(
         (acc, { evaluatorId, avgCost, executionCount }) => {

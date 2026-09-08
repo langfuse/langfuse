@@ -2088,14 +2088,56 @@ export const getCostByEvaluatorIds = async (
   evaluatorIds: string[],
 ) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
 
-export const getAvgCostByEvaluatorIdsFromObservations = async (
+/**
+ * Average judge-generation cost and execution count for the run-evaluation
+ * cost estimate, read from the legacy observations store.
+ *
+ * Callers pass "anchor" ids: the evaluator ids shown in the dialog plus the
+ * ids of the rules those evaluators are assigned to. Current workers stamp
+ * metadata.evaluator_id on the judge generation, while rule-based executions
+ * anchor metadata.job_configuration_id to the rule id and ruleless manual
+ * runs anchor it to the evaluator id. Groups are keyed by the evaluator id
+ * when present so current executions attribute to the evaluator; the caller
+ * maps rule-anchored groups back to their evaluator. Evaluator test runs
+ * carry no production meaning for the estimate and are excluded, matching the
+ * events-store variant.
+ */
+export const getAvgCostByEvalAnchorIdsFromObservations = async (
   projectId: string,
-  evaluatorIds: string[],
-) =>
-  getEvaluatorCostMetricsByIds(projectId, evaluatorIds, [
-    "avgCost",
-    "executionCount",
-  ]);
+  anchorIds: string[],
+) => {
+  if (anchorIds.length === 0) return [];
+
+  const rows = await queryClickhouse<Record<string, string>>({
+    query: `
+      SELECT
+        if(metadata['evaluator_id'] != '', metadata['evaluator_id'], metadata['job_configuration_id']) as anchor_id,
+        avg(total_cost) as avg_cost,
+        count(*) as execution_count
+      FROM observations FINAL
+      WHERE project_id = {projectId: String}
+        AND type = 'GENERATION'
+        AND start_time > now() - INTERVAL 7 DAY
+        AND metadata['evaluator_test'] != 'true'
+        AND (
+          metadata['evaluator_id'] IN ({anchorIds: Array(String)})
+          OR metadata['job_configuration_id'] IN ({anchorIds: Array(String)})
+        )
+      GROUP BY anchor_id
+    `,
+    params: {
+      projectId,
+      anchorIds,
+    },
+    tags: { projectId },
+  });
+
+  return rows.map((row) => ({
+    anchorId: row.anchor_id,
+    avgCost: Number(row.avg_cost),
+    executionCount: Number(row.execution_count),
+  }));
+};
 
 // ─── Public-API observation query helpers ─────────────────────────────────────
 
