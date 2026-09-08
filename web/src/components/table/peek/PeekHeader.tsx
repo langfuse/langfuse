@@ -44,11 +44,10 @@ type PeekHeaderProps = {
   onClose: () => void;
 };
 
-// The title keeps at least this much width before anything else collapses; the
-// type badge falls back to this width when icon-only; the "…" trigger is an
-// icon-xs button. Tuned by eye — planner `safety` covers inter-control gaps.
+// The title keeps at least this much width before anything else collapses;
+// the "…" trigger is an icon-xs button. Tuned by eye — planner `safety`
+// covers inter-control gaps.
 const MIN_TITLE_PX = 240;
-const BADGE_ICON_PX = 32;
 const BADGE_LABEL_FALLBACK_PX = 72;
 const NAV_FULL_FALLBACK_PX = 92;
 const NAV_COMPACT_FALLBACK_PX = 52;
@@ -165,7 +164,11 @@ export function PeekHeader({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
       badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
-      badgeIconWidth: BADGE_ICON_PX,
+      // The badge always renders `showLabel hideIcon` below — it never
+      // actually shrinks to icon-only — so the planner must see the same
+      // width for both inputs, or it credits the title with space the badge
+      // never gives up.
+      badgeIconWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
       navFullWidth: hasNav
         ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
         : 0,

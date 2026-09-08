@@ -2,10 +2,7 @@ import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
-import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   SelectionProvider,
   useSelection,
@@ -186,7 +183,6 @@ function TraceWithSelection({
  *
  * Hooks:
  * - useIsMobile() - for responsive platform detection
- * - useViewPreferences() - for graph toggle state
  * - useTraceGraphData() - for graph availability
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
@@ -194,12 +190,12 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   // Graph is a view: desktop via the Tree/Timeline/Graph switch, mobile via
   // its Graph tab — both gated only on graph data being available.
   const { isGraphViewAvailable } = useTraceGraphData();
-  // Annotation mode is a focused surface — no trace-level summary strip.
-  const { isAnnotationMode } = useViewPreferences();
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {!isAnnotationMode && <TraceSummaryStrip />}
+      {/* Trace-level attributes (tags included) have their only home here —
+          annotation mode still needs them, so the strip is not gated on it. */}
+      <TraceSummaryStrip />
       <div className="min-h-0 flex-1">
         {isMobile ? (
           <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
