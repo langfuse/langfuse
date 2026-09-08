@@ -1987,9 +1987,9 @@ export const RenderLoadedConversation = meta.story({
     const observationButton = canvas.getByRole("button", {
       name: "Plan support response",
     });
-    await expect(observationButton.querySelector("span")).toHaveClass(
-      "font-normal",
-    );
+    await expect(
+      within(observationButton).getByText("Plan support response"),
+    ).toHaveClass("font-normal");
     await expect(
       canvas.getByText(/Hi, I just noticed order #LF-20481/),
     ).toBeInTheDocument();
@@ -2283,6 +2283,29 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
     ).toHaveLength(2);
+    await expect(
+      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand tool-1" }),
+    );
+    await expect(
+      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
+    ).toHaveClass("top-[22px]");
+    await expect(
+      nestedTool?.querySelector("[data-session-observation-rail-end]"),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse tool-1" }),
+    );
+    await expect(
+      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
+    ).not.toBeInTheDocument();
+    await expect(
+      nestedTool?.querySelector("[data-session-observation-rail-end]"),
+    ).not.toBeInTheDocument();
     await expect(nestedToggle).toHaveStyle({ left: "7.5px" });
     await expect(nestedToggle).toHaveClass("top-[18px]");
 

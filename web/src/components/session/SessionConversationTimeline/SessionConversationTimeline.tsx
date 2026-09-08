@@ -163,6 +163,8 @@ function SessionTimelineToolRow({
   output,
   inputTruncated,
   outputTruncated,
+  isExpanded,
+  onExpandedChange,
   onOpenInTraceView,
 }: {
   id: string;
@@ -173,14 +175,14 @@ function SessionTimelineToolRow({
   output: unknown;
   inputTruncated?: boolean;
   outputTruncated?: boolean;
+  isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
   onOpenInTraceView: () => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
   return (
     <section
       data-session-observation-id={id}
-      className={cn("flex scroll-mt-16 flex-col py-1", isExpanded && "gap-4")}
+      className={cn("flex scroll-mt-16 flex-col py-1", isExpanded && "gap-2")}
     >
       <div className="flex w-full min-w-0 items-center gap-0.5">
         <button
@@ -188,7 +190,9 @@ function SessionTimelineToolRow({
           onClick={onOpenInTraceView}
           className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
-          {renderFilterIcon("TOOL")}
+          <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
+            {renderFilterIcon("TOOL")}
+          </span>
           <span
             className="min-w-0 truncate text-xs font-normal group-hover:underline"
             title={name}
@@ -201,7 +205,7 @@ function SessionTimelineToolRow({
           className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           aria-expanded={isExpanded}
           aria-label={`${isExpanded ? "Collapse" : "Expand"} ${name}`}
-          onClick={() => setIsExpanded((current) => !current)}
+          onClick={() => onExpandedChange(!isExpanded)}
         >
           <ChevronDown
             className={cn(
@@ -223,31 +227,36 @@ function SessionTimelineToolRow({
         </span>
       </div>
       {isExpanded ? (
-        <div className="border-border ml-3 flex min-w-0 flex-col gap-3 border-l py-1 pl-5">
+        <div className="flex min-w-0 flex-col gap-3 pl-[22px]">
           {hasPreviewValue(input) ? (
-            <div className="flex min-w-0 flex-col gap-1">
+            <div className="relative flex min-w-0 flex-col gap-1">
               <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
                 Input{inputTruncated ? " (truncated)" : ""}
               </span>
               <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
                 {toPreviewText(input)}
               </pre>
+              {!hasPreviewValue(output) ? <SessionTimelineRailEnd /> : null}
             </div>
           ) : null}
           {hasPreviewValue(output) ? (
-            <div className="flex min-w-0 flex-col gap-1">
+            <div className="relative flex min-w-0 flex-col gap-1">
               <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
                 Output{outputTruncated ? " (truncated)" : ""}
               </span>
               <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
                 {toPreviewText(output)}
               </pre>
+              <SessionTimelineRailEnd />
             </div>
           ) : null}
           {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
-            <span className="text-muted-foreground text-xs">
-              No input or output
-            </span>
+            <div className="relative">
+              <span className="text-muted-foreground text-xs">
+                No input or output
+              </span>
+              <SessionTimelineRailEnd />
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -301,7 +310,9 @@ function SessionTimelineConversationObservation({
               onClick={onOpenInTraceView}
               className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
-              {renderFilterIcon(observation.type ?? "EVENT")}
+              <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
+                {renderFilterIcon(observation.type ?? "EVENT")}
+              </span>
               <span
                 className="min-w-0 truncate text-xs font-normal group-hover:underline"
                 title={observation.name ?? observation.id}
@@ -392,6 +403,8 @@ function RolledUpToolRow({
   index: number;
   onOpenInTraceView: () => void;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <SessionTimelineToolRow
       id={`${observation.id}-tool-call-${toolCall.toolCallId ?? index}`}
@@ -400,6 +413,8 @@ function RolledUpToolRow({
       latency={null}
       input={toolCall.input}
       output={undefined}
+      isExpanded={isExpanded}
+      onExpandedChange={setIsExpanded}
       onOpenInTraceView={onOpenInTraceView}
     />
   );
@@ -410,12 +425,16 @@ function SessionTimelineObservation({
   parsed,
   processedMessages,
   phase,
+  isToolExpanded,
+  onToolExpandedChange,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
   processedMessages: ProcessedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
+  isToolExpanded: boolean;
+  onToolExpandedChange: (isExpanded: boolean) => void;
   onOpenInTraceView: () => void;
 }) {
   if (observation.type === "TOOL") {
@@ -429,6 +448,8 @@ function SessionTimelineObservation({
         output={observation.output}
         inputTruncated={observation.inputTruncated}
         outputTruncated={observation.outputTruncated}
+        isExpanded={isToolExpanded}
+        onExpandedChange={onToolExpandedChange}
         onOpenInTraceView={onOpenInTraceView}
       />
     );
@@ -470,6 +491,9 @@ function LoadedSessionConversationTimeline({
         ),
       ),
   );
+  const [expandedToolObservationIds, setExpandedToolObservationIds] = useState(
+    () => new Set<string>(),
+  );
 
   return (
     <TooltipProvider>
@@ -504,6 +528,9 @@ function LoadedSessionConversationTimeline({
             const hasNestedObservations =
               Object.keys(nestedObservationCounts).length > 0;
             const isCollapsed = collapsedObservationIds.has(observation.id);
+            const isToolExpanded = expandedToolObservationIds.has(
+              observation.id,
+            );
             const hasChatBubbles =
               observation.type !== "TOOL" &&
               (observation.inputTruncated || observation.outputTruncated
@@ -530,7 +557,7 @@ function LoadedSessionConversationTimeline({
                   />
                 ))}
                 {(phase === "start" && !isToolStart) ||
-                (phase === "complete" && hasChatBubbles) ? (
+                (phase === "complete" && (hasChatBubbles || isToolExpanded)) ? (
                   <span
                     data-session-observation-rail-depth={depth}
                     className="bg-border pointer-events-none absolute top-[22px] -bottom-1 w-px"
@@ -552,6 +579,15 @@ function LoadedSessionConversationTimeline({
                     parsed={parsed}
                     processedMessages={processedMessages}
                     phase={phase}
+                    isToolExpanded={isToolExpanded}
+                    onToolExpandedChange={(isExpanded) =>
+                      setExpandedToolObservationIds((current) => {
+                        const next = new Set(current);
+                        if (isExpanded) next.add(observation.id);
+                        else next.delete(observation.id);
+                        return next;
+                      })
+                    }
                     onOpenInTraceView={() => onOpenObservation(observation.id)}
                   />
                 ) : null}
