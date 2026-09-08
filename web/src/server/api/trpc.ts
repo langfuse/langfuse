@@ -100,6 +100,23 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+const findClickHouseResourceError = (
+  error: unknown,
+): ClickHouseResourceError | undefined => {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if (ClickHouseResourceError.is(current)) {
+      return current;
+    }
+    current = "cause" in current ? current.cause : undefined;
+  }
+
+  return undefined;
+};
+
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
@@ -109,15 +126,13 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         ...shape.data,
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
-        errorName:
-          error.cause instanceof ClickHouseResourceError
-            ? "ClickHouseResourceError"
-            : null,
+        errorName: findClickHouseResourceError(error.cause)
+          ? "ClickHouseResourceError"
+          : null,
         // do not expose stack traces for CH errors as they may contain sensitive info
-        stack:
-          error.cause instanceof ClickHouseResourceError
-            ? null
-            : shape.data.stack,
+        stack: findClickHouseResourceError(error.cause)
+          ? null
+          : shape.data.stack,
       },
     };
   },
@@ -176,19 +191,23 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    if (res.error.cause instanceof ClickHouseResourceError) {
+    const clickHouseResourceError =
+      findClickHouseResourceError(res.error.cause) ??
+      findClickHouseResourceError(res.error);
+
+    if (clickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
       logger.warn("ClickHouse resource limit exceeded", {
-        errorType: res.error.cause.errorType,
-        message: res.error.cause.message,
-        tags: res.error.cause.tags,
+        errorType: clickHouseResourceError.errorType,
+        message: clickHouseResourceError.message,
+        tags: clickHouseResourceError.tags,
       });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
         // Keep the original error, it will be removed by `errorFormatter`
-        cause: res.error.cause,
+        cause: clickHouseResourceError,
       });
     } else {
       // Throw a new TRPC error with:

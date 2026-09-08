@@ -61,6 +61,21 @@ describe("ClickHouseResourceError", () => {
         message: "Request timed out after 30000ms",
         expectedType: "TIMEOUT",
       },
+      {
+        name: "clickhouse js client timeout",
+        message: "Timeout error.",
+        expectedType: "TIMEOUT",
+      },
+      {
+        name: "undici/node fetch abort",
+        message: "The user aborted a request.",
+        expectedType: "TIMEOUT",
+      },
+      {
+        name: "dom abort",
+        message: "The operation was aborted.",
+        expectedType: "TIMEOUT",
+      },
     ];
 
     cases.forEach(({ name, message, expectedType }) => {
@@ -76,11 +91,31 @@ describe("ClickHouseResourceError", () => {
       });
     });
 
+    it("wraps AbortError from the ClickHouse HTTP client as TIMEOUT", () => {
+      const error = new Error("The operation was aborted.");
+      error.name = "AbortError";
+      const wrapped = ClickHouseResourceError.wrapIfResourceError(error);
+
+      expect(wrapped).toBeInstanceOf(ClickHouseResourceError);
+      expect((wrapped as ClickHouseResourceError).errorType).toBe("TIMEOUT");
+    });
+
+    it("wraps a nested AbortError cause as TIMEOUT", () => {
+      const abort = new Error("The user aborted a request.");
+      abort.name = "AbortError";
+      const error = new Error("clickhouse query failed", { cause: abort });
+      const wrapped = ClickHouseResourceError.wrapIfResourceError(error);
+
+      expect(wrapped).toBeInstanceOf(ClickHouseResourceError);
+      expect((wrapped as ClickHouseResourceError).errorType).toBe("TIMEOUT");
+    });
+
     const benignCases = [
       "Table 'test.non_existent' doesn't exist",
       "Unknown identifier 'foo' in scope SELECT foo FROM traces",
       "Syntax error: failed at position 42",
       "Cannot parse input: expected ')' before end of stream",
+      "socket hang up",
     ];
 
     benignCases.forEach((message) => {

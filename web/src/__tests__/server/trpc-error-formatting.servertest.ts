@@ -87,6 +87,48 @@ describe("tRPC error formatting", () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
+  it("maps a cross-realm ClickHouseResourceError (name match, not instanceof) to UNPROCESSABLE_CONTENT", async () => {
+    const session = {
+      user: {
+        id: "user-1",
+      },
+    } as Session;
+
+    const formatterTestRouter = createTRPCRouter({
+      clickhouse: protectedProcedureWithoutTracing
+        .input(z.object({}))
+        .query(() => {
+          const error = new Error("The operation was aborted.");
+          error.name = "ClickHouseResourceError";
+          throw error;
+        }),
+    });
+
+    const context = createInnerTRPCContext({
+      session,
+      headers: {},
+    });
+    const caller = formatterTestRouter.createCaller(context);
+
+    let error: TRPCError | undefined;
+    try {
+      await caller.clickhouse({});
+    } catch (caught) {
+      error = caught as TRPCError;
+    }
+
+    expect(error).toBeInstanceOf(TRPCError);
+    expect(error?.code).toBe("UNPROCESSABLE_CONTENT");
+    expect(error?.message).toBe(ClickHouseResourceError.ERROR_ADVICE_MESSAGE);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "ClickHouse resource limit exceeded",
+      expect.objectContaining({
+        message: "The operation was aborted.",
+      }),
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it("preserves the default stack behavior for non-ClickHouse errors", () => {
     const formatterTestRouter = createTRPCRouter({});
 

@@ -71,11 +71,44 @@ const ERROR_TYPE_CONFIG: Record<
     ],
   },
   TIMEOUT: {
-    discriminators: ["timeout", "timed out"],
+    discriminators: [
+      "timeout",
+      "timed out",
+      // HTTP client abort when request_timeout elapses. @clickhouse/client
+      // uses AbortController; the message is "The operation was aborted" /
+      // "The user aborted a request" and does not contain "timeout".
+      "the user aborted a request",
+      "the operation was aborted",
+      "this operation was aborted",
+    ],
   },
 };
 
 type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
+
+const classifyResourceError = (error: Error): ErrorType | null => {
+  const errorMessage = (error.message || "").toLowerCase();
+
+  for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
+    [ErrorType, (typeof ERROR_TYPE_CONFIG)[ErrorType]]
+  >) {
+    const hasDiscriminator = config.discriminators.some((discriminator) =>
+      errorMessage.includes(discriminator.toLowerCase()),
+    );
+
+    if (hasDiscriminator) {
+      return type;
+    }
+  }
+
+  // @clickhouse/client aborts the HTTP request when request_timeout elapses.
+  // The name is AbortError; the message often has no "timeout" token.
+  if ((error.name || "").toLowerCase() === "aborterror") {
+    return "TIMEOUT";
+  }
+
+  return null;
+};
 
 export class ClickHouseResourceError extends Error {
   static ERROR_ADVICE_MESSAGE = RESOURCE_LIMIT_ERROR_MESSAGE;
@@ -109,21 +142,18 @@ export class ClickHouseResourceError extends Error {
     originalError: Error,
     tags?: NormalizedClickHouseQueryTags,
   ): Error {
-    const errorMessage = (originalError.message || "").toLowerCase();
+    // Walk the cause chain so a wrapper ("clickhouse query failed") still
+    // classifies when the HTTP client abort or CH timeout sits on `.cause`.
+    let current: Error | undefined = originalError;
+    const seen = new Set<Error>();
 
-    for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
-      [
-        keyof typeof ERROR_TYPE_CONFIG,
-        (typeof ERROR_TYPE_CONFIG)[keyof typeof ERROR_TYPE_CONFIG],
-      ]
-    >) {
-      const hasDiscriminator = config.discriminators.some((discriminator) =>
-        errorMessage.includes(discriminator.toLowerCase()),
-      );
-
-      if (hasDiscriminator) {
-        return new ClickHouseResourceError(type, originalError, tags);
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      const errorType = classifyResourceError(current);
+      if (errorType) {
+        return new ClickHouseResourceError(errorType, originalError, tags);
       }
+      current = current.cause instanceof Error ? current.cause : undefined;
     }
 
     return originalError;
