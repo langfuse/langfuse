@@ -126,7 +126,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
     ),
     hasActiveSubscription: Boolean(
       organization?.cloudConfig?.stripe?.activeSubscriptionId ??
-      organization?.cloudConfig?.clickhouse?.bundleId,
+      organization?.cloudConfig?.clickhouse?.attachedPlanId,
     ),
     hasValidPaymentMethod: subscriptionInfo?.hasValidPaymentMethod ?? false,
     billingProvider,

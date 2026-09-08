@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
@@ -76,6 +76,7 @@ import {
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
+import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -768,7 +769,9 @@ export const evalRouter = createTRPCRouter({
             }
           : {
               type: EvalTemplateType.LLM_AS_JUDGE,
-              prompt: input.prompt,
+              promptMessages: reconcileEvaluatorPromptMessages({
+                prompt: input.prompt,
+              }),
               provider: input.provider ?? null,
               model: input.model ?? null,
               modelParams: input.modelParams ?? null,

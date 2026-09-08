@@ -1,7 +1,20 @@
+import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
+import { TRPCError } from "@trpc/server";
 import { compare, hash } from "bcryptjs";
+
+function hashEmailOtpToken(token: string) {
+  if (!env.NEXTAUTH_SECRET) {
+    throw new Error("NEXTAUTH_SECRET is required for password reset.");
+  }
+  // NextAuth applies this digest before storing email-provider tokens.
+  return createHash("sha256")
+    .update(`${token}${env.NEXTAUTH_SECRET}`)
+    .digest("hex");
+}
 
 /**
  * This function creates a user with an email and password.
@@ -55,19 +68,60 @@ export async function createUserEmailPassword(
   return newUser.id;
 }
 
-export async function updateUserPassword(userId: string, password: string) {
+export async function consumeEmailOtpAndUpdatePassword({
+  email,
+  token,
+  password,
+}: {
+  email: string;
+  token: string;
+  password: string;
+}) {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
 
-  const hashedPassword = await hashPassword(password);
-  await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      password: hashedPassword,
-    },
+  const identifier = email.toLowerCase();
+  const hashedToken = hashEmailOtpToken(token);
+  const now = new Date();
+
+  const passwordUpdated = await prisma.$transaction(async (tx) => {
+    const consumed = await tx.verificationToken.deleteMany({
+      where: {
+        identifier,
+        token: hashedToken,
+        expires: { gt: now },
+      },
+    });
+
+    if (consumed.count !== 1) {
+      // Match the existing NextAuth callback's one-attempt semantics.
+      await tx.verificationToken.deleteMany({ where: { identifier } });
+      return false;
+    }
+
+    // Invalidate any other outstanding code for this account.
+    await tx.verificationToken.deleteMany({ where: { identifier } });
+
+    // Keep password hashing behind successful OTP validation so unauthenticated
+    // invalid attempts cannot trigger expensive bcrypt work.
+    const hashedPassword = await hashPassword(password);
+    const updated = await tx.user.updateMany({
+      where: { email: identifier },
+      data: {
+        password: hashedPassword,
+        emailVerified: now,
+      },
+    });
+
+    return updated.count === 1;
   });
+
+  if (!passwordUpdated) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Invalid or expired verification code.",
+    });
+  }
 }
 
 export async function hashPassword(password: string) {

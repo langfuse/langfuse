@@ -15,14 +15,12 @@ type TextValueMapper<TData extends RowData, TValue> = (
 type TextTableColumnOptions<TData extends RowData, TValue> = TableColumnOptions<
   TData,
   TValue
-> & {
-  className?: string;
-} & ([TValue] extends [string]
+> &
+  ([TValue] extends [string]
     ? { mapValue?: TextValueMapper<TData, TValue> }
     : { mapValue: TextValueMapper<TData, TValue> });
 
 export function createTextTableColumn<TData extends RowData, TValue = string>({
-  className,
   mapValue,
   ...options
 }: TextTableColumnOptions<TData, TValue>) {
@@ -37,7 +35,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
       if (text === null || text === undefined) return null;
       if (typeof text !== "string") return loadingCell;
 
-      return className ? <span className={className}>{text}</span> : text;
+      return <span title={text}>{text}</span>;
     },
   });
 }

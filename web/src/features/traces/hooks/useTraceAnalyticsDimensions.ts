@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 /**
  * Shared segmentation dimensions for every `trace_detail:*` analytics event:
@@ -15,10 +15,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
  */
 export function useTraceAnalyticsDimensions() {
   const { traceContext } = useViewPreferences();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
-  return useMemo(
-    () => ({ traceContext, isV4: isBetaEnabled }),
-    [traceContext, isBetaEnabled],
-  );
+  return useMemo(() => ({ traceContext, isV4: isV4 }), [traceContext, isV4]);
 }

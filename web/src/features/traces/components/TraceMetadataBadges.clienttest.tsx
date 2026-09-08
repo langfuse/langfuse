@@ -29,7 +29,6 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(
       screen.getByText("Target Trace: target-trace").closest("a"),
     ).toHaveClass("ph-no-capture");
-
     expect(
       screen.getByText("Session: customer-session").parentElement,
     ).toHaveClass("bg-primary");
@@ -49,7 +48,6 @@ describe("UsageBadge", () => {
   it("keeps custom usage details accessible without aggregate token totals", () => {
     render(
       <UsageBadge
-        type="GENERATION"
         inputUsage={0}
         outputUsage={0}
         totalUsage={0}

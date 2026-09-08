@@ -167,7 +167,7 @@ const mocks = vi.hoisted(() => ({
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
-  isBetaEnabled: true,
+  isV4: true,
   hasApiKeyCreateAccess: true,
   canUpdateOrgSettings: true,
   aiFeaturesEnabled: true,
@@ -245,17 +245,17 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   }),
 }));
 
-// The toggle row pulls in session + tRPC state via useV4Beta; stub it so the
+// The toggle row pulls in session + tRPC state via useReadPath; stub it so the
 // content tests need no SessionProvider or tRPC client.
 vi.mock("@/src/features/events/components/V4SidebarToggle", () => ({
   V4PreviewToggleRow: () => null,
 }));
 
 // The details content reads canToggleV4 to gate the toggle section's copy.
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({
     canToggleV4: mocks.canToggleV4,
-    isBetaEnabled: mocks.isBetaEnabled,
+    isV4: mocks.isV4,
   }),
 }));
 
@@ -309,7 +309,7 @@ describe("V4MigrationDetailsContent", () => {
     };
     mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.canToggleV4 = true;
-    mocks.isBetaEnabled = true;
+    mocks.isV4 = true;
     mocks.canUpdateOrgSettings = true;
     mocks.aiFeaturesEnabled = true;
     mocks.migrationData.sdk = cleanSdkState();
@@ -1010,7 +1010,7 @@ describe("V4MigrationDetailsContent", () => {
   });
 
   it("renders the public key as plain text when the v4 preview is off", () => {
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [

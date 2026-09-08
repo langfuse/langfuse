@@ -11,7 +11,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -114,24 +113,11 @@ export function BatchActionsTable(props: { projectId: string }) {
       header: "Created",
       size: 150,
     }),
-    {
+    createDateTableColumn<BatchActionRow>({
       accessorKey: "finishedAt",
-      id: "finishedAt",
       header: "Finished",
       size: 150,
-      cell: ({ row }) => {
-        const finishedAt = row.getValue("finishedAt") as Date | null;
-        const preparedDate = buildLocalIsoDatePresentation({
-          date: finishedAt,
-        });
-
-        return preparedDate ? (
-          <span title={preparedDate.title}>{preparedDate.display}</span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        );
-      },
-    },
+    }),
     createUserTableColumn<BatchActionRow>({
       accessorKey: "user",
       header: "Created By",

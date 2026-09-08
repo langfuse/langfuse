@@ -4209,6 +4209,38 @@ describe("OTel Resource Span Mapping", () => {
         expect(eventInputs[0].promptVersion).toBe(1);
       });
 
+      it("should map string-encoded prompt version on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          {
+            key: "langfuse.observation.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.observation.prompt.version",
+            value: { stringValue: "3" },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(3);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(3);
+      });
+
       it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
         const resourceSpan = buildResourceSpan([
           {
@@ -8077,6 +8109,77 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails.output_reasoning_tokens).toBe(25);
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
+
+    it("should normalize the official cache-write token attribute", async () => {
+      const traceId = "abcdef1234567890abcdef1234567893";
+      const officialCacheUsageSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "opentelemetry",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "official-cache-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 300, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write.input_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        officialCacheUsageSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (event) =>
+          event.type === "generation-create" || event.type === "span-create",
+      );
+
+      expect(observationEvent?.body.usageDetails).toEqual({
+        input: 235,
+        input_cached_tokens: 40,
+        input_cache_creation: 25,
+      });
+    });
+
     it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
       // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
       const traceId = "abcdef1234567890abcdef1234567893";

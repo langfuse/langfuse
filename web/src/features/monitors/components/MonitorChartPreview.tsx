@@ -79,7 +79,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -103,7 +103,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );

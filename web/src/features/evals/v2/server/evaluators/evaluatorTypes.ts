@@ -1,6 +1,7 @@
 import {
   EvalOutputDefinitionSchema,
   EvalTemplateType,
+  EvaluatorPromptMessagesSchema,
   extractVariables,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
@@ -10,8 +11,10 @@ import {
   paginationLimitZod,
   singleFilter,
   type ObservationVariableMapping,
+  type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
 import { z } from "zod";
+import { endOfDay, startOfDay, subMonths } from "date-fns";
 
 const EvaluatorMetadataSchema = z.object({
   name: z.string().trim().min(1),
@@ -48,9 +51,9 @@ export type EvaluatorVersionCursor = z.infer<
 export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
   Buffer.from(JSON.stringify(cursor)).toString("base64url");
 
-export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  prompt: z.string().min(1),
+  promptMessages: EvaluatorPromptMessagesSchema,
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),
@@ -78,7 +81,7 @@ export const EvaluatorModelConfigSchema = z.object({
 
 const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  prompt: z.string().min(1),
+  promptMessages: EvaluatorPromptMessagesSchema,
   modelConfig: EvaluatorModelConfigSchema.nullable(),
   outputDefinition: EvalOutputDefinitionSchema,
 });
@@ -94,11 +97,17 @@ export const EvaluatorDefinitionInputSchema = z
         ? definition
         : {
             type: EvalTemplateType.LLM_AS_JUDGE,
-            prompt: definition.prompt,
+            promptMessages: definition.promptMessages,
             provider: definition.modelConfig?.provider ?? null,
             model: definition.modelConfig?.model ?? null,
             modelParams: definition.modelConfig?.modelParams ?? null,
-            vars: extractVariables(definition.prompt),
+            vars: [
+              ...new Set(
+                definition.promptMessages.flatMap(({ content }) =>
+                  extractVariables(content),
+                ),
+              ),
+            ],
             variableMapping: definition.variableMapping,
             outputDefinition: definition.outputDefinition,
           },
@@ -136,6 +145,24 @@ export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
   sampling: z.number().min(0).max(1),
   shouldRunMissingTest: z.boolean().optional().default(true),
   knownTestRunCostUsd: z.number().nonnegative().optional(),
+  timeRange: z
+    .object({
+      from: z.date(),
+      to: z.date(),
+    })
+    .refine(({ from, to }) => from <= to, {
+      message: "The start of the time range must be before its end.",
+      path: ["from"],
+    })
+    .refine(({ from }) => from >= startOfDay(subMonths(new Date(), 6)), {
+      message: "The time range cannot start more than six months ago.",
+      path: ["from"],
+    })
+    .refine(({ to }) => to <= endOfDay(new Date()), {
+      message: "The time range cannot end in the future.",
+      path: ["to"],
+    })
+    .optional(),
 }).refine(
   ({ evaluatorIds }) => new Set(evaluatorIds).size === evaluatorIds.length,
   { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },
@@ -200,6 +227,18 @@ export const ListEvaluatorsSchema = z.object({
   filter: EvaluatorListFilterSchema,
 });
 
+export const ListEvaluatorGallerySchema = z.object({
+  projectId: z.string(),
+  cursor: z
+    .object({
+      createdAt: z.date(),
+      id: z.string(),
+    })
+    .optional(),
+  limit: paginationLimitZod.optional().default(50),
+  search: z.string().trim().max(200).optional(),
+});
+
 export const EvaluatorOptionsSchema = z.object({
   projectId: z.string(),
   search: z.string().trim().max(200).optional(),
@@ -213,7 +252,7 @@ export const SuggestEvaluatorTextSchema = z.object({
   definition: z.discriminatedUnion("type", [
     z.object({
       type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-      prompt: z.string().min(1),
+      promptMessages: EvaluatorPromptMessagesSchema,
     }),
     z.object({
       type: z.literal(EvalTemplateType.CODE),
@@ -223,8 +262,12 @@ export const SuggestEvaluatorTextSchema = z.object({
 });
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
+export type NormalizedEvaluatorDefinition = EvaluatorDefinition;
 export type EvaluatorDefinitionForPersistence =
-  | Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+  | (Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> & {
+      prompt: string;
+      promptMessages: PersistedEvaluatorPromptMessages;
+    })
   | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
       variableMapping: ObservationVariableMapping[];
     });

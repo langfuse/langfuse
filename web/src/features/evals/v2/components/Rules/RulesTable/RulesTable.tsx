@@ -31,7 +31,7 @@ import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/R
 import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleNameCell/RuleNameCell";
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -354,15 +354,14 @@ export function RulesTable({
             <RuleFilterPills filter={row.original.filter} />
           ),
       },
-      {
+      createNumberTableColumn<RuleTableRow>({
         accessorKey: "sampling",
-        id: "sampling",
         header: "Sampling",
         size: 100,
         enableHiding: true,
         enableSorting: true,
-        cell: ({ row }) => `${Math.round(row.original.sampling * 100)}%`,
-      },
+        formatter: (value) => `${Math.round(value * 100)}%`,
+      }),
       createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
         header: "Created by",

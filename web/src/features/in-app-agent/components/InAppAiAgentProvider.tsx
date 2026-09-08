@@ -58,7 +58,7 @@ import {
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
@@ -66,7 +66,7 @@ import {
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {

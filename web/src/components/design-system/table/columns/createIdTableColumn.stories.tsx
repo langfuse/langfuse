@@ -7,18 +7,33 @@ import {
 import { createIdTableColumn } from "./createIdTableColumn";
 
 type Row = {
+  promptVersion?: number;
   traceId: string | null;
 };
 
-const columns = [
-  createIdTableColumn<Row>({
-    id: "traceId",
-    accessorFn: (row) => row.traceId,
-    header: "ID",
-  }),
-];
+function IdTableColumnStory({
+  data,
+  emptyValue,
+  getValue,
+}: {
+  data: AsyncTableData<Row[]>;
+  emptyValue?: string;
+  getValue?: boolean;
+}) {
+  const columns = [
+    createIdTableColumn<Row>({
+      accessorKey: "traceId",
+      header: "ID",
+      emptyValue,
+      getValue: getValue
+        ? (value, { row }) =>
+            value && row.original.promptVersion
+              ? `${value} (v${row.original.promptVersion})`
+              : undefined
+        : undefined,
+    }),
+  ];
 
-function IdTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
   return (
     <DataTable
       tableName="id-column-story"
@@ -54,6 +69,30 @@ export const EmptyValue = meta.story({
       isLoading: false,
       isError: false,
       data: [{ traceId: null }],
+    },
+  },
+});
+
+export const EmptyPlaceholder = meta.story({
+  name: "Empty Placeholder",
+  args: {
+    emptyValue: "-",
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ traceId: null }],
+    },
+  },
+});
+
+export const DerivedValue = meta.story({
+  name: "Derived Value",
+  args: {
+    getValue: true,
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ traceId: "prompt-name", promptVersion: 2 }],
     },
   },
 });

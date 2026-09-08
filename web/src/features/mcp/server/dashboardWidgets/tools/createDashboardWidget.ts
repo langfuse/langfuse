@@ -8,11 +8,11 @@ import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
 import { getWidgetImportFilterConfig } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { StructuredPublicApiError } from "@/src/features/public-api";
 import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
-} from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { StructuredPublicApiError } from "@/src/features/public-api";
+} from "@/src/features/public-api/server";
 import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
 export const DashboardWidgetFilterBaseSchema = z

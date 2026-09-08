@@ -1,5 +1,5 @@
 import { createAnnotationQueueAssignmentForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
-import { CreateAnnotationQueueAssignmentResponse } from "@/src/features/public-api/types/annotation-queues";
+import { CreateAnnotationQueueAssignmentResponse } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { CreateAnnotationQueueAssignmentToolSchema } from "../schema";

@@ -15,6 +15,7 @@ import { v4 } from "uuid";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Event",
+    action: "traces:create",
     bodySchema: PostEventsV1Body,
     responseSchema: PostEventsV1Response,
     // Writes an observation-create event that lands in the legacy observations

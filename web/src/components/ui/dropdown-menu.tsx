@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -137,20 +137,28 @@ const DropdownContentWrapper = React.forwardRef<
     const { register, recompute, top, bottom } = useScrollGradients<
       React.ComponentRef<typeof DropdownMenuPrimitive.Content>
     >(maxHeight !== undefined);
+    const setContentRef = React.useCallback(
+      (
+        element: React.ComponentRef<
+          typeof DropdownMenuPrimitive.Content
+        > | null,
+      ) => {
+        register(element);
+        if (typeof ref === "function") {
+          ref(element);
+        } else if (ref) {
+          ref.current = element;
+        }
+      },
+      [ref, register],
+    );
     const content =
       typeof children === "function" ? children({ top, bottom }) : children;
 
     return (
       <DropdownMenuPrimitive.Portal container={container}>
         <DropdownMenuPrimitive.Content
-          ref={(element) => {
-            register(element);
-            if (typeof ref === "function") {
-              ref(element);
-            } else if (ref) {
-              ref.current = element;
-            }
-          }}
+          ref={setContentRef}
           sideOffset={sideOffset}
           className={cn(
             dropdownMenuContentVariants({

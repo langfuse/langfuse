@@ -10,7 +10,6 @@ import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -30,9 +29,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   type TemplateValidationInput,
   useSingleTemplateValidation,
@@ -41,7 +40,7 @@ import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
 import {
@@ -55,7 +54,9 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -331,13 +332,9 @@ export default function EvalsTemplateTable({
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
   const columns = [
-    columnHelper.accessor("name", {
+    createIdTableColumn<EvalsTemplateRow>({
+      accessorKey: "name",
       header: "Name",
-      id: "name",
-      cell: (row) => {
-        const name = row.getValue();
-        return name ? <TableIdOrName value={name} /> : undefined;
-      },
     }),
     columnHelper.accessor("type", {
       id: "type",
@@ -379,13 +376,10 @@ export default function EvalsTemplateTable({
         );
       },
     }),
-    columnHelper.accessor("latestCreatedAt", {
+    createDateTableColumn<EvalsTemplateRow>({
+      accessorKey: "latestCreatedAt",
       header: "Last Edited",
-      id: "latestCreatedAt",
-      size: 80,
-      cell: (row) => {
-        return row.getValue()?.toLocaleDateString();
-      },
+      size: 150,
     }),
     createNumberTableColumn<EvalsTemplateRow>({
       accessorKey: "usageCount",
@@ -404,15 +398,11 @@ export default function EvalsTemplateTable({
       size: 80,
       formatter: (value) => String(value),
     }),
-    columnHelper.accessor("id", {
+    createIdTableColumn<EvalsTemplateRow>({
+      accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 100,
       enableHiding: true,
-      cell: (row) => {
-        const id = row.getValue();
-        return id ? <TableIdOrName value={id} /> : null;
-      },
     }),
     columnHelper.accessor("actions", {
       header: "Actions",
@@ -529,6 +519,7 @@ export default function EvalsTemplateTable({
     <>
       <div className="flex h-full w-full flex-col">
         <DataTableToolbar
+          tableName="eval-templates"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

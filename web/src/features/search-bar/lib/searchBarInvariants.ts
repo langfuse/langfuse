@@ -13,6 +13,11 @@
 //   INV-2  no silent drop/rewrite — FilterState → text → FilterState is stable:
 //          every filter round-trips unchanged or is reported in skippedFilters,
 //          and nothing is rewritten into a different filter.
+//   INV-4  derived text is parseable — text derived FROM a FilterState is
+//          always valid for that registry. INV-2 enters from text, so it only
+//          ever sees filters the bar can already express; a sidebar can put a
+//          column in the URL that the bar does not expose, and emitting a token
+//          for it renders an "unknown field" the user cannot fix.
 //   INV-3  serialize ↔ parse symmetry — a free-text value always re-parses to
 //          itself and stays valid. (Regressed in #4: serializeValue emitted a
 //          bare reserved token — `or`, `!important` — that the parser rejects.)
@@ -56,6 +61,12 @@ export type RegistryUnderTest = {
    * leading operators, quotes) — these are what break serialize↔parse.
    */
   freeTextValues: string[];
+  /**
+   * Filter states the view's SIDEBAR can put in the URL, including columns the
+   * bar deliberately does not expose (INV-4). Without these the harness only
+   * ever sees the bar's own field surface and cannot catch a one-sided gate.
+   */
+  sidebarFilters?: FilterState[];
 };
 
 export type InvariantFailure = {
@@ -192,7 +203,30 @@ function checkSerializeSymmetry(
 }
 
 /**
- * Run all three invariants over a view's registry and return every failure.
+ * INV-4: text derived from a FilterState always parses for that registry.
+ *
+ * Deliberately context-free: this is about whether the registry EXPOSES the
+ * field at all, not about how an observed score type routes. Pinning a score
+ * context here would only re-test INV-2's ground and could fail on a
+ * value/type mismatch that says nothing about field exposure.
+ */
+function checkDerivedTextValidity(
+  filters: FilterState,
+  registry: FieldRegistry,
+): InvariantFailure | null {
+  const derived = filterStateToQueryText(filters, {}, registry);
+  if (validateQuery(derived.text, undefined, registry).valid) return null;
+  return {
+    invariant: "INV-4 derived text is parseable",
+    case: stable(filters),
+    detail: `derived "${derived.text}" which the same registry rejects; a column the bar does not expose belongs in skippedFilters (skipped: ${stable(
+      derived.skippedFilters,
+    )})`,
+  };
+}
+
+/**
+ * Run all invariants over a view's registry and return every failure.
  * The caller (a *.clienttest.ts) asserts the list is empty.
  */
 export function runSearchBarInvariants(
@@ -209,6 +243,10 @@ export function runSearchBarInvariants(
       const roundTrip = checkFilterStateRoundTrip(text, ctx, view.registry);
       if (roundTrip) failures.push(roundTrip);
     }
+  }
+  for (const filters of view.sidebarFilters ?? []) {
+    const derived = checkDerivedTextValidity(filters, view.registry);
+    if (derived) failures.push(derived);
   }
   for (const value of view.freeTextValues) {
     const symmetry = checkSerializeSymmetry(value, view.registry);

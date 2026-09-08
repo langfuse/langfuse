@@ -290,6 +290,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
         <HoverCardContent
           align="start"
           className="ph-no-capture flex w-auto max-w-sm flex-col gap-2 p-2"
+          onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-4">
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">

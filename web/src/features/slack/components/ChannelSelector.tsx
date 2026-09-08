@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   Command,
   CommandEmpty,
@@ -387,18 +387,17 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
       {error && (
         <Alert>
-          <AlertDescription>
+          <Alert.Description>
             Failed to load channels. You can still enter a channel name
             manually, or check your Slack connection and try again.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
 
       {/* Private channel scope warning */}
       {channelsData && !channelsData.hasPrivateChannelAccess && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
+        <Alert icon={AlertTriangle}>
+          <Alert.Description>
             Private channels are not visible. To access private channels,{" "}
             <button
               type="button"
@@ -414,7 +413,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               re-authenticate your Slack integration
             </button>{" "}
             to grant the required permissions.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
     </div>

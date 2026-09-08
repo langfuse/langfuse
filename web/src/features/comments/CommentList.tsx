@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -22,7 +22,7 @@ import {
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";

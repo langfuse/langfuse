@@ -6,7 +6,7 @@ import {
   DrawerTitle,
 } from "@/src/components/ui/drawer";
 import { CommentList } from "@/src/features/comments/CommentList";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { type ReactNode, useEffect, useRef, useState } from "react";

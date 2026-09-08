@@ -2,7 +2,7 @@ import { deleteDatasetItemForApi } from "@/src/features/datasets/server/publicDa
 import {
   DeleteDatasetItemV1Query,
   DeleteDatasetItemV1Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 

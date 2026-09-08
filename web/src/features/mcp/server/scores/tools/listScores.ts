@@ -8,8 +8,10 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
-import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
+import {
+  listScoresV3ForPublicApi,
+  EncodedScoresCursorV3,
+} from "@/src/features/public-api/server";
 import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
 
 const ListScoresBaseSchema = z

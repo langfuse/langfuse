@@ -3,7 +3,7 @@ import { createDatasetForApi } from "@/src/features/datasets/server/publicDatase
 import {
   PostDatasetsV2Body,
   PostDatasetsV2Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/features/public-api/server";
 import {
   DatasetJSONSchema,
   buildDatasetUrl,

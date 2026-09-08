@@ -51,6 +51,12 @@ type MixpanelExecutionConfig = {
   minTimestamp: Date;
   maxTimestamp: Date;
   decryptedMixpanelProjectToken: string;
+  // Plain string at use time. The Mixpanel settings dropdown is currently the
+  // only input that can set this (`api` | `api-eu` | `api-in`). If that ever
+  // becomes free-form, `validateAnalyticsIntegrationUrl` (called from the
+  // Mixpanel sender) is the remaining guard against IP-literal, credentialed,
+  // and non-HTTP destinations — the connect-time DNS hook never fires for a
+  // literal.
   mixpanelRegion: string;
   // First attempt uses ClickHouse `auto` join algorithm. We only fall back to
   // `grace_hash` (slower, but spills to disk) on retries so an OOM on the first
