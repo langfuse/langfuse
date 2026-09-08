@@ -1767,6 +1767,92 @@ const loadedArgs = {
   onOpenObservation: fn(),
 } satisfies TimelineProps;
 
+const nestedObservation = ({
+  id,
+  parentObservationId,
+  type,
+  input,
+  output,
+  offset,
+}: {
+  id: string;
+  parentObservationId: string | null;
+  type: "AGENT" | "GENERATION" | "TOOL";
+  input: unknown;
+  output: unknown;
+  offset: number;
+}) =>
+  ({
+    id,
+    traceId: trace.id,
+    parentObservationId,
+    type,
+    name: id,
+    startTime: new Date(offset),
+    latency: 1,
+    input,
+    output,
+    metadata: null,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
+  }) as Observation;
+
+const nestedObservations = [
+  nestedObservation({
+    id: "opencode.turn",
+    parentObservationId: null,
+    type: "AGENT",
+    input: [{ role: "user", content: "Build the dashboard" }],
+    output: "Finished the dashboard",
+    offset: 0,
+  }),
+  nestedObservation({
+    id: "generation-1",
+    parentObservationId: "opencode.turn",
+    type: "GENERATION",
+    input: [{ role: "user", content: "Build the dashboard" }],
+    output: "Calling three tools",
+    offset: 1,
+  }),
+  ...[1, 2, 3].map((toolNumber) =>
+    nestedObservation({
+      id: `tool-${toolNumber}`,
+      parentObservationId: "generation-1",
+      type: "TOOL",
+      input: { toolNumber },
+      output: { success: true },
+      offset: 1 + toolNumber,
+    }),
+  ),
+  nestedObservation({
+    id: "generation-2",
+    parentObservationId: "opencode.turn",
+    type: "GENERATION",
+    input: "Continue",
+    output: "Calling two tools",
+    offset: 5,
+  }),
+  ...[4, 5].map((toolNumber) =>
+    nestedObservation({
+      id: `tool-${toolNumber}`,
+      parentObservationId: "generation-2",
+      type: "TOOL",
+      input: { toolNumber },
+      output: { success: true },
+      offset: 1 + toolNumber,
+    }),
+  ),
+  nestedObservation({
+    id: "leaf-generation",
+    parentObservationId: null,
+    type: "GENERATION",
+    input: "Standalone prompt",
+    output: "Standalone answer",
+    offset: 8,
+  }),
+];
+
 const meta = preview.meta({
   component: SessionConversationTimeline,
   parameters: { layout: "fullscreen", a11y: { test: "error" } },
@@ -2081,6 +2167,97 @@ export const MergeSystemPrompts = meta.story({
       canvas.getByText(
         "Summarize the taxonomy, recommend the first fix, and suggest a durable way to track it.",
       ),
+    ).toBeInTheDocument();
+  },
+});
+
+export const ExpandNestedObservations = meta.story({
+  name: "(Test) Expands Nested Observations",
+  args: {
+    ...loadedArgs,
+    idleGapSeconds: null,
+    state: { type: "loaded", observations: nestedObservations },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText("Build the dashboard")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Finished the dashboard"),
+    ).toBeInTheDocument();
+    const leafObservation = canvas
+      .getByText("Standalone answer")
+      .closest("[data-session-observation-depth]");
+    await expect(
+      leafObservation?.querySelector(
+        '[data-session-observation-rail-depth="0"]',
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      leafObservation?.querySelector("[data-session-observation-rail-end]"),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByText("generation-1")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
+
+    const rootToggle = canvas.getByRole("button", {
+      name: "Show 2 generations and 5 tools",
+    });
+    const rootStart = rootToggle.closest("[data-session-observation-depth]");
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("top-[22px]");
+    const closingRailEnd = canvas
+      .getByText("Finished the dashboard")
+      .closest("[data-session-observation-depth]")
+      ?.querySelector("[data-session-observation-rail-end]");
+    await expect(closingRailEnd).toBeInTheDocument();
+    await expect(closingRailEnd).toHaveClass("rounded-full");
+    await expect(
+      rootToggle.querySelector(".lucide-chevrons-up-down"),
+    ).not.toBeNull();
+
+    await userEvent.click(rootToggle);
+
+    await expect(canvas.getByText("generation-1")).toBeInTheDocument();
+    await expect(canvas.getByText("generation-2")).toBeInTheDocument();
+    await expect(canvas.getByText("tool-1")).toBeInTheDocument();
+    await expect(rootToggle.parentElement).toHaveClass("h-0");
+    await expect(
+      rootToggle.querySelector(".lucide-chevrons-down-up"),
+    ).not.toBeNull();
+    const nestedGeneration = canvasElement
+      .querySelector('[data-session-observation-id="generation-1"]')
+      ?.closest("[data-session-observation-depth]");
+    const nestedTool = canvasElement
+      .querySelector('[data-session-observation-id="tool-1"]')
+      ?.closest("[data-session-observation-depth]");
+    await expect(nestedGeneration).toHaveAttribute(
+      "data-session-observation-depth",
+      "1",
+    );
+    await expect(nestedGeneration).toHaveStyle({ paddingLeft: "24px" });
+    await expect(
+      nestedGeneration?.querySelectorAll(
+        "[data-session-observation-rail-depth]",
+      ),
+    ).toHaveLength(2);
+    await expect(nestedTool).toHaveAttribute(
+      "data-session-observation-depth",
+      "2",
+    );
+    await expect(nestedTool).toHaveStyle({ paddingLeft: "48px" });
+    await expect(
+      nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(2);
+    const nestedToggle = canvas.getByRole("button", { name: "Hide 3 tools" });
+    await expect(nestedToggle).toHaveStyle({ left: "7.5px" });
+    await expect(nestedToggle).toHaveClass("top-[16px]");
+
+    await userEvent.click(nestedToggle);
+
+    await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Show 3 tools" }),
     ).toBeInTheDocument();
   },
 });
