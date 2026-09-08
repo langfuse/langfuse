@@ -2,12 +2,28 @@ import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps } from "react";
 
-import { SessionConversationTimeline } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
+import {
+  SessionConversationTimeline,
+  useSessionConversationTimelineController,
+} from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 
-type TimelineProps = ComponentProps<typeof SessionConversationTimeline>;
+type TimelineProps = Omit<
+  ComponentProps<typeof SessionConversationTimeline>,
+  "controller"
+>;
 type Observation = NonNullable<
   TimelineProps["traces"][number]["observations"]
 >[number];
+
+function SessionConversationTimelineStory(props: TimelineProps) {
+  const controller = useSessionConversationTimelineController(props.traces);
+
+  return (
+    <div className="bg-card dark:bg-background h-screen min-w-[320px]">
+      <SessionConversationTimeline {...props} controller={controller} />
+    </div>
+  );
+}
 
 const trace = {
   id: "trace-order-support-8f3a2",
@@ -1775,13 +1791,6 @@ const loadedArgs = {
   emptyMessage: "This trace has no observations.",
   onOpenTrace: fn(),
   onOpenObservation: fn(),
-  renderSidebar: ({ activeTraceId, onSelect }) => (
-    <nav aria-label="Session traces" className="border-r p-4">
-      <button type="button" onClick={() => onSelect(0)}>
-        {activeTraceId === trace.id ? "Active trace" : "Select trace"}
-      </button>
-    </nav>
-  ),
   observationActions,
 } satisfies TimelineProps;
 
@@ -1946,7 +1955,7 @@ const nestedObservations = [
 ];
 
 const meta = preview.meta({
-  component: SessionConversationTimeline,
+  component: SessionConversationTimelineStory,
   parameters: { layout: "fullscreen", a11y: { test: "error" } },
 });
 
@@ -1971,22 +1980,6 @@ export const CodingAgentWorkflow = meta.story({
         observations: implementationCodingAgentObservations,
       },
     ],
-    renderSidebar: ({ activeTraceId, onSelect }) => (
-      <nav aria-label="Session traces" className="flex flex-col gap-2 p-4">
-        {[researchCodingAgentTrace, implementationCodingAgentTrace].map(
-          (timelineTrace, index) => (
-            <button
-              key={timelineTrace.id}
-              type="button"
-              aria-current={activeTraceId === timelineTrace.id}
-              onClick={() => onSelect(index)}
-            >
-              {timelineTrace.name}
-            </button>
-          ),
-        )}
-      </nav>
-    ),
   },
 });
 

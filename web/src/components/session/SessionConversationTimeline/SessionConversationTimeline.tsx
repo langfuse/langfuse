@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import {
@@ -24,11 +24,6 @@ export type SessionConversationTimelineItem = {
   observations: readonly SessionObservation[] | null | undefined;
 };
 
-export type SessionConversationTimelineNavigation = {
-  activeTraceId: string | null;
-  onSelect: (index: number, observationId?: string) => void;
-};
-
 export type SessionConversationTimelineObservationActions = Pick<
   SessionObservationActions,
   "canAnnotate" | "canAddComment" | "canAddToDataset" | "onFilterByName"
@@ -47,97 +42,9 @@ export type SessionConversationTimelineObservationActions = Pick<
   ) => void;
 };
 
-export function SessionConversationTimeline({
-  traces,
-  filterMeasurementKey,
-  emptyMessage,
-  onOpenTrace,
-  onOpenObservation,
-  renderSidebar,
-  observationActions,
-}: {
-  traces: readonly SessionConversationTimelineItem[];
-  filterMeasurementKey: string;
-  emptyMessage: string;
-  onOpenTrace: (trace: EventSessionTrace) => void;
-  onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
-  renderSidebar: (
-    navigation: SessionConversationTimelineNavigation,
-  ) => ReactNode;
-  observationActions?: SessionConversationTimelineObservationActions;
-}) {
-  const preparedObservations = prepareSessionTimelineObservations(
-    traces.flatMap(({ observations }) => observations ?? []),
-  );
-  const traceIndexByObservation = new Map<SessionObservation, number>();
-  traces.forEach(({ observations }, traceIndex) => {
-    observations?.forEach((observation) => {
-      traceIndexByObservation.set(observation, traceIndex);
-    });
-  });
-  const preparedObservationGroups: Array<
-    PreparedSessionTimelineItem<SessionObservation>[] | null | undefined
-  > = traces.map(({ observations }) =>
-    observations === undefined || observations === null ? observations : [],
-  );
-  preparedObservations.forEach((preparedObservation) => {
-    const traceIndex = traceIndexByObservation.get(
-      preparedObservation.observation,
-    );
-    if (traceIndex === undefined) return;
-
-    preparedObservationGroups[traceIndex]?.push(preparedObservation);
-  });
-  const states = traces.map(
-    (
-      { observations },
-      traceIndex,
-    ): PreparedSessionConversationTimelineTraceState => {
-      if (observations === undefined) return { type: "loading" };
-      if (observations === null) return { type: "error" };
-      if (observations.length === 0) {
-        return { type: "empty", message: emptyMessage };
-      }
-
-      return {
-        type: "loaded",
-        observations: preparedObservationGroups[traceIndex] ?? [],
-      };
-    },
-  );
-
-  return (
-    <SessionConversationTimelineFeed
-      traces={traces}
-      states={states}
-      filterMeasurementKey={filterMeasurementKey}
-      onOpenTrace={onOpenTrace}
-      onOpenObservation={onOpenObservation}
-      renderSidebar={renderSidebar}
-      observationActions={observationActions}
-    />
-  );
-}
-
-function SessionConversationTimelineFeed({
-  traces,
-  states,
-  filterMeasurementKey,
-  onOpenTrace,
-  onOpenObservation,
-  renderSidebar,
-  observationActions,
-}: {
-  traces: readonly SessionConversationTimelineItem[];
-  states: readonly PreparedSessionConversationTimelineTraceState[];
-  filterMeasurementKey: string;
-  onOpenTrace: (trace: EventSessionTrace) => void;
-  onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
-  renderSidebar: (
-    navigation: SessionConversationTimelineNavigation,
-  ) => ReactNode;
-  observationActions?: SessionConversationTimelineObservationActions;
-}) {
+export function useSessionConversationTimelineController(
+  traces: readonly Pick<SessionConversationTimelineItem, "trace">[],
+) {
   const items = traces.map(({ trace }) => trace);
   const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
   const virtualizer = useVirtualizer({
@@ -148,7 +55,7 @@ function SessionConversationTimelineFeed({
     getItemKey: (index) => traces[index]?.trace.id ?? index,
   });
   const {
-    activeItemId: activeTraceId,
+    activeItemId,
     virtualItems,
     selectItem: selectTrace,
   } = useVirtualizedScrollSpy({
@@ -162,7 +69,7 @@ function SessionConversationTimelineFeed({
 
   useEffect(() => () => observationScrollCleanupRef.current?.(), []);
 
-  const handleSelect = (index: number, observationId?: string) => {
+  const onSelect = (index: number, observationId?: string) => {
     observationScrollCleanupRef.current?.();
     observationScrollCleanupRef.current = null;
     selectTrace(index);
@@ -216,69 +123,157 @@ function SessionConversationTimelineFeed({
     observationScrollCleanupRef.current = cleanup;
   };
 
-  return (
-    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
-      {renderSidebar({ activeTraceId, onSelect: handleSelect })}
-      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
-        <div
-          ref={feedRef}
-          className="h-full min-h-0 overflow-y-auto scroll-smooth"
-        >
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {virtualItems.map((virtualItem) => {
-              const timelineTrace = traces[virtualItem.index];
-              const state = states[virtualItem.index];
-              if (!timelineTrace || !state) return null;
-              const { trace, turnNumber } = timelineTrace;
+  return {
+    activeTraceId: activeItemId ?? null,
+    feedRef,
+    onSelect,
+    virtualItems,
+    virtualizer,
+  };
+}
 
-              return (
-                <SessionVirtualizedRow
-                  key={virtualItem.key}
-                  itemKey={String(virtualItem.key)}
-                  measurementKey={`${String(virtualItem.key)}:${filterMeasurementKey}`}
-                  source="modern"
-                  virtualItem={virtualItem}
-                  virtualizer={virtualizer}
-                >
-                  <SessionConversationTimelineTrace
-                    trace={trace}
-                    turnNumber={turnNumber}
-                    state={state}
-                    onOpenTrace={() => onOpenTrace(trace)}
-                    onOpenObservation={(observationId) =>
-                      onOpenObservation(trace, observationId)
-                    }
-                    observationActions={
-                      observationActions
-                        ? {
-                            ...observationActions,
-                            onAnnotate: (observation) =>
-                              observationActions.onAnnotate(trace, observation),
-                            onAddComment: (observation) =>
-                              observationActions.onAddComment(
-                                trace,
-                                observation,
-                              ),
-                            onAddToDataset: (observation) =>
-                              observationActions.onAddToDataset(
-                                trace,
-                                observation,
-                              ),
-                          }
-                        : undefined
-                    }
-                  />
-                </SessionVirtualizedRow>
-              );
-            })}
-          </div>
-        </div>
+export type SessionConversationTimelineController = ReturnType<
+  typeof useSessionConversationTimelineController
+>;
+
+export function SessionConversationTimeline({
+  traces,
+  filterMeasurementKey,
+  emptyMessage,
+  onOpenTrace,
+  onOpenObservation,
+  controller,
+  observationActions,
+}: {
+  traces: readonly SessionConversationTimelineItem[];
+  filterMeasurementKey: string;
+  emptyMessage: string;
+  onOpenTrace: (trace: EventSessionTrace) => void;
+  onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
+  controller: SessionConversationTimelineController;
+  observationActions?: SessionConversationTimelineObservationActions;
+}) {
+  const preparedObservations = prepareSessionTimelineObservations(
+    traces.flatMap(({ observations }) => observations ?? []),
+  );
+  const traceIndexByObservation = new Map<SessionObservation, number>();
+  traces.forEach(({ observations }, traceIndex) => {
+    observations?.forEach((observation) => {
+      traceIndexByObservation.set(observation, traceIndex);
+    });
+  });
+  const preparedObservationGroups: Array<
+    PreparedSessionTimelineItem<SessionObservation>[] | null | undefined
+  > = traces.map(({ observations }) =>
+    observations === undefined || observations === null ? observations : [],
+  );
+  preparedObservations.forEach((preparedObservation) => {
+    const traceIndex = traceIndexByObservation.get(
+      preparedObservation.observation,
+    );
+    if (traceIndex === undefined) return;
+
+    preparedObservationGroups[traceIndex]?.push(preparedObservation);
+  });
+  const states = traces.map(
+    (
+      { observations },
+      traceIndex,
+    ): PreparedSessionConversationTimelineTraceState => {
+      if (observations === undefined) return { type: "loading" };
+      if (observations === null) return { type: "error" };
+      if (observations.length === 0) {
+        return { type: "empty", message: emptyMessage };
+      }
+
+      return {
+        type: "loaded",
+        observations: preparedObservationGroups[traceIndex] ?? [],
+      };
+    },
+  );
+
+  return (
+    <SessionConversationTimelineFeed
+      traces={traces}
+      states={states}
+      filterMeasurementKey={filterMeasurementKey}
+      onOpenTrace={onOpenTrace}
+      onOpenObservation={onOpenObservation}
+      controller={controller}
+      observationActions={observationActions}
+    />
+  );
+}
+
+function SessionConversationTimelineFeed({
+  traces,
+  states,
+  filterMeasurementKey,
+  onOpenTrace,
+  onOpenObservation,
+  controller,
+  observationActions,
+}: {
+  traces: readonly SessionConversationTimelineItem[];
+  states: readonly PreparedSessionConversationTimelineTraceState[];
+  filterMeasurementKey: string;
+  onOpenTrace: (trace: EventSessionTrace) => void;
+  onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
+  controller: SessionConversationTimelineController;
+  observationActions?: SessionConversationTimelineObservationActions;
+}) {
+  const { feedRef, virtualItems, virtualizer } = controller;
+
+  return (
+    <div ref={feedRef} className="h-full min-h-0 overflow-y-auto scroll-smooth">
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualItems.map((virtualItem) => {
+          const timelineTrace = traces[virtualItem.index];
+          const state = states[virtualItem.index];
+          if (!timelineTrace || !state) return null;
+          const { trace, turnNumber } = timelineTrace;
+
+          return (
+            <SessionVirtualizedRow
+              key={virtualItem.key}
+              itemKey={String(virtualItem.key)}
+              measurementKey={`${String(virtualItem.key)}:${filterMeasurementKey}`}
+              source="modern"
+              virtualItem={virtualItem}
+              virtualizer={virtualizer}
+            >
+              <SessionConversationTimelineTrace
+                trace={trace}
+                turnNumber={turnNumber}
+                state={state}
+                onOpenTrace={() => onOpenTrace(trace)}
+                onOpenObservation={(observationId) =>
+                  onOpenObservation(trace, observationId)
+                }
+                observationActions={
+                  observationActions
+                    ? {
+                        ...observationActions,
+                        onAnnotate: (observation) =>
+                          observationActions.onAnnotate(trace, observation),
+                        onAddComment: (observation) =>
+                          observationActions.onAddComment(trace, observation),
+                        onAddToDataset: (observation) =>
+                          observationActions.onAddToDataset(trace, observation),
+                      }
+                    : undefined
+                }
+              />
+            </SessionVirtualizedRow>
+          );
+        })}
       </div>
     </div>
   );

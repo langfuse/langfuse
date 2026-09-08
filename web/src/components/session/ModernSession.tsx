@@ -5,6 +5,7 @@ import {
   ConnectedSessionConversationTimeline,
   type ConnectedSessionConversationTimelineItem,
 } from "@/src/components/session/ConnectedSessionConversationTimeline";
+import { useSessionConversationTimelineController } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -377,45 +378,50 @@ export function ModernSession({
       };
     },
   );
+  const timelineController =
+    useSessionConversationTimelineController(timelineTraces);
 
   return (
-    <ConnectedSessionConversationTimeline
-      traces={timelineTraces}
-      projectId={projectId}
-      sessionId={sessionId}
-      filterState={filterState}
-      filterMeasurementKey={filterMeasurementKey}
-      viewLabel={viewLabel}
-      openPeek={openPeek}
-      renderSidebar={({ activeTraceId, onSelect }) =>
-        tracesState.type === "loading" ? (
-          <ModernSessionSidebar state="loading" />
-        ) : (
-          <ModernSessionSidebar
-            state="loaded"
-            traces={isSearchPending ? [] : sidebarTraces}
-            activeTraceId={activeTraceId ?? undefined}
-            filterControls={sidebarFilterControls}
-            search={search}
-            onSearchChange={handleSearchChange}
-            expandedTraceIds={expandedTraceIds}
-            onToggleTraceExpanded={toggleTraceExpanded}
-            onFilterObservationByName={onFilterObservationByName}
-            onSelect={onSelect}
-            onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
-            hasMoreObservations={hasMoreObservations}
-            isLoadingMoreObservations={
-              isSearchPending || isLoadingMoreObservations
-            }
-            observationLoadError={observationLoadError}
-            onLoadMoreObservations={loadMoreObservations}
-            onViewportUnderfilled={
-              searchQuery && !isSearchPending ? loadMoreObservations : undefined
-            }
-          />
-        )
-      }
-      onFilterObservationByName={onFilterObservationByName}
-    />
+    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
+      {tracesState.type === "loading" ? (
+        <ModernSessionSidebar state="loading" />
+      ) : (
+        <ModernSessionSidebar
+          state="loaded"
+          traces={isSearchPending ? [] : sidebarTraces}
+          activeTraceId={timelineController.activeTraceId ?? undefined}
+          filterControls={sidebarFilterControls}
+          search={search}
+          onSearchChange={handleSearchChange}
+          expandedTraceIds={expandedTraceIds}
+          onToggleTraceExpanded={toggleTraceExpanded}
+          onFilterObservationByName={onFilterObservationByName}
+          onSelect={timelineController.onSelect}
+          onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
+          hasMoreObservations={hasMoreObservations}
+          isLoadingMoreObservations={
+            isSearchPending || isLoadingMoreObservations
+          }
+          observationLoadError={observationLoadError}
+          onLoadMoreObservations={loadMoreObservations}
+          onViewportUnderfilled={
+            searchQuery && !isSearchPending ? loadMoreObservations : undefined
+          }
+        />
+      )}
+      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
+        <ConnectedSessionConversationTimeline
+          traces={timelineTraces}
+          projectId={projectId}
+          sessionId={sessionId}
+          filterState={filterState}
+          filterMeasurementKey={filterMeasurementKey}
+          viewLabel={viewLabel}
+          openPeek={openPeek}
+          controller={timelineController}
+          onFilterObservationByName={onFilterObservationByName}
+        />
+      </div>
+    </div>
   );
 }

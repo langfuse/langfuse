@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
   SessionConversationTimeline,
-  type SessionConversationTimelineNavigation,
+  type SessionConversationTimelineController,
 } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 import { type SessionObservation } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
@@ -111,7 +111,7 @@ export function ConnectedSessionConversationTimeline({
   filterMeasurementKey,
   viewLabel,
   openPeek,
-  renderSidebar,
+  controller,
   onFilterObservationByName,
 }: {
   traces: readonly ConnectedSessionConversationTimelineItem[];
@@ -124,9 +124,7 @@ export function ConnectedSessionConversationTimeline({
     id: string,
     row: EventSessionTrace & { observationId?: string },
   ) => void;
-  renderSidebar: (
-    navigation: SessionConversationTimelineNavigation,
-  ) => ReactNode;
+  controller: SessionConversationTimelineController;
   onFilterObservationByName: (
     name: string,
     operator: "any of" | "none of",
@@ -292,7 +290,7 @@ export function ConnectedSessionConversationTimeline({
         onOpenObservation={(trace, observationId) =>
           openPeek(trace.id, { ...trace, observationId })
         }
-        renderSidebar={renderSidebar}
+        controller={controller}
         observationActions={{
           canAnnotate,
           canAddComment,
