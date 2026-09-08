@@ -1369,17 +1369,21 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Read path follows the user's session preview flag, not the deployment
+      // write mode: on dual-write deployments non-preview users see the v3
+      // experience backed by the legacy store, so their evaluator costs must
+      // come from the same store (same rule as datasets.allDatasetsMetrics).
       const costs: Array<{ id: string; totalCost: number }> =
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-          ? (
+        ctx.session.user.v4BetaEnabled === true
+          ? (await getTotalCostByRule(input.projectId, input.evaluatorIds)).map(
+              ({ ruleId, totalCost }) => ({ id: ruleId, totalCost }),
+            )
+          : (
               await getCostByEvaluatorIds(input.projectId, input.evaluatorIds)
             ).map(({ evaluatorId, totalCost }) => ({
               id: evaluatorId,
               totalCost,
-            }))
-          : (await getTotalCostByRule(input.projectId, input.evaluatorIds)).map(
-              ({ ruleId, totalCost }) => ({ id: ruleId, totalCost }),
-            );
+            }));
 
       // Convert array to map for easier lookup
       return costs.reduce(
@@ -1405,13 +1409,14 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Same read-path rule as costByEvaluatorIds above.
       const costs =
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-          ? await getAvgCostByEvaluatorIdsFromObservations(
+        ctx.session.user.v4BetaEnabled === true
+          ? await getAvgCostByEvaluatorIds(input.projectId, input.evaluatorIds)
+          : await getAvgCostByEvaluatorIdsFromObservations(
               input.projectId,
               input.evaluatorIds,
-            )
-          : await getAvgCostByEvaluatorIds(input.projectId, input.evaluatorIds);
+            );
 
       return costs.reduce(
         (acc, { evaluatorId, avgCost, executionCount }) => {
