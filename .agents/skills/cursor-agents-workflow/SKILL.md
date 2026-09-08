@@ -34,17 +34,20 @@ Wrong: `cursor/short-descriptive-title-8c78`
 
 ## Linear connection
 
-Cursor can reach Linear — desktop and cloud — but the MCP server is not
-configured by default, so it is a one-time setup step per developer. Langfuse
-engineers: the write policy is
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Configure the connection
-once; agents are expected to read a ticket's history before starting and to leave
-their context on it when they finish.
+Cursor desktop can authorize the Linear MCP interactively. Cursor Cloud cannot:
+`mcp_auth` is desktop-only, and the Cloud GitHub token is unrelated to Linear.
 
-If Linear is not reachable in your environment, **say so in your handoff
-message** and hand back the context that should have gone on the ticket. Do not
-skip it silently — a missing connection that nobody notices looks exactly like a
-practice being followed.
+On Cloud, prove Linear with a real read. If the MCP is `needsAuth` or missing,
+use `LINEAR_API_KEY` (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`) via GraphQL or
+`lf-context.sh`. If that env is unset, **say so** and tell them to add
+**`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start a
+new run. Langfuse engineers: the write policy is
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Identity is
+[`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) — Cloud `run-info`, not
+Cloud `gh` permissions.
+
+If Linear is not reachable, **say so in your handoff message** and hand back
+the context that should have gone on the ticket. Do not skip it silently.
 
 ## Pull requests
 
@@ -52,20 +55,18 @@ Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
 when a human asks for one.
 
-After the PR exists, apply the `cursor` GitHub label. That is a standing
-requirement, not an inferred extra — same role as Codex applying `codex`.
-Use the PR labels tool with `add_labels: ["cursor"]`. Do not add any other
-label unless a human asked for it. `.github/workflows/cursor-autolabel.yml`
-also applies the label when the author is the Cursor app, the branch starts
-with `cursor/`, or the body carries Cursor Cloud PR markers; still apply it
-yourself so a desktop session or a missed auto-label is not left unmarked.
+After opening the PR, apply the GitHub `cursor` label. Use the PR label
+tool. Do not wait for a human to add it, and do not substitute a `codex`
+or other agent label. A same-repo workflow also applies `cursor` when the
+author is `cursor[bot]`, the branch starts with `cursor/`, or the PR body
+contains the Cursor agent marker — still apply it yourself so the tag is
+present immediately.
 
-Cursor Cloud PRs are often authored by the Cursor GitHub App
-(`cursor[bot]` / `app/cursor`). Desktop sessions that open the PR as the
-human still need the explicit label step. On a non-draft same-repo PR from
-a write-access user, github-actions posts `@claude review` automatically.
-Do not post that comment yourself on open. Do not post `@claude review`
-again after addressing comments unless a human asks for another pass.
+Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
+a non-draft same-repo PR from a write-access user, github-actions posts
+`@claude review` automatically. Do not post that comment yourself on open.
+Do not post `@claude review` again after addressing comments unless a human
+asks for another pass.
 
 ## Bot review comments
 

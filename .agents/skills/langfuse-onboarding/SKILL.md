@@ -2,11 +2,12 @@
 name: langfuse-onboarding
 description: |
   Configure an agent for whoever is using it — outside contributor or Langfuse
-  maintainer, which areas they work on, which integrations are connected — and,
-  for someone genuinely new, walk them through onboarding. Use on "onboard me",
-  "I'm new here", "what do I need to set up", "am I set up correctly", "why
-  can't you see my tickets", and whenever you need to know someone's role and
-  no identity file exists yet.
+  maintainer, which areas they work on, and whether Linear answers. On Cursor
+  Cloud, identify the run owner (not Cloud gh permissions) and treat missing
+  Linear as a LINEAR_API_KEY secret to set. Use on "onboard me", "I'm new here",
+  "what do I need to set up", "am I set up correctly", "why can't you see my
+  tickets", "what should I do today" when me.md is missing, and whenever you
+  need someone's role and no identity file exists yet.
 ---
 
 # Onboarding at Langfuse
@@ -23,29 +24,72 @@ Two jobs, and they are separable — most of the time you only want the first.
 Everything an agent needs in order to behave differently for a contributor than
 for a maintainer comes from the first, so do that before anything else.
 
-## Step 1 — derive the role; do not ask what you can find out
+## Step 1 — name them, then prove Linear; do not ask what you can find out
 
-Two signals, in order. Both are read-only.
+Normal path: `scripts/agents/configure-langfuse-identity.sh` already ran from
+repo postinstall or Cursor Cloud start and created
+`~/.config/langfuse/me.md` from the Linear viewer. Read it and continue. It
+never overwrites an existing file, so the human's Focus and corrections survive
+across worktrees.
+
+Run the local probe first, then stop at the first path that names a person:
 
 ```bash
-gh api repos/langfuse/langfuse --jq '.permissions | {push, maintain, admin}'
+bash .agents/skills/langfuse-onboarding/scripts/whoami.sh
 ```
 
-- **`push: true`** → maintainer. They have write access to the app repo.
-- **`push: false`** or the call fails → treat as an outside contributor until they
-  say otherwise.
-- Then check whether the tracker answers a real read. That is the second signal,
-  and the one that matters here: a maintainer with no tracker connection is a
-  *setup gap*, not a contributor, and step 4 is where you fix it.
+It reports whether `me.md` exists, whether a Linear token is in the environment
+(boolean only — it never prints the secret), a `linear_viewer` line if that
+token works, and whether `gh api user` works. On Cursor Cloud, a working
+`linear_viewer` is tracker identity even when Linear MCP is `needsAuth`.
 
-**Do not infer this from `git config user.email`.** That is a local setting, not
-an identity: roughly a third of recent commits here come from personal addresses,
-and both `@clickhouse.com` (the company domain — Langfuse is part of ClickHouse)
-and the older `@langfuse.com` are still in daily use. Write access answers the
-question directly, so ask that instead of guessing from a string.
+**Who, in this order:**
 
-Say what you found and let them correct it. Never announce a role silently — a
-wrong guess sends someone down the wrong half of this file.
+1. **`~/.config/langfuse/me.md`** — already recorded. Skip to Linear.
+2. **Cursor Cloud run owner.** If `cursor-cloud` tools exist, call `run-info`.
+   Use `owningUserName` and `owningUserEmail`. Join the name to the roster
+   (`components-mdx/team-members.mdx` in a docs checkout, or
+   `gh api repos/langfuse/langfuse-docs/contents/components-mdx/team-members.mdx`).
+   **Maintainer needs Langfuse-team evidence**: a roster row, or membership of
+   the `LF` team on the Linear read below. Take the GitHub handle from the
+   roster. An `@clickhouse.com` / `@langfuse.com` address alone is *not* that
+   evidence — ClickHouse is far larger than this team, and a colleague from
+   another team owns none of the Langfuse tracker. Say the address named them,
+   that you found no Langfuse-team row, and ask once rather than assuming.
+3. **`gh api user` succeeded** (desktop and similar). Then
+   `gh api repos/langfuse/langfuse --jq '.permissions | {push, maintain, admin}'`.
+   **`push: true`** → maintainer. **`push: false`** → contributor until they
+   say otherwise.
+4. If none of the above named them, **ask once**.
+
+**Do not treat Cursor Cloud `gh` as the person.** That token is a read-only
+integration: `gh api user` is 403 and `.permissions.push` is false even for
+maintainers. **Do not infer identity from `git config user.email`** — on Cloud
+it is `cursoragent@cursor.com`, and elsewhere it is often a personal address.
+Langfuse is part of ClickHouse; `@clickhouse.com` and `@langfuse.com` are both
+in daily use.
+
+**Linear, in the same step** — a maintainer with no tracker is a *setup gap*,
+not a contributor. Prove access with a real read, not a status indicator:
+
+1. Linear MCP tools exist and the namespace is not `needsAuth` → query `viewer`
+   (or list issues).
+2. Else if `whoami.sh` reported a Linear token → GraphQL
+   `{ viewer { name email } teams { nodes { name key } } }` with that env var
+   (never echo it), or `linear-context-handover/scripts/lf-context.sh`. Record
+   the viewer as tracker identity, and treat the `LF` team in that response as
+   the Langfuse-team evidence step 1 asked for. Cloud often has the secret while
+   Linear MCP still shows `needsAuth` — the token is the access; do not wait on
+   OAuth.
+3. Else: no Linear. On Cursor Cloud, **do not call `mcp_auth`** — it only works
+   in the desktop IDE. Tell them, in one line, to create a personal Linear API
+   key (Linear → Settings → Account → Security) and add it as secret
+   **`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start
+   a **new** Cloud run. This run cannot see a secret added later. On desktop,
+   authorizing the Linear MCP is enough; `LINEAR_API_KEY` is the headless
+   fallback.
+
+Say what you found and let them correct it. Never announce a role silently.
 
 ## Step 2 — record it, so this happens once
 
@@ -58,7 +102,7 @@ cannot live in one repo. Create the directory if it does not exist.
 
 - **Name:** <name>
 - **Role:** maintainer | contributor
-- **GitHub:** <login>          # from `gh api user --jq .login`
+- **GitHub:** <login>          # roster handle on Cloud; `gh api user` on desktop
 - **Tracker identity:** <name / email as Linear knows it, or "none">
 - **Focus:** <the areas they own or are learning — their own words>
 - **Checkouts:** <path to langfuse> · <path to langfuse-docs> · <others>
@@ -146,7 +190,7 @@ and say which ones are missing rather than discovering it mid-task.
 
 | Connect | Needed by |
 | --- | --- |
-| **Linear** | 17 skills — the tracker practice in all of it |
+| **Linear** | 17 skills — the tracker practice in all of it. MCP, or `LINEAR_API_KEY` on headless/Cloud (step 1). |
 | **Datadog** | `debug-issue-with-datadog`, `datadog-query-recipes`, `incident-alert-tickets`, `weekly-production-review`, `infra-scaling`, `linear-bug-triage` |
 | **AWS** (SSO) | preview seeding and `kubectl` in `langfuse-previews`, plus `infra-scaling`, `security-review` |
 | **incident.io** | `incident-alert-tickets`, `weekly-production-review`, `debug-issue-with-datadog` |
@@ -198,4 +242,6 @@ Record the paths you found in `me.md` so the next session does not search again.
 It does not decide what to work on — that is
 [`linear-work-rhythm`](../linear-work-rhythm/SKILL.md), which reads `me.md` and
 answers from the tracker. If someone asks "what should I do today" and no
-identity file exists, run step 1 and 2 first, then hand over.
+identity file exists, run step 1 and 2 first. If Linear still does not answer,
+stop and ask them to set `LINEAR_API_KEY` (Cloud) or authorize the Linear MCP
+(desktop) — do not invent a day's work.
