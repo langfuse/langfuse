@@ -5,6 +5,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
   createEventsCh,
+  createObservation,
+  createObservationsCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
@@ -159,15 +161,28 @@ describe("annotation queues trpc", () => {
       const observationId = uuidv4();
       const traceId = uuidv4();
       const startTime = new Date("2024-05-15T12:00:00.000Z");
-      await createEventsCh([
-        createEvent({
-          id: observationId,
-          span_id: observationId,
-          trace_id: traceId,
-          project_id: setup.project.id,
-          start_time: startTime,
-          type: "GENERATION",
-        }),
+      // Seed both tables so the lookup resolves regardless of the v4 write-mode
+      // / preview routing the test environment happens to use.
+      await Promise.all([
+        createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            trace_id: traceId,
+            project_id: setup.project.id,
+            start_time: startTime,
+            type: "GENERATION",
+          }),
+        ]),
+        createObservationsCh([
+          createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: setup.project.id,
+            start_time: startTime,
+            type: "GENERATION",
+          }),
+        ]),
       ]);
 
       const item = await prisma.annotationQueueItem.create({

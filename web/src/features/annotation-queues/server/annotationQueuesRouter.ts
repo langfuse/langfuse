@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -15,13 +14,10 @@ import {
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
-import {
-  getObservationById,
-  getObservationByIdFromEventsTable,
-  logger,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { lookupQueueItemObservation } from "./lookupQueueItemObservation";
 
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -575,19 +571,11 @@ export const queueRouter = createTRPCRouter({
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const clickhouseObservation =
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
-            ? await getObservationByIdFromEventsTable({
-                id: item.objectId,
-                projectId: input.projectId,
-                startTime: item.objectStartTime ?? undefined,
-              })
-            : // eslint-disable-next-line @typescript-eslint/no-deprecated
-              await getObservationById({
-                id: item.objectId,
-                projectId: input.projectId,
-                startTime: item.objectStartTime ?? undefined,
-              });
+        const clickhouseObservation = await lookupQueueItemObservation({
+          objectId: item.objectId,
+          projectId: input.projectId,
+          objectStartTime: item.objectStartTime,
+        });
         return {
           ...inflatedUpdatedItem,
           parentTraceId: clickhouseObservation?.traceId,
