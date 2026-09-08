@@ -748,8 +748,8 @@ describe("LLM gateway control plane", () => {
       metadata: {},
     });
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
-      const value = String(url);
-      if (value.includes("openrouter")) {
+      const hostname = new URL(String(url)).hostname;
+      if (hostname === "openrouter.ai") {
         return Response.json({
           data: [
             {
@@ -766,7 +766,7 @@ describe("LLM gateway control plane", () => {
           ],
         });
       }
-      if (value.includes("openai.com")) {
+      if (hostname === "api.openai.com") {
         return Response.json({
           data: [
             {
@@ -779,7 +779,7 @@ describe("LLM gateway control plane", () => {
           ],
         });
       }
-      if (value.includes("anthropic.com")) {
+      if (hostname === "api.anthropic.com") {
         return Response.json({
           data: [
             {
