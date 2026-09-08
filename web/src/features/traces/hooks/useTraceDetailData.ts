@@ -2,6 +2,7 @@ import { api } from "@/src/utils/api";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 import { useSession } from "next-auth/react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 /**
  * Single source of truth for fetching a trace's detail data, beta-aware (events
@@ -15,15 +16,20 @@ export function useTraceDetailData({
   traceId,
   timestamp,
   enabled = true,
+  aggregationLevel = "trace",
+  readPath,
 }: {
   projectId: string;
   traceId?: string;
   timestamp?: Date;
   enabled?: boolean;
+  aggregationLevel?: "trace" | "session";
+  readPath?: "v3" | "v4";
 }) {
   const { isV4 } = useReadPath();
   const { status: sessionStatus } = useSession();
   const isUnauthenticated = sessionStatus === "unauthenticated";
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const traceReadConfig = api.public.traceReadConfig.useQuery(undefined, {
     enabled: isUnauthenticated,
     staleTime: Infinity,
@@ -34,8 +40,9 @@ export function useTraceDetailData({
   const unauthenticatedEventsReadEnabled =
     traceReadConfig.data?.v4WriteMode === "dual" ||
     traceReadConfig.data?.v4WriteMode === "events_only";
-  const useEventsTraceSource =
-    isV4 || (isUnauthenticated && unauthenticatedEventsReadEnabled);
+  const useEventsTraceSource = readPath
+    ? readPath === "v4"
+    : isV4 || (isUnauthenticated && unauthenticatedEventsReadEnabled);
 
   // Old path: traces table (beta OFF).
   const tracesQuery = api.traces.byIdWithObservationsAndScores.useQuery(
@@ -74,6 +81,9 @@ export function useTraceDetailData({
       !!projectId &&
       !isTraceSourceLoading &&
       useEventsTraceSource,
+    // A public trace grant does not grant access to sibling traces in its
+    // potentially private session. Keep unauthenticated public reads trace-scoped.
+    scopeToSession: aggregationLevel === "session" && isProjectMember,
   });
 
   if (isTraceSourceLoading) {
@@ -84,6 +94,9 @@ export function useTraceDetailData({
       isError: false,
       isNotFound: false,
       isUnauthorized: false,
+      isSessionScopeUnavailable: false,
+      canAggregateBySession: false,
+      isEventsTraceSource: useEventsTraceSource,
       truncatedAtObservations: undefined,
     };
   }
@@ -106,8 +119,15 @@ export function useTraceDetailData({
       // also lands as no-data, so "not found" must mean no-data AND no-error —
       // else a transient failure is mislabeled as a deleted/missing trace.
       isNotFound:
-        !eventsData.isLoading && !eventsData.data && !eventsData.error,
+        eventsErrorCode === "NOT_FOUND" ||
+        (!eventsData.isLoading &&
+          !eventsData.data &&
+          !eventsData.error &&
+          !eventsData.isSessionScopeUnavailable),
       isUnauthorized,
+      isSessionScopeUnavailable: eventsData.isSessionScopeUnavailable,
+      canAggregateBySession: isProjectMember && !!eventsData.data?.sessionId,
+      isEventsTraceSource: true,
       truncatedAtObservations: eventsData.truncatedAtObservations,
     };
   }
@@ -119,6 +139,9 @@ export function useTraceDetailData({
     isError: tracesQuery.isError,
     isNotFound: tracesQuery.error?.data?.code === "NOT_FOUND",
     isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
+    isSessionScopeUnavailable: false,
+    canAggregateBySession: false,
+    isEventsTraceSource: false,
     // The traces-table read path has no row cap.
     truncatedAtObservations: undefined,
   };

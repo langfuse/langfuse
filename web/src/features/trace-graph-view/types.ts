@@ -29,6 +29,7 @@ export const LANGFUSE_START_NODE_NAME = "__start__";
 export const LANGFUSE_END_NODE_NAME = "__end__";
 
 export const AgentGraphDataSchema = z.object({
+  trace_id: z.string().optional(),
   id: z.string(),
   parent_observation_id: z.string().nullish(),
   type: z.string(),
@@ -41,6 +42,9 @@ export const AgentGraphDataSchema = z.object({
 
 export type AgentGraphDataResponse = {
   id: string;
+  selectionId?: string;
+  traceId?: string;
+  sessionId?: string;
   node: string | null; // langgraph_node
   step: number | null;
   parentObservationId: string | null;

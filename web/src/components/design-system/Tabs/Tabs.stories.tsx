@@ -9,6 +9,9 @@ type ListVariant = NonNullable<
   React.ComponentProps<typeof Tabs.List>["variant"]
 >;
 type ListSize = NonNullable<React.ComponentProps<typeof Tabs.List>["size"]>;
+type TriggerVariant = NonNullable<
+  React.ComponentProps<typeof Tabs.Trigger>["variant"]
+>;
 
 const meta = preview.meta({
   component: Tabs,
@@ -16,9 +19,17 @@ const meta = preview.meta({
 
 const listVariants = Object.keys({
   default: true,
+  contrast: true,
   underline: true,
   outline: true,
 } satisfies Record<ListVariant, true>) as ListVariant[];
+
+const triggerVariantByListVariant = {
+  default: "default",
+  contrast: "contrast",
+  underline: "underline",
+  outline: "default",
+} satisfies Record<ListVariant, TriggerVariant>;
 
 const listSizes = Object.keys({
   default: true,
@@ -117,13 +128,13 @@ export const VariantMatrix = meta.story({
               <Tabs.List variant={variant} size={size}>
                 <Tabs.Trigger
                   value="one"
-                  variant={variant === "underline" ? "underline" : "default"}
+                  variant={triggerVariantByListVariant[variant]}
                   size={size === "sm" ? "sm" : "default"}
                   label="One"
                 />
                 <Tabs.Trigger
                   value="two"
-                  variant={variant === "underline" ? "underline" : "default"}
+                  variant={triggerVariantByListVariant[variant]}
                   size={size === "sm" ? "sm" : "default"}
                   label="Two"
                 />

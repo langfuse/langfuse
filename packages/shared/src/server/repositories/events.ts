@@ -180,6 +180,18 @@ type EventsObservationQueryResult = EventsObservationRecordReadType & {
   time_to_first_token?: string;
 };
 
+type SessionObservationQueryResult = EventsObservationQueryResult & {
+  graph_trace_id: string;
+  graph_id: string;
+  graph_parent_observation_id: string | null;
+  graph_type: string;
+  graph_name: string;
+  graph_start_time: string;
+  graph_end_time: string | null;
+  graph_node: string | null;
+  graph_step: string | null;
+};
+
 /**
  * Extra row fields present when the query ran with an `ioSizeCap`
  * (EventsQueryBuilder.selectIOWithSizeCap). ClickHouse returns UInt64 as
@@ -420,6 +432,7 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 // TODO: introduce pagination
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
+export const MAX_OBSERVATIONS_PER_SESSION = 5000;
 
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
@@ -478,6 +491,91 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   const observations = await enrichObservationsWithTraceFields(withModelData);
 
   return { observations, totalCount };
+};
+
+export const getObservationsForSessionFromEventsTable = async (params: {
+  projectId: string;
+  sessionId: string;
+}) => {
+  const sessionEventIdsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw("DISTINCT e.trace_id as trace_id", "e.span_id as span_id")
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    });
+  const sessionEventIds = sessionEventIdsBuilder.buildWithParams();
+  const latestEventsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectFieldSet("baseWithoutTools", "calculated")
+    .selectRaw(
+      "e.trace_id as graph_trace_id",
+      "e.span_id as graph_id",
+      "e.parent_span_id as graph_parent_observation_id",
+      "e.type as graph_type",
+      "e.name as graph_name",
+      "e.start_time as graph_start_time",
+      "e.end_time as graph_end_time",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS graph_node",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS graph_step",
+    )
+    .whereRaw(
+      "(e.trace_id, e.span_id) IN (SELECT trace_id, span_id FROM session_event_ids)",
+    )
+    .qualifyRaw(
+      "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+    );
+  const latestEvents = latestEventsBuilder.buildWithParams();
+  const { query, params: queryParams } = new CTEQueryBuilder()
+    .withCTE("session_event_ids", {
+      ...sessionEventIds,
+      schema: ["trace_id", "span_id"],
+    })
+    .withCTE("latest_events", {
+      ...latestEvents,
+      schema: latestEventsBuilder.getSelectedAliases(),
+    })
+    .from("latest_events", "e")
+    .select("e.*")
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    })
+    .orderByColumns([{ column: "e.start_time", direction: "ASC" }])
+    .limit(MAX_OBSERVATIONS_PER_SESSION + 1)
+    .buildWithParams();
+  const records = await queryClickhouse<SessionObservationQueryResult>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  const totalCount = records.length;
+  const limitedRecords = records.slice(0, MAX_OBSERVATIONS_PER_SESSION);
+  const withModelData = await enrichObservationsWithModelData(
+    limitedRecords,
+    params.projectId,
+    false,
+    null,
+  );
+  const observations = await enrichObservationsWithTraceFields(withModelData);
+
+  return {
+    observations,
+    totalCount,
+    graphRecords: limitedRecords.map((record) => ({
+      trace_id: record.graph_trace_id,
+      id: record.graph_id,
+      parent_observation_id: record.graph_parent_observation_id,
+      type: record.graph_type,
+      name: record.graph_name,
+      start_time: record.graph_start_time,
+      end_time: record.graph_end_time,
+      node: record.graph_node,
+      step: record.graph_step,
+    })),
+  };
 };
 
 export const getObservationsCountFromEventsTable = async (
@@ -868,6 +966,43 @@ async function getObservationsFromEventsTableInternal<T>(
     );
   }
 
+  if (opts.dedupeBySpanId === "latest-event-join") {
+    const { queryBuilder: candidateBuilder } =
+      buildEventsObservationRowSelection({
+        projectId,
+        filter: baseFilter,
+        searchQuery: opts.searchQuery,
+        searchType: opts.searchType,
+        orderBy,
+      });
+    candidateBuilder.selectRaw(
+      "DISTINCT e.trace_id AS trace_id",
+      "e.span_id AS span_id",
+    );
+    if (isCursorPagination) {
+      applyObservationsCursorFilter(opts.cursor, candidateBuilder);
+    }
+
+    queryBuilder
+      .withCTE("candidate_event_ids", candidateBuilder.buildWithParams())
+      .withCTE("latest_event_versions", {
+        query: `
+          SELECT e.project_id, e.trace_id, e.span_id, max(e.event_ts) AS event_ts
+          FROM events_core e
+          INNER JOIN candidate_event_ids candidates
+            ON candidates.trace_id = e.trace_id AND candidates.span_id = e.span_id
+          WHERE e.project_id = {projectId: String}
+          GROUP BY e.project_id, e.trace_id, e.span_id
+        `,
+        params: { projectId },
+      })
+      .innerJoin(
+        "latest_event_versions latest",
+        "ON latest.project_id = e.project_id AND latest.trace_id = e.trace_id AND latest.span_id = e.span_id AND latest.event_ts = e.event_ts",
+      )
+      .whereRaw("e.is_deleted = 0");
+  }
+
   queryBuilder
     .when(isCursorPagination, (b) =>
       applyObservationsCursorFilter(opts.cursor, b),
@@ -875,34 +1010,38 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(isCursorPagination, (b) => {
       const cursorOrderedBuilder = b.orderByColumns([
         ...orderByForObservationsQuery("e"),
-        ...(opts.dedupeBySpanId
+        ...(opts.dedupeBySpanId === "latest-event"
           ? [{ column: "e.event_ts", direction: "DESC" as const }]
           : []),
       ]);
 
-      return isTraceDeleteCursorSelect
-        ? cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id")
-        : opts.dedupeBySpanId
-          ? cursorOrderedBuilder.limitBy("e.span_id", "e.project_id")
-          : cursorOrderedBuilder;
+      if (isTraceDeleteCursorSelect) {
+        return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
+      }
+      if (opts.dedupeBySpanId === "latest-event") {
+        return cursorOrderedBuilder.qualifyRaw(
+          "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+        );
+      }
+      return cursorOrderedBuilder;
     })
     .when(
       !isCursorPagination &&
         (orderByEntries.length > 0 || Boolean(opts.dedupeBySpanId)),
       (b) =>
         b.orderByColumns(
-          opts.dedupeBySpanId
-            ? // event_ts DESC within the caller's order so LIMIT 1 BY keeps
-              // the newest version of each span.
-              [
+          opts.dedupeBySpanId === "latest-event"
+            ? [
                 ...orderByEntries,
                 { column: "e.event_ts", direction: "DESC" as const },
               ]
             : orderByEntries,
         ),
     )
-    .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
-      b.limitBy("e.span_id", "e.project_id"),
+    .when(!isCursorPagination && opts.dedupeBySpanId === "latest-event", (b) =>
+      b.qualifyRaw(
+        "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+      ),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
@@ -2452,15 +2591,97 @@ export async function getAgentGraphDataFromEventsTable(params: {
     FROM events_core e
     WHERE
       e.project_id = {projectId: String}
-      AND e.trace_id = {traceId: String}
-      AND e.start_time >= {chMinStartTime: DateTime64(3)}
-      AND e.start_time <= {chMaxStartTime: DateTime64(3)}
+        AND e.trace_id = {traceId: String}
+        AND e.start_time >= {chMinStartTime: DateTime64(3)}
+        AND e.start_time <= {chMaxStartTime: DateTime64(3)}
   `;
 
   return queryClickhouse({
     query,
     params: { projectId, traceId, chMinStartTime, chMaxStartTime },
     tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+}
+
+export async function getAgentGraphDataForSessionFromEventsTable(params: {
+  projectId: string;
+  sessionId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}) {
+  const sessionEventIdsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw("DISTINCT e.trace_id as trace_id", "e.span_id as span_id")
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    });
+  const sessionEventIds = sessionEventIdsBuilder.buildWithParams();
+  const latestEventsBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw(
+      "e.trace_id as trace_id",
+      "e.span_id as id",
+      "e.parent_span_id as parent_observation_id",
+      "e.type as type",
+      "e.name as name",
+      "e.start_time as start_time",
+      "e.end_time as end_time",
+      "e.session_id as session_id",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step",
+    )
+    .whereRaw(
+      "(e.trace_id, e.span_id) IN (SELECT trace_id, span_id FROM session_event_ids)",
+    )
+    .qualifyRaw(
+      "row_number() OVER (PARTITION BY e.project_id, e.trace_id, e.span_id ORDER BY e.event_ts DESC) = 1 AND e.is_deleted = 0",
+    );
+  const latestEvents = latestEventsBuilder.buildWithParams();
+  const { query, params: queryParams } = new CTEQueryBuilder()
+    .withCTE("session_event_ids", {
+      ...sessionEventIds,
+      schema: ["trace_id", "span_id"],
+    })
+    .withCTE("latest_events", {
+      ...latestEvents,
+      schema: latestEventsBuilder.getSelectedAliases(),
+    })
+    .from("latest_events", "e")
+    .select(
+      "e.trace_id as trace_id",
+      "e.id as id",
+      "e.parent_observation_id as parent_observation_id",
+      "e.type as type",
+      "e.name as name",
+      "e.start_time as start_time",
+      "e.end_time as end_time",
+      "e.node as node",
+      "e.step as step",
+    )
+    .whereRaw("e.session_id = {sessionId: String}", {
+      sessionId: params.sessionId,
+    })
+    .whereRaw("e.start_time >= {chMinStartTime: DateTime64(3)}", {
+      chMinStartTime: params.chMinStartTime,
+    })
+    .whereRaw("e.start_time <= {chMaxStartTime: DateTime64(3)}", {
+      chMaxStartTime: params.chMaxStartTime,
+    })
+    .orderByColumns([
+      { column: "e.start_time", direction: "ASC" },
+      { column: "e.trace_id", direction: "ASC" },
+      { column: "e.id", direction: "ASC" },
+    ])
+    .limit(MAX_OBSERVATIONS_PER_SESSION)
+    .buildWithParams();
+
+  return queryClickhouse({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 }

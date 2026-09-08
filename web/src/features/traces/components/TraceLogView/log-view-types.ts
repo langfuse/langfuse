@@ -19,3 +19,13 @@ export interface FlatLogItem {
   /** Whether this node is the last sibling at its level */
   isLastSibling: boolean;
 }
+
+export function getLogViewObservationIdentity(
+  node: TreeNode,
+  fallbackTraceId: string,
+) {
+  return {
+    observationId: node.observationId ?? node.id,
+    traceId: node.traceId ?? fallbackTraceId,
+  };
+}

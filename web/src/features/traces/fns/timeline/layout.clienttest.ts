@@ -68,6 +68,42 @@ const numbersOf = (node: PositionedNode) => [
 ];
 
 describe("layout", () => {
+  it("renders synthetic session and trace rows without using them as compression spans", () => {
+    const observation: LayoutNode = {
+      id: "observation",
+      name: "Observation",
+      type: "SPAN",
+      startTime: new Date(1_000),
+      endTime: new Date(2_000),
+      children: [],
+    };
+    const trace: LayoutNode = {
+      id: "trace-t",
+      name: "Trace",
+      type: "TRACE",
+      startTime: new Date(500),
+      endTime: new Date(2_000),
+      children: [observation],
+    };
+    const session: LayoutNode = {
+      id: "session-s",
+      name: "Session",
+      type: "SESSION",
+      startTime: new Date(0),
+      endTime: new Date(3_000),
+      children: [trace],
+    };
+
+    const prepared = prepareTimeline([session]);
+
+    expect(prepared.rows.map((row) => row.node.id)).toEqual([
+      "session-s",
+      "trace-t",
+      "observation",
+    ]);
+    expect(prepared.spans).toEqual([[1_000, 2_000]]);
+  });
+
   it("scales to the measured box instead of a fixed canvas", () => {
     const roots = singleSpan();
 

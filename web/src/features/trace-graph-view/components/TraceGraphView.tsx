@@ -118,7 +118,15 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   // Unfiltered observation lookup for the parent-walk fallback below (child
   // observations without a langgraph node are absent from normalizedData).
   const agentGraphById = useMemo(
-    () => new Map(agentGraphData.map((o) => [o.id, o])),
+    () =>
+      new Map(
+        agentGraphData.flatMap((observation) => [
+          [observation.id, observation] as const,
+          ...(observation.selectionId
+            ? ([[observation.selectionId, observation]] as const)
+            : []),
+        ]),
+      ),
     [agentGraphData],
   );
 
@@ -131,11 +139,11 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     const map = new Map<string, string>();
     if (isExpanded) {
       for (const o of agentGraphData) {
-        if (o.id) map.set(o.id, o.id);
+        map.set(o.selectionId ?? o.id, o.id);
       }
     } else {
       for (const o of normalizedData) {
-        if (o.id && o.node) map.set(o.id, o.node);
+        if (o.node) map.set(o.selectionId ?? o.id, o.node);
       }
     }
     return map;
@@ -216,7 +224,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
             : undefined;
         }
       } else {
-        const own = normalizedData.find((o) => o.id === currentObservationId);
+        const own = normalizedData.find(
+          (o) => (o.selectionId ?? o.id) === currentObservationId,
+        );
         if (own?.node) {
           foundNodeName = own.node;
         } else {
@@ -266,6 +276,8 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
       if (nodeName) {
+        const graphNode = graph.nodes.find((node) => node.id === nodeName);
+        if (graphNode?.type === "SESSION") return;
         // Don't cycle through system nodes (start/end nodes)
         const isSystemNode =
           nodeName === LANGFUSE_START_NODE_NAME ||
@@ -313,6 +325,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     },
     [
       nodeToObservationsMap,
+      graph.nodes,
       currentObservationIndices,
       previousSelectedNode,
       setCurrentObservationId,

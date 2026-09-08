@@ -7,7 +7,10 @@
 
 import { useMemo } from "react";
 import { type JSONTableViewColumn } from "@/src/features/traces/components/JSONTableView";
-import { type FlatLogItem } from "./log-view-types";
+import {
+  getLogViewObservationIdentity,
+  type FlatLogItem,
+} from "./log-view-types";
 import { LogViewObservationCell } from "./LogViewObservationCell";
 import { formatRelativeTime, formatDuration } from "./log-view-formatters";
 
@@ -37,14 +40,20 @@ export function useLogViewColumns({
         key: "observation",
         header: "Observation",
         width: "flex-1",
-        render: (item) => (
-          <LogViewObservationCell
-            item={item}
-            indentEnabled={indentEnabled}
-            projectId={projectId}
-            traceId={traceId}
-          />
-        ),
+        render: (item) => {
+          const observationIdentity = getLogViewObservationIdentity(
+            item.node,
+            traceId,
+          );
+          return (
+            <LogViewObservationCell
+              item={item}
+              indentEnabled={indentEnabled}
+              projectId={projectId}
+              traceId={observationIdentity.traceId}
+            />
+          );
+        },
       },
       {
         key: "depth",

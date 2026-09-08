@@ -2,16 +2,12 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
-import {
-  TablePeekView,
   shouldClosePeekAfterDelete,
+  type TablePeekView,
 } from "@/src/components/table/peek";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
+import { PeekTraceDetailContent } from "@/src/components/table/peek/PeekTraceDetailContent";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -41,8 +37,16 @@ export const TablePeekViewTraceDetail = (
     projectId,
     traceId,
     timestamp,
+    ...(props.isV4
+      ? {
+          aggregationLevel:
+            router.query.aggregation === "session"
+              ? "session"
+              : ("trace" as const),
+          readPath: "v4" as const,
+        }
+      : {}),
   });
-
   const actionProps = trace.data
     ? {
         traceId: trace.data.id,
@@ -62,25 +66,14 @@ export const TablePeekViewTraceDetail = (
         },
       }
     : null;
-
   return (
-    <TablePeekView
+    <PeekTraceDetailContent
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
-      actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
-      }
-      actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
-      }
-    >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        truncatedAtObservations={trace.truncatedAtObservations}
-      />
-    </TablePeekView>
+      trace={trace}
+      actionProps={actionProps}
+      keySuffix={undefined}
+      fallbackFromUnavailableSession={false}
+      showUnavailableSessionMessage
+    />
   );
 };

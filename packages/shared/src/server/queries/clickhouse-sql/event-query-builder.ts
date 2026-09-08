@@ -605,6 +605,7 @@ export type NoProjectIdType = typeof NoProjectId;
 abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
+  protected qualifyClauses: string[] = [];
   protected orderByClause = "";
   protected limitByClause = "";
   protected limitClause = "";
@@ -670,6 +671,16 @@ abstract class AbstractQueryBuilder {
     if (condition.query.trim()) {
       const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
       this.havingRaw(`(${trimmedQuery})`, condition.params);
+    }
+    return this;
+  }
+
+  qualifyRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.qualifyClauses.push(condition);
+    }
+    if (params) {
+      this.params = { ...this.params, ...params };
     }
     return this;
   }
@@ -787,6 +798,11 @@ abstract class AbstractQueryBuilder {
   protected buildHavingSection(): string {
     if (this.havingClauses.length === 0) return "";
     return `HAVING ${this.havingClauses.join("\n  AND ")}`;
+  }
+
+  protected buildQualifySection(): string {
+    if (this.qualifyClauses.length === 0) return "";
+    return `QUALIFY ${this.qualifyClauses.join("\n  AND ")}`;
   }
 
   /**
@@ -1009,6 +1025,11 @@ abstract class BaseEventsQueryBuilder<
     const havingSection = this.buildHavingSection();
     if (havingSection) {
       parts.push(havingSection);
+    }
+
+    const qualifySection = this.buildQualifySection();
+    if (qualifySection) {
+      parts.push(qualifySection);
     }
 
     // ORDER BY

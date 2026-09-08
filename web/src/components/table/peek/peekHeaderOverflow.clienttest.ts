@@ -9,6 +9,7 @@ const base = {
   minTitle: 240,
   badgeLabelWidth: 64,
   badgeIconWidth: 32,
+  leadingWidth: 0,
   navFullWidth: 92, // ↑K ↓J with chips
   navCompactWidth: 52, // icon-only arrows
   otherPinnedWidth: 68, // expand + close + divider
@@ -66,5 +67,15 @@ describe("planPeekHeaderLayout", () => {
     expect(plan.foldOpenInTab).toBe(false);
     expect(plan.badgeShowLabel).toBe(false);
     expect(plan.navCompact).toBe(true);
+  });
+
+  it("reserves room for leading header content", () => {
+    const plan = planPeekHeaderLayout({
+      ...base,
+      leadingWidth: 220,
+      headerWidth: 760,
+    });
+
+    expect(plan.foldActions).toBe(true);
   });
 });

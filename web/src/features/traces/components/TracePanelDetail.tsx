@@ -37,30 +37,56 @@ export function TracePanelDetail() {
   const { selectedNodeId } = useSelection();
   const {
     trace,
-    observations,
+    activeTraceObservations,
     serverScores: scores,
     corrections,
+    nodeMap,
+    isTraceDetailLoading,
+    isTraceDetailError,
   } = useTraceData();
+  const selectedObservationId = selectedNodeId
+    ? (nodeMap.get(selectedNodeId)?.observationId ?? selectedNodeId)
+    : null;
 
   // Resolved from the selected id, not from the tree: the observation list is
   // capped, so a selected observation may be missing from the tree while its
   // data is perfectly fetchable.
   const selected = useSelectedObservation({
-    selectedNodeId,
+    selectedNodeId: selectedObservationId,
     traceId: trace.id,
     projectId: trace.projectId,
-    observations,
+    observations: activeTraceObservations,
   });
+  const traceObservations = activeTraceObservations;
+  const traceScores = useMemo(
+    () => scores.filter((score) => score.traceId === trace.id),
+    [scores, trace.id],
+  );
+  const traceCorrections = useMemo(
+    () => corrections.filter((correction) => correction.traceId === trace.id),
+    [corrections, trace.id],
+  );
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
+    if (isTraceDetailLoading) {
+      return <Skeleton className="h-full w-full rounded-none" />;
+    }
+    if (isTraceDetailError) {
+      return (
+        <PanelMessage
+          title="Could not load trace"
+          body="Loading this trace failed. Reload the page to try again."
+        />
+      );
+    }
     switch (selected.kind) {
       case "observation":
         return (
           <ConnectedObservationDetailView
             observation={selected.observation}
             projectId={trace.projectId}
-            traceId={trace.id}
+            traceId={selected.observation.traceId ?? trace.id}
           />
         );
       case "loading":
@@ -83,14 +109,22 @@ export function TracePanelDetail() {
         return (
           <TraceDetailView
             trace={trace}
-            observations={observations}
-            scores={scores}
-            corrections={corrections}
+            observations={traceObservations}
+            scores={traceScores}
+            corrections={traceCorrections}
             projectId={trace.projectId}
           />
         );
     }
-  }, [selected, trace, observations, scores, corrections]);
+  }, [
+    isTraceDetailLoading,
+    isTraceDetailError,
+    selected,
+    trace,
+    traceObservations,
+    traceScores,
+    traceCorrections,
+  ]);
 
   return (
     <div className="bg-background h-full w-full overflow-y-auto">{content}</div>

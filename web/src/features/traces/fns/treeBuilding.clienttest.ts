@@ -5,6 +5,7 @@
  */
 
 import {
+  buildSessionUiData,
   buildTraceUiData,
   dedupeObservationsById,
   removeHiddenNodes,
@@ -81,6 +82,95 @@ const createMockTrace = (overrides: Record<string, unknown> = {}) => ({
   environment: "default",
   latency: 1.5,
   ...overrides,
+});
+
+describe("buildSessionUiData", () => {
+  it("wraps each trace and orders the session by trace timestamp", () => {
+    const traces = [
+      createMockTrace({
+        id: "trace-late",
+        name: "Late trace",
+        timestamp: new Date("2024-01-01T00:01:00.000Z"),
+        rootObservationType: "SPAN",
+      }),
+      createMockTrace({
+        id: "trace-early",
+        name: "Early trace",
+        timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        rootObservationType: "SPAN",
+      }),
+    ];
+    const observations = [
+      createMockObservation({
+        id: "late-root",
+        traceId: "trace-late",
+        startTime: new Date("2024-01-01T00:01:00.000Z"),
+      }),
+      createMockObservation({
+        id: "early-root",
+        traceId: "trace-early",
+        startTime: new Date("2024-01-01T00:00:00.000Z"),
+      }),
+    ];
+
+    const result = buildSessionUiData("session-1", traces, observations);
+
+    expect(result.roots.map((root) => root.id)).toEqual(["session-session-1"]);
+    expect(result.roots[0]?.type).toBe("SESSION");
+    expect(result.roots[0]?.depth).toBe(-2);
+    expect(result.roots[0]?.children.map((root) => root.id)).toEqual([
+      "trace-trace-early",
+      "trace-trace-late",
+    ]);
+    expect(result.roots[0]?.children[0]?.children[0]?.id).toBe("early-root");
+    expect(result.roots[0]?.children[1]?.children[0]?.id).toBe("late-root");
+    expect(result.roots[0]?.children[1]?.startTimeSinceTrace).toBe(60_000);
+    expect(result.nodeMap.get("late-root")?.startTimeSinceTrace).toBe(60_000);
+    expect(result.searchItems[0]?.node.type).toBe("SESSION");
+  });
+
+  it("does not attach observations to parents from another trace", () => {
+    const traces = [
+      createMockTrace({ id: "trace-1", rootObservationType: "SPAN" }),
+      createMockTrace({ id: "trace-2", rootObservationType: "SPAN" }),
+    ];
+    const observations = [
+      createMockObservation({ id: "parent", traceId: "trace-1" }),
+      createMockObservation({
+        id: "child",
+        traceId: "trace-2",
+        parentObservationId: "parent",
+      }),
+    ];
+
+    const result = buildSessionUiData("session-1", traces, observations);
+
+    expect(result.nodeMap.get("parent")?.children).toHaveLength(0);
+    expect(result.nodeMap.get("child")?.parentObservationId).toBeNull();
+    expect(result.roots[0]?.children[1]?.children[0]?.id).toBe("child");
+  });
+
+  it("qualifies colliding observation ids by trace", () => {
+    const traces = [
+      createMockTrace({ id: "trace-1", rootObservationType: "SPAN" }),
+      createMockTrace({ id: "trace-2", rootObservationType: "SPAN" }),
+    ];
+    const observations = [
+      createMockObservation({ id: "shared", traceId: "trace-1" }),
+      createMockObservation({ id: "shared", traceId: "trace-2" }),
+    ];
+
+    const result = buildSessionUiData("session-1", traces, observations);
+
+    expect(result.nodeMap.get("trace-1:shared")?.observationId).toBe("shared");
+    expect(result.nodeMap.get("trace-2:shared")?.observationId).toBe("shared");
+    expect(result.roots[0]?.children[0]?.children[0]?.id).toBe(
+      "trace-1:shared",
+    );
+    expect(result.roots[0]?.children[1]?.children[0]?.id).toBe(
+      "trace-2:shared",
+    );
+  });
 });
 
 describe("buildTraceUiData", () => {

@@ -13,8 +13,19 @@
 export { Trace } from "@/src/features/traces/components/Trace";
 export { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+export { TraceAggregationToggle } from "@/src/features/traces/components/TraceAggregationToggle";
 export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
+export {
+  getDefaultObservationId,
+  getSelectedObservation,
+  getSelectedObservationType,
+  getTraceDetailModeTitle,
+} from "@/src/features/traces/fns/getSelectedObservationType";
 export { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+export {
+  useTraceDetailMode,
+  type TraceDetailMode,
+} from "@/src/features/traces/hooks/useTraceDetailMode";
 
 export { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 export { calculateAggregatedUsage } from "@/src/features/traces/fns/calculateAggregatedUsage";

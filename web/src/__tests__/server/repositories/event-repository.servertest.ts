@@ -645,6 +645,47 @@ describe("Clickhouse Events Repository Test", () => {
       );
     });
 
+    it("excludes observations whose latest cursor-list event is deleted", async () => {
+      const name = `cursor-deleted-${randomUUID()}`;
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const eventTs = Date.now() * 1000;
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name,
+          start_time: eventTs,
+          event_ts: eventTs,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name,
+          start_time: eventTs + 1,
+          event_ts: eventTs + 1,
+          is_deleted: 1,
+        }),
+      ]);
+
+      const page = await getEventListCursor({
+        projectId,
+        filter: [
+          { column: "name", type: "string", operator: "=", value: name },
+        ],
+        searchType: [],
+        limit: 25,
+      });
+
+      expect(page.observations).toEqual([]);
+    });
+
     it("returns a next cursor and a second service page", async () => {
       const name = `cursor-service-${randomUUID()}`;
       const events = Array.from({ length: 30 }, (_, index) => {

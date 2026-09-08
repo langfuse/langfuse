@@ -272,7 +272,12 @@ export function prepareTimeline<TNode extends LayoutNode>(
   const rootIds = new Set(roots.map((root) => root.id));
   const spans: Array<[number, number]> = [];
   for (const node of all) {
-    if (rootIds.has(node.id)) continue;
+    if (
+      rootIds.has(node.id) ||
+      node.type === "SESSION" ||
+      node.type === "TRACE"
+    )
+      continue;
     spans.push([startOf(node) - originMs, endOf(node) - originMs]);
   }
 

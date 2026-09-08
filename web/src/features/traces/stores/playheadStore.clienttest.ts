@@ -71,6 +71,21 @@ describe("buildNodeWindows", () => {
     const windows = buildNodeWindows([traceRoot], ORIGIN);
     expect(windows.map((w) => w.id)).toEqual(["obs"]);
   });
+
+  it("skips synthetic SESSION and TRACE wrappers", () => {
+    const traceRoot = {
+      ...makeNode("trace-t1", 0, null, [makeNode("obs", 1_000, 2_000)]),
+      type: "TRACE",
+    } as TreeNode;
+    const sessionRoot = {
+      ...makeNode("session-s1", 0, 2_000, [traceRoot]),
+      type: "SESSION",
+    } as TreeNode;
+
+    expect(buildNodeWindows([sessionRoot], ORIGIN).map((w) => w.id)).toEqual([
+      "obs",
+    ]);
+  });
 });
 
 describe("padActivationWindows", () => {

@@ -1,17 +1,13 @@
 import {
-  TablePeekView,
   shouldClosePeekAfterDelete,
+  type TablePeekView,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useRef } from "react";
+import { PeekTraceDetailContent } from "@/src/components/table/peek/PeekTraceDetailContent";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -22,7 +18,6 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
-
   const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
   const { traceId, timestamp } = resolvePeekTraceParams({
@@ -42,8 +37,10 @@ export const TablePeekViewObservationDetail = (
     projectId,
     traceId,
     timestamp,
+    aggregationLevel:
+      router.query.aggregation === "session" ? "session" : "trace",
+    readPath: props.isV4 ? "v4" : "v3",
   });
-
   const actionProps = trace.data
     ? {
         traceId: trace.data.id,
@@ -68,26 +65,14 @@ export const TablePeekViewObservationDetail = (
         },
       }
     : null;
-
   return (
-    <TablePeekView
+    <PeekTraceDetailContent
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
-      actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
-      }
-      actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
-      }
-    >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        keySuffix={peekObservationId}
-        truncatedAtObservations={trace.truncatedAtObservations}
-      />
-    </TablePeekView>
+      trace={trace}
+      actionProps={actionProps}
+      keySuffix={peekObservationId}
+      fallbackFromUnavailableSession={trace.isSessionScopeUnavailable}
+      showUnavailableSessionMessage={false}
+    />
   );
 };

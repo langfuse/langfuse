@@ -4,6 +4,8 @@ type UsePeekDataProps = {
   projectId: string;
   traceId?: string;
   timestamp?: Date;
+  aggregationLevel?: "trace" | "session";
+  readPath?: "v3" | "v4";
 };
 
 /**
@@ -15,4 +17,13 @@ export const usePeekData = ({
   projectId,
   traceId,
   timestamp,
-}: UsePeekDataProps) => useTraceDetailData({ projectId, traceId, timestamp });
+  aggregationLevel,
+  readPath,
+}: UsePeekDataProps) =>
+  useTraceDetailData({
+    projectId,
+    traceId,
+    timestamp,
+    aggregationLevel,
+    readPath,
+  });

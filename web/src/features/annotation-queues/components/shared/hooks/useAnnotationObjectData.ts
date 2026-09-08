@@ -45,6 +45,7 @@ export const useAnnotationObjectData = (
     projectId,
     traceId: traceId ?? "",
     enabled: isTraceOrObservation && isV4,
+    scopeToSession: false,
   });
 
   const isSession =

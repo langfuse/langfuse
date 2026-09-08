@@ -29,6 +29,10 @@ import {
   getEventsGroupedByTraceTags,
   hasAnySessionFromEventsTable,
   parseClickhouseUTCDateTimeFormat,
+  convertDateToClickhouseDateTime,
+  getAgentGraphDataForSessionFromEventsTable,
+  getObservationsForSessionFromEventsTable,
+  MAX_OBSERVATIONS_PER_SESSION,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -48,6 +52,7 @@ import {
   type SessionOptions,
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -57,6 +62,8 @@ import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/server/mapAgentGraphRecord";
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -708,6 +715,7 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        includeScores: z.boolean().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -776,6 +784,7 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        includeScores: z.boolean().optional(),
       }),
     )
     .query(async ({ input }) => {
@@ -784,31 +793,112 @@ export const sessionRouter = createTRPCRouter({
         sessionId: input.sessionId,
       });
 
-      const chunks = chunk(traces, 500);
-      const scores = await Promise.all(
-        chunks.map((traceChunk) =>
-          getScoresForTraces({
-            projectId: input.projectId,
-            traceIds: traceChunk.map((t) => t.id),
-            timestamp: new Date(
-              Math.min(...traceChunk.map((t) => t.timestamp.getTime())),
-            ),
-          }),
-        ),
-      ).then((results) => results.flat());
+      if (input.includeScores === false) {
+        return traces.map((trace) => ({
+          ...trace,
+          scores: [],
+          corrections: [],
+        }));
+      }
+
+      const traceChunks = chunk(traces, 500);
+      let scoreChunks: Awaited<ReturnType<typeof getScoresForTraces>>[] = [];
+      for (const concurrentChunks of chunk(traceChunks, 4)) {
+        const results = await Promise.all(
+          concurrentChunks.map((traceChunk) =>
+            getScoresForTraces({
+              projectId: input.projectId,
+              traceIds: traceChunk.map((t) => t.id),
+              timestamp: new Date(
+                Math.min(...traceChunk.map((t) => t.timestamp.getTime())),
+              ),
+            }),
+          ),
+        );
+        scoreChunks = scoreChunks.concat(results);
+      }
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
-        dataTypes: LISTABLE_SCORE_TYPES,
+        scores: scoreChunks.flat(),
+        dataTypes: ScoreDataTypeArray,
         onParseError: traceException,
       });
+
+      const scoresByTraceId = new Map<
+        string,
+        Exclude<(typeof validatedScores)[number], { dataType: "CORRECTION" }>[]
+      >();
+      const correctionsByTraceId = new Map<
+        string,
+        Extract<(typeof validatedScores)[number], { dataType: "CORRECTION" }>[]
+      >();
+      for (const score of validatedScores) {
+        if (!score.traceId) continue;
+        if (score.dataType === "CORRECTION") {
+          const corrections = correctionsByTraceId.get(score.traceId);
+          if (corrections) corrections.push(score);
+          else correctionsByTraceId.set(score.traceId, [score]);
+          continue;
+        }
+        const traceScores = scoresByTraceId.get(score.traceId);
+        if (traceScores) traceScores.push(score);
+        else scoresByTraceId.set(score.traceId, [score]);
+      }
 
       return traces.map((trace) => ({
         ...trace,
         scores: toDomainArrayWithStringifiedMetadata(
-          validatedScores.filter((s) => s.traceId === trace.id),
+          scoresByTraceId.get(trace.id) ?? [],
         ),
+        corrections: correctionsByTraceId.get(trace.id) ?? [],
       }));
+    }),
+  observationsForSessionFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { observations, totalCount, graphRecords } =
+        await getObservationsForSessionFromEventsTable(input);
+
+      return {
+        observations: toDomainArrayWithStringifiedMetadata(observations),
+        agentGraphData: graphRecords
+          .map((record) => mapAgentGraphRecord(record, "session"))
+          .filter(
+            (record): record is AgentGraphDataResponse => record !== null,
+          ),
+        cutoffObservationsAfterMaxCount:
+          totalCount > MAX_OBSERVATIONS_PER_SESSION,
+        maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,
+      };
+    }),
+  agentGraphDataForSessionFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        projectId: z.string(),
+        minStartTime: z.iso.datetime({ offset: true }),
+        maxStartTime: z.iso.datetime({ offset: true }),
+      }),
+    )
+    .query(async ({ input }): Promise<AgentGraphDataResponse[]> => {
+      const records = await getAgentGraphDataForSessionFromEventsTable({
+        ...input,
+        chMinStartTime: convertDateToClickhouseDateTime(
+          new Date(input.minStartTime),
+        ),
+        chMaxStartTime: convertDateToClickhouseDateTime(
+          new Date(input.maxStartTime),
+        ),
+      });
+
+      return records
+        .map((record) => mapAgentGraphRecord(record, "session"))
+        .filter((record): record is AgentGraphDataResponse => record !== null);
     }),
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)
@@ -878,7 +968,7 @@ export const sessionRouter = createTRPCRouter({
         // Un-merged ReplacingMergeTree row versions of one span must not
         // count as separate observations: the 50-row page, the hasMore
         // detection, and the budget below all count rows.
-        dedupeBySpanId: true,
+        dedupeBySpanId: "latest-event",
       });
 
       // The synthetic trace-level row is metadata about the trace, not one of

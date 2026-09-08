@@ -5,11 +5,13 @@ import { castToNumberMap } from "@/src/utils/map-utils";
 export type UseTraceCommentsParams = {
   projectId: string;
   traceId: string;
+  sessionId?: string;
 };
 
 export function useTraceComments({
   projectId,
   traceId,
+  sessionId,
 }: UseTraceCommentsParams) {
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -25,7 +27,7 @@ export function useTraceComments({
     },
   );
 
-  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+  const traceCommentCountQuery = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
       objectId: traceId,
@@ -33,14 +35,30 @@ export function useTraceComments({
     },
     {
       refetchOnMount: false,
-      enabled: isAuthenticatedAndProjectMember,
+      enabled: isAuthenticatedAndProjectMember && !sessionId,
     },
   );
 
+  const sessionTraceCommentCountsQuery =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId: sessionId ?? "",
+      },
+      {
+        refetchOnMount: false,
+        enabled: isAuthenticatedAndProjectMember && !!sessionId,
+      },
+    );
+
   // Extract trace comment count from the Map response
-  const traceCommentCountMap = traceCommentCounts.data
-    ? castToNumberMap(traceCommentCounts.data)
-    : undefined;
+  const traceCommentCountMap = sessionId
+    ? sessionTraceCommentCountsQuery.data
+      ? castToNumberMap(sessionTraceCommentCountsQuery.data)
+      : undefined
+    : traceCommentCountQuery.data
+      ? castToNumberMap(traceCommentCountQuery.data)
+      : undefined;
   const traceCount = traceCommentCountMap?.get(traceId) ?? 0;
 
   return {
@@ -48,7 +66,10 @@ export function useTraceComments({
       ? castToNumberMap(observationCommentCounts.data)
       : new Map<string, number>(),
     traceCommentCount: traceCount,
+    traceCommentCounts: traceCommentCountMap ?? new Map<string, number>(),
     isLoading:
-      observationCommentCounts.isLoading || traceCommentCounts.isLoading,
+      observationCommentCounts.isLoading ||
+      traceCommentCountQuery.isLoading ||
+      sessionTraceCommentCountsQuery.isLoading,
   };
 }

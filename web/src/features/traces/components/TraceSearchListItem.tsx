@@ -12,6 +12,7 @@ import { SpanContent } from "./SpanContent";
 import { cn } from "@/src/utils/tailwind";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { isObservationTreeNode } from "@/src/features/traces/types/treeNode";
 
 interface TraceSearchListItemProps {
   item: TraceSearchListItemData;
@@ -43,7 +44,8 @@ export function TraceSearchListItem({
       onClick={onSelect}
       onMouseEnter={onHover}
       className={cn(
-        "hover:bg-muted/50 flex cursor-pointer items-start gap-2 px-2 py-1.5 transition-colors",
+        "hover:bg-muted/50 flex items-start gap-2 px-2 py-1.5 transition-colors",
+        node.type === "SESSION" ? "cursor-default" : "cursor-pointer",
         isSelected && "bg-muted",
       )}
     >
@@ -57,7 +59,7 @@ export function TraceSearchListItem({
           onSelect={onSelect}
         />
         {/* Temporal and depth context - only show for observations (not TRACE root) */}
-        {node.type !== "TRACE" && (
+        {isObservationTreeNode(node) && (
           <div className="text-muted-foreground/70 text-xs">
             depth {node.depth} • +{traceRelativeTime}
             {parentRelativeTime !== null &&

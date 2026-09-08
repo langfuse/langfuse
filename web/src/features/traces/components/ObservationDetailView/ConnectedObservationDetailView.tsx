@@ -123,16 +123,23 @@ export function ConnectedObservationDetailView({
   // so they are omitted rather than guessed. A merged-in row whose parent is also
   // past the cap sits AMONG the roots without being one — root chrome there would
   // assert a position we don't know.
-  const treeNode = nodeMap.get(observation.id);
+  const treeNode =
+    nodeMap.get(observation.id) ?? nodeMap.get(`${traceId}:${observation.id}`);
+  const traceRoot = roots
+    .flatMap((root) => (root.type === "SESSION" ? root.children : [root]))
+    .find((root) => root.type === "TRACE" && root.traceId === traceId);
   const isRoot =
-    roots.some((root) => root.id === observation.id) &&
+    (roots.some((root) => root.id === treeNode?.id) ||
+      traceRoot?.children.some((child) => child.id === treeNode?.id)) &&
     !(
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
 
   // Without a TRACE row (v4) this span stands in for the trace, so its badge and
   // its Scores tab both cover the trace-level scores.
-  const ownsTraceLevelScores = traceLevelScoreOwnerIds.has(observation.id);
+  const ownsTraceLevelScores = treeNode
+    ? traceLevelScoreOwnerIds.has(treeNode.id)
+    : false;
 
   // For root observations, compute subtree metrics for badge tooltips.
   // We compute this lazily here rather than in tree-building.ts because:
@@ -141,15 +148,18 @@ export function ConnectedObservationDetailView({
   // - computation only runs when viewing a root observation and is memo'd
   const subtreeMetrics = useMemo(() => {
     if (!isRoot || !treeNode) return null;
-    const descendantIds = getDescendantIds(treeNode);
-    const descendantIdSet = new Set(descendantIds);
+    const descendantIdSet = new Set(
+      getDescendantIds(treeNode).map(
+        (id) => nodeMap.get(id)?.observationId ?? id,
+      ),
+    );
 
     const descendants = observations.filter((obs) =>
       descendantIdSet.has(obs.id),
     );
     const allObservations = [observation, ...descendants];
     return aggregateTraceMetrics(allObservations);
-  }, [isRoot, treeNode, observations, observation]);
+  }, [isRoot, treeNode, nodeMap, observations, observation]);
 
   // Map global tab to observation-specific tabs (preview, log, scores)
   // "log" tab only available in v4 mode when there are observations
@@ -242,12 +252,21 @@ export function ConnectedObservationDetailView({
     setAdvancedJsonExpansion,
   } = useJsonExpansion();
   const observationScores = useMemo(
-    () => scores.filter((s) => s.observationId === observation.id),
-    [scores, observation.id],
+    () =>
+      scores.filter(
+        (score) =>
+          score.traceId === traceId && score.observationId === observation.id,
+      ),
+    [scores, traceId, observation.id],
   );
   const observationCorrections = useMemo(
-    () => corrections.filter((c) => c.observationId === observation.id),
-    [corrections, observation.id],
+    () =>
+      corrections.filter(
+        (correction) =>
+          correction.traceId === traceId &&
+          correction.observationId === observation.id,
+      ),
+    [corrections, traceId, observation.id],
   );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);
@@ -330,7 +349,7 @@ export function ConnectedObservationDetailView({
         traceId={traceId}
         latencySeconds={latencySeconds}
         observationScores={observationScores}
-        commentCount={comments.get(observation.id)}
+        commentCount={comments.get(treeNode?.id ?? observation.id)}
         pendingSelection={pendingSelection}
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}

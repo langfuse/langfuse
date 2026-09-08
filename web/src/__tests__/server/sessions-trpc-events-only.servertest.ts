@@ -164,6 +164,255 @@ maybe("sessions trpc (events_only write mode)", () => {
     ).toBeLessThan(1000);
   });
 
+  it("returns observations across every trace in the session", async () => {
+    const sessionId = randomUUID();
+    const first = await seedSessionEvent(sessionId);
+    const second = await seedSessionEvent(sessionId);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+      expect(
+        new Set(result.observations.map((observation) => observation.traceId)),
+      ).toEqual(new Set([first.traceId, second.traceId]));
+      expect(result.cutoffObservationsAfterMaxCount).toBe(false);
+    });
+  });
+
+  it("keeps observations with the same span id from different traces", async () => {
+    const sessionId = randomUUID();
+    const spanId = randomUUID();
+    const traceIds = [randomUUID(), randomUUID()];
+    const startTime = Date.now() * 1000;
+
+    await createEventsCh(
+      traceIds.map((traceId, index) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: spanId,
+          trace_id: traceId,
+          project_id: projectId,
+          type: "SPAN",
+          session_id: sessionId,
+          name: `trace-${index}`,
+          start_time: startTime + index,
+          event_ts: startTime + index,
+        }),
+      ),
+    );
+
+    await waitForExpect(async () => {
+      const observations =
+        await caller.sessions.observationsForSessionFromEvents({
+          projectId,
+          sessionId,
+        });
+      const graph = await caller.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId,
+        minStartTime: new Date(startTime / 1000 - 1000).toISOString(),
+        maxStartTime: new Date(startTime / 1000 + 1000).toISOString(),
+      });
+
+      expect(
+        observations.observations.map(({ traceId }) => traceId).sort(),
+      ).toEqual([...traceIds].sort());
+      expect(graph.map(({ traceId }) => traceId).sort()).toEqual(
+        [...traceIds].sort(),
+      );
+    });
+  });
+
+  it("excludes observations whose latest version moved to another session", async () => {
+    const previousSessionId = randomUUID();
+    const currentSessionId = randomUUID();
+    const traceId = randomUUID();
+    const spanId = randomUUID();
+    const startTime = Date.now() * 1000;
+
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: spanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: previousSessionId,
+        start_time: startTime,
+        event_ts: startTime,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const observations =
+        await caller.sessions.observationsForSessionFromEvents({
+          projectId,
+          sessionId: previousSessionId,
+        });
+      expect(observations.observations).toHaveLength(1);
+    });
+
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: spanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: currentSessionId,
+        start_time: startTime + 1,
+        event_ts: startTime + 1,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const observations =
+        await caller.sessions.observationsForSessionFromEvents({
+          projectId,
+          sessionId: previousSessionId,
+        });
+      const graph = await caller.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId: previousSessionId,
+        minStartTime: new Date(startTime / 1000 - 1000).toISOString(),
+        maxStartTime: new Date(startTime / 1000 + 1000).toISOString(),
+      });
+
+      expect(observations.observations).toEqual([]);
+      expect(graph).toEqual([]);
+    });
+  });
+
+  it("returns only the latest non-deleted observation version", async () => {
+    const sessionId = randomUUID();
+    const traceId = randomUUID();
+    const updatedSpanId = randomUUID();
+    const deletedSpanId = randomUUID();
+    const startTime = Date.now() * 1000;
+
+    await createEventsCh([
+      createEvent({
+        id: randomUUID(),
+        span_id: updatedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "original",
+        start_time: startTime,
+        event_ts: startTime,
+      }),
+      createEvent({
+        id: randomUUID(),
+        span_id: updatedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "updated",
+        start_time: startTime,
+        event_ts: startTime + 1,
+      }),
+      createEvent({
+        id: randomUUID(),
+        span_id: deletedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "deleted",
+        start_time: startTime,
+        event_ts: startTime,
+      }),
+      createEvent({
+        id: randomUUID(),
+        span_id: deletedSpanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: "deleted",
+        start_time: startTime,
+        event_ts: startTime + 1,
+        is_deleted: 1,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+
+      expect(result.observations).toHaveLength(1);
+      expect(result.observations[0]).toMatchObject({
+        id: updatedSpanId,
+        name: "updated",
+      });
+    });
+  });
+
+  it("returns only latest non-deleted observations for the session graph", async () => {
+    const sessionId = randomUUID();
+    const traceId = randomUUID();
+    const updatedSpanId = randomUUID();
+    const deletedSpanId = randomUUID();
+    const startTime = Date.now() * 1000;
+    const event = (overrides: {
+      spanId: string;
+      name: string;
+      eventTs: number;
+      isDeleted?: number;
+    }) =>
+      createEvent({
+        id: randomUUID(),
+        span_id: overrides.spanId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "SPAN",
+        session_id: sessionId,
+        name: overrides.name,
+        start_time: startTime,
+        event_ts: overrides.eventTs,
+        is_deleted: overrides.isDeleted ?? 0,
+      });
+
+    await createEventsCh([
+      event({ spanId: updatedSpanId, name: "original", eventTs: startTime }),
+      event({ spanId: deletedSpanId, name: "deleted", eventTs: startTime }),
+    ]);
+    await createEventsCh([
+      event({
+        spanId: updatedSpanId,
+        name: "updated",
+        eventTs: startTime + 1,
+      }),
+      event({
+        spanId: deletedSpanId,
+        name: "deleted",
+        eventTs: startTime + 1,
+        isDeleted: 1,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId,
+        minStartTime: new Date(startTime / 1000 - 1000).toISOString(),
+        maxStartTime: new Date(startTime / 1000 + 1000).toISOString(),
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        selectionId: updatedSpanId,
+        name: "updated",
+      });
+    });
+  });
+
   it("bookmark creates the trace_sessions row on demand and round-trips", async () => {
     const sessionId = randomUUID();
     await seedSessionEvent(sessionId);

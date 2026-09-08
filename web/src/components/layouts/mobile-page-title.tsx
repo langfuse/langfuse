@@ -38,6 +38,7 @@ export const MobilePageTitle = ({
   const {
     title,
     titleContent,
+    titleLeadingContent,
     titleTooltip,
     help,
     itemType,
@@ -67,6 +68,11 @@ export const MobilePageTitle = ({
           take (a big labelled type chip, a text-2xl title, then each action
           cluster wrapping onto its own row). */}
       <div className="mt-2 flex min-w-0 items-center gap-2">
+        {titleLeadingContent && (
+          <div className="flex shrink-0 items-center">
+            {titleLeadingContent}
+          </div>
+        )}
         {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
             session id, the common case) squeezes it. */}
         {itemType && (

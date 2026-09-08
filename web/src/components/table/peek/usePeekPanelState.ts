@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -12,6 +13,8 @@ import {
   createPeekPanelStore,
   PEEK_EXPAND_ENTER_FRACTION,
   PEEK_MIN_WIDTH_FRACTION,
+  type PeekPanelWidthMode,
+  resolveMinWidthFraction,
   selectDraftExpanded,
   selectIsResizing,
   selectWidgetWidth,
@@ -56,6 +59,84 @@ function readSidebarOffsetPx(): number {
   return rect.left < 100 && rect.width > 0 ? Math.round(rect.right) : 0;
 }
 
+function useSidebarOffsetPx() {
+  const [sidebarOffset, setSidebarOffset] = useState(() =>
+    readSidebarOffsetPx(),
+  );
+
+  useEffect(() => {
+    const measure = () => setSidebarOffset(readSidebarOffsetPx());
+    measure();
+    window.addEventListener("resize", measure);
+    const sidebar = document.querySelector('[data-sidebar="sidebar"]');
+    const observer =
+      sidebar && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    if (sidebar) observer?.observe(sidebar);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return sidebarOffset;
+}
+
+function useTraceNavigationWidthPx({
+  isOpen,
+  widthMode,
+}: {
+  isOpen: boolean;
+  widthMode: PeekPanelWidthMode;
+}) {
+  const [navigationWidthPx, setNavigationWidthPx] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!isOpen || widthMode !== "split") return;
+    const peek = document.querySelector<HTMLElement>("[data-peek-content]");
+    if (!peek) return;
+
+    let observedNavigation: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    const observeNavigation = () => {
+      const navigation = peek.querySelector<HTMLElement>(
+        "[data-trace-navigation-panel]",
+      );
+      if (navigation === observedNavigation) return;
+
+      resizeObserver?.disconnect();
+      observedNavigation = navigation;
+      if (!navigation) return;
+
+      const measure = () => {
+        const next = Math.round(navigation.getBoundingClientRect().width);
+        if (next <= 0) return;
+        setNavigationWidthPx((current) => (current === next ? current : next));
+      };
+      measure();
+      resizeObserver =
+        typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(measure)
+          : null;
+      resizeObserver?.observe(navigation);
+    };
+
+    observeNavigation();
+    const mutationObserver = new MutationObserver(() => {
+      if (observedNavigation?.isConnected) return;
+      observeNavigation();
+    });
+    mutationObserver.observe(peek, { childList: true, subtree: true });
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+    };
+  }, [isOpen, widthMode]);
+
+  return navigationWidthPx;
+}
+
 /**
  * Integration boundary for the peek panel width: owns the per-mount widget-width
  * store, derives the final width (widget vs expanded), and wires drag/keyboard
@@ -69,11 +150,13 @@ function readSidebarOffsetPx(): number {
 export function usePeekPanelState({
   isOpen,
   isExpanded,
+  widthMode,
   onExpandedChange,
   onResized,
 }: {
   isOpen: boolean;
   isExpanded: boolean;
+  widthMode: PeekPanelWidthMode;
   onExpandedChange: (expanded: boolean) => void;
   /**
    * Notified once per user resize gesture that lands on a widget width — a
@@ -82,11 +165,12 @@ export function usePeekPanelState({
    */
   onResized?: (widthFraction: number, trigger: "drag" | "keyboard") => void;
 }): PeekPanelView {
-  const [store] = useState(() => createPeekPanelStore());
+  const [store] = useState(() => createPeekPanelStore(widthMode));
 
   const isResizing = useStore(store, selectIsResizing);
   const draftExpanded = useStore(store, selectDraftExpanded);
   const widgetWidth = useStore(store, selectWidgetWidth);
+  const widthFraction = useStore(store, (state) => state.widthFraction);
 
   // Keep the latest callback in a ref so drag/keyboard closures never go
   // stale and the memoized handlers don't churn on a new callback identity.
@@ -106,6 +190,7 @@ export function usePeekPanelState({
       keyboardResizeNotifyTimeoutRef.current = null;
     }
   }, []);
+
   useEffect(() => cancelKeyboardResizeNotify, [cancelKeyboardResizeNotify]);
 
   // Locally-committed expanded value, held until the URL reflects it.
@@ -132,34 +217,48 @@ export function usePeekPanelState({
   // synchronously on mount (lazy initializer, SSR-safe via the guard in
   // readSidebarOffsetPx) so the first expanded paint already uses the real
   // offset rather than calc(100vw - 0px) = full width for one frame.
-  const [sidebarOffset, setSidebarOffset] = useState(() =>
-    readSidebarOffsetPx(),
-  );
+  const sidebarOffset = useSidebarOffsetPx();
   // Track the sidebar continuously — NOT only while expanded — so a sidebar
   // toggle/resize that happens while the peek is collapsed is still reflected
   // by the next expand (no stale-offset flash). The observer is idle unless the
   // sidebar actually resizes, and setSidebarOffset bails on an unchanged value.
-  useEffect(() => {
-    const measure = () => setSidebarOffset(readSidebarOffsetPx());
-    measure();
-    window.addEventListener("resize", measure);
-    const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-    const observer =
-      sidebar && typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(measure)
-        : null;
-    if (sidebar) observer?.observe(sidebar);
-    return () => {
-      window.removeEventListener("resize", measure);
-      observer?.disconnect();
-    };
-  }, []);
+  const navigationWidthPx = useTraceNavigationWidthPx({ isOpen, widthMode });
+
+  useLayoutEffect(() => {
+    const state = store.getState();
+    if (state.widthMode === widthMode) return;
+    if (
+      state.widthMode === "observation" &&
+      widthMode === "split" &&
+      navigationWidthPx === 0
+    ) {
+      return;
+    }
+    const viewportWidth = window.innerWidth;
+    if (!(viewportWidth > 0)) return;
+    const navigationWidthFraction = navigationWidthPx / viewportWidth;
+    const availableWidthFraction = Math.max(
+      0,
+      (viewportWidth - sidebarOffset) / viewportWidth,
+    );
+    const displayedWidthFraction = effectiveExpanded
+      ? state.widthMode === "observation"
+        ? Math.max(0, availableWidthFraction - navigationWidthFraction)
+        : availableWidthFraction
+      : state.widthFraction;
+    state.actions.setWidthMode(
+      widthMode,
+      navigationWidthFraction,
+      displayedWidthFraction,
+    );
+  }, [store, widthMode, navigationWidthPx, sidebarOffset, effectiveExpanded]);
 
   // Both expanded and widget widths are capped at the sidebar edge
   // (`viewport − sidebar`). Capping the widget too means dragging to the max
   // lands on the exact same width as expanded — no snap-back jump — and the
   // panel never paints over the sidebar even if a stored fraction is large.
-  const maxWidth = `calc(100vw - ${sidebarOffset}px)`;
+  const modeOffset = widthMode === "observation" ? navigationWidthPx : 0;
+  const maxWidth = `calc(100vw - ${sidebarOffset + modeOffset}px)`;
   const panelStyle: CSSProperties = {
     width: effectiveExpanded ? maxWidth : `min(${widgetWidth}, ${maxWidth})`,
   };
@@ -244,9 +343,13 @@ export function usePeekPanelState({
     [effectiveExpanded, commitExpanded],
   );
 
-  const widthPercent = effectiveExpanded
-    ? 100
-    : Math.round(parseFloat(widgetWidth));
+  const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
+  const widthPercent =
+    effectiveExpanded && viewportWidth > 0
+      ? Math.round(
+          ((viewportWidth - sidebarOffset - modeOffset) / viewportWidth) * 100,
+        )
+      : Math.round(widthFraction * 100);
 
   return {
     isExpanded: effectiveExpanded,
@@ -257,7 +360,7 @@ export function usePeekPanelState({
       role: "separator",
       "aria-orientation": "vertical",
       "aria-label": "Resize peek view",
-      "aria-valuemin": Math.round(PEEK_MIN_WIDTH_FRACTION * 100),
+      "aria-valuemin": Math.round(resolveMinWidthFraction(widthMode) * 100),
       "aria-valuemax": 100,
       "aria-valuenow": widthPercent,
       tabIndex: 0,

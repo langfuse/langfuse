@@ -80,6 +80,7 @@ export interface TraceDetailViewHeaderProps {
   onSelectionUsed?: () => void;
   isCommentDrawerOpen?: boolean;
   onCommentDrawerOpenChange?: (open: boolean) => void;
+  isSessionScope: boolean;
 }
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
@@ -93,6 +94,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   onSelectionUsed,
   isCommentDrawerOpen,
   onCommentDrawerOpenChange,
+  isSessionScope,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
   const isMobile = useIsMobile();
@@ -126,14 +128,14 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
         <div className="flex w-full flex-row items-center gap-1">
-          <ItemBadge type="TRACE" isSmall />
+          <ItemBadge type={isSessionScope ? "SESSION" : "TRACE"} isSmall />
           <span
             className={cn(
               "line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
               isMobile && "flex-1",
             )}
           >
-            {trace.name || trace.id}
+            {isSessionScope ? "Session" : trace.name || trace.id}
           </span>
           <DetailHeaderActionsMenuController
             idItems={[{ id: trace.id, name: "Trace ID" }]}

@@ -56,6 +56,70 @@ describe("buildExpandedGraph", () => {
       expect(agentNodes).toHaveLength(1);
     });
 
+    it("keeps qualified graph ids while selecting the session observation id", () => {
+      const result = buildExpandedGraph([
+        obs({
+          id: "trace-1:shared",
+          selectionId: "trace-1:shared",
+          traceId: "trace-1",
+        }),
+      ]);
+
+      expect(
+        result.graph.nodes.some((node) => node.id === "trace-1:shared"),
+      ).toBe(true);
+      expect(result.nodeToObservationsMap["trace-1:shared"]).toEqual([
+        "trace-1:shared",
+      ]);
+    });
+
+    it("keeps session traces as independent graph components", () => {
+      const result = buildExpandedGraph([
+        obs({
+          id: "trace-1:a",
+          selectionId: "a",
+          traceId: "trace-1",
+          sessionId: "session-1",
+          startTime: t(0),
+          endTime: t(1),
+        }),
+        obs({
+          id: "trace-2:b",
+          selectionId: "b",
+          traceId: "trace-2",
+          sessionId: "session-1",
+          startTime: t(2),
+          endTime: t(3),
+        }),
+      ]);
+
+      expect(edgeSet(result)).toEqual(
+        new Set([
+          "session-session-1->trace-1:__start__",
+          "trace-1:__start__->trace-1:a",
+          "trace-1:a->trace-1:__end__",
+          "session-session-1->trace-2:__start__",
+          "trace-2:__start__->trace-2:b",
+          "trace-2:b->trace-2:__end__",
+        ]),
+      );
+      expect(
+        result.graph.nodes.filter((node) => node.type === "TRACE"),
+      ).toMatchObject([
+        { id: "trace-1:__start__", label: "Trace trace-1" },
+        { id: "trace-2:__start__", label: "Trace trace-2" },
+      ]);
+      expect(result.nodeToObservationsMap).toMatchObject({
+        "trace-1:__start__": ["a"],
+        "trace-2:__start__": ["b"],
+      });
+      expect(result.graph.nodes).toContainEqual({
+        id: "session-session-1",
+        label: "Session session-1",
+        type: "SESSION",
+      });
+    });
+
     it("replaces incoming system rows with derived start/end anchors", () => {
       const data = [
         obs({
@@ -347,6 +411,16 @@ describe("buildExpandedGraph", () => {
     expect(result.limitExceeded).toBe(true);
     expect(result.graph.nodes).toEqual([]);
     expect(result.graph.edges).toEqual([]);
+  });
+
+  it("bails before a large overlapping sibling group exhausts the main thread", () => {
+    const data = Array.from({ length: 1500 }, (_, i) =>
+      obs({ id: `o${i}`, startTime: t(0), endTime: t(10) }),
+    );
+
+    const result = buildExpandedGraph(data);
+
+    expect(result.limitExceeded).toBe(true);
   });
 
   it("keeps a maximal linear chain under the edge budget", () => {

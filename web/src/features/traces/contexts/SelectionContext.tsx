@@ -72,9 +72,13 @@ export function useSelection(): SelectionContextValue {
 
 interface SelectionProviderProps {
   children: ReactNode;
+  defaultCollapsedNodeIds?: string[];
 }
 
-export function SelectionProvider({ children }: SelectionProviderProps) {
+export function SelectionProvider({
+  children,
+  defaultCollapsedNodeIds = [],
+}: SelectionProviderProps) {
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
@@ -85,7 +89,10 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
   // Get localStorage default for view preference
   const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
 
-  const [collapsedNodesArray, setCollapsedNodesArray] = useState<string[]>([]);
+  const [collapseOverrides, setCollapseOverrides] = useState<{
+    collapsed: string[];
+    expanded: string[];
+  }>({ collapsed: [], expanded: [] });
   const [searchInputValue, setSearchInputValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -145,25 +152,49 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     setSearchQuery(value);
   }, []);
 
-  const collapsedNodes = useMemo(
-    () => new Set(collapsedNodesArray),
-    [collapsedNodesArray],
+  const collapsedNodes = useMemo(() => {
+    const nodes = new Set(defaultCollapsedNodeIds);
+    for (const nodeId of collapseOverrides.expanded) nodes.delete(nodeId);
+    for (const nodeId of collapseOverrides.collapsed) nodes.add(nodeId);
+    return nodes;
+  }, [collapseOverrides, defaultCollapsedNodeIds]);
+
+  const toggleCollapsed = useCallback(
+    (id: string) => {
+      setCollapseOverrides((prev) => {
+        const isDefaultCollapsed = defaultCollapsedNodeIds.includes(id);
+        const isCollapsed =
+          prev.collapsed.includes(id) ||
+          (isDefaultCollapsed && !prev.expanded.includes(id));
+
+        if (isCollapsed) {
+          return {
+            collapsed: prev.collapsed.filter((nodeId) => nodeId !== id),
+            expanded:
+              isDefaultCollapsed && !prev.expanded.includes(id)
+                ? [...prev.expanded, id]
+                : prev.expanded,
+          };
+        }
+
+        return {
+          collapsed: [...prev.collapsed, id],
+          expanded: prev.expanded.filter((nodeId) => nodeId !== id),
+        };
+      });
+    },
+    [defaultCollapsedNodeIds],
   );
 
-  const toggleCollapsed = useCallback((id: string) => {
-    setCollapsedNodesArray((prev) =>
-      prev.includes(id)
-        ? prev.filter((nodeId) => nodeId !== id)
-        : [...prev, id],
-    );
-  }, []);
-
   const expandAll = useCallback(() => {
-    setCollapsedNodesArray([]);
-  }, []);
+    setCollapseOverrides({
+      collapsed: [],
+      expanded: defaultCollapsedNodeIds,
+    });
+  }, [defaultCollapsedNodeIds]);
 
   const collapseAll = useCallback((nodeIds: string[]) => {
-    setCollapsedNodesArray(nodeIds);
+    setCollapseOverrides({ collapsed: nodeIds, expanded: [] });
   }, []);
 
   const setSelectedNodeId = useCallback(

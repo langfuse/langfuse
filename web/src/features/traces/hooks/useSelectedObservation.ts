@@ -43,9 +43,11 @@ export function useSelectedObservation({
   const loadedRow = useMemo(
     () =>
       selectedNodeId
-        ? observations.find((obs) => obs.id === selectedNodeId)
+        ? observations.find(
+            (obs) => obs.id === selectedNodeId && obs.traceId === traceId,
+          )
         : undefined,
-    [observations, selectedNodeId],
+    [observations, selectedNodeId, traceId],
   );
 
   // Otherwise derived from the id alone, never from a nodeMap hit: past the cap
