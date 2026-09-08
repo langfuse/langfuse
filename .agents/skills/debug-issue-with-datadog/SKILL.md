@@ -48,6 +48,11 @@ supports them.
    window. Use [`references/repo-debug-map.md`](references/repo-debug-map.md)
    to translate "PostHog integration", "ingestion failures", "evals stuck",
    etc. into the Datadog filters and source files you should be looking at.
+   Settle **which store would even hold the signal** before querying, using
+   [`references/signal-boundaries.md`](references/signal-boundaries.md): server
+   and worker failures land in Datadog and never in Sentry, browser failures
+   the other way round. Querying the wrong half produces a confident "no
+   errors" for a subsystem that is on fire.
 
 3. **Run the broad Datadog sweep.** Default to the full sweep in
    [`references/datadog-playbook.md`](references/datadog-playbook.md): APM
@@ -122,6 +127,9 @@ do not invent root causes.
 - Production telemetry query recipes, tenant/public API usage, and queue
   consumer measurements:
   [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md)
+- Which store holds which signal, what each one drops on purpose, and the
+  build-id join between Datadog and Sentry:
+  [`references/signal-boundaries.md`](references/signal-boundaries.md)
 - Backend layout, queue contracts, instrumentation patterns:
   [`backend-dev-guidelines`](../backend-dev-guidelines/SKILL.md)
 - ClickHouse-related findings (memory ceilings, JOIN spills, slow queries):

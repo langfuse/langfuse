@@ -41,6 +41,9 @@ data domain you need: traces, logs, metrics, and visualizations.
      [`references/public-api-tenant-usage.md`](references/public-api-tenant-usage.md)
    - Queue inventory, queue consumers, and queue metrics:
      [`references/queue-consumers.md`](references/queue-consumers.md)
+   - Which store holds a signal, what each drops on purpose, and the
+     release/tenant correlation fields:
+     [`../debug-issue-with-datadog/references/signal-boundaries.md`](../debug-issue-with-datadog/references/signal-boundaries.md)
    - Scheduled-export freshness lag (blob / PostHog / Mixpanel):
      [`references/export-freshness-lag.md`](references/export-freshness-lag.md)
 3. Start with aggregate queries, grouped by environment, service, route,

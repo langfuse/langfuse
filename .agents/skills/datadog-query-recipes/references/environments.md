@@ -42,4 +42,8 @@ When a query returns zero:
 1. Check the time window and spelling of `env`, `service`, and route/resource.
 2. Query facets on the same site for `env` and `service`.
 3. Repeat a small count query on the other Datadog site.
-4. Only then report "No measurements found".
+4. Confirm the signal would have been recorded at all — trace sampling,
+   uninstrumented health-check routes, and Sentry's browser-only scope each
+   manufacture empty results. See
+   [`../../debug-issue-with-datadog/references/signal-boundaries.md`](../../debug-issue-with-datadog/references/signal-boundaries.md).
+5. Only then report "No measurements found".
