@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasEntitlementLimit,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -44,10 +47,9 @@ import {
   getAggregatedScoresForPromptsFromEvents,
   postgresSearchCondition,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
-import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {

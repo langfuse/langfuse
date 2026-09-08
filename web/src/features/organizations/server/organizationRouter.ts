@@ -3,7 +3,7 @@ import {
   protectedOrganizationProcedure,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationFormSchema,
   organizationOptionalNameSchema,
@@ -19,7 +19,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
-import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { shouldAutoEnableV4 } from "@/src/features/events";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {

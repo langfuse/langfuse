@@ -8,11 +8,13 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useColumnVisibility } from "@/src/features/column-visibility";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
+import {
+  evaluatorFilterConfig,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useCallback, useEffect, useState, useMemo } from "react";

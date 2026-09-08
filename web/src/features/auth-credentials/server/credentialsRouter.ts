@@ -5,7 +5,7 @@ import {
 } from "@/src/server/api/trpc";
 import { consumeEmailOtpAndUpdatePassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
-import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { passwordSchema } from "@/src/features/auth";
 
 export const credentialsRouter = createTRPCRouter({
   resetPassword: publicProcedureWithoutTracing

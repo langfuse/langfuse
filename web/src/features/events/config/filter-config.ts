@@ -1,8 +1,5 @@
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
-import {
-  omitFilterFacets,
-  type FilterConfig,
-} from "@/src/features/filters/lib/filter-config";
+import { type FilterConfig, omitFilterFacets } from "@/src/features/filters";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { renderLevelIcon } from "@/src/components/level-colors";
 

@@ -8,11 +8,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { DiffLabel } from "@/src/features/datasets";
 import {
   getScoreDataTypeExplanation,
   splitScoreDataTypeIcon,
-} from "@/src/features/scores/lib/scoreColumns";
+} from "@/src/features/scores";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,

@@ -41,8 +41,7 @@ import {
 } from "@/src/features/v4-migration/migrationData";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
-import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =

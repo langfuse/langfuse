@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createDatasetForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { createDatasetForApi } from "@/src/features/datasets/server";
 import {
   PostDatasetsV2Body,
   PostDatasetsV2Response,

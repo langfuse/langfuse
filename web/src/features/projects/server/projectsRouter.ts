@@ -8,10 +8,10 @@ import {
   throwIfNoOrganizationAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import { TRPCError } from "@trpc/server";
-import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { projectNameSchema } from "@/src/features/auth";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   QueueJobs,

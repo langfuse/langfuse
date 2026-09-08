@@ -21,7 +21,7 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import groupBy from "lodash/groupBy";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores";
 import { calculateRecursiveMetricsForRunItems } from "./utils";
 
 export const datasetRunsTableSchema = z.object({
