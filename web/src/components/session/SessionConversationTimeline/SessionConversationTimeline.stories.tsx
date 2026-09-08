@@ -76,7 +76,7 @@ const observations = [
         postalCode: "98101",
       },
     }),
-    metadata: { cache: "miss" },
+    metadata: { cache: "miss", toolCallId: "call-order-lookup" },
     latency: 0.34,
     inputTruncated: false,
     outputTruncated: false,
@@ -140,7 +140,10 @@ const observations = [
       confirmationId: "addr_7b19c2",
       updatedAt: "2026-01-01T12:14:05.410Z",
     }),
-    metadata: { service: "order-management" },
+    metadata: {
+      service: "order-management",
+      toolCallId: "call-address-update",
+    },
     latency: 0.33,
     inputTruncated: false,
     outputTruncated: false,
@@ -2063,16 +2066,25 @@ export const RenderLoadedConversation = meta.story({
         name: "get_order",
       }),
     ).not.toBeInTheDocument();
-    await userEvent.click(
+    await expect(
       within(
         generation?.closest("[data-session-observation-depth]") as HTMLElement,
-      ).getByRole("button", { name: "Show 1 tool" }),
-    );
+      ).queryByRole("button", { name: "Show 1 tool" }),
+    ).not.toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "get_order" }),
+      canvas.queryByRole("button", { name: "get_order" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Get order" }),
     ).toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "Expand get_order" }),
+      canvas.queryByRole("button", { name: "update_shipping_address" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Update shipping address" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Expand Get order" }),
     ).toBeInTheDocument();
   },
 });
@@ -2305,7 +2317,16 @@ export const ExpandToolObservation = meta.story({
 
 export const ExpandRolledUpTool = meta.story({
   name: "(Test) Expands Rolled-up Tool With Rail",
-  args: loadedArgs,
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 1 },
+        turnNumber: 1,
+        observations: [observations[0]!],
+      },
+    ],
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const generation = canvasElement
