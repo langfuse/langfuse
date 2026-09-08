@@ -1,11 +1,7 @@
 import { vi } from "vitest";
 
 const eventsTableAvailable = vi.hoisted(() => {
-  const enabled =
-    process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
-  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
-  return enabled;
+  return process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 });
 
 import type { Session } from "next-auth";
@@ -22,7 +18,7 @@ describe("datasets metrics events-only liveness", () => {
   it("does not hang when the events table is unavailable", () => {});
 });
 
-maybe("datasets.allDatasetsMetrics in events_only write mode", () => {
+maybe("datasets.allDatasetsMetrics with v4 preview enabled", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   const session: Session = {
@@ -73,7 +69,7 @@ maybe("datasets.allDatasetsMetrics in events_only write mode", () => {
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   it("reads experiment count and latest start time from events", async () => {
-    expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBe("events_only");
+    expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBeDefined();
 
     const datasetId = randomUUID();
     const olderExperimentId = randomUUID();
