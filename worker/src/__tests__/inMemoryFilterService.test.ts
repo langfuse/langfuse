@@ -1093,6 +1093,37 @@ describe("InMemoryFilterService", () => {
       ).toBe(true);
     });
 
+    test("empty string matches 'is not null' but not 'is null'", () => {
+      // The eval/automation table mappings (traces, observations) do not set
+      // emptyEqualsNull, so ClickHouse treats '' as a regular non-null value:
+      // IS NULL excludes it, IS NOT NULL includes it. The in-memory filter
+      // used for eval scheduling and automations must match that.
+      const dataWithEmptyString = { ...mockData, release: "" };
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithEmptyString,
+          [{ column: "release", type: "null", operator: "is null", value: "" }],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithEmptyString,
+          [
+            {
+              column: "release",
+              type: "null",
+              operator: "is not null",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+    });
+
     test("evaluates multiple filters with AND logic", () => {
       expect(
         InMemoryFilterService.evaluateFilter(

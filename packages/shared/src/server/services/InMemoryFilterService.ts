@@ -437,9 +437,10 @@ export class InMemoryFilterService {
   ): boolean {
     switch (operator) {
       case "is null":
-        return (
-          fieldValue === null || fieldValue === undefined || fieldValue === ""
-        );
+        // '' is a regular non-null value here: the eval/automation table
+        // mappings (traces, observations) do not set emptyEqualsNull, so
+        // ClickHouse `IS NULL` does not match empty strings either.
+        return fieldValue === null || fieldValue === undefined;
       case "is not null":
         return fieldValue !== null && fieldValue !== undefined;
       default:
