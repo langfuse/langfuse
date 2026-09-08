@@ -82,8 +82,12 @@ PY
   exit 0
 fi
 
-mkdir -p "$identity_dir"
 umask 077
+if ! mkdir -p "$identity_dir"; then
+  echo "Langfuse identity: could not create $identity_dir; onboarding can retry during the agent session."
+  exit 0
+fi
+chmod 700 "$identity_dir"
 
 tmp_file="$(mktemp "$identity_dir/.me.md.XXXXXX")"
 cleanup() {

@@ -63,6 +63,39 @@ LANGFUSE_CONFIG_DIR="$tmpdir/outsider" \
   bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
 test ! -e "$tmpdir/outsider/me.md"
 
+# Recovery must lock the identity directory to the owner even when the
+# caller inherited a permissive umask.
+(
+  umask 000
+  PATH="$tmpdir/bin:$PATH" \
+  LINEAR_API_KEY="test-secret-that-must-not-be-written" \
+  LINEAR_FIXTURE="$fixture" \
+  LANGFUSE_CONFIG_DIR="$tmpdir/loose-umask" \
+    bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
+)
+dir_mode="$(stat -c %a "$tmpdir/loose-umask")"
+if [[ "$dir_mode" != "700" ]]; then
+  echo "Identity directory mode is $dir_mode, expected 700"
+  exit 1
+fi
+
+# A write that cannot create the identity directory must still exit 0 so
+# postinstall and Cloud boot cannot fail the install for a missing HOME.
+touch "$tmpdir/not-a-directory"
+set +e
+mkdir_fail_status=0
+PATH="$tmpdir/bin:$PATH" \
+LINEAR_API_KEY="test-secret-that-must-not-be-written" \
+LINEAR_FIXTURE="$fixture" \
+LANGFUSE_CONFIG_DIR="$tmpdir/not-a-directory" \
+  bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
+mkdir_fail_status=$?
+set -e
+if [[ "$mkdir_fail_status" -ne 0 ]]; then
+  echo "Identity recovery exited $mkdir_fail_status when mkdir failed"
+  exit 1
+fi
+
 # The onboarding probe must still report the GitHub signals when the Linear
 # side fails outright, so a blocked egress path cannot truncate step 1.
 probe_tree="$tmpdir/probe-tree"

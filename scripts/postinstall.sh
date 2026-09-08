@@ -28,5 +28,5 @@ node scripts/agents/sync-agent-shims.mjs --check
 # Recover the developer identity in every newly installed worktree. This is
 # best-effort: contributors and local installs commonly have no Linear token.
 if [[ -f "scripts/agents/configure-langfuse-identity.sh" ]]; then
-  bash scripts/agents/configure-langfuse-identity.sh
+  bash scripts/agents/configure-langfuse-identity.sh || true
 fi

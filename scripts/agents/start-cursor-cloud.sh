@@ -9,7 +9,8 @@ compose_project_name="${CURSOR_COMPOSE_PROJECT_NAME:-langfuse-cursor}"
 
 # Environment builds do not rerun install when a new agent boots. Recover the
 # developer identity before starting services so every fresh Cloud run has it.
-bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
+# Best-effort: a missing HOME or a blocked Linear route must not abort the stack.
+bash "$repo_root/scripts/agents/configure-langfuse-identity.sh" || true
 
 # The workspace .env is for processes running on the host and therefore uses
 # localhost service URLs. Compose services need container-network hostnames.
