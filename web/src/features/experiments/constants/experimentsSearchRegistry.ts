@@ -68,6 +68,13 @@ const EXPERIMENT_FIELD_OVERLAY = {
   },
 };
 
+/** Authored per view, never derived from the field ids — see the search-bar README. */
+const SEARCH_EXAMPLES = [
+  "dataset:legal-answer-quality",
+  "name:sonnet",
+  "scores.groundedness:>0.8",
+];
+
 /**
  * Built from the config the table actually renders, not the static one: a
  * dataset-scoped page omits the Dataset facet, and the sidebar then strips any
@@ -76,8 +83,8 @@ const EXPERIMENT_FIELD_OVERLAY = {
  */
 export const experimentsFieldRegistry = (
   config: FilterConfig = experimentsFilterConfig,
-): FieldRegistry =>
-  fieldRegistryFromColumns(facetColumns(config), {
+): FieldRegistry => {
+  const overlay = {
     id: "experiments",
     metadata: true,
     // `scores.<name>` lowers onto the canonical `scores_avg` /
@@ -92,14 +99,25 @@ export const experimentsFieldRegistry = (
     // `name` is the only text column, and it is what people look a run up by.
     defaultTextField: "name",
     recentSearches: true,
-    searchExamples: [
-      "dataset:legal-answer-quality",
-      "name:sonnet",
-      "scores.groundedness:>0.8",
-    ],
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
+  } as const;
+
+  // The examples are authored, never generated — but a scoped config drops
+  // facets, and an example naming a dropped one would advertise a field the bar
+  // rejects. Built once to resolve them (aliases and `scores.` included), then
+  // rebuilt with the examples that survive.
+  const probe = fieldRegistryFromColumns(facetColumns(config), overlay);
+
+  return fieldRegistryFromColumns(facetColumns(config), {
+    ...overlay,
+    searchExamples: SEARCH_EXAMPLES.filter((example) => {
+      const separator = example.indexOf(":");
+      if (separator === -1) return true;
+      return probe.resolveField(example.slice(0, separator)) !== null;
+    }),
   });
+};
 
 /** The unscoped registry: the server's AI-filter guard and the grammar tests. */
 export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =

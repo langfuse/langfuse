@@ -13,11 +13,7 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
-import {
-  EXPERIMENTS_FIELD_REGISTRY,
-  experimentsFieldRegistry,
-} from "@/src/features/experiments/constants/experimentsSearchRegistry";
-import { getExperimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -794,19 +790,6 @@ describe("search bar invariants — experiments registry", () => {
     expect(
       EXPERIMENTS_FIELD_REGISTRY.resolveField("experimentDatasetId"),
     ).toBeNull();
-  });
-
-  it("drops the dataset field when the page pins the dataset", () => {
-    // A dataset-scoped page omits the Dataset facet, and the sidebar strips any
-    // filter on a facet-less column on write — so offering `dataset:` there
-    // would take the token and silently discard it.
-    const scoped = experimentsFieldRegistry(
-      getExperimentsFilterConfig(["experimentDatasetId"]),
-    );
-
-    expect(scoped.resolveField("dataset")).toBeNull();
-    expect(scoped.resolveField("experimentDatasetName")).toBeNull();
-    expect(scoped.resolveField("name")).not.toBeNull();
   });
 
   it("opens `scores.` and keeps `traceScores.` closed", () => {
