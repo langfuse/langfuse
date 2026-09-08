@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import { prisma } from "@langfuse/shared/src/db";
 import type { ServerContext } from "../../types";

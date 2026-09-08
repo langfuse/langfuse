@@ -23,9 +23,11 @@ import {
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import {
+  getScoreDataTypeIcon,
+  MultiSelectKeyValues,
+} from "@/src/features/scores";
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
