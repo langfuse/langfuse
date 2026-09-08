@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -24,8 +24,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
+import {
+  createWithinEntitlementLimit,
+  hasEntitlement,
+} from "@/src/features/entitlements/server";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
