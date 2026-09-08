@@ -31,10 +31,25 @@ const nullTileError = () => {
 };
 
 describe("isCodeMirrorUnstableViewportError", () => {
-  it("matches the Chrome null-tile TypeError", () => {
+  it("matches Chrome, Firefox, and Safari null-tile TypeErrors", () => {
     expect(
       isCodeMirrorUnstableViewportError(
         new TypeError("Cannot read properties of null (reading 'length')"),
+      ),
+    ).toBe(true);
+    expect(
+      isCodeMirrorUnstableViewportError(
+        new TypeError("Cannot read property 'length' of null"),
+      ),
+    ).toBe(true);
+    expect(
+      isCodeMirrorUnstableViewportError(
+        new TypeError('can\'t access property "length" of null'),
+      ),
+    ).toBe(true);
+    expect(
+      isCodeMirrorUnstableViewportError(
+        new TypeError("null is not an object (evaluating 'line.array.length')"),
       ),
     ).toBe(true);
   });
@@ -43,6 +58,11 @@ describe("isCodeMirrorUnstableViewportError", () => {
     expect(
       isCodeMirrorUnstableViewportError(
         new TypeError("Cannot read properties of null (reading 'top')"),
+      ),
+    ).toBe(false);
+    expect(
+      isCodeMirrorUnstableViewportError(
+        new TypeError("null is not an object (evaluating 'line.array.top')"),
       ),
     ).toBe(false);
     expect(isCodeMirrorUnstableViewportError(new Error("length"))).toBe(false);

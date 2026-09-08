@@ -12,10 +12,17 @@ export function isCodeMirrorUnstableViewportError(error: unknown): boolean {
     return false;
   }
 
+  // V8 (Chrome/Edge), SpiderMonkey (Firefox), and JavaScriptCore (Safari)
+  // each phrase the same null.length dereference differently.
   return (
-    error.message === "Cannot read properties of null (reading 'length')" ||
-    error.message === "Cannot read property 'length' of null" ||
-    error.message === 'can\'t access property "length" of null'
+    /Cannot read properties of null \(reading ['"]length['"]\)/.test(
+      error.message,
+    ) ||
+    /Cannot read property ['"]length['"] of null/.test(error.message) ||
+    /can't access property ["']length["'] of null/.test(error.message) ||
+    /null is not an object \(evaluating ['"].*\.length['"]\)/.test(
+      error.message,
+    )
   );
 }
 
