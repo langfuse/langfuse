@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Bot,
-  Brain,
   Check,
   ChevronDown,
   FileIcon,
@@ -144,12 +143,7 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
 
   if (content.kind === "text") {
     return (
-      <CollapsiblePart
-        label="Reasoning"
-        icon={Brain}
-        variant="plain"
-        alignment="start"
-      >
+      <CollapsiblePart label="Reasoning" variant="plain" alignment="row">
         <MarkdownView markdown={content.text} className="px-0 py-0" />
       </CollapsiblePart>
     );
@@ -157,12 +151,7 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
 
   if (content.kind === "data") {
     return (
-      <CollapsiblePart
-        label="Reasoning data"
-        icon={Brain}
-        variant="plain"
-        alignment="start"
-      >
+      <CollapsiblePart label="Reasoning data" variant="plain" alignment="row">
         <PrettyJsonView json={content.value} currentView="pretty" />
       </CollapsiblePart>
     );
@@ -175,9 +164,8 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
           ? "Redacted reasoning"
           : "Encrypted reasoning"
       }
-      icon={Brain}
       variant="plain"
-      alignment="start"
+      alignment="row"
     >
       <pre className="text-muted-foreground overflow-hidden font-mono text-xs break-all whitespace-pre-wrap">
         {content.data}
@@ -312,32 +300,85 @@ export function SessionTimelineMessage({
   const showSender = Boolean(
     message.senderName && message.senderName !== presentation.label,
   );
+  type MessagePart = SessionTimelineConversationMessage["parts"][number];
+  type ContentPart = Exclude<MessagePart, ReasoningPart>;
+  const groups: Array<
+    | { type: "reasoning"; parts: ReasoningPart[] }
+    | { type: "content"; parts: ContentPart[] }
+  > = [];
+
+  for (const part of message.parts) {
+    const previousGroup = groups.at(-1);
+    if (part.type === "reasoning") {
+      if (previousGroup?.type === "reasoning") {
+        previousGroup.parts.push(part);
+      } else {
+        groups.push({ type: "reasoning", parts: [part] });
+      }
+      continue;
+    }
+
+    if (previousGroup?.type === "content") {
+      previousGroup.parts.push(part);
+    } else {
+      groups.push({ type: "content", parts: [part] });
+    }
+  }
+
+  const firstContentGroupIndex = groups.findIndex(
+    (group) => group.type === "content",
+  );
 
   return (
-    <div className={cn("flex w-full", presentation.wrapper)}>
-      <article
-        className={cn(
-          "ph-no-capture min-w-0 overflow-hidden",
-          presentation.container,
-        )}
-      >
-        {showSender ? (
-          <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
-            <Icon className="h-3 w-3 shrink-0" />
-            <span
-              className="text-foreground truncate"
-              title={message.senderName ?? presentation.label}
+    <div className="ph-no-capture flex w-full flex-col gap-2">
+      {groups.map((group, groupIndex) => {
+        if (group.type === "reasoning") {
+          return (
+            <div
+              key={`reasoning-${groupIndex}`}
+              className="flex w-full flex-col gap-1"
             >
-              {message.senderName ?? presentation.label}
-            </span>
+              {group.parts.map((part, partIndex) => (
+                <SessionTimelineReasoning
+                  key={`${part.content.kind}-${partIndex}`}
+                  part={part}
+                />
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={`content-${groupIndex}`}
+            className={cn("flex w-full", presentation.wrapper)}
+          >
+            <article
+              className={cn("min-w-0 overflow-hidden", presentation.container)}
+            >
+              {showSender && groupIndex === firstContentGroupIndex ? (
+                <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
+                  <Icon className="h-3 w-3 shrink-0" />
+                  <span
+                    className="text-foreground truncate"
+                    title={message.senderName ?? presentation.label}
+                  >
+                    {message.senderName ?? presentation.label}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-2 text-sm leading-6">
+                {group.parts.map((part, partIndex) => (
+                  <SessionTimelinePart
+                    key={`${part.type}-${partIndex}`}
+                    part={part}
+                  />
+                ))}
+              </div>
+            </article>
           </div>
-        ) : null}
-        <div className="flex flex-col gap-2 text-sm leading-6">
-          {message.parts.map((part, index) => (
-            <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
-          ))}
-        </div>
-      </article>
+        );
+      })}
     </div>
   );
 }

@@ -92,9 +92,56 @@ export const Reasoning = meta.story({
             text: "I should compare the observation payloads before answering.",
           },
         },
+        { type: "text", text: "Here is the result." },
+      ],
+    } satisfies SessionTimelineConversationMessage,
+  },
+});
+
+export const ReasoningData = meta.story({
+  args: {
+    message: {
+      role: "assistant",
+      source: "output",
+      parts: [
         {
           type: "reasoning",
-          content: { kind: "redacted", data: "encrypted-provider-payload" },
+          content: {
+            kind: "data",
+            value: { checks: ["source available", "answer supported"] },
+          },
+        },
+        { type: "text", text: "The answer is supported by the source." },
+      ],
+    } satisfies SessionTimelineConversationMessage,
+  },
+});
+
+export const RedactedReasoning = meta.story({
+  args: {
+    message: {
+      role: "assistant",
+      source: "output",
+      parts: [
+        {
+          type: "reasoning",
+          content: { kind: "redacted", data: "redacted-provider-payload" },
+        },
+        { type: "text", text: "Here is the result." },
+      ],
+    } satisfies SessionTimelineConversationMessage,
+  },
+});
+
+export const EncryptedReasoning = meta.story({
+  args: {
+    message: {
+      role: "assistant",
+      source: "output",
+      parts: [
+        {
+          type: "reasoning",
+          content: { kind: "encrypted", data: "encrypted-provider-payload" },
         },
         { type: "text", text: "Here is the result." },
       ],

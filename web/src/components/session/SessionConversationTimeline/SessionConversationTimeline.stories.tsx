@@ -114,8 +114,16 @@ const observations = [
     }),
     output: JSON.stringify({
       role: "assistant",
-      content:
-        "The order is still processing, so I can update the delivery address.",
+      content: [
+        {
+          type: "reasoning",
+          text: "The order is still processing and permits address changes, so it is safe to update it.",
+        },
+        {
+          type: "text",
+          text: "The order is still processing, so I can update the delivery address.",
+        },
+      ],
       tool_calls: [
         {
           id: "call-address-update",
@@ -2079,6 +2087,9 @@ export const RenderLoadedConversation = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Expand Get order" }),
     ).toBeInTheDocument();
+    expect(
+      canvas.getByRole("button", { name: "Reasoning" }).closest("article"),
+    ).toBeNull();
   },
 });
 
