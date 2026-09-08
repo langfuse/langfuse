@@ -3,7 +3,9 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -23,7 +25,6 @@ import {
   restrictToVerticalAxis,
 } from "@dnd-kit/modifiers";
 import {
-  defaultAnimateLayoutChanges,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -47,20 +48,23 @@ import { cn } from "@/src/utils/tailwind";
 
 const TABLE_NAME = "gateway-provider-credentials";
 
-export function hasProviderPositionChanged(
-  id: string | number,
-  previousItems: Array<string | number>,
-  items: Array<string | number>,
+export function reorderProviderIds(
+  ids: string[],
+  sourceId: string,
+  targetId: string,
 ) {
-  return previousItems.indexOf(id) !== items.indexOf(id);
-}
+  const sourceIndex = ids.indexOf(sourceId);
+  const targetIndex = ids.indexOf(targetId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return ids;
+  }
 
-const animateProviderLayoutChanges: typeof defaultAnimateLayoutChanges = (
-  args,
-) =>
-  args.previousItems !== args.items
-    ? hasProviderPositionChanged(args.id, args.previousItems, args.items)
-    : defaultAnimateLayoutChanges(args);
+  const nextIds = [...ids];
+  const [movedId] = nextIds.splice(sourceIndex, 1);
+  if (!movedId) return ids;
+  nextIds.splice(targetIndex, 0, movedId);
+  return nextIds;
+}
 
 type SortableHandleContextValue = Pick<
   ReturnType<typeof useSortable>,
@@ -109,10 +113,51 @@ export function GatewayProvidersView({
     [serverOrderKey],
   );
   const [orderedIds, setOrderedIds] = useState(serverIds);
+  const rowNodes = useRef(new Map<string, HTMLTableRowElement>());
+  const pendingRowPositions = useRef<Map<string, number> | null>(null);
+
+  const captureRowPositions = useCallback(
+    () =>
+      new Map(
+        [...rowNodes.current].map(([id, node]) => [
+          id,
+          node.getBoundingClientRect().top,
+        ]),
+      ),
+    [],
+  );
+  const registerRowNode = useCallback(
+    (id: string, node: HTMLTableRowElement | null) => {
+      if (node) rowNodes.current.set(id, node);
+      else rowNodes.current.delete(id);
+    },
+    [],
+  );
 
   useEffect(() => {
     setOrderedIds(serverIds);
   }, [serverIds]);
+
+  useLayoutEffect(() => {
+    const previousPositions = pendingRowPositions.current;
+    if (!previousPositions) return;
+    pendingRowPositions.current = null;
+
+    for (const [id, node] of rowNodes.current) {
+      const previousTop = previousPositions.get(id);
+      if (previousTop === undefined) continue;
+      const offset = previousTop - node.getBoundingClientRect().top;
+      if (offset === 0) continue;
+
+      node.animate(
+        [
+          { transform: `translateY(${offset}px)` },
+          { transform: "translateY(0)" },
+        ],
+        { duration: 200, easing: "ease" },
+      );
+    }
+  }, [orderedIds]);
 
   const orderedConnections = useMemo(() => {
     const orderById = new Map(
@@ -126,24 +171,20 @@ export function GatewayProvidersView({
   }, [connections, orderedIds]);
 
   const moveConnection = useCallback(
-    async (sourceId: string, targetId: string) => {
+    async (sourceId: string, targetId: string, animateRows = false) => {
       const previousIds = orderedIds;
-      const sourceIndex = previousIds.indexOf(sourceId);
-      const targetIndex = previousIds.indexOf(targetId);
-      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
-        return;
+      const nextIds = reorderProviderIds(previousIds, sourceId, targetId);
+      if (nextIds === previousIds) return;
 
-      const nextIds = [...previousIds];
-      const [movedId] = nextIds.splice(sourceIndex, 1);
-      if (!movedId) return;
-      nextIds.splice(targetIndex, 0, movedId);
+      if (animateRows) pendingRowPositions.current = captureRowPositions();
       setOrderedIds(nextIds);
 
       if (!(await onReorder(sourceId, targetId))) {
+        if (animateRows) pendingRowPositions.current = captureRowPositions();
         setOrderedIds(previousIds);
       }
     },
-    [onReorder, orderedIds],
+    [captureRowPositions, onReorder, orderedIds],
   );
   const columns = useMemo<LangfuseColumnDef<GatewayConnectionRow, unknown>[]>(
     () => [
@@ -160,7 +201,8 @@ export function GatewayProvidersView({
             canReorder={canReorder}
             onMove={async (targetIndex) => {
               const target = orderedConnections[targetIndex];
-              if (target) await moveConnection(row.original.id, target.id);
+              if (target)
+                await moveConnection(row.original.id, target.id, true);
             }}
           />
         ),
@@ -266,6 +308,7 @@ export function GatewayProvidersView({
                 <SortableProviderRow
                   connection={row.original}
                   canReorder={canReorder}
+                  registerRowNode={registerRowNode}
                 >
                   {children}
                 </SortableProviderRow>
@@ -313,10 +356,12 @@ export function getProviderReorder(
 function SortableProviderRow({
   connection,
   canReorder,
+  registerRowNode,
   children,
 }: {
   connection: GatewayConnectionRow;
   canReorder: boolean;
+  registerRowNode: (id: string, node: HTMLTableRowElement | null) => void;
   children: ReactNode;
 }) {
   const {
@@ -329,8 +374,14 @@ function SortableProviderRow({
   } = useSortable({
     id: connection.id,
     disabled: !canReorder,
-    animateLayoutChanges: animateProviderLayoutChanges,
   });
+  const handleNodeRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      setNodeRef(node);
+      registerRowNode(connection.id, node);
+    },
+    [connection.id, registerRowNode, setNodeRef],
+  );
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -341,7 +392,7 @@ function SortableProviderRow({
   return (
     <SortableHandleContext.Provider value={{ attributes, listeners }}>
       <TableRow
-        ref={setNodeRef}
+        ref={handleNodeRef}
         style={style}
         className={cn(
           "ph-no-capture group hover:bg-accent cursor-default",

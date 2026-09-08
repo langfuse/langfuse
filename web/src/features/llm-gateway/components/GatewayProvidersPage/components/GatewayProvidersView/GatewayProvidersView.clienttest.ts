@@ -1,26 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  getProviderReorder,
-  hasProviderPositionChanged,
-} from "./GatewayProvidersView";
+import { getProviderReorder, reorderProviderIds } from "./GatewayProvidersView";
 
 describe("provider credential reordering", () => {
-  it("detects movement in both directions", () => {
+  it("moves credentials in both directions", () => {
     expect(
-      hasProviderPositionChanged(
-        "openai",
-        ["openai", "anthropic"],
-        ["anthropic", "openai"],
-      ),
-    ).toBe(true);
+      reorderProviderIds(["openai", "anthropic"], "openai", "anthropic"),
+    ).toEqual(["anthropic", "openai"]);
     expect(
-      hasProviderPositionChanged(
-        "openai",
-        ["anthropic", "openai"],
-        ["openai", "anthropic"],
-      ),
-    ).toBe(true);
+      reorderProviderIds(["anthropic", "openai"], "openai", "anthropic"),
+    ).toEqual(["openai", "anthropic"]);
   });
 
   it("maps a completed drag to the source and target credentials", () => {
