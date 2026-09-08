@@ -6,7 +6,7 @@
  * - Show Comments
  * - Show Scores
  * - Show Duration
- * - Show Cost/Tokens
+ * - Show Cost
  * - Color Code Metrics (dependent on duration or cost being enabled)
  * - Collapse System Prompts
  * - Minimum Observation Level filter
@@ -180,14 +180,14 @@ export function TraceViewOptionsMenuItems({
           </div>
         </DropdownMenuItem>
 
-        {/* Show Cost/Tokens Toggle */}
+        {/* Show Cost Toggle */}
         <DropdownMenuItem
           asChild
           onSelect={(e) => e.preventDefault()}
           className="px-2 py-1"
         >
           <div className="flex w-full items-center justify-between">
-            <span className="mr-2">Show Cost/Tokens</span>
+            <span className="mr-2">Show Cost</span>
             <Switch
               size="sm"
               checked={showCostTokens}
