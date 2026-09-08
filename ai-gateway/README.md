@@ -74,12 +74,17 @@ From the repository root, using Docker Compose with `develop.watch` and
 `sync+restart` support:
 
 ```sh
-docker compose -f docker-compose.dev.yml --profile gateway watch ai-gateway
+docker compose -f docker-compose.dev.yml --profile gateway up --build --force-recreate -d ai-gateway
+docker compose -f docker-compose.dev.yml --profile gateway watch --no-up ai-gateway
 ```
 
 This starts only the gateway. Ordinary `pnpm run infra:dev:up` remains unchanged.
 `AI_GATEWAY_PORT` selects its host port (default 8080); `HOST_IP` defaults to
-127.0.0.1. The container listener remains `0.0.0.0:8080`.
+127.0.0.1. The container listener remains `0.0.0.0:8080`. Rebuilding and recreating
+before Watch starts includes edits made while it was stopped and discards stale
+files from earlier syncs. The development stop grace
+period is 305 seconds, covering the maximum supported 300-second drain timeout;
+normal shutdown exits as soon as requests finish.
 
 Source edits sync into the development container and restart its command, which
 runs `cargo build --locked` then `exec`s the binary. Compilation errors remain

@@ -10,13 +10,13 @@ services:
       AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: ${AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS:-10}
     ports:
       - "${HOST_IP:-127.0.0.1}:${AI_GATEWAY_PORT:-8080}:8080"
-    stop_grace_period: 15s
+    # Allow the full supported shutdown timeout (300s), plus an exit margin.
+    stop_grace_period: 305s
     develop:
       watch:
         - action: sync+restart
           path: ./ai-gateway/src
           target: /app/src
-          initial_sync: true
         - action: rebuild
           path: ./ai-gateway/Cargo.toml
         - action: rebuild
