@@ -6,7 +6,7 @@ import { type ApiAccessScope, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { env } from "@/src/env.mjs";
 import { enforceOrgAuth } from "./enforceOrgAuth";
-import { orgScope } from "./scope";
+import { principalScope } from "./principalScope";
 import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
 import { type OrganizationAction } from "./types";
 
@@ -25,7 +25,9 @@ export async function verifyOrgAuth(
     if (!authz.success) {
       return enforceDenial(authz.error, params.scopeDeniedMessage);
     }
-    const mapped = orgScope(authz.context.principal, authz.orgId);
+    const mapped = await principalScope(authz.context.principal, {
+      orgId: authz.orgId,
+    });
     if (!mapped.success) {
       return enforceDenial(mapped.error, params.scopeDeniedMessage);
     }

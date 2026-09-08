@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { InternalServerError } from "@langfuse/shared";
 
-import { orgScope, projectScope } from "@/src/features/auth/policy/scope";
+import { principalScope } from "@/src/features/auth/policy/principalScope";
 import { type Principal } from "@/src/features/auth/policy/types";
 
 const organization = {
@@ -33,9 +33,11 @@ const apiKey = (
 
 const admin: Principal = { kind: "admin", userId: null };
 
-describe("orgScope", () => {
-  it("maps the key and its organization onto the organization scope", () => {
-    expect(orgScope(apiKey("ORGANIZATION"), "org_1")).toEqual({
+describe("principalScope on an org target", () => {
+  it("maps the key and its organization onto the organization scope", async () => {
+    expect(
+      await principalScope(apiKey("ORGANIZATION"), { orgId: "org_1" }),
+    ).toEqual({
       success: true,
       scope: {
         projectId: null,
@@ -51,24 +53,25 @@ describe("orgScope", () => {
     });
   });
 
-  it("500s a target the principal does not carry", () => {
-    expect(orgScope(apiKey("ORGANIZATION"), "org_2")).toMatchObject({
-      success: false,
-      error: expect.any(InternalServerError),
-    });
+  it("500s a target the principal does not carry", async () => {
+    expect(
+      await principalScope(apiKey("ORGANIZATION"), { orgId: "org_2" }),
+    ).toMatchObject({ success: false, error: expect.any(InternalServerError) });
   });
 
-  it("500s a non-api-key principal", () => {
-    expect(orgScope(admin, "org_1")).toMatchObject({
+  it("500s a non-api-key principal", async () => {
+    expect(await principalScope(admin, { orgId: "org_1" })).toMatchObject({
       success: false,
       error: expect.any(InternalServerError),
     });
   });
 });
 
-describe("projectScope", () => {
-  it("maps the key and its organization onto the project scope", () => {
-    expect(projectScope(apiKey("PROJECT"), "prj_1")).toEqual({
+describe("principalScope on a project target", () => {
+  it("maps the key and its organization onto the project scope", async () => {
+    expect(
+      await principalScope(apiKey("PROJECT"), { projectId: "prj_1" }),
+    ).toEqual({
       success: true,
       scope: {
         projectId: "prj_1",
@@ -84,10 +87,17 @@ describe("projectScope", () => {
     });
   });
 
-  it("500s a non-api-key principal", () => {
-    expect(projectScope(admin, "prj_1")).toMatchObject({
-      success: false,
-      error: expect.any(InternalServerError),
+  it("maps a public-key presentation to the scores access level", async () => {
+    const result = await principalScope(apiKey("PROJECT", "publicKey"), {
+      projectId: "prj_1",
     });
+    expect(result).toMatchObject({ success: true });
+    if (result.success) expect(result.scope.accessLevel).toBe("scores");
+  });
+
+  it("500s an org-scoped key that reached the project mapper", async () => {
+    expect(
+      await principalScope(apiKey("ORGANIZATION"), { projectId: "prj_1" }),
+    ).toMatchObject({ success: false, error: expect.any(InternalServerError) });
   });
 });
