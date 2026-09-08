@@ -2220,10 +2220,15 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       rootToggle.querySelector(".lucide-chevrons-up-down"),
     ).not.toBeNull();
+    const initialRootToggleTop = rootToggle.getBoundingClientRect().top;
 
     // Expanding a parent reveals its direct children, but nested groups remain collapsed.
     await userEvent.click(rootToggle);
 
+    // Expanding the rail must not move the toggle the user just clicked.
+    await expect(rootToggle.getBoundingClientRect().top).toBe(
+      initialRootToggleTop,
+    );
     await expect(canvas.getByText("generation-1")).toBeInTheDocument();
     await expect(canvas.getByText("generation-2")).toBeInTheDocument();
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
@@ -2244,11 +2249,28 @@ export const ExpandNestedObservations = meta.story({
         "[data-session-observation-rail-depth]",
       ),
     ).toHaveLength(2);
+    const nestedObservationIcon = nestedGeneration?.querySelector(
+      '[data-session-observation-id="generation-1"] button svg',
+    );
+    await expect(nestedObservationIcon).not.toBeNull();
+    const rootToggleRect = rootToggle.getBoundingClientRect();
+    const nestedObservationIconRect = (
+      nestedObservationIcon as SVGElement
+    ).getBoundingClientRect();
+    // The rail toggle stays vertically centered with the child observation icon beside it.
+    await expect(rootToggleRect.top + rootToggleRect.height / 2).toBe(
+      nestedObservationIconRect.top + nestedObservationIconRect.height / 2,
+    );
     const nestedToggle = canvas.getByRole("button", { name: "Show 3 tools" });
+    const initialNestedToggleTop = nestedToggle.getBoundingClientRect().top;
 
     // Nested observations expand independently from their ancestors.
     await userEvent.click(nestedToggle);
 
+    // Expanding a nested rail must keep its toggle anchored too.
+    await expect(nestedToggle.getBoundingClientRect().top).toBe(
+      initialNestedToggleTop,
+    );
     await expect(canvas.getByText("tool-1")).toBeInTheDocument();
     const nestedTool = canvasElement
       .querySelector('[data-session-observation-id="tool-1"]')
@@ -2262,10 +2284,14 @@ export const ExpandNestedObservations = meta.story({
       nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
     ).toHaveLength(2);
     await expect(nestedToggle).toHaveStyle({ left: "7.5px" });
-    await expect(nestedToggle).toHaveClass("top-[16px]");
+    await expect(nestedToggle).toHaveClass("top-[18px]");
 
     await userEvent.click(nestedToggle);
 
+    // Collapsing the nested rail must not move the toggle either.
+    await expect(nestedToggle.getBoundingClientRect().top).toBe(
+      initialNestedToggleTop,
+    );
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Show 3 tools" }),

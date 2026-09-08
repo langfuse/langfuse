@@ -563,10 +563,7 @@ function LoadedSessionConversationTimeline({
                           type="button"
                           variant="ghost"
                           size="icon-xs"
-                          className={cn(
-                            "bg-background text-muted-foreground hover:text-foreground absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full",
-                            isCollapsed ? "top-1/2" : "top-[16px]",
-                          )}
+                          className="bg-background text-muted-foreground hover:text-foreground absolute top-[18px] z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
                           style={{ left: "7.5px" }}
                           aria-expanded={!isCollapsed}
                           aria-label={`${isCollapsed ? "Show" : "Hide"} ${formatNestedObservationCounts(nestedObservationCounts)}`}
