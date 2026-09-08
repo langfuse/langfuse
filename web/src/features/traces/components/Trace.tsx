@@ -191,13 +191,15 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph, isAnnotationMode } = useViewPreferences();
+  const { showGraph } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {!isAnnotationMode && <TraceSummaryStrip />}
+      {/* Trace-level attributes (tags included) have their only home here —
+          annotation mode still needs them, so the strip is not gated on it. */}
+      <TraceSummaryStrip />
       <div className="min-h-0 flex-1">
         {isMobile ? (
           <MobileTraceContent shouldShowGraph={shouldShowGraph} />

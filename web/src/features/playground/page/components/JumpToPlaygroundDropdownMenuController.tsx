@@ -75,8 +75,16 @@ type JumpToPlaygroundDropdownMenuControllerProps =
  * The jump-to-playground logic without any trigger UI, so hosts can embed the
  * playground actions in their own menus (e.g. the observation header's
  * combined "Add to" menu) as well as behind the standalone controller below.
+ *
+ * The hook itself must always be called unconditionally (rules of hooks) —
+ * callers that only offer the Playground entry for some observation types
+ * (e.g. generation-like ones) pass `enabled: false` for the rest so the
+ * internal API key query doesn't fire for every span/event.
  */
-export const useJumpToPlayground = (props: JumpToPlaygroundSourceProps) => {
+export const useJumpToPlayground = (
+  props: JumpToPlaygroundSourceProps,
+  { enabled = true }: { enabled?: boolean } = {},
+) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
@@ -95,7 +103,7 @@ export const useJumpToPlayground = (props: JumpToPlaygroundSourceProps) => {
     {
       projectId: projectId as string,
     },
-    { enabled: Boolean(projectId) },
+    { enabled: enabled && Boolean(projectId) },
   );
 
   const modelToProviderMap = useMemo(() => {

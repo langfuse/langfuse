@@ -171,21 +171,28 @@ export const ObservationDetailViewHeader = memo(
     const datasetCount = existingDatasetItems.length;
     const hasExistingDatasetItems = datasetCount > 0;
 
-    // Playground availability for the combined "Add to" menu. The hook must
-    // run unconditionally; without IO it resolves to unavailable.
-    const playground = useJumpToPlayground({
-      source: "generation",
-      generation: observationWithIO ?? {
-        ...observation,
-        traceId: observation.traceId ?? null,
-        input: null,
-        output: null,
-        metadata: null,
-      },
-      analyticsEventName: "trace_detail:test_in_playground_button_click",
-    });
+    // Playground availability for the combined "Add to" menu. Only
+    // generation-like observations offer the Playground entry — matching
+    // that, gate the hook's internal API key query off for the rest so a
+    // span/event doesn't fetch LLM API keys it will never use. The hook
+    // itself must still run unconditionally (rules of hooks); without IO it
+    // resolves to unavailable.
     const showPlaygroundEntry = Boolean(
       observationWithIO && isGenerationLike(observationWithIO.type),
+    );
+    const playground = useJumpToPlayground(
+      {
+        source: "generation",
+        generation: observationWithIO ?? {
+          ...observation,
+          traceId: observation.traceId ?? null,
+          input: null,
+          output: null,
+          metadata: null,
+        },
+        analyticsEventName: "trace_detail:test_in_playground_button_click",
+      },
+      { enabled: showPlaygroundEntry },
     );
 
     // Format cost and usage values

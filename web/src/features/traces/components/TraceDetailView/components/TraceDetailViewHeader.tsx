@@ -4,12 +4,12 @@
  * Contains:
  * - Title row with trace name and options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
+ * - Metadata badges (timestamp, target-trace link)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -18,7 +18,6 @@ import {
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
@@ -29,11 +28,6 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { TargetTraceBadge } from "../../TraceMetadataBadges";
-import {
-  hasRenderableUsage,
-  UsageBadge,
-} from "../../ObservationMetadataBadgesTooltip";
-import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
@@ -64,7 +58,6 @@ export interface TraceDetailViewHeaderProps {
     input: string | null;
     output: string | null;
   };
-  observations: ObservationReturnTypeWithMetadata[];
   parsedMetadata: unknown;
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
@@ -78,7 +71,6 @@ export interface TraceDetailViewHeaderProps {
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
-  observations,
   parsedMetadata,
   projectId,
   traceScores,
@@ -90,10 +82,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
   const isMobile = useIsMobile();
-  const aggregatedMetrics = useMemo(
-    () => aggregateTraceMetrics(observations),
-    [observations],
-  );
   const {
     existingDatasetItems,
     hasAccess: hasDatasetAccess,
@@ -487,28 +475,15 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 
       <div className="flex flex-col gap-2">
         {/* Trace-level attributes (latency, session, user, environment,
-            release, cost, tags) live in the TraceSummaryStrip, not here. */}
+            release, cost, usage, tags) live in the TraceSummaryStrip, not
+            here — its compact usage badge already carries the breakdown
+            tooltip, so this header only adds the target-trace link. */}
         {!isAnnotationMode && (
           <CollapsibleBadgeRow>
             <TargetTraceBadge
               targetTraceId={targetTraceId}
               projectId={projectId}
             />
-            {aggregatedMetrics.hasGenerationLike &&
-              aggregatedMetrics.usageDetails &&
-              hasRenderableUsage({
-                inputUsage: aggregatedMetrics.inputUsage,
-                outputUsage: aggregatedMetrics.outputUsage,
-                totalUsage: aggregatedMetrics.totalUsage,
-                usageDetails: aggregatedMetrics.usageDetails,
-              }) && (
-                <UsageBadge
-                  inputUsage={aggregatedMetrics.inputUsage}
-                  outputUsage={aggregatedMetrics.outputUsage}
-                  totalUsage={aggregatedMetrics.totalUsage}
-                  usageDetails={aggregatedMetrics.usageDetails}
-                />
-              )}
           </CollapsibleBadgeRow>
         )}
       </div>

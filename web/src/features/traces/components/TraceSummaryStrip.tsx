@@ -28,7 +28,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import {
   CostBadge,
-  hasRenderableUsage,
+  getCompactUsageTotal,
   UsageBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -65,12 +65,11 @@ export function TraceSummaryStrip() {
           )}
         {aggregatedMetrics.hasGenerationLike &&
           aggregatedMetrics.usageDetails &&
-          hasRenderableUsage({
+          getCompactUsageTotal({
             inputUsage: aggregatedMetrics.inputUsage,
             outputUsage: aggregatedMetrics.outputUsage,
             totalUsage: aggregatedMetrics.totalUsage,
-            usageDetails: aggregatedMetrics.usageDetails,
-          }) && (
+          }) > 0 && (
             <UsageBadge
               compact
               inputUsage={aggregatedMetrics.inputUsage}
