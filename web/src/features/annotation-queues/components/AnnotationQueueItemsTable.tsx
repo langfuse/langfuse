@@ -5,8 +5,17 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type AnnotationQueueStatus } from "@langfuse/shared";
+import {
+  annotationQueueItemsTableCols,
+  type AnnotationQueueStatus,
+  type FilterState,
+} from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import isEqual from "lodash/isEqual";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { type RouterOutput } from "@/src/utils/types";
@@ -126,6 +135,7 @@ export type QueueItemRowData = {
   id: string;
   sourceId: string;
   status: AnnotationQueueStatus;
+  createdAt: Date;
   completedAt: string;
   annotatorUser: {
     userId?: string;
@@ -168,9 +178,28 @@ export function AnnotationQueueItemsTable({
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("queueItems", "s");
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "annotation_queue_items",
+    projectId,
+  );
+  const [orderByState, setOrderByState] = useOrderByState(null);
+  const setFilterStateWithDebounce = useDebounce(
+    (newState: FilterState) => {
+      const filterChanged = !isEqual(newState, filterState);
+      setFilterState(newState);
+      if (filterChanged) {
+        setPaginationState({ pageIndex: 0 });
+      }
+    },
+    600,
+    false,
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
+    filter: filterState,
+    orderBy: orderByState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
@@ -312,8 +341,22 @@ export function AnnotationQueueItemsTable({
             )[status]
           : undefined,
       size: 60,
+      enableSorting: true,
       isLive: false,
     }),
+    {
+      accessorKey: "createdAt",
+      header: "Created At",
+      id: "createdAt",
+      size: 60,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const createdAt: QueueItemRowData["createdAt"] =
+          row.getValue("createdAt");
+        return <LocalIsoDate date={createdAt} />;
+      },
+    },
     {
       accessorKey: "completedAt",
       header: "Completed At",
@@ -321,6 +364,7 @@ export function AnnotationQueueItemsTable({
       defaultHidden: true,
       enableHiding: true,
       size: 60,
+      enableSorting: true,
     },
     createUserTableColumn<QueueItemRowData, QueueItemRowData["annotatorUser"]>({
       accessorKey: "annotatorUser",
@@ -346,6 +390,7 @@ export function AnnotationQueueItemsTable({
   ): QueueItemRowData => {
     const baseData = {
       id: item.id,
+      createdAt: item.createdAt,
       completedAt: item.completedAt?.toLocaleString() ?? "",
       status: item.status,
       annotatorUser: {
@@ -403,6 +448,9 @@ export function AnnotationQueueItemsTable({
       <DataTableToolbar
         tableName="annotation-queue-items"
         columns={columns}
+        filterColumnDefinition={annotationQueueItemsTableCols}
+        filterState={filterState}
+        setFilterState={setFilterStateWithDebounce}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
@@ -456,6 +504,8 @@ export function AnnotationQueueItemsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
         rowSelection={selectedRows}
         setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
