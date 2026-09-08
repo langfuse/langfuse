@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research"
+  short_description: "Pre-implementation codebase research and planning"
+  default_prompt: "Use $research to explore the codebase and produce an implementation plan before writing production code."
