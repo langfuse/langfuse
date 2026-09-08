@@ -13,7 +13,7 @@ export const validateCommentReferenceObject = async ({
   ctx: any;
   input: z.infer<typeof CreateCommentData>;
 }): Promise<{ errorMessage?: string }> => {
-  const { objectId, objectType, projectId } = input;
+  const { objectId, objectType, projectId, objectStartTime } = input;
 
   let commentTarget;
   switch (objectType) {
@@ -22,6 +22,9 @@ export const validateCommentReferenceObject = async ({
       commentTarget = await getObservationById({
         id: objectId,
         projectId,
+        // Bounds the events_full lookup to the observation's day so ClickHouse
+        // can prune partitions/parts; absent, the lookup falls back to a scan.
+        startTime: objectStartTime ?? undefined,
       });
       break;
     }
