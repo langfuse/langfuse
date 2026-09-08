@@ -22,13 +22,14 @@ they differ.
 
 For this skill it resolves to:
 
-- **An evidence comment on an issue that already exists: just do it.** Label that
-  issue `AI commented` and say in the comment body that an agent wrote it. This
-  is the common case and needs nobody's permission.
+- **An evidence comment on an issue that already exists: propose, then post.**
+  Show the comment body in the findings table, get a yes (one go-ahead can cover
+  the whole set), then post it and label that issue `AI commented`. Mark the
+  comment body as agent-written.
 - **A new top-level issue: ask once, then file it.** A bug cluster surfaced by a
-  review has no parent, and a parentless ticket is the one shape that needs a
-  go-ahead. Take one go-ahead for the whole set, or for named rows — never one
-  question per candidate.
+  review has no parent, and a parentless ticket needs a go-ahead. Take one
+  go-ahead for the whole set, or for named rows — never one question per
+  candidate.
 
 So present the findings table either way: it is what the go-ahead is given
 against, and it is the report afterwards. One row per candidate:
@@ -40,11 +41,12 @@ against, and it is the report afterwards. One row per candidate:
 - Baseline measurement.
 - Delta / regression summary.
 - Key evidence links — the ones *Required Evidence* below asks for.
-- Action: `commented <issue key>` for what you already did, `filed <issue key>`
-  once a row is approved and created, or `awaiting your go-ahead`.
+- Action: `awaiting your go-ahead` with the exact comment or ticket body,
+  `commented <issue key>` once approved and posted, or `filed <issue key>`
+  once a row is approved and created.
 
 Never present an `awaiting your go-ahead` row without the exact title and body
-you intend to file underneath it — that text is what is being approved.
+you intend to land underneath it — that text is what is being approved.
 Deduplicate first, so comments land on the right issue.
 
 If Linear is unreachable in this environment, say so plainly and return every row

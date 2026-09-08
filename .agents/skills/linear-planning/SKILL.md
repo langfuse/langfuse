@@ -103,15 +103,16 @@ The two rules you will hit immediately while planning:
 
 - **Subtickets are free; the top of the tree needs a yes.** Planning under an
   existing ticket needs no permission. Creating the parent itself does.
-- **Stamp every shape you used.** A subticket you created *and* wrote the plan
-  into carries both `AI created` and `AI edited`.
+- **Stamp every shape you used.** A subticket created with its plan already in
+  the description is `AI created` (the initial body is part of create). Later
+  appends to that description need a yes and `AI edited`.
 
 Estimates, priorities, assignees and cycle stay unset. Suggest them in your reply
 instead.
 
 ## When the stack lands
 
-Wrap up with [`linear-context-handover`](../linear-context-handover/SKILL.md): the
-substantial handover on the parent, short pointers on the leaves, `AI edited` on
-each. The parent's subticket list plus those blocks are exactly what the context
-CLI hands the next agent.
+Wrap up with [`linear-context-handover`](../linear-context-handover/SKILL.md):
+propose the substantial handover on the parent and short pointers on the leaves,
+append only after a yes, `AI edited` on each. The parent's subticket list plus
+those blocks are exactly what the context CLI hands the next agent.

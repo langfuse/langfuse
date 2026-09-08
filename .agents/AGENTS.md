@@ -139,15 +139,16 @@ Two moments in every task, both easy to skip and both expensive:
   `.agents/skills/pr-stack-workflow/references/stack-commands.md` → *Recover the
   context before you slice*. A decision already reversed once does not need
   proposing again.
-- **Before you ask for review or merge, leave your reasoning on the work item**
-  — the decisions, the reversals, how the human steered, the traps. It survives
-  one session otherwise. Do it before the PR, not after the merge: there is no
-  later.
+- **Before you ask for review or merge, propose the reasoning for the work item**
+  — the decisions, the reversals, how the human steered, the traps. Show the
+  handover block in your reply and append it only after a yes (an ask such as
+  "write the handover" counts). It survives one session otherwise. Do it before
+  the PR, not after the merge: there is no later.
 
 The practice, its template and its tooling are the `linear-context-handover` and
 `linear-planning` skills, alongside `linear-agent-writes`, which is the policy for
-what an agent may write to the tracker and how it must be marked. Read those
-rather than improvise. If this environment cannot reach the tracker, say so in your reply and
+what an agent may write to the tracker (propose updates; mark every write) and
+how it must be marked. Read those rather than improvise. If this environment cannot reach the tracker, say so in your reply and
 hand back the text that should have gone on the work item — never skip either
 step silently, because silent non-compliance looks exactly like compliance.
 
