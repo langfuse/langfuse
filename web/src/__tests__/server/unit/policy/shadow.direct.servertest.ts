@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+
 import { type NextApiRequest } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +14,7 @@ const {
   mockDiffResults,
   mockRecordCoverage,
 } = vi.hoisted(() => ({
-  env: { PUBLIC_API_AUTHZ_MIGRATION: "legacy" as string },
+  env: { API_AUTH_MIGRATION: "legacy" as string },
   mockVerifyScope: vi.fn(),
   mockEnforceOrgAuth: vi.fn(),
   mockEnforceProjectAuth: vi.fn(),
@@ -27,11 +30,11 @@ vi.mock("@/src/features/public-api/server/apiAuth", () => ({
   },
 }));
 
-vi.mock("@/src/features/auth/policy/enforcement.org", () => ({
+vi.mock("@/src/features/auth/policy/enforceOrgAuth", () => ({
   enforceOrgAuth: mockEnforceOrgAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/enforcement.projects", () => ({
+vi.mock("@/src/features/auth/policy/enforceProjectAuth", () => ({
   enforceProjectAuth: mockEnforceProjectAuth,
 }));
 
@@ -45,6 +48,38 @@ import {
   verifyOrgAuth,
   verifyProjectAuthDirect,
 } from "@/src/features/auth/policy/shadow.direct";
+import { type Principal } from "@/src/features/auth/policy/types";
+
+const organization = {
+  orgId: "org_1",
+  plan: "oss" as const,
+  rateLimitOverrides: [],
+  projectIds: ["prj_1"],
+  isIngestionSuspended: false,
+};
+
+const apiKeyPrincipal = (scope: "ORGANIZATION" | "PROJECT"): Principal => ({
+  kind: "apiKey",
+  apiKeyId: "key_1",
+  userId: null,
+  isInAppAgentKey: false,
+  publicKey: "pk-lf-1",
+  scope,
+  presentation: "privateKey",
+  organizations: [organization],
+  boundResource:
+    scope === "ORGANIZATION" ? { orgId: "org_1" } : { projectId: "prj_1" },
+});
+
+const mappedFields = {
+  orgId: "org_1",
+  plan: "oss",
+  rateLimitOverrides: [],
+  apiKeyId: "key_1",
+  publicKey: "pk-lf-1",
+  isIngestionSuspended: false,
+  isInAppAgentKey: false,
+};
 
 describe("org direct seam verifyOrgAuth", () => {
   const orgScope = { accessLevel: "organization", orgId: "org_1" };
@@ -67,7 +102,11 @@ describe("org direct seam verifyOrgAuth", () => {
   const legacyInvalid = () =>
     mockVerifyScope.mockResolvedValue({ validKey: false, error: "bad key" });
   const authzAllows = () =>
-    mockEnforceOrgAuth.mockResolvedValue({ success: true });
+    mockEnforceOrgAuth.mockResolvedValue({
+      success: true,
+      context: { principal: apiKeyPrincipal("ORGANIZATION"), policies: [] },
+      orgId: "org_1",
+    });
   const authzDenies = () =>
     mockEnforceOrgAuth.mockResolvedValue({
       success: false,
@@ -76,7 +115,7 @@ describe("org direct seam verifyOrgAuth", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    env.PUBLIC_API_AUTHZ_MIGRATION = "legacy";
+    env.API_AUTH_MIGRATION = "legacy";
   });
 
   describe("legacy mode never runs the new pipeline", () => {
@@ -105,9 +144,18 @@ describe("org direct seam verifyOrgAuth", () => {
     });
   });
 
+  describe("an unset migration mode falls back to legacy", () => {
+    it("returns the legacy scope and skips enforceOrgAuth", async () => {
+      env.API_AUTH_MIGRATION = undefined as unknown as string;
+      legacyOrgKey();
+      expect(await call()).toEqual({ validKey: true, scope: orgScope });
+      expect(mockEnforceOrgAuth).not.toHaveBeenCalled();
+    });
+  });
+
   describe("shadow mode keeps responses byte-identical to legacy", () => {
     beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "shadow";
+      env.API_AUTH_MIGRATION = "shadow";
     });
 
     it("returns the legacy scope even when the new pipeline denies", async () => {
@@ -131,19 +179,44 @@ describe("org direct seam verifyOrgAuth", () => {
     });
   });
 
-  describe("enforce mode gates on the new decision", () => {
+  describe("enforce mode decides on the new pipeline alone", () => {
     beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "enforce";
+      env.API_AUTH_MIGRATION = "enforce";
     });
 
-    it("returns the legacy scope when the new pipeline allows", async () => {
-      legacyOrgKey();
+    it("returns the scope the new pipeline built, without calling legacy", async () => {
       authzAllows();
-      expect(await call()).toEqual({ validKey: true, scope: orgScope });
+      expect(await call()).toEqual({
+        validKey: true,
+        scope: {
+          ...mappedFields,
+          projectId: null,
+          accessLevel: "organization",
+        },
+      });
+      expect(mockVerifyScope).not.toHaveBeenCalled();
+    });
+
+    it("requires the organization access level of the new pipeline", async () => {
+      authzAllows();
+      await call();
+      expect(mockEnforceOrgAuth).toHaveBeenCalledWith({
+        headers: req.headers,
+        action: "projects:read",
+        requiredAccessLevel: "organization",
+      });
+    });
+
+    it("500s when the resolved org is absent from the principal", async () => {
+      mockEnforceOrgAuth.mockResolvedValue({
+        success: true,
+        context: { principal: apiKeyPrincipal("ORGANIZATION"), policies: [] },
+        orgId: "org_2",
+      });
+      expect(await call()).toMatchObject({ validKey: false, status: 500 });
     });
 
     it("returns the route's own 403 when the new pipeline denies", async () => {
-      legacyOrgKey();
       authzDenies();
       expect(await call()).toEqual({
         validKey: false,
@@ -153,7 +226,6 @@ describe("org direct seam verifyOrgAuth", () => {
     });
 
     it("surfaces a non-403 new denial with its own message", async () => {
-      legacyOrgKey();
       mockEnforceOrgAuth.mockResolvedValue({
         success: false,
         error: new InvalidRequestError("no target"),
@@ -166,7 +238,6 @@ describe("org direct seam verifyOrgAuth", () => {
     });
 
     it("does not record parity telemetry", async () => {
-      legacyOrgKey();
       authzAllows();
       await call();
       expect(mockDiffResults).not.toHaveBeenCalled();
@@ -177,7 +248,6 @@ describe("org direct seam verifyOrgAuth", () => {
 
 describe("project direct seam verifyProjectAuthDirect", () => {
   const projectScope = { accessLevel: "project", projectId: "prj_1" };
-  const orgScope = { accessLevel: "organization", orgId: "org_1" };
   const projectDenied = "project key required";
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
@@ -191,7 +261,7 @@ describe("project direct seam verifyProjectAuthDirect", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    env.PUBLIC_API_AUTHZ_MIGRATION = "legacy";
+    env.API_AUTH_MIGRATION = "legacy";
   });
 
   it("returns the legacy project scope in legacy mode", async () => {
@@ -200,9 +270,27 @@ describe("project direct seam verifyProjectAuthDirect", () => {
     expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
   });
 
-  it("rejects a non-project key on the project endpoint in enforce mode", async () => {
-    env.PUBLIC_API_AUTHZ_MIGRATION = "enforce";
-    mockVerifyScope.mockResolvedValue({ validKey: true, scope: orgScope });
+  it("returns the scope the new pipeline built in enforce mode", async () => {
+    env.API_AUTH_MIGRATION = "enforce";
+    mockEnforceProjectAuth.mockResolvedValue({
+      success: true,
+      context: { principal: apiKeyPrincipal("PROJECT"), policies: [] },
+      projectId: "prj_1",
+    });
+    expect(await call()).toEqual({
+      validKey: true,
+      scope: { ...mappedFields, projectId: "prj_1", accessLevel: "project" },
+    });
+    expect(mockVerifyScope).not.toHaveBeenCalled();
+    expect(mockEnforceProjectAuth).toHaveBeenCalledWith({
+      headers: req.headers,
+      action: "project:read",
+      requiredAccessLevel: "project",
+    });
+  });
+
+  it("returns the route's own 403 when the new pipeline denies in enforce mode", async () => {
+    env.API_AUTH_MIGRATION = "enforce";
     mockEnforceProjectAuth.mockResolvedValue({
       success: false,
       error: new ForbiddenError("nope"),
@@ -212,5 +300,31 @@ describe("project direct seam verifyProjectAuthDirect", () => {
       status: 403,
       error: projectDenied,
     });
+  });
+});
+
+describe("the migration-mode gate reads a declared env var", () => {
+  const source = (relativeToSrc: string) =>
+    readFileSync(
+      fileURLToPath(new URL(`../../../../${relativeToSrc}`, import.meta.url)),
+      "utf8",
+    );
+
+  it("reads only env keys env.mjs declares", () => {
+    const seam = source("features/auth/policy/shadow.direct.ts");
+    const schema = source("env.mjs");
+    const keys = [...seam.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/g)].map(
+      (match) => match[1],
+    );
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of new Set(keys)) {
+      expect(schema).toContain(`${key}: z.`);
+    }
+  });
+
+  it("defaults the migration mode to legacy", () => {
+    expect(source("env.mjs")).toMatch(
+      /API_AUTH_MIGRATION:\s*z[^;]*?\.default\("legacy"\)/,
+    );
   });
 });

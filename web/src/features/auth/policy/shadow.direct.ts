@@ -5,20 +5,25 @@ import { type ApiAccessScope, redis } from "@langfuse/shared/src/server";
 
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { env } from "@/src/env.mjs";
-import { enforceOrgAuth } from "./enforcement.org";
-import { enforceProjectAuth } from "./enforcement.projects";
+import { enforceOrgAuth } from "./enforceOrgAuth";
+import { enforceProjectAuth } from "./enforceProjectAuth";
+import { orgScope, projectScope } from "./scope";
 import {
   diffResults,
   legacyFromStatus,
   recordCoverage,
   type Seam,
 } from "./shadow";
-import { type OrganizationAction, type ProjectAction } from "./types";
+import {
+  type OrganizationAction,
+  type ProjectAction,
+  type Success,
+} from "./types";
 
 /** scopeDeniedCode is the http status legacy returns when a key's access level is wrong for the route. */
 const scopeDeniedCode = 403;
 
-/** verifyOrgAuth is the org direct-handler seam: legacy decides in legacy/shadow (byte-identical), the new PDP gates the org action in enforce. */
+/** verifyOrgAuth is the org direct-handler seam: legacy decides in legacy/shadow (byte-identical), the new pipeline decides alone in enforce. */
 export async function verifyOrgAuth(
   params: VerifyOrgAuthParams,
 ): Promise<DirectAuthResult> {
@@ -29,8 +34,15 @@ export async function verifyOrgAuth(
     accessLevel: "organization",
     scopeDeniedMessage: params.scopeDeniedMessage,
     action: params.action ?? "none",
-    enforce: (headers) =>
-      enforceOrgAuth({ headers, action: params.action ?? undefined }),
+    enforce: async (headers) => {
+      const authz = await enforceOrgAuth({
+        headers,
+        action: params.action ?? undefined,
+        requiredAccessLevel: "organization",
+      });
+      if (!authz.success) return authz;
+      return orgScope(authz.context.principal, authz.orgId);
+    },
   });
 }
 
@@ -45,24 +57,33 @@ export async function verifyProjectAuthDirect(
     accessLevel: "project",
     scopeDeniedMessage: params.scopeDeniedMessage,
     action: params.action ?? "none",
-    enforce: (headers) =>
-      enforceProjectAuth({ headers, action: params.action ?? undefined }),
+    enforce: async (headers) => {
+      const authz = await enforceProjectAuth({
+        headers,
+        action: params.action ?? undefined,
+        requiredAccessLevel: "project",
+      });
+      if (!authz.success) return authz;
+      return projectScope(authz.context.principal, authz.projectId);
+    },
   });
 }
 
-/** runDirectSeam runs legacy auth, then the migration-mode-selected new pipeline, returning the legacy-shaped decision the handler renders. */
+/** runDirectSeam runs the migration-mode-selected pipeline and returns the legacy-shaped decision the handler renders. */
 async function runDirectSeam(
   config: DirectSeamConfig,
 ): Promise<DirectAuthResult> {
-  const legacy = await runLegacyScope(config);
-
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "legacy") {
-    return legacyResult(legacy, config.scopeDeniedMessage);
+  if (env.API_AUTH_MIGRATION === "enforce") {
+    const authz = await config.enforce(config.req.headers);
+    if (!authz.success) {
+      return enforceDenial(authz.error, config.scopeDeniedMessage);
+    }
+    return { validKey: true, scope: authz.scope };
   }
 
-  const authz = await config.enforce(config.req.headers);
-
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "shadow") {
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    const legacy = await runLegacyScope(config);
+    const authz = await config.enforce(config.req.headers);
     recordCoverage(config.name);
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: config.seam,
@@ -71,17 +92,8 @@ async function runDirectSeam(
     return legacyResult(legacy, config.scopeDeniedMessage);
   }
 
-  if (!authz.success) {
-    return {
-      validKey: false,
-      status: authz.error.httpCode,
-      error:
-        authz.error.httpCode === scopeDeniedCode
-          ? config.scopeDeniedMessage
-          : authz.error.message,
-    };
-  }
-  return legacyResult(legacy, config.scopeDeniedMessage);
+  // any other value, a blank one included, fails safe to legacy
+  return legacyResult(await runLegacyScope(config), config.scopeDeniedMessage);
 }
 
 /** runLegacyScope verifies the credential and its access level, capturing every outcome as a value. */
@@ -123,6 +135,19 @@ function legacyResult(
   };
 }
 
+/** enforceDenial renders a new-pipeline denial: the route's own message on an access-level 403, else the error's own. */
+function enforceDenial(
+  error: EnforceError,
+  scopeDeniedMessage: string,
+): DirectAuthResult {
+  return {
+    validKey: false,
+    status: error.httpCode,
+    error:
+      error.httpCode === scopeDeniedCode ? scopeDeniedMessage : error.message,
+  };
+}
+
 /** VerifyOrgAuthParams is the request, the route name for coverage, its checked org action, and the route's own scope-denied message. */
 export type VerifyOrgAuthParams = {
   req: NextApiRequest;
@@ -139,7 +164,7 @@ export type VerifyProjectAuthParams = {
   scopeDeniedMessage: string;
 };
 
-/** DirectAuthResult is the direct seam's outcome: the verified legacy scope, or the status and message the handler renders. */
+/** DirectAuthResult is the direct seam's outcome: the verified scope, or the status and message the handler renders. */
 export type DirectAuthResult =
   | { validKey: true; scope: ApiAccessScope }
   | { validKey: false; status: number; error: string };
@@ -152,13 +177,16 @@ type DirectSeamConfig = {
   accessLevel: "organization" | "project";
   scopeDeniedMessage: string;
   action: string;
-  enforce: (
-    headers: NextApiRequest["headers"],
-  ) => Promise<
-    | { success: true }
-    | { success: false; error: { httpCode: number; message: string } }
-  >;
+  enforce: (headers: NextApiRequest["headers"]) => Promise<EnforceResult>;
 };
+
+/** EnforceResult is the new pipeline's outcome: the scope it built for the handler, or the typed error the seam renders. */
+type EnforceResult =
+  | (Success & { scope: ApiAccessScope })
+  | { success: false; error: EnforceError };
+
+/** EnforceError is a new-pipeline failure reduced to what the seam renders. */
+type EnforceError = { httpCode: number; message: string };
 
 /** LegacyDecision is legacy auth captured as a value: the verified scope, a 401 with its message, or a 403 access-level denial. */
 type LegacyDecision =

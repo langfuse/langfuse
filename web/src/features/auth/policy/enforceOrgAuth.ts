@@ -1,5 +1,6 @@
 import { type IncomingHttpHeaders } from "http";
 
+import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 import {
   type ForbiddenError,
   type InternalServerError,
@@ -8,8 +9,8 @@ import {
 } from "@langfuse/shared";
 
 import { authorize } from "./authorize";
-import { headerValue } from "./enforce";
-import { authenticate } from "./identity";
+import { authenticator } from "@/src/features/apiKey/authenticator";
+import { requireAccessLevel } from "./scope";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -20,11 +21,16 @@ import {
 /** orgIdHeader selects the target org for keys without a bound org; dead until a Phase 3 multi-scope key exists. */
 const orgIdHeader = "x-langfuse-organization-id";
 
-/** enforceOrgAuth runs the new org pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
+/** headerValue normalizes a possibly-repeated header to its first value. */
+const headerValue = (
+  value: string | string[] | undefined,
+): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+/** enforceOrgAuth runs the new org pipeline — authenticate, the route's required access level, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
 export async function enforceOrgAuth(
   params: EnforceOrgAuthParams,
 ): Promise<OrgAccessResult | ErrorResult<AuthError>> {
-  const authn = await authenticate({
+  const authn = await authenticator.authenticate({
     headers: params.headers,
     allowInAppAgentKey: params.allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
@@ -32,6 +38,12 @@ export async function enforceOrgAuth(
   if (!authn.success) return authn;
 
   const context = authn.context;
+  const denied = requireAccessLevel(
+    context.principal,
+    params.requiredAccessLevel,
+  );
+  if (denied) return denied;
+
   const target = getOrgId(context, params.headers);
   if (!target.success) return target;
 
@@ -79,10 +91,11 @@ function boundOrgIdOf(context: AuthorizationContext): string | undefined {
   return bound && "orgId" in bound ? bound.orgId : undefined;
 }
 
-/** EnforceOrgAuthParams is the request headers, the checked action, and the route's key-kind opt-ins. */
+/** EnforceOrgAuthParams is the request headers, the checked action, the access level the route requires, and its key-kind opt-ins. */
 export type EnforceOrgAuthParams = {
   headers: IncomingHttpHeaders;
   action?: OrganizationAction;
+  requiredAccessLevel?: ApiAccessLevel;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };
@@ -99,9 +112,6 @@ export type AuthError =
   | InvalidRequestError
   | InternalServerError
   | ForbiddenError;
-
-/** EnforceOrgAuthDecision is the org pipeline's outcome — `enforceOrgAuth`'s return. */
-export type EnforceOrgAuthDecision = Awaited<ReturnType<typeof enforceOrgAuth>>;
 
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };

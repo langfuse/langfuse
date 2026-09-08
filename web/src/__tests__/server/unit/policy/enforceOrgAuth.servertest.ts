@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { InvalidRequestError } from "@langfuse/shared";
 
-import { __test } from "@/src/features/auth/policy/enforcement.org";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { __test } from "@/src/features/auth/policy/enforceOrgAuth";
+import {
+  type AuthorizationContext,
+  type Resource,
+} from "@/src/features/auth/policy/types";
 
 const { getOrgId } = __test;
 
@@ -11,27 +14,27 @@ const orgIdHeader = "x-langfuse-organization-id";
 
 const ORG = "org_1";
 
-const orgKey = (): AuthorizationContext => ({
+const apiKey = (
+  apiKeyId: string,
+  boundResource: Resource,
+): AuthorizationContext => ({
   principal: {
     kind: "apiKey",
-    apiKeyId: "key_1",
+    apiKeyId,
     userId: null,
+    isInAppAgentKey: false,
+    publicKey: "pk-lf-1",
+    scope: "orgId" in boundResource ? "ORGANIZATION" : "PROJECT",
+    presentation: "privateKey",
     organizations: [],
-    boundResource: { orgId: ORG },
+    boundResource,
   },
   policies: [],
 });
 
-const projectKey = (): AuthorizationContext => ({
-  principal: {
-    kind: "apiKey",
-    apiKeyId: "key_2",
-    userId: null,
-    organizations: [],
-    boundResource: { projectId: "prj_1" },
-  },
-  policies: [],
-});
+const orgKey = () => apiKey("key_1", { orgId: ORG });
+
+const projectKey = () => apiKey("key_2", { projectId: "prj_1" });
 
 describe("getOrgId", () => {
   it("resolves the bound org without a header", () => {
