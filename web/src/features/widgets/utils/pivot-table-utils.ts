@@ -67,6 +67,12 @@ export interface PivotTableRow {
 
   /** Original dimension values for this row (for data rows only) */
   dimensionValues?: Record<string, string>;
+  /**
+   * Ordered dimension values from the root to this row (data rows only).
+   * Used to find a row's parent group exactly - display labels are lossy
+   * (a dimension value can be a substring of another or contain " - ").
+   */
+  dimensionPath?: string[];
 }
 
 /**
@@ -211,6 +217,7 @@ function processLevelRecursively(
         label,
         values: metricValues,
         dimensionValues,
+        dimensionPath,
       };
     });
 
@@ -752,15 +759,19 @@ function findParentGroup(
   dataRow: PivotTableRow,
   subtotalRows: PivotTableRow[],
 ): PivotTableRow | null {
-  // For now, use a simple approach: find subtotal row with matching level
-  // This can be enhanced later for more complex grouping logic
   const parentLevel = dataRow.level - 1;
 
+  // Match the parent group on the exact dimension value, not on display
+  // labels: labels are lossy, so substring matching mis-groups a data row
+  // when one dimension value contains another (e.g. "US" rows landing under
+  // "AUS (Subtotal)") or when a value contains the " - " label separator.
+  const parentValue = dataRow.dimensionPath?.[parentLevel];
+
   return (
-    subtotalRows.find(
-      (subtotal) =>
-        subtotal.level === parentLevel &&
-        subtotal.label.includes(dataRow.label.split(" - ")[0]), // Simple matching
+    subtotalRows.find((subtotal) =>
+      subtotal.level === parentLevel && parentValue !== undefined
+        ? subtotal.dimensionValues?.subtotal === parentValue
+        : false,
     ) || null
   );
 }
