@@ -10,7 +10,7 @@ import {
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 describe("Traces table API test", () => {
   it("should get a correct trace without observation", async () => {
@@ -275,11 +275,12 @@ describe("Traces table API test", () => {
           value: documentId,
         },
       ];
+      const searchType: TracingSearchType[] = ["content"];
       const query = {
         projectId: project_id,
         filter,
         searchQuery: needle,
-        searchType: ["content"],
+        searchType,
         orderBy: { column: "timestamp" as const, order },
         limit: 5,
       };
