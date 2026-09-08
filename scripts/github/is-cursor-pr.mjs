@@ -6,6 +6,6 @@ export function isCursorPr({ author = "", headRef = "", body = "" } = {}) {
   return (
     author === "cursor[bot]" ||
     headRef.startsWith("cursor/") ||
-    body.includes("CURSOR_AGENT_PR_BODY_BEGIN")
+    body.includes("<!-- CURSOR_AGENT_PR_BODY_BEGIN -->")
   );
 }

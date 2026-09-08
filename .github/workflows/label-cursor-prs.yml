@@ -29,8 +29,8 @@ jobs:
             const pr = context.payload.pull_request;
             const { owner, repo } = context.repo;
 
-            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
-              core.info("Fork PR; Cursor auto-label is limited to same-repo branches.");
+            if (pr.head.repo?.full_name !== `${owner}/${repo}`) {
+              core.info("Fork or deleted-head PR; Cursor auto-label is limited to same-repo branches.");
               return;
             }
 
@@ -46,7 +46,7 @@ jobs:
             const isCursorPr =
               author === "cursor[bot]" ||
               headRef.startsWith("cursor/") ||
-              body.includes("CURSOR_AGENT_PR_BODY_BEGIN");
+              body.includes("<!-- CURSOR_AGENT_PR_BODY_BEGIN -->");
 
             if (!isCursorPr) {
               core.info(
