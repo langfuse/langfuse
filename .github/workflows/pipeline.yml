@@ -747,7 +747,9 @@ jobs:
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Build
-        run: pnpm turbo run build:test
+        run: |
+          rm -rf ".turbo/runs"
+          pnpm turbo run build:test --summarize
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
@@ -811,11 +813,11 @@ jobs:
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
-      - name: Prune stale turbo cache entries
+      - name: Keep current build in Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        # Each run saves the restored archive plus new entries, so the cache
-        # grows without bound unless old entries are dropped before the save.
-        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
+        # Cache housekeeping must not fail an otherwise successful test run.
+        continue-on-error: true
+        run: node "scripts/prune-turbo-cache.mjs"
 
   tests-web-client:
     timeout-minutes: 10
