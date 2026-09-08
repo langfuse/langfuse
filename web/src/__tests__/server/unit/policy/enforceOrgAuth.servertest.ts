@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InvalidRequestError } from "@langfuse/shared";
+import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 
 import { __test } from "@/src/features/auth/policy/enforceOrgAuth";
 import {
@@ -58,10 +58,10 @@ describe("getOrgId", () => {
       error: expect.any(InvalidRequestError),
     });
   });
-  it("400s a principal carrying no binding", () => {
+  it("403s a principal carrying no binding", () => {
     expect(getOrgId(adminKey(), {})).toMatchObject({
       success: false,
-      error: expect.any(InvalidRequestError),
+      error: expect.any(ForbiddenError),
     });
   });
 });

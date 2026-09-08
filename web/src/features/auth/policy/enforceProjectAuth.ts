@@ -1,7 +1,7 @@
 import { type IncomingHttpHeaders } from "http";
 
 import {
-  type ForbiddenError,
+  ForbiddenError,
   type InternalServerError,
   InvalidRequestError,
   type UnauthorizedError,
@@ -44,11 +44,11 @@ export async function enforceProjectAuth(
   return { success: true, context, projectId: target.projectId };
 }
 
-/** getProjectId resolves the target project as `header ?? boundResource ?? 400`; a header disagreeing with the bound project 400s. */
+/** getProjectId resolves the target project as `header ?? boundResource`; a header disagreeing with the bound project 400s, no target 403s. */
 function getProjectId(
   context: AuthorizationContext,
   headers: IncomingHttpHeaders,
-): ResolvedProject | ErrorResult<InvalidRequestError> {
+): ResolvedProject | ErrorResult<InvalidRequestError | ForbiddenError> {
   const boundProjectId = boundProjectIdOf(context);
   const header = headerValue(headers[projectIdHeader]) || undefined;
   if (header && boundProjectId && header !== boundProjectId) {
@@ -63,7 +63,7 @@ function getProjectId(
   if (!projectId) {
     return {
       success: false,
-      error: new InvalidRequestError(
+      error: new ForbiddenError(
         `No project target: send ${projectIdHeader} or use a project-scoped API key`,
       ),
     };

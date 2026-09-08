@@ -1,7 +1,7 @@
 import { type IncomingHttpHeaders } from "http";
 
 import {
-  type ForbiddenError,
+  ForbiddenError,
   type InternalServerError,
   InvalidRequestError,
   type UnauthorizedError,
@@ -42,11 +42,11 @@ export async function enforceOrgAuth(
   return { success: true, context, orgId: target.orgId };
 }
 
-/** getOrgId resolves the target org as `header ?? boundResource ?? 400`; a header disagreeing with the bound org 400s. */
+/** getOrgId resolves the target org as `header ?? boundResource`; a header disagreeing with the bound org 400s, no target 403s. */
 function getOrgId(
   context: AuthorizationContext,
   headers: IncomingHttpHeaders,
-): ResolvedOrg | ErrorResult<InvalidRequestError> {
+): ResolvedOrg | ErrorResult<InvalidRequestError | ForbiddenError> {
   const boundOrgId = boundOrgIdOf(context);
   const header = headerValue(headers[orgIdHeader]);
   if (header && boundOrgId && header !== boundOrgId) {
@@ -61,7 +61,7 @@ function getOrgId(
   if (!orgId) {
     return {
       success: false,
-      error: new InvalidRequestError(
+      error: new ForbiddenError(
         `No organization target: send ${orgIdHeader} or use an organization-scoped API key`,
       ),
     };

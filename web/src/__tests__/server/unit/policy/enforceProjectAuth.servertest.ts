@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InvalidRequestError } from "@langfuse/shared";
+import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 
 import { __test } from "@/src/features/auth/policy/enforceProjectAuth";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
@@ -65,10 +65,10 @@ describe("getProjectId", () => {
       getProjectId(projectKey(), { [projectIdHeader]: "prj_2" }),
     ).toMatchObject({ success: false, error: expect.any(InvalidRequestError) });
   });
-  it("400s when neither header nor bound project exists", () => {
+  it("403s when neither header nor bound project exists", () => {
     expect(getProjectId(orgKey(), {})).toMatchObject({
       success: false,
-      error: expect.any(InvalidRequestError),
+      error: expect.any(ForbiddenError),
     });
   });
 });

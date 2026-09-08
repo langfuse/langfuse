@@ -173,14 +173,10 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     expect(enforce).toMatchObject({ validKey: false, status: 403 });
   });
 
-  it("an organization key naming no project 400s in enforce where legacy 403s", async () => {
+  it("an organization key naming no project 403s in both modes", async () => {
     const { legacy, enforce } = await projectResultUnderModes(orgAuth);
-    expect(legacy).toMatchObject({ status: 403 });
-    expect(enforce).toMatchObject({
-      status: 400,
-      error:
-        "No project target: send x-langfuse-project-id or use a project-scoped API key",
-    });
+    expect(legacy).toMatchObject({ validKey: false, status: 403 });
+    expect(enforce).toMatchObject({ validKey: false, status: 403 });
   });
 
   it("a bearer-presented project key on a project route 403s in both modes", async () => {
