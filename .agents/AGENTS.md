@@ -209,6 +209,8 @@ langfuse/
 - Open a same-repo reviewable PR after local verification (not a draft) and
   test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
   data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- After opening a PR, apply the GitHub `cursor` label. Do not wait for a
+  human to add it.
 - Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
   `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
   Repo guidance wins.
