@@ -420,10 +420,10 @@ function isJsonObject(
  * OpenAI Responses requests reject role-based system items on endpoints that
  * validate input strictly (notably Azure), because @ai-sdk/openai converts
  * them without an explicit `type`. The Responses API's native system-prompt
- * surface is the top-level `instructions` field, so hoist system messages out
- * of the message list when the OpenAI/OpenAI-compatible connection runs in
- * responses mode. An explicitly configured `instructions` provider option wins
- * and disables the hoist.
+ * surface is the top-level `instructions` field, so drop system messages from
+ * the message list when the OpenAI/OpenAI-compatible connection runs in
+ * responses mode and forward their text as `instructions` unless the caller
+ * already configured that provider option.
  */
 function hoistSystemMessagesForResponses(params: {
   adapter: LLMAdapter;
@@ -438,24 +438,27 @@ function hoistSystemMessagesForResponses(params: {
     };
   }
 
-  const systemText = collectSystemMessageText(params.messages);
-  if (!systemText) {
+  if (!params.messages.some((message) => message.role === "system")) {
     return {
       messages: params.messages,
       providerOptions: params.providerOptions,
     };
   }
 
+  const messages = params.messages.filter(
+    (message) => message.role !== "system",
+  );
+  const systemText = collectSystemMessageText(params.messages);
   const openAIOptions = params.providerOptions?.openai ?? {};
-  if (openAIOptions.instructions !== undefined) {
+  if (openAIOptions.instructions !== undefined || !systemText) {
     return {
-      messages: params.messages,
+      messages,
       providerOptions: params.providerOptions,
     };
   }
 
   return {
-    messages: params.messages.filter((message) => message.role !== "system"),
+    messages,
     providerOptions: {
       ...params.providerOptions,
       openai: {

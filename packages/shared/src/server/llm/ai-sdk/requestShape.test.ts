@@ -181,6 +181,7 @@ async function runCompletion(params: {
   llmConnectionConfig?: Record<string, string | boolean>;
   output?: ReturnType<typeof createLLMOutput>;
   tools?: Parameters<typeof generateLLMText>[0]["tools"];
+  providerOptions?: Parameters<typeof generateLLMText>[0]["providerOptions"];
   response: unknown;
   trace?: TraceSinkParams;
 }) {
@@ -202,6 +203,9 @@ async function runCompletion(params: {
     timeout: 10_000,
     output: params.output,
     tools: params.tools,
+    ...(params.providerOptions !== undefined
+      ? { providerOptions: params.providerOptions }
+      : {}),
     trace: params.trace,
   });
 
@@ -310,6 +314,25 @@ describe("AI SDK request shapes", () => {
     expect(tools[0]?.parameters).toEqual(
       expect.objectContaining({ type: "object" }),
     );
+  });
+
+  it("OpenAI responses mode: explicit instructions win and system items are still stripped", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      },
+      apiKey: "sk-test",
+      llmConnectionConfig: { useResponsesApi: true },
+      providerOptions: { openai: { instructions: "Use French." } },
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+
+    expect(request.body.instructions).toBe("Use French.");
+    const input = request.body.input as Array<Record<string, unknown>>;
+    expect(input.some((item) => item.role === "system")).toBe(false);
+    expect(input).toHaveLength(1);
   });
 
   it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
